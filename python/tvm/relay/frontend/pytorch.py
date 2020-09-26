@@ -1812,13 +1812,14 @@ def _to():
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
         cast_map = {
+            5: "float16",
             6: "float32",
             7: "float64",
             3: "int32",
             4: "int64",
         }
 
-        cast_func = {6: float, 7: float, 3: int, 4: int}
+        cast_func = {5: float, 6: float, 7: float, 3: int, 4: int}
 
         ret = data
         if isinstance(data, _expr.Expr):
@@ -2421,21 +2422,21 @@ def _convert_data_type(input_type, default_dtype=None):
         return default_dtype
 
     input_type = input_type.lower()
-    if input_type in ["double", "torch.float64"]:
+    if input_type in ["double", "float64", "torch.float64"]:
         return "float64"
-    elif input_type in ["float", "torch.float32"]:
+    elif input_type in ["float", "float32", "torch.float32"]:
         return "float32"
-    elif input_type in ["half", "torch.float16"]:
+    elif input_type in ["half", "float16", "torch.float16"]:
         return "float16"
-    elif input_type in ["long", "torch.int64"]:
+    elif input_type in ["long", "int64", "torch.int64"]:
         return "int64"
-    elif input_type in ["int", "torch.int32"]:
+    elif input_type in ["int", "int32", "torch.int32"]:
         return "int32"
-    elif input_type in ["short", "torch.int16"]:
+    elif input_type in ["short", "int16", "torch.int16"]:
         return "int16"
-    elif input_type in ["char", "torch.int8"]:
+    elif input_type in ["char", "int8", "torch.int8"]:
         return "int8"
-    elif input_type in ["byte", "torch.uint8"]:
+    elif input_type in ["byte", "uint8", "torch.uint8"]:
         return "uint8"
     elif input_type in ["quint8", "torch.quint8"]:
         return "quint8"
@@ -2843,7 +2844,7 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_dtype="float32"):
+def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_dtype="float32"):
     """
     Return Relay vars from input shapes and create entries based on
     expected graph inputs - to allow translation
@@ -2854,17 +2855,17 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
         # a module has "self" as first input, which we do not need/want
         graph_inputs = graph_inputs[1:]
 
-    if not isinstance(input_shapes, list):
-        msg = "Graph inputs input_shapes should be a list"
+    if not isinstance(input_infos, list):
+        msg = "Graph inputs input_infos should be a list"
         raise RuntimeError(msg)
 
-    if len(graph_inputs) != len(input_shapes):
-        msg = "PyTorch has {} inputs and input_shapes lists {}.".format(
-            len(graph_inputs), len(input_shapes)
+    if len(graph_inputs) != len(input_infos):
+        msg = "PyTorch has {} inputs and input_infos lists {}.".format(
+            len(graph_inputs), len(input_infos)
         )
         raise RuntimeError(msg)
 
-    def get_relay_ty(ishape, pt_type):
+    def get_relay_ty(ishape, itype, pt_type):
         if pt_type.kind() == "TensorType":
             if not (_is_int_seq(ishape) or len(ishape) == 0):
                 msg = "Shape for Tensors must be lists of ints"
@@ -2876,6 +2877,8 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
                 msg = "Shapes of input list and information in the graph do not match"
                 raise RuntimeError(msg)
             pt_dtype = pt_type.scalarType()
+            if not pt_dtype and itype:
+                pt_dtype = itype
             dtype = _convert_data_type(pt_dtype, default_dtype=default_dtype)
             return TensorType(ishape, dtype)
         elif pt_type.kind() == "TupleType":
@@ -2883,37 +2886,45 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
                 msg = "Shapes for tuples must be tuples"
                 raise RuntimeError(msg)
             return TupleType(
-                [get_relay_ty(elem, pt_t) for elem, pt_t in zip(ishape, pt_type.elements())]
+                [get_relay_ty(elem, itype, pt_t) for elem, pt_t in zip(ishape, pt_type.elements())]
             )
         elif pt_type.kind() == "ListType":
             if not isinstance(ishape, list):
                 msg = "Shapes for lists must be lists"
                 raise RuntimeError(msg)
             pt_elemtype = pt_type.getElementType()
-            elem_tys = [get_relay_ty(s, pt_elemtype) for s in ishape]
+            elem_tys = [get_relay_ty(s, itype, pt_elemtype) for s in ishape]
             if len(elem_tys) > 0 and not all(map(lambda ty: ty == elem_tys[0], elem_tys)):
                 msg = "List elements need have identical types"
                 raise RuntimeError(msg)
             return prelude.l(elem_tys[0])
         elif pt_type.kind() == "OptionalType":
             # we do not support None yet, so we fill in the type
-            return get_relay_ty(ishape, pt_type.getElementType())
+            return get_relay_ty(ishape, itype, pt_type.getElementType())
         # TODO: scalar inputs
         raise NotImplementedError("unsupported input type")
 
     input_vars = {}
 
-    for num, inp in enumerate(input_shapes):
+    new_input_infos = []
+    for num, inp in enumerate(input_infos):
         if not isinstance(inp, tuple):
             msg = "Graph input {} is not a tuple".format(num)
             raise RuntimeError(msg)
         if len(inp) != 2 or not isinstance(inp[0], str):
-            msg = "Graph input {} is not valid, expected ('name', shape)".format(inp)
+            msg = (
+                "Graph input {} is not valid,"
+                " expected ('name', shape) or ('name', (shape, dtype))".format(inp)
+            )
             raise RuntimeError(msg)
+        if not isinstance(inp[1], tuple) or len(inp[1]) == 0 or not isinstance(inp[1][-1], str):
+            new_input_infos.append((inp[0], (inp[1], default_dtype)))
+        else:
+            new_input_infos.append(inp)
 
     input_types = [
-        (name, get_relay_ty(shape, gi.type()))
-        for (name, shape), gi in zip(input_shapes, graph_inputs)
+        (name, get_relay_ty(info[0], info[1], gi.type()))
+        for (name, info), gi in zip(new_input_infos, graph_inputs)
     ]
 
     ir_inputs = [i.debugName() for i in graph_inputs]
@@ -3244,7 +3255,7 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_dtype="float32"):
+def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dtype="float32"):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -3254,10 +3265,15 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_shapes : List of tuples of input name and input dimensions
-        Graph level input shape list
+    input_infos: List of tuples of (input name, input shape)
+                 or (input name, (input shape, input types))
+        Graph level input shape and type list
         The same input names need to be used for deployment, so choose easy to
         remember names (such as: input0, input1)
+        e.g.
+          [('input0', (1, 2)), ('input1', (3, 4))]
+          or
+          [('input0', ((1, 2), 'int')), ('input1', ((3, 4), 'float'))]
 
     custom_convert_map: Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
@@ -3289,7 +3305,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
     outputs = _get_relay_input_vars(
-        graph, input_shapes, prelude, default_dtype=default_dtype, is_module=is_module
+        graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}

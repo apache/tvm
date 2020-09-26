@@ -154,6 +154,7 @@ class OnnxFrontend(Frontend):
         # pylint: disable=C0415
         import onnx
 
+        # pylint: disable=E1101
         model = onnx.load(path)
 
         # pylint: disable=E1101

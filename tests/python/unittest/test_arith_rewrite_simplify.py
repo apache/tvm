@@ -916,6 +916,12 @@ def test_cast_simplify():
                 ck.verify(tvm.tir.Cast(dtype1, tvm.tir.const(i, dtype2)), tvm.tir.const(i, dtype1))
 
 
+def test_shift_left_simplify():
+    ck = RewriteChecker()
+    z = tvm.tir.op.call_intrin("int32", "tir.shift_left", 1, 10)
+    ck.verify(z, tvm.tir.const(1 << 10, "int32"))
+
+
 if __name__ == "__main__":
     test_floordiv_index_simplify()
     test_floormod_index_simplify()
@@ -932,3 +938,4 @@ if __name__ == "__main__":
     test_logical_simplify()
     test_let_simplify()
     test_cast_simplify()
+    test_shift_left_simplify()

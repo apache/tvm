@@ -27,10 +27,10 @@ export type GPUPointer = number;
 /**
  * DetectGPU device in the environment.
  */
-export async function detectGPUDevice(): Promise<GPUDevice | undefined> {
+export async function detectGPUDevice(): Promise<GPUDevice | undefined | null> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
     const adapter = await navigator.gpu.requestAdapter();
-    return await adapter.requestDevice();
+    return await adapter?.requestDevice();
   } else {
     return undefined;
   }
@@ -235,10 +235,13 @@ export class WebGPUContext {
     nbytes: number
   ): void {
     // Perhaps it would be more useful to use a staging buffer?
-    const [gpuTemp, cpuTemp] = this.device.createBufferMapped({
+    const gpuTemp = this.device.createBuffer({
+      mappedAtCreation: true,
       size: nbytes,
-      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC
     });
+
+    const cpuTemp = gpuTemp.getMappedRange();
 
     const viewU8 = new Uint8Array(cpuTemp);
     viewU8.set(this.memory.loadRawBytes(from, nbytes));
@@ -281,8 +284,9 @@ export class WebGPUContext {
     this.device.defaultQueue.submit([copyCommands]);
 
     this.numPendingReads += 1;
-    const readEvent = gpuTemp.mapReadAsync().then((data: ArrayBuffer) => {
-      this.memory.storeRawBytes(to, new Uint8Array(data));
+
+    const readEvent = gpuTemp.mapAsync(GPUMapMode.READ).then((data: unknown) => {
+      this.memory.storeRawBytes(to, new Uint8Array(data as ArrayBuffer));
       this.numPendingReads -= 1;
       gpuTemp.destroy();
     });

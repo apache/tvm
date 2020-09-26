@@ -1524,29 +1524,60 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>
 }
 
 /*!
- * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonal.
+ * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonals.
  * \param input input tensor.
- * \param diagonal values to be filled in the diagonal.
+ * \param diagonal values to be filled in the diagonals.
+ * \param k1 lower limit (included) of the range of diagonals.
+ * \param k2 upper limit (included) of the range of diagonals.
+ * \param super_diag_right_align bool, true iff super-diagonal is right aligned (left-padded).
+ * \param sub_diag_right_align bool, true iff sub-diagonal is right aligned (left-padded).
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return new tensor with given diagonal values.
  */
-inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k1, int k2,
+                              bool super_diag_right_align, bool sub_diag_right_align,
                               const std::string name = "T_matrix_set_diag",
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
+
+  bool only_one_diagonal = k1 == k2;
 
   return compute(
       input->shape,
       [&](const Array<Var>& iter_vars) {
         auto get_diag = [&]() {
           Array<PrimExpr> diagonal_indices;
-          for (size_t i = 0; i < ndim; i++) {
+          PrimExpr k, offset = 0;
+          for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
           }
+          if (only_one_diagonal) {
+            k = k1;
+          } else {
+            // Determining which diagonal/sub-diagonal/super-diagonal it is
+            k = iter_vars[ndim] - iter_vars[ndim - 1];
+            diagonal_indices.push_back(k2 - k);
+
+            // Calculating the offset in diagonal tensor for this diagonal
+            auto get_offset = [&](PrimExpr M, PrimExpr N) {
+              // offset = max_diagonal_length - diagonal_length
+              return diagonal->shape[diagonal->shape.size() - 1] - if_then_else(M < N, M, N);
+            };
+            offset = if_then_else(
+                k >= 0,
+                super_diag_right_align ? get_offset(input->shape[ndim] - k, input->shape[ndim - 1])
+                                       : 0,
+                sub_diag_right_align ? get_offset(input->shape[ndim], input->shape[ndim - 1] + k)
+                                     : 0);
+          }
+          diagonal_indices.push_back(if_then_else(k >= 0, iter_vars[ndim - 1], iter_vars[ndim]) +
+                                     offset);
           return diagonal(diagonal_indices);
         };
-        return if_then_else((PrimExpr)iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1,
+                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2,
+                                         get_diag(), input(iter_vars)),
                             input(iter_vars));
       },
       name, tag);
