@@ -120,6 +120,9 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
+# Whether to build with BYOC software emulated posit custom datatype
+set(USE_BYOC_POSIT OFF)
+
 # Whether use BLAS, choices: openblas, atlas, apple
 set(USE_BLAS none)
 
