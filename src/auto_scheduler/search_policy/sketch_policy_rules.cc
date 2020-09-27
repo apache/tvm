@@ -1098,20 +1098,21 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
   auto fuse_step = (*state)->transform_steps[step_id - 1].as<FuseStepNode>();
   int stage_id = fuse_step->stage_id;
   const Stage& stage = tmp_s->stages[stage_id];
-  size_t iter_id;
-  for (iter_id = 0; iter_id < stage->iters.size(); ++iter_id) {
-    const Iterator& it = stage->iters[iter_id];
+  size_t max_fusable_iter_id;
+  for (max_fusable_iter_id = 0; max_fusable_iter_id < stage->iters.size(); ++max_fusable_iter_id) {
+    const Iterator& it = stage->iters[max_fusable_iter_id];
     if (it->iter_kind == IteratorKind::kReduction || it->annotation != IteratorAnnotation::kNone) {
       break;
     }
 
-    if (tmp_s->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, iter_id))) {
+    if (tmp_s->attach_map->iter_to_attached_stages.count(
+            std::make_pair(stage_id, max_fusable_iter_id))) {
       break;
     }
   }
 
   // Randomly pick one granularity
-  int fuse_to_iter_id = (*rand_gen)() % iter_id + 1;
+  int fuse_to_iter_id = (*rand_gen)() % max_fusable_iter_id + 1;
   Array<Integer> fused_ids;
   for (int i = 0; i < fuse_to_iter_id; ++i) {
     fused_ids.push_back(i);
