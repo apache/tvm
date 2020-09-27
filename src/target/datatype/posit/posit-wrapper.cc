@@ -19,8 +19,12 @@
 
 /*!
  * \file 3rdparty/posit/posit-wrapper.cc
- * \brief Wrapper over the Universal library for Bring Your Own Datatypes tests
- * Use the SET_POSIT flag to include this file in the build.
+ * \brief Wrapper over the Stillwater Universal library for Bring Your Own Datatypes tests
+ *
+ * To compile TVM with this file,
+ * 1. clone the Stillwater Universal repo from here `https://github.com/stillwater-sc/universal`.
+ * 2. set `SET_BYODT_POSIT` ON and `UNIVERSAL_PATH` as the path to the folder containing Stillwater
+ * Universal in your cmake file
  *
  * TODO(@gussmith23 @hypercubestart) Link to BYODT docs when they exist?
  */
