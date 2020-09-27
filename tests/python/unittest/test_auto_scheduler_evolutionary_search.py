@@ -17,6 +17,7 @@
 """ Test evolutionary search. """
 
 import tvm
+import pytest
 from test_auto_scheduler_common import matmul_auto_scheduler_test
 from tvm import auto_scheduler, te
 from tvm.auto_scheduler.cost_model.cost_model import PythonBasedModel
@@ -68,6 +69,7 @@ def test_mutate_tile_size():
     assert found
 
 
+@pytest.mark.skip(reason="flaky")
 def test_mutate_parallel():
     """
     The test case initializes evo search with a batch of "bad" states and check whether
