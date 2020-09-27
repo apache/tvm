@@ -478,7 +478,7 @@ PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* p
 PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(
     SketchPolicyNode* policy, State* state, std::mt19937* rand_gen) const {
   if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
-    return PopulationGenerationRule::ResultKind::kValid;
+    return ResultKind::kValid;
   }
 
   for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
@@ -517,9 +517,9 @@ PopulationGenerationRule::ResultKind InitChangeComputeLocation::Apply(
   try {
     *state = policy->search_task->compute_dag.InferBound(*state);
   } catch (std::exception& e) {
-    return PopulationGenerationRule::ResultKind::kInvalid;
+    return ResultKind::kInvalid;
   }
-  return PopulationGenerationRule::ResultKind::kValid;
+  return ResultKind::kValid;
 }
 
 PopulationGenerationRule::ResultKind InitParallel::Apply(SketchPolicyNode* policy, State* state,
@@ -995,7 +995,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
                                                                   State* state,
                                                                   std::mt19937* rand_gen) const {
   if (GetIntParam(policy->params, SketchParamKey::disable_change_compute_location)) {
-    return PopulationGenerationRule::ResultKind::kInvalid;
+    return ResultKind::kInvalid;
   }
 
   // Extract all compute_at steps.
@@ -1015,7 +1015,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
     }
   }
   if (compute_at_steps.empty()) {
-    return PopulationGenerationRule::ResultKind::kInvalid;
+    return ResultKind::kInvalid;
   }
 
   // Randomly pick one step
@@ -1028,7 +1028,7 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
   std::vector<std::pair<int, int>> candidates =
       GetComputeLocationCandidates(policy->search_task, *state, ps->stage_id + stage_inc);
   if (candidates.empty()) {
-    return PopulationGenerationRule::ResultKind::kInvalid;
+    return ResultKind::kInvalid;
   }
   int choice = (*rand_gen)() % (candidates.size());
   int new_compute_at_stage_id = candidates[choice].first;
@@ -1046,12 +1046,12 @@ PopulationGenerationRule::ResultKind MutateComputeLocation::Apply(SketchPolicyNo
     try {
       StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
     } catch (dmlc::Error& e) {
-      return PopulationGenerationRule::ResultKind::kInvalid;
+      return ResultKind::kInvalid;
     }
   }
 
   *state = tmp_s;
-  return PopulationGenerationRule::ResultKind::kValid;
+  return ResultKind::kValid;
 }
 
 PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* policy, State* state,
