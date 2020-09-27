@@ -381,11 +381,9 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const St
   return false;
 }
 
-
 /*! \brief Return whether the step changes the number of stages */
 inline bool IsStageNumberChangingStep(const Step& step) {
-  return step->IsInstance<CacheWriteStepNode>() ||
-         step->IsInstance<CacheReadStepNode>() ||
+  return step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>() ||
          step->IsInstance<RfactorStepNode>();
 }
 

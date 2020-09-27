@@ -1094,7 +1094,6 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
     StepApplyToState(step, &tmp_s, policy->search_task->compute_dag);
   }
 
-
   // Compute all possible fusion granularities
   auto fuse_step = (*state)->transform_steps[step_id - 1].as<FuseStepNode>();
   int stage_id = fuse_step->stage_id;
@@ -1154,8 +1153,8 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
       }
     }
     if (IsStageNumberChangingStep(step)) {
-      // For these steps, we have to update stage_id because these steps will make stage_id out-dated.
-      // But here we just simply give up this mutation for simplicity.
+      // For these steps, we have to update stage_id because these steps will make stage_id
+      // out-dated. But here we just simply give up this mutation for simplicity.
       // This is not an issue because this will never happend in normal cases where all these steps
       // are before parallel steps.
       return ResultKind::kInvalid;
@@ -1163,7 +1162,7 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
     tmp_s.CopyOnWrite()->transform_steps.push_back(step);
     try {
       StepApplyToState(tmp_s->transform_steps.back(), &tmp_s, policy->search_task->compute_dag);
-    } catch (dmlc::Error &e) {
+    } catch (dmlc::Error& e) {
       return ResultKind::kInvalid;
     }
   }

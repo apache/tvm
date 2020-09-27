@@ -37,10 +37,10 @@ def test_mutate_tile_size():
         @staticmethod
         def is_good_state(state):
             for line in str(state).split("\n"):
-               if line.find("k.1") != -1 and line.find("(0,2)") != -1:
-                   return True
+                if line.find("k.1") != -1 and line.find("(0,2)") != -1:
+                    return True
             return False
-   
+
         def predict(self, task, states):
             scores = []
             found = False
@@ -67,6 +67,7 @@ def test_mutate_tile_size():
             break
     assert found
 
+
 def test_mutate_parallel():
     """
     The test case initializes evo search with a batch of "bad" states and check whether
@@ -80,12 +81,14 @@ def test_mutate_parallel():
         @staticmethod
         def is_good_state(state):
             for line in str(state).split("\n"):
-                if (line.find('parallel i.0@ (0') != -1 or
-                    line.find('parallel i.0@j.0@ (0') != -1 or
-                    line.find('parallel i.0@j.0@i.1@ (0') != -1):
-                   return True
+                if (
+                    line.find("parallel i.0@ (0") != -1
+                    or line.find("parallel i.0@j.0@ (0") != -1
+                    or line.find("parallel i.0@j.0@i.1@ (0") != -1
+                ):
+                    return True
             return False
-   
+
         def predict(self, task, states):
             scores = []
             found = False
@@ -118,4 +121,3 @@ def test_mutate_parallel():
 if __name__ == "__main__":
     test_mutate_tile_size()
     test_mutate_parallel()
-
