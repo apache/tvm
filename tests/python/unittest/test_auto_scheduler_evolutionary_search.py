@@ -69,7 +69,7 @@ def test_mutate_tile_size():
     assert found
 
 
-@pytest.mark.xfail("flaky")
+@pytest.mark.skip(reason="flaky")
 def test_mutate_parallel():
     """
     The test case initializes evo search with a batch of "bad" states and check whether
