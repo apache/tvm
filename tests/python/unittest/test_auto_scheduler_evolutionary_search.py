@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Test evolutionary search."""
+""" Test evolutionary search. """
 
 import tvm
 from test_auto_scheduler_common import matmul_auto_scheduler_test
@@ -80,8 +80,9 @@ def test_mutate_parallel():
         @staticmethod
         def is_good_state(state):
             for line in str(state).split("\n"):
-                if (line.find('parallel i.0@ (0') != -1 or line.find('parallel i.0@j.0@ (0') != -1
-                    or line.find('parallel i.0@j.0@i.1@ (0') != -1):
+                if (line.find('parallel i.0@ (0') != -1 or
+                    line.find('parallel i.0@j.0@ (0') != -1 or
+                    line.find('parallel i.0@j.0@i.1@ (0') != -1):
                    return True
             return False
    
@@ -96,19 +97,21 @@ def test_mutate_parallel():
     dag = auto_scheduler.ComputeDAG(workload_key)
     task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.Target("llvm"))
     policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
-    states = policy.sample_initial_population(50)
+    states = policy.sample_initial_population(100)
 
     bad_states = []
     for state in states:
         if not MockCostModel.is_good_state(state):
             bad_states.append(state)
 
-    new_states = policy.evolutionary_search(bad_states, 50)
     found = False
-    for state in new_states:
-        if MockCostModel.is_good_state(state):
-            found = True
-            break
+    retry_ct = 0
+    while retry_ct < 5 and not found:
+        new_states = policy.evolutionary_search(bad_states, 50)
+        for state in new_states:
+            if MockCostModel.is_good_state(state):
+                found = True
+                break
     assert found
 
 
