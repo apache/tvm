@@ -46,9 +46,7 @@ Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
 
   Array<Integer> spatial_split_step_ids;
   for (int i = s->transform_steps.size() - 1; i >= 0; --i) {
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
