@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_BYOC_POSIT)
+if(USE_BYODT_POSIT)
   message(STATUS "Build with contrib.posit")
   if (NOT UNIVERSAL_PATH)
     message(FATAL_ERROR "Fail to get Universal path")
@@ -23,4 +23,4 @@ if(USE_BYOC_POSIT)
   
   include_directories(${UNIVERSAL_PATH}/include)
   list(APPEND COMPILER_SRCS "src/target/datatype/posit/posit-wrapper.cc")
-endif(USE_BYOC_POSIT)
+endif(USE_BYODT_POSIT)

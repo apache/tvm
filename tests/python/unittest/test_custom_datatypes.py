@@ -523,10 +523,10 @@ def test_myfloat():
 
 
 def _has_posit():
-    return tvm.support.libinfo()["USE_BYOC_POSIT"] == "ON"
+    return tvm.support.libinfo()["USE_BYODT_POSIT"] == "ON"
 
 
-@pytest.mark.skipif(not _has_posit(), reason="compiled with USE_BYOC_POSIT flag OFF")
+@pytest.mark.skipif(not _has_posit(), reason="compiled with USE_BYODT_POSIT flag OFF")
 def test_posites2():
     setup_posites2()
     run_ops("float32", "custom[posites2]8", rtol=1, atol=1)
