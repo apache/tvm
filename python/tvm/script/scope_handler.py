@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Parser Scope Handler Functions
+"""TVM Script Parser Scope Handler Functions
 This module provides the functions registered into parser under with_scope or for_scope category.
 Scope handler nodes are StmtNodes with body, which are used to handle such scenarios.
 1. For scope handler
 When registering a for scope handler, the first 4 arguments must be parser, node, body, loop_vars
-and these arguments will provided by Hybrid Script parser automatically
+and these arguments will provided by TVM Script parser automatically
 .. code-block:: python
     for loop_vars in tir.xxx():
 2. With scope handler
@@ -41,14 +41,14 @@ Example : None atm
     with tir.xxx() as target:
 3) without as & concise
 the first 3 arguments must be parser, node, body
-Hybrid Script parser will parse the body automatically
+TVM Script parser will parse the body automatically
 Example : tir.allocate()/tir.realize()/tir.attr()
 .. code-block:: python
     tir.xxx()
     with tir.xxx():
 4) without as & not concise
 the first 3 arguments must be parser, node, body
-Hybrid Script parser will parse the body automatically
+TVM Script parser will parse the body automatically
 Example : tir.assert()/tir.let()
 .. code-block:: python
     with tir.xxx():

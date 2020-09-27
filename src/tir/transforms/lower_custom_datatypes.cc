@@ -23,6 +23,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -50,7 +51,6 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<CastNode>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
       CHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
@@ -93,6 +93,22 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     if (toBeLowered) {
       auto new_load_type = DataType::UInt(load->dtype.bits());
       return Load(new_load_type, load->buffer_var, load->index, load->predicate);
+    }
+    return expr;
+  }
+
+  inline PrimExpr VisitExpr_(const CallNode* call) final {
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(call->dtype.code());
+    PrimExpr expr = StmtExprMutator::VisitExpr_(call);
+    call = expr.as<CallNode>();
+    if (toBeLowered) {
+      auto op = call->op.as<OpNode>();
+      CHECK(op != nullptr) << "Lowering non-intrinsic Calls not implemented";
+      auto lower = datatype::GetIntrinLowerFunc(target_, op->name, call->dtype.code());
+      CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
+                   << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
+                   << " not found";
+      return (*lower)(expr);
     }
     return expr;
   }

@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
-
-# install libraries for python package on ubuntu
-pip3 install six numpy pytest cython decorator scipy tornado typed_ast pytest mypy orderedset attrs requests Pillow packaging
+if(USE_BYODT_POSIT)
+  message(STATUS "Build with contrib.posit")
+  if (NOT UNIVERSAL_PATH)
+    message(FATAL_ERROR "Fail to get Universal path")
+  endif(NOT UNIVERSAL_PATH)
+  
+  include_directories(${UNIVERSAL_PATH}/include)
+  list(APPEND COMPILER_SRCS "src/target/datatype/posit/posit-wrapper.cc")
+endif(USE_BYODT_POSIT)

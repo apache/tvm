@@ -19,20 +19,28 @@
 import numpy as np
 
 
-def matrix_set_diag(input_np, diagonal):
+def matrix_set_diag(input_np, diagonal, k=0, align="RIGHT_LEFT"):
     """matrix_set_diag operator implemented in numpy.
 
-    Returns a numpy array with the diagonal of input array
+    Returns a numpy array with the diagonals of input array
     replaced with the provided diagonal values.
 
     Parameters
     ----------
-    input : numpy.ndarray
+    input_np : numpy.ndarray
         Input Array.
         Shape = [D1, D2, D3, ... , Dn-1 , Dn]
+
     diagonal : numpy.ndarray
         Values to be filled in the diagonal.
-        Shape = [D1, D2, D3, ... , Dn-1]
+
+    k : int or tuple of int
+        Diagonal Offsets.
+
+    align : string
+        Some diagonals are shorter than max_diag_len and need to be padded.
+        Possible Vales:
+        ["RIGHT_LEFT" (default), "LEFT_RIGHT", "LEFT_LEFT", "RIGHT_RIGHT"]
 
     Returns
     -------
@@ -41,8 +49,36 @@ def matrix_set_diag(input_np, diagonal):
         Shape = [D1, D2, D3, ... , Dn-1 , Dn]
     """
     out = np.array(input_np, copy=True)
-    n = min(input_np.shape[-1], input_np.shape[-2])
-    for i in range(n):
-        out[..., i, i] = diagonal[..., i]
 
+    cols = input_np.shape[-1]
+    rows = input_np.shape[-2]
+
+    onlyOneDiagonal = True
+    if isinstance(k, (tuple, list)):
+        if len(k) < 2 or k[0] == k[1]:
+            k = k[0]
+        else:
+            onlyOneDiagonal = False
+
+    if onlyOneDiagonal:
+        for i in range(diagonal.shape[-1]):
+            if k >= 0:
+                out[..., i, i + k] = diagonal[..., i]
+            else:
+                out[..., i - k, i] = diagonal[..., i]
+    else:
+        for ki in range(k[0], k[1] + 1):
+            diag_len = min(cols - max(ki, 0), rows + min(ki, 0))
+            offset = 0
+            if ki >= 0:
+                if align[:5] == "RIGHT":
+                    offset = diagonal.shape[-1] - diag_len
+            else:
+                if align[-5:] == "RIGHT":
+                    offset = diagonal.shape[-1] - diag_len
+            for i in range(diag_len):
+                if ki >= 0:
+                    out[..., i, i + ki] = diagonal[..., k[1] - ki, i + offset]
+                else:
+                    out[..., i - ki, i] = diagonal[..., k[1] - ki, i + offset]
     return out

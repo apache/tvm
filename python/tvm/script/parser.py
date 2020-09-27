@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Parser For TIR"""
+"""TVM Script Parser For TIR"""
 # pylint: disable=invalid-name, missing-docstring, inconsistent-return-statements, no-else-return
 # pylint: disable=unnecessary-comprehension, unused-argument, import-outside-toplevel
 # pylint: disable=unused-import
@@ -35,16 +35,16 @@ from .registry import Registry
 from . import _ffi_api
 
 
-class HybridParserError(RuntimeError):
-    """Hybrid Parser Runtime Error"""
+class TVMScriptParserError(RuntimeError):
+    """TVM script Parser Runtime Error"""
 
 
-class HybridParser(ast.NodeVisitor):
+class TVMScriptParser(ast.NodeVisitor):
     """Python AST visitor pass which finally lowers it to TIR
     Notes for extension:
     1. To support new types of AST nodes. Add a function visit_xxx().
     2. To support new functions
-        We divide allowed function calls in hybrid script into 3 categories,
+        We divide allowed function calls in TVM script into 3 categories,
         which is intrin, scope_handler and special_stmt.
         1) intrin functions ought to have return value.
         User can also register intrin category function into parser.
@@ -168,7 +168,7 @@ class HybridParser(ast.NodeVisitor):
             lineno = self.current_lineno
         if col_offset is None:
             col_offset = self.current_col_offset
-        raise HybridParserError(self.wrap_line_col(message, lineno, col_offset))
+        raise TVMScriptParserError(self.wrap_line_col(message, lineno, col_offset))
 
     def get_body(self):
         body = []
@@ -196,20 +196,20 @@ class HybridParser(ast.NodeVisitor):
         """Module visitor
         AST abstract grammar:
             Module(stmt* body, type_ignore* type_ignore)
-        By now we support two format of hybrid script shown below.
+        By now we support two format of TVM script shown below.
 
         Example
         -------
-        1. Generate a Function(If the code is printed, then it may bring meta)
+        1. Generate a PrimFunc (If the code is printed, then it may also contain metadata)
         .. code-block:: python
 
             import tvm
 
-            @tvm.hybrid.script
+            @tvm.script
             def A(...):
                 ...
 
-            # call hybrid parser when call this function, get a Function
+            # returns a PrimFunc
             func = A
 
         2. Generate an IRModule
@@ -217,7 +217,7 @@ class HybridParser(ast.NodeVisitor):
 
             import tvm
 
-            @tvm.hybrid.script
+            @tvm.script
             class MyMod():
                def A(...):
                   ...
@@ -227,7 +227,7 @@ class HybridParser(ast.NodeVisitor):
 
                 __tvm_meta__ = ...
 
-            # call hybrid parser during construction, get an IRModule
+            # returns an IRModule
             mod = MyMod()
         """
 
@@ -237,7 +237,7 @@ class HybridParser(ast.NodeVisitor):
         elif len(node.body) == 2:
             if isinstance(node.body[0], ast.Assign):
                 node.body[0], node.body[1] = node.body[1], node.body[0]
-            if isinstance(node.body[0], ast.FunctionDef) and HybridParser.is_meta(node.body[1]):
+            if isinstance(node.body[0], ast.FunctionDef) and TVMScriptParser.is_meta(node.body[1]):
                 # function with meta
                 self.init_meta(MetaUnparser().visit(node.body[1].value))
                 return self.visit(node.body[0])
@@ -257,7 +257,7 @@ class HybridParser(ast.NodeVisitor):
         for body_element in node.body:
             if isinstance(body_element, ast.FunctionDef):
                 pass
-            elif HybridParser.is_meta(body_element) and not count:
+            elif TVMScriptParser.is_meta(body_element) and not count:
                 count = True
                 self.init_meta(MetaUnparser().visit(body_element.value))
             else:
@@ -526,9 +526,9 @@ class HybridParser(ast.NodeVisitor):
 
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)
-        if not isinstance(node.op, tuple(HybridParser._binop_maker.keys())):
+        if not isinstance(node.op, tuple(TVMScriptParser._binop_maker.keys())):
             self.report_error("BinOp " + str(type(node.op)) + " is not supported now")
-        return HybridParser._binop_maker[type(node.op)](lhs, rhs)
+        return TVMScriptParser._binop_maker[type(node.op)](lhs, rhs)
 
     def visit_Compare(self, node):
         """Compare visitor
@@ -542,7 +542,7 @@ class HybridParser(ast.NodeVisitor):
         for i in range(len(node.ops)):
             lhs = ops[i]
             rhs = ops[i + 1]
-            res.append(HybridParser._binop_maker[type(node.ops[i])](lhs, rhs))
+            res.append(TVMScriptParser._binop_maker[type(node.ops[i])](lhs, rhs))
         return _all(*res)
 
     def visit_BoolOp(self, node):
@@ -552,7 +552,7 @@ class HybridParser(ast.NodeVisitor):
         """
 
         values = [self.visit(value) for value in node.values]
-        return HybridParser._binop_maker[type(node.op)](*values)
+        return TVMScriptParser._binop_maker[type(node.op)](*values)
 
     def visit_UnaryOp(self, node):
         """UnaryOp visitor
@@ -561,9 +561,9 @@ class HybridParser(ast.NodeVisitor):
         """
 
         operand = self.visit(node.operand)
-        if not isinstance(node.op, tuple(HybridParser._unaryop_maker.keys())):
+        if not isinstance(node.op, tuple(TVMScriptParser._unaryop_maker.keys())):
             self.report_error("UnaryOp " + str(type(node.op)) + " is not supported now")
-        return HybridParser._unaryop_maker[type(node.op)](operand)
+        return TVMScriptParser._unaryop_maker[type(node.op)](operand)
 
     def visit_Subscript(self, node):
         """Subscript visitor
@@ -734,11 +734,11 @@ def from_source(src, func_lineno=0):
     """
 
     root = ast.parse(src)
-    parser = HybridParser(src, func_lineno)
+    parser = TVMScriptParser(src, func_lineno)
 
     try:
         return parser.visit(root)
-    except HybridParserError as e:
+    except TVMScriptParserError as e:
         raise e
     except TVMError as e:
         # TVM internal c++ error, we have to process the error message and inject line info
@@ -752,7 +752,7 @@ def from_source(src, func_lineno=0):
         raise TVMError("\n".join(inject_e))
     except Exception as e:
         inject_e = parser.wrap_line_col(str(e), parser.current_lineno, parser.current_col_offset)
-        raise HybridParserError(inject_e)
+        raise TVMScriptParserError(inject_e)
 
 
-tvm._ffi._init_api("hybrid", __name__)
+tvm._ffi._init_api("script", __name__)

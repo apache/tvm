@@ -19,7 +19,7 @@
 import numpy as np
 
 
-def dilate_python(input_np, strides):
+def dilate_python(input_np, strides, dilation_value=0.0):
     """Dilate operation.
 
     Parameters
@@ -29,6 +29,9 @@ def dilate_python(input_np, strides):
 
     strides : list / tuple of n ints
         Dilation stride on each dimension, 1 means no dilation.
+
+    dilation_value : int/float, optional
+        Value used to dilate the input.
 
     Returns
     -------
@@ -45,7 +48,8 @@ def dilate_python(input_np, strides):
     for i in range(n):
         output_size += ((input_np.shape[i] - 1) * strides[i] + 1,)
         no_zero += ((range(0, output_size[i], strides[i])),)
-    output_np = np.zeros(shape=output_size)
+    output_np = np.ones(shape=output_size)
+    output_np = dilation_value * output_np
     output_np[np.ix_(*no_zero)] = input_np
 
     return output_np

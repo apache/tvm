@@ -248,6 +248,18 @@ impl Display for Context {
     }
 }
 
+impl<'a> From<&'a Context> for ArgValue<'a> {
+    fn from(ctx: &'a Context) -> Self {
+        DLContext::from(ctx).into()
+    }
+}
+
+impl<'a> From<Context> for ArgValue<'a> {
+    fn from(ctx: Context) -> Self {
+        DLContext::from(ctx).into()
+    }
+}
+
 impl From<Context> for RetValue {
     fn from(ret_value: Context) -> RetValue {
         RetValue::Context(ret_value.into())

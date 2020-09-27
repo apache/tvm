@@ -30,6 +30,7 @@
 
 #include <algorithm>
 
+#include "../target/datatype/registry.h"
 #include "const_fold.h"
 #include "pattern_match.h"
 
@@ -460,7 +461,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
-    CHECK(op->dtype.is_float());
+    CHECK(op->dtype.is_float() ||
+          datatype::Registry::Global()->GetTypeRegistered(op->dtype.code()));
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
 
@@ -1535,7 +1537,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(tir::builtin::shift_left())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
-      return op->args[0] & op->args[1];
+      return op->args[0] << op->args[1];
     }
   }
   ExprDeepEqual expr_equal;

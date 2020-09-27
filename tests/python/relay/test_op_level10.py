@@ -506,12 +506,10 @@ def test_one_hot():
 
 @tvm.testing.uses_gpu
 def test_matrix_set_diag():
-    def _verify(input_shape, dtype):
-        diagonal_shape = list(input_shape[:-2])
-        diagonal_shape.append(min(input_shape[-2], input_shape[-1]))
+    def _verify(input_shape, diagonal_shape, dtype, k=0, align="RIGHT_LEFT"):
         input = relay.var("input", relay.TensorType(input_shape, dtype))
         diagonal = relay.var("diagonal", relay.TensorType(diagonal_shape, dtype))
-        out = relay.matrix_set_diag(input, diagonal)
+        out = relay.matrix_set_diag(input, diagonal, k, align)
 
         in_type = run_infer_type(input)
         out_type = run_infer_type(out)
@@ -520,7 +518,7 @@ def test_matrix_set_diag():
         func = relay.Function([input, diagonal], out)
         input_np = np.random.randint(-100, 100, size=input_shape).astype(dtype)
         diagonal_np = np.random.randint(-100, 100, size=diagonal_shape).astype(dtype)
-        out_np = tvm.topi.testing.matrix_set_diag(input_np, diagonal_np)
+        out_np = tvm.topi.testing.matrix_set_diag(input_np, diagonal_np, k, align)
 
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -528,9 +526,12 @@ def test_matrix_set_diag():
                 out_relay = intrp.evaluate(func)(input_np, diagonal_np)
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
 
-    _verify((2, 2), "float32")
-    _verify((4, 3, 3), "int32")
-    _verify((2, 3, 4), "float32")
+    _verify((2, 2), (2,), "float32")
+    _verify((4, 3, 3), (4, 3), "int32")
+    _verify((2, 3, 4), (2, 3), "float32", 1)
+    _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "LEFT_RIGHT")
+    _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "LEFT_LEFT")
+    _verify((2, 3, 4), (2, 4, 3), "int32", (-1, 2), "RIGHT_RIGHT")
 
 
 if __name__ == "__main__":
