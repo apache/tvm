@@ -43,7 +43,7 @@ def register(type_name, type_code):
     .. code-block:: python
 
         # Register a dtype named 'posites2' under type code 130.
-        tvm.datatype.register('posites2', 130)
+        tvm.target.datatype.register('posites2', 130)
 
 
     Parameters
@@ -62,14 +62,14 @@ def get_type_name(type_code):
     """Get the type name of a custom datatype from the type code.
 
     Note that this only works for custom datatypes registered with
-    tvm.datatype.register(). It does not work for TVM-native types.
+    tvm.target.datatype.register(). It does not work for TVM-native types.
 
     Example:
 
     .. code-block:: python
 
-        tvm.datatype.register('posites2', 130)
-        assert tvm.datatype.get_type_name(130) == 'posites2'
+        tvm.target.datatype.register('posites2', 130)
+        assert tvm.target.datatype.get_type_name(130) == 'posites2'
 
     Parameters
     ----------
@@ -89,14 +89,14 @@ def get_type_code(type_name):
     """Get the type code of a custom datatype from its type name
 
     Note that this only works for custom datatypes registered with
-    tvm.datatype.register(). It does not work for TVM-native types.
+    tvm.target.datatype.register(). It does not work for TVM-native types.
 
     Example:
 
     .. code-block:: python
 
-        tvm.datatype.register('posites2', 130)
-        assert tvm.datatype.get_type_code('posites2') == 130
+        tvm.target.datatype.register('posites2', 130)
+        assert tvm.target.datatype.get_type_code('posites2') == 130
 
     Parameters
     ----------
@@ -118,8 +118,8 @@ def get_type_registered(type_code):
 
     .. code-block:: python
 
-        tvm.datatype.register('posites2', 130)
-        assert tvm.datatype.get_type_registered(130)
+        tvm.target.datatype.register('posites2', 130)
+        assert tvm.target.datatype.get_type_registered(130)
 
     Parameters
     ----------
