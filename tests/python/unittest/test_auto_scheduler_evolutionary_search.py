@@ -72,9 +72,6 @@ def test_mutate_parallel():
     """
     The test case initializes evo search with a batch of "bad" states and check whether
     the search algorithm can find "good" states by mutating the "bad" states.
-
-    This unit test has been tested with 1,000 runs with no failures, meaning that
-    the failure rate is less than 0.1%.
     """
 
     class MockCostModel(PythonBasedModel):
@@ -115,6 +112,8 @@ def test_mutate_parallel():
             if MockCostModel.is_good_state(state):
                 found = True
                 break
+        retry_ct += 1
+
     assert found
 
 
