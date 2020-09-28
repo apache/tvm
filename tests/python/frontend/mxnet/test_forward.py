@@ -640,6 +640,45 @@ def test_forward_l2_normalize():
 
 
 @tvm.testing.uses_gpu
+def test_forward_logistic_regression_output():
+    data_shape = (1, 10)
+    dtype = "float32"
+    data_np = np.random.uniform(size=data_shape).astype(dtype)
+    label_np = np.random.uniform(size=data_shape).astype(dtype)
+    mx_sym = mx.symbol.LogisticRegressionOutput(mx.sym.var("data"), mx.sym.var("label"))
+    ref_res = mx.nd.LogisticRegressionOutput(mx.nd.array(data_np), mx.nd.array(label_np))
+    shapes = {"data": data_shape}
+    mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+    for target, ctx in tvm.testing.enabled_targets():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate()(data_np)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+
+@tvm.testing.uses_gpu
+def test_forward_dot():
+    def verify(a_shape, b_shape, transpose_b=False):
+        dtype = "float32"
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        b_np = np.random.uniform(size=b_shape).astype(dtype)
+        mx_sym = mx.symbol.dot(mx.sym.var("a"), mx.sym.var("b"), transpose_b=transpose_b)
+        ref_res = mx.nd.dot(mx.nd.array(a_np), mx.nd.array(b_np), transpose_b=transpose_b)
+        shapes = {"a": a_shape, "b": b_shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(a_np, b_np)
+                tvm.testing.assert_allclose(
+                    op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-05, atol=1e-05
+                )
+
+    verify((1, 256), (256, 1))
+    verify((1, 256), (1, 256), transpose_b=True)
+
+
+@tvm.testing.uses_gpu
 def test_forward_shape_array():
     def verify(shape):
         x_np = np.random.uniform(size=shape).astype("float32")
