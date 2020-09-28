@@ -42,6 +42,9 @@ USE_VULKAN = 0
 # whether to enable contrib sort functions during compile
 USE_SORT = 1
 
+# whether to eanble contrib random functions during compile
+USE_RANDOM = 1
+
 ifeq ($(USE_VULKAN), 1)
   # Statically linking vulkan requires API Level 24 or higher
   APP_PLATFORM = android-24

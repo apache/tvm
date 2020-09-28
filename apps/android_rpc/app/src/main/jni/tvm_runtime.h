@@ -73,6 +73,10 @@
 #include "../src/runtime/contrib/sort/sort.cc"
 #endif
 
+#ifdef USE_RANDOM
+#include "../src/runtime/contrib/random/random.cc"
+#endif
+
 #include <android/log.h>
 
 void dmlc::CustomLogMessage::Log(const std::string& msg) {
