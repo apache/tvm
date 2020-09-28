@@ -106,6 +106,11 @@ def add_tune_parser(subparsers):
         help="compilation target as plain string, inline JSON or path to a JSON file",
         required=True,
     )
+    parser.add_argument(
+        "--target-host",
+        help="the host compilation target, defaults to 'llvm'",
+        default="llvm",
+    )
     parser.add_argument("--timeout", default=10, help="compilation timeout, in seconds")
     parser.add_argument(
         "--trials",
@@ -175,6 +180,7 @@ def drive_tune(args):
         mod=mod,
         params=params,
         target=target,
+        target_host=args.target_host,
         alter_layout=args.desired_layout,
     )
 
@@ -236,9 +242,6 @@ def get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
     tasks : list of autotvm.Tasks
         list of tasks to be tuned
     """
-    if not target_host:
-        target_host = target
-
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
 
