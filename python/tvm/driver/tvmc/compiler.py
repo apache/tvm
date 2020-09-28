@@ -107,7 +107,7 @@ def drive_compile(args):
         None,
         args.model_format,
         args.tuning_records,
-        args.tensor_layout,
+        args.desired_layout,
     )
 
     if dumps:
