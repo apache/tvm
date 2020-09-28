@@ -100,7 +100,7 @@ Hardware setup and docker build
 
    .. code:: bash
 
-   git clone --recurse-submodules https://github.com/Xilinx/Vitis-AI
+      git clone --recurse-submodules https://github.com/Xilinx/Vitis-AI
    
 2. Install Docker, and add the user to the docker group. Link the user
    to docker installation instructions from the following docker's
@@ -139,11 +139,12 @@ Hardware setup and docker build
    them at once. To do so:
 
    -  Run the following commands:
-   .. code:: bash
+
+      .. code:: bash
       
-      cd Vitis-AI/alveo/packages
-      sudo su
-      ./install.sh
+         cd Vitis-AI/alveo/packages
+         sudo su
+         ./install.sh
       
    -  Power cycle the system.
    
@@ -339,14 +340,14 @@ interface between TVM and Vitis-AI tools.
 
 1. First install the PyXIR h5py and pydot dependencies:
 
-   .. code:: bash:
+   .. code:: bash
 
       apt-get install libhdf5-dev
       pip3 install pydot h5py
       
 2. Install PyXIR
 
-   .. code:: bash:
+   .. code:: bash
 
       git clone --recursive https://github.com/Xilinx/pyxir.git
       cd pyxir
@@ -354,7 +355,7 @@ interface between TVM and Vitis-AI tools.
    
 3. Build TVM with Vitis-AI
 
-   .. code:: bash:
+   .. code:: bash
 
       git clone --recursive https://github.com/apache/incubator-tvm
       cd incubator-tvm
@@ -367,14 +368,14 @@ interface between TVM and Vitis-AI tools.
    
 4. Install TVM
 
-   .. code:: bash:
+   .. code:: bash
 
       cd incubator-tvm/python
       pip3 install -e . --user
 
 5. Check whether the setup was successful in the Python shell:
 
-   .. code:: bash:
+   .. code:: bash
 
       python3 -c 'import pyxir; import tvm'
 
