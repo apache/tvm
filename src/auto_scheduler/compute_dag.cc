@@ -995,10 +995,11 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
       ops.push_back(op);
     }
   }
+
   // Create the initial schedule
   // TODO(jcf94): Currently we only checked single output dag for TVM Auto-scheduler,
   // update this after testing with multiple outputs.
-  te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule(ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -1028,7 +1029,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   // Create the initial schedule
   // TODO(jcf94): Currently we only checked single output dag for TVM Auto-scheduler,
   // update this after testing with multiple outputs.
-  te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule(ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -1040,16 +1041,18 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   std::stringstream ss;
   for (const auto& stage : stages) {
     if (stage->op->IsInstance<te::ComputeOpNode>()) {
+      auto op_name = CleanName(stage->op->name);
+
       for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
-        ss << stage->leaf_iter_vars[i]->var->name_hint;
+        ss << CleanName(stage->leaf_iter_vars[i]->var->name_hint, op_name);
         if (i != stage->leaf_iter_vars.size() - 1) {
           ss << ", ";
         }
       }
       ss << " = "
-         << "tuple(" << stage->op->name << ".op.axis)"
+         << "tuple(" << op_name << ".op.axis)"
          << " + "
-         << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
+         << "tuple(" << op_name << ".op.reduce_axis)\n";
     }
   }
   // Call each step's PrintAsPythonAPI method
