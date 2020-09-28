@@ -28,6 +28,7 @@
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/search_task.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
