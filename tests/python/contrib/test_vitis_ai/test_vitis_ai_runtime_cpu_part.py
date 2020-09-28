@@ -38,7 +38,8 @@ import sys
 import numpy as np
 
 import pytest
-pytest.importorskip('pyxir')
+
+pytest.importorskip("pyxir")
 import pyxir.contrib.target.DPUCADX8G
 
 import tvm
@@ -47,12 +48,13 @@ from tvm import relay
 
 from .infrastructure import skip_test, verify_result
 
+
 def test_extern_vitis_ai_resnet18():
     """Test first part of Vitis-AI on-the-fly quantization runtime with ResNet 18 model"""
     if skip_test():
         return
 
-    dtype = 'float32'
+    dtype = "float32"
     ishape = (1, 3, 224, 224)
     mod, params = relay.testing.resnet.get_workload(num_layers=18, batch_size=1)
     ref_mod, params = relay.testing.resnet.get_workload(num_layers=18, batch_size=1)
@@ -61,10 +63,16 @@ def test_extern_vitis_ai_resnet18():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
     ref_res = ref_ex.evaluate()(i_data, **params)
-    verify_result(mod, {"data": i_data},
-                  (1, 1000), ref_res.asnumpy(),
-                  tol=1e-5, params=params,
-                  dpu_target='DPUCADX8G', tvm_ops=4)
+    verify_result(
+        mod,
+        {"data": i_data},
+        (1, 1000),
+        ref_res.asnumpy(),
+        tol=1e-5,
+        params=params,
+        dpu_target="DPUCADX8G",
+        tvm_ops=4,
+    )
 
 
 if __name__ == "__main__":

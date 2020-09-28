@@ -38,8 +38,9 @@ class CodegenVitisAI:
 
     def convert_pyxir(self, target):
         """Convert Relay expression to PyXIR XGraph"""
-        xgraph = pyxir.frontend.tvm.from_relay(self.function,
-                                               params=self.params, postprocessing=None)
+        xgraph = pyxir.frontend.tvm.from_relay(
+            self.function, params=self.params, postprocessing=None
+        )
         xgraph = pyxir.partition(xgraph, targets=[target])
         return xgraph
 
@@ -71,40 +72,56 @@ def vitis_ai_compiler(ref):
     pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
 
     # The target Vitis-AI accelerator device
-    target = str(pass_context.config['relay.ext.vitis_ai.options.target']) \
-        if 'relay.ext.vitis_ai.options.target' in pass_context.config else None
+    target = (
+        str(pass_context.config["relay.ext.vitis_ai.options.target"])
+        if "relay.ext.vitis_ai.options.target" in pass_context.config
+        else None
+    )
 
     # (Optional configs) The build and work directories to be used by Vitis-AI
-    vai_build_dir = str(pass_context.config['relay.ext.vitis_ai.options.build_dir']) \
-        if 'relay.ext.vitis_ai.options.build_dir' in pass_context.config else \
-        tvm.contrib.util.tempdir().relpath("")
-    vai_work_dir = str(pass_context.config['relay.ext.vitis_ai.options.work_dir']) \
-        if 'relay.ext.vitis_ai.options.work_dir' in pass_context.config else \
-        tvm.contrib.util.tempdir().relpath("")
+    vai_build_dir = (
+        str(pass_context.config["relay.ext.vitis_ai.options.build_dir"])
+        if "relay.ext.vitis_ai.options.build_dir" in pass_context.config
+        else tvm.contrib.util.tempdir().relpath("")
+    )
+    vai_work_dir = (
+        str(pass_context.config["relay.ext.vitis_ai.options.work_dir"])
+        if "relay.ext.vitis_ai.options.work_dir" in pass_context.config
+        else tvm.contrib.util.tempdir().relpath("")
+    )
 
     # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to
     #   compile and quantize a model on the host and deploy it at the edge
-    export_runtime_module = \
-        str(pass_context.config['relay.ext.vitis_ai.options.export_runtime_module']) \
-        if 'relay.ext.vitis_ai.options.export_runtime_module' in pass_context.config else ""
-    load_runtime_module = \
-        str(pass_context.config['relay.ext.vitis_ai.options.load_runtime_module']) \
-        if 'relay.ext.vitis_ai.options.load_runtime_module' in pass_context.config else ""
+    export_runtime_module = (
+        str(pass_context.config["relay.ext.vitis_ai.options.export_runtime_module"])
+        if "relay.ext.vitis_ai.options.export_runtime_module" in pass_context.config
+        else ""
+    )
+    load_runtime_module = (
+        str(pass_context.config["relay.ext.vitis_ai.options.load_runtime_module"])
+        if "relay.ext.vitis_ai.options.load_runtime_module" in pass_context.config
+        else ""
+    )
 
     # Config checks
-    if load_runtime_module != "" and target is not None:
-        warnings.warn("Both `load_runtime_module` and `target` configs were specified."
-                      " The `load_runtime_module` points to a prebuilt runtime module with"
-                      " an internal target so the `target` config will be ignored")
-    if load_runtime_module != "" and 'relay.ext.vitis_ai.options.build_dir' in pass_context.config:
-        warnings.warn("Both `load_runtime_module` and `build_dir` configs were specified."
-                      " The `load_runtime_module` points to a prebuilt runtime module with"
-                      " an internal build directory so the `build_dir` config will be ignored")
-    if load_runtime_module != "" and 'relay.ext.vitis_ai.options.work_dir' in pass_context.config:
-        warnings.warn("Both `load_runtime_module` and `work_dir` configs were specified."
-                      " The `load_runtime_module` points to a prebuilt runtime module with"
-                      " an internal work directory so the `work_dir` config will be ignored")
-
+    if load_runtime_module and target is not None:
+        warnings.warn(
+            "Both `load_runtime_module` and `target` configs were specified."
+            " The `load_runtime_module` points to a prebuilt runtime module with"
+            " an internal target so the `target` config will be ignored"
+        )
+    if load_runtime_module and "relay.ext.vitis_ai.options.build_dir" in pass_context.config:
+        warnings.warn(
+            "Both `load_runtime_module` and `build_dir` configs were specified."
+            " The `load_runtime_module` points to a prebuilt runtime module with"
+            " an internal build directory so the `build_dir` config will be ignored"
+        )
+    if load_runtime_module and "relay.ext.vitis_ai.options.work_dir" in pass_context.config:
+        warnings.warn(
+            "Both `load_runtime_module` and `work_dir` configs were specified."
+            " The `load_runtime_module` points to a prebuilt runtime module with"
+            " an internal work directory so the `work_dir` config will be ignored"
+        )
 
     # If load_runtime_module is not set, we will build the PyXIR runtime module from scratch
     if load_runtime_module == "":
@@ -118,20 +135,21 @@ def vitis_ai_compiler(ref):
         out_tensor_names = []
         for layer in layers:
             if not layer.internal:
-                for relay_id in layer.attrs['relay_id']:
+                for relay_id in layer.attrs["relay_id"]:
                     if relay_id in output_relay_ids:
                         out_tensor_names.append(layer.name)
                         break
-        if len(out_tensor_names) == 0:
-            raise ValueError("During codegeneration the loading of subexpression \
-                             failed due to output tensor name mismatch in Relay PyXIR interface.")
-        xgraph.meta_attrs['tvm_out_tensors'] = out_tensor_names
+        if not out_tensor_names:
+            raise ValueError(
+                "During codegeneration the loading of subexpression \
+                             failed due to output tensor name mismatch in Relay PyXIR interface."
+            )
+        xgraph.meta_attrs["tvm_out_tensors"] = out_tensor_names
         xgraph_str = pyxir.get_xgraph_str(xgraph)
 
         runtime_func = "tvm.vitis_ai_runtime.from_xgraph"
         fcreate = tvm._ffi.get_global_func(runtime_func)
-        return fcreate(name, xgraph_str, target, vai_build_dir, vai_work_dir,
-                       export_runtime_module)
+        return fcreate(name, xgraph_str, target, vai_build_dir, vai_work_dir, export_runtime_module)
 
     runtime_func = "tvm.vitis_ai_runtime.from_rt_mod"
     fcreate = tvm._ffi.get_global_func(runtime_func)

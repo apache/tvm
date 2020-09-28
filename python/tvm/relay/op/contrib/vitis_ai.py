@@ -60,9 +60,8 @@ class VitisAIAnnotationPass:
 
             def visit_tuple_getitem(self, op):
                 """Add compiler_begin and compiler_end annotations to TupleGetItem"""
-                if  int(hash(op.tuple_value)) in annotator.relay_ids:
-                    tuple_value = compiler_begin(super().visit(op.tuple_value),
-                                                 annotator.compiler)
+                if int(hash(op.tuple_value)) in annotator.relay_ids:
+                    tuple_value = compiler_begin(super().visit(op.tuple_value), annotator.compiler)
                     return compiler_end(TupleGetItem(tuple_value, op.index), annotator.compiler)
                 else:
                     tuple_value = super().visit(op.tuple_value)
@@ -73,11 +72,9 @@ class VitisAIAnnotationPass:
                 if int(hash(call)) in annotator.relay_ids:
                     new_args = []
                     for arg in call.args:
-                        ann = compiler_begin(super().visit(arg),
-                                             annotator.compiler)
+                        ann = compiler_begin(super().visit(arg), annotator.compiler)
                         new_args.append(ann)
-                    new_call = relay.Call(call.op, new_args, call.attrs,
-                                          call.type_args)
+                    new_call = relay.Call(call.op, new_args, call.attrs, call.type_args)
                     return compiler_end(new_call, annotator.compiler)
 
                 else:
@@ -92,8 +89,11 @@ def annotation(mod, params, target):
     xgraph = pyxir.partition(xgraph, targets=[target])
 
     layers = xgraph.get_layers()
-    relay_ids = [list(np.array(layer.attrs['relay_id']).flatten())
-                 for layer in layers if layer.target == target]
+    relay_ids = [
+        list(np.array(layer.attrs["relay_id"]).flatten())
+        for layer in layers
+        if layer.target == target
+    ]
     relay_ids_flatten = [item for sublist in relay_ids for item in sublist]
     mod = VitisAIAnnotationPass("vitis_ai", relay_ids_flatten)(mod)
 

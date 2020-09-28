@@ -24,15 +24,14 @@
  */
 #ifndef TVM_RUNTIME_CONTRIB_VITIS_AI_VITIS_AI_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_VITIS_AI_VITIS_AI_RUNTIME_H_
-
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-
+// clang-format off
 #include <memory>
 #include <string>
 #include <vector>
-
+// clang-format on
 #include <pyxir/pyxir.hpp>
 #include <pyxir/runtime/run_options.hpp>
 

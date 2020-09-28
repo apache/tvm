@@ -28,6 +28,8 @@
 
 #include <fstream>
 #include <streambuf>
+#include <string>
+#include <vector>
 
 using namespace pyxir::runtime;
 
@@ -112,7 +114,7 @@ TVM_REGISTER_GLOBAL("tvm.vitis_ai_runtime.from_rt_mod").set_body([](TVMArgs args
   *rv = VitisAIRuntimeCreate(args[0], serialized_rt_mod, args[2]);
 });
 
-Module VitisAIRuntimeLoadFromBinary(void* strm ) {
+Module VitisAIRuntimeLoadFromBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string symbol_name;
   std::vector<std::string> const_vars;
@@ -132,9 +134,9 @@ Module VitisAIRuntimeLoadFromBinary(void* strm ) {
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VitisAIRuntime")
-                  .set_body_typed(VitisAIRuntimeLoadFromBinary);
+    .set_body_typed(VitisAIRuntimeLoadFromBinary);
 
-void VitisAIRuntime::SaveToBinary(dmlc::Stream* stream)  {
+void VitisAIRuntime::SaveToBinary(dmlc::Stream* stream) {
   std::ostringstream sstream;
   rt_mod_->serialize(sstream);
   stream->Write(sstream.str());
@@ -143,10 +145,10 @@ void VitisAIRuntime::SaveToBinary(dmlc::Stream* stream)  {
   std::vector<std::string> consts;
   for (const auto& it : const_names_) {
     consts.push_back(it);
-    }
+  }
   stream->Write(consts);
 
-  // If export_runtime_module_ member variable is set, we will additionally export the PyXIR
+  // If export_rt_mod_path_ member variable is set, we will additionally export the PyXIR
   //  runtime_module to the specified file
   if (!export_rt_mod_path_.empty()) {
     std::ofstream out_file(export_rt_mod_path_);

@@ -22,7 +22,8 @@ import sys
 import numpy as np
 
 import pytest
-pytest.importorskip('pyxir')
+
+pytest.importorskip("pyxir")
 import pyxir.contrib.target.DPUCADX8G
 import pyxir.contrib.target.DPUCZDX8G
 
@@ -39,6 +40,7 @@ from tvm.contrib import util
 
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
+
     class Counter(tvm.relay.ExprVisitor):
         def __init__(self):
             super().__init__()
@@ -54,6 +56,7 @@ def get_cpu_op_count(mod):
     c.visit(mod["main"])
     return c.count
 
+
 def skip_test():
     """Skip test if it requires the Vitis-AI codegen and it's not present."""
     if not tvm.get_global_func("relay.ext.vitis_ai", True):
@@ -61,39 +64,51 @@ def skip_test():
         return True
     return False
 
-def build_module(mod, target, dpu_target='DPUCADX8G', params=None,
-                 enable_vitis_ai=True, tvm_ops=0,
-                 vitis_ai_partitions=1):
+
+def build_module(
+    mod,
+    target,
+    dpu_target="DPUCADX8G",
+    params=None,
+    enable_vitis_ai=True,
+    tvm_ops=0,
+    vitis_ai_partitions=1,
+):
     """Build module for Vitis-AI codegen."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
     if params is None:
         params = {}
 
-    with tvm.transform.PassContext(opt_level=3,
-                                   config={'relay.ext.vitis_ai.options.target': dpu_target}):
+    with tvm.transform.PassContext(
+        opt_level=3, config={"relay.ext.vitis_ai.options.target": dpu_target}
+    ):
         if enable_vitis_ai:
             mod["main"] = bind_params_by_name(mod["main"], params)
             mod = annotation(mod, params, dpu_target)
             mod = transform.MergeCompilerRegions()(mod)
             mod = transform.PartitionGraph()(mod)
             tvm_op_count = get_cpu_op_count(mod)
-            assert tvm_op_count == tvm_ops, \
-                "Got {} TVM operators, expected {}".format(tvm_op_count, tvm_ops)
+            assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
+                tvm_op_count, tvm_ops
+            )
             partition_count = 0
             for global_var in mod.get_global_vars():
                 if "vitis_ai" in global_var.name_hint:
                     partition_count += 1
 
-            assert vitis_ai_partitions == partition_count, \
-                "Got {} Vitis-AI partitions, expected {}".format(
-                    partition_count, vitis_ai_partitions)
+            assert (
+                vitis_ai_partitions == partition_count
+            ), "Got {} Vitis-AI partitions, expected {}".format(
+                partition_count, vitis_ai_partitions
+            )
         relay.backend.compile_engine.get().clear()
         return relay.build(mod, target, params=params)
 
+
 def update_lib(lib, cross_compile=None):
     tmp_path = util.tempdir()
-    lib_name = 'lib.so'
+    lib_name = "lib.so"
     lib_path = tmp_path.relpath(lib_name)
     if cross_compile:
         lib.export_library(lib_path, cc=cross_compile)
@@ -102,29 +117,42 @@ def update_lib(lib, cross_compile=None):
     lib = runtime.load_module(lib_path)
     return lib
 
+
 def extract_vitis_ai_modules(module):
     """Get the Vits-AI runtime module from llvm module."""
-    return list(filter(lambda mod: mod.type_key == "VitisAIRuntime",
-                       module.get_lib().imported_modules))
+    return list(
+        filter(lambda mod: mod.type_key == "VitisAIRuntime", module.get_lib().imported_modules)
+    )
 
-def verify_codegen(module, num_vitis_ai_modules=1, params=None,
-                   target='llvm', dpu_target='DPUCADX8G'):
+
+def verify_codegen(
+    module, num_vitis_ai_modules=1, params=None, target="llvm", dpu_target="DPUCADX8G"
+):
     """Check Vitis-AI codegen against a known good output."""
     module = build_module(module, target, params=params, dpu_target=dpu_target)
     vitis_ai_modules = extract_vitis_ai_modules(module)
 
-    assert len(vitis_ai_modules) == num_vitis_ai_modules, \
-        f"The number of Vitis-AI modules produced ({len(vitis_ai_modules)}) does not " \
+    assert len(vitis_ai_modules) == num_vitis_ai_modules, (
+        f"The number of Vitis-AI modules produced ({len(vitis_ai_modules)}) does not "
         f"match the expected value ({num_vitis_ai_modules})."
+    )
 
 
-def verify_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
-                  ctx=tvm.cpu(), params=None,
-                  dpu_target='DPUCADX8G', tvm_ops=0):
+def verify_result(
+    mod,
+    map_inputs,
+    out_shape,
+    result,
+    tol=1e-5,
+    target="llvm",
+    ctx=tvm.cpu(),
+    params=None,
+    dpu_target="DPUCADX8G",
+    tvm_ops=0,
+):
     """To check the result between reference and byoc vitis-ai flow"""
 
-    lib = build_module(mod, target, params=params,
-                       dpu_target=dpu_target, tvm_ops=tvm_ops)
+    lib = build_module(mod, target, params=params, dpu_target=dpu_target, tvm_ops=tvm_ops)
     lib = update_lib(lib)
     ctx = tvm.cpu()
     rt_mod = graph_runtime.GraphModule(lib["default"](tvm.cpu()))
