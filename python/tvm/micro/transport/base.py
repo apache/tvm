@@ -18,14 +18,51 @@
 """Defines abstractions and implementations of the RPC transport used with micro TVM."""
 
 import abc
+import collections
 import logging
 import string
 import subprocess
 import typing
 
 import tvm
+from tvm._ffi import register_error
 
 _LOG = logging.getLogger(__name__)
+
+
+class TransportClosedError(Exception):
+    """Raised when a transport can no longer be used due to underlying I/O problems."""
+
+
+class IoTimeoutError(Exception):
+    """Raised when the I/O operation could not be completed before the timeout.
+
+    Specifically:
+     - when no data could be read before the timeout
+     - when some of the write data could be written before the timeout
+
+    Note the asymmetric behavior of read() vs write(), since in one case the total length of the
+    data to transfer is known.
+    """
+
+
+# Timeouts supported by the underlying C++ MicroSession.
+#
+# session_start_retry_timeout_sec : float
+#     Number of seconds to wait for the device to send a kSessionStartReply after sending the
+#     initial session start message. After this time elapses another
+#     kSessionTerminated-kSessionStartInit train is sent. 0 disables this.
+# session_start_timeout_sec : float
+#     Total number of seconds to wait for the session to be established. After this time, the
+#     client gives up trying to establish a session and raises an exception.
+# session_established_timeout_sec : float
+#     Number of seconds to wait for a reply message after a session has been established. 0
+#     disables this.
+TransportTimeouts = collections.namedtuple(
+    'TransportTimeouts',
+    ['session_start_retry_timeout_sec',
+     'session_start_timeout_sec',
+     'session_established_timeout_sec'])
 
 
 class Transport(metaclass=abc.ABCMeta):
@@ -39,6 +76,14 @@ class Transport(metaclass=abc.ABCMeta):
         self.close()
 
     @abc.abstractmethod
+    def timeouts(self):
+        """Return TransportTimeouts suitable for use with this transport.
+
+        See the TransportTimeouts documentation in python/tvm/micro/session.py.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def open(self):
         """Open any resources needed to send and receive RPC protocol data for a single session."""
         raise NotImplementedError()
@@ -49,44 +94,67 @@ class Transport(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def read(self, n):
+    def read(self, n, timeout_sec):
         """Read up to n bytes from the transport.
 
         Parameters
         ----------
         n : int
             Maximum number of bytes to read from the transport.
+        timeout_sec : float
+            Number of seconds to wait for all `n` bytes to be received before timing out. The
+            transport can wait additional time to account for transport latency or bandwidth
+            limitations based on the selected configuration and number of bytes being received. If
+            timeout_sec is 0, read should attempt to service the request in a non-blocking fashion.
 
         Returns
         -------
         bytes :
             Data read from the channel. Less than `n` bytes may be returned, but 0 bytes should
-            never be returned except in error. Note that if a transport error occurs, an Exception
-            should be raised rather than simply returning empty bytes.
+            never be returned. If returning less than `n` bytes, the full timeout_sec, plus any
+            internally-added timeout, should be waited. If a timeout or transport error occurs,
+            an exception should be raised rather than simply returning empty bytes.
 
 
         Raises
         ------
-        SessionTerminatedError :
-            When the transport layer determines that the active session was terminated by the
-            remote side. Typically this indicates that the remote device has reset.
+        TransportClosedError :
+            When the transport layer determines that the transport can no longer send or receive
+            data due to an underlying I/O problem (i.e. file descriptor closed, cable removed, etc).
+
+        IoTimeoutError :
+            When `timeout_sec` elapses without receiving any data.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def write(self, data):
+    def write(self, data, timeout_sec):
         """Write data to the transport channel.
 
         Parameters
         ----------
         data : bytes
             The data to write over the channel.
+        timeout_sec : float
+            Number of seconds to wait for all `n` bytes to be received before timing out. The
+            transport can wait additional time to account for transport latency or bandwidth
+            limitations based on the selected configuration and number of bytes being received. If
+            timeout_sec is 0, read should attempt to service the request in a non-blocking fashion.
 
         Returns
         -------
         int :
             The number of bytes written to the underlying channel. This can be less than the length
             of `data`, but cannot be 0.
+
+        Raises
+        ------
+        TransportClosedError :
+            When the transport layer determines that the transport can no longer send or receive
+            data due to an underlying I/O problem (i.e. file descriptor closed, cable removed, etc).
+
+        IoTimeoutError :
+            When `timeout_sec` elapses without receiving any data.
         """
         raise NotImplementedError()
 
@@ -121,6 +189,9 @@ class TransportLogger(Transport):
 
         return lines
 
+    def timeouts(self):
+        return self.child.timeouts()
+
     def open(self):
         self.logger.log(self.level, "opening transport")
         self.child.open()
@@ -129,27 +200,45 @@ class TransportLogger(Transport):
         self.logger.log(self.level, "closing transport")
         return self.child.close()
 
-    def read(self, n):
-        data = self.child.read(n)
+    def read(self, n, timeout_sec):
+        try:
+            data = self.child.read(n, timeout_sec)
+        except IoTimeoutError:
+            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [IoTimeoutError %.2f s]',
+                            self.name, timeout_sec, n, timeout_sec)
+            raise
+        except Exception as e:
+            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [err: %s]',
+                            self.name, timeout_sec, n, str(e), exc_info=1)
+            raise e
+
         hex_lines = self._to_hex(data)
         if len(hex_lines) > 1:
-            self.logger.log(
-                self.level,
-                "%s read %4d B -> [%d B]:\n%s",
-                self.name,
-                n,
-                len(data),
-                "\n".join(hex_lines),
-            )
+            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [%d B]:\n%s',
+                            self.name, timeout_sec, n, len(data), '\n'.join(hex_lines))
         else:
-            self.logger.log(
-                self.level, "%s read %4d B -> [%d B]: %s", self.name, n, len(data), hex_lines[0]
-            )
+            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [%d B]: %s',
+                            self.name, timeout_sec, n, len(data), hex_lines[0])
 
         return data
 
-    def write(self, data):
-        bytes_written = self.child.write(data)
+    def write(self, data, timeout_sec):
+        try:
+            bytes_written = self.child.write(data, timeout_sec)
+        except IoTimeoutError:
+            self.logger.log(
+                self.level,
+                "%s write             <- [%d B]: [IoTimeoutError %.2f s]",
+                self.name,
+                len(data),
+                timeout_sec,
+            )
+            raise
+        except Exception as e:
+            self.logger.log(self.level, '%s write             <- [%d B]: [err: %s]',
+                            self.name, len(data), str(e), exc_info=1)
+            raise e
+
         hex_lines = self._to_hex(data[:bytes_written])
         if len(hex_lines) > 1:
             self.logger.log(

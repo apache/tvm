@@ -17,37 +17,53 @@
 
 """Defines an implementation of Transport that uses subprocesses."""
 
+import select
 import subprocess
+import sys
+import time
+from .base import Transport, TransportTimeouts, TransportClosedError
+from .fd import FdTransport
 
-from .base import Transport
+
+class SubprocessFdTransport(FdTransport):
+
+    def timeouts(self):
+        raise NotImplementedError()
 
 
 class SubprocessTransport(Transport):
     """A Transport implementation that uses a subprocess's stdin/stdout as the channel."""
 
-    def __init__(self, args, **kwargs):
+    def __init__(self, args, max_startup_latency_sec=5.0, max_latency_sec=5.0, **kwargs):
+        self.max_startup_latency_sec = max_startup_latency_sec
+        self.max_latency_sec = max_latency_sec
         self.args = args
         self.kwargs = kwargs
         self.popen = None
+        self.child_transport = None
+
+    def timeouts(self):
+        return TransportTimeouts(
+            session_start_retry_timeout_sec=0,
+            session_start_timeout_sec=self.max_startup_latency_sec,
+            session_established_timeout_sec=self.max_latency_sec)
 
     def open(self):
-        self.kwargs["stdout"] = subprocess.PIPE
-        self.kwargs["stdin"] = subprocess.PIPE
-        self.kwargs["bufsize"] = 0
+        self.kwargs['stdout'] = subprocess.PIPE
+        self.kwargs['stdin'] = subprocess.PIPE
+        self.kwargs['bufsize'] = 0
         self.popen = subprocess.Popen(self.args, **self.kwargs)
-        self.stdin = self.popen.stdin
-        self.stdout = self.popen.stdout
+        self.child_transport = SubprocessFdTransport(self.popen.stdout, self.popen.stdin)
 
-    def write(self, data):
-        to_return = self.stdin.write(data)
-        self.stdin.flush()
+    def write(self, data, timeout_sec):
+        return self.child_transport.write(data, timeout_sec)
 
-        return to_return
-
-    def read(self, n):
-        return self.stdout.read(n)
+    def read(self, n, timeout_sec):
+        return self.child_transport.read(n, timeout_sec)
 
     def close(self):
-        self.stdin.close()
-        self.stdout.close()
+        if self.child_transport is not None:
+            self.child_transport.close()
+
         self.popen.terminate()
+        print('CLOSE DONE')

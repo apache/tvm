@@ -27,26 +27,34 @@ class DebugWrapperTransport(Transport):
     to pipe data through the GDB process to drive the subprocess with a debugger attached.
     """
 
-    def __init__(self, debugger, transport):
+    def __init__(self, debugger, transport, disable_session_start_retry=False):
         self.debugger = debugger
         self.transport = transport
+        self.disable_session_start_retry = disable_session_start_retry
         self.debugger.on_terminate_callbacks.append(self.transport.close)
 
+    def timeouts(self):
+        child_timeouts = self.transport.timeouts()
+        return TransportTimeouts(
+            session_start_retry_timeout_sec=(0 if self.disable_session_start_retry else child_timeouts.session_start_retry),
+            session_start_timeout_sec=0,
+            session_established_timeout_sec=0)
+
     def open(self):
-        self.debugger.Start()
+        self.debugger.start()
 
         try:
             self.transport.open()
         except Exception:
-            self.debugger.Stop()
+            self.debugger.stop()
             raise
 
-    def write(self, data):
-        return self.transport.write(data)
+    def write(self, data, timeout_sec):
+        return self.transport.write(data, timeout_sec)
 
-    def read(self, n):
-        return self.transport.read(n)
+    def read(self, n, timeout_sec):
+        return self.transport.read(n, timeout_sec)
 
     def close(self):
         self.transport.close()
-        self.debugger.Stop()
+        self.debugger.stop()

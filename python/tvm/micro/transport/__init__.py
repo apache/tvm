@@ -17,7 +17,10 @@
 
 """Defines abstractions and implementations related to the microTVM RPC transport layer."""
 
+from .base import IoTimeoutError
 from .base import Transport
+from .base import TransportClosedError
 from .base import TransportLogger
+from .base import TransportTimeouts
 from .debug import DebugWrapperTransport
 from .subprocess import SubprocessTransport
