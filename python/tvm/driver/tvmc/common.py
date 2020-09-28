@@ -25,7 +25,7 @@ import tvm
 from tvm import relay
 from tvm import transform
 
-# TODO migrate compiler logger to the common logger (@leandron)
+
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 

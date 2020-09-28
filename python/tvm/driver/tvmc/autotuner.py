@@ -30,8 +30,12 @@ from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 
 from . import common, frontends
-from .common import logger, TVMCException
+from .common import TVMCException
 from .main import register_parser
+
+
+# pylint: disable=invalid-name
+logger = logging.getLogger("TVMC")
 
 
 @register_parser
