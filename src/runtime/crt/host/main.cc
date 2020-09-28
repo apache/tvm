@@ -109,13 +109,18 @@ int main(int argc, char** argv) {
       fprintf(stderr, "utvm runtime: 0-length read, exiting!\n");
       return 2;
     }
-    if (UTvmRpcServerReceiveByte(rpc_server, c) != 1) {
-      abort();
-    }
-    if (!UTvmRpcServerLoop(rpc_server)) {
-      execvp(argv[0], argv);
-      perror("utvm runtime: error restarting");
-      return 2;
+    uint8_t* cursor = &c;
+    size_t bytes_to_process = 1;
+    while (bytes_to_process > 0) {
+      tvm_crt_error_t err = UTvmRpcServerLoop(rpc_server, &cursor, &bytes_to_process);
+      if (err == kTvmErrorPlatformShutdown) {
+        break;
+      } else if (err != kTvmErrorNoError) {
+        char buf[1024];
+        snprintf(buf, sizeof(buf), "utvm runtime: UTvmRpcServerLoop error: %08x", err);
+        perror(buf);
+        return 2;
+      }
     }
   }
   return 0;
