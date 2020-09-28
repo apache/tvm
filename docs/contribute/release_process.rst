@@ -59,7 +59,15 @@ After generating the gpg key, you need to upload your key to a public key server
 
 If you want to do the release on another machine, you can transfer your gpg key to that machine via the :code:`gpg --export` and :code:`gpg --import` commands.
 
-The last step is to update the KEYS file with your code signing key https://www.apache.org/dev/openpgp.html#export-public-key. Check in the changes to the master branch.
+The last step is to update the KEYS file with your code signing key https://www.apache.org/dev/openpgp.html#export-public-key. Check in the changes to the TVM master branch, as well as ASF SVN,
+
+.. code-block:: bash
+
+	# the --depth=files will avoid checkout existing folders
+	svn co --depth=files "https://dist.apache.org/repos/dist/dev/incubator/tvm" svn-tvm
+	cd svn-tvm
+	# edit KEYS file
+	svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m "Update KEYS"
 
 
 Cut a Release Candidate
