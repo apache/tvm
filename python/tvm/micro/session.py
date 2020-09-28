@@ -31,6 +31,11 @@ except ImportError:
     raise ImportError("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
 
 
+@tvm.error.register_error
+class SessionTerminatedError(Exception):
+    """Raised when a transport read operationd discovers that the remote session is terminated."""
+
+
 class Session:
     """MicroTVM Device Session
 
