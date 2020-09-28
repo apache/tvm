@@ -997,8 +997,6 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   }
 
   // Create the initial schedule
-  // TODO(jcf94): Currently we only checked single output dag for TVM Auto-scheduler,
-  // update this after testing with multiple outputs.
   te::Schedule schedule = te::create_schedule(ops);
 
   // init axes
@@ -1027,8 +1025,6 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
     }
   }
   // Create the initial schedule
-  // TODO(jcf94): Currently we only checked single output dag for TVM Auto-scheduler,
-  // update this after testing with multiple outputs.
   te::Schedule schedule = te::create_schedule(ops);
 
   // init axes
