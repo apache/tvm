@@ -17,13 +17,36 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Arm target utility functions"""
 
+import re
 import tvm
+
+
+def get_arch_version(target_mattr):
+    """ Parse the LLVM target -mattr, and return
+    the architecture version in a decimal representation
+    (e.g., if -mattr=v8.4a, return 8.4)
+    """
+
+    arch_version = 8.0
+    m = re.compile(r"\+v(.*)\.(.*)a")
+    for attr in target_mattr:
+        match_obj = m.match(attr)
+        if match_obj:
+            major = int(match_obj.group(1))
+            minor = int(match_obj.group(2))
+            decimal = 10
+            if minor >= 10:
+                decimal = 100
+            arch_version = major + float(minor) / decimal
+
+    return arch_version
 
 
 def is_dotprod_available():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
     target = tvm.target.Target.current(allow_none=False)
-    return "+v8.2a" in target.mattr and "+dotprod" in target.mattr
+    arch_version = get_arch_version(target.mattr)
+    return arch_version >= 8.4 or ((arch_version in (8.2, 8.3)) and "+dotprod" in target.mattr)
 
 
 def is_aarch64_arm():
