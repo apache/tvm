@@ -85,7 +85,7 @@ class SketchGenerationRule {
                                 int stage_id) const final;                                       \
     std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state, \
                                              int stage_id) const final;                          \
-    std::string GetRuleName() const final { return #rule_name; }                                \
+    std::string GetRuleName() const final { return #rule_name; }                                 \
   };
 
 /*! \brief The rule that simply skips the current stage. It returns an unchanged state and move to
