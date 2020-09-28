@@ -36,9 +36,12 @@ class DebugWrapperTransport(Transport):
     def timeouts(self):
         child_timeouts = self.transport.timeouts()
         return TransportTimeouts(
-            session_start_retry_timeout_sec=(0 if self.disable_session_start_retry else child_timeouts.session_start_retry),
+            session_start_retry_timeout_sec=(
+                0 if self.disable_session_start_retry else child_timeouts.session_start_retry
+            ),
             session_start_timeout_sec=0,
-            session_established_timeout_sec=0)
+            session_established_timeout_sec=0,
+        )
 
     def open(self):
         self.debugger.start()

@@ -26,7 +26,6 @@ from .fd import FdTransport
 
 
 class SubprocessFdTransport(FdTransport):
-
     def timeouts(self):
         raise NotImplementedError()
 
@@ -46,12 +45,13 @@ class SubprocessTransport(Transport):
         return TransportTimeouts(
             session_start_retry_timeout_sec=0,
             session_start_timeout_sec=self.max_startup_latency_sec,
-            session_established_timeout_sec=self.max_latency_sec)
+            session_established_timeout_sec=self.max_latency_sec,
+        )
 
     def open(self):
-        self.kwargs['stdout'] = subprocess.PIPE
-        self.kwargs['stdin'] = subprocess.PIPE
-        self.kwargs['bufsize'] = 0
+        self.kwargs["stdout"] = subprocess.PIPE
+        self.kwargs["stdin"] = subprocess.PIPE
+        self.kwargs["bufsize"] = 0
         self.popen = subprocess.Popen(self.args, **self.kwargs)
         self.child_transport = SubprocessFdTransport(self.popen.stdout, self.popen.stdin)
 
@@ -66,4 +66,4 @@ class SubprocessTransport(Transport):
             self.child_transport.close()
 
         self.popen.terminate()
-        print('CLOSE DONE')
+        print("CLOSE DONE")

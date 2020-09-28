@@ -59,10 +59,13 @@ class IoTimeoutError(Exception):
 #     Number of seconds to wait for a reply message after a session has been established. 0
 #     disables this.
 TransportTimeouts = collections.namedtuple(
-    'TransportTimeouts',
-    ['session_start_retry_timeout_sec',
-     'session_start_timeout_sec',
-     'session_established_timeout_sec'])
+    "TransportTimeouts",
+    [
+        "session_start_retry_timeout_sec",
+        "session_start_timeout_sec",
+        "session_established_timeout_sec",
+    ],
+)
 
 
 class Transport(metaclass=abc.ABCMeta):
@@ -204,21 +207,48 @@ class TransportLogger(Transport):
         try:
             data = self.child.read(n, timeout_sec)
         except IoTimeoutError:
-            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [IoTimeoutError %.2f s]',
-                            self.name, timeout_sec, n, timeout_sec)
+            self.logger.log(
+                self.level,
+                "%s read {%3.2fs} %4d B -> [IoTimeoutError %.2f s]",
+                self.name,
+                timeout_sec,
+                n,
+                timeout_sec,
+            )
             raise
         except Exception as e:
-            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [err: %s]',
-                            self.name, timeout_sec, n, str(e), exc_info=1)
+            self.logger.log(
+                self.level,
+                "%s read {%3.2fs} %4d B -> [err: %s]",
+                self.name,
+                timeout_sec,
+                n,
+                str(e),
+                exc_info=1,
+            )
             raise e
 
         hex_lines = self._to_hex(data)
         if len(hex_lines) > 1:
-            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [%d B]:\n%s',
-                            self.name, timeout_sec, n, len(data), '\n'.join(hex_lines))
+            self.logger.log(
+                self.level,
+                "%s read {%3.2fs} %4d B -> [%d B]:\n%s",
+                self.name,
+                timeout_sec,
+                n,
+                len(data),
+                "\n".join(hex_lines),
+            )
         else:
-            self.logger.log(self.level, '%s read {%3.2fs} %4d B -> [%d B]: %s',
-                            self.name, timeout_sec, n, len(data), hex_lines[0])
+            self.logger.log(
+                self.level,
+                "%s read {%3.2fs} %4d B -> [%d B]: %s",
+                self.name,
+                timeout_sec,
+                n,
+                len(data),
+                hex_lines[0],
+            )
 
         return data
 
@@ -235,8 +265,14 @@ class TransportLogger(Transport):
             )
             raise
         except Exception as e:
-            self.logger.log(self.level, '%s write             <- [%d B]: [err: %s]',
-                            self.name, len(data), str(e), exc_info=1)
+            self.logger.log(
+                self.level,
+                "%s write             <- [%d B]: [err: %s]",
+                self.name,
+                len(data),
+                str(e),
+                exc_info=1,
+            )
             raise e
 
         hex_lines = self._to_hex(data[:bytes_written])
