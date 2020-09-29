@@ -240,7 +240,9 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
         if attrs.layout != "NCHW":
             print("nn.avg_pool2d: layout is {} but must be NCHW.".format(attrs.layout))
             return False
-        if attrs.count_include_pad and len(attrs.padding) == 4:
+        if attrs.count_include_pad and len(attrs.padding) == 4 and \
+           (int(attrs.padding[0]) != int(attrs.padding[2]) or \
+            int(attrs.padding[1]) != int(attrs.padding[3])):
             print("nn.avg_pool2d: inclusive-counted blended or average "
                   "pooling is not supported in combination with asymmetric padding")
             return False
