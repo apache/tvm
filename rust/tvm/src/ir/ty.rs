@@ -81,14 +81,15 @@ pub struct PointerTypeNode {
     /// The type of the element which the pointer points to.
     pub element_type: Type,
 }
+
 /// Possible kinds of type variables.
 pub enum TypeKind {
     Type = 0,
     /// Template variable in shape expression.
     ShapeVar = 1,
-    kConstraint = 4,
-    kAdtHandle = 5,
-    kTypeData = 6,
+    Constraint = 4,
+    AdtHandle = 5,
+    TypeData = 6,
 }
 
 /*
@@ -140,7 +141,7 @@ pub struct TupleTypeNode {
 }
 
 impl TupleType {
-    fn empty() -> TupleType {
+    pub fn empty() -> TupleType {
         todo!()
     }
 }
@@ -153,7 +154,7 @@ pub struct TypeConstraintNode {
     pub base: TypeNode,
 }
 
-/// The representation of a polymoprhic function type.
+/// The representation of a polymorphic function type.
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "FuncType"]
