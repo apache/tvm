@@ -31,7 +31,7 @@ def _make_sess_from_op(op_name, sched, arg_bufs):
 def _make_session(mod):
   prev_build = f'{os.path.splitext(__file__)[0]}-last-build.micro-binary'
   test_name = os.path.splitext(os.path.abspath(__file__))[0]
-  workspace_root = f'{test+name}-workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
+  workspace_root = f'{test_name}-workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
   workspace_parent = os.path.dirname(workspace_root)
   if not os.path.exists(workspace_parent):
     os.makedirs(workspace_parent)
