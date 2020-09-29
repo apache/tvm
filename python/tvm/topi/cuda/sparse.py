@@ -129,9 +129,9 @@ def schedule_cuda_transpose(s, out):
         s[op].bind(ni, thread_x)
         a, _ = s[c].split(s[c].op.axis[1], factor=1)
         s[c].bind(a, thread_x)
-        ao, ai = s[op].split(mi, nparts=4)
+        ao, _ = s[op].split(mi, nparts=4)
         s[op].bind(ao, thread_y)
-        ao, ai = s[c].split(s[c].op.axis[0], nparts=4)
+        ao, _ = s[c].split(s[c].op.axis[0], nparts=4)
         s[c].bind(ao, thread_y)
 
     traverse_inline(s, out.op, _callback)
@@ -285,7 +285,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
 
 
 @autotvm.register_topi_compute("sparse_dense_padded.cuda")
-def sparse_dense_padded(cfg, data, weight_data, weight_indices, weight_indptr):
+def sparse_dense_padded(_, data, weight_data, weight_indices, weight_indptr):
     """
     Computes sparse-dense matrix multiplication of `data` and
     `(weight_data, weight_indices, weight_indptr).T`
@@ -321,7 +321,7 @@ def sparse_dense_padded(cfg, data, weight_data, weight_indices, weight_indptr):
 
 
 @autotvm.register_topi_schedule("sparse_dense_padded.cuda")
-def schedule_sparse_dense_padded(cfg, outs):
+def schedule_sparse_dense_padded(_, outs):
     """Create schedule for sparse dense"""
     # XXX: this will fail if we don't include the data_t Tensor in the schedule
     # ops. Maybe create_schedule should do some analysis so this isn't
@@ -365,7 +365,7 @@ def pad_sparse_matrix(matrix, blocksize):
 
 
 @nn.sparse_dense_alter_layout.register(["cuda", "gpu"])
-def _alter_sparse_dense_layout(attrs, inputs, tinfos, out_type):
+def _alter_sparse_dense_layout(_attrs, inputs, _tinfos, _out_type):
     """With cuda, we modify use alter_op_layout to swap the default
     sparse_dense implementation for one that operates on a padded matrix. We
     also padd the matrix.

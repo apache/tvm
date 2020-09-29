@@ -210,7 +210,7 @@ def _csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
 
 
 @tvm.target.generic_func
-def sparse_dense_alter_layout(attrs, inputs, tinfos, out_type):
+def sparse_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
     """Change Sparse Dense layout.
 
     This is used for modifying the inputs weights so they are more amenable for
