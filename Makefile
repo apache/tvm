@@ -40,19 +40,19 @@ PKG_LDFLAGS =
 
 
 all:
-	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE)
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && cmake --build .
 
 runtime:
-	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) runtime
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && cmake --build . --target runtime
 
 vta:
-	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) vta
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && cmake --build . --target vta
 
 cpptest:
-	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) cpptest
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && cmake --build . --target cpptest
 
 crttest:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) crttest
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && cmake --build . --target crttest
 
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
@@ -138,4 +138,4 @@ jvminstall:
 
 # clean rule
 clean:
-	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && $(MAKE) clean
+	@mkdir -p $(OUTPUTDIR) && cd $(OUTPUTDIR) && cmake .. && cmake --build . --target clean
