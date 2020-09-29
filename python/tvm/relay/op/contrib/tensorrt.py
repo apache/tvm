@@ -306,7 +306,14 @@ def avg_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
     if attrs.layout != "NCHW":
         logger.info("nn.avg_pool2d: layout is %d but must be NCHW.", attrs.layout)
         return False
-    if attrs.count_include_pad and len(attrs.padding) == 4:
+    if (
+        attrs.count_include_pad
+        and len(attrs.padding) == 4
+        and (
+            int(attrs.padding[0]) != int(attrs.padding[2])
+            or int(attrs.padding[1]) != int(attrs.padding[3])
+        )
+    ):
         logger.info(
             "nn.avg_pool2d: inclusive-counted blended or average "
             "pooling is not supported in combination with asymmetric padding"

@@ -26,6 +26,11 @@ NVIDIA TensorRT is a library for optimized deep learning inference. This integra
 many operators as possible from Relay to TensorRT, providing a performance boost on NVIDIA GPUs
 without the need to tune schedules.
 
+This guide will demonstrate how to install TensorRT and build TVM with TensorRT BYOC and runtime
+enabled. It will also provide example code to compile and run a ResNet-18 model using TensorRT and
+how to configure the compilation and runtime settings. Finally, we document the supported operators
+and how to extend the integration to support other operators.
+
 Installing TensorRT
 -------------------
 
@@ -117,6 +122,43 @@ to be built.
     gen_module = tvm.contrib.graph_runtime.GraphModule(loaded_lib['default'](ctx))
     input_data = np.random.uniform(0, 1, input_shape).astype(dtype)
     gen_module.run(data=input_data)
+
+
+Partitioning and Compilation Settings
+----------------
+
+There are some options which can be configured in ``partition_for_tensorrt``.
+
+* ``version`` - TensorRT version to target as tuple of (major, minor, patch). If TVM is compiled
+  with USE_TENSORRT_GRAPH_RUNTIME=ON, the linked TensorRT version will be used instead. The version
+  will affect which ops can be partitioned to TensorRT.
+* ``use_implicit_batch`` - Use TensorRT implicit batch mode (default true). Setting to false will
+  enable explicit batch mode which will widen supported operators to include those which modify the
+  batch dimension, but may reduce performance for some models.
+* ``remove_no_mac_subgraphs`` - A heuristic to improve performance. Removes subgraphs which have
+  been partitioned for TensorRT if they do not have any multiply-accumulate operations. The removed
+  subgraphs will go through TVM's standard compilation instead.
+* ``max_workspace_size`` - How many bytes of workspace size to allow each subgraph to use for
+  TensorRT engine creation. See TensorRT documentation for more info. Can be overriden at runtime.
+
+
+Runtime Settings
+----------------
+
+There are some additional options which can be configured at runtime using environment variables.
+
+* Automatic FP16 Conversion - Environment variable ``TVM_TENSORRT_USE_FP16=1`` can be set to
+  automatically convert the TensorRT components of your model to 16-bit floating point precision.
+  This can greatly increase performance, but may cause some slight loss in the model accuracy.
+* Caching TensorRT Engines - During the first inference, the runtime will invoke the TensorRT API
+  to build an engine. This can be time consuming, so you can set ``TVM_TENSORRT_CACHE_DIR`` to
+  point to a directory to save these built engines to on the disk. The next time you load the model
+  and give it the same directory, the runtime will load the already built engines to avoid the long
+  warmup time. A unique directory is required for each model.
+* TensorRT has a paramter to configure the maximum amount of scratch space that each layer in the
+  model can use. It is generally best to use the highest value which does not cause you to run out
+  of memory. You can use ``TVM_TENSORRT_MAX_WORKSPACE_SIZE`` to override this by specifying the
+  workspace size in bytes you would like to use.
 
 
 Operator support
@@ -229,24 +271,6 @@ Operator support
 | nn.conv3d_transpose    | Requires TensorRT 6.0.1 or greater |
 +------------------------+------------------------------------+
 
-
-Runtime Settings
-----------------
-
-There are some additional options which can be configured at runtime using environment variables.
-
-* Automatic FP16 Conversion - Environment variable ``TVM_TENSORRT_USE_FP16=1`` can be set to
-  automatically convert the TensorRT components of your model to 16-bit floating point precision.
-  This can greatly increase performance, but may cause some slight loss in the model accuracy.
-* During the first inference, the runtime will invoke the TensorRT API to build an engine. This can
-  be time consuming, so you can set ``TVM_TENSORRT_CACHE_DIR`` to point to a directory to save
-  these built engines to on the disk. The next time you load the model and give it the same
-  directory, the runtime will load the already built engines to avoid the long warmup time. A
-  unique directory is required for each model.
-* TensorRT has a paramter to configure the maximum amount of scratch space that each layer in the
-  model can use. It is generally best to use the highest value which does not cause you to run out
-  of memory. You can use ``TVM_TENSORRT_MAX_WORKSPACE_SIZE`` to override this by specifying the
-  workspace size in bytes you would like to use.
 
 Adding a new operator
 ---------------------
