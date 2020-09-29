@@ -105,11 +105,13 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
   PassUpThreadBinding(stage, &dominating_thread);
 
   auto& state = *p_state;
-  // forward iteration on relations
+  // forwar iteration on relations
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* r = rel.as<SplitNode>()) {
-      CHECK(allow_missing || state.count(r->parent))
-          << "Could not find " << r->parent << " in current state";
+      if (!state.count(r->parent)) {
+        CHECK(allow_missing);
+        continue;
+      }
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       // Tighten iv's extent to min(parent_extent, factor_or_nparts), only if all of the
@@ -140,14 +142,18 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
                Range::FromMinExtent(0, ceil_div(range_parent->extent, r->nparts)), actx);
       }
     } else if (const FuseNode* r = rel.as<FuseNode>()) {
-      CHECK(allow_missing || state.count(r->inner) || state.count(r->outer))
-          << "Could not find " << r->inner << " or " << r->outer << " in current state";
+      if (!state.count(r->outer) || !state.count(r->inner)) {
+        CHECK(allow_missing);
+        continue;
+      }
       const Range& range_outer = state.at(r->outer);
       const Range& range_inner = state.at(r->inner);
       state[r->fused] = Range::FromMinExtent(0, range_outer->extent * range_inner->extent);
     } else if (const RebaseNode* r = rel.as<RebaseNode>()) {
-      CHECK(allow_missing || state.count(r->parent))
-          << "Could not find " << r->parent << " in current state";
+      if (!state.count(r->parent)) {
+        CHECK(allow_missing);
+        continue;
+      }
       Update(p_state, r->rebased, Range::FromMinExtent(0, state.at(r->parent)->extent), actx);
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       Update(p_state, s->iter, Range::FromMinExtent(0, 1), actx);
@@ -170,8 +176,10 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
   for (size_t i = stage->relations.size(); i != 0; --i) {
     IterVarRelation rel = stage->relations[i - 1];
     if (const SplitNode* s = rel.as<SplitNode>()) {
-      CHECK(allow_missing || state.count(s->inner) || state.count(s->outer))
-          << "Could not find " << s->inner << " or " << s->outer << " in current state";
+      if (!state.count(s->outer) || !state.count(s->inner)) {
+        CHECK(allow_missing);
+        continue;
+      }
       PrimExpr outer = state.at(s->outer);
       PrimExpr inner = state.at(s->inner);
       PrimExpr factor = dom_map.at(s->inner)->extent;
@@ -182,8 +190,10 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
         state[s->parent] = state[s->parent] + parent_min;
       }
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
-      CHECK(allow_missing || state.count(s->fused))
-          << "Could not find " << s->fused << " in current state";
+      if (!state.count(s->fused)) {
+        CHECK(allow_missing);
+        continue;
+      }
       PrimExpr value = state.at(s->fused);
       PrimExpr factor = dom_map.at(s->inner)->extent;
       PrimExpr outer_min = dom_map.at(s->outer)->min;
@@ -202,8 +212,10 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       state[s->outer] = cast(s->outer->var.dtype(), state[s->outer]);
       state[s->inner] = cast(s->inner->var.dtype(), state[s->inner]);
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
-      CHECK(allow_missing || state.count(s->rebased))
-          << "Could not find " << s->rebased << " in current state";
+      if (!state.count(s->rebased)) {
+        CHECK(allow_missing);
+        continue;
+      }
       PrimExpr value = state.at(s->rebased);
       PrimExpr parent_min = dom_map.at(s->parent)->min;
       // add min if they exist
@@ -224,18 +236,21 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
   auto& state = *p_state;
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* s = rel.as<SplitNode>()) {
-      CHECK(allow_missing || state.count(s->parent))
-          << "Could not find " << s->parent << " in current state";
+      if (!state.count(s->parent)) {
+        CHECK(allow_missing);
+        continue;
+      }
       Range r = dom_map.at(s->inner);
-      CHECK(is_zero(r->min)) << "The range of " << s->inner << " (" << r->min
-                             << ") does not start at 0";
+      CHECK(is_zero(r->min));
       PrimExpr parent = state.at(s->parent);
       PrimExpr factor = r->extent;
       state[s->outer] = indexdiv(parent, factor);
       state[s->inner] = indexmod(parent, factor);
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
-      CHECK(allow_missing || state.count(s->inner) || state.count(s->outer))
-          << "Could not find " << s->inner << " or " << s->outer << " in current state";
+      if (!state.count(s->inner) && !state.count(s->outer)) {
+        CHECK(allow_missing);
+        continue;
+      }
       PrimExpr factor = dom_map.at(s->inner)->extent;
       PrimExpr outer_min = dom_map.at(s->outer)->min;
       PrimExpr inner_min = dom_map.at(s->inner)->min;
@@ -245,12 +260,13 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       CHECK(is_zero(inner_min));
       state[s->fused] = outer * factor + inner;
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
-      CHECK(allow_missing || state.count(s->rebased))
-          << "Could not find " << s->rebased << " in current state";
+      if (!state.count(s->rebased)) {
+        CHECK(allow_missing);
+        continue;
+      }
       PrimExpr value = state.at(s->parent);
       PrimExpr parent_min = dom_map.at(s->parent)->min;
-      CHECK(is_zero(parent_min)) << "Range of " << s->parent << " (" << parent_min
-                                 << ") does not start at 0";
+      CHECK(is_zero(parent_min));
       state[s->rebased] = value;
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       state[s->iter] = make_zero(s->iter->var.dtype());
@@ -367,16 +383,20 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
   for (size_t i = stage->relations.size(); i != 0; --i) {
     IterVarRelation rel = stage->relations[i - 1];
     if (const SplitNode* s = rel.as<SplitNode>()) {
-      CHECK(allow_missing || state.count(s->inner) || state.count(s->outer))
-          << "Could not find " << s->inner << " or " << s->outer << " in current state";
+      if (!state.count(s->inner) && !state.count(s->outer)) {
+        CHECK(allow_missing);
+        continue;
+      }
       int res = 0;
       if (state.count(s->parent)) res |= state[s->parent];
       if (state.count(s->inner)) res |= state[s->inner];
       if (state.count(s->outer)) res |= state[s->outer];
       state[s->parent] = res;
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
-      CHECK(allow_missing || state.count(s->fused))
-          << "Could not find " << s->fused << " in current state";
+      if (!state.count(s->fused)) {
+        CHECK(allow_missing);
+        continue;
+      }
       if (!state.count(s->outer)) {
         state[s->outer] = state[s->fused];
       } else {
@@ -388,8 +408,10 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
         state[s->inner] |= state[s->fused];
       }
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
-      CHECK(allow_missing || state.count(s->rebased))
-          << "Could not find " << s->rebased << " in current state";
+      if (!state.count(s->rebased)) {
+        CHECK(allow_missing);
+        continue;
+      }
       if (!state.count(s->parent)) {
         state[s->parent] = state[s->rebased];
       } else {
@@ -407,8 +429,10 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
   auto& state = *p_state;
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* s = rel.as<SplitNode>()) {
-      CHECK(allow_missing || state.count(s->parent))
-          << "Could not find " << s->parent << " in current state";
+      if (!state.count(s->parent)) {
+        CHECK(allow_missing);
+        continue;
+      }
       if (!state.count(s->outer)) {
         state[s->outer] = state.at(s->parent);
       } else {
@@ -420,16 +444,20 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
         state[s->inner] |= state.at(s->parent);
       }
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
-      CHECK(allow_missing || state.count(s->inner) || state.count(s->outer))
-          << "Could not find " << s->inner << " or " << s->outer << " in current state";
+      if (!state.count(s->outer) && !state.count(s->inner)) {
+        CHECK(allow_missing);
+        continue;
+      }
       int res = 0;
       if (state.count(s->outer)) res |= state.at(s->outer);
       if (state.count(s->inner)) res |= state.at(s->inner);
       if (state.count(s->fused)) res |= state.at(s->fused);
       state[s->fused] = res;
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
-      CHECK(allow_missing || state.count(s->parent))
-          << "Could not find " << s->parent << " in current state";
+      if (!state.count(s->parent)) {
+        CHECK(allow_missing);
+        continue;
+      }
       if (!state.count(s->rebased)) {
         state[s->rebased] = state.at(s->parent);
       } else {
