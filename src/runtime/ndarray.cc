@@ -74,7 +74,7 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   DeviceAPI::Get(handle->ctx)
       ->CopyDataFromTo(data, 0, handle->data, static_cast<size_t>(handle->byte_offset), nbytes,
                        cpu_ctx, handle->ctx, handle->dtype, nullptr);
-  // Synchronize in case data become inavailable later.
+  // Synchronize in case data become unavailable later.
   DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
 }
 
@@ -88,7 +88,7 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   DeviceAPI::Get(handle->ctx)
       ->CopyDataFromTo(handle->data, static_cast<size_t>(handle->byte_offset), data, 0, nbytes,
                        handle->ctx, cpu_ctx, handle->dtype, nullptr);
-  // Synchronize in case data become inavailable later.
+  // Synchronize in case data become unavailable later.
   DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
 }
 
