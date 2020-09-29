@@ -26,8 +26,8 @@ from ..nn.util import get_pad_tuple
 from .tensor_intrin import (
     gemm_quantized,
     gemm_quantized_impl,
-    mmla_4x4_int8_int8_int32,
-    mmla_16x4_int8_int8_int32,
+    gemm_acc_4x4_int8_int8_int32,
+    gemm_acc_nx16_int8_int8_int32,
 )
 from .arm_utils import is_aarch64_arm, is_dotprod_available
 
@@ -272,7 +272,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
     k = C_interleaved.op.reduce_axis[0]
     _, M, N = C.shape
     if is_dotprod_available():
-        mmla = mmla_4x4_int8_int8_int32(in_type)
+        gemm_acc = gemm_acc_4x4_int8_int8_int32(in_type)
         xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(
             xi, yi, x_factor=8, y_factor=4
         )
@@ -289,7 +289,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
             yi_inner,
             k_inner,
         )
-        s[C_interleaved].tensorize(xi_inner_inner, mmla)
+        s[C_interleaved].tensorize(xi_inner_inner, gemm_acc)
         s[C_interleaved].unroll(xi_inner_outer)
 
     elif is_aarch64_arm():
@@ -327,9 +327,9 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     k_outer, k_inner = s[C].split(k, 16)
     x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=16)
     s[C].reorder(b, x_outer, y_outer, k_outer, x_inner, y_inner, k_inner)
-    mmla = mmla_16x4_int8_int8_int32(in_type, rows=1)
+    gemm_acc = gemm_acc_nx16_int8_int8_int32(in_type, rows=1)
     s[C].unroll(x_inner)
-    s[C].tensorize(y_inner, mmla)
+    s[C].tensorize(y_inner, gemm_acc)
     s[C].parallel(x_outer)
 
     # Input transform

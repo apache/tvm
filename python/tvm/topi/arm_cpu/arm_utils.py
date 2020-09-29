@@ -22,7 +22,7 @@ import tvm
 
 
 def get_arch_version(target_mattr):
-    """ Parse the LLVM target -mattr, and return
+    """Parse the LLVM target -mattr, and return
     the architecture version in a decimal representation
     (e.g., if -mattr=v8.4a, return 8.4)
     """
