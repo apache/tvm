@@ -112,6 +112,18 @@ def onnx_resnet50():
 
 @pytest.fixture(scope="session")
 def tflite_compiled_module_as_tarfile(tmpdir_factory):
+
+    # Not all CI environments will have TFLite installed
+    # so we need to safely skip this fixture that will
+    # crash the tests that rely on it.
+    # As this is a pytest.fixture, we cannot take advantage
+    # of pytest.importorskip. Using the block below instead.
+    try:
+        import tflite
+    except ImportError:
+        print("Cannot import tflite, which is required by tflite_compiled_module_as_tarfile.")
+        return ""
+
     target_dir = tmpdir_factory.mktemp("data")
     graph, lib, params, _ = get_sample_compiled_module(target_dir)
 
