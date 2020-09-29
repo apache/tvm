@@ -16,15 +16,15 @@
 # under the License.
 
 """Sparse operators"""
-from tvm import te
-from tvm import autotvm
-from ..util import traverse_inline
-from tvm.autotvm.task.space import SplitEntity
-import scipy.sparse as sp
 import numpy as np
+import scipy.sparse as sp
+
 import tvm
+from tvm import autotvm, relay, te
+from tvm.autotvm.task.space import SplitEntity
+
 from .. import nn
-from tvm import relay
+from ..util import traverse_inline
 
 
 @autotvm.register_topi_compute("sparse_dense.cuda")
@@ -113,6 +113,7 @@ def schedule_cuda_transpose(s, out):
     """
 
     def _callback(op):
+        # pylint: disable=invalid-name
         m, n = s[op].op.axis
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         no, ni = s[op].split(n, factor=warp_size)
@@ -126,7 +127,7 @@ def schedule_cuda_transpose(s, out):
         thread_x = te.thread_axis("threadIdx.x")
         thread_y = te.thread_axis("threadIdx.y")
         s[op].bind(ni, thread_x)
-        a, b = s[c].split(s[c].op.axis[1], factor=1)
+        a, _ = s[c].split(s[c].op.axis[1], factor=1)
         s[c].bind(a, thread_x)
         ao, ai = s[op].split(mi, nparts=4)
         s[op].bind(ao, thread_y)
@@ -139,22 +140,29 @@ def schedule_cuda_transpose(s, out):
 def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     """Compute data * w^T.
 
-    Actually computes (w * data^T) ^ T as data needs to be in column-major format for performance reasons.
+    Actually computes (w * data^T) ^ T as data needs to be in column-major
+    format for performance reasons.
 
     Good resources:
-    Yang, Carl, Aydın Buluç, and John D. Owens. "Design principles for sparse matrix multiplication on the GPU." European Conference on Parallel Processing. Springer, Cham, 2018. <- This code is basically row-split from here.
-    Gale, Trevor, et al. "Sparse GPU Kernels for Deep Learning." arXiv preprint arXiv:2006.10901 (2020).
+    Yang, Carl, Aydın Buluç, and John D. Owens. "Design principles for sparse
+    matrix multiplication on the GPU." European Conference on Parallel
+    Processing. Springer, Cham, 2018. <- This code is basically row-split from here.
+    Gale, Trevor, et al. "Sparse GPU Kernels for Deep Learning." arXiv preprint
+    arXiv:2006.10901 (2020).
 
 
     Profile with
-    `/opt/nvidia/nsight-compute/2020.1.2/ncu -k default_function_kernel1 --section '.*' -s 1 -c 1 venv/bin/python3 test_topi_sparse.py manual`
-    with either default_function_kernel0 for the transpose or default_function_kernel1 for the multiply.
+    `/opt/nvidia/nsight-compute/2020.1.2/ncu -k default_function_kernel1
+    --section '.*' -s 1 -c 1 venv/bin/python3 test_topi_sparse.py manual`
+    with either default_function_kernel0 for the transpose or
+    default_function_kernel1 for the multiply.
     """
 
     def ceil_div(a, b):
         return (a + (b - 1)) // b
 
     def gen_ir(data, w_data, w_indices, w_indptr, out):
+        # pylint: disable=invalid-name
         # TODO(tkonolige): use tensorcores for block multiply
         # TODO(tkonolige): use vectorize on loads
         # TODO(tkonolige): seperate implementation if M is small
@@ -163,7 +171,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
 
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         m = data.shape[1]
-        k = data.shape[0]
         nb = w_indptr.shape[0] - 1
         nnzb = w_data.shape[0]
         # treat csr like block size 1 bsr
@@ -174,7 +181,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
             bs_n = w_data.shape[1]
             bs_k = w_data.shape[2]
         bs_m = bs_n
-        n = nb * bs_n
         mb = m // bs_m
         mi = warp_size
         assert (
@@ -261,10 +267,10 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     data_t = tvm.topi.transpose(data)
     # handle csr
     if len(w_data.shape) == 1:
-        bs = 1
+        blocksize = 1
     else:
-        bs = w_data.shape[1]
-    out_shape = (data_t.shape[1], (w_indptr.shape[0] - 1) * bs)
+        blocksize = w_data.shape[1]
+    out_shape = (data_t.shape[1], (w_indptr.shape[0] - 1) * blocksize)
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
     out = te.extern(
         [out_shape],
@@ -326,36 +332,36 @@ def schedule_sparse_dense_padded(cfg, outs):
     return s
 
 
-def pad_sparse_matrix(A, blocksize):
-    """Pad rows of sparse matrix A so that they are a multiple of blocksize."""
-    assert isinstance(A, sp.bsr_matrix)
-    new_entries = np.zeros(A.shape[0], dtype=A.indptr.dtype)
-    bsr = A.blocksize[0]
-    bsc = A.blocksize[1]
-    for i in range(A.shape[0] // bsr):
-        row_length = A.indptr[i + 1] - A.indptr[i]
+def pad_sparse_matrix(matrix, blocksize):
+    """Pad rows of sparse matrix matrix so that they are a multiple of blocksize."""
+    assert isinstance(matrix, sp.bsr_matrix)
+    new_entries = np.zeros(matrix.shape[0], dtype=matrix.indptr.dtype)
+    bsr = matrix.blocksize[0]
+    for i in range(matrix.shape[0] // bsr):
+        row_length = matrix.indptr[i + 1] - matrix.indptr[i]
         if row_length % blocksize != 0:
             new_entries[i] = blocksize - (row_length % blocksize)
     additional = np.sum(new_entries)
-    indices = np.zeros(A.indices.shape[0] + additional, dtype=A.indices.dtype)
+    indices = np.zeros(matrix.indices.shape[0] + additional, dtype=matrix.indices.dtype)
     data = np.zeros(
-        (A.data.shape[0] + additional, A.data.shape[1], A.data.shape[2]), dtype=A.data.dtype
+        (matrix.data.shape[0] + additional, matrix.data.shape[1], matrix.data.shape[2]),
+        dtype=matrix.data.dtype,
     )
 
-    n = A.shape[0] // bsr
-    indptr = np.zeros(n + 1, dtype=A.indptr.dtype)
-    indptr[: A.indptr.shape[0]] = A.indptr
+    n = matrix.shape[0] // bsr
+    indptr = np.zeros(n + 1, dtype=matrix.indptr.dtype)
+    indptr[: matrix.indptr.shape[0]] = matrix.indptr
 
-    for i in range(A.shape[0] // bsr):
-        indptr[i + 1] = indptr[i] + new_entries[i] + (A.indptr[i + 1] - A.indptr[i])
-        indices[indptr[i] : indptr[i + 1] - new_entries[i]] = A.indices[
-            A.indptr[i] : A.indptr[i + 1]
+    for i in range(matrix.shape[0] // bsr):
+        indptr[i + 1] = indptr[i] + new_entries[i] + (matrix.indptr[i + 1] - matrix.indptr[i])
+        indices[indptr[i] : indptr[i + 1] - new_entries[i]] = matrix.indices[
+            matrix.indptr[i] : matrix.indptr[i + 1]
         ]
-        data[indptr[i] : indptr[i + 1] - new_entries[i], :, :] = A.data[
-            A.indptr[i] : A.indptr[i + 1], :, :
+        data[indptr[i] : indptr[i + 1] - new_entries[i], :, :] = matrix.data[
+            matrix.indptr[i] : matrix.indptr[i + 1], :, :
         ]
 
-    return sp.bsr_matrix((data, indices, indptr), A.shape)
+    return sp.bsr_matrix((data, indices, indptr), matrix.shape)
 
 
 @nn.sparse_dense_alter_layout.register(["cuda", "gpu"])
@@ -369,15 +375,15 @@ def _alter_sparse_dense_layout(attrs, inputs, tinfos, out_type):
         and isinstance(inputs[2], relay.Constant)
         and isinstance(inputs[3], relay.Constant)
     ):
-        W = sp.bsr_matrix(
+        sparse_matrix = sp.bsr_matrix(
             (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
         )
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
-        W = pad_sparse_matrix(W, warp_size)
+        sparse_matrix = pad_sparse_matrix(sparse_matrix, warp_size)
         return relay.nn._make.sparse_dense_padded(
             inputs[0],
-            relay.Constant(tvm.nd.array(W.data)),
-            relay.Constant(tvm.nd.array(W.indices)),
-            relay.Constant(tvm.nd.array(W.indptr)),
+            relay.Constant(tvm.nd.array(sparse_matrix.data)),
+            relay.Constant(tvm.nd.array(sparse_matrix.indices)),
+            relay.Constant(tvm.nd.array(sparse_matrix.indptr)),
         )
     return None

@@ -84,7 +84,7 @@ def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
 @reg.register_compute("nn.sparse_dense_padded")
 def compute_sparse_dense_padded(attrs, inputs, out_type):
     """Compute definition of sparse_dense_padded"""
-    raise (NotImplementedError("nn.sparse_dense_padded is only available on cuda"))
+    raise NotImplementedError("nn.sparse_dense_padded is only available on cuda")
 
 
 reg.register_strategy("nn.sparse_dense_padded", strategy.sparse_dense_padded_strategy)
