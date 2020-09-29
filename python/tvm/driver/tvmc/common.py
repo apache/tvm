@@ -107,7 +107,11 @@ def target_from_cli(target):
 
 
 def tracker_host_port_from_cli(rpc_tracker_str):
-    """Alter the layout of the input graph.
+    """Extract hostname and (optional) port from strings
+    like "1.2.3.4:9090" or "4.3.2.1".
+
+    Used as a helper function to cover --rpc-tracker
+    command line argument, in different subcommands.
 
     Parameters
     ----------

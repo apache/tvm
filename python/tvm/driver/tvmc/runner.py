@@ -57,7 +57,7 @@ def add_run_parser(subparsers):
     parser.add_argument(
         "--fill-mode",
         choices=["zeros", "ones", "random"],
-        default="zeros",
+        default="random",
         help="fill all input tensors with values",
     )
     parser.add_argument("-i", "--inputs", help="path to the .npz input file")
@@ -72,7 +72,12 @@ def add_run_parser(subparsers):
         help="print the top n values and indices of the output tensor",
     )
     parser.add_argument(
-        "--profile", action="store_true", help="generate profiling data from the runtime execution"
+        "--profile",
+        action="store_true",
+        help="generate profiling data from the runtime execution. "
+        "Using --profile requires the Graph Runtime Debug enabled on TVM. "
+        "Profiling may also have an impact on inference time, "
+        "making it take longer to be generated.",
     )
     parser.add_argument("--repeat", metavar="N", type=int, default=1, help="repeat the run n times")
     parser.add_argument(
@@ -134,6 +139,14 @@ def get_input_info(graph_str, params):
     """Return the 'shape' and 'dtype' dictionaries for the input
     tensors of a compiled module.
 
+    .. note::
+        We can't simply get the input tensors from a TVM graph
+        because weight tensors are treated equivalently. Therefore, to
+        find the input tensors we look at the 'arg_nodes' in the graph
+        (which are either weights or inputs) and check which ones don't
+        appear in the params (where the weights are stored). These nodes
+        are therefore inferred to be input tensors.
+
     Parameters
     ----------
     graph_str : str
@@ -148,12 +161,6 @@ def get_input_info(graph_str, params):
     dtype_dict : dict
         dtype dictionary - {input_name: dtype}.
     """
-    # NOTE - We can't simply get the input tensors from a TVM graph
-    # because weight tensors are treated equivalently. Therefore, to
-    # find the input tensors we look at the 'arg_nodes' in the graph
-    # (which are either weights or inputs) and check which ones don't
-    # appear in the params (where the weights are stored). These nodes
-    # are therefore inferred to be input tensors.
 
     shape_dict = {}
     dtype_dict = {}
@@ -207,7 +214,7 @@ def generate_tensor_data(shape, dtype, fill_mode):
         tensor = np.ones(shape=shape, dtype=dtype)
     elif fill_mode == "random":
         if "int8" in dtype:
-            tensor = np.random.randint(256, size=shape, dtype=dtype)
+            tensor = np.random.randint(128, size=shape, dtype=dtype)
         else:
             tensor = np.random.uniform(-1, 1, size=shape).astype(dtype)
     else:
@@ -278,7 +285,7 @@ def run_module(
     rpc_key=None,
     device=None,
     inputs=None,
-    fill_mode="zeros",
+    fill_mode="random",
     repeat=1,
     profile=False,
 ):
@@ -336,28 +343,28 @@ def run_module(
             # Remote RPC
             if rpc_key:
                 logger.debug("running on remote RPC tracker with key %s", rpc_key)
-                remote = request_remote(rpc_key, hostname, port, timeout=1000)
+                session = request_remote(rpc_key, hostname, port, timeout=1000)
             else:
                 logger.debug("running on remote RPC with no key")
-                remote = rpc.connect(hostname, port)
+                session = rpc.connect(hostname, port)
         else:
             # Local
             logger.debug("running a local session")
-            remote = rpc.LocalSession()
+            session = rpc.LocalSession()
 
-        remote.upload(os.path.join(tmp_dir, "mod.so"))
-        remote_lib = remote.load_module("mod.so")
+        session.upload(os.path.join(tmp_dir, "mod.so"))
+        lib = session.load_module("mod.so")
 
         # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
-        logger.debug("remote device is %s", device)
-        ctx = remote.cpu() if device == "cpu" else remote.gpu()
+        logger.debug("device is %s", device)
+        ctx = session.cpu() if device == "cpu" else session.gpu()
 
         if profile:
             logger.debug("creating runtime with profiling enabled")
-            module = debug_runtime.create(graph, remote_lib, ctx, dump_root="./prof")
+            module = debug_runtime.create(graph, lib, ctx, dump_root="./prof")
         else:
             logger.debug("creating runtime with profiling disabled")
-            module = runtime.create(graph, remote_lib, ctx)
+            module = runtime.create(graph, lib, ctx)
 
         logger.debug("load params into the runtime module")
         module.load_params(params)
@@ -421,6 +428,12 @@ def get_top_results(outputs, max_results):
 def format_times(times):
     """Format the mean, max, min and std of the execution times.
 
+    This has the effect of producing a small table that looks like:
+
+        Execution time summary:
+        mean (s)   max (s)    min (s)    std (s)
+        0.14310    0.16161    0.12933    0.01004
+
     Parameters
     ----------
     times : list
@@ -431,11 +444,6 @@ def format_times(times):
     str
         A formatted string containing the statistics.
     """
-    # This has the effect of producing a small table that looks like:
-    #
-    # Execution time summary:
-    # mean (s)   max (s)    min (s)    std (s)
-    # 0.14310    0.16161    0.12933    0.01004
 
     # timestamps
     mean_ts = np.mean(times)
