@@ -52,13 +52,15 @@ def add_run_parser(subparsers):
         "--device",
         choices=["cpu", "gpu"],
         default="cpu",
-        help="target device to run the compiled module",
+        help="target device to run the compiled module. Defaults to 'cpu'",
     )
     parser.add_argument(
         "--fill-mode",
         choices=["zeros", "ones", "random"],
         default="random",
-        help="fill all input tensors with values",
+        help="fill all input tensors with values. In case --inputs/-i is provided, "
+        "they will take precedence over --fill-mode. Any remaining inputs will be "
+        "filled using the chosen fill mode. Defaults to 'random'",
     )
     parser.add_argument("-i", "--inputs", help="path to the .npz input file")
     parser.add_argument("-o", "--outputs", help="path to the .npz output file")
@@ -79,7 +81,9 @@ def add_run_parser(subparsers):
         "Profiling may also have an impact on inference time, "
         "making it take longer to be generated.",
     )
-    parser.add_argument("--repeat", metavar="N", type=int, default=1, help="repeat the run n times")
+    parser.add_argument(
+        "--repeat", metavar="N", type=int, default=1, help="repeat the run n times. Defaults to '1'"
+    )
     parser.add_argument(
         "--rpc-key",
         nargs=1,
