@@ -969,6 +969,9 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
       }
     }  // end for placeholder
   }    // end for stage
+  p_dag->access_analyzer = AccessAnalyzer(p_dag->tensors);
+  p_dag->ops = p_dag->access_analyzer->ops_topo_order;
+  p_dag->flop_ct = FlopEstimator().EstimateFlop(p_dag->ops);
 }
 
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
@@ -989,15 +992,15 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   if (stage_to_axes == nullptr) {
     stage_to_axes = &temp_stage_to_axes;
   }
-  Array<te::Operation> ops;
+  Array<te::Operation> out_ops;
   for (const auto& op : operator->()->ops) {
-    if (!op->IsInstance<te::PlaceholderOpNode>()) {
-      ops.push_back(op);
+    if (operator->()->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
     }
   }
 
   // Create the initial schedule
-  te::Schedule schedule = te::create_schedule(ops);
+  te::Schedule schedule = te::create_schedule(out_ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -1018,14 +1021,14 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
 String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const {
   Array<te::Stage> stages;
   StageToAxesMap stage_to_axes;
-  Array<te::Operation> ops;
+  Array<te::Operation> out_ops;
   for (const auto& op : operator->()->ops) {
-    if (!op->IsInstance<te::PlaceholderOpNode>()) {
-      ops.push_back(op);
+    if (operator->()->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
     }
   }
   // Create the initial schedule
-  te::Schedule schedule = te::create_schedule(ops);
+  te::Schedule schedule = te::create_schedule(out_ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
