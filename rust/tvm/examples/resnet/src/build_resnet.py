@@ -34,18 +34,24 @@ from PIL import Image
 from tvm.contrib.download import download_testdata
 from mxnet.gluon.model_zoo.vision import get_model
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser(description='Resnet build example')
+parser = argparse.ArgumentParser(description="Resnet build example")
 aa = parser.add_argument
-aa('--build-dir', type=str, required=True, help='directory to put the build artifacts')
-aa('--batch-size', type=int, default=1, help='input image batch size')
-aa('--opt-level', type=int, default=3,
-   help='level of optimization. 0 is unoptimized and 3 is the highest level')
-aa('--target', type=str, default='llvm', help='target context for compilation')
-aa('--image-shape', type=str, default='3,224,224', help='input image dimensions')
-aa('--image-name', type=str, default='cat.png', help='name of input image to download')
+aa("--build-dir", type=str, required=True, help="directory to put the build artifacts")
+aa("--batch-size", type=int, default=1, help="input image batch size")
+aa(
+    "--opt-level",
+    type=int,
+    default=3,
+    help="level of optimization. 0 is unoptimized and 3 is the highest level",
+)
+aa("--target", type=str, default="llvm", help="target context for compilation")
+aa("--image-shape", type=str, default="3,224,224", help="input image dimensions")
+aa("--image-name", type=str, default="cat.png", help="name of input image to download")
 args = parser.parse_args()
 
 build_dir = args.build_dir
@@ -55,53 +61,61 @@ target = tvm.target.create(args.target)
 image_shape = tuple(map(int, args.image_shape.split(",")))
 data_shape = (batch_size,) + image_shape
 
+
 def build(target_dir):
     """ Compiles resnet18 with TVM"""
     # Download the pretrained model in MxNet's format.
     block = get_model("resnet18_v1", pretrained=True)
 
-    shape_dict = {"data": (1, 3, 224, 224) }
+    shape_dict = {"data": (1, 3, 224, 224)}
     mod, params = relay.frontend.from_mxnet(block, shape_dict)
     # Add softmax to do classification in last layer.
     func = mod["main"]
-    func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
+    func = relay.Function(
+        func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs
+    )
 
     target = "llvm"
     with tvm.transform.PassContext(opt_level=3):
         graph, lib, params = relay.build(func, target, params=params)
 
     # save the model artifacts
-    deploy_lib = osp.join(target_dir, 'deploy_lib.o')
+    deploy_lib = osp.join(target_dir, "deploy_lib.o")
     lib.save(deploy_lib)
-    cc.create_shared(osp.join(target_dir, "deploy_lib.so"),
-                    [osp.join(target_dir, "deploy_lib.o")])
+    cc.create_shared(osp.join(target_dir, "deploy_lib.so"), [osp.join(target_dir, "deploy_lib.o")])
 
     with open(osp.join(target_dir, "deploy_graph.json"), "w") as fo:
         fo.write(graph)
 
-    with open(osp.join(target_dir,"deploy_param.params"), "wb") as fo:
+    with open(osp.join(target_dir, "deploy_param.params"), "wb") as fo:
         fo.write(relay.save_param_dict(params))
+
 
 def download_img_labels():
     """ Download an image and imagenet1k class labels for test"""
     from mxnet.gluon.utils import download
 
-    synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
-                      '4d0b62f3d01426887599d4f7ede23ee5/raw/',
-                      '596b27d23537e5a1b5751d2b0481ef172f58b539/',
-                      'imagenet1000_clsid_to_human.txt'])
-    synset_name = 'synset.txt'
+    synset_url = "".join(
+        [
+            "https://gist.githubusercontent.com/zhreshold/",
+            "4d0b62f3d01426887599d4f7ede23ee5/raw/",
+            "596b27d23537e5a1b5751d2b0481ef172f58b539/",
+            "imagenet1000_clsid_to_human.txt",
+        ]
+    )
+    synset_name = "synset.txt"
     synset_path = download_testdata(synset_url, synset_name, module="data")
 
     with open(synset_path) as fin:
         synset = eval(fin.read())
 
-    with open(synset_name, 'w') as f:
+    with open(synset_name, "w") as f:
         for key in synset:
             f.write(synset[key])
             f.write("\n")
 
     return synset
+
 
 def transform_image(image):
     image = np.array(image) - np.array([123.0, 117.0, 104.0])
@@ -110,6 +124,7 @@ def transform_image(image):
     image = image[np.newaxis, :]
     return image
 
+
 def get_cat_image():
     img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
     img_path = download_testdata(img_url, "cat.png", module="data")
@@ -117,11 +132,12 @@ def get_cat_image():
     img = Image.open(img_path).resize((224, 224))
     return transform_image(img)
 
+
 def test_build(build_dir):
     """ Sanity check with the cat image we download."""
     graph = open(osp.join(build_dir, "deploy_graph.json")).read()
     lib = tvm.runtime.load_module(osp.join(build_dir, "deploy_lib.so"))
-    params = bytearray(open(osp.join(build_dir,"deploy_param.params"), "rb").read())
+    params = bytearray(open(osp.join(build_dir, "deploy_param.params"), "rb").read())
     input_data = get_cat_image()
     ctx = tvm.cpu()
     module = graph_runtime.create(graph, lib, ctx)
@@ -132,7 +148,8 @@ def test_build(build_dir):
     synset = download_img_labels()
     print("TVM prediction top-1:", top1, synset[top1])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     logger.info("Compiling the model to graph runtime.")
     build(build_dir)
     logger.info("Testing the model's predication on test data.")
