@@ -76,6 +76,10 @@ class SketchGenerationRule {
   virtual std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy,
                                                    const State& state, int stage_id) const = 0;
 
+  /*!
+   * \brief Get the name of this rule.
+   * \return A string of the rule name.
+   */
   virtual std::string GetRuleName() const = 0;
 };
 
