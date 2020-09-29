@@ -1,0 +1,14 @@
+#!/bin/bash -e
+
+ARGS=( "$(basename $0)" )
+while [ "$#" -gt 0 ]; do
+    if [ "$1" == "-pidfile" ]; then
+        shift
+    else
+        ARGS=( "${ARGS[@]}" "$1" )
+    fi
+    shift
+done
+
+echo "exec ${ARGS[@]}"
+"${ARGS[@]}"

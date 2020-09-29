@@ -1,0 +1,5 @@
+sample:
+  description: uTVM RPC Server unit test
+  name: utvm rpc server
+common:
+    tags: introduction
