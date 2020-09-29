@@ -17,8 +17,8 @@
  * under the License.
  */
 
-use crate::runtime::{Object, ObjectPtr, IsObject};
 use super::span::Span;
+use crate::runtime::{IsObject, Object, ObjectPtr};
 use tvm_macros::Object;
 use tvm_rt::{array::Array, DataType};
 
@@ -35,7 +35,10 @@ pub struct TypeNode {
 
 impl TypeNode {
     fn base<T: IsObject>(span: Span) -> Self {
-        TypeNode { base: Object::base_object::<T>(), span }
+        TypeNode {
+            base: Object::base_object::<T>(),
+            span,
+        }
     }
 }
 
@@ -47,19 +50,18 @@ impl TypeNode {
  *
  * \sa PrimType
  */
- #[repr(C)]
- #[derive(Object)]
- #[ref_name = "PrimType"]
- #[type_key = "PrimType"]
- pub struct PrimTypeNode {
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "PrimType"]
+#[type_key = "PrimType"]
+pub struct PrimTypeNode {
     pub base: TypeNode,
     /// The corresponding dtype field.
     pub dtype: DataType,
- }
-
+}
 
 /*
-   *!
+ *!
  * \brief Low-level raw pointer type.
  *
  *  PointerType represents type hints in the TIR to be
@@ -70,10 +72,10 @@ impl TypeNode {
  * \sa PointerType
  */
 
- #[repr(C)]
- #[derive(Object)]
- #[ref_name = "PointerType"]
- #[type_key = "PointerType"]
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "PointerType"]
+#[type_key = "PointerType"]
 pub struct PointerTypeNode {
     pub base: TypeNode,
     /// The type of the element which the pointer points to.
@@ -86,7 +88,7 @@ pub enum TypeKind {
     ShapeVar = 1,
     kConstraint = 4,
     kAdtHandle = 5,
-    kTypeData = 6
+    kTypeData = 6,
 }
 
 /*
@@ -223,7 +225,7 @@ impl TensorType {
         let node = TensorTypeNode {
             base: TypeNode::base::<TensorTypeNode>(span),
             shape,
-            dtype
+            dtype,
         };
         ObjectPtr::new(node).into()
     }
