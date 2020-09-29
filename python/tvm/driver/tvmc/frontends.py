@@ -33,6 +33,10 @@ from tvm import relay
 from tvm.driver.tvmc.common import TVMCException
 
 
+# pylint: disable=invalid-name
+logger = logging.getLogger("TVMC")
+
+
 class Frontend(ABC):
     """Abstract class for command line driver frontend.
 
@@ -192,7 +196,7 @@ class TensorflowFrontend(Frontend):
         graph_def.ParseFromString(content)
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
-        logging.debug("relay.frontend.from_tensorflow")
+        logger.debug("parse TensorFlow model and convert into Relay computation graph")
         return relay.frontend.from_tensorflow(graph_def)
 
 
@@ -235,18 +239,17 @@ class TFLiteFrontend(Frontend):
 
         try:
             version = tflite_model.Version()
-            logging.debug("tflite version %s", version)
+            logger.debug("tflite version %s", version)
         except Exception:
             raise TVMCException("input file not tflite")
 
         if version != 3:
             raise TVMCException("input file not tflite version 3")
 
-        logging.debug("tflite_input_type")
+        logger.debug("tflite_input_type")
         shape_dict, dtype_dict = TFLiteFrontend._input_type(tflite_model)
 
-        # parse TFLite model and convert into Relay computation graph
-        logging.debug("relay.frontend.from_tflite")
+        logger.debug("parse TFLite model and convert into Relay computation graph")
         mod, params = relay.frontend.from_tflite(
             tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
         )
@@ -302,7 +305,8 @@ class PyTorchFrontend(Frontend):
 
         traced_model.eval()  # Switch to inference mode
         input_shapes = [("input{}".format(idx), shape) for idx, shape in enumerate(shapes)]
-        logging.debug("relay.frontend.from_pytorch")
+
+        logger.debug("parse Torch model and convert into Relay computation graph")
         return relay.frontend.from_pytorch(traced_model, input_shapes)
 
 

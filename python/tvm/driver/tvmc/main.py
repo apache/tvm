@@ -72,7 +72,7 @@ def _main(argv):
     if args.verbose > 4:
         args.verbose = 4
 
-    logging.getLogger().setLevel(40 - args.verbose * 10)
+    logging.getLogger("TVMC").setLevel(40 - args.verbose * 10)
 
     if args.version:
         version = pkg_resources.get_distribution("tvm").version
