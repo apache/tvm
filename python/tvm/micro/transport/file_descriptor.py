@@ -33,9 +33,9 @@ class FdTransport(base.Transport):
 
     @classmethod
     def _validate_configure_fd(cls, file_descriptor):
-        file_descriptor = (file_descriptor
-                           if isinstance(file_descriptor, int)
-                           else file_descriptor.fileno())
+        file_descriptor = (
+            file_descriptor if isinstance(file_descriptor, int) else file_descriptor.fileno()
+        )
         flag = fcntl.fcntl(file_descriptor, fcntl.F_GETFL)
         if flag & os.O_NONBLOCK != 0:
             return file_descriptor
@@ -43,7 +43,8 @@ class FdTransport(base.Transport):
         flag = fcntl.fcntl(file_descriptor, fcntl.F_SETFL, os.O_NONBLOCK | flag)
         if flag & os.O_NONBLOCK == 0:
             raise FdConfigurationError(
-                'Cannot set file descriptor {file_descriptor} to non-blocking')
+                "Cannot set file descriptor {file_descriptor} to non-blocking"
+            )
         return file_descriptor
 
     def __init__(self, read_fd, write_fd, timeouts):

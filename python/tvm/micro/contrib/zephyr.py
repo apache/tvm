@@ -39,7 +39,8 @@ from .. import compiler
 from .. import debugger
 from ..transport import debug
 from ..transport.fd import FdTransport
-#from ..transport import serial
+
+# from ..transport import serial
 from ..transport import Transport, TransportClosedError, TransportTimeouts
 from ..transport import wakeup
 
@@ -195,7 +196,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         return tvm.micro.MicroLibrary(build_dir, [f"lib{project_name}.a"])
 
     def binary(self, output, objects, options=None, link_main=True, main_options=None):
-        assert link_main, 'Must pass link_main=True'
+        assert link_main, "Must pass link_main=True"
         assert self._project_dir is not None, "Must supply project_dir= to build binaries"
 
         copied_libs = base.populate_tvm_objs(self._project_dir, objects)
@@ -314,7 +315,8 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
         if not nrfjprog_ids.strip("\n"):
             raise BoardAutodetectFailed(
-                f'No attached boards recognized by {" ".join(nrfjprog_args)}')
+                f'No attached boards recognized by {" ".join(nrfjprog_args)}'
+            )
 
         boards = nrfjprog_ids.split("\n")[:-1]
         if len(boards) > 1:
@@ -442,10 +444,15 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
     def transport(self, micro_binary):
         """Instantiate the transport for use with non-QEMU Zephyr."""
-        dt_inst = self._dtlib.DT(micro_binary.abspath(micro_binary.labelled_files["device_tree"][0]))
+        dt_inst = self._dtlib.DT(
+            micro_binary.abspath(micro_binary.labelled_files["device_tree"][0])
+        )
         uart_baud = (
-            dt_inst.get_node("/chosen").props["zephyr,console"].to_path()
-            .props["current-speed"].to_num()
+            dt_inst.get_node("/chosen")
+            .props["zephyr,console"]
+            .to_path()
+            .props["current-speed"]
+            .to_num()
         )
         _LOG.debug("zephyr transport: found UART baudrate from devicetree: %d", uart_baud)
 
@@ -548,7 +555,8 @@ class ZephyrQemuTransport(Transport):
                 os.open(self.write_pipe, os.O_RDWR | os.O_NONBLOCK),
                 self.timeouts(),
             ),
-            b'\xfe\xff\xfd\x03\0\0\0\0\0\x02' b'fw')
+            b"\xfe\xff\xfd\x03\0\0\0\0\0\x02" b"fw",
+        )
         self.fd_transport.open()
 
     def close(self):

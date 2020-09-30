@@ -57,8 +57,12 @@ class Session:
     """
 
     def __init__(
-            self, binary=None, flasher=None, transport_context_manager=None,
-            session_name="micro-rpc", timeout_override=None,
+        self,
+        binary=None,
+        flasher=None,
+        transport_context_manager=None,
+        session_name="micro-rpc",
+        timeout_override=None,
     ):
         """Configure a new session.
 

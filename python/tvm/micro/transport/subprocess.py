@@ -51,7 +51,8 @@ class SubprocessTransport(base.Transport):
         self.kwargs["bufsize"] = 0
         self.popen = subprocess.Popen(self.args, **self.kwargs)
         self.child_transport = SubprocessFdTransport(
-            self.popen.stdout, self.popen.stdin, self.timeouts())
+            self.popen.stdout, self.popen.stdin, self.timeouts()
+        )
 
     def write(self, data, timeout_sec):
         return self.child_transport.write(data, timeout_sec)
