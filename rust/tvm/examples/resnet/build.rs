@@ -17,18 +17,19 @@
  * under the License.
  */
 
+use anyhow::{Context, Result};
 use std::{io::Write, path::Path, process::Command};
 
-fn main() {
+fn main() -> Result<()> {
     let output = Command::new("python3")
         .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
         .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
         .output()
-        .expect("Failed to execute command");
+        .with_context(|| anyhow::anyhow!("failed to run python3"))?;
     if !output.status.success() {
         std::io::stdout()
             .write_all(&output.stderr)
-            .expect("Failed to write error");
+            .context("Failed to write error")?;
         panic!("Failed to execute build script");
     }
     assert!(
@@ -45,4 +46,6 @@ fn main() {
         "cargo:rustc-link-search=native={}",
         env!("CARGO_MANIFEST_DIR")
     );
+
+    Ok(())
 }
