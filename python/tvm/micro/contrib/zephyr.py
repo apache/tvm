@@ -543,7 +543,6 @@ class ZephyrQemuTransport(Transport):
         self.proc = subprocess.Popen(
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
-            stdin=sys.stdin.fileno(),
             **self.kwargs,
         )
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
