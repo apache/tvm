@@ -125,8 +125,8 @@ ALLOW_SPECIFIC_FILE = {
     # pytest config
     "pytest.ini",
     # Zephyr tests
-    "tests/micro/zephyr-runtime/prj.conf",
-    "tests/micro/zephyr-runtime/qemu-hack/qemu-system-i386",
+    "tests/micro/qemu/zephyr-runtime/prj.conf",
+    "tests/micro/qemu/zephyr-runtime/qemu-hack/qemu-system-i386",
 }
 
 
