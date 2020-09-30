@@ -3069,8 +3069,6 @@ def convert_params(graph, state_dict):
             full_attr_node_name = _get_output_name(getattrs[-1])
 
             if full_attr.endswith("_packed_params"):  # for quantized models
-                err_msg = "parameter %s not found in state dict" % full_attr
-                assert full_attr in state_dict, err_msg
                 packed_param_map[full_attr_node_name] = full_attr
             elif full_attr in state_dict:
                 if full_attr in vars_by_name:
