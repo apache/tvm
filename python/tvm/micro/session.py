@@ -118,17 +118,15 @@ class Session:
         """
         if self.flasher is not None:
             self.transport_context_manager = self.flasher.flash(self.binary)
-            time.sleep(3.0)
-
-        real_transport = self.transport_context_manager.__enter__()
-
-        timeouts = self.timeout_override
-        if timeouts is None:
-            timeouts = real_transport.timeouts()
 
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.INFO
         ).__enter__()
+
+        timeouts = self.timeout_override
+        if timeouts is None:
+            timeouts = self.transport.timeouts()
+
         self._rpc = RPCSession(
             _rpc_connect(
                 self.session_name,
