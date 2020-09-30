@@ -18,14 +18,13 @@
 """Defines a compiler integration that uses an externally-supplied Zephyr project."""
 
 import collections
-import glob
+import logging
 import multiprocessing
 import os
 import re
 import tempfile
 import termios
 import textwrap
-import time
 import signal
 import shlex
 import shutil
@@ -41,9 +40,11 @@ from .. import debugger
 from ..transport import debug
 from ..transport.fd import FdTransport
 #from ..transport import serial
-from ..transport import subprocess as subprocess_transport
 from ..transport import Transport, TransportClosedError, TransportTimeouts
 from ..transport import wakeup
+
+
+_LOG = logging.getLogger(__name__)
 
 
 class SubprocessEnv(object):
@@ -63,16 +64,37 @@ class FlashRunnerNotSupported(Exception):
 
 
 class ZephyrCompiler(tvm.micro.Compiler):
+    """A Compiler instance that builds against a pre-existing zephyr project."""
+
     def __init__(
         self,
         project_dir=None,
         board=None,
         west_cmd=None,
-        west_build_args=None,
         zephyr_base=None,
         zephyr_toolchain_variant=None,
         env_vars=None,
     ):
+        """Configure the compiler for use.
+
+        Parameters
+        ----------
+        project_dir : str
+            Path to the pre-existing Zephyr project.
+        board : str
+            Name of the Zephyr board to build for (i.e. passed to `west build -b`)
+        west_cmd : Optional[list]
+            If given, argv that invoke the west build tool. Used only for flashing.
+        zephyr_base : Optional[str]
+            If given, path to Zephyr, as would normally be present in the ZEPHYR_BASE environment
+            variable. If not given, consults this environment variable. This value must be set in
+            one of those two places.
+        zephyr_toolchain_variant: Optional[str]
+            If given, overrides the toolchain used by Zephyr. If not given, uses the default
+            zephyr toolchain. When running on OS X outside of docker, you need to specify this.
+        env_vars : Optional[Dict[str,str]]
+            If given, additional environment variables present when invoking west, cmake, or make.
+        """
         self._project_dir = project_dir
         self._board = board
         if west_cmd is None:
@@ -84,7 +106,6 @@ class ZephyrCompiler(tvm.micro.Compiler):
         else:
             raise TypeError("west_cmd: expected string, list, or None; got %r" % (west_cmd,))
 
-        self._west_build_args = west_build_args
         env = {}
         if zephyr_toolchain_variant is not None:
             env["ZEPHYR_TOOLCHAIN_VARIANT"] = zephyr_toolchain_variant
@@ -118,7 +139,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
 
         return args
 
-    def library(self, output, objects, options=None):
+    def library(self, output, sources, options=None):
         project_name = os.path.basename(output)
         if project_name.startswith("lib"):
             project_name = project_name[3:]
@@ -134,7 +155,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
 
         cmakelists_path = os.path.join(output, "CMakeLists.txt")
         with open(cmakelists_path, "w") as cmake_f:
-            sources = " ".join(f'"{o}"' for o in objects)
+            sources = " ".join(f'"{o}"' for o in sources)
             cmake_f.write(
                 textwrap.dedent(
                     f"""\
@@ -173,38 +194,8 @@ class ZephyrCompiler(tvm.micro.Compiler):
         )
         return tvm.micro.MicroLibrary(build_dir, [f"lib{project_name}.a"])
 
-    def _copy_outputs(cls, build_dir, output_dir, to_copy):
-        if isinstance(to_copy, dict):
-            to_return = {}
-            for k, v in to_copy.items():
-                copied = cls._copy_outputs(build_dir, output_dir, v)
-                if copied:
-                    to_return[k] = copied
-
-            return to_return
-
-        if isinstance(to_copy, list):
-            to_return = []
-            for x in to_copy:
-                copied = cls._copy_outputs(build_dir, output_dir, x)
-                if copied:
-                    to_return.append(copied)
-
-            return to_return
-
-        src_f = os.path.join(build_dir, to_copy)
-        if not os.path.exists(src_f):
-            return None
-
-        dest_f = os.path.join(output_dir, to_copy)
-        dest_dir = os.path.dirname(dest_f)
-        if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir)
-        shutil.copy(src_f, dest_f)
-        return to_copy
-
-    def binary(self, output, objects, options=None):
-        print("generating in", self._project_dir)
+    def binary(self, output, objects, options=None, link_main=True, main_options=None):
+        assert link_main, 'Must pass link_main=True'
         assert self._project_dir is not None, "Must supply project_dir= to build binaries"
 
         copied_libs = base.populate_tvm_objs(self._project_dir, objects)
@@ -259,6 +250,7 @@ CMAKE_BOOL_MAP = dict(
 
 
 def read_cmake_cache(file_name):
+    """Read a CMakeCache.txt-like file and return a dictionary of values."""
     entries = collections.OrderedDict()
     with open(file_name, encoding="utf-8") as f:
         for line in f:
@@ -277,7 +269,7 @@ def read_cmake_cache(file_name):
 
 
 class BoardError(Exception):
-    pass
+    """Raised when an attached board cannot be opened (i.e. missing /dev nodes, etc)."""
 
 
 class BoardAutodetectFailed(Exception):
@@ -285,6 +277,8 @@ class BoardAutodetectFailed(Exception):
 
 
 class ZephyrFlasher(tvm.micro.compiler.Flasher):
+    """A Flasher implementation that delegates to Zephyr/west."""
+
     def __init__(
         self,
         west_cmd,
@@ -299,7 +293,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
         try:
-            import dtlib
+            import dtlib  # pylint: disable=import-outside-toplevel
 
             self._dtlib = dtlib
         finally:
@@ -319,7 +313,8 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         nrfjprog_args = ["nrfjprog", "--ids"]
         nrfjprog_ids = subprocess.check_output(nrfjprog_args, encoding="utf-8")
         if not nrfjprog_ids.strip("\n"):
-            raise BoardError(f'No attached boards recognized by {" ".join(nrfjprog_args)}')
+            raise BoardAutodetectFailed(
+                f'No attached boards recognized by {" ".join(nrfjprog_args)}')
 
         boards = nrfjprog_ids.split("\n")[:-1]
         if len(boards) > 1:
@@ -327,7 +322,8 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
                 raise BoardError(
                     f'Multiple boards connected; specify one with nrfjprog_snr=: {", ".join(boards)}'
                 )
-            elif str(self._nrfjprog_snr) not in boards:
+
+            if str(self._nrfjprog_snr) not in boards:
                 raise BoardError(
                     f"nrfjprog_snr ({self._nrfjprog_snr}) not found in {nrfjprog_args}: {boards}"
                 )
@@ -345,11 +341,12 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
     }
 
     def openocd_serial(self, cmake_entries):
+        """Find the serial port to use for a board with OpenOCD flash strategy."""
         if self._openocd_serial is not None:
             return self._openocd_serial
 
-        elif self._autodetected_openocd_serial is None:
-            import usb
+        if self._autodetected_openocd_serial is None:
+            import usb  # pylint: disable=import-outside-toplevel
 
             find_kw = self.BOARD_USB_FIND_KW[cmake_entries["BOARD"]]
             boards = usb.core.find(find_all=True, **find_kw)
@@ -384,13 +381,13 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
         if flash_runner == "nrfjprog":
             return self._get_nrf_device_args()
-        elif flash_runner == "openocd":
+        if flash_runner == "openocd":
             return self._get_openocd_device_args(cmake_entries)
-        else:
-            raise BoardError(
-                f"Don't know how to find serial terminal for board {cmake_entries['BOARD']} with flash "
-                f"runner {flash_runner}"
-            )
+
+        raise BoardError(
+            f"Don't know how to find serial terminal for board {cmake_entries['BOARD']} with flash "
+            f"runner {flash_runner}"
+        )
 
     def flash(self, micro_binary):
         cmake_entries = read_cmake_cache(
@@ -435,7 +432,8 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
         if flash_runner == "nrfjprog":
             return self._find_nrf_serial_port(cmake_entries)
-        elif flash_runner == "openocd":
+
+        if flash_runner == "openocd":
             return self._find_openocd_serial_port(cmake_entries)
 
         raise FlashRunnerNotSupported(
@@ -443,11 +441,13 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         )
 
     def transport(self, micro_binary):
-        dt = self._dtlib.DT(micro_binary.abspath(micro_binary.labelled_files["device_tree"][0]))
+        """Instantiate the transport for use with non-QEMU Zephyr."""
+        dt_inst = self._dtlib.DT(micro_binary.abspath(micro_binary.labelled_files["device_tree"][0]))
         uart_baud = (
-            dt.get_node("/chosen").props["zephyr,console"].to_path().props["current-speed"].to_num()
+            dt_inst.get_node("/chosen").props["zephyr,console"].to_path()
+            .props["current-speed"].to_num()
         )
-        print("uart baud!", uart_baud)
+        _LOG.debug("zephyr transport: found UART baudrate from devicetree: %d", uart_baud)
 
         port_kwargs = self._find_serial_port(micro_binary)
         serial_transport = serial.SerialTransport(baudrate=uart_baud, **port_kwargs)
@@ -477,6 +477,13 @@ class QemuStartupFailureError(Exception):
 
 
 class QemuFdTransport(FdTransport):
+    """An FdTransport subclass that escapes written data to accomodate the QEMU monitor.
+
+    It's supposedly possible to disable the monitor, but Zephyr controls most of the command-line
+    arguments for QEMU and there are too many options which implictly enable the monitor, so this
+    approach seems more robust.
+    """
+
     def write_monitor_quit(self):
         FdTransport.write(self, b"\x01x", 1.0)
 
@@ -487,6 +494,7 @@ class QemuFdTransport(FdTransport):
         assert False, "should not get here"
 
     def write(self, data, timeout_sec):
+        """Write data, escaping for QEMU monitor."""
         to_write = bytearray()
         escape_pos = []
         for i, b in enumerate(data):
@@ -501,12 +509,14 @@ class QemuFdTransport(FdTransport):
 
 
 class ZephyrQemuTransport(Transport):
-    def __init__(self, base_dir, startup_timeout_sec=5.0, **kw):
+    """The user-facing Zephyr QEMU transport class."""
+
+    def __init__(self, base_dir, startup_timeout_sec=5.0, **kwargs):
         self.base_dir = base_dir
         self.startup_timeout_sec = startup_timeout_sec
-        self.kw = kw
+        self.kwargs = kwargs
         self.proc = None
-        self.fd = None
+        self.fd_transport = None
         self.pipe_dir = None
 
     def timeouts(self):
@@ -527,25 +537,26 @@ class ZephyrQemuTransport(Transport):
             ["make", "run", f"QEMU_PIPE={self.pipe}"],
             cwd=self.base_dir,
             stdin=sys.stdin.fileno(),
-            **self.kw,
+            **self.kwargs,
         )
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
         # FIFO are always considered ready to read when no one has opened them for writing.
-        self.fd = wakeup.WakeupTransport(
+        self.fd_transport = wakeup.WakeupTransport(
             QemuFdTransport(
                 os.open(self.read_pipe, os.O_RDWR | os.O_NONBLOCK),
-                os.open(self.write_pipe, os.O_RDWR | os.O_NONBLOCK)
+                os.open(self.write_pipe, os.O_RDWR | os.O_NONBLOCK),
+                self.timeouts(),
             ),
             b'\xfe\xff\xfd\x03\0\0\0\0\0\x02' b'fw')
-        self.fd.open()
+        self.fd_transport.open()
 
     def close(self):
-        if self.fd is not None:
-            self.fd.child_transport.write_monitor_quit()
+        if self.fd_transport is not None:
+            self.fd_transport.child_transport.write_monitor_quit()
             self.proc.wait()
-            self.fd.close()
-            self.fd = None
+            self.fd_transport.close()
+            self.fd_transport = None
 
         if self.proc is not None:
             #            self.proc.wait()
@@ -557,18 +568,21 @@ class ZephyrQemuTransport(Transport):
             self.pipe_dir = None
 
     def read(self, n, timeout_sec):
-        if self.fd is None:
+        if self.fd_transport is None:
             raise TransportClosedError()
-        return self.fd.read(n, timeout_sec)
+        return self.fd_transport.read(n, timeout_sec)
 
     def write(self, data, timeout_sec):
-        if self.fd is None:
+        if self.fd_transport is None:
             raise TransportClosedError()
-        return self.fd.write(data, timeout_sec)
+        return self.fd_transport.write(data, timeout_sec)
 
 
 class ZephyrDebugger(debugger.Debugger):
+    """A Zephyr debugger implementation."""
+
     def __init__(self, west_cmd, build_dir, elf_path, zephyr_base):
+        debugger.Debugger.__init__(self)
         self._west_cmd = shlex.split(west_cmd)
         self._build_dir = build_dir
         self._elf_path = elf_path
@@ -577,7 +591,7 @@ class ZephyrDebugger(debugger.Debugger):
     def start(self):
         env = dict(os.environ)
         env["ZEPHYR_BASE"] = self._zephyr_base
-        sys.stdin = open(0)
+        sys.stdin = open(0)  # re-open stdin, closed by multiprocessing.
         self._old_termios = termios.tcgetattr(sys.stdin)
         self._proc = subprocess.Popen(
             self._west_cmd

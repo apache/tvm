@@ -76,7 +76,8 @@ utvm_rpc_server_t UTvmRpcServerInit(uint8_t* memory, size_t memory_size_bytes,
  *     updated to the number of unprocessed bytes remaining in `new_data` (usually 0).
  * \return An error code indicating the outcome of the server main loop iteration.
  */
-tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server, uint8_t** new_data, size_t* new_data_size_bytes);
+tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server, uint8_t** new_data,
+                                  size_t* new_data_size_bytes);
 
 #ifdef __cplusplus
 }

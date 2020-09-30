@@ -28,8 +28,9 @@
 #include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/registry.h>
 
-#include <cstdarg>
+#include <algorithm>
 #include <chrono>
+#include <cstdarg>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -47,8 +48,8 @@ namespace micro_rpc {
 
 class CallbackWriteStream : public WriteStream {
  public:
-  explicit CallbackWriteStream(PackedFunc fsend, ::std::chrono::microseconds write_timeout) :
-      fsend_{fsend}, write_timeout_{write_timeout} {}
+  explicit CallbackWriteStream(PackedFunc fsend, ::std::chrono::microseconds write_timeout)
+      : fsend_{fsend}, write_timeout_{write_timeout} {}
 
   ssize_t Write(const uint8_t* data, size_t data_size_bytes) override {
     TVMByteArray bytes;
@@ -60,9 +61,7 @@ class CallbackWriteStream : public WriteStream {
 
   void PacketDone(bool is_valid) override {}
 
-  void SetWriteTimeout(::std::chrono::microseconds timeout) {
-    write_timeout_ = timeout;
-  }
+  void SetWriteTimeout(::std::chrono::microseconds timeout) { write_timeout_ = timeout; }
 
  private:
   PackedFunc fsend_;
@@ -71,10 +70,9 @@ class CallbackWriteStream : public WriteStream {
 
 class MicroTransportChannel : public RPCChannel {
  public:
-
   enum class State : uint8_t {
-    kReset = 0,  // state entered before the transport has been read or written to.
-    kSessionTerminated = 1,  // session is terminated, but transport is alive.
+    kReset = 0,               // state entered before the transport has been read or written to.
+    kSessionTerminated = 1,   // session is terminated, but transport is alive.
     kSessionEstablished = 2,  // session is alive.
   };
 
@@ -108,7 +106,8 @@ class MicroTransportChannel : public RPCChannel {
         int unframer_error = unframer_.Write((const uint8_t*)pending_chunk_.data(),
                                              pending_chunk_.size(), &bytes_consumed);
 
-        CHECK(bytes_consumed <= pending_chunk_.size()) << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
+        CHECK(bytes_consumed <= pending_chunk_.size())
+            << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
         pending_chunk_ = pending_chunk_.substr(bytes_consumed);
         bytes_received += bytes_consumed;
         if (unframer_error < 0) {
@@ -123,9 +122,9 @@ class MicroTransportChannel : public RPCChannel {
       ::std::string chunk;
       if (timeout != ::std::chrono::microseconds::zero()) {
         ::std::chrono::microseconds iter_timeout{
-          ::std::max(::std::chrono::microseconds{0},
-                     ::std::chrono::duration_cast<::std::chrono::microseconds>(
-                       end_time - ::std::chrono::steady_clock::now()))};
+            ::std::max(::std::chrono::microseconds{0},
+                       ::std::chrono::duration_cast<::std::chrono::microseconds>(
+                           end_time - ::std::chrono::steady_clock::now()))};
         chunk = frecv_(128, iter_timeout.count()).operator std::string();
       } else {
         chunk = frecv_(128, nullptr).operator std::string();
@@ -139,7 +138,8 @@ class MicroTransportChannel : public RPCChannel {
   }
 
   bool StartSession() {
-    CHECK(state_ == State::kReset) << "MicroSession: state_: expected kReset, got " << uint8_t(state_);
+    CHECK(state_ == State::kReset)
+        << "MicroSession: state_: expected kReset, got " << uint8_t(state_);
 
     ::std::chrono::steady_clock::time_point start_time = ::std::chrono::steady_clock::now();
     auto session_start_end_time = start_time + session_start_timeout_;
@@ -154,10 +154,9 @@ class MicroTransportChannel : public RPCChannel {
       CHECK_EQ(kTvmErrorNoError, session_.Initialize());
       CHECK_EQ(kTvmErrorNoError, session_.StartSession());
 
-      ::std::chrono::microseconds time_remaining =
-          ::std::max(::std::chrono::microseconds{0},
-                     ::std::chrono::duration_cast<::std::chrono::microseconds>(
-                       end_time - ::std::chrono::steady_clock::now()));
+      ::std::chrono::microseconds time_remaining = ::std::max(
+          ::std::chrono::microseconds{0}, ::std::chrono::duration_cast<::std::chrono::microseconds>(
+                                              end_time - ::std::chrono::steady_clock::now()));
 
       if (!ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, time_remaining)) {
         if (end_time >= session_start_end_time) {
@@ -198,7 +197,8 @@ class MicroTransportChannel : public RPCChannel {
       }
 
       did_receive_message_ = false;
-      if (!ReceiveUntil([this]() -> bool { return did_receive_message_; }, session_established_timeout_)) {
+      if (!ReceiveUntil([this]() -> bool { return did_receive_message_; },
+                        session_established_timeout_)) {
         std::stringstream ss;
         ss << "MicroSessionTimeoutError: failed to read reply message after timeout "
            << session_established_timeout_.count() / 1e6 << "s";
@@ -238,7 +238,8 @@ class MicroTransportChannel : public RPCChannel {
         if (state_ == State::kReset) {
           state_ = State::kSessionTerminated;
         } else if (state_ == State::kSessionTerminated) {
-          LOG(FATAL) << "SessionTerminatedError: multiple session-terminated messages received; device in reboot loop?";
+          LOG(FATAL) << "SessionTerminatedError: multiple session-terminated messages received; "
+                        "device in reboot loop?";
         } else if (state_ == State::kSessionEstablished) {
           LOG(FATAL) << "SessionTerminatedError: remote device terminated connection";
         }
@@ -284,15 +285,14 @@ class MicroTransportChannel : public RPCChannel {
 };
 
 TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue* rv) {
-  MicroTransportChannel* micro_channel = new MicroTransportChannel(
-    args[1], args[2],
-    ::std::chrono::microseconds(uint64_t(args[3])),
-    ::std::chrono::microseconds(uint64_t(args[4])),
-    ::std::chrono::microseconds(uint64_t(args[5])));
+  MicroTransportChannel* micro_channel =
+      new MicroTransportChannel(args[1], args[2], ::std::chrono::microseconds(uint64_t(args[3])),
+                                ::std::chrono::microseconds(uint64_t(args[4])),
+                                ::std::chrono::microseconds(uint64_t(args[5])));
   if (!micro_channel->StartSession()) {
     std::stringstream ss;
-    ss << "MicroSessionTimeoutError: session start handshake failed after "
-       << double(args[4]) / 1e6 << "s";
+    ss << "MicroSessionTimeoutError: session start handshake failed after " << double(args[4]) / 1e6
+       << "s";
     throw std::runtime_error(ss.str());
   }
   std::unique_ptr<RPCChannel> channel(micro_channel);
@@ -300,7 +300,6 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
   auto sess = CreateClientSession(ep);
   *rv = CreateRPCSessionModule(sess);
 });
-
 
 }  // namespace micro_rpc
 }  // namespace runtime

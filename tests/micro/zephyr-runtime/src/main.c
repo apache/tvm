@@ -22,12 +22,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <drivers/gpio.h>
+#include <drivers/uart.h>
+#include <kernel.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <zephyr.h>
-#include <kernel.h>
-#include <drivers/gpio.h>
-#include <drivers/uart.h>
 //#include <kernel/include/kernel_arch_interface.h>
 #include <power/reboot.h>
 #include <sys/printk.h>
@@ -60,7 +60,8 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
 
 void TVMPlatformAbort(tvm_crt_error_t error) {
   sys_reboot(SYS_REBOOT_COLD);
-  for (;;) ;
+  for (;;)
+    ;
 }
 
 uint32_t g_utvm_start_time;
@@ -75,12 +76,12 @@ int g_utvm_timer_running = 0;
 /* The devicetree node identifier for the "led0" alias. */
 #define LED0_NODE DT_ALIAS(led0)
 
-#define LED0	DT_GPIO_LABEL(LED0_NODE, gpios)
-#define PIN	DT_GPIO_PIN(LED0_NODE, gpios)
-#define FLAGS	DT_GPIO_FLAGS(LED0_NODE, gpios)
+#define LED0 DT_GPIO_LABEL(LED0_NODE, gpios)
+#define PIN DT_GPIO_PIN(LED0_NODE, gpios)
+#define FLAGS DT_GPIO_FLAGS(LED0_NODE, gpios)
 
 static struct device* led_pin;
-#endif // CONFIG_LED
+#endif  // CONFIG_LED
 
 int TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
@@ -111,12 +112,12 @@ int TVMPlatformTimerStop(double* res_us) {
   // compute how long the work took
   uint32_t cycles_spent = stop_time - g_utvm_start_time;
   if (stop_time < g_utvm_start_time) {
-      // we rolled over *at least* once, so correct the rollover it was *only*
-      // once, because we might still use this result
-      cycles_spent = ~((uint32_t) 0) - (g_utvm_start_time - stop_time);
+    // we rolled over *at least* once, so correct the rollover it was *only*
+    // once, because we might still use this result
+    cycles_spent = ~((uint32_t)0) - (g_utvm_start_time - stop_time);
   }
 
-  uint32_t ns_spent = (uint32_t) k_cyc_to_ns_floor64(cycles_spent);
+  uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
   double hw_clock_res_us = ns_spent / 1000.0;
 
   // need to grab time remaining *before* stopping. when stopped, this function
@@ -130,10 +131,11 @@ int TVMPlatformTimerStop(double* res_us) {
   }
   uint32_t num_expiries = k_timer_status_get(&g_utvm_timer);
   uint32_t timer_res_ms = ((num_expiries * MILLIS_TIL_EXPIRY) + time_remaining_ms);
-  double approx_num_cycles = (double) k_ticks_to_cyc_floor32(1) * (double) k_ms_to_ticks_ceil32(timer_res_ms);
+  double approx_num_cycles =
+      (double)k_ticks_to_cyc_floor32(1) * (double)k_ms_to_ticks_ceil32(timer_res_ms);
   // if we approach the limits of the HW clock datatype (uint32_t), use the
   // coarse-grained timer result instead
-  if (approx_num_cycles > (0.5 * (~((uint32_t) 0)))) {
+  if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
     *res_us = timer_res_ms * 1000.0;
   } else {
     *res_us = hw_clock_res_us;
@@ -158,7 +160,7 @@ struct uart_rx_buf_t uart_rx_buf;
 
 void uart_irq_cb(const struct device* dev, void* user_data) {
   while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
-    struct uart_rx_buf_t* buf = (struct uart_rx_buf_t*) user_data;
+    struct uart_rx_buf_t* buf = (struct uart_rx_buf_t*)user_data;
     if (uart_irq_rx_ready(dev) == 0) {
       continue;
     }
@@ -172,15 +174,15 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
         break;
       }
       int bytes_written = ring_buf_put(&buf->buf, data, bytes_read);
-      CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d",
-               bytes_read, bytes_written);
+      CHECK_EQ(bytes_read, bytes_written, "bytes_read: %d; bytes_written: %d", bytes_read,
+               bytes_written);
     }
   }
 }
 
 void uart_rx_init(struct uart_rx_buf_t* buf, const struct device* dev) {
   ring_buf_init(&buf->buf, RING_BUF_SIZE, buf->buffer);
-  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*) buf);
+  uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*)buf);
   uart_irq_rx_enable(dev);
 }
 
@@ -192,48 +194,48 @@ int uart_rx_buf_read(struct uart_rx_buf_t* buf, uint8_t* data, size_t data_size_
 }
 
 extern void __stdout_hook_install(int (*hook)(int));
-void main(void)
-{
+void main(void) {
 #ifdef CONFIG_LED
-    led_pin = device_get_binding(LED0);
-    if (led_pin == NULL) {
-        for (;;) ;
-    }
-    int ret = gpio_pin_configure(led_pin, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
-    if (ret < 0) {
-        for (;;) ;
-    }
-    gpio_pin_set(led_pin, PIN, 0);
+  led_pin = device_get_binding(LED0);
+  if (led_pin == NULL) {
+    for (;;)
+      ;
+  }
+  int ret = gpio_pin_configure(led_pin, PIN, GPIO_OUTPUT_ACTIVE | FLAGS);
+  if (ret < 0) {
+    for (;;)
+      ;
+  }
+  gpio_pin_set(led_pin, PIN, 0);
 #endif
 
-    /* Claim console device */
-    tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
-    uart_rx_init(&uart_rx_buf, tvm_uart);
-    __stdout_hook_install(&write_hook);
+  /* Claim console device */
+  tvm_uart = device_get_binding(DT_LABEL(DT_CHOSEN(zephyr_console)));
+  uart_rx_init(&uart_rx_buf, tvm_uart);
+  __stdout_hook_install(&write_hook);
 
-    utvm_rpc_server_t server = UTvmRpcServerInit(
-      workspace, WORKSPACE_SIZE_BYTES, WORKSPACE_PAGE_SIZE_BYTES_LOG2, write_serial, NULL);
-    TVMLogf("uTVM On-Device Runtime");
+  utvm_rpc_server_t server = UTvmRpcServerInit(workspace, WORKSPACE_SIZE_BYTES,
+                                               WORKSPACE_PAGE_SIZE_BYTES_LOG2, write_serial, NULL);
+  TVMLogf("uTVM On-Device Runtime");
 
-    while (true)
-    {
-        uint8_t buf[256];
-        int bytes_read = uart_rx_buf_read(&uart_rx_buf, buf, sizeof(buf));
-        if (bytes_read > 0) {
-            size_t bytes_remaining = bytes_read;
-            uint8_t* cursor = buf;
-            while (bytes_remaining > 0) {
-                tvm_crt_error_t err = UTvmRpcServerLoop(server, &cursor, &bytes_remaining);
-                if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
-                    TVMPlatformAbort(err);
-                }
-           }
+  while (true) {
+    uint8_t buf[256];
+    int bytes_read = uart_rx_buf_read(&uart_rx_buf, buf, sizeof(buf));
+    if (bytes_read > 0) {
+      size_t bytes_remaining = bytes_read;
+      uint8_t* cursor = buf;
+      while (bytes_remaining > 0) {
+        tvm_crt_error_t err = UTvmRpcServerLoop(server, &cursor, &bytes_remaining);
+        if (err != kTvmErrorNoError && err != kTvmErrorFramingShortPacket) {
+          TVMPlatformAbort(err);
         }
+      }
     }
+  }
 
 #ifdef CONFIG_ARCH_POSIX
-    posix_exit(0);
+  posix_exit(0);
 #endif
 
-    arch_system_halt(0);
+  arch_system_halt(0);
 }

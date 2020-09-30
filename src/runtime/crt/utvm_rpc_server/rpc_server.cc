@@ -137,7 +137,7 @@ class MicroRPCServer {
     }
 
     tvm_crt_error_t err = kTvmErrorNoError;
-//    printf("loop %d %02x\n", *new_data_size_bytes,  **new_data);
+    //    printf("loop %d %02x\n", *new_data_size_bytes,  **new_data);
     if (new_data != nullptr && new_data_size_bytes != nullptr && *new_data_size_bytes > 0) {
       size_t bytes_consumed;
       err = unframer_.Write(*new_data, *new_data_size_bytes, &bytes_consumed);
@@ -248,7 +248,8 @@ void TVMLogf(const char* format, ...) {
   }
 }
 
-tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server_ptr, uint8_t** new_data, size_t* new_data_size_bytes) {
+tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server_ptr, uint8_t** new_data,
+                                  size_t* new_data_size_bytes) {
   tvm::runtime::micro_rpc::MicroRPCServer* server =
       static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
   return server->Loop(new_data, new_data_size_bytes);

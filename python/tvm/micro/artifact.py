@@ -46,12 +46,12 @@ class ArchiveModifiedError(Exception):
 
 
 def sha256_hexdigest(path):
-    with open(path, "rb") as fd:
+    with open(path, "rb") as path_fd:
         h = hashlib.sha256()
-        chunk = fd.read(1 * 1024 * 1024)
+        chunk = path_fd.read(1 * 1024 * 1024)
         while chunk:
             h.update(chunk)
-            chunk = fd.read(1 * 1024 * 1024)
+            chunk = path_fd.read(1 * 1024 * 1024)
 
     return h.hexdigest()
 
@@ -225,9 +225,9 @@ class Artifact:
             Path to the tar file to create. Or, path to a directory, under which a tar file will be
             created named {base_dir}.tar.
         metadata_only : bool
-            If true, don't archive artifacts; instead, just archive metadata plus original base_path.
-            A metadata-only archive can be unarchived and used like a regular archive provided none
-            of the files have changed in their original locations on-disk.
+            If true, don't archive artifacts; instead, just archive metadata plus original
+            base_path. A metadata-only archive can be unarchived and used like a regular archive
+            provided none of the files have changed in their original locations on-disk.
 
         Returns
         -------
@@ -268,7 +268,6 @@ class Artifact:
                 metadata["file_digests"] = {}
                 for files in self.labelled_files.values():
                     for f in files:
-                        disk_path = os.path.join(self.base_dir, f)
                         metadata["file_digests"][f] = sha256_hexdigest(self.abspath(f))
 
             _add_file(

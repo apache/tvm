@@ -17,20 +17,17 @@
 
 """Defines an implementation of Transport that uses subprocesses."""
 
-import select
 import subprocess
-import sys
-import time
-from .base import Transport, TransportTimeouts, TransportClosedError
-from .fd import FdTransport
+from . import base
+from . import file_descriptor
 
 
-class SubprocessFdTransport(FdTransport):
+class SubprocessFdTransport(file_descriptor.FdTransport):
     def timeouts(self):
         raise NotImplementedError()
 
 
-class SubprocessTransport(Transport):
+class SubprocessTransport(base.Transport):
     """A Transport implementation that uses a subprocess's stdin/stdout as the channel."""
 
     def __init__(self, args, max_startup_latency_sec=5.0, max_latency_sec=5.0, **kwargs):
@@ -42,7 +39,7 @@ class SubprocessTransport(Transport):
         self.child_transport = None
 
     def timeouts(self):
-        return TransportTimeouts(
+        return base.TransportTimeouts(
             session_start_retry_timeout_sec=0,
             session_start_timeout_sec=self.max_startup_latency_sec,
             session_established_timeout_sec=self.max_latency_sec,
@@ -53,7 +50,8 @@ class SubprocessTransport(Transport):
         self.kwargs["stdin"] = subprocess.PIPE
         self.kwargs["bufsize"] = 0
         self.popen = subprocess.Popen(self.args, **self.kwargs)
-        self.child_transport = SubprocessFdTransport(self.popen.stdout, self.popen.stdin)
+        self.child_transport = SubprocessFdTransport(
+            self.popen.stdout, self.popen.stdin, self.timeouts())
 
     def write(self, data, timeout_sec):
         return self.child_transport.write(data, timeout_sec)
@@ -66,4 +64,3 @@ class SubprocessTransport(Transport):
             self.child_transport.close()
 
         self.popen.terminate()
-        print("CLOSE DONE")

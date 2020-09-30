@@ -19,13 +19,15 @@
 
 import logging
 import time
-from .base import Transport, TransportTimeouts, TransportClosedError
+from . import base
 
 
 _LOG = logging.getLogger(__name__)
 
 
-class WakeupTransport(Transport):
+class WakeupTransport(base.Transport):
+    """A Transport implementation that waits for a "wakeup sequence" from the remote end."""
+
     def __init__(self, child_transport, wakeup_sequence):
         self.child_transport = child_transport
         self.wakeup_sequence = bytes(wakeup_sequence)
@@ -47,15 +49,15 @@ class WakeupTransport(Transport):
             while self.wakeup_sequence not in self.wakeup_sequence_buffer:
                 x = self.child_transport.read(1, max(0, end_time - time.monotonic()))
                 self.wakeup_sequence_buffer.extend(x)
-                if x[0] in ("\n", "\xff"):
+                if x[0] in (b"\n", b"\xff"):
                     _LOG.debug("%s", self.wakeup_sequence_buffer[self.line_start_index : -1])
                     self.line_start_index = len(self.wakeup_sequence_buffer)
 
-            print("WAKEUP!")
+            _LOG.info("remote side woke up!")
             self.found_wakeup_sequence = True
             time.sleep(0.2)
 
-            return max(0, end_time - time.monotonic())
+        return max(0, end_time - time.monotonic())
 
     def read(self, n, timeout_sec):
         if not self.found_wakeup_sequence:

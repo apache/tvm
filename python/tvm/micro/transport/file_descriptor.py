@@ -21,31 +21,38 @@ import fcntl
 import os
 import select
 import time
-from .base import Transport, TransportTimeouts, TransportClosedError, IoTimeoutError
+from . import base
 
 
 class FdConfigurationError(Exception):
     """Raised when specified file descriptors can't be placed in non-blocking mode."""
 
 
-class FdTransport(Transport):
+class FdTransport(base.Transport):
     """A Transport implementation that implements timeouts using non-blocking I/O."""
 
     @classmethod
-    def _validate_configure_fd(cls, fd):
-        fd = fd if isinstance(fd, int) else fd.fileno()
-        flag = fcntl.fcntl(fd, fcntl.F_GETFL)
+    def _validate_configure_fd(cls, file_descriptor):
+        file_descriptor = (file_descriptor
+                           if isinstance(file_descriptor, int)
+                           else file_descriptor.fileno())
+        flag = fcntl.fcntl(file_descriptor, fcntl.F_GETFL)
         if flag & os.O_NONBLOCK != 0:
-            return fd
+            return file_descriptor
 
-        flag = fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK | flag)
+        flag = fcntl.fcntl(file_descriptor, fcntl.F_SETFL, os.O_NONBLOCK | flag)
         if flag & os.O_NONBLOCK == 0:
-            raise FdConfigurationError('Cannot set file descriptor {fd} to non-blocking')
-        return fd
+            raise FdConfigurationError(
+                'Cannot set file descriptor {file_descriptor} to non-blocking')
+        return file_descriptor
 
-    def __init__(self, read_fd, write_fd):
+    def __init__(self, read_fd, write_fd, timeouts):
         self.read_fd = self._validate_configure_fd(read_fd)
         self.write_fd = self._validate_configure_fd(write_fd)
+        self._timeouts = timeouts
+
+    def timeouts(self):
+        return self._timeouts
 
     def open(self):
         pass
@@ -58,15 +65,15 @@ class FdTransport(Transport):
 
     def _await_ready(self, rlist, wlist, timeout_sec=None, end_time=None):
         if end_time is None:
-            return
+            return True
 
         if timeout_sec is None:
             timeout_sec = max(0, end_time - time.monotonic())
         rlist, wlist, xlist = select.select(rlist, wlist, rlist + wlist, timeout_sec)
         if not rlist and not wlist and not xlist:
             raise IoTimeoutError()
-        elif xlist:
-            return True
+
+        return True
 
     def read(self, n, timeout_sec):
         end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
@@ -76,7 +83,7 @@ class FdTransport(Transport):
 
         if not to_return:
             self.close()
-            raise TransportClosedError()
+            raise base.TransportClosedError()
 
         return to_return
 
@@ -89,7 +96,7 @@ class FdTransport(Transport):
             num_written = os.write(self.write_fd, data)
             if not num_written:
                 self.close()
-                raise TransportClosedError()
+                raise base.TransportClosedError()
 
             data = data[num_written:]
 

@@ -18,7 +18,6 @@
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
 import logging
-import time
 
 from ..error import register_error
 from .._ffi import get_global_func
@@ -58,8 +57,8 @@ class Session:
     """
 
     def __init__(
-            self, binary=None, flasher=None, transport_context_manager=None, session_name="micro-rpc",
-            timeout_override=None,
+            self, binary=None, flasher=None, transport_context_manager=None,
+            session_name="micro-rpc", timeout_override=None,
     ):
         """Configure a new session.
 
@@ -97,7 +96,7 @@ class Session:
             return self.transport.read(
                 n, float(timeout_microsec) / 1e6 if timeout_microsec is not None else 0
             )
-        except IoTimeoutError as e:
+        except IoTimeoutError:
             return bytes([])
 
     def _wrap_transport_write(self, data, timeout_microsec):
@@ -105,7 +104,7 @@ class Session:
             return self.transport.write(
                 data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else 0
             )
-        except IoTimeoutError as e:
+        except IoTimeoutError:
             return 0
 
     def __enter__(self):

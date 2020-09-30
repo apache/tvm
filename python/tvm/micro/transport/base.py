@@ -21,11 +21,7 @@ import abc
 import collections
 import logging
 import string
-import subprocess
 import typing
-
-import tvm
-from tvm._ffi import register_error
 
 _LOG = logging.getLogger(__name__)
 
@@ -66,6 +62,12 @@ TransportTimeouts = collections.namedtuple(
         "session_established_timeout_sec",
     ],
 )
+
+
+def debug_transport_timeouts(session_start_retry_timeout_sec=0.0):
+    return TransportTimeouts(session_start_retry_timeout_sec=session_start_retry_timeout_sec,
+                             session_start_timeout_sec=0,
+                             session_established_timeout_sec=0)
 
 
 class Transport(metaclass=abc.ABCMeta):
@@ -216,7 +218,7 @@ class TransportLogger(Transport):
                 timeout_sec,
             )
             raise
-        except Exception as e:
+        except Exception as err:
             self.logger.log(
                 self.level,
                 "%s read {%3.2fs} %4d B -> [err: %s]",
@@ -226,7 +228,7 @@ class TransportLogger(Transport):
                 str(e),
                 exc_info=1,
             )
-            raise e
+            raise err
 
         hex_lines = self._to_hex(data)
         if len(hex_lines) > 1:
@@ -264,7 +266,7 @@ class TransportLogger(Transport):
                 timeout_sec,
             )
             raise
-        except Exception as e:
+        except Exception as err:
             self.logger.log(
                 self.level,
                 "%s write             <- [%d B]: [err: %s]",
@@ -273,7 +275,7 @@ class TransportLogger(Transport):
                 str(e),
                 exc_info=1,
             )
-            raise e
+            raise err
 
         hex_lines = self._to_hex(data[:bytes_written])
         if len(hex_lines) > 1:
