@@ -124,6 +124,14 @@ west init --mr v2.4.0 /opt/zephyrproject
 cd /opt/zephyrproject
 west update
 
+# This step is required because of the way docker/bash.sh works. It sets the user home directory to
+# /workspace (or the TVM root, anyhow), and this means that zephyr expects a ~/.cache directory to be
+# present *in the TVM project root*. Since we don't intend to add one to avoid dirtying the repo
+# tree, we need to populate the zephyr fallback cache directory and ensure it's writable. Cache
+# artifacts aren't intended to be saved into the docker image.
+mkdir zephyr/.cache
+chmod o+rwx zephyr/.cache
+
 west zephyr-export
 
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
