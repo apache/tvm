@@ -160,7 +160,7 @@ void uart_irq_cb(const struct device* dev, void* user_data) {
   }
 }
 
-void uart_rx_init(struct uart_rx_buf_t* buf, struct device* dev) {
+void uart_rx_init(struct uart_rx_buf_t* buf, const struct device* dev) {
   ring_buf_init(&buf->buf, RING_BUF_SIZE, buf->buffer);
   uart_irq_callback_user_data_set(dev, uart_irq_cb, (void*) buf);
   uart_irq_rx_enable(dev);
@@ -168,9 +168,6 @@ void uart_rx_init(struct uart_rx_buf_t* buf, struct device* dev) {
 
 int uart_rx_buf_read(struct uart_rx_buf_t* buf, uint8_t* data, size_t data_size_bytes) {
   unsigned int key = irq_lock();
-  int space = ring_buf_space_get(&uart_rx_buf.buf);
-  if (space < 511) {
-  }
   int bytes_read = ring_buf_get(&buf->buf, data, data_size_bytes);
   irq_unlock(key);
   return bytes_read;
