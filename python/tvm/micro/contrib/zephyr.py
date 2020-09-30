@@ -38,7 +38,7 @@ from . import base
 from .. import compiler
 from .. import debugger
 from ..transport import debug
-from ..transport.fd import FdTransport
+from ..transport import file_descriptor
 
 # from ..transport import serial
 from ..transport import Transport, TransportClosedError, TransportTimeouts
@@ -183,7 +183,6 @@ class ZephyrCompiler(tvm.micro.Compiler):
 
         # expecetd not to exist after populate_tvm_libs
         build_dir = os.path.join(output, "__tvm_build")
-        print("lib build dir", build_dir)
         os.mkdir(build_dir)
         self._subprocess_env.run(
             ["cmake", "..", f"-DBOARD={self._board}"] + self._options_to_cmake_args(options),
@@ -213,7 +212,6 @@ class ZephyrCompiler(tvm.micro.Compiler):
                 f'{";".join(os.path.abspath(d) for d in options["include_dirs"])}'
             )
         cmake_args.append(f'-DTVM_LIBS={";".join(copied_libs)}')
-        print("cmake", cmake_args)
         self._subprocess_env.run(cmake_args, cwd=output)
 
         self._subprocess_env.run(["make"], cwd=output)
@@ -485,7 +483,7 @@ class QemuStartupFailureError(Exception):
     """Raised when the qemu pipe is not present within startup_timeout_sec."""
 
 
-class QemuFdTransport(FdTransport):
+class QemuFdTransport(file_descriptor.FdTransport):
     """An FdTransport subclass that escapes written data to accomodate the QEMU monitor.
 
     It's supposedly possible to disable the monitor, but Zephyr controls most of the command-line
@@ -494,10 +492,10 @@ class QemuFdTransport(FdTransport):
     """
 
     def write_monitor_quit(self):
-        FdTransport.write(self, b"\x01x", 1.0)
+        file_descriptor.FdTransport.write(self, b"\x01x", 1.0)
 
     def close(self):
-        FdTransport.close(self)
+        file_descriptor.FdTransport.close(self)
 
     def timeouts(self):
         assert False, "should not get here"
@@ -512,7 +510,7 @@ class QemuFdTransport(FdTransport):
                 escape_pos.append(i)
             to_write.append(b)
 
-        num_written = FdTransport.write(self, to_write, timeout_sec)
+        num_written = file_descriptor.FdTransport.write(self, to_write, timeout_sec)
         num_written -= sum(1 if x < num_written else 0 for x in escape_pos)
         return num_written
 
