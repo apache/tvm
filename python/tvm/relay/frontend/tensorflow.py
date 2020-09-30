@@ -302,6 +302,7 @@ def _conv(opname):
             )
             attr["data_format"] = "NCHW"
 
+            # Check whether output shapes attribute is set and not None
             if (
                 opname == "conv_transpose"
                 and len(attr["_output_shapes"]) > 0
@@ -389,6 +390,7 @@ def _conv(opname):
             kernel_h, kernel_w = attr["kernel_shape"]
 
             pdata_shape = input_shape
+            # Check whether output shapes attribute is set and not None
             if (
                 opname == "conv_transpose"
                 and len(attr["_output_shapes"]) > 0
