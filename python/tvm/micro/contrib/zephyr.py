@@ -481,7 +481,6 @@ class QemuFdTransport(FdTransport):
         FdTransport.write(self, b"\x01x", 1.0)
 
     def close(self):
-        print("write close command")
         FdTransport.close(self)
 
     def timeouts(self):
@@ -544,7 +543,6 @@ class ZephyrQemuTransport(Transport):
     def close(self):
         if self.fd is not None:
             self.fd.child_transport.write_monitor_quit()
-            print("wait")
             self.proc.wait()
             self.fd.close()
             self.fd = None
