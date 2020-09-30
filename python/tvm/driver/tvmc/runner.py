@@ -256,7 +256,11 @@ def make_inputs_dict(inputs, shape_dict, dtype_dict, fill_mode):
     # First check all the keys in inputs exist in the graph
     for input_name in inputs:
         if input_name not in shape_dict.keys():
-            raise TVMCException("the input tensor '{}' is not in the graph".format(input_name))
+            raise TVMCException(
+                "the input tensor '{}' is not in the graph. Expected inputs: '{}'".format(
+                    input_name, shape_dict.keys()
+                )
+            )
 
     # Now construct the input dict, generating tensors where no
     # data already exists in 'inputs'
