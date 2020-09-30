@@ -396,7 +396,7 @@ def load_module(path, fmt=""):
     """
 
     # c++ compiler/linker
-    cc = os.environ["CXX"] if "CXX" in os.environ.keys() else "g++"
+    cc = os.environ.get("CXX", "g++")
 
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
