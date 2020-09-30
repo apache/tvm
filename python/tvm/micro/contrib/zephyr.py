@@ -40,7 +40,7 @@ from .. import compiler
 from .. import debugger
 from ..transport import debug
 from ..transport.fd import FdTransport
-#from ..transport import serial
+from ..transport import serial
 from ..transport import subprocess as subprocess_transport
 from ..transport import Transport, TransportClosedError, TransportTimeouts
 from ..transport import wakeup
@@ -225,37 +225,16 @@ class ZephyrCompiler(tvm.micro.Compiler):
 
         self._subprocess_env.run(["make"], cwd=output)
 
-        # # TODO: move this logic into MicroBinary.
-        # ZephyrFile = collections.namedtuple('ZephyrFile', 'mandatory file_list')
-        # to_copy = dict(
-        #     binary_file=os.path.join('zephyr', 'zephyr.elf'),
-        #     debug_files=[],
-        #     labelled_files=dict(
-        #         cmake_cache=['CMakeCache.txt'],
-        #         runners_yaml=[os.path.join('zephyr', 'runners.yaml')],
-        #         device_tree=[os.path.join('zephyr', 'zephyr.dts')],
-        #         extra_artifacts=[os.path.relpath(p, build_dir)
-        #                          for p in glob.glob(os.path.join(build_dir, 'zephyr','zephyr.*'))
-        #                          if not p.endswith('.dts') and not p.endswith('.elf')]
-        #     ),
-        # )
         return tvm.micro.MicroBinary(
             output,
             binary_file=os.path.join("zephyr", "zephyr.elf"),
             debug_files=[],
             labelled_files={
                 "cmake_cache": ["CMakeCache.txt"],
-                #                                                     'hex_file': [os.path.join('zephyr', 'zephyr.hex')],
-                #                                                     'runners_yaml': [os.path.join('zephyr', 'runners.yaml')],
                 "device_tree": [os.path.join("zephyr", "zephyr.dts")],
             },
             immobile="qemu" in self._board,
         )
-        # copied_outputs = self._copy_outputs(build_dir, output, to_copy)
-        # print('copied', copied_outputs)
-        # return tvm.micro.MicroBinary(output, **copied_outputs)
-
-        # for f in to_copy:
 
     @property
     def flasher_factory(self):
@@ -471,7 +450,6 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         print("uart baud!", uart_baud)
 
         port_kwargs = self._find_serial_port(micro_binary)
-        print("port", port_kwargs)
         serial_transport = serial.SerialTransport(baudrate=uart_baud, **port_kwargs)
         if self._debug_rpc_session is None:
             return serial_transport
@@ -561,30 +539,6 @@ class ZephyrQemuTransport(Transport):
                 os.open(self.write_pipe, os.O_RDWR | os.O_NONBLOCK)
             ),
             b'\xfe\xff\xfd\x03\0\0\0\0\0\x02' b'fw')
-#            b"Hello",
-#        )
-        # try:
-        #     end_time = time.monotonic() + self.startup_timeout_sec
-        #     while not os.path.exists(self.pipe):
-        #         if time.monotonic() > end_time:
-        #             raise QemuStartupFailureError(
-        #                 f'ZephyrQemuTransport: expected {self.pipe} to exist within {startup_timeout_sec} sec')
-
-        #         try:
-        #             self.proc.wait(0.1)
-        #             raise QemuStartupFailureError(
-        #                 f'ZephyrQemuTransport: process exited with code {self.proc.returncode}: '
-        #                 f'{" ".join(self.cmd)}')
-        #         except subprocess.TimeoutExpired as e:
-        #             pass
-
-        #     fd = os.open(self.pipe, os.O_RDWR)
-
-        # except Exception:
-        #     self.proc.terminate()
-        #     raise
-
-        # self.fd = QemuFdTransport(fd, fd)
         self.fd.open()
 
     def close(self):
