@@ -780,7 +780,9 @@ Array<Iterator> ApplySplitToState(State* state, int stage_id, int iter_id,
       res = Iterator(name, Range(), it->iter_kind, IteratorAnnotation::kNone);
       tosplit_min = NullOpt;
       tosplit_extent = NullOpt;
-      concrete = false;
+      if (!l.defined()) {
+        concrete = false;
+      }
     }
     outs.push_back(std::move(res));
   }
@@ -900,7 +902,7 @@ SplitStep::SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
                      const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
   auto node = make_object<SplitStepNode>();
   node->stage_id = stage_id;
-  // Extent can be a unreducible expression in some special cases
+  // Extent can be a irreducible expression in some special cases
   if (extent && extent.value()->IsInstance<IntImmNode>()) {
     node->extent = tvm::Downcast<Integer>(extent.value());
   }

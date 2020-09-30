@@ -34,15 +34,14 @@ def run_opt_pass(expr, passes):
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
+
 def test_legalize():
     """Test directly replacing an operator with a new one"""
+
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
-        weight = relay.var('weight', shape=(64, 64, 3, 3))
-        y = relay.nn.conv2d(x, weight,
-                            channels=64,
-                            kernel_size=(3, 3),
-                            padding=(1, 1))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.relu(y)
         y = relay.Function([x, weight], y)
         return y
@@ -54,11 +53,14 @@ def test_legalize():
 
     def expected():
         x = relay.var("x", shape=(1, 64, 56, 56))
-        weight = relay.var('weight', shape=(64, 64, 3, 3))
-        y = relay.nn.conv2d(x, relay.multiply(weight, relay.const(2.0, "float32")),
-                            channels=64,
-                            kernel_size=(3, 3),
-                            padding=(1, 1))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            relay.multiply(weight, relay.const(2.0, "float32")),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+        )
         y = relay.nn.relu(y)
         y = relay.Function([x, weight], y)
         return y
@@ -70,8 +72,10 @@ def test_legalize():
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
+
 def test_legalize_none():
     """Test doing nothing by returning 'None' """
+
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
         y = relay.nn.global_max_pool2d(x)
@@ -90,17 +94,16 @@ def test_legalize_none():
         b = run_opt_pass(before(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
-    assert(called[0])
+    assert called[0]
+
 
 def test_legalize_multiple_ops():
     """Test directly replacing an operator with a new one"""
+
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
-        weight = relay.var('weight', shape=(64, 64, 3, 3))
-        y = relay.nn.conv2d(x, weight,
-                            channels=64,
-                            kernel_size=(3, 3),
-                            padding=(1, 1))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.relu(y)
         y = relay.Function([x, weight], y)
         return y
@@ -115,14 +118,16 @@ def test_legalize_multiple_ops():
         add = relay.add(tvm.relay.const(0, "float32"), data)
         return relay.nn.relu(add)
 
-
     def expected():
         x = relay.var("x", shape=(1, 64, 56, 56))
-        weight = relay.var('weight', shape=(64, 64, 3, 3))
-        y = relay.nn.conv2d(x, relay.multiply(weight, relay.const(2.0, "float32")),
-                            channels=64,
-                            kernel_size=(3, 3),
-                            padding=(1, 1))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            relay.multiply(weight, relay.const(2.0, "float32")),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+        )
         y = relay.add(tvm.relay.const(0, "float32"), y)
         y = relay.nn.relu(y)
         y = relay.Function([x, weight], y)
@@ -139,6 +144,7 @@ def test_legalize_multiple_ops():
 
 def test_legalize_multi_input():
     """Test directly replacing an operator with a new one"""
+
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
         y = relay.var("y", shape=(1, 64, 56, 20))
@@ -163,7 +169,6 @@ def test_legalize_multi_input():
         func = relay.concatenate([x, y, z], axis=3)
         func = relay.Function([x, y, z], func)
         return func
-
 
     with TempOpAttr("concatenate", "FTVMLegalize", legalize_concatenate):
         a = before()

@@ -31,8 +31,10 @@ class DummyRunner(Runner):
         super(DummyRunner, self).__init__(1, 1)
 
     def run(self, measure_inputs, build_results):
-        return [MeasureResult((np.random.random(),), 0, 0.2, time.time())
-                for _ in range(len(measure_inputs))]
+        return [
+            MeasureResult((np.random.random(),), 0, 0.2, time.time())
+            for _ in range(len(measure_inputs))
+        ]
 
     def get_build_kwargs(self):
         return {}
@@ -40,12 +42,11 @@ class DummyRunner(Runner):
 
 @autotvm.template("testing/matmul")
 def matmul(N, L, M, dtype):
-    A = te.placeholder((N, L), name='A', dtype=dtype)
-    B = te.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name="A", dtype=dtype)
+    B = te.placeholder((L, M), name="B", dtype=dtype)
 
-    k = te.reduce_axis((0, L), name='k')
-    C = te.compute((N, M), lambda i, j: te.sum(
-        A[i, k] * B[k, j], axis=k), name='C')
+    k = te.reduce_axis((0, L), name="k")
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="C")
     s = te.create_schedule(C.op)
 
     # schedule
@@ -69,13 +70,12 @@ def matmul(N, L, M, dtype):
 
 @autotvm.template("testing/bad_matmul")
 def bad_matmul(N, L, M, dtype):
-    if 'bad_device' in tvm.target.Target.current().keys:
-        A = te.placeholder((N, L), name='A', dtype=dtype)
-        B = te.placeholder((L, M), name='B', dtype=dtype)
+    if "bad_device" in tvm.target.Target.current().keys:
+        A = te.placeholder((N, L), name="A", dtype=dtype)
+        B = te.placeholder((L, M), name="B", dtype=dtype)
 
-        k = te.reduce_axis((0, L-1), name='k')
-        C = te.compute((N, M), lambda i, j: te.sum(
-            A[i, k] * B[k, j], axis=k), name='C')
+        k = te.reduce_axis((0, L - 1), name="k")
+        C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="C")
         s = te.create_schedule(C.op)
 
         # schedule
@@ -91,8 +91,7 @@ def bad_matmul(N, L, M, dtype):
 def get_sample_task(n=128):
     """return a sample task for testing"""
     target = tvm.target.Target("llvm")
-    task = autotvm.task.create(
-        "testing/matmul", args=(n, n, n, 'float32'), target=target)
+    task = autotvm.task.create("testing/matmul", args=(n, n, n, "float32"), target=target)
     return task, target
 
 
@@ -103,5 +102,5 @@ def get_sample_records(n):
     inps, ress = [], []
     for i in range(n):
         inps.append(MeasureInput(target, tsk, tsk.config_space.get(i)))
-        ress.append(MeasureResult((i+1,), 0, i, time.time()))
+        ress.append(MeasureResult((i + 1,), 0, i, time.time()))
     return list(zip(inps, ress))

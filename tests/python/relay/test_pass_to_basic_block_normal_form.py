@@ -32,7 +32,7 @@ def run_opt_pass(expr, passes):
     mod = tvm.IRModule.from_expr(expr)
     seq = tvm.transform.Sequential(passes)
     with tvm.transform.PassContext(opt_level=3):
-       mod = seq(mod)
+        mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
@@ -64,14 +64,15 @@ def test_no_explicit_bind():
     check_eval(bblock(), 8.0)
     check_basic_block_normal_form(bblock)
 
+
 def test_top_level_nested_if():
-    x = relay.var('x', shape=(), dtype='bool')
-    y = relay.var('y', shape=(), dtype='float32')
-    z = relay.var('z', shape=(), dtype='float32')
+    x = relay.var("x", shape=(), dtype="bool")
+    y = relay.var("y", shape=(), dtype="float32")
+    z = relay.var("z", shape=(), dtype="float32")
     cond_t = relay.const(True)
     cond_f = relay.const(False)
-    one = relay.const(1, dtype='float32')
-    three = relay.const(3, dtype='float32')
+    one = relay.const(1, dtype="float32")
+    three = relay.const(3, dtype="float32")
     y2 = relay.add(y, y)
     z2 = relay.add(z, z)
     true_branch = relay.If(cond_t, relay.add(z2, y2), relay.add(three, y2))
@@ -97,16 +98,17 @@ def test_top_level_nested_if():
       }
     }
     """
+
     def expected():
-        x = relay.var('x', shape=(), dtype='bool')
-        y = relay.var('y', shape=(), dtype='float32')
-        z = relay.var('z', shape=(), dtype='float32')
+        x = relay.var("x", shape=(), dtype="bool")
+        y = relay.var("y", shape=(), dtype="float32")
+        z = relay.var("z", shape=(), dtype="float32")
         cond_t = relay.const(True)
         cond_f = relay.const(False)
-        one = relay.const(1, dtype='float32')
-        three = relay.const(3, dtype='float32')
-        y2 = relay.var('y2')
-        z2 = relay.var('z2')
+        one = relay.const(1, dtype="float32")
+        three = relay.const(3, dtype="float32")
+        y2 = relay.var("y2")
+        z2 = relay.var("z2")
         true_branch = relay.If(cond_t, relay.add(z2, y2), relay.add(three, y2))
         true_branch = relay.Let(y2, relay.add(y, y), true_branch)
         false_branch = relay.If(cond_f, z2, one)
@@ -138,14 +140,15 @@ def test_top_level_nested_if():
     expected_output = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(bblock, expected_output, map_free_vars=True)
 
+
 def test_nested_if():
-    x = relay.var('x', shape=(), dtype='bool')
-    y = relay.var('y', shape=(), dtype='float32')
+    x = relay.var("x", shape=(), dtype="bool")
+    y = relay.var("y", shape=(), dtype="float32")
     cond_t = relay.const(True)
     cond_f = relay.const(False)
-    one = relay.const(1, dtype='float32')
-    two = relay.const(2, dtype='float32')
-    three = relay.const(3, dtype='float32')
+    one = relay.const(1, dtype="float32")
+    two = relay.const(2, dtype="float32")
+    three = relay.const(3, dtype="float32")
     y2 = relay.add(y, y)
     true_branch = relay.If(cond_t, y2, relay.add(three, y2))
     false_branch = relay.If(cond_f, two, one)
@@ -168,15 +171,16 @@ def test_nested_if():
       }
     }
     """
+
     def expected():
-        x = relay.var('x', shape=(), dtype='bool')
-        y = relay.var('y', shape=(), dtype='float32')
+        x = relay.var("x", shape=(), dtype="bool")
+        y = relay.var("y", shape=(), dtype="float32")
         cond_t = relay.const(True)
         cond_f = relay.const(False)
-        one = relay.const(1, dtype='float32')
-        two = relay.const(2, dtype='float32')
-        three = relay.const(3, dtype='float32')
-        y2 = relay.var('y2')
+        one = relay.const(1, dtype="float32")
+        two = relay.const(2, dtype="float32")
+        three = relay.const(3, dtype="float32")
+        y2 = relay.var("y2")
         true_branch = relay.If(cond_t, y2, relay.add(three, y2))
         true_branch = relay.Let(y2, relay.add(y, y), true_branch)
         false_branch = relay.If(cond_f, two, one)
@@ -223,27 +227,28 @@ def test_recursion():
        f(5);
     """
     mod = tvm.IRModule()
-    i64 = relay.TensorType((), 'int64')
+    i64 = relay.TensorType((), "int64")
     f = relay.GlobalVar("f")
     n = relay.Var("n", i64)
-    m = n * relay.const(2, 'int64')
-    cond = relay.equal(n, relay.const(0, 'int64'))
-    false_branch = m + f(n - relay.const(1, 'int64'))
+    m = n * relay.const(2, "int64")
+    cond = relay.equal(n, relay.const(0, "int64"))
+    false_branch = m + f(n - relay.const(1, "int64"))
     funcbody = relay.If(cond, m, false_branch)
     value = relay.Function([n], funcbody, i64, [])
     mod[f] = value
-    check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
+    check_eval(f(relay.const(5, "int64")), 30.0, mod=mod)
     old_f = mod[f]
     mod = transform.ToBasicBlockNormalForm()(mod)
     f = mod[f]
-    check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
+    check_eval(f(relay.const(5, "int64")), 30.0, mod=mod)
     check_basic_block_normal_form(f)
 
+
 def test_ref():
-    i = relay.Var('i')
-    iv = relay.Var('iv')
-    u = relay.Var('u')
-    uv = relay.Var('uv')
+    i = relay.Var("i")
+    iv = relay.Var("iv")
+    u = relay.Var("u")
+    uv = relay.Var("uv")
     body = relay.add(iv, uv)
     body = relay.Let(uv, relay.RefRead(i), body)
     body = relay.Let(u, relay.RefWrite(i, relay.const(2)), body)
@@ -276,10 +281,11 @@ def test_nat_add():
     assert not Feature.fLet in detect_feature(mod[add])
     check_basic_block_normal_form(opt_expr)
 
+
 def test_let():
     def test_let1():
         x = relay.Var("x")
-        c = relay.const(4.0, 'float32')
+        c = relay.const(4.0, "float32")
         body = relay.Let(x, c, x)
         body = run_opt_pass(body, transform.InferType())
         """
@@ -289,20 +295,20 @@ def test_let():
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
         assert tvm.ir.structural_equal(body, opt_body)
         check_basic_block_normal_form(opt_body)
-        
+
     def test_let1_1():
         x = relay.Var("y")
-        d = relay.const(4.0, 'float32')
-        body = relay.Let(x, d, relay.add(x,x))
+        d = relay.const(4.0, "float32")
+        body = relay.Let(x, d, relay.add(x, x))
         body = run_opt_pass(body, transform.InferType())
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
         assert tvm.ir.structural_equal(body, opt_body)
         check_basic_block_normal_form(opt_body)
-    
+
     def test_let2():
         x = relay.Var("x")
         y = relay.Var("y")
-        d = relay.const(4.0, 'float32')
+        d = relay.const(4.0, "float32")
         body = relay.Let(y, x, x)
         body = relay.Let(x, d, body)
         body = run_opt_pass(body, transform.InferType())
@@ -311,7 +317,7 @@ def test_let():
         def expected():
             x = relay.Var("x")
             y = relay.Var("y")
-            d = relay.const(4.0, 'float32')
+            d = relay.const(4.0, "float32")
             body = relay.Let(y, x, y)
             body = relay.Let(x, d, body)
             return body
@@ -325,8 +331,8 @@ def test_let():
         x = relay.Var("x")
         y = relay.Var("y")
         z = relay.Var("z")
-        c = relay.const(3.0, 'float32')
-        d = relay.const(4.0, 'float32')
+        c = relay.const(3.0, "float32")
+        d = relay.const(4.0, "float32")
         body = relay.Let(z, x + y, x + z)
         body = relay.Let(x, d, body)
         body = relay.Let(y, c, body)
@@ -340,31 +346,34 @@ def test_let():
     test_let2()
     test_let3()
 
+
 def test_function():
-    t = relay.TensorType((), 'float32')
+    t = relay.TensorType((), "float32")
     x = relay.Var("x", t)
     f = relay.Function([x], x + x)
-    d = relay.const(4.0, 'float32')
+    d = relay.const(4.0, "float32")
     bblock = run_opt_pass(f, transform.ToBasicBlockNormalForm())
     assert isinstance(bblock, relay.Function)
     check_eval(f(d), 8)
     check_eval(bblock(d), 8)
     check_basic_block_normal_form(bblock)
 
+
 def test_gradient_if():
     x = relay.var("a", shape=(1, 16))
     y = relay.var("y", shape=(1, 16))
-    cond = relay.var("cond", shape=(), dtype='uint1')
+    cond = relay.var("cond", shape=(), dtype="uint1")
     net = relay.If(cond, x, x)
     net = relay.add(x, net)
-    net = relay.Function([cond,x,y], net)
+    net = relay.Function([cond, x, y], net)
     mod = tvm.IRModule.from_expr(net)
     mod = relay.transform.ToBasicBlockNormalForm()(mod)
-    net_grad = relay.transform.gradient(mod["main"], mode='higher_order')
+    net_grad = relay.transform.gradient(mod["main"], mode="higher_order")
     mod["main"] = net_grad
     mod_grad = relay.transform.ToBasicBlockNormalForm()(mod)
-    check_basic_block_normal_form(mod_grad['main'])
-    check_basic_block_normal_form(mod['main'])
+    check_basic_block_normal_form(mod_grad["main"])
+    check_basic_block_normal_form(mod["main"])
+
 
 def test_if():
     def if_expr(x):
@@ -378,8 +387,8 @@ def test_if():
           multiply(%1, 1f)
         }
         """
-        one = relay.const(1, dtype='float32')
-        two = relay.const(2, dtype='float32')
+        one = relay.const(1, dtype="float32")
+        two = relay.const(2, dtype="float32")
         v1 = relay.add(x, one)
         v2 = relay.equal(x, two)
         true_branch = relay.multiply(v1, two)
@@ -398,9 +407,9 @@ def test_if():
           multiply(%v1, 1f /* ty=float32 */) /* ty=float32 */
         }
         """
-        one = relay.const(1, dtype='float32')
-        two = relay.const(2, dtype='float32')
-        v1 = relay.var('v1')
+        one = relay.const(1, dtype="float32")
+        two = relay.const(2, dtype="float32")
+        v1 = relay.var("v1")
         v2 = relay.equal(x, two)
         true_branch = relay.multiply(v1, two)
         false_branch = relay.multiply(v1, one)
@@ -408,7 +417,7 @@ def test_if():
         body = relay.Let(v1, relay.add(x, one), body)
         return body
 
-    x = relay.var('x', shape=(), dtype='float32')
+    x = relay.var("x", shape=(), dtype="float32")
     body = if_expr(x)
     expected_body = expected_if_expr(x)
     bblock = run_opt_pass(body, transform.ToBasicBlockNormalForm())
@@ -423,13 +432,14 @@ def test_if():
     assert tvm.ir.structural_equal(bblock, expected_bblock)
     check_basic_block_normal_form(bblock)
 
+
 def test_higher_order_return():
-    x = relay.var('x', shape=(1,), dtype='float32')#, a)
-    y = relay.var('y', shape=(1,), dtype='float32')#, a)
-    z = relay.var('z', shape=(1,), dtype='float32')#, a)
+    x = relay.var("x", shape=(1,), dtype="float32")  # , a)
+    y = relay.var("y", shape=(1,), dtype="float32")  # , a)
+    z = relay.var("z", shape=(1,), dtype="float32")  # , a)
     x2 = relay.add(x, x)
-    func_a = relay.Function([y], relay.add(x2, y)) #, a, [a])
-    func_b = relay.Function([z], relay.add(x2, z)) #, a, [a])
+    func_a = relay.Function([y], relay.add(x2, y))  # , a, [a])
+    func_b = relay.Function([z], relay.add(x2, z))  # , a, [a])
     body = relay.Tuple([func_a, func_b])
     body = relay.Function([x], body)
     """
@@ -450,13 +460,13 @@ def test_higher_order_return():
 
 
 def test_higher_order_nested():
-    x = relay.var('x', dtype='float32', shape=(1,))
-    s = relay.var('s', dtype='float32', shape=(1,))
+    x = relay.var("x", dtype="float32", shape=(1,))
+    s = relay.var("s", dtype="float32", shape=(1,))
     shared = relay.add(s, s)
     func_true = relay.Function([x], relay.add(x, shared))
-    choice_t = relay.FuncType([], relay.scalar_type('bool'))
-    f = relay.Var('f', choice_t)
-    z = relay.Var('z')
+    choice_t = relay.FuncType([], relay.scalar_type("bool"))
+    f = relay.Var("f", choice_t)
+    z = relay.Var("z")
     body = relay.If(f(), func_true, relay.Function([z], relay.add(z, shared)))
     top = relay.Function([f, s], body)
     """
@@ -478,5 +488,6 @@ def test_higher_order_nested():
     bblock = run_opt_pass(top, transform.ToBasicBlockNormalForm())
     check_basic_block_normal_form(bblock)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     pytest.main([__file__])

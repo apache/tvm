@@ -35,19 +35,16 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     """
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
-
-    path = os.path.join(
-        source_dir, "src", "runtime", "rpc", "minrpc", ("%s.cc" % server))
+    minrpc_dir = os.path.join(source_dir, "src", "runtime", "minrpc")
+    path = os.path.join(minrpc_dir, server, ("%s.cc" % server))
 
     candidates = [path]
     if not os.path.isfile(path):
         raise RuntimeError("Cannot find minserver %s, in candidates %s" % (server, candidates))
-    return path
+    return minrpc_dir, path
 
 
-def with_minrpc(compile_func,
-                server="posix_popen_server",
-                runtime="libtvm"):
+def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     """Attach the compiler function with minrpc related options.
 
     Parameters
@@ -66,9 +63,8 @@ def with_minrpc(compile_func,
     fcompile : function
         The return compilation.
     """
-    server_path = find_minrpc_server_libpath(server)
-    runtime_path = libinfo.find_lib_path(
-        [runtime, runtime + ".so", runtime + ".dylib"])[0]
+    minrpc_dir, server_path = find_minrpc_server_libpath(server)
+    runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
     options = ["-std=c++14"]
@@ -77,10 +73,10 @@ def with_minrpc(compile_func,
     # Always recommend to to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-I" + path for path in libinfo.find_include_path()]
+    options += ["-I" + minrpc_dir]
     fcompile = cc.cross_compiler(
-        compile_func,
-        options=options,
-        add_files=[server_path, runtime_path])
+        compile_func, options=options, add_files=[server_path, runtime_path]
+    )
     fcompile.__name__ = "with_minrpc"
     fcompile.need_system_lib = True
     return fcompile

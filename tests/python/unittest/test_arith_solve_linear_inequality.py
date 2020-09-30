@@ -23,8 +23,10 @@ from tvm import te, arith, ir, tir, testing
 
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
-    print("\nThis test is intentionally non-deterministic, "
-          "if it fails please report it in github issue together with this seed {}\n".format(seed))
+    print(
+        "\nThis test is intentionally non-deterministic, "
+        "if it fails please report it in github issue together with this seed {}\n".format(seed)
+    )
     random.seed(seed)
 
     def _check(variables, formulas, coef=(-5, 5), bounds=(-20, 20)):
@@ -32,17 +34,17 @@ def test_solution_consistency():
 
         fs = []
         for i in range(formulas):
-            s1 = sum([v*random.randint(coef[0], coef[1]) for v in vs])
+            s1 = sum([v * random.randint(coef[0], coef[1]) for v in vs])
             s1 += random.randint(coef[0], coef[1])
-            s2 = sum([v*random.randint(coef[0], coef[1]) for v in vs])
+            s2 = sum([v * random.randint(coef[0], coef[1]) for v in vs])
             s2 += random.randint(coef[0], coef[1])
             op = random.choice([tir.expr.EQ, tir.expr.LE, tir.expr.LT, tir.expr.GE, tir.expr.GT])
             fs.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in vs}
-        before = te.all(tir.const(1, 'bool'), *fs)
+        before = te.all(tir.const(1, "bool"), *fs)
         after = arith._ffi_api.SolveInequalitiesAsCondition(vs, vranges, fs)
-        after = te.all(tir.const(1, 'bool'), *after)
+        after = te.all(tir.const(1, "bool"), *after)
         testing.check_bool_expr_is_true(before == after, vranges)
 
         solution = arith.solve_linear_inequalities(fs, vs, vranges, deskew_range=True)
@@ -109,7 +111,7 @@ def test_dual_variable():
     solution = arith.solve_linear_inequalities(problem, variables, ranges, deskew_range=True)
     [x_new, y_new] = solution.dst.variables
     [rel] = solution.dst.relations
-    assert ir.structural_equal(rel, (y_new*2) + x_new <= 10)
+    assert ir.structural_equal(rel, (y_new * 2) + x_new <= 10)
     assert ir.structural_equal(solution.dst.ranges[x_new].min, 0)
     assert ir.structural_equal(solution.dst.ranges[x_new].extent, 11)
     assert ir.structural_equal(solution.dst.ranges[y_new].min, 0)
@@ -164,8 +166,9 @@ def test_multi_equal():
     # (z*y - 6) <= 0 && (6 - z*y) <= 0
     ana = tvm.arith.Analyzer()
     assert ana.simplify(solution.relations[1].a + solution.relations[2].a) == 0
-    assert ir.structural_equal(solution.relations[1].a, (z*y - 6)) or \
-        ir.structural_equal(solution.relations[2].a, (z*y - 6))
+    assert ir.structural_equal(solution.relations[1].a, (z * y - 6)) or ir.structural_equal(
+        solution.relations[2].a, (z * y - 6)
+    )
 
     solution = arith.solve_linear_inequalities(problem, [x, y, z], deskew_range=True)
     assert solution.src_to_dst[y] == y
@@ -176,7 +179,7 @@ def test_multi_equal():
 def test_no_solution():
     x = te.var("x0")
     vranges = {x: tvm.ir.Range.from_min_extent(-20, 41)}
-    problem = [-x - 4 <= -5*x + 2, x*4 + 5 <= x*5]
+    problem = [-x - 4 <= -5 * x + 2, x * 4 + 5 <= x * 5]
 
     solution = arith.solve_linear_inequalities(problem, [x], vranges, deskew_range=True)
     assert list(solution.dst.variables) == []

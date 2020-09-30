@@ -51,7 +51,7 @@ def test_estimate_flop():
     dag = auto_scheduler.ComputeDAG([A, B, E])
     assert abs(dag.flop_ct - 2 * N ** 3) < 0.5
 
-    F = te.compute((N, N), lambda i, j: E[i,j], name='F', attrs={"FLOP": 1234})
+    F = te.compute((N, N), lambda i, j: E[i, j], name="F", attrs={"FLOP": 1234})
     dag = auto_scheduler.ComputeDAG([A, B, F])
     assert abs(dag.flop_ct - (2 * N ** 3 + 1234)) < 0.5
 

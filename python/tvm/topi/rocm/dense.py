@@ -23,7 +23,8 @@ from .. import generic, nn
 from .. import tag
 from ..util import traverse_inline
 
-@autotvm.register_topi_compute('dense.rocm')
+
+@autotvm.register_topi_compute("dense.rocm")
 def dense(cfg, data, weight, bias=None, out_dtype=None):
     """Dense operator for rocm backend.
 
@@ -46,8 +47,7 @@ def dense(cfg, data, weight, bias=None, out_dtype=None):
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
-    assert len(data.shape) == 2 and len(weight.shape) == 2, \
-        "only support 2-dim dense"
+    assert len(data.shape) == 2 and len(weight.shape) == 2, "only support 2-dim dense"
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
@@ -55,7 +55,7 @@ def dense(cfg, data, weight, bias=None, out_dtype=None):
     return nn.dense(data, weight, bias, out_dtype)
 
 
-@autotvm.register_topi_schedule('dense.rocm')
+@autotvm.register_topi_schedule("dense.rocm")
 def schedule_dense(cfg, outs):
     """Schedule for dense operator.
 
@@ -74,7 +74,7 @@ def schedule_dense(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'dense':
+        if op.tag == "dense":
             Dense = op.output(0)
             num_thread = 64
             k = Dense.op.reduce_axis[0]
@@ -100,7 +100,7 @@ def schedule_dense(cfg, outs):
     return s
 
 
-@autotvm.register_topi_compute('dense_rocblas.rocm')
+@autotvm.register_topi_compute("dense_rocblas.rocm")
 def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
     """Dense operator for rocm backend with cblas.
 
@@ -131,13 +131,13 @@ def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
     out_dim, _ = weight.shape
     cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
-        matmul = te.compute((batch, out_dim),
-                            lambda i, j: matmul[i, j] + bias[j],
-                            tag=tag.BROADCAST)
+        matmul = te.compute(
+            (batch, out_dim), lambda i, j: matmul[i, j] + bias[j], tag=tag.BROADCAST
+        )
     return matmul
 
 
-@autotvm.register_topi_schedule('dense_rocblas.rocm')
+@autotvm.register_topi_schedule("dense_rocblas.rocm")
 def schedule_dense_rocblas(_, outs):
     """Schedule for dense operator with rocm cblas"""
     return generic.schedule_extern(outs)

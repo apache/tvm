@@ -35,6 +35,7 @@ class RecordToFile(MeasureCallback):
     filename : str
         File name for this callback to write log to.
     """
+
     def __init__(self, filename="auto_scheduler_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.RecordToFile, filename)
 
@@ -49,11 +50,12 @@ class RecordReader(Object):
     filename : str = "auto_scheduler_tuning.json"
         File name for this reader to load log from.
     """
+
     def __init__(self, filename="auto_scheduler_tuning.json"):
         self.__init_handle_by_constructor__(_ffi_api.RecordReader, filename)
 
     def read_lines(self, max_lines=None, skip_lines=0):
-        """ Read multiple lines from the log file.
+        """Read multiple lines from the log file.
 
         Parameters
         ----------
@@ -64,13 +66,14 @@ class RecordReader(Object):
 
         Returns
         -------
-        inputs : List[MeasureInput]
+        inputs : List[auto_scheduler.measure.MeasureInput]
             The MeasureInputs loaded from the log file.
-        results : List[MeasureResult]
+        results : List[auto_scheduler.measure.MeasureResult]
             The MeasureResults loaded from the log file.
         """
-        inputs, results = _ffi_api.RecordReaderReadLines(self, max_lines if max_lines else -1,
-                                                         skip_lines)
+        inputs, results = _ffi_api.RecordReaderReadLines(
+            self, max_lines if max_lines else -1, skip_lines
+        )
         return inputs, results
 
     def __iter__(self):
@@ -92,7 +95,7 @@ def load_records(filename):
 
     Returns
     -------
-    logs : List[MeasureInput, MeasureResult]
+    logs : List[auto_scheduler.measure.MeasureInput, auto_scheduler.measure.MeasureResult]
     """
     return zip(*RecordReader(filename).read_lines())
 
@@ -112,8 +115,9 @@ def save_records(filename, inputs, results):
     """
     _ffi_api.SaveRecords(filename, inputs, results)
 
+
 def load_best(filename, workload_key=None, target=None):
-    """ Return the best measurement pair form a log file. This may return none results if
+    """Return the best measurement pair form a log file. This may return none results if
     there is no legal measure pair with the specified workload_key/target found from the log file.
 
     Parameters
@@ -122,16 +126,16 @@ def load_best(filename, workload_key=None, target=None):
         File name to load log from.
     workload_key : Optional[str]
         The workload key of the compute declaration.
-        With `None`, this retuns the best measure pair of all workloads.
+        With `None`, this returns the best measure pair of all workloads.
     target : Optional[tvm.target.Target]
         The target device.
-        With `None`, this retuns the best measure pair of all target devices.
+        With `None`, this returns the best measure pair of all target devices.
 
     Returns
     -------
-    input : MeasureInput
+    input : auto_scheduler.measure.MeasureInput
         The best State's MeasureInput from this log fine.
-    result : MeasureResult
+    result : auto_scheduler.measure.MeasureResult
         The best State's MeasureResult from this log fine.
     """
     log_reader = RecordReader(filename)

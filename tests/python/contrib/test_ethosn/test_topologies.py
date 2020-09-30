@@ -19,8 +19,125 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.relay.op.contrib.ethosn import ethosn_available, Available
 from . import infrastructure as tei
+
+
+def test_split_add_concat():
+    if not ethosn_available():
+        return
+
+    def get_model(input_shape, var_names):
+        """Return a model"""
+
+        a = relay.var(next(var_names), shape=input_shape, dtype="uint8")
+        split_scale = relay.const(0.25, "float32")
+        split_zp = relay.const(100, "int32")
+        add_scale = relay.const(0.75, "float32")
+        add_zp = relay.const(120, "int32")
+        axis = 2
+
+        split = relay.split(a, indices_or_sections=4, axis=axis)
+        b = relay.qnn.op.add(
+            split[0],
+            split[1],
+            lhs_scale=split_scale,
+            lhs_zero_point=split_zp,
+            rhs_scale=split_scale,
+            rhs_zero_point=split_zp,
+            output_scale=add_scale,
+            output_zero_point=add_zp,
+        )
+        conc = relay.qnn.op.concatenate(
+            [b, split[2], split[3]],
+            input_scales=(add_scale, split_scale, split_scale),
+            input_zero_points=(add_zp, split_zp, split_zp),
+            output_scale=add_scale,
+            output_zero_point=add_zp,
+            axis=axis,
+        )
+        return conc
+
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4), dtype="uint8")),
+    }
+
+    outputs = []
+    for npu in [False, True]:
+        model = get_model(inputs["a"].shape, iter(inputs))
+        mod = tei.make_module(model, [])
+        outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+
+    tei.verify(outputs, 2)
+
+
+def test_multiple_command_streams():
+    """Check that multiple Ethos-N partitions are correctly handled.
+
+    If there's more than one Ethos-N graph partition, more than one command
+    stream will be created. This should be handled correctly by both the
+    Ethos-N codegen and Ethos-N runtime module. This test checks against a
+    simple graph which creates two Ethos-N partitions and checks the result
+    against an 'all-CPU' run through TVM.
+    """
+    if not ethosn_available():
+        return
+
+    def get_model():
+        """
+        max_pool2d
+             |
+            abs
+             |
+        max_pool2d
+        """
+        x = relay.var("x", shape=(1, 4, 4, 4), dtype="uint8")
+        out = relay.nn.max_pool2d(x, (2, 2), (2, 2), layout="NHWC")  # supported
+        out = relay.op.abs(out)  # not supported
+        out = relay.nn.max_pool2d(out, (2, 2), (2, 2), layout="NHWC")  # supported
+        return out
+
+    np.random.seed(0)
+    outputs = []
+    inputs = {"x": tvm.nd.array(np.random.randint(0, high=256, size=(1, 4, 4, 4), dtype="uint8"))}
+    model = get_model()
+    mod = tei.make_module(model, {})
+    outputs.append(
+        tei.build_and_run(mod, inputs, 1, {}, npu=True, expected_host_ops=1, npu_partitions=2)
+    )
+
+
+def test_output_order():
+    if not ethosn_available():
+        return
+
+    def get_model(input_shape, var_names):
+        """Return a model"""
+
+        a = relay.var(next(var_names), shape=input_shape, dtype="uint8")
+
+        z = relay.op.clip(a, 0, 255)
+        b = relay.op.clip(z, 0, 15)
+        c = relay.op.clip(z, 16, 31)
+        d = relay.op.clip(z, 32, 47)
+        e = relay.op.clip(z, 48, 63)
+        f = relay.op.clip(z, 64, 79)
+        g = relay.op.clip(z, 80, 95)
+        h = relay.op.clip(z, 96, 111)
+        i = relay.op.clip(z, 112, 127)
+        return relay.Tuple((d, c, e, f, i, b, h, g))
+
+    inputs = {
+        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4), dtype="uint8")),
+    }
+
+    outputs = []
+    for npu in [False, True]:
+        model = get_model(inputs["a"].shape, iter(inputs))
+        mod = tei.make_module(model, [])
+        outputs.append(tei.build_and_run(mod, inputs, 8, {}, npu=npu))
+
+    tei.verify(outputs, 1)
 
 
 def test_split_with_asym_concats():
@@ -32,18 +149,22 @@ def test_split_with_asym_concats():
         split = relay.op.split(a, indices_or_sections=splits, axis=axis)
         zeroi = relay.const(1, "int32")
         zerof = relay.const(0.5, "float32")
-        con1 = relay.qnn.op.concatenate([split[0], split[1]],
-                                        input_scales=[zerof]*2,
-                                        input_zero_points=[zeroi]*2,
-                                        output_scale=zerof,
-                                        output_zero_point=zeroi,
-                                        axis=axis)
-        con2 = relay.qnn.op.concatenate([split[2], split[3]],
-                                        input_scales=[zerof]*2,
-                                        input_zero_points=[zeroi]*2,
-                                        output_scale=zerof,
-                                        output_zero_point=zeroi,
-                                        axis=axis)
+        con1 = relay.qnn.op.concatenate(
+            [split[0], split[1]],
+            input_scales=[zerof] * 2,
+            input_zero_points=[zeroi] * 2,
+            output_scale=zerof,
+            output_zero_point=zeroi,
+            axis=axis,
+        )
+        con2 = relay.qnn.op.concatenate(
+            [split[2], split[3]],
+            input_scales=[zerof] * 2,
+            input_zero_points=[zeroi] * 2,
+            output_scale=zerof,
+            output_zero_point=zeroi,
+            axis=axis,
+        )
         return relay.Tuple((con2, con1))
 
     trials = [
@@ -96,12 +217,14 @@ def test_input_tuples():
 
         zeroi = relay.const(1, "int32")
         zerof = relay.const(0.5, "float32")
-        con = relay.qnn.op.concatenate(tup,
-                                       input_scales=[zerof]*len(shapes),
-                                       input_zero_points=[zeroi]*len(shapes),
-                                       output_scale=zerof,
-                                       output_zero_point=zeroi,
-                                       axis=axis)
+        con = relay.qnn.op.concatenate(
+            tup,
+            input_scales=[zerof] * len(shapes),
+            input_zero_points=[zeroi] * len(shapes),
+            output_scale=zerof,
+            output_zero_point=zeroi,
+            axis=axis,
+        )
 
         return con
 
@@ -117,7 +240,7 @@ def test_input_tuples():
             mod = tei.make_module(model, {})
         else:
             mod = tei.make_ethosn_partition(model)
-        graph, lib, params = tei.build(mod, {}, npu=False)
-        outputs.append(tei.run(graph, lib, {}, inputs, 1, npu=npu))
+        lib = tei.build(mod, {}, npu=False)
+        outputs.append(tei.run(lib, inputs, 1, npu=npu))
 
     tei.verify(outputs, 0)

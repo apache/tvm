@@ -22,6 +22,7 @@ from tvm import te
 from tvm.te import hybrid
 from ..sort import argsort
 
+
 @hybrid.script
 def hybrid_rearrange_box_out(data, one, batch_size, num_anchors):
     """Hybrid routine to rearrange nms output to
@@ -50,10 +51,7 @@ def hybrid_rearrange_box_out(data, one, batch_size, num_anchors):
         [batch_size, num_anchors, 6].
     """
     elem_length = data.shape[2]
-    output = output_tensor((batch_size,
-                            num_anchors,
-                            elem_length),
-                           data.dtype)
+    output = output_tensor((batch_size, num_anchors, elem_length), data.dtype)
 
     for i in parallel(batch_size):
         valid_idx = 0
@@ -120,8 +118,9 @@ def hybrid_rearrange_indices_out(data, one, batch_size, num_anchors):
 
 
 @hybrid.script
-def hybrid_get_valid_counts(data, score_threshold, id_index, score_index,
-                            one, batch_size, num_anchors):
+def hybrid_get_valid_counts(
+    data, score_threshold, id_index, score_index, one, batch_size, num_anchors
+):
     """Hybrid routine to get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
@@ -164,17 +163,13 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index,
     """
     box_data_length = data.shape[2]
     valid_count = output_tensor((batch_size,), "int32")
-    out_tensor = output_tensor((batch_size,
-                                num_anchors,
-                                box_data_length),
-                               data.dtype)
+    out_tensor = output_tensor((batch_size, num_anchors, box_data_length), data.dtype)
     out_indices = output_tensor((batch_size, num_anchors), "int32")
     for i in parallel(batch_size):
         valid_count[i] = 0
         for j in range(num_anchors):
             score = data[i, j, score_index]
-            if score > score_threshold and \
-                    (id_index < 0 or data[i, j, id_index] >= 0):
+            if score > score_threshold and (id_index < 0 or data[i, j, id_index] >= 0):
                 for k in range(box_data_length):
                     out_tensor[i, valid_count[i], k] = data[i, j, k]
                 out_indices[i, valid_count[i]] = j
@@ -219,16 +214,36 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     score_threshold_const = tvm.tir.const(score_threshold, data.dtype)
     id_index_const = tvm.tir.const(id_index, "int32")
     score_index_const = tvm.tir.const(score_index, "int32")
-    return hybrid_get_valid_counts(data, score_threshold_const,
-                                   id_index_const, score_index_const,
-                                   tvm.tir.const(1, data.dtype),
-                                   data.shape[0], data.shape[1])
+    return hybrid_get_valid_counts(
+        data,
+        score_threshold_const,
+        id_index_const,
+        score_index_const,
+        tvm.tir.const(1, data.dtype),
+        data.shape[0],
+        data.shape[1],
+    )
 
 
 @hybrid.script
-def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors,
-               max_output_size, iou_threshold, force_suppress, top_k, coord_start,
-               score_index, id_index, return_indices, zero, one):
+def hybrid_nms(
+    data,
+    sorted_index,
+    valid_count,
+    indices,
+    batch_size,
+    num_anchors,
+    max_output_size,
+    iou_threshold,
+    force_suppress,
+    top_k,
+    coord_start,
+    score_index,
+    id_index,
+    return_indices,
+    zero,
+    one,
+):
     """Hybrid routing for non-maximum suppression.
 
     Parameters
@@ -305,9 +320,14 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
 
     # box_indices is the expected indices of boxes
     box_indices = output_tensor((batch_size, num_anchors), sorted_index.dtype)
-    output = output_tensor((batch_size,
-                            num_anchors,
-                            box_data_length,), data.dtype)
+    output = output_tensor(
+        (
+            batch_size,
+            num_anchors,
+            box_data_length,
+        ),
+        data.dtype,
+    )
 
     for i in range(batch_size):
         if iou_threshold > 0:
@@ -342,21 +362,33 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
                     is_valid_box = 1
 
                     # a_l: left, a_t: top, a_r: right, a_b: bottom
-                    a_l = min(output[batch_idx, box_a_idx, box_start_idx],
-                              output[batch_idx, box_a_idx, box_start_idx + 2])
-                    a_t = min(output[batch_idx, box_a_idx, box_start_idx + 1],
-                              output[batch_idx, box_a_idx, box_start_idx + 3])
-                    a_r = max(output[batch_idx, box_a_idx, box_start_idx],
-                              output[batch_idx, box_a_idx, box_start_idx + 2])
-                    a_b = max(output[batch_idx, box_a_idx, box_start_idx + 1],
-                              output[batch_idx, box_a_idx, box_start_idx + 3])
+                    a_l = min(
+                        output[batch_idx, box_a_idx, box_start_idx],
+                        output[batch_idx, box_a_idx, box_start_idx + 2],
+                    )
+                    a_t = min(
+                        output[batch_idx, box_a_idx, box_start_idx + 1],
+                        output[batch_idx, box_a_idx, box_start_idx + 3],
+                    )
+                    a_r = max(
+                        output[batch_idx, box_a_idx, box_start_idx],
+                        output[batch_idx, box_a_idx, box_start_idx + 2],
+                    )
+                    a_b = max(
+                        output[batch_idx, box_a_idx, box_start_idx + 1],
+                        output[batch_idx, box_a_idx, box_start_idx + 3],
+                    )
 
                     # check if current box j is valid by calculating iou with
                     # all existing valid boxes
                     for k in range(j):
                         check_iou = 0
-                        if is_valid_box == 1 and k < j and output[i, k, score_index] > 0 \
-                                and (id_index < 0 or output[i, k, id_index] >= 0):
+                        if (
+                            is_valid_box == 1
+                            and k < j
+                            and output[i, k, score_index] > 0
+                            and (id_index < 0 or output[i, k, id_index] >= 0)
+                        ):
                             if force_suppress:
                                 check_iou = 1
                             elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
@@ -366,14 +398,22 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
                             box_b_idx = k
 
                             # b_l: left, b_t: top, b_r: right, b_b: bottom
-                            b_l = min(output[batch_idx, box_b_idx, box_start_idx],
-                                      output[batch_idx, box_b_idx, box_start_idx + 2])
-                            b_t = min(output[batch_idx, box_b_idx, box_start_idx + 1],
-                                      output[batch_idx, box_b_idx, box_start_idx + 3])
-                            b_r = max(output[batch_idx, box_b_idx, box_start_idx],
-                                      output[batch_idx, box_b_idx, box_start_idx + 2])
-                            b_b = max(output[batch_idx, box_b_idx, box_start_idx + 1],
-                                      output[batch_idx, box_b_idx, box_start_idx + 3])
+                            b_l = min(
+                                output[batch_idx, box_b_idx, box_start_idx],
+                                output[batch_idx, box_b_idx, box_start_idx + 2],
+                            )
+                            b_t = min(
+                                output[batch_idx, box_b_idx, box_start_idx + 1],
+                                output[batch_idx, box_b_idx, box_start_idx + 3],
+                            )
+                            b_r = max(
+                                output[batch_idx, box_b_idx, box_start_idx],
+                                output[batch_idx, box_b_idx, box_start_idx + 2],
+                            )
+                            b_b = max(
+                                output[batch_idx, box_b_idx, box_start_idx + 1],
+                                output[batch_idx, box_b_idx, box_start_idx + 3],
+                            )
 
                             # Overlapping width and height
                             w = max(zero, min(a_r, b_r) - max(a_l, b_l))
@@ -419,11 +459,22 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors
 
     return output, box_indices
 
+
 @tvm.target.generic_func
-def non_max_suppression(data, valid_count, indices, max_output_size=-1,
-                        iou_threshold=0.5, force_suppress=False, top_k=-1,
-                        coord_start=2, score_index=1, id_index=0,
-                        return_indices=True, invalid_to_bottom=False):
+def non_max_suppression(
+    data,
+    valid_count,
+    indices,
+    max_output_size=-1,
+    iou_threshold=0.5,
+    force_suppress=False,
+    top_k=-1,
+    coord_start=2,
+    score_index=1,
+    id_index=0,
+    return_indices=True,
+    invalid_to_bottom=False,
+):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -506,27 +557,37 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
     score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis])
     sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
 
-    out, box_indices = hybrid_nms(data,
-                                  sort_tensor,
-                                  valid_count,
-                                  indices,
-                                  batch_size,
-                                  num_anchors,
-                                  max_output_size,
-                                  tvm.tir.const(iou_threshold, dtype=data.dtype),
-                                  tvm.tir.const(force_suppress, dtype="bool"),
-                                  tvm.tir.const(top_k, dtype="int32"),
-                                  tvm.tir.const(coord_start, dtype="int32"),
-                                  tvm.tir.const(score_index, dtype="int32"),
-                                  tvm.tir.const(id_index, dtype="int32"),
-                                  tvm.tir.const(return_indices, dtype="bool"),
-                                  zero=tvm.tir.const(0, dtype=data.dtype),
-                                  one=tvm.tir.const(1, dtype=data.dtype))
+    out, box_indices = hybrid_nms(
+        data,
+        sort_tensor,
+        valid_count,
+        indices,
+        batch_size,
+        num_anchors,
+        max_output_size,
+        tvm.tir.const(iou_threshold, dtype=data.dtype),
+        tvm.tir.const(force_suppress, dtype="bool"),
+        tvm.tir.const(top_k, dtype="int32"),
+        tvm.tir.const(coord_start, dtype="int32"),
+        tvm.tir.const(score_index, dtype="int32"),
+        tvm.tir.const(id_index, dtype="int32"),
+        tvm.tir.const(return_indices, dtype="bool"),
+        zero=tvm.tir.const(0, dtype=data.dtype),
+        one=tvm.tir.const(1, dtype=data.dtype),
+    )
     if return_indices:
-        return hybrid_rearrange_indices_out(box_indices, one=tvm.tir.const(1, dtype="int32"),
-                                            batch_size=batch_size, num_anchors=num_anchors)
+        return hybrid_rearrange_indices_out(
+            box_indices,
+            one=tvm.tir.const(1, dtype="int32"),
+            batch_size=batch_size,
+            num_anchors=num_anchors,
+        )
 
     if invalid_to_bottom:
-        out = hybrid_rearrange_box_out(out, one=tvm.tir.const(1, dtype=data.dtype),
-                                       batch_size=batch_size, num_anchors=num_anchors)
+        out = hybrid_rearrange_box_out(
+            out,
+            one=tvm.tir.const(1, dtype=data.dtype),
+            batch_size=batch_size,
+            num_anchors=num_anchors,
+        )
     return out

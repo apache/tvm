@@ -39,17 +39,18 @@ class ComputeDAG(Object):
     subgraph) to a ComputeDAG. It keeps the input/output tensors, all operations in the DAG, and
     some static analysis results for the DAG (e.g. the total float operation count,
     consumer/producer relations of operations, whether an operation stage should
-    be tiled/compute inlined ...).
+    be tiled/compute inlined).
     These analyses can help the search policy to make decisions during the search.
     ComputeDAG is also responsible for the interaction between auto-scheduler's `LoopState` and
     TVM schedule (e.g. applying the `LoopState` transform steps to a TVM schedule, providing
-    `LoopState` with extra information got from TVM schedule ...).
+    `LoopState` with extra information got from TVM schedule).
 
     Parameters
     ----------
     compute : Union[List[Tensor], str]
-        `Tensor`s or workload key for a compute declaration.
+        Input/output tensors or workload key for a compute declaration.
     """
+
     def __init__(self, compute):
         if isinstance(compute, str):
             compute = workload_key_to_tensors(compute)
@@ -58,12 +59,13 @@ class ComputeDAG(Object):
                 if not isinstance(item, tvm.te.Tensor):
                     raise ValueError("The input of ComputeDAG should be a list of Tensor")
         else:
-            raise ValueError("Invalid compute: " + compute +
-                             " . ComputeDAG expects a string or list of Tensor")
+            raise ValueError(
+                "Invalid compute: " + compute + " . ComputeDAG expects a string or list of Tensor"
+            )
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
 
     def get_init_state(self):
-        """ Get the init state of this ComputeDAG.
+        """Get the init state of this ComputeDAG.
 
         Returns
         -------
@@ -145,19 +147,19 @@ class ComputeDAG(Object):
     def __hash__(self):
         # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
         # of ComputeDAG
-        str_key = ''
+        str_key = ""
         for op in self.ops:
             t = op.output(0)
             if isinstance(op, PlaceholderOp):
-                str_key += 'placeholder,'
-                str_key += str(get_const_tuple(t.shape)) + ','
-                str_key += t.dtype + ';'
+                str_key += "placeholder,"
+                str_key += str(get_const_tuple(t.shape)) + ","
+                str_key += t.dtype + ";"
             elif isinstance(op, ComputeOp):
-                str_key += str(t.op.body) + ','
-                str_key += str(get_const_tuple(t.shape)) + ','
-                str_key += t.dtype + ';'
+                str_key += str(t.op.body) + ","
+                str_key += str(get_const_tuple(t.shape)) + ","
+                str_key += t.dtype + ";"
             else:
                 raise ValueError("Invalid op: " + op)
 
-        str_key = str_key.encode(encoding='utf-8')
+        str_key = str_key.encode(encoding="utf-8")
         return hashlib.md5(str_key).hexdigest()

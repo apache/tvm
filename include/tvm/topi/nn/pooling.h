@@ -336,7 +336,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
 inline bool find_depth_height_width(const std::string& layout, int* depth_axis, int* height_axis,
                                     int* width_axis) {
-  *depth_axis = -1, *height_axis = -1, *width_axis = -1;
+  *depth_axis = -1;
+  *height_axis = -1;
+  *width_axis = -1;
   int curr_idx = 0;
   for (size_t i = 0; i < layout.size(); ++i) {
     if ((layout[i] >= 'A' && layout[i] <= 'Z') || (layout[i] >= 'a' && layout[i] <= 'z')) {

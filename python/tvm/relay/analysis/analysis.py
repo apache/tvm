@@ -121,6 +121,7 @@ def check_constant(expr):
     """
     return _ffi_api.check_constant(expr)
 
+
 def check_basic_block_normal_form(expr):
     """Check whether an expression is in the basic block form
 
@@ -440,8 +441,10 @@ def get_calibration_data(mod, data):
         offset = int(indices[0])
         in_len = int(indices[1])
         out_len = int(indices[2])
-        value = {"inputs": ref_res[offset:offset + in_len],
-                 "outputs": ref_res[offset + in_len:offset + in_len + out_len]}
+        value = {
+            "inputs": ref_res[offset : offset + in_len],
+            "outputs": ref_res[offset + in_len : offset + in_len + out_len],
+        }
         calib_data[gvar] = value
 
     return calib_data

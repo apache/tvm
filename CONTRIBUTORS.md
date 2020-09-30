@@ -62,17 +62,20 @@ We do encourage everyone to work anything they are interested in.
 - [Haichen Shen](https://github.com/icemelon9) (PPMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
+- [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
 - [Jian Weng](https://github.com/were): @were: - hybrid script
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene - runtime, topi, frontends
 - [Eddie Yan](https://github.com/eqy) (PPMC): @eqy - runtime, autotvm, rpc, topi
+- [Hao Yu](https://github.com/comaniac): @comaniac - relay, byoc, ansor
 - [Lianmin Zheng](https://github.com/merrymercy) (PPMC): @merrymercy - autotvm, topi, relay
 
 ## Reviewers
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
+- [Luke Hutton](https://github.com/lhutton1): @lhutton1
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
@@ -96,6 +99,7 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
+- [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi

@@ -21,9 +21,10 @@ from tvm import te
 from .. import util
 from .. import tag
 
-@te.tag_scope(tag=tag.INJECTIVE+",dilate")
-def dilate(data, strides, name="DilatedInput"):
-    """Dilate data with zeros.
+
+@te.tag_scope(tag=tag.INJECTIVE + ",dilate")
+def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
+    """Dilate data with given dilation value (0 by default).
 
     Parameters
     ----------
@@ -32,6 +33,9 @@ def dilate(data, strides, name="DilatedInput"):
 
     strides : list / tuple of n ints
         Dilation stride on each dimension, 1 means no dilation.
+
+    dilation_value : int/float, optional
+        Value used to dilate the input.
 
     name : str, optional
         The name prefix operators generated
@@ -43,11 +47,9 @@ def dilate(data, strides, name="DilatedInput"):
     """
     n = len(data.shape)
     if len(strides) != n:
-        raise ValueError("data dimension and strides size dismatch : %d vs %d" % (
-            n, len(strides)))
+        raise ValueError("data dimension and strides size dismatch : %d vs %d" % (n, len(strides)))
     ana = tvm.arith.Analyzer()
-    out_shape = tuple(
-        ana.simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
+    out_shape = tuple(ana.simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
 
     def _dilate(*indices):
         not_zero = []
@@ -63,7 +65,8 @@ def dilate(data, strides, name="DilatedInput"):
         if not_zero:
             not_zero = tvm.tir.all(*not_zero)
             return tvm.tir.if_then_else(
-                not_zero, data(*index_tuple), tvm.tir.const(0.0, data.dtype))
+                not_zero, data(*index_tuple), tvm.tir.const(dilation_value, data.dtype)
+            )
         return data(*index_tuple)
 
     return te.compute(out_shape, _dilate, name=name)

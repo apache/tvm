@@ -114,7 +114,9 @@ if env.TARGET not in ["sim", "tsim"]:
     if not tracker_host or not tracker_port:
         remote = rpc.connect(device_host, int(device_port))
     else:
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, int(tracker_port), timeout=10000)
+        remote = autotvm.measure.request_remote(
+            env.TARGET, tracker_host, int(tracker_port), timeout=10000
+        )
 
     # Reconfigure the JIT runtime and FPGA.
     # You can program the FPGA with your own custom bitstream
@@ -152,7 +154,7 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 with autotvm.tophub.context(target):
 
     # Populate the shape and data type dictionary for ImageNet classifier input
-    dtype_dict = {"data": 'float32'}
+    dtype_dict = {"data": "float32"}
     shape_dict = {"data": (env.BATCH, 3, 224, 224)}
 
     # Get off the shelf gluon model, and convert to relay
@@ -172,8 +174,7 @@ with autotvm.tophub.context(target):
         # Perform quantization in Relay
         # Note: We set opt_level to 3 in order to fold batch norm
         with tvm.transform.PassContext(opt_level=3):
-            with relay.quantize.qconfig(global_scale=8.0,
-                                        skip_conv_layers=[0]):
+            with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
             assert env.BLOCK_IN == env.BLOCK_OUT
@@ -183,7 +184,8 @@ with autotvm.tophub.context(target):
                 env.BLOCK_OUT,
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
-                stop_name=pack_dict[model][1])
+                stop_name=pack_dict[model][1],
+            )
     else:
         relay_prog = mod["main"]
 
@@ -191,13 +193,11 @@ with autotvm.tophub.context(target):
     if target.device_name != "vta":
         with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
-                relay_prog, target=target,
-                params=params, target_host=env.target_host)
+                relay_prog, target=target, params=params, target_host=env.target_host
+            )
     else:
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-            graph, lib, params = relay.build(
-                relay_prog, target=target,
-                params=params, target_host=env.target_host)
+            lib = relay.build(relay_prog, target=target, params=params, target_host=env.target_host)
 
     # Measure Relay build time
     build_time = time.time() - build_start
@@ -205,12 +205,12 @@ with autotvm.tophub.context(target):
 
     # Send the inference library over to the remote RPC server
     temp = util.tempdir()
-    lib.save(temp.relpath("graphlib.o"))
-    remote.upload(temp.relpath("graphlib.o"))
-    lib = remote.load_module("graphlib.o")
+    lib.export_library(temp.relpath("graphlib.tar"))
+    remote.upload(temp.relpath("graphlib.tar"))
+    lib = remote.load_module("graphlib.tar")
 
     # Graph runtime
-    m = graph_runtime.create(graph, lib, ctx)
+    m = graph_runtime.GraphModule(lib["default"](ctx))
 
 ######################################################################
 # Perform image classification inference
@@ -226,28 +226,27 @@ download.download(join(categ_url, categ_fn), categ_fn)
 synset = eval(open(categ_fn).read())
 
 # Download test image
-image_url = 'https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg'
-image_fn = 'cat.png'
+image_url = "https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg"
+image_fn = "cat.png"
 download.download(image_url, image_fn)
 
 # Prepare test image for inference
 image = Image.open(image_fn).resize((224, 224))
 plt.imshow(image)
 plt.show()
-image = np.array(image) - np.array([123., 117., 104.])
+image = np.array(image) - np.array([123.0, 117.0, 104.0])
 image /= np.array([58.395, 57.12, 57.375])
 image = image.transpose((2, 0, 1))
 image = image[np.newaxis, :]
 image = np.repeat(image, env.BATCH, axis=0)
 
 # Set the network parameters and inputs
-m.set_input(**params)
-m.set_input('data', image)
+m.set_input("data", image)
 
 # Perform inference and gather execution statistics
 # More on: :py:method:`tvm.runtime.Module.time_evaluator`
-num = 4 # number of times we run module for a single measurement
-rep = 3 # number of measurements (we derive std dev from this)
+num = 4  # number of times we run module for a single measurement
+rep = 3  # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
 
 if env.TARGET in ["sim", "tsim"]:
@@ -265,7 +264,7 @@ else:
     std = np.std(tcost.results) * 1000
     mean = tcost.mean * 1000
     print("\nPerformed inference in %.2fms (std = %.2f) for %d samples" % (mean, std, env.BATCH))
-    print("Average per sample inference time: %.2fms" % (mean/env.BATCH))
+    print("Average per sample inference time: %.2fms" % (mean / env.BATCH))
 
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
@@ -287,4 +286,4 @@ for b in range(env.BATCH):
     for k in top_categories[-5:]:
         if "cat" in synset[k]:
             cat_detected = True
-    assert(cat_detected)
+    assert cat_detected

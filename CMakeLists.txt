@@ -40,7 +40,7 @@ tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
-tvm_option(USE_MICRO "Build with Micro" OFF)
+tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
@@ -56,6 +56,7 @@ tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 tvm_option(PICOJSON_PATH "Path to PicoJSON" "3rdparty/picojson")
 
 # Contrib library options
+tvm_option(USE_BYODT_POSIT "Build with BYODT software emulated posit custom datatype" OFF)
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
@@ -65,9 +66,9 @@ tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_THRUST "Build with Thrust" OFF)
 tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
 tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
-tvm_option(USE_SORT "Build with sort support" OFF)
+tvm_option(USE_SORT "Build with sort support" ON)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
-tvm_option(USE_RANDOM "Build with random support" OFF)
+tvm_option(USE_RANDOM "Build with random support" ON)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
@@ -77,15 +78,14 @@ tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
 
-
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(${DLPACK_PATH})
-include_directories(${DMLC_PATH})
-include_directories(${RANG_PATH})
-include_directories(${COMPILER_RT_PATH})
-include_directories(${PICOJSON_PATH})
+include_directories(SYSTEM ${DLPACK_PATH})
+include_directories(SYSTEM ${DMLC_PATH})
+include_directories(SYSTEM ${RANG_PATH})
+include_directories(SYSTEM ${COMPILER_RT_PATH})
+include_directories(SYSTEM ${PICOJSON_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -109,15 +109,30 @@ if(MSVC)
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
   endif()
+  # Disable common MSVC warnings
+  # Integer conversion warnings(e.g. int64 to int)
+  add_compile_options(/wd4244)
+  add_compile_options(/wd4267)
+  # Signed unsigned constant comparison
+  add_compile_options(/wd4018)
+  # Aligned alloc may not met(need c++17)
+  add_compile_options(/wd4316)
+  # unreferenced local variables(usually in exception catch)
+  add_compile_options(/wd4101)
+  # always inline keyword not necessary
+  add_compile_options(/wd4180)
+  # DLL interface warning in c++
+  add_compile_options(/wd4251)
 else(MSVC)
+  set(WARNING_FLAG -Wall)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message(STATUS "Build in Debug mode")
-    set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O0 -g ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O0 -g -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
   else()
-    set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
-    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O2 ${WARNING_FLAG} -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O2 -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
     set(TVM_VISIBILITY_FLAG "")
     if (HIDE_PRIVATE_SYMBOLS)
@@ -129,6 +144,7 @@ else(MSVC)
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
   endif()
+  include(cmake/modules/ClangFlags.cmake)
 
   # Detect if we're compiling for Hexagon.
   set(TEST_FOR_HEXAGON_CXX
@@ -242,6 +258,7 @@ endif(USE_VM_PROFILER)
 
 file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
+list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
 file(GLOB RUNTIME_SRCS
   src/runtime/*.cc
@@ -263,8 +280,6 @@ endif()
 if (INDEX_DEFAULT_I64)
   add_definitions(-DTVM_INDEX_DEFAULT_I64=1)
 endif()
-
-list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")
@@ -319,6 +334,7 @@ include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
 include(cmake/modules/contrib/Random.cmake)
+include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
@@ -352,6 +368,13 @@ set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAGS}")
 
+if(USE_MICRO)
+  # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
+  # Unix Makefiles generator, need to add these explicit target-level dependency)
+  add_dependencies(tvm host_standalone_crt)
+  add_dependencies(tvm_runtime host_standalone_crt)
+endif()
+
 if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
 endif()
@@ -377,7 +400,7 @@ if(BUILD_FOR_HEXAGON)
   set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
 
-  target_include_directories(tvm_runtime
+  target_include_directories(tvm_runtime SYSTEM
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/posix"
     PUBLIC "${USE_HEXAGON_SDK}/libs/common/qurt/ADSPv62MP/include/qurt"
     PUBLIC "${USE_HEXAGON_SDK}/incs"
@@ -389,12 +412,12 @@ if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   set(THREADS_PREFER_PTHREAD_FLAG TRUE)
   find_package(Threads REQUIRED)
-  target_link_libraries(tvm Threads::Threads)
-  target_link_libraries(tvm_runtime Threads::Threads)
+  target_link_libraries(tvm PUBLIC Threads::Threads)
+  target_link_libraries(tvm_runtime PUBLIC Threads::Threads)
 endif()
 
-target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 # Related headers
 target_include_directories(
@@ -403,20 +426,27 @@ target_include_directories(
 target_include_directories(
   tvm_objs
   PUBLIC "topi/include")
+set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
+target_include_directorieS(
+  tvm_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
+target_include_directorieS(
+  tvm_runtime_objs
+  PRIVATE "${CRC16_INCLUDE_PATH}")
 
 set(TVM_TEST_LIBRARY_NAME tvm)
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   add_library(tvm_allvisible SHARED $<TARGET_OBJECTS:tvm_objs>)
   target_include_directories(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,INCLUDE_DIRECTORIES>")
-  target_link_libraries(tvm_allvisible PUBLIC "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
+  target_link_libraries(tvm_allvisible PRIVATE "$<TARGET_PROPERTY:tvm,LINK_LIBRARIES>")
   set(TVM_TEST_LIBRARY_NAME tvm_allvisible)
 
-set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
+  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
   # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
   # but it's not available until CMake 3.13. Switch to 'target_link_options'
   # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
 # Tests
@@ -433,7 +463,7 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
     string(REPLACE ".cc" "" __execname ${__srcname})
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
-    target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR})
+    target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
     target_link_libraries(${__execname} ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)

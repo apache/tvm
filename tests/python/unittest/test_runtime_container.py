@@ -17,6 +17,7 @@
 
 import numpy as np
 import tvm
+import tvm.testing
 import pickle
 from tvm import te
 from tvm import nd, relay
@@ -37,21 +38,18 @@ def test_adt_constructor():
 
 def test_tuple_object():
     x = relay.var(
-        'x',
-        type_annotation=relay.ty.TupleType([
-            relay.ty.TensorType((), 'int32'),
-            relay.ty.TensorType((), 'int32')
-        ]))
+        "x",
+        type_annotation=relay.ty.TupleType(
+            [relay.ty.TensorType((), "int32"), relay.ty.TensorType((), "int32")]
+        ),
+    )
 
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
     mod = tvm.IRModule.from_expr(fn)
 
-    exe = relay.create_executor(
-        kind="vm", mod=mod, ctx=nd.cpu(), target="llvm")
+    exe = relay.create_executor(kind="vm", mod=mod, ctx=nd.cpu(), target="llvm")
     f = exe.evaluate()
-    value_tuple = _container.tuple_object(
-        [nd.array(np.array(11)),
-         nd.array(np.array(12))])
+    value_tuple = _container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
     # pass an ADT object to evaluate
     out = f(value_tuple)
     tvm.testing.assert_allclose(out.asnumpy(), np.array(11))

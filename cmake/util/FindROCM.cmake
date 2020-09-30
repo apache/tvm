@@ -21,8 +21,8 @@
 # Usage:
 #   find_rocm(${USE_ROCM})
 #
-# - When USE_VULKAN=ON, use auto search
-# - When USE_VULKAN=/path/to/vulkan-sdk-path, use the sdk
+# - When USE_ROCM=ON, use auto search
+# - When USE_ROCM=/path/to/rocm-sdk-path, use the sdk
 #
 # Provide variables:
 #

@@ -23,29 +23,31 @@ import tvm.testing
 import tvm.topi.testing
 
 
-def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, layout='NCHW', mode='DCR'):
+def verify_depth_to_space(
+    block_size, batch, in_channel, in_height, in_width, layout="NCHW", mode="DCR"
+):
     out_channel = int(in_channel / (block_size * block_size))
     out_height = int(in_height * block_size)
     out_width = int(in_width * block_size)
 
-    if layout == 'NCHW':
+    if layout == "NCHW":
         in_shape = [batch, in_channel, in_height, in_width]
         out_shape = [batch, out_channel, out_height, out_width]
-    elif layout == 'NHWC':
+    elif layout == "NHWC":
         in_shape = [batch, in_height, in_width, in_channel]
         out_shape = [batch, out_height, out_width, out_channel]
     else:
-        raise NotImplementedError('Layout not supported {}'.format(layout))
+        raise NotImplementedError("Layout not supported {}".format(layout))
 
-    A = te.placeholder(in_shape, name='A', dtype='float32')
+    A = te.placeholder(in_shape, name="A", dtype="float32")
     dtype = A.dtype
     a_np = np.random.uniform(size=in_shape).astype(dtype)
 
     B = topi.nn.depth_to_space(A, block_size=block_size, layout=layout, mode=mode)
-    if layout == 'NHWC':
+    if layout == "NHWC":
         a_np = np.transpose(a_np, axes=[0, 3, 1, 2])
     b_np = tvm.topi.testing.depth_to_space_python(a_np, block_size, mode=mode)
-    if layout == 'NHWC':
+    if layout == "NHWC":
         a_np = np.transpose(a_np, axes=[0, 2, 3, 1])
         b_np = np.transpose(b_np, axes=[0, 2, 3, 1])
 
@@ -65,8 +67,8 @@ def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, la
 
 @tvm.testing.uses_gpu
 def test_depth_to_space():
-    for layout in ['NCHW', 'NHWC']:
-        for mode in ['DCR', 'CDR']:
+    for layout in ["NCHW", "NHWC"]:
+        for mode in ["DCR", "CDR"]:
             # Simplest possible case
             verify_depth_to_space(2, 1, 4, 1, 1, layout=layout, mode=mode)
             # Average input size

@@ -25,16 +25,17 @@ from ..util import get_const_tuple, get_const_int
 from ..nn.util import get_pad_tuple
 from .tensor_intrin import gemm_quantized, gemm_quantized_impl
 
+
 def is_aarch64_arm():
     """ Checks whether we are compiling for an AArch64 target. """
     target = tvm.target.Target.current(allow_none=False)
-    return 'aarch64' in target.attrs.get("mtriple", "")
+    return "aarch64" in target.attrs.get("mtriple", "")
 
 
 # Compute function
-def compute_conv2d_gemm_without_weight_transform(cfg,
-                                                 data, B_interleaved_t, strides, padding, dilation,
-                                                 out_dtype, kernel_size, output_channels):
+def compute_conv2d_gemm_without_weight_transform(
+    cfg, data, B_interleaved_t, strides, padding, dilation, out_dtype, kernel_size, output_channels
+):
     """Compute conv2d by transforming the input,
     executing GEMM and transforming the output back"""
     batches, IH, IW, IC = get_const_tuple(data.shape)
@@ -52,15 +53,17 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     dilated_kernel_h = (KH - 1) * dilation_h + 1
     dilated_kernel_w = (KW - 1) * dilation_w + 1
 
-    pad_top, pad_left, pad_down, pad_right = \
-        get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w)
+    )
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
     OH = (IH + pad_top + pad_down - dilated_kernel_h) // HSTR + 1
     OW = (IW + pad_left + pad_right - dilated_kernel_w) // WSTR + 1
     if pad_top or pad_left:
-        data_pad = nn.pad(data, [0, pad_top, pad_left, 0], [0, pad_down, pad_right, 0],
-                          name="data_pad")
+        data_pad = nn.pad(
+            data, [0, pad_top, pad_left, 0], [0, pad_down, pad_right, 0], name="data_pad"
+        )
     else:
         data_pad = data
 
@@ -71,14 +74,22 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
 
     A_shape = (batches, M, K)
     if K_AREA == 1:
-        A = te.compute(A_shape, lambda n, x, y: data_pad[n, HSTR * (x // OW), WSTR * (x % OW), y],
-                       name='data_flatten')
+        A = te.compute(
+            A_shape,
+            lambda n, x, y: data_pad[n, HSTR * (x // OW), WSTR * (x % OW), y],
+            name="data_flatten",
+        )
     else:
-        A = te.compute(A_shape, lambda n, x, y:
-                       data_pad[n,
-                                HSTR * (x // OW) + dilation_h * ((y // IC) // KW),
-                                WSTR * (x % OW) + dilation_w * ((y // IC) % KW), y % IC],
-                       name='data_im2col')
+        A = te.compute(
+            A_shape,
+            lambda n, x, y: data_pad[
+                n,
+                HSTR * (x // OW) + dilation_h * ((y // IC) // KW),
+                WSTR * (x % OW) + dilation_w * ((y // IC) % KW),
+                y % IC,
+            ],
+            name="data_im2col",
+        )
     N_transformed = B_interleaved_t.shape[0]
 
     # --- Pad if necessary
@@ -105,51 +116,52 @@ def compute_conv2d_gemm_without_weight_transform(cfg,
     # --- GEMM: A*B'
     k = te.reduce_axis((0, K_padded), "k")
 
-    A_interleaved = te.compute((batches, M_padded // 4, K_padded // 16, 4, 16),
-                               lambda b, x, y, z, w: A[b, z + 4 * x, w + 16 * y],
-                               name='A_interleaved')
+    A_interleaved = te.compute(
+        (batches, M_padded // 4, K_padded // 16, 4, 16),
+        lambda b, x, y, z, w: A[b, z + 4 * x, w + 16 * y],
+        name="A_interleaved",
+    )
 
-    C_interleaved = te.compute((batches, M_padded // 4, N_transformed, 4, 4),
-                               lambda b, x, y, w, z:
-                               te.sum(A_interleaved[b, x, k//16, w, idxm(k, 16)].astype(out_dtype)*
-                                      B_interleaved_t[y, k//16, z, idxm(k, 16)].astype(out_dtype),
-                                      axis=k),
-                               name='C_interleaved')
+    C_interleaved = te.compute(
+        (batches, M_padded // 4, N_transformed, 4, 4),
+        lambda b, x, y, w, z: te.sum(
+            A_interleaved[b, x, k // 16, w, idxm(k, 16)].astype(out_dtype)
+            * B_interleaved_t[y, k // 16, z, idxm(k, 16)].astype(out_dtype),
+            axis=k,
+        ),
+        name="C_interleaved",
+    )
 
     # --- Unpack C
-    C = te.compute((batches, M, N),
-                   lambda b, x, y:
-                   C_interleaved[b, x // 4, y // 4, idxm(x, 4), idxm(y, 4)],
-                   name="C")
+    C = te.compute(
+        (batches, M, N),
+        lambda b, x, y: C_interleaved[b, x // 4, y // 4, idxm(x, 4), idxm(y, 4)],
+        name="C",
+    )
 
     # --- Produce the conv output
     out_shape = (batches, OH, OW, OC)
-    out = te.compute(out_shape, lambda b, x, y, z: C(b, y + OW * x, z),
-                     name='conv2d_gemm_output')
-
+    out = te.compute(out_shape, lambda b, x, y, z: C(b, y + OW * x, z), name="conv2d_gemm_output")
 
     # Configuration space
     x, y = cfg.axis(M_padded // 4), cfg.axis(K_padded // 16)
-    cfg.define_reorder('reorder_gemm',
-                       [x, y],
-                       policy='candidate',
-                       candidate=[[x, y],
-                                  [y, x]])
+    cfg.define_reorder("reorder_gemm", [x, y], policy="candidate", candidate=[[x, y], [y, x]])
 
     outer_loop, inner_loop = cfg.axis(4), cfg.axis(16)
-    cfg.define_annotate("A_interleaved_unroll_vec",
-                        [outer_loop, inner_loop],
-                        policy="try_unroll_vec")
-    cfg.define_knob('gemm_quantized_unroll', [True, False])
-    cfg.define_knob('gemm_quantized_interleave', [True, False])
+    cfg.define_annotate(
+        "A_interleaved_unroll_vec", [outer_loop, inner_loop], policy="try_unroll_vec"
+    )
+    cfg.define_knob("gemm_quantized_unroll", [True, False])
+    cfg.define_knob("gemm_quantized_interleave", [True, False])
 
     # Fallback configuration
     if cfg.is_fallback:
-        cfg['reorder_gemm'] = ReorderEntity([0, 1])
-        cfg['A_interleaved_unroll_vec'] = AnnotateEntity(["unroll", "vec"])
-        cfg['gemm_quantized_unroll'] = OtherOptionEntity(False)
-        cfg['gemm_quantized_interleave'] = OtherOptionEntity(True)
+        cfg["reorder_gemm"] = ReorderEntity([0, 1])
+        cfg["A_interleaved_unroll_vec"] = AnnotateEntity(["unroll", "vec"])
+        cfg["gemm_quantized_unroll"] = OtherOptionEntity(False)
+        cfg["gemm_quantized_interleave"] = OtherOptionEntity(True)
     return out
+
 
 # Schedules
 def schedule_conv2d_gemm(cfg, s, out, final_out):
@@ -180,31 +192,30 @@ def schedule_conv2d_gemm(cfg, s, out, final_out):
 
     # Computation(through tensorize)
     b, xo, yo, xi, yi = C_interleaved.op.axis
-    outer_gemm, inner_gemm = cfg['reorder_gemm'].apply(s, C_interleaved, [xo, yo])
+    outer_gemm, inner_gemm = cfg["reorder_gemm"].apply(s, C_interleaved, [xo, yo])
     s[C_interleaved].reorder(yi, xi)
     b_outer_gemm_fused = s[C_interleaved].fuse(b, outer_gemm)
     s[C_interleaved].parallel(b_outer_gemm_fused)
     s[A_interleaved].compute_at(s[C_interleaved], b_outer_gemm_fused)
     _, _, _, outer_A_interleaved, inner_A_interleaved = A_interleaved.op.axis
-    cfg['A_interleaved_unroll_vec'].apply(s,
-                                          A_interleaved,
-                                          [outer_A_interleaved, inner_A_interleaved])
+    cfg["A_interleaved_unroll_vec"].apply(
+        s, A_interleaved, [outer_A_interleaved, inner_A_interleaved]
+    )
 
     in_type = A_interleaved.dtype
     out_type = C.dtype
-    if is_aarch64_arm() and out_type == 'int32':
+    if is_aarch64_arm() and out_type == "int32":
         K = A_interleaved_input.shape[2]
         _, M, N = C.shape
-        assert in_type in ['int8', 'uint8'], "Only int8 and uint8 gemm are supported"
-        unroll = cfg['gemm_quantized_unroll'].val
-        interleave = cfg['gemm_quantized_interleave'].val
+        assert in_type in ["int8", "uint8"], "Only int8 and uint8 gemm are supported"
+        unroll = cfg["gemm_quantized_unroll"].val
+        interleave = cfg["gemm_quantized_interleave"].val
         gemm = gemm_quantized(M, N, K, unroll, interleave, in_type, out_type)
-        s[C_interleaved].pragma(b_outer_gemm_fused, "import_llvm", gemm_quantized_impl(M,
-                                                                                       N,
-                                                                                       K,
-                                                                                       unroll,
-                                                                                       interleave,
-                                                                                       in_type))
+        s[C_interleaved].pragma(
+            b_outer_gemm_fused,
+            "import_llvm",
+            gemm_quantized_impl(M, N, K, unroll, interleave, in_type),
+        )
         s[C_interleaved].tensorize(yi, gemm)
 
     # Output transform

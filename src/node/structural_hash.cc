@@ -57,7 +57,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
      *  the correct value.
      */
     ObjectRef object;
-    /*! \biref The partially reduce hash value.*/
+    /*! \brief The partially reduce hash value.*/
     size_t reduced_hash;
     /*! \brief The expected location in the result stack. */
     size_t result_stack_index = std::numeric_limits<size_t>::max();

@@ -27,18 +27,18 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     pad_data, kernel = s[Conv].op.input_tensors
     s[pad_data].compute_inline()
 
-    if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
+    if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
 
     if Conv.op in s.outputs:
         output = Conv
-        OL = s.cache_write(Conv, 'local')
+        OL = s.cache_write(Conv, "local")
     else:
         output = s.outputs[0].output(0)
-        s[Conv].set_scope('local')
+        s[Conv].set_scope("local")
         OL = Conv
     # create cache stage
-    AA = s.cache_read(pad_data, 'shared', [OL])
+    AA = s.cache_read(pad_data, "shared", [OL])
     WW = s.cache_read(kernel, "shared", [OL])
     AL = s.cache_read(AA, "local", [OL])
     WL = s.cache_read(WW, "local", [OL])
@@ -56,7 +56,8 @@ def schedule_conv2d_nhwc_direct(cfg, s, Conv):
     target = tvm.target.Target.current()
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.kind.name, target.model, 'conv2d_nhwc.cuda')
+            target.kind.name, target.model, "conv2d_nhwc.cuda"
+        )
         cfg.fallback_with_reference_log(ref_log)
 
     tile_n = cfg["tile_n"].val

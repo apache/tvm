@@ -41,7 +41,43 @@ def matmul(lhs, rhs, transa=False, transb=False):
     n = lhs.shape[1] if transa else lhs.shape[0]
     m = rhs.shape[0] if transb else rhs.shape[1]
     return te.extern(
-        (n, m), [lhs, rhs],
+        (n, m),
+        [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.rocblas.matmul",
-            ins[0], ins[1], outs[0], transa, transb), name="C")
+            "tvm.contrib.rocblas.matmul", ins[0], ins[1], outs[0], transa, transb
+        ),
+        name="C",
+    )
+
+
+def batch_matmul(lhs, rhs, transa=False, transb=False):
+    """Create an extern op that compute matrix mult of A and rhs with rocBLAS
+
+    Parameters
+    ----------
+    lhs : Tensor
+        The left batched matrix operand
+    rhs : Tensor
+        The right batched matrix operand
+    transa : bool
+        Whether transpose lhs
+    transb : bool
+        Whether transpose rhs
+
+    Returns
+    -------
+    C : Tensor
+        The result tensor.
+    """
+    batch_size = lhs.shape[0]
+    assert batch_size == rhs.shape[0]
+    n = lhs.shape[2] if transa else lhs.shape[1]
+    m = rhs.shape[1] if transb else rhs.shape[2]
+    return te.extern(
+        (batch_size, n, m),
+        [lhs, rhs],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.rocblas.batch_matmul", ins[0], ins[1], outs[0], transa, transb
+        ),
+        name="C",
+    )

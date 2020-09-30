@@ -40,6 +40,7 @@ def schedule_reorg(outs):
     cpp_target = cpp.TEST_create_target(target.kind.name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
 
+
 def schedule_get_valid_counts(outs):
     """Schedule for get_valid_counts
 
@@ -55,6 +56,7 @@ def schedule_get_valid_counts(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 def schedule_nms(outs):
     """Schedule for non-maximum suppression
@@ -72,6 +74,7 @@ def schedule_nms(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_multibox_prior(outs):
     """Schedule for multibox_prior
 
@@ -87,6 +90,7 @@ def schedule_multibox_prior(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 def schedule_multibox_transform_loc(outs):
     """Schedule for multibox_transform_loc
@@ -105,6 +109,7 @@ def schedule_multibox_transform_loc(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_multibox_detection(outs):
     """Schedule for multibox_detection
 
@@ -120,6 +125,7 @@ def schedule_multibox_detection(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 def schedule_roi_align(outs):
     """Schedule for roi_align
@@ -137,6 +143,7 @@ def schedule_roi_align(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_roi_pool(outs):
     """Schedule for roi_align
 
@@ -152,6 +159,7 @@ def schedule_roi_pool(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 def schedule_proposal(outs):
     """Schedule for proposal operator.

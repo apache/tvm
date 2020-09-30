@@ -38,9 +38,9 @@ class Constructor(RelayExpr):
     belong_to : GlobalTypeVar
         Denotes which ADT the constructor belongs to.
     """
+
     def __init__(self, name_hint, inputs, belong_to):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Constructor, name_hint, inputs, belong_to)
+        self.__init_handle_by_constructor__(_ffi_api.Constructor, name_hint, inputs, belong_to)
 
     def __call__(self, *args):
         """Call the constructor.
@@ -57,6 +57,7 @@ class Constructor(RelayExpr):
         """
         # pylint: disable=import-outside-toplevel
         from tvm import relay
+
         return relay.Call(self, args)
 
 
@@ -82,6 +83,6 @@ class TypeData(Type):
     constructors: List[Constructor]
         The constructors for the ADT.
     """
+
     def __init__(self, header, type_vars, constructors):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TypeData, header, type_vars, constructors)
+        self.__init_handle_by_constructor__(_ffi_api.TypeData, header, type_vars, constructors)

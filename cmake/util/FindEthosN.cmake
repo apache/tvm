@@ -60,7 +60,7 @@ macro(find_ethosn use_ethosn)
 
     set(ETHOSN_PACKAGE_VERSION "0.1.1")
 
-    if(USE_ETHOSN_HW STREQUAL "ON")
+    if(${USE_ETHOSN_HW} MATCHES ${IS_TRUE_PATTERN})
       # Runtime hardware support
       find_path(_DL_DIR NAMES Network.hpp
         PATHS ${__ethosn_stack}/include/ethosn_driver_library)
@@ -79,7 +79,7 @@ macro(find_ethosn use_ethosn)
   endif(__ethosn_stack)
 
   if(NOT ETHOSN_FOUND)
-    if(__use_ethosn STREQUAL "ON")
+    if(${__use_ethosn} MATCHES ${IS_TRUE_PATTERN})
       message(WARNING "No cmake find_package available for Arm Ethos-N")
     endif()
 

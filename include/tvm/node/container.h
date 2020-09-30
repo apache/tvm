@@ -824,7 +824,6 @@ class DenseMapNode : public MapNode {
    */
   static ObjectPtr<DenseMapNode> Empty(uint32_t fib_shift, uint64_t n_slots) {
     CHECK_GT(n_slots, uint64_t(SmallMapNode::kMaxSize));
-    CHECK_EQ((n_slots & -n_slots), n_slots);
     ObjectPtr<DenseMapNode> p = make_object<DenseMapNode>();
     uint64_t n_blocks = CalcNumBlocks(n_slots - 1);
     Block* block = p->data_ = new Block[n_blocks];
@@ -1105,7 +1104,7 @@ class DenseMapNode : public MapNode {
   friend class MapNode;
 };
 
-#define _TVM_DISPATCH_MAP(base, var, body)    \
+#define TVM_DISPATCH_MAP(base, var, body)     \
   {                                           \
     using TSmall = SmallMapNode*;             \
     using TDense = DenseMapNode*;             \
@@ -1119,68 +1118,68 @@ class DenseMapNode : public MapNode {
     }                                         \
   }
 
-#define _TVM_DISPATCH_MAP_CONST(base, var, body) \
-  {                                              \
-    using TSmall = const SmallMapNode*;          \
-    using TDense = const DenseMapNode*;          \
-    uint64_t slots = base->slots_;               \
-    if (slots <= SmallMapNode::kMaxSize) {       \
-      TSmall var = static_cast<TSmall>(base);    \
-      body;                                      \
-    } else {                                     \
-      TDense var = static_cast<TDense>(base);    \
-      body;                                      \
-    }                                            \
+#define TVM_DISPATCH_MAP_CONST(base, var, body) \
+  {                                             \
+    using TSmall = const SmallMapNode*;         \
+    using TDense = const DenseMapNode*;         \
+    uint64_t slots = base->slots_;              \
+    if (slots <= SmallMapNode::kMaxSize) {      \
+      TSmall var = static_cast<TSmall>(base);   \
+      body;                                     \
+    } else {                                    \
+      TDense var = static_cast<TDense>(base);   \
+      body;                                     \
+    }                                           \
   }
 
 inline MapNode::iterator::pointer MapNode::iterator::operator->() const {
-  _TVM_DISPATCH_MAP_CONST(self, p, { return p->DeRefItr(index); });
+  TVM_DISPATCH_MAP_CONST(self, p, { return p->DeRefItr(index); });
 }
 
 inline MapNode::iterator& MapNode::iterator::operator++() {
-  _TVM_DISPATCH_MAP_CONST(self, p, {
+  TVM_DISPATCH_MAP_CONST(self, p, {
     index = p->IncItr(index);
     return *this;
   });
 }
 
 inline MapNode::iterator& MapNode::iterator::operator--() {
-  _TVM_DISPATCH_MAP_CONST(self, p, {
+  TVM_DISPATCH_MAP_CONST(self, p, {
     index = p->IncItr(index);
     return *this;
   });
 }
 
 inline size_t MapNode::count(const key_type& key) const {
-  _TVM_DISPATCH_MAP_CONST(this, p, { return p->count(key); });
+  TVM_DISPATCH_MAP_CONST(this, p, { return p->count(key); });
 }
 
 inline const MapNode::mapped_type& MapNode::at(const MapNode::key_type& key) const {
-  _TVM_DISPATCH_MAP_CONST(this, p, { return p->at(key); });
+  TVM_DISPATCH_MAP_CONST(this, p, { return p->at(key); });
 }
 
 inline MapNode::mapped_type& MapNode::at(const MapNode::key_type& key) {
-  _TVM_DISPATCH_MAP(this, p, { return p->at(key); });
+  TVM_DISPATCH_MAP(this, p, { return p->at(key); });
 }
 
 inline MapNode::iterator MapNode::begin() const {
-  _TVM_DISPATCH_MAP_CONST(this, p, { return p->begin(); });
+  TVM_DISPATCH_MAP_CONST(this, p, { return p->begin(); });
 }
 
 inline MapNode::iterator MapNode::end() const {
-  _TVM_DISPATCH_MAP_CONST(this, p, { return p->end(); });
+  TVM_DISPATCH_MAP_CONST(this, p, { return p->end(); });
 }
 
 inline MapNode::iterator MapNode::find(const MapNode::key_type& key) const {
-  _TVM_DISPATCH_MAP_CONST(this, p, { return p->find(key); });
+  TVM_DISPATCH_MAP_CONST(this, p, { return p->find(key); });
 }
 
 inline void MapNode::erase(const MapNode::iterator& position) {
-  _TVM_DISPATCH_MAP(this, p, { return p->erase(position); });
+  TVM_DISPATCH_MAP(this, p, { return p->erase(position); });
 }
 
-#undef _TVM_DISPATCH_MAP
-#undef _TVM_DISPATCH_MAP_CONST
+#undef TVM_DISPATCH_MAP
+#undef TVM_DISPATCH_MAP_CONST
 
 inline ObjectPtr<MapNode> MapNode::Empty() { return SmallMapNode::Empty(); }
 

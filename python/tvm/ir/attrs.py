@@ -29,8 +29,9 @@ class Attrs(Object):
     Used by function registered in python side, such as compute, schedule and alter_layout.
     Attrs is passed as the first argument to these functions.
     """
+
     def list_field_info(self):
-        """ Get fields information
+        """Get fields information
 
         Returns
         -------
@@ -94,8 +95,8 @@ class Attrs(Object):
 
 @tvm._ffi.register_object
 class DictAttrs(Attrs):
-    """Dictionary attributes.
-    """
+    """Dictionary attributes."""
+
     def _dict(self):
         """Get internal dict"""
         return _ffi_api.DictAttrsGetDict(self)

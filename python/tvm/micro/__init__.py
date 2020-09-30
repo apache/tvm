@@ -16,8 +16,12 @@
 # under the License.
 """MicroTVM module for bare-metal backends"""
 
-from ..contrib import binutil
-from .base import DEVICE_SECTIONS
-from .base import Session, create_micro_mod, cross_compiler, LibType
-from .base import get_micro_host_driven_dir, get_micro_device_dir
-from . import device
+from .artifact import Artifact
+from .build import build_static_runtime, default_options, TVM_ROOT_DIR
+from .build import CRT_ROOT_DIR, Workspace
+from .compiler import Compiler, DefaultCompiler, Flasher
+from .debugger import GdbRemoteDebugger
+from .micro_library import MicroLibrary
+from .micro_binary import MicroBinary
+from .session import create_local_graph_runtime, Session
+from .transport import TransportLogger, DebugWrapperTransport, SubprocessTransport

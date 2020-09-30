@@ -209,7 +209,6 @@ for text of these licenses.
 Apache Software Foundation License 2.0
 --------------------------------------
 
-3rdparty/bfloat16/bfloat16.cc
 3rdparty/dlpack
 3rdparty/dmlc-core
 
@@ -230,6 +229,7 @@ BSD 2-clause License + zlib License
 MIT License
 -----------
 
+3rdparty/libcrc
 3rdparty/cma
 3rdparty/compiler-rt/builtin_fp16.h
 

@@ -25,7 +25,7 @@ from ..util import get_const_tuple
 
 
 @hybrid.script
-def roi_align_nchw_ir(data, rois, w_pc, pos_pc, pooled_size, spatial_scale, sample_ratio):
+def roi_align_nchw_ir(data, rois, num_rois, w_pc, pos_pc, pooled_size, spatial_scale, sample_ratio):
     """Hybrid routing fo ROI align operator in NCHW layout.
 
     Parameters
@@ -36,6 +36,10 @@ def roi_align_nchw_ir(data, rois, w_pc, pos_pc, pooled_size, spatial_scale, samp
     rois : tvm.te.Tensor or numpy NDArray
         2-D with shape [num_roi, 5]. The last dimension should be in format of
         [batch_index, w_start, h_start, w_end, h_end]
+
+    num_rois : tvm.tir.IntImm or tvm.tir.Var
+        Number of roi. We need to pass it in since hybrid script doesn't support
+        binding variable to symbolic dim.
 
     w_pc : tvm.te.Tensor or numpy NDArray
         3-D weight pre-calculation buffer
@@ -61,7 +65,6 @@ def roi_align_nchw_ir(data, rois, w_pc, pos_pc, pooled_size, spatial_scale, samp
     channels = data.shape[1]
     height = data.shape[2]
     width = data.shape[3]
-    num_rois = rois.shape[0]
     pooled_size_h = pooled_size[0]
     pooled_size_w = pooled_size[1]
     output = output_tensor((num_rois, channels, pooled_size_h, pooled_size_w), data.dtype)
@@ -160,22 +163,36 @@ def roi_align_nchw_ir(data, rois, w_pc, pos_pc, pooled_size, spatial_scale, samp
                     output_val = 0.0
                     for iy in range(roi_bin_grid_h):
                         for ix in range(roi_bin_grid_w):
-                            output_val += w_pc[n, pre_calc_index, 0] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 2],
-                                       pos_pc[n, pre_calc_index, 0]] \
-                                + w_pc[n, pre_calc_index, 1] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 2],
-                                       pos_pc[n, pre_calc_index, 1]] \
-                                + w_pc[n, pre_calc_index, 2] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 3],
-                                       pos_pc[n, pre_calc_index, 0]] \
-                                + w_pc[n, pre_calc_index, 3] \
-                                * data[roi_batch_index, c,
-                                       pos_pc[n, pre_calc_index, 3],
-                                       pos_pc[n, pre_calc_index, 1]]
+                            output_val += (
+                                w_pc[n, pre_calc_index, 0]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 2],
+                                    pos_pc[n, pre_calc_index, 0],
+                                ]
+                                + w_pc[n, pre_calc_index, 1]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 2],
+                                    pos_pc[n, pre_calc_index, 1],
+                                ]
+                                + w_pc[n, pre_calc_index, 2]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 3],
+                                    pos_pc[n, pre_calc_index, 0],
+                                ]
+                                + w_pc[n, pre_calc_index, 3]
+                                * data[
+                                    roi_batch_index,
+                                    c,
+                                    pos_pc[n, pre_calc_index, 3],
+                                    pos_pc[n, pre_calc_index, 1],
+                                ]
+                            )
                             pre_calc_index += 1
 
                     output_val /= count
@@ -221,13 +238,18 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         _, _, height, width = get_const_tuple(data.shape)
         max_roi_bin_grid_h = math.ceil(height / pooled_size[0])
         max_roi_bin_grid_w = math.ceil(width / pooled_size[1])
-    max_pc_shape = (rois.shape[0], max_roi_bin_grid_h * max_roi_bin_grid_w
-                    * pooled_size[0] * pooled_size[1], 4)
+    num_rois = rois.shape[0]
+    max_pc_shape = (
+        rois.shape[0],
+        max_roi_bin_grid_h * max_roi_bin_grid_w * pooled_size[0] * pooled_size[1],
+        4,
+    )
     w_pc_buffer = full(max_pc_shape, data.dtype, 0)
     pos_pc_buffer = full(max_pc_shape, "int32", 0)
 
     pooled_size = tvm.runtime.convert(pooled_size)
     spatial_scale = tvm.tir.const(spatial_scale, "float32")
     sample_ratio = tvm.tir.const(sample_ratio, "int32")
-    return roi_align_nchw_ir(data, rois, w_pc_buffer, pos_pc_buffer,
-                             pooled_size, spatial_scale, sample_ratio)
+    return roi_align_nchw_ir(
+        data, rois, num_rois, w_pc_buffer, pos_pc_buffer, pooled_size, spatial_scale, sample_ratio
+    )

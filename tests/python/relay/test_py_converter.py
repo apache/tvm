@@ -28,15 +28,15 @@ from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 def seq(*exprs):
     ret = exprs[0]
     for expr in exprs[1:]:
-        ret = relay.Let(relay.var('_'), ret, expr)
+        ret = relay.Let(relay.var("_"), ret, expr)
     return ret
 
 
 # creates a dummy ADT for testing
 def init_box_adt(mod):
-    box = relay.GlobalTypeVar('box')
-    a = relay.TypeVar('a')
-    box_ctor = relay.Constructor('box', [a], box)
+    box = relay.GlobalTypeVar("box")
+    a = relay.TypeVar("a")
+    box_ctor = relay.Constructor("box", [a], box)
     mod[box] = relay.TypeData(box, [a], [box_ctor])
     return (box, box_ctor)
 
@@ -81,13 +81,9 @@ def test_create_tensor():
 
 
 def test_create_nested_tuple():
-    relay_tup = relay.Tuple([
-        relay.const(1), relay.const(2),
-        relay.Tuple([
-            relay.const(3),
-            relay.const(4)
-        ])
-    ])
+    relay_tup = relay.Tuple(
+        [relay.const(1), relay.const(2), relay.Tuple([relay.const(3), relay.const(4)])]
+    )
     tup_val = run_as_python(relay_tup)
     assert_adt_len(tup_val, 3)
     for i in range(2):
@@ -98,13 +94,9 @@ def test_create_nested_tuple():
 
 
 def test_tuple_get_item():
-    relay_tup = relay.Tuple([
-        relay.const(1), relay.const(2),
-        relay.Tuple([
-            relay.const(3),
-            relay.const(4)
-        ])
-    ])
+    relay_tup = relay.Tuple(
+        [relay.const(1), relay.const(2), relay.Tuple([relay.const(3), relay.const(4)])]
+    )
     for i in range(2):
         index = relay.TupleGetItem(relay_tup, i)
         val = run_as_python(index)
@@ -117,7 +109,7 @@ def test_tuple_get_item():
 
 
 def test_create_let():
-    v = relay.Var('v')
+    v = relay.Var("v")
     let = relay.Let(v, relay.Tuple([]), relay.Tuple([v, v]))
     tup_val = run_as_python(let)
     assert_adt_len(tup_val, 2)
@@ -133,7 +125,7 @@ def test_create_ref():
 
 
 def test_ref_read():
-    v = relay.Var('v')
+    v = relay.Var("v")
     assign = relay.Let(v, relay.RefCreate(relay.Tuple([])), relay.RefRead(v))
     read_val = run_as_python(assign)
     assert_adt_len(read_val, 0)
@@ -141,21 +133,30 @@ def test_ref_read():
 
 def test_ref_write():
     # check that the result of a ref write is an empty tuple
-    v = relay.Var('v')
-    initial_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
-                              relay.RefWrite(v, relay.Tuple([relay.const(2)])))
+    v = relay.Var("v")
+    initial_write = relay.Let(
+        v,
+        relay.RefCreate(relay.Tuple([relay.const(1)])),
+        relay.RefWrite(v, relay.Tuple([relay.const(2)])),
+    )
     write_val = run_as_python(initial_write)
     assert_adt_len(write_val, 0)
 
     # now ensure that the value, once written, can be read back
     # (we read the value before and after mutation)
-    w = relay.Var('w')
+    w = relay.Var("w")
     read_after_write = relay.Let(
-        v, relay.RefCreate(relay.Tuple([relay.const(1)])),
+        v,
+        relay.RefCreate(relay.Tuple([relay.const(1)])),
         relay.Let(
-            w, relay.RefCreate(relay.RefRead(v)),
-            seq(relay.RefWrite(v, relay.Tuple([relay.const(2)])),
-                relay.Tuple([relay.RefRead(w), relay.RefRead(v)]))))
+            w,
+            relay.RefCreate(relay.RefRead(v)),
+            seq(
+                relay.RefWrite(v, relay.Tuple([relay.const(2)])),
+                relay.Tuple([relay.RefRead(w), relay.RefRead(v)]),
+            ),
+        ),
+    )
     read_val = run_as_python(read_after_write)
     assert_adt_len(read_val, 2)
     assert_adt_len(read_val[0], 1)
@@ -169,14 +170,16 @@ def test_if():
     true_cond = relay.const(True)
     false_cond = relay.const(False)
 
-    v  = relay.Var('v')
+    v = relay.Var("v")
     true_branch = seq(relay.RefWrite(v, relay.const(1)), relay.RefRead(v))
     false_branch = seq(relay.RefWrite(v, relay.const(2)), relay.RefRead(v))
 
-    true_expr = relay.Let(v, relay.RefCreate(relay.const(0)),
-                          relay.If(true_cond, true_branch, false_branch))
-    false_expr = relay.Let(v, relay.RefCreate(relay.const(0)),
-                           relay.If(false_cond, true_branch, false_branch))
+    true_expr = relay.Let(
+        v, relay.RefCreate(relay.const(0)), relay.If(true_cond, true_branch, false_branch)
+    )
+    false_expr = relay.Let(
+        v, relay.RefCreate(relay.const(0)), relay.If(false_cond, true_branch, false_branch)
+    )
 
     true_val = run_as_python(true_expr)
     assert_tensor_value(true_val, 1)
@@ -186,9 +189,9 @@ def test_if():
 
 
 def test_local_function():
-    v = relay.Var('v')
+    v = relay.Var("v")
     ident = relay.Function([v], v)
-    f = relay.Var('f')
+    f = relay.Var("f")
     call1 = relay.Let(f, ident, f(relay.Tuple([])))
     call2 = relay.Let(f, ident, f(relay.const(2)))
 
@@ -201,9 +204,9 @@ def test_local_function():
 
 def test_global_function():
     mod = tvm.IRModule()
-    ident = relay.GlobalVar('ident')
-    a = relay.TypeVar('a')
-    v = relay.Var('v', a)
+    ident = relay.GlobalVar("ident")
+    a = relay.TypeVar("a")
+    v = relay.Var("v", a)
     mod[ident] = relay.Function([v], v, a, [a])
 
     call1 = ident(relay.const(1))
@@ -238,12 +241,12 @@ def test_constructor():
 def test_match_wildcard():
     mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
-    v = relay.Var('v')
+    v = relay.Var("v")
     match = relay.Let(
-        v, box_ctor(relay.Tuple([])),
-        relay.Match(v, [
-            relay.Clause(relay.PatternWildcard(), relay.const(1))
-        ]))
+        v,
+        box_ctor(relay.Tuple([])),
+        relay.Match(v, [relay.Clause(relay.PatternWildcard(), relay.const(1))]),
+    )
 
     match_val = run_as_python(match, mod)
     assert_tensor_value(match_val, 1)
@@ -252,13 +255,11 @@ def test_match_wildcard():
 def test_match_var():
     mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
-    v = relay.Var('v')
-    w = relay.Var('w')
+    v = relay.Var("v")
+    w = relay.Var("w")
     match = relay.Let(
-        v, box_ctor(relay.const(1)),
-        relay.Match(v, [
-            relay.Clause(relay.PatternVar(w), w)
-        ]))
+        v, box_ctor(relay.const(1)), relay.Match(v, [relay.Clause(relay.PatternVar(w), w)])
+    )
 
     match_val = run_as_python(match, mod)
     assert_constructor_value(match_val, box_ctor, 1)
@@ -268,13 +269,15 @@ def test_match_var():
 def test_match_pattern():
     mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
-    v = relay.Var('v')
-    w = relay.Var('w')
+    v = relay.Var("v")
+    w = relay.Var("w")
     match = relay.Let(
-        v, box_ctor(relay.const(1)),
-        relay.Match(v, [
-            relay.Clause(relay.PatternConstructor(box_ctor, [relay.PatternVar(w)]), w)
-        ]))
+        v,
+        box_ctor(relay.const(1)),
+        relay.Match(
+            v, [relay.Clause(relay.PatternConstructor(box_ctor, [relay.PatternVar(w)]), w)]
+        ),
+    )
     match_val = run_as_python(match, mod)
     assert_tensor_value(match_val, 1)
 
@@ -282,36 +285,49 @@ def test_match_pattern():
 def test_nested_match_pattern():
     mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
-    v = relay.Var('v')
-    w = relay.Var('w')
+    v = relay.Var("v")
+    w = relay.Var("w")
     match = relay.Let(
-        v, box_ctor(box_ctor(relay.const(2))),
-        relay.Match(v, [
-            relay.Clause(
-                relay.PatternConstructor(
-                    box_ctor, [
-                        relay.PatternConstructor(box_ctor, [relay.PatternVar(w)])
-                    ]),
-                w)]))
+        v,
+        box_ctor(box_ctor(relay.const(2))),
+        relay.Match(
+            v,
+            [
+                relay.Clause(
+                    relay.PatternConstructor(
+                        box_ctor, [relay.PatternConstructor(box_ctor, [relay.PatternVar(w)])]
+                    ),
+                    w,
+                )
+            ],
+        ),
+    )
     match_val = run_as_python(match, mod)
     assert_tensor_value(match_val, 2)
+
 
 def test_match_order():
     mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
-    v = relay.Var('v')
-    w = relay.Var('w')
+    v = relay.Var("v")
+    w = relay.Var("w")
     # wildcard pattern goes first
     match = relay.Let(
-        v, box_ctor(box_ctor(relay.const(2))),
-        relay.Match(v, [
-            relay.Clause(relay.PatternWildcard(), relay.const(1)),
-            relay.Clause(
-                relay.PatternConstructor(
-                    box_ctor, [
-                        relay.PatternConstructor(box_ctor, [relay.PatternVar(w)])
-                    ]),
-                w)]))
+        v,
+        box_ctor(box_ctor(relay.const(2))),
+        relay.Match(
+            v,
+            [
+                relay.Clause(relay.PatternWildcard(), relay.const(1)),
+                relay.Clause(
+                    relay.PatternConstructor(
+                        box_ctor, [relay.PatternConstructor(box_ctor, [relay.PatternVar(w)])]
+                    ),
+                    w,
+                ),
+            ],
+        ),
+    )
     match_val = run_as_python(match, mod)
     assert_tensor_value(match_val, 1)
 
@@ -320,21 +336,31 @@ def test_local_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
 
-    v = relay.Var('v')
-    h = relay.Var('h')
-    t = relay.Var('t')
-    f = relay.Var('f')
+    v = relay.Var("v")
+    h = relay.Var("h")
+    t = relay.Var("t")
+    f = relay.Var("f")
 
     # just returns the same list
-    let = relay.Let(f, relay.Function([v], relay.Match(v, [
-        relay.Clause(relay.PatternConstructor(p.cons,
-                                              [relay.PatternVar(h), relay.PatternVar(t)]),
-                     p.cons(h, f(t))),
-        relay.Clause(relay.PatternConstructor(p.nil, []), p.nil())
-    ])),
-                    f(p.cons(relay.const(1),
-                             p.cons(relay.const(2),
-                                    p.cons(relay.const(3), p.nil())))))
+    let = relay.Let(
+        f,
+        relay.Function(
+            [v],
+            relay.Match(
+                v,
+                [
+                    relay.Clause(
+                        relay.PatternConstructor(
+                            p.cons, [relay.PatternVar(h), relay.PatternVar(t)]
+                        ),
+                        p.cons(h, f(t)),
+                    ),
+                    relay.Clause(relay.PatternConstructor(p.nil, []), p.nil()),
+                ],
+            ),
+        ),
+        f(p.cons(relay.const(1), p.cons(relay.const(2), p.cons(relay.const(3), p.nil())))),
+    )
 
     val = run_as_python(let, mod)
     assert_constructor_value(val, p.cons, 2)
@@ -349,18 +375,27 @@ def test_local_recursion():
 def test_global_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    copy = relay.GlobalVar('copy')
+    copy = relay.GlobalVar("copy")
     # same as above: it copies the given list
-    a = relay.TypeVar('a')
-    v = relay.Var('v', p.l(a))
-    h = relay.Var('h')
-    t = relay.Var('t')
-    copy_def = relay.Function([v], relay.Match(v, [
-        relay.Clause(relay.PatternConstructor(p.cons,
-                                              [relay.PatternVar(h), relay.PatternVar(t)]),
-                     p.cons(h, copy(t))),
-        relay.Clause(relay.PatternConstructor(p.nil, []), p.nil())
-    ]), p.l(a), [a])
+    a = relay.TypeVar("a")
+    v = relay.Var("v", p.l(a))
+    h = relay.Var("h")
+    t = relay.Var("t")
+    copy_def = relay.Function(
+        [v],
+        relay.Match(
+            v,
+            [
+                relay.Clause(
+                    relay.PatternConstructor(p.cons, [relay.PatternVar(h), relay.PatternVar(t)]),
+                    p.cons(h, copy(t)),
+                ),
+                relay.Clause(relay.PatternConstructor(p.nil, []), p.nil()),
+            ],
+        ),
+        p.l(a),
+        [a],
+    )
     mod[copy] = copy_def
 
     call1 = copy_def(p.cons(relay.const(1), p.cons(relay.const(2), p.nil())))
@@ -380,20 +415,23 @@ def test_global_recursion():
 
 def test_higher_order_call():
     # test with anon func
-    h = relay.Var('h')
-    f = relay.Var('f')
-    x = relay.Var('x')
-    ho_anon = relay.Let(h, relay.Function([f], f(relay.Tuple([]))),
-                        h(relay.Function([x], relay.const(1))))
+    h = relay.Var("h")
+    f = relay.Var("f")
+    x = relay.Var("x")
+    ho_anon = relay.Let(
+        h, relay.Function([f], f(relay.Tuple([]))), h(relay.Function([x], relay.const(1)))
+    )
 
     anon_val = run_as_python(ho_anon)
     assert_tensor_value(anon_val, 1)
 
     # test with named func
-    g = relay.Var('g')
-    ho_named = relay.Let(h, relay.Function([f], f(relay.Tuple([]))),
-                         relay.Let(g, relay.Function([x], relay.const(2)),
-                           h(g)))
+    g = relay.Var("g")
+    ho_named = relay.Let(
+        h,
+        relay.Function([f], f(relay.Tuple([]))),
+        relay.Let(g, relay.Function([x], relay.const(2)), h(g)),
+    )
     named_val = run_as_python(ho_named)
     assert_tensor_value(named_val, 2)
 
@@ -404,19 +442,25 @@ def test_match_effect_exactly_once():
 
     # the list should be of length 1!
     # Unless we mistakenly execute the data clause more than once
-    r = relay.Var('r')
+    r = relay.Var("r")
     data = seq(relay.RefWrite(r, p.cons(relay.Tuple([]), relay.RefRead(r))), relay.RefRead(r))
     match = relay.Let(
-        r, relay.RefCreate(p.nil()),
-        relay.Match(data, [
-            relay.Clause(relay.PatternConstructor(p.nil, []), relay.const(0)),
-            relay.Clause(
-                relay.PatternConstructor(
-                    p.cons,
-                    [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]),
-                relay.const(1)),
-            relay.Clause(relay.PatternWildcard(), relay.const(2))
-        ]))
+        r,
+        relay.RefCreate(p.nil()),
+        relay.Match(
+            data,
+            [
+                relay.Clause(relay.PatternConstructor(p.nil, []), relay.const(0)),
+                relay.Clause(
+                    relay.PatternConstructor(
+                        p.cons, [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]
+                    ),
+                    relay.const(1),
+                ),
+                relay.Clause(relay.PatternWildcard(), relay.const(2)),
+            ],
+        ),
+    )
 
     match_val = run_as_python(match, mod)
     assert_tensor_value(match_val, 1)
@@ -426,17 +470,21 @@ def test_arbitrary_let_nesting():
     # something that is tricky to do in Python but comes naturally in Relay
     mod = tvm.IRModule()
     p = Prelude(mod)
-    x = relay.Var('x')
-    r = relay.Var('r')
-    y = relay.Var('y')
-    z = relay.Var('z')
-    expr = relay.Tuple([
-        relay.Let(x, relay.Tuple([relay.const(1), relay.const(2)]),
-                  relay.TupleGetItem(x, 1)),
-        relay.Let(r, relay.RefCreate(relay.const(1)),
-                  seq(relay.RefWrite(r, relay.const(3)), relay.RefRead(r))),
-        relay.Let(y, p.id(relay.Let(z, relay.const(4), z)), y)
-    ])
+    x = relay.Var("x")
+    r = relay.Var("r")
+    y = relay.Var("y")
+    z = relay.Var("z")
+    expr = relay.Tuple(
+        [
+            relay.Let(x, relay.Tuple([relay.const(1), relay.const(2)]), relay.TupleGetItem(x, 1)),
+            relay.Let(
+                r,
+                relay.RefCreate(relay.const(1)),
+                seq(relay.RefWrite(r, relay.const(3)), relay.RefRead(r)),
+            ),
+            relay.Let(y, p.id(relay.Let(z, relay.const(4), z)), y),
+        ]
+    )
 
     tup_val = run_as_python(expr, mod)
     assert_adt_len(tup_val, 3)
@@ -447,34 +495,39 @@ def test_arbitrary_let_nesting():
 
 def test_ref_execution_order():
     # we want to have effects execute from left to right
-    x = relay.Var('x')
-    y = relay.Var('y')
-    f = relay.Var('f')
-    r = relay.Var('r')
+    x = relay.Var("x")
+    y = relay.Var("y")
+    f = relay.Var("f")
+    r = relay.Var("r")
 
-    expr = relay.Let(f, relay.Function([x, y], x),
-                     # r = 1
-                     relay.Let(r, relay.RefCreate(relay.const(1)),
-                               relay.Tuple([
-                                   # should be 1
-                                   relay.RefRead(r),
-                                   # set r to 2 and read back
-                                   seq(relay.RefWrite(r, relay.const(2)),
-                                       relay.RefRead(r)),
-                                   # set r to 3 and read back
-                                   seq(relay.RefWrite(r, relay.const(3)),
-                                       relay.RefRead(r)),
-                                   # set r to 4 and read as first arg to f
-                                   # set r to 5 and read as second arg to f
-                                   # f should evaluate to 4
-                                   f(
-                                       seq(relay.RefWrite(r, relay.const(4)),
-                                           relay.RefRead(r)),
-                                       seq(relay.RefWrite(r, relay.const(5)),
-                                           relay.RefRead(r))),
-                                   # read back 5
-                                   relay.RefRead(r)
-                  ])))
+    expr = relay.Let(
+        f,
+        relay.Function([x, y], x),
+        # r = 1
+        relay.Let(
+            r,
+            relay.RefCreate(relay.const(1)),
+            relay.Tuple(
+                [
+                    # should be 1
+                    relay.RefRead(r),
+                    # set r to 2 and read back
+                    seq(relay.RefWrite(r, relay.const(2)), relay.RefRead(r)),
+                    # set r to 3 and read back
+                    seq(relay.RefWrite(r, relay.const(3)), relay.RefRead(r)),
+                    # set r to 4 and read as first arg to f
+                    # set r to 5 and read as second arg to f
+                    # f should evaluate to 4
+                    f(
+                        seq(relay.RefWrite(r, relay.const(4)), relay.RefRead(r)),
+                        seq(relay.RefWrite(r, relay.const(5)), relay.RefRead(r)),
+                    ),
+                    # read back 5
+                    relay.RefRead(r),
+                ]
+            ),
+        ),
+    )
 
     tup_val = run_as_python(expr)
     assert_adt_len(tup_val, 5)
@@ -495,7 +548,7 @@ def test_op_add():
 # adapted from test_stack in test_op_level3
 def test_op_stack():
     def verify_stack(dshapes, axis):
-        x_data = [np.random.normal(size=shape).astype('int32') for shape in dshapes]
+        x_data = [np.random.normal(size=shape).astype("int32") for shape in dshapes]
         ref_res = np.stack(x_data, axis=axis)
 
         args = []
@@ -516,7 +569,7 @@ def test_op_stack():
 # adapted from test_split_infer_type in test_op_level3
 def test_split():
     def verify_split(shape, indices_or_sections, axis=0):
-        x = np.random.normal(size=shape).astype('float32')
+        x = np.random.normal(size=shape).astype("float32")
         ref_res = np.split(x, indices_or_sections, axis=axis)
         call = relay.split(relay.const(x), indices_or_sections, axis=axis)
         call_val = run_as_python(call)
@@ -534,13 +587,14 @@ def test_split():
 # ensure we can generate code for batch_norm, since it requires simplify_inference
 def test_batch_norm():
     def verify_batch_norm(shapes):
-        data = [np.absolute(np.random.normal(size=shape).astype('float32'))
-                for shape in shapes]
+        data = [np.absolute(np.random.normal(size=shape).astype("float32")) for shape in shapes]
         relay_args = [relay.const(arg) for arg in data]
 
         eps = 1e-5
+
         def reference(x, gamma, beta, moving_mean, moving_var):
             return (x - moving_mean) / np.sqrt(moving_var + eps) * gamma + beta
+
         ref_res = reference(*data)
 
         call = relay.nn.batch_norm(*relay_args, epsilon=eps)[0]

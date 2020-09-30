@@ -26,6 +26,7 @@
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/detail/ravel_unravel.h>
 #include <tvm/topi/detail/tensor_utils.h>
@@ -1523,30 +1524,140 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>
 }
 
 /*!
- * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonal.
+ * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonals.
  * \param input input tensor.
- * \param diagonal values to be filled in the diagonal.
+ * \param diagonal values to be filled in the diagonals.
+ * \param k1 lower limit (included) of the range of diagonals.
+ * \param k2 upper limit (included) of the range of diagonals.
+ * \param super_diag_right_align bool, true iff super-diagonal is right aligned (left-padded).
+ * \param sub_diag_right_align bool, true iff sub-diagonal is right aligned (left-padded).
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return new tensor with given diagonal values.
  */
-inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k1, int k2,
+                              bool super_diag_right_align, bool sub_diag_right_align,
                               const std::string name = "T_matrix_set_diag",
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
+
+  bool only_one_diagonal = k1 == k2;
 
   return compute(
       input->shape,
       [&](const Array<Var>& iter_vars) {
         auto get_diag = [&]() {
           Array<PrimExpr> diagonal_indices;
-          for (size_t i = 0; i < ndim; i++) {
+          PrimExpr k, offset = 0;
+          for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
           }
+          if (only_one_diagonal) {
+            k = k1;
+          } else {
+            // Determining which diagonal/sub-diagonal/super-diagonal it is
+            k = iter_vars[ndim] - iter_vars[ndim - 1];
+            diagonal_indices.push_back(k2 - k);
+
+            // Calculating the offset in diagonal tensor for this diagonal
+            auto get_offset = [&](PrimExpr M, PrimExpr N) {
+              // offset = max_diagonal_length - diagonal_length
+              return diagonal->shape[diagonal->shape.size() - 1] - if_then_else(M < N, M, N);
+            };
+            offset = if_then_else(
+                k >= 0,
+                super_diag_right_align ? get_offset(input->shape[ndim] - k, input->shape[ndim - 1])
+                                       : 0,
+                sub_diag_right_align ? get_offset(input->shape[ndim], input->shape[ndim - 1] + k)
+                                     : 0);
+          }
+          diagonal_indices.push_back(if_then_else(k >= 0, iter_vars[ndim - 1], iter_vars[ndim]) +
+                                     offset);
           return diagonal(diagonal_indices);
         };
-        return if_then_else((PrimExpr)iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1,
+                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2,
+                                         get_diag(), input(iter_vars)),
                             input(iter_vars));
+      },
+      name, tag);
+}
+
+/*!
+ * \brief Numpy style advanced indexing with tensor.
+ * \param data is input data.
+ * \param indices is list of indexing tensors.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Output tensor.
+ */
+inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
+                        const std::string name = "advanced_index",
+                        const std::string tag = kInjective) {
+  Array<PrimExpr> oshape;
+  Array<PrimExpr> broadcast_shape;
+  Array<Tensor> bindices;
+  std::vector<int64_t> flatten_shape_lens;
+  int64_t num_picked_elems = 1;
+  bool has_dyn_shape = false;
+
+  if (indices.size() == 1) {
+    broadcast_shape = indices[0]->shape;
+    bindices = indices;
+  } else {
+    for (const auto& index : indices) {
+      int64_t flatten_len = 1;
+      for (const auto& dim : index->shape) {
+        const IntImmNode* axis_len = dim.as<IntImmNode>();
+        if (!axis_len) {
+          broadcast_shape = index->shape;
+          has_dyn_shape = true;
+          break;
+        }
+        flatten_len *= axis_len->value;
+      }
+      if (has_dyn_shape) break;
+      flatten_shape_lens.push_back(flatten_len);
+      if (flatten_len > num_picked_elems) {
+        num_picked_elems = flatten_len;
+        broadcast_shape = index->shape;
+      }
+    }
+
+    // Do broadcast for indices
+    for (size_t i = 0; i < indices.size(); ++i) {
+      if (!has_dyn_shape && flatten_shape_lens[i] < num_picked_elems) {
+        bindices.push_back(broadcast_to(indices[i], broadcast_shape));
+      } else {
+        bindices.push_back(indices[i]);
+      }
+    }
+  }
+
+  for (const auto& dim : broadcast_shape) {
+    oshape.push_back(dim);
+  }
+  for (size_t i = indices.size(); i < data->shape.size(); ++i) {
+    oshape.push_back(data->shape[i]);
+  }
+
+  return compute(
+      oshape,
+      [&](const Array<Var>& iter_var) {
+        Array<PrimExpr> tensor_indices;
+        for (size_t i = 0; i < broadcast_shape.size(); ++i) {
+          tensor_indices.push_back(iter_var[i]);
+        }
+
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < bindices.size(); ++i) {
+          real_indices.push_back(bindices[i](tensor_indices));
+        }
+        for (size_t i = broadcast_shape.size(); i < iter_var.size(); ++i) {
+          real_indices.push_back(iter_var[i]);
+        }
+
+        return data(real_indices);
       },
       name, tag);
 }

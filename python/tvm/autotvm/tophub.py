@@ -42,36 +42,33 @@ AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/uwsampl/tvm-dist
 AUTOTVM_TOPHUB_NONE_LOC = "NONE"
 
 # root path to store TopHub files
-AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(
-    os.path.expanduser('~'), ".tvm", "tophub")
+AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm", "tophub")
 
 # the version of each package
 PACKAGE_VERSION = {
-    'arm_cpu':          "v0.07",
-    'llvm':             "v0.04",
-
-    'cuda':             "v0.09",
-    'rocm':             "v0.05",
-    'opencl':           "v0.04",
-    'mali':             "v0.06",
-    'intel_graphics':   "v0.02",
-    'vta':              "v0.09",
-    'amd_apu':          "v0.01",
+    "arm_cpu": "v0.07",
+    "llvm": "v0.04",
+    "cuda": "v0.09",
+    "rocm": "v0.05",
+    "opencl": "v0.04",
+    "mali": "v0.06",
+    "intel_graphics": "v0.02",
+    "vta": "v0.09",
+    "amd_apu": "v0.01",
 }
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
 
 
 def _alias(name):
     """convert alias for some packages"""
     table = {
-        'vtacpu': 'vta',
-
-        'metal': 'opencl',
-        'webgpu': 'opencl',
-        'vulkan': 'opencl',
-        'nvptx': 'cuda',
-        'amd_apu': 'amd_apu'
+        "vtacpu": "vta",
+        "metal": "opencl",
+        "webgpu": "opencl",
+        "vulkan": "opencl",
+        "nvptx": "cuda",
+        "amd_apu": "amd_apu",
     }
     return table.get(name, name)
 
@@ -120,9 +117,8 @@ def context(target, extra_files=None):
                     continue
 
                 filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
-                best_context.load(os.path.join(
-                    AUTOTVM_TOPHUB_ROOT_PATH, filename))
-                break   # only load one file to avoid some fallback template mismatch problem
+                best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
+                break  # only load one file to avoid some fallback template mismatch problem
 
     if extra_files:
         for filename in extra_files:
@@ -162,8 +158,7 @@ def check_backend(tophub_location, backend):
         download_package(tophub_location, package_name)
         return True
     except urllib2.URLError as e:
-        logging.warning(
-            "Failed to download tophub package for %s: %s", backend, e)
+        logging.warning("Failed to download tophub package for %s: %s", backend, e)
         return False
 
 
@@ -183,15 +178,14 @@ def download_package(tophub_location, package_name):
     if not os.path.isdir(rootpath):
         # make directory
         splits = os.path.split(rootpath)
-        for j in range(1, len(splits)+1):
+        for j in range(1, len(splits) + 1):
             path = os.path.join(*splits[:j])
             if not os.path.isdir(path):
                 os.mkdir(path)
 
     download_url = "{0}/{1}".format(tophub_location, package_name)
     logger.info("Download pre-tuned parameters package from %s", download_url)
-    download(download_url, os.path.join(
-        rootpath, package_name), True, verbose=0)
+    download(download_url, os.path.join(rootpath, package_name), True, verbose=0)
 
 
 # global cache for load_reference_log
@@ -199,7 +193,7 @@ REFERENCE_LOG_CACHE = {}
 
 
 def load_reference_log(backend, model, workload_name):
-    """ Load reference log from TopHub to support fallback in template.
+    """Load reference log from TopHub to support fallback in template.
     Template will use these reference logs to choose fallback config.
 
     Parameters

@@ -71,7 +71,7 @@ enum class MeasureErrorNO : int {
   /*! \brief Timeout during run. */
   kRunTimeoutError = 7,
   /*! \brief Unknown error. */
-  kUnknonwError = 8,
+  kUnknownError = 8,
 };
 
 // Inputs and results of one measurement
@@ -104,7 +104,7 @@ class MeasureInput : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param task The SearchTeask of this measure.
+   * \param task The SearchTask of this measure.
    * \param state The State to be measured.
    */
   MeasureInput(SearchTask task, State state);
@@ -353,7 +353,7 @@ class LocalRunner : public ProgramRunner {
  public:
   /*!
    * \brief The constructor. See the corresponding class in python/tvm/auto_scheduler/measure.py
-   * for more detailed parameter explaination.
+   * for more detailed parameter explanation.
    * \param timeout The timeout limit (in second) for each run.
    * This is used in a wrapper of the multiprocessing.Process.join().
    * \param number The number of times to run the generated code for taking average.
@@ -401,7 +401,7 @@ class RPCRunner : public ProgramRunner {
  public:
   /*!
    * \brief The constructor. See the corresponding class in python/tvm/auto_scheduler/measure.py
-   * for more detailed parameter explaination.
+   * for more detailed parameter explanation.
    * \param key The key of the device registered in the RPC tracker.
    * \param host The host address of the RPC Tracker.
    * \param port The port of RPC Tracker.
@@ -445,7 +445,7 @@ class ProgramMeasurerNode : public Object {
   /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
   int verbose;
   /*! \brief The number of max continuous error. */
-  int max_continous_error;
+  int max_continuous_error;
 
   /*! \brief Reset book keeping variables */
   void Reset();
@@ -472,7 +472,7 @@ class ProgramMeasurerNode : public Object {
                      Array<MeasureResult>* results);
 
   /*! \brief The default max continuous error setting. */
-  static const int DEFAULT_MAX_CONTINOUS_ERROR = 150;
+  static const int DEFAULT_MAX_CONTINUOUS_ERROR = 150;
 
   static constexpr const char* _type_key = "auto_scheduler.ProgramMeasurer";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProgramMeasurerNode, Object);
@@ -491,11 +491,11 @@ class ProgramMeasurer : public ObjectRef {
    * \param callbacks MeasureCallback to be called after each measure batch.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * measuring.
-   * \param max_continous_error The number of allowed maximum continuous error.
+   * \param max_continuous_error The number of allowed maximum continuous error.
    */
   ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                   Optional<Array<MeasureCallback>> callbacks, int verbose,
-                  int max_continous_error = -1);
+                  int max_continuous_error = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
 };

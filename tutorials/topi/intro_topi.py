@@ -26,6 +26,7 @@ In this tutorial, we will see how TOPI can save us from writing boilerplates cod
 from __future__ import absolute_import, print_function
 
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import topi
 import numpy as np
@@ -39,7 +40,7 @@ import numpy as np
 #
 n = te.var("n")
 m = te.var("m")
-A = te.placeholder((n, m), name='A')
+A = te.placeholder((n, m), name="A")
 k = te.reduce_axis((0, m), "k")
 B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
 s = te.create_schedule(B.op)
@@ -97,7 +98,7 @@ print(sg.stages)
 ######################################################################
 # We can test the correctness by comparing with :code:`numpy` result as follows
 #
-func = tvm.build(sg, [a, b, g], 'cuda')
+func = tvm.build(sg, [a, b, g], "cuda")
 ctx = tvm.gpu(0)
 a_np = np.random.uniform(size=(x, y, y)).astype(a.dtype)
 b_np = np.random.uniform(size=(y, y)).astype(b.dtype)
