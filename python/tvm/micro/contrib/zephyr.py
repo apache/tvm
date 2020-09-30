@@ -208,7 +208,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         ] + self._options_to_cmake_args(options)
         if "include_dirs" in options:
             cmake_args.append(
-                '-DTVM_INCLUDE_DIRS='
+                "-DTVM_INCLUDE_DIRS="
                 f'{";".join(os.path.abspath(d) for d in options["include_dirs"])}'
             )
         cmake_args.append(f'-DTVM_LIBS={";".join(copied_libs)}')
@@ -321,7 +321,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         if len(boards) > 1:
             if self._nrfjprog_snr is None:
                 raise BoardError(
-                    'Multiple boards connected; specify one with nrfjprog_snr=: '
+                    "Multiple boards connected; specify one with nrfjprog_snr=: "
                     f'{", ".join(boards)}'
                 )
 
