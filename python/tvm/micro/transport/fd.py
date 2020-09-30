@@ -24,13 +24,23 @@ import time
 from .base import Transport, TransportTimeouts, TransportClosedError, IoTimeoutError
 
 
+class FdConfigurationError(Exception):
+    """Raised when specified file descriptors can't be placed in non-blocking mode."""
+
+
 class FdTransport(Transport):
     """A Transport implementation that implements timeouts using non-blocking I/O."""
 
     @classmethod
     def _validate_configure_fd(cls, fd):
         fd = fd if isinstance(fd, int) else fd.fileno()
-        fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
+        flag = fcntl.fcntl(fd, fcntl.F_GETFL)
+        if flag & os.O_NONBLOCK != 0:
+            return fd
+
+        flag = fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK | flag)
+        if flag & os.O_NONBLOCK == 0:
+            raise FdConfigurationError('Cannot set file descriptor {fd} to non-blocking')
         return fd
 
     def __init__(self, read_fd, write_fd):
@@ -63,6 +73,7 @@ class FdTransport(Transport):
 
         self._await_ready([self.read_fd], [], end_time=end_time)
         to_return = os.read(self.read_fd, n)
+
         if not to_return:
             self.close()
             raise TransportClosedError()
