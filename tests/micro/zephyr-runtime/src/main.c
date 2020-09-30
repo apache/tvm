@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <zephyr.h>
-//#include <kernel/include/kernel_arch_interface.h>
 #include <power/reboot.h>
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
@@ -236,6 +235,4 @@ void main(void) {
 #ifdef CONFIG_ARCH_POSIX
   posix_exit(0);
 #endif
-
-  arch_system_halt(0);
 }
