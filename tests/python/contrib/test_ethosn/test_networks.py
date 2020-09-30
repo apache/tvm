@@ -62,6 +62,32 @@ def _test_image_network(
     npu_partitions=1,
     run=False,
 ):
+    """Test an image network.
+
+    Parameters
+    ----------
+    model_url : str
+        The URL to the model.
+    model_sub_path : str
+        The name of the model file.
+    input_dict : dict
+        The input dict.
+    compile_hash : str, set
+        The compile hash(es) to check the compilation output against.
+    output_count : int
+        The expected number of outputs.
+    host_ops : int
+        The expected number of host operators.
+    npu_partitions : int
+        The expected number of Ethos-N partitions.
+    run : bool
+        Whether or not to try running the network. If hardware isn't
+        available, the run will still take place but with a mocked
+        inference function, so the results will be incorrect. This is
+        therefore just to test the runtime flow is working rather than
+        to check the correctness/accuracy.
+
+    """
     if not ethosn_available():
         return
 
