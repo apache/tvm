@@ -552,9 +552,13 @@ class ZephyrQemuTransport(Transport):
             stdin=sys.stdin.fileno(),
             **self.kw,
         )
+        # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
+        # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
+        # FIFO are always considered ready to read when no one has opened them for writing.
         self.fd = wakeup.WakeupTransport(
             QemuFdTransport(
-                os.open(self.read_pipe, os.O_RDONLY), os.open(self.write_pipe, os.O_WRONLY)
+                os.open(self.read_pipe, os.O_RDWR | os.O_NONBLOCK),
+                os.open(self.write_pipe, os.O_RDWR | os.O_NONBLOCK)
             ),
             b'\xfe\xff\xfd\x03\0\0\0\0\0\x02' b'fw')
 #            b"Hello",
