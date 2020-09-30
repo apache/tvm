@@ -25,14 +25,14 @@
 #include <drivers/gpio.h>
 #include <drivers/uart.h>
 #include <kernel.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <zephyr.h>
 #include <power/reboot.h>
+#include <stdio.h>
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <unistd.h>
+#include <zephyr.h>
 
 #ifdef CONFIG_ARCH_POSIX
 #include "posix_board_if.h"
