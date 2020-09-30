@@ -71,7 +71,7 @@ class ConvPackedParam(QNNParam):
         self.groups = groups
 
 
-def get_quant_params(qweight):
+def _get_quant_params(qweight):
     import torch
 
     weight_np = qweight.dequantize().numpy()
@@ -88,12 +88,12 @@ def get_quant_params(qweight):
 
 
 def make_qnn_param(param_name, qweight, bias):
-    weight_np, scale, zero_point = get_quant_params(qweight)
+    weight_np, scale, zero_point = _get_quant_params(qweight)
     return QNNParam(weight_np, bias, scale, zero_point, param_name)
 
 
 def make_conv_packed_param(param_name, qweight, bias, packed_params):
-    weight_np, scale, zero_point = get_quant_params(qweight)
+    weight_np, scale, zero_point = _get_quant_params(qweight)
     stride = packed_params.stride()
     padding = packed_params.padding()
     dilation = packed_params.dilation()
@@ -126,7 +126,8 @@ def get_weight_quant_params(script_module):
             # and loaded back
             # This module can be safely ignored
             continue
-        elif len(state_dict) == 0 and hasattr(m, param_name):
+
+        if len(state_dict) == 0 and hasattr(m, param_name):
             # for v1.6 and above
             packed_params = m._packed_params
         else:
