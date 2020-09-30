@@ -1,1 +1,0 @@
-TransportContextManager = typing.ContextManager[Transport]
