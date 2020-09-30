@@ -40,7 +40,7 @@ from .. import compiler
 from .. import debugger
 from ..transport import debug
 from ..transport.fd import FdTransport
-from ..transport import serial
+#from ..transport import serial
 from ..transport import subprocess as subprocess_transport
 from ..transport import Transport, TransportClosedError, TransportTimeouts
 from ..transport import wakeup
