@@ -120,7 +120,7 @@ pip3 install west
 #EOF
 #chmod a+x /usr/local/bin/west
 
-west init --mr v2.3.0 /opt/zephyrproject
+west init --mr v2.4.0 /opt/zephyrproject
 cd /opt/zephyrproject
 west update
 
