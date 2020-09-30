@@ -209,7 +209,8 @@ class ZephyrCompiler(tvm.micro.Compiler):
         ] + self._options_to_cmake_args(options)
         if "include_dirs" in options:
             cmake_args.append(
-                f'-DTVM_INCLUDE_DIRS={";".join(os.path.abspath(d) for d in options["include_dirs"])}'
+                '-DTVM_INCLUDE_DIRS='
+                f'{";".join(os.path.abspath(d) for d in options["include_dirs"])}'
             )
         cmake_args.append(f'-DTVM_LIBS={";".join(copied_libs)}')
         print("cmake", cmake_args)
@@ -274,7 +275,7 @@ class BoardError(Exception):
 
 
 class BoardAutodetectFailed(Exception):
-    """Raised when no attached hardware could be found matching the board= given to ZephyrCompiler."""
+    """Raised when no attached hardware is found matching the board= given to ZephyrCompiler."""
 
 
 class ZephyrFlasher(tvm.micro.compiler.Flasher):
@@ -322,7 +323,8 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         if len(boards) > 1:
             if self._nrfjprog_snr is None:
                 raise BoardError(
-                    f'Multiple boards connected; specify one with nrfjprog_snr=: {", ".join(boards)}'
+                    'Multiple boards connected; specify one with nrfjprog_snr=: '
+                    f'{", ".join(boards)}'
                 )
 
             if str(self._nrfjprog_snr) not in boards:
