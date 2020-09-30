@@ -453,7 +453,7 @@ mod tests {
         assert_eq!(ndarray.shape(), shape);
         assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
         assert_eq!(ndarray.ndim(), 1);
-        assert!(ndarray.is_contiguous().is_ok());
+        assert!(ndarray.is_contiguous());
         assert_eq!(ndarray.byte_offset(), 0);
         let shape = vec![4];
         let e = NDArray::empty(
