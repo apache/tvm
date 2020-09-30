@@ -43,11 +43,34 @@ def get_real_image(im_height, im_width):
 
 
 def assert_lib_hash(lib, golden):
+    """Check that the Ethos-N runtime modules in a library hash to the same values
+    as given by the golden hash(es).
+
+    If there's only one Ethos-N module, the golden hash may be provided as a str.
+    If there's multiple, a set of golden hashes should be provided to correspond
+    with each Ethos-N module that is expected.
+
+    This function is used to ensure that no change is made which alters the output
+    of a compilation. If such a change is made deliberately (eg. to fix a bug) then
+    the golden hash should be updated after verifying on hardware that the behaviour
+    is still correct.
+
+    This method is used because of the lack of hardware availability in upstream CI.
+    """
+    # Convert str hash into a set of hashes
+    if isinstance(golden, str):
+        golden = {golden}
+
     temp = util.tempdir()
     path = temp.relpath("lib.cmm")
-    lib.imported_modules[1].save(path)
-    lib_hash = md5(open(path, "rb").read()).hexdigest()
-    assert lib_hash == golden, "Expected hash: {} Got hash: {}".format(golden, lib_hash)
+    hash_set = set()
+    for mod in lib.imported_modules:
+        if mod.type_key == "ethos-n":
+            mod.save(path)
+            lib_hash = md5(open(path, "rb").read()).hexdigest()
+            hash_set.add(lib_hash)
+
+    assert hash_set == golden, "Expected hash: {} Got hash: {}".format(golden, hash_set)
 
 
 def make_module(func, params):
@@ -102,6 +125,21 @@ def get_host_op_count(mod):
 
 
 def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
+    """Build a network with or without Ethos-N offloading.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The Relay module to build.
+    params : dict of str to NDArray
+        The weights to build with.
+    npu : bool, optional
+        Whether to build with Ethos-N offloading.
+    expected_host_ops : int, optional
+        The number of ops expected to remain on the host.
+    npu_partitions : int, optional
+        The number of Ethos-N partitions expected.
+    """
     relay.backend.compile_engine.get().clear()
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": 0}}
@@ -133,6 +171,28 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
 
 
 def run(lib, inputs, outputs, npu=True):
+    """Run a module with specified inputs.
+
+    Parameters
+    ----------
+    lib : runtime.Module
+        The runtime module.
+    inputs : dict of str to NDArray
+        The input dictionary.
+    outputs : int
+        The expected number of outputs.
+    npu : bool
+        Whether or not any part of the lib is offloaded to Ethos-N.
+        If it's false (i.e. it's all running on the CPU), we set
+        the mocked result equal to the output so that a subsequent
+        mocked run on the NPU returns the same value.
+
+    Returns
+    -------
+    out : list of NDArray
+        The results.
+
+    """
     # Export and load lib to confirm this works
     lib_name = "mod.so"
     temp = util.tempdir()
@@ -144,7 +204,7 @@ def run(lib, inputs, outputs, npu=True):
     module.run()
     out = [module.get_output(i) for i in range(outputs)]
     if not npu:
-        inference_result(0, out)
+        inference_result(out)
     return out
 
 
@@ -171,12 +231,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
             tvm.testing.assert_allclose(outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
 
 
-def inference_result(checksum, outputs):
+def inference_result(outputs):
     """Set the expected results of an Ethos inference, if the testing
     infrastructure is available. This assumes that the entire graph
     was offloaded to the neural processor."""
     if tvm.get_global_func("relay.ethos-n.test.infra.inference_result", True):
-        return _infrastructure.inference_result(checksum, *outputs)
+        return _infrastructure.inference_result(*outputs)
     return False
 
 
