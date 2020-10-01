@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 source "$(dirname $0)/dev_common.sh"
 
 DEFAULT_STEPS=( file_type asf cpplint clang_format pylint jnilint cppdocs )
