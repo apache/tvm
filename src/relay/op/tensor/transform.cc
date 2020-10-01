@@ -1986,7 +1986,7 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   CHECK(param != nullptr);
   const auto* data = types[0].as<TensorTypeNode>();
 
-  if (data != nullptr) {
+  if (data == nullptr) {
     return false;
   }
 
