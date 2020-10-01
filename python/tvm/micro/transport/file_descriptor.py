@@ -40,10 +40,11 @@ class FdTransport(base.Transport):
         if flag & os.O_NONBLOCK != 0:
             return file_descriptor
 
-        flag = fcntl.fcntl(file_descriptor, fcntl.F_SETFL, os.O_NONBLOCK | flag)
-        if flag & os.O_NONBLOCK == 0:
+        fcntl.fcntl(file_descriptor, fcntl.F_SETFL, os.O_NONBLOCK | flag)
+        new_flag = fcntl.fcntl(file_descriptor, fcntl.F_GETFL)
+        if (new_flag & os.O_NONBLOCK) == 0:
             raise FdConfigurationError(
-                "Cannot set file descriptor {file_descriptor} to non-blocking"
+                f"Cannot set file descriptor {file_descriptor} to non-blocking"
             )
         return file_descriptor
 
