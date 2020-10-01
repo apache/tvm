@@ -417,7 +417,7 @@ def _split_with_sizes():
         dim = int(inputs[2])
 
         if len(sections) == 1:
-            return _expr.TupleWrapper(_expr.Tuple([data]))
+            return _expr.TupleWrapper(_expr.Tuple([data]), 1)
 
         split_index = 0
         indices = []
@@ -2355,9 +2355,11 @@ def _numel():
 
 def _empty():
     def _impl(inputs, input_types):
+        # any_dim = (Any(), )
         return _op.zeros(inputs[0], "int32")
         # return _op.zeros(inputs[0], _convert_dtype_value(inputs[1]))
 
+    return _impl
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
