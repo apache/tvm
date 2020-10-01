@@ -40,8 +40,11 @@ def create_shared(output, objects, options=None, cc="g++"):
     cc : Optional[str]
         The compiler command.
     """
-    if sys.platform == "darwin" or sys.platform.startswith("linux") \
-           or sys.platform.startswith("freebsd"):
+    if (
+        sys.platform == "darwin"
+        or sys.platform.startswith("linux")
+        or sys.platform.startswith("freebsd")
+    ):
         _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
