@@ -33,6 +33,7 @@ use tvm::*;
 fn main() -> anyhow::Result<()> {
     let ctx = Context::cpu(0);
     println!("{}", concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"));
+
     let img = image::open(concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"))
         .context("Failed to open cat.png")?;
 

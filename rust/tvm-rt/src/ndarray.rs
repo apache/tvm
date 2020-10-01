@@ -369,6 +369,16 @@ impl NDArray {
             .map(|o| o.downcast().expect("this should never fail"));
         NDArray(ptr)
     }
+
+    pub fn zeroed(self) -> NDArray {
+        unsafe {
+            let dltensor = self.as_raw_dltensor();
+            let bytes_ptr: *mut u8 = std::mem::transmute((*dltensor).data);
+            println!("size {}", self.size());
+            std::ptr::write_bytes(bytes_ptr, 0, self.size());
+            self
+        }
+    }
 }
 
 macro_rules! impl_from_ndarray_rustndarray {
@@ -447,7 +457,7 @@ mod tests {
         let shape = &[4];
         let data = vec![1i32, 2, 3, 4];
         let ctx = Context::cpu(0);
-        let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
+        let mut ndarray = NDArray::empty(shape, ctx, DataType::int(32, 1)).zeroed();
         assert_eq!(ndarray.to_vec::<i32>().unwrap(), vec![0, 0, 0, 0]);
         ndarray.copy_from_buffer(&data);
         assert_eq!(ndarray.shape(), shape);
@@ -466,6 +476,7 @@ mod tests {
         assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);
     }
 
+    /// This occasionally panics on macOS: https://github.com/rust-lang/rust/issues/71397
     #[test]
     #[should_panic(expected = "called `Result::unwrap()` on an `Err`")]
     fn copy_wrong_dtype() {
