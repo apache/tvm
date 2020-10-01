@@ -86,7 +86,7 @@ def test_archive():
     with open(os.path.join(unpack_dir, "foo", "metadata.json")) as metadata_f:
         metadata = json.load(metadata_f)
 
-    assert metadata["version"] == 1
+    assert metadata["version"] == 2
     assert metadata["labelled_files"] == TEST_LABELS
     assert metadata["metadata"] == TEST_METADATA
 

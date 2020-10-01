@@ -58,7 +58,6 @@ def sha256_hexdigest(path):
 
 def _validate_metadata_only(metadata):
     """Validate that the files in a metadata-only archive have not changed."""
-    print("validate md", metadata)
     problems = []
     for files in metadata["labelled_files"].values():
         for f in files:
