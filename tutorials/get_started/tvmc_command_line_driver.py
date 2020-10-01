@@ -34,7 +34,7 @@ TVM via a command line interface.
 #
 # TVMC is a Python application, part of the TVM Python package.
 # When you install TVM using a Python package, you will get TVMC as
-# command line application ``tvmc``.
+# as a command line application called ``tvmc``.
 #
 # Alternatively, if you have TVM as a Python module on your
 # ``$PYTHONPATH``,you can access the command line driver functionality
@@ -100,7 +100,7 @@ TVM via a command line interface.
 # Tuning in TVM refers to the process by which a model is optimized
 # to run faster on a given target. This differs from training or
 # fine-tuning in that it does not affect the accuracy of the model,
-# only the runtime performance.
+# but only the runtime performance.
 #
 # As part of the tuning process, TVM will try running many different
 # operator implementation variants to see which perform best. The
@@ -202,7 +202,7 @@ img_path = download_testdata(img_url, "imagenet_cat.png", module="data")
 resized_image = Image.open(img_path).resize((224, 224))
 img_data = np.asarray(resized_image).astype("float32")
 
-# ONNX expect NCHW input, so convert the array
+# ONNX expects NCHW input, so convert the array
 img_data = np.transpose(img_data, (2, 0, 1))
 
 # Normalize according to ImageNet
