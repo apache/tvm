@@ -23,9 +23,10 @@
 # Usage: docker/bash.sh <CONTAINER_NAME>
 #     Starts an interactive session
 #
-# Usage2: docker/bash.sh [-i] <CONTAINER_NAME> [COMMAND]
+# Usage2: docker/bash.sh [-i|--interactive|--non-interactive] <CONTAINER_NAME> [COMMAND]
 #     Execute command in the docker image, default non-interactive
-#     With -i, execute interactively.
+#     With -i or --interactive, or in their absence, a tty, execute interactively.
+#     With --non-interactive, execute non-interactively.
 #
 
 set -e
@@ -33,10 +34,20 @@ set -e
 source "$(dirname $0)/dev_common.sh" || exit 2
 
 interactive=0
-if [ "$1" == "-i" ]; then
-    interactive=1
-    shift
-fi
+case "$1" in
+    "-i" | "--interactive")
+        interactive=1
+        shift
+        ;;
+    "--non-interactive")
+        shift
+        ;;
+    *)
+        if [ -n "$(tty)" ]; then
+            interactive=1
+        fi
+        ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="$(pwd)"
@@ -50,8 +61,8 @@ else
 fi
 
 if [ "$#" -lt 1 ]; then
-    echo "Usage: docker/bash.sh [-i] <CONTAINER_NAME> [COMMAND]"
-    exit -1
+    echo "Usage: $0 [-i|--interactive|--non-interactive] <CONTAINER_NAME> [COMMAND]"
+    exit 2
 fi
 
 DOCKER_IMAGE_NAME=$(lookup_image_name "$1" || echo)

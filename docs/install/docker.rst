@@ -38,10 +38,11 @@ We can then use the following command to launch a docker image.
     /path/to/tvm/docker/bash.sh <image-name>
 
 Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` after you have done the local build.
+It can also be an alias (e.g. `ci_cpu`) defined in the `Jenkinsfile` at the root of the repository.
 
 This auxiliary script does the following things:
 
-- Mount current directory to /workspace
+- Mount current directory into the docker container (`-v $(pwd):$(pwd)`)
 - Switch user to be the same user that calls the bash.sh (so you can read/write host system)
 - Use the host-side network on Linux. Use the bridge network and expose port 8888 on macOS,
   because host networking driver isn't supported. (so you can use jupyter notebook)
