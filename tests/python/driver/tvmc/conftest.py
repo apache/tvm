@@ -135,10 +135,16 @@ def tflite_compiled_module_as_tarfile(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def imagenet_cat(tmpdir_factory):
+    tmpdir_name = tmpdir_factory.mktemp("data")
+    cat_file_name = "imagenet_cat.npz"
+
     cat_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
     image_path = download_testdata(cat_url, "inputs", module=["tvmc"])
     resized_image = Image.open(image_path).resize((224, 224))
     image_data = np.asarray(resized_image).astype("float32")
     image_data = np.expand_dims(image_data, axis=0)
 
-    return {"input": image_data}
+    cat_file_full_path = os.path.join(tmpdir_name, cat_file_name)
+    np.savez(cat_file_full_path, input=image_data)
+
+    return cat_file_full_path

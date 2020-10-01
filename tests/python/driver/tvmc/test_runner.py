@@ -67,22 +67,6 @@ def test_get_top_results_keep_results():
     assert len(sut[1]) == expected_number_of_results_per_line
 
 
-def test_get_top_results_keep_results__limit_bigger_than_returned():
-    fake_outputs = {"output_0": np.array([[1, 2, 3, 4], [5, 6, 7, 8]])}
-    number_of_results_wanted = 6
-    sut = tvmc.runner.get_top_results(fake_outputs, number_of_results_wanted)
-
-    expected_number_of_lines = 2
-    assert len(sut) == expected_number_of_lines
-
-    # despite 'number_of_results_wanted' being 6,
-    # we limit to the maximum available, in this
-    # case it is 4.
-    expected_number_of_results_per_line = 4
-    assert len(sut[0]) == expected_number_of_results_per_line
-    assert len(sut[1]) == expected_number_of_results_per_line
-
-
 def test_run_tflite_module__with_profile__valid_input(
     tflite_compiled_module_as_tarfile, imagenet_cat
 ):
@@ -91,7 +75,7 @@ def test_run_tflite_module__with_profile__valid_input(
 
     outputs, times = tvmc.runner.run_module(
         tflite_compiled_module_as_tarfile,
-        inputs=imagenet_cat,
+        inputs_file=imagenet_cat,
         hostname=None,
         device="cpu",
         profile=True,

@@ -190,8 +190,6 @@ def compile_model(
     target_host = target_host or ""
 
     if tuning_records and os.path.exists(tuning_records):
-        # TODO (@leandron) a new PR will introduce the 'tune' subcommand
-        #      the is used to generate the tuning records file
         logger.debug("tuning records file provided: %s", tuning_records)
         with autotvm.apply_history_best(tuning_records):
             with tvm.transform.PassContext(opt_level=3):
@@ -212,6 +210,8 @@ def compile_model(
         source = str(mod) if source_type == "relay" else lib.get_source(source_type)
         dumps[source_type] = source
 
+    # TODO we need to update this return to use the updated graph module APIs
+    #      as these getter functions will be deprecated in the next release (@leandron)
     return graph_module.get_json(), graph_module.get_lib(), graph_module.get_params(), dumps
 
 
