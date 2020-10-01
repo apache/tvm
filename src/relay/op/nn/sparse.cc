@@ -76,7 +76,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense")
     });
 
 RELAY_REGISTER_OP("nn.sparse_dense")
-    .describe(R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with X sparse.
+    .describe(R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with W sparse.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
 - **weight**: `(units, input_dim)`
@@ -105,7 +105,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense_padded")
 
 RELAY_REGISTER_OP("nn.sparse_dense_padded")
     .describe(
-        R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with X sparse. This variation uses a matrix with row lengths padded to a multiple of 32 for better GPU performance.
+        R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with W sparse. This variation uses a matrix with row lengths padded to a multiple of 32 for better GPU performance.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
 - **weight**: `(units, input_dim)`
