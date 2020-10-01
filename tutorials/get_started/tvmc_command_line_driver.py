@@ -22,10 +22,21 @@ Getting Started with TVM command line driver - TVMC
 `Matthew Barrett <https://github.com/mbaret>`_
 
 This tutorial is an introduction to working with TVMC, the TVM command
-line driver.
+line driver. TVMC is a tool that exposes TVM features such as
+auto-tuning, compiling, profiling and execution of models, via a
+command line interface.
 
-In this tutorial we are going to use TVMC to perform common tasks with
-TVM via a command line interface.
+In this tutorial we are going to use TVMC to compile, run and tune a
+ResNet-50 on a x86 CPU.
+
+We are going to start by downloading ResNet 50 V2. Then, we are going
+to use TVMC to compile this model into a TVM module, and use the
+compiled module to generate predictions. Finally, we are going to experiment
+with the auto-tuning options, that can be used to help the compiler to
+improve network performance.
+
+The final goal is to give an overview of TVMC's capabilities and also
+some guidance on where to look for more information.
 """
 
 ######################################################################
@@ -56,14 +67,6 @@ TVM via a command line interface.
 # To read about specific options under a given subcommand, use
 # ``tvmc <subcommand> --help``.
 #
-# By default, TVMC will only display error messages. In case you want
-# to increase verbosity (more messages), you can do that with:
-#
-# .. code-block:: bash
-#
-#   tvmc -vvv <subcommand>
-#
-#
 # In the following sections we will use TVMC to tune, compile and
 # run a model. But first, we need a model.
 #
@@ -92,76 +95,43 @@ TVM via a command line interface.
 #   compile --help`` for more information.
 #
 
-######################################################################
-# Tuning the model
-# ----------------
-#
-# Once we've downloaded ResNet-50, it is time to run TVM's auto-tuner.
-# Tuning in TVM refers to the process by which a model is optimized
-# to run faster on a given target. This differs from training or
-# fine-tuning in that it does not affect the accuracy of the model,
-# but only the runtime performance.
-#
-# As part of the tuning process, TVM will try running many different
-# operator implementation variants to see which perform best. The
-# results of these runs are stored in a tuning records file, which is
-# ultimately the output of the ``tune`` subcommand.
-#
-# In the simplest form, tuning requires you to provide three things:
-#
-# - the target specification of the device you intend to run this model on;
-# - the path to an output file in which the tuning records will be stored, and finally,
-# - a path to the model to be tuned.
-#
-#
-# The example below demonstrates how that works in practice:
-#
-# .. code-block:: bash
-#
-#   tvmc tune \
-#     --target "llvm" \
-#     --output autotuner_records.json \
-#     resnet50-v2-7.onnx
-#
-#
-# Tuning sessions can take a long time, so ``tvmc tune`` offers many options to
-# customize your tuning process, in terms of number of repetitions (``--repeat`` and
-# ``--number``, for example), the tuning algorithm to be use, and so on.
-# Check ``tvmc tune --help`` for more information.
-#
-# As an output of the tuning process above, we obtained the tuning records stored
-# in ``autotuner_records.json``. This file can be used in two ways: as an input
-# to further tuning (via ``tvmc tune --tuning-records``), or as an input to the
-# compiler. The compiler will use the results to generate high performance code
-# for the model on your specified target.
-#
-# So now let's see how we can invoke the compiler using TVMC.
-#
 
 ######################################################################
 # Compiling the model
 # -------------------
 #
-# To compile our model using TVM, we use ``tvmc compile``. The output we get from the
-# compilation process is a TAR package that can be used to run our model on the
-# target device.
-#
-# As previously mentioned, we can use tuning records in order to help the compilation
-# process to generate code that performs better for a given platform. To do that
-# we can use ``--tuning-records``. Check ``tvmc compile --help`` for more options.
+# The next step once we've downloaded ResNet-50, is to compile it,
+# To accomplish that, we are going to use ``tvmc compile``. The
+# output we get from the compilation process is a TAR package,
+# that can be used to run our model on the target device.
 #
 # .. code-block:: bash
 #
 #   tvmc compile \
 #     --target "llvm" \
 #     --output compiled_module.tar \
-#     --tuning-records autotuner_records.json \
 #     resnet50-v2-7.onnx
 #
 # Once compilation finishes, the output ``compiled_module.tar`` will be created. This
 # can be directly loaded by your application and run via the TVM runtime APIs.
-# Alternatively, you can make use of the ``tvmc run`` command to quickly generate
-# predictions using the compiled module without having to write such an application.
+#
+
+
+######################################################################
+# .. note:: Defining the correct target
+#
+#   Specifying the correct target (option ``--target``) can have a huge
+#   impact on the performance of the compiled module, as it can take
+#   advantage of hardware features available on the target. For more
+#   information, please refer to `Auto-tuning a convolutional network
+#   for x86 CPU <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-network>`_.
+#
+
+
+######################################################################
+#
+# In the next step, we are going to use the compiled module, providing it
+# with some inputs, to generate some predictions.
 #
 
 
@@ -298,12 +268,60 @@ if os.path.exists(output_file):
 
 
 ######################################################################
+# Tuning the model
+# ----------------
+#
+# Tuning in TVM refers to the process by which a model is optimized
+# to run faster on a given target. This differs from training or
+# fine-tuning in that it does not affect the accuracy of the model,
+# but only the runtime performance.
+#
+# As part of the tuning process, TVM will try running many different
+# operator implementation variants to see which perform best. The
+# results of these runs are stored in a tuning records file, which is
+# ultimately the output of the ``tune`` subcommand.
+#
+# In the simplest form, tuning requires you to provide three things:
+#
+# - the target specification of the device you intend to run this model on;
+# - the path to an output file in which the tuning records will be stored, and finally,
+# - a path to the model to be tuned.
+#
+#
+# The example below demonstrates how that works in practice:
+#
+# .. code-block:: bash
+#
+#   tvmc tune \
+#     --target "llvm" \
+#     --output autotuner_records.json \
+#     resnet50-v2-7.onnx
+#
+#
+# Tuning sessions can take a long time, so ``tvmc tune`` offers many options to
+# customize your tuning process, in terms of number of repetitions (``--repeat`` and
+# ``--number``, for example), the tuning algorithm to be use, and so on.
+# Check ``tvmc tune --help`` for more information.
+#
+# As an output of the tuning process above, we obtained the tuning records stored
+# in ``autotuner_records.json``. This file can be used in two ways:
+#
+# - as an input to further tuning (via ``tvmc tune --tuning-records``), or
+# - as an input to the compiler
+#
+# The compiler will use the results to generate high performance code for the model
+# on your specified target. To do that we can use ``tvmc compile --tuning-records``.
+# Check ``tvmc compile --help`` for more information.
+#
+
+
+######################################################################
 # Final Remarks
 # -------------
 #
 # In this tutorial, we presented TVMC, a command line driver for TVM.
-# We demonstrated tuning, compiling and running a model, as well
-# as discussing the need for pre and post processing of inputs and outputs.
+# We demonstrated how to compile, run and tune a model, as well
+# as discussed the need for pre and post processing of inputs and outputs.
 #
 # Here we presented a simple example using ResNet 50 V2 locally. However, TVMC
 # supports many more features including cross-compilation, remote execution and
