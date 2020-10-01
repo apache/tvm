@@ -227,7 +227,7 @@ class TransportLogger(Transport):
                 self.name,
                 timeout_sec,
                 n,
-                str(e),
+                str(err),
                 exc_info=1,
             )
             raise err
@@ -274,7 +274,7 @@ class TransportLogger(Transport):
                 "%s write             <- [%d B]: [err: %s]",
                 self.name,
                 len(data),
-                str(e),
+                str(err),
                 exc_info=1,
             )
             raise err
