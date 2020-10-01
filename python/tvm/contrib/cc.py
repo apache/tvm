@@ -105,8 +105,7 @@ def get_target_by_dump_machine(compiler):
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
 create_shared.get_target_triple = get_target_by_dump_machine(
-    os.environ["CXX"] if "CXX" in os.environ.keys() else \
-        "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None
+    os.environ.get("CXX", "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None)
 )
 
 
