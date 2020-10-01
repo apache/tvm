@@ -48,7 +48,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types, int num_inputs, const Attrs&
   if (data == nullptr) {
     return false;
   }
-  
+
   CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
   reporter->Assign(types[1], TensorType({}, DataType::Float(32)));  // dom_scale

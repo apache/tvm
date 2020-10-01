@@ -44,7 +44,7 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr) {
     return false;
   }
-  
+
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == DataType::Float(32))
       << "Input type should be one of float32 but was " << input_dtype;

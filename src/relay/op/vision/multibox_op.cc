@@ -85,7 +85,7 @@ bool MultiBoxTransformLocRel(const Array<Type>& types, int num_inputs, const Att
   const auto* anchor = types[2].as<TensorTypeNode>();
 
   if (cls_prob == nullptr || loc_pred == nullptr || anchor == nullptr) {
-      return false;
+    return false;
   }
 
   const auto& cls_shape = cls_prob->shape;

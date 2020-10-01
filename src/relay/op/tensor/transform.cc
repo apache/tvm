@@ -890,7 +890,6 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
-
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
@@ -3040,7 +3039,7 @@ bool SparseToDenseRel(const Array<Type>& types, int num_inputs, const Attrs& att
   auto sparse_values = types[1].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
 
-  if(sparse_indices == nullptr || sparse_values == nullptr || default_value == nullptr) {
+  if (sparse_indices == nullptr || sparse_values == nullptr || default_value == nullptr) {
     return false;
   }
 

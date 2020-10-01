@@ -262,7 +262,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr) {
     return false;
   }
-  
+
   const auto in_dtype = data->dtype;
   CHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
         in_dtype == DataType::Int(32))
