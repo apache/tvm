@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Parser Intrinsic Functions
+"""TVM Script Parser Intrinsic Functions
 
 IRNodes (StmtNodes without body, PrimExprNodes and more) are called intrins
 """

@@ -17,10 +17,10 @@
 
 import tvm
 from tvm import tir
-from tvm.hybrid import ty
+from tvm.script import ty
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module1:
     def mmult(A: ty.handle, B: ty.handle, C: ty.handle) -> None:
         # function attr dict
@@ -75,11 +75,11 @@ class Module1:
 
 def test_opt_gemm_normalize():
     mod = Module1()
-    rt_mod = tvm.hybrid.from_source(tvm.hybrid.ashybrid(mod, True))
+    rt_mod = tvm.script.from_source(tvm.script.asscript(mod, True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module2:
     def mmult(A: ty.handle, B: ty.handle, C: ty.handle) -> None:
         # function attr dict
@@ -254,11 +254,11 @@ class Module2:
 
 def test_opt_gemm_lower():
     mod = Module2()
-    rt_mod = tvm.hybrid.from_source(tvm.hybrid.ashybrid(mod, True))
+    rt_mod = tvm.script.from_source(tvm.script.asscript(mod, True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 class Module3:
     def mmult(
         args: ty.handle,
@@ -608,11 +608,11 @@ class Module3:
 
 def test_opt_gemm_mod_host():
     mod = Module3()
-    rt_mod = tvm.hybrid.from_source(tvm.hybrid.ashybrid(mod, True))
+    rt_mod = tvm.script.from_source(tvm.script.asscript(mod, True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 def opt_conv_tensorcore_normalize(A: ty.handle, W: ty.handle, Conv: ty.handle) -> None:
     # function attr dict
     tir.func_attr({"global_symbol": "default_function", "tir.noalias": True})
@@ -1071,11 +1071,11 @@ def opt_conv_tensorcore_normalize(A: ty.handle, W: ty.handle, Conv: ty.handle) -
 
 def test_opt_conv_tensorcore_normalize():
     mod = opt_conv_tensorcore_normalize
-    rt_mod = tvm.hybrid.from_source(tvm.hybrid.ashybrid(mod, True))
+    rt_mod = tvm.script.from_source(tvm.script.asscript(mod, True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 def opt_conv_tensorcore_lower(A: ty.handle, W: ty.handle, Conv: ty.handle) -> None:
     # function attr dict
     tir.func_attr({"global_symbol": "default_function", "tir.noalias": True})
@@ -2414,11 +2414,11 @@ def opt_conv_tensorcore_lower(A: ty.handle, W: ty.handle, Conv: ty.handle) -> No
 
 def test_opt_conv_tensorcore_lower():
     mod = opt_conv_tensorcore_lower
-    rt_mod = tvm.hybrid.from_source(tvm.hybrid.ashybrid(mod, True))
+    rt_mod = tvm.script.from_source(tvm.script.asscript(mod, True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 
-@tvm.hybrid.script
+@tvm.script.tir
 def opt_conv_tensorcore_mod_host(
     args: ty.handle,
     arg_type_ids: ty.handle,
@@ -2658,7 +2658,7 @@ def opt_conv_tensorcore_mod_host(
 
 def test_opt_conv_tensorcore_mod_host():
     mod = opt_conv_tensorcore_mod_host
-    rt_mod = tvm.hybrid.from_source(tvm.hybrid.ashybrid(mod, True))
+    rt_mod = tvm.script.from_source(tvm.script.asscript(mod, True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 
 

@@ -35,7 +35,7 @@ We use a convolution layer as an example in this tutorial.
 
 import numpy as np
 import tvm
-from tvm import te, testing, auto_scheduler, topi
+from tvm import te, auto_scheduler, topi
 from tvm.topi.testing import conv2d_nchw_python
 
 ######################################################################
@@ -134,7 +134,7 @@ out_tvm = tvm.nd.empty(out_np.shape, ctx=ctx)
 func(data_tvm, weight_tvm, bias_tvm, out_tvm)
 
 # Check results
-tvm.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
+np.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
 
 # Evaluate execution time
 evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)

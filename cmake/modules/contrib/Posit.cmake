@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=redefined-builtin, wildcard-import
-"""rocm specific declaration and schedules."""
-from __future__ import absolute_import as _abs
-
-from .batch_matmul import *
-from .conv2d import *
-from .dense import *
-from .nn import *
+if(USE_BYODT_POSIT)
+  message(STATUS "Build with contrib.posit")
+  if (NOT UNIVERSAL_PATH)
+    message(FATAL_ERROR "Fail to get Universal path")
+  endif(NOT UNIVERSAL_PATH)
+  
+  include_directories(${UNIVERSAL_PATH}/include)
+  list(APPEND COMPILER_SRCS "src/target/datatype/posit/posit-wrapper.cc")
+endif(USE_BYODT_POSIT)

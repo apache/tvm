@@ -54,6 +54,29 @@ inline Tensor rocblas_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, 
       },
       "C", "", {})[0];
 }
+/*!
+ * \brief Create an op that batch multiplies lhs and rhs with rocBLAS
+ *
+ * \param lhs The left matrix operand  e.g. (batch_size, M, K)
+ * \param rhs The right matrix operand e.g. (batch_size, K, N)
+ * \param transa Whether to transpose lhs
+ * \param transb Whether to transpose rhs
+ *
+ * \return The output tensor
+ */
+inline Tensor rocblas_batch_matmul(const Tensor& lhs, const Tensor& rhs, bool transa, bool transb) {
+  auto batch_size = lhs->shape[0];
+  auto n = transa ? lhs->shape[2] : lhs->shape[1];
+  auto m = transb ? rhs->shape[1] : rhs->shape[2];
+
+  return make_extern(
+      {{batch_size, n, m}}, {lhs->dtype}, {lhs, rhs},
+      [&](Array<Buffer> ins, Array<Buffer> outs) {
+        return call_packed({StringImm("tvm.contrib.rocblas.batch_matmul"), pack_buffer(ins[0]),
+                            pack_buffer(ins[1]), pack_buffer(outs[0]), transa, transb});
+      },
+      "C", "", {})[0];
+}
 
 }  // namespace contrib
 }  // namespace topi

@@ -120,6 +120,15 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
+# Whether to build with BYODT software emulated posit custom datatype
+# 
+# Possible values:
+# - ON: enable BYODT posit, requires setting UNIVERSAL_PATH
+# - OFF: disable BYODT posit
+#
+# set(UNIVERSAL_PATH /path/to/stillwater-universal) for ON
+set(USE_BYODT_POSIT OFF)
+
 # Whether use BLAS, choices: openblas, atlas, apple
 set(USE_BLAS none)
 

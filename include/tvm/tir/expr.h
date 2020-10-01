@@ -1085,9 +1085,11 @@ class Reduce : public PrimExpr {
 /*! \brief Any shape. */
 class AnyNode : public PrimExprNode {
  public:
-  void VisitAttrs(AttrVisitor* v) {}
+  void VisitAttrs(AttrVisitor* v) { v->Visit("dtype", &dtype); }
 
-  bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const { return true; }
+  bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype);
+  }
 
   void SHashReduce(SHashReducer hash_reduce) const {}
 

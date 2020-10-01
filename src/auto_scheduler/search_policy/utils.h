@@ -381,6 +381,12 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const St
   return false;
 }
 
+/*! \brief Return whether the step changes the number of stages */
+inline bool IsStageNumberChangingStep(const Step& step) {
+  return step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>() ||
+         step->IsInstance<RfactorStepNode>();
+}
+
 /*! \brief Return whether the state does cache_read for stage_id. */
 inline bool HasCacheReadStage(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
@@ -390,9 +396,7 @@ inline bool HasCacheReadStage(const State& s, int stage_id) {
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -410,9 +414,7 @@ inline bool HasCacheWriteStage(const State& s, int stage_id) {
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -430,9 +432,7 @@ inline bool HasRfactorStage(const State& s, int stage_id) {
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -543,9 +543,7 @@ inline int GetTargetStageIDInState(const State& s, int step_id) {
   int stage_inc = 0;
 
   for (size_t i = step_id + 1; i < s->transform_steps.size(); ++i) {
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (s->transform_steps[i]->stage_id <= s->transform_steps[step_id]->stage_id + stage_inc)
         stage_inc++;
     }
@@ -562,9 +560,7 @@ inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* spli
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }

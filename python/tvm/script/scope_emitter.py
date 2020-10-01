@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Hybrid Script Scope Emitter for TIR"""
+"""TVM Script Scope Emitter for TIR"""
 
 from tvm.te import schedule
 
@@ -52,7 +52,7 @@ class ScopeEmitter:
             if name in symbols:
                 symbols.pop(name)
                 return
-        raise RuntimeError("Internal error of hybrid parser: no symbol named" + name)
+        raise RuntimeError("Internal error of tvm script parser: no symbol named" + name)
 
     def lookup_symbol(self, name):
         """Look up symbol by name"""

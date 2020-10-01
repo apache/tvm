@@ -147,4 +147,4 @@ ${DOCKER_BINARY} run --rm --pid=host\
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
     ${DOCKER_IMAGE_NAME} \
     bash --login /docker/with_the_same_user \
-    ${COMMAND[@]}
+    "${COMMAND[@]}"
