@@ -38,7 +38,7 @@ export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
 cd $RUST_DIR
-cargo fmt -- --check
+#cargo fmt -- --check
 
 # First we test tvm-sys the core Rust bindings.
 cd $RUST_DIR/tvm-sys

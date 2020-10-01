@@ -57,6 +57,8 @@ fn main() -> Result<()> {
                 .to_string())
         })?;
 
+    println!("cargo:warning=tvm_home={}; TVM_HOME={:?}; CARGO_MANIFEST_DIR={:?}", tvm_home, option_env!("TVM_HOME"), option_env!("CARGO_MANIFEST_DIR"));
+
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
         println!("cargo:rustc-link-lib=dylib=tvm");
