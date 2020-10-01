@@ -324,7 +324,7 @@ def run_module(
     fill_mode : str, optional
         The fill-mode to use when generating data for input tensors.
         Valid options are "zeros", "ones" and "random".
-        Defaults to "zeros".
+        Defaults to "random".
     repeat : int, optional
         How many times to repeat the run.
     profile : bool
