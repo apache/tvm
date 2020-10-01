@@ -33,32 +33,35 @@ set -e
 
 source "$(dirname $0)/dev_common.sh" || exit 2
 
-interactive=0
-case "$1" in
-    "-i" | "--interactive")
-        interactive=1
-        shift
-        ;;
-    "--non-interactive")
-        shift
-        ;;
-    *)
-        if [ -n "$(tty || /bin/true)" ]; then
-            interactive=1
-        fi
-        ;;
-esac
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="$(pwd)"
+REPO_MOUNT_POINT="${WORKSPACE}"
 
-if [ "$1" == "--repo-mount-point" ]; then
-    shift
-    REPO_MOUNT_POINT="$1"
-    shift
-else
-    REPO_MOUNT_POINT="${WORKSPACE}"
-fi
+
+interactive=0
+parsing_opts=1
+while [ ${parsing_opts} -eq 1 ]; do
+    case "$1" in
+        "-i" | "--interactive")
+            interactive=1
+            shift
+            ;;
+        "--non-interactive")
+            shift
+            ;;
+        "--repo-mount-point")
+            shift
+            REPO_MOUNT_POINT="$1"
+            shift
+            ;;
+        *)
+            if [ -t 0 ]; then
+                interactive=1
+            fi
+            parsing_opts=0
+            ;;
+    esac
+done
 
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 [-i|--interactive|--non-interactive] <CONTAINER_NAME> [COMMAND]"
