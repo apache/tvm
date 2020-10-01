@@ -271,6 +271,11 @@ if os.path.exists(output_file):
 # Tuning the model
 # ----------------
 #
+# In some cases, we might not get the expected performance when running
+# inferences using our compiled module. In cases like this, we can make use
+# of the auto-tuner, to find a better configuration for our model and
+# get a boost in performance.
+#
 # Tuning in TVM refers to the process by which a model is optimized
 # to run faster on a given target. This differs from training or
 # fine-tuning in that it does not affect the accuracy of the model,
