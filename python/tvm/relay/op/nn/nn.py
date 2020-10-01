@@ -3159,7 +3159,8 @@ def correlation(
 
 
 def space_to_batch_nd(data, block_shape, paddings):
-    r"""Divide spatial dimensions of the data into a grid of blocks and interleave them into batch dim.
+    r"""Divide spatial dimensions of the data into a grid of blocks
+    and interleave them into batch dim.
 
     Parameters
     ----------

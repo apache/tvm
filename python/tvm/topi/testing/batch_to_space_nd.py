@@ -85,7 +85,7 @@ def batch_to_space_nd_python(data, block_shape, crop_begin_list, crop_end_list):
 
     for i, _ in enumerate(r_p_shape):
         strides.append(1)
-        if i > 0 and i <= M:
+        if 0 < i <= M:
             # begin and end index for spatial dimensions
             begin_idx.append(crop_begin_list[i - 1])
             end_idx.append(r_p_shape[i] - crop_end_list[i - 1])
