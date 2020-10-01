@@ -43,7 +43,7 @@ case "$1" in
         shift
         ;;
     *)
-        if [ -n "$(tty)" ]; then
+        if [ -n "$(tty || /bin/true)" ]; then
             interactive=1
         fi
         ;;
