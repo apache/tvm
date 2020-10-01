@@ -883,7 +883,6 @@ def test_op_string_attr():
         nn.conv2d(%x, %y, data_layout="NHWC", kernel_layout="HWIO")
         """
     )
-
     assert isinstance(call.op, tvm.ir.Op)
     assert call.op.name == "nn.conv2d"
     assert call.attrs.data_layout == "NHWC"
