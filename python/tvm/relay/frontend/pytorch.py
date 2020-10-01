@@ -413,13 +413,17 @@ def _split():
 def _split_with_sizes():
     def _impl(inputs, input_types):
         data = inputs[0]
+        sections = inputs[1]
         dim = int(inputs[2])
+
+        if len(sections) == 1:
+            return _expr.TupleWrapper(_expr.Tuple([data]))
 
         split_index = 0
         indices = []
-        sections = inputs[1]
         for i in range(len(sections) - 1):
-            split_index += sections[i]
+            index, _ = try_infer_value(sections[i], lambda ret: int(ret))
+            split_index += index
             indices.append(split_index)
 
         return _op.split(data, indices, dim)
@@ -2335,6 +2339,26 @@ def _interpolate():
     return _impl
 
 
+def _intimplicit():
+    def _impl(inputs, input_types):
+        return inputs[0]
+
+    return _impl
+
+
+def _numel():
+    def _impl(inputs, input_types):
+        return _op.ndarray_size(inputs[0])
+
+    return _impl
+
+
+def _empty():
+    def _impl(inputs, input_types):
+        return _op.zeros(inputs[0], "int32")
+        # return _op.zeros(inputs[0], _convert_dtype_value(inputs[1]))
+
+
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
@@ -2673,6 +2697,10 @@ def _get_convert_map(prelude, default_dtype):
         "aten::scatter": _scatter(),
         "aten::scalar_tensor": _scalar_tensor(),
         "aten::__interpolate": _interpolate(),
+        "aten::IntImplicit": _intimplicit(),
+        "aten::tensor": _tensortonum(),
+        "aten::numel": _numel(),
+        "aten::empty": _empty()
     }
     return convert_map
 
@@ -2681,7 +2709,12 @@ def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
     import torch
 
-    torch._C._jit_pass_inline(graph)
+    from packaging import version
+    # Torch version > 1.4 changed upsampling API
+    if version.parse(torch.__version__) > version.parse("1.5.0"):
+        torch._C._jit_pass_onnx_function_substitution(graph)
+    else:
+        torch._C._jit_pass_inline(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
