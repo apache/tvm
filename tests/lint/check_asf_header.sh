@@ -31,7 +31,9 @@ if [ "$1" == "--local" ]; then
     filter_untracked=1
 fi
 
+set -o pipefail
 java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep -E "^== File" >"${rat_output}" || true)
+set +o pipefail
 
 # Rat can't be configured to ignore untracked files, so filter them.
 if [ ${filter_untracked} -eq 1 ]; then
