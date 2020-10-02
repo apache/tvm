@@ -2183,6 +2183,11 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       }
       auto factor = new_layout.FactorOf(axis);
       if (factor == -1) {
+        const LayoutAxis& new_axis = new_layout[i];
+        if (new_axis.name() != axis.name()) {
+          // original layout because the order of the axis has changed
+          return {{Layout::Undef()}, {Layout::Undef()}};
+        }
         new_begin.push_back(begin[i]);
         new_end.push_back(end[i]);
       } else {
