@@ -1123,8 +1123,15 @@ def test_conv_strided_slice_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 1200, 1200, 3))
         weight = relay.var("weight", shape=(3, 3, 3, 96))
-        y = relay.nn.conv2d(x, weight, channels=96, kernel_size=(3, 3), padding=(0, 0, 0, 0),
-                data_layout='NHWC', kernel_layout='HWIO')
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=96,
+            kernel_size=(3, 3),
+            padding=(0, 0, 0, 0),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
         y = relay.nn.relu(y)
         y = relay.nn.pad(y, pad_width=((0, 0), (0, 1), (0, 1), (0, 0)))
         y = relay.strided_slice(y, begin=[0, 1, 1, 0], end=[1, 600, 600, 96], strides=[1, 1, 1, 1])
@@ -1136,7 +1143,13 @@ def test_conv_strided_slice_convert_layout():
         weight = relay.var("weight", shape=(3, 3, 3, 96))
         x = relay.layout_transform(x, "NHWC", "NCHW")
         weight = relay.layout_transform(weight, "HWIO", "OIHW")
-        y = relay.nn.conv2d(x, weight, channels=96, kernel_size=(3, 3), padding=(0, 0, 0, 0))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=96,
+            kernel_size=(3, 3),
+            padding=(0, 0, 0, 0),
+        )
         y = relay.nn.relu(y)
         y = relay.nn.pad(y, pad_width=((0, 0), (0, 0), (0, 1), (0, 1)))
         y = relay.layout_transform(y, "NCHW", "NHWC")
