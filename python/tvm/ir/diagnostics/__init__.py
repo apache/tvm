@@ -42,6 +42,7 @@ def set_default_renderer(render_func):
     """
     Sets a renderer factory function which when called produces a new diagnostic renderer.
     """
+
     def _render_factory():
         return DiagnosticRenderer(render_func)
 
@@ -50,6 +51,7 @@ def set_default_renderer(render_func):
 
 class DiagnosticLevel(enum.IntEnum):
     """The diagnostic level, see diagnostic.h for more details."""
+
     BUG = 10
     ERROR = 20
     WARNING = 30
@@ -64,12 +66,14 @@ class Diagnostic(Object):
     def __init__(self, level, span, message):
         self.__init_handle_by_constructor__(_ffi_api.Diagnostic, level, span, message)
 
+
 @tvm._ffi.register_object("DiagnosticRenderer")
 class DiagnosticRenderer(Object):
     """
     A diagnostic renderer, which given a diagnostic context produces a "rendered"
     form of the diagnostics for either human or computer consumption.
     """
+
     def __init__(self, render_func):
         self.__init_handle_by_constructor__(_ffi_api.DiagnosticRenderer, render_func)
 

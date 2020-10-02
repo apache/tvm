@@ -163,9 +163,7 @@ class StaticTensorArrayOps(object):
         body = If(
             equal(n, const(0)),
             self.nil(),
-            self.cons(
-                tensor_nil_var(), tensor_array_constructor_var(subtract(n, const(1)))
-            ),
+            self.cons(tensor_nil_var(), tensor_array_constructor_var(subtract(n, const(1)))),
         )
         self.prelude.mod[tensor_array_constructor_var] = Function(
             [n], body, self.list(tensor_type_var()), []
@@ -520,7 +518,6 @@ class StaticTensorArrayOps(object):
         concat_name = self.get_name("tensor_array_concat")
         concat_var = GlobalVar(concat_name)
 
-
         output_shape = [
             Any(),
         ] + list(self.shape[1:])
@@ -604,9 +601,7 @@ class StaticTensorArrayOps(object):
             stack_var(accu),
             helper_var(
                 ta,
-                self.cons(
-                    read_var(ta, op.take(indices_, subtract(current, const(1)))), accu
-                ),
+                self.cons(read_var(ta, op.take(indices_, subtract(current, const(1)))), accu),
                 subtract(current, const(1)),
                 limit,
                 indices_,
@@ -870,7 +865,7 @@ class TensorArrayOps(object):
                 ],
                 False,
             ),
-            tensor_type_var()
+            tensor_type_var(),
         )
 
     def define_tensor_concat(self):
@@ -951,7 +946,9 @@ class TensorArrayOps(object):
         )
         # op.concatenate does not support tensor with rank higher than 4
         self.prelude.mod[concat_var] = Function(
-            [x, y], Match(x, [tensor1_case, tensor2_case, tensor3_case, tensor4_case], False), tensor_type_var()
+            [x, y],
+            Match(x, [tensor1_case, tensor2_case, tensor3_case, tensor4_case], False),
+            tensor_type_var(),
         )
 
     def define_tensor_array(self):
@@ -967,9 +964,7 @@ class TensorArrayOps(object):
         body = If(
             equal(n, const(0)),
             self.nil(),
-            self.cons(
-                tensor_nil_var(), tensor_array_constructor_var(subtract(n, const(1)))
-            ),
+            self.cons(tensor_nil_var(), tensor_array_constructor_var(subtract(n, const(1)))),
         )
         self.prelude.mod[tensor_array_constructor_var] = Function(
             [n], body, self.list(tensor_type_var()), []
@@ -1025,9 +1020,7 @@ class TensorArrayOps(object):
         helper_body = If(
             equal(i, up),
             self.nil(),
-            self.cons(
-                tensor0_var(op.take(tensor, i)), helper_var(add(i, const(1)), up, tensor)
-            ),
+            self.cons(tensor0_var(op.take(tensor, i)), helper_var(add(i, const(1)), up, tensor)),
         )
         self.prelude.mod[helper_var] = Function(
             [i, up, tensor], helper_body, self.list(tensor_type_var()), []
@@ -1371,9 +1364,7 @@ class TensorArrayOps(object):
             stack_var(accu),
             helper_var(
                 ta,
-                self.cons(
-                    read_var(ta, op.take(indices_, subtract(current, const(1)))), accu
-                ),
+                self.cons(read_var(ta, op.take(indices_, subtract(current, const(1)))), accu),
                 subtract(current, const(1)),
                 limit,
                 indices_,

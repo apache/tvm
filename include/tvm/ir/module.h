@@ -291,7 +291,7 @@ class IRModule : public ObjectRef {
                             std::unordered_set<String> import_set = {}, parser::SourceMap map = {});
 
   /*! \brief default constructor */
-  IRModule() : IRModule(Map<GlobalVar, BaseFunc>({}))  {}
+  IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}
   /*!
    * \brief constructor
    * \param n The object pointer.

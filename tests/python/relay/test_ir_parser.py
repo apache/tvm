@@ -368,7 +368,7 @@ def test_ifelse_scope():
             """
             if (True) {
                 let %x = ();
-                (t_
+                ()
             } else {
                 %x
             }
@@ -864,22 +864,6 @@ def test_tuple_return_value():
         constructor(T)
     }
 
-def test_op_string_attr():
-    call = parse_text(
-        """
-        free_var %x: Tensor[(1, 32, 32, 3), float32];
-        free_var %y: Tensor[(1, 1, 3, 3), float32];
-        nn.conv2d(%x, %y, data_layout="NHWC", kernel_layout="HWIO")
-    }
-        """
-    )
-
-
-    assert isinstance(call.op, tvm.ir.Op)
-    assert call.op.name == "nn.conv2d"
-    assert call.attrs.data_layout == "NHWC"
-    assert call.attrs.kernel_layout == "HWIO"
-
     def @example() {
         %0 = ();
         %1 = constructor(%0);
@@ -889,6 +873,20 @@ def test_op_string_attr():
     """
     parse_module(program)
 
+def test_op_string_attr():
+    call = parse_text(
+        """
+        free_var %x: Tensor[(1, 32, 32, 3), float32];
+        free_var %y: Tensor[(1, 1, 3, 3), float32];
+        nn.conv2d(%x, %y, data_layout="NHWC", kernel_layout="HWIO")
+        """
+    )
+
+
+    assert isinstance(call.op, tvm.ir.Op)
+    assert call.op.name == "nn.conv2d"
+    assert call.attrs.data_layout == "NHWC"
+    assert call.attrs.kernel_layout == "HWIO"
 
 def test_load_prelude():
     mod = tvm.IRModule()
@@ -896,7 +894,5 @@ def test_load_prelude():
     tvm.parser.parse(mod.astext())
 
 if __name__ == "__main__":
-    # test_load_prelude()
-    test_meta_ref()
-    # import sys
-    # pytest.main(sys.argv)
+    import sys
+    pytest.main(sys.argv)

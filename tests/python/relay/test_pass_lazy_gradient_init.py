@@ -291,10 +291,12 @@ def test_after_partial_eval():
     back_func = mod["main"]
 
     seq = tvm.transform.Sequential(
-        [transform.PartialEvaluate(),
-         transform.InferType(),
-         transform.LazyGradientInit(),
-         transform.DeadCodeElimination()]
+        [
+            transform.PartialEvaluate(),
+            transform.InferType(),
+            transform.LazyGradientInit(),
+            transform.DeadCodeElimination(),
+        ]
     )
 
     mod = seq(mod)

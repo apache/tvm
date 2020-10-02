@@ -166,6 +166,7 @@ def test_no_match_call():
     add_pattern = is_op("add")(wildcard(), wildcard())
     assert not add_pattern.match(x - y)
 
+
 def test_match_option():
     x = relay.var("x")
     w = relay.var("w")

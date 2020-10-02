@@ -25,10 +25,12 @@ from tvm.relay.expr import Var, GlobalVar
 from tvm.relay.function import Function
 from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType
 
+
 def get_type(prelude, name):
     ty_var = prelude.mod.get_global_type_var(name)
     ty_data = prelude.mod.type_definitions[ty_var]
     return tuple([ty_var] + list(ty_data.constructors))
+
 
 def count(prelude, n):
     """Takes a ConstructorValue corresponding to a nat ADT

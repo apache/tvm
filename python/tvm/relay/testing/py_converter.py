@@ -88,7 +88,7 @@ class PythonConverter(ExprFunctor):
         global __MAJOR__, __MINOR__
 
         if __MAJOR__ == 3 and __MINOR__ == 8:
-            return ast.fix_missing_locations(ast.Module(body=body,type_ignores=[]))
+            return ast.fix_missing_locations(ast.Module(body=body, type_ignores=[]))
         else:
             return ast.fix_missing_locations(ast.Module(body=body))
 
@@ -221,11 +221,9 @@ class PythonConverter(ExprFunctor):
 
         global __MAJOR__, __MINOR__
         if __MAJOR__ == 3 and __MINOR__ == 8:
-            arguments =  ast.arguments(
-                [], inner_args, None, [], [], None, [])
+            arguments = ast.arguments([], inner_args, None, [], [], None, [])
         else:
-            arguments =  ast.arguments(
-                inner_args, None, [], [], None, [])
+            arguments = ast.arguments(inner_args, None, [], [], None, [])
 
         return ast.FunctionDef(
             func_name,

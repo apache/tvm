@@ -136,16 +136,13 @@ void DiagnosticContext::Emit(const Diagnostic& diagnostic) {
   (*this)->diagnostics.push_back(diagnostic);
 }
 
-
 TVM_REGISTER_GLOBAL("diagnostics.Emit")
     .set_body_typed([](DiagnosticContext ctx, const Diagnostic& diagnostic) {
       return ctx.Emit(diagnostic);
     });
 
 TVM_REGISTER_GLOBAL("diagnostics.DiagnosticContextRender")
-    .set_body_typed([](DiagnosticContext context) {
-      return context.Render();
-    });
+    .set_body_typed([](DiagnosticContext context) { return context.Render(); });
 
 /*! \brief Emit a diagnostic. */
 void DiagnosticContext::EmitFatal(const Diagnostic& diagnostic) {

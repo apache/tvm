@@ -381,9 +381,7 @@ def test_mixed_adt_constructors():
             ),
             # one or more boxes
             relay.Clause(
-                relay.PatternConstructor(
-                    cons, [relay.PatternWildcard(), relay.PatternWildcard()]
-                ),
+                relay.PatternConstructor(cons, [relay.PatternWildcard(), relay.PatternWildcard()]),
                 v,
             ),
             # no boxes

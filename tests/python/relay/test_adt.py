@@ -28,8 +28,10 @@ import numpy as np
 prelude = p = Prelude(tvm.IRModule({}))
 p.mod.import_from_std("nat.rly")
 
+
 def count(e):
     return count_(p, e)
+
 
 ctx = tvm.context("llvm", 0)
 intrp = create_executor(mod=prelude.mod, ctx=ctx, target="llvm")
@@ -39,7 +41,7 @@ nat, z, s = prelude.mod.get_type("nat")
 double = p.mod.get_global_var("nat_double")
 add = p.mod.get_global_var("nat_add")
 
-optional, some, none = prelude.mod.get_type( "Option")
+optional, some, none = prelude.mod.get_type("Option")
 rlist, cons, nil = prelude.mod.get_type("List")
 
 hd = p.hd
@@ -70,6 +72,7 @@ size = p.size
 compose = p.compose
 iterate = p.iterate
 
+
 def to_list(l):
     assert isinstance(l, ConstructorValue)
     val = l
@@ -82,6 +85,7 @@ def to_list(l):
             assert val.tag == nil.tag
             break
     return ret
+
 
 def tree_to_dict(t):
     assert isinstance(t, ConstructorValue)
@@ -224,7 +228,9 @@ def test_update():
 @tvm.testing.uses_gpu
 def test_length():
     a = relay.TypeVar("a")
-    assert prelude.mod[length].checked_type == relay.FuncType([rlist(a)], relay.scalar_type("int32"), [a])
+    assert prelude.mod[length].checked_type == relay.FuncType(
+        [rlist(a)], relay.scalar_type("int32"), [a]
+    )
     res = intrp.evaluate(length(cons(z(), cons(z(), cons(z(), nil())))))
     assert get_scalar(res) == 3
 
@@ -261,9 +267,10 @@ def test_foldl():
         foldl(
             rev_dup,
             nil(),
-            cons(make_nat_expr(prelude, 1),
-             cons(make_nat_expr(prelude, 2),
-             cons(make_nat_expr(prelude, 3), nil())))
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            ),
         )
     )
     reversed = to_list(res)
@@ -288,7 +295,10 @@ def test_foldr():
         foldr(
             identity,
             nil(),
-            cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil()))),
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            ),
         )
     )
     same = to_list(res)
@@ -307,7 +317,13 @@ def test_foldr1():
     y = relay.Var("y")
     f = relay.Function([x, y], add(x, y))
     res = intrp.evaluate(
-        foldr1(f, cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil()))))
+        foldr1(
+            f,
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            ),
+        )
     )
 
     assert count(res) == 6
@@ -373,7 +389,8 @@ def test_filter():
                     cons(
                         make_nat_expr(prelude, 3),
                         cons(
-                            make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 5), cons(make_nat_expr(prelude, 1), nil()))
+                            make_nat_expr(prelude, 1),
+                            cons(make_nat_expr(prelude, 5), cons(make_nat_expr(prelude, 1), nil())),
                         ),
                     ),
                 ),
@@ -393,7 +410,10 @@ def test_zip():
     expected_type = relay.FuncType([rlist(a), rlist(b)], rlist(relay.TupleType([a, b])), [a, b])
     assert prelude.mod[zip].checked_type == expected_type
 
-    l1 = cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())))
+    l1 = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
     l2 = cons(nil(), cons(cons(nil(), nil()), cons(cons(nil(), cons(nil(), nil())), nil())))
 
     res = intrp.evaluate(zip(l1, l2))
@@ -430,7 +450,12 @@ def test_rev():
     assert prelude.mod[rev].checked_type == relay.FuncType([rlist(a)], rlist(a), [a])
 
     res = intrp.evaluate(
-        rev(cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil()))))
+        rev(
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            )
+        )
     )
     reversed = to_list(res)
 
@@ -520,7 +545,10 @@ def test_map_accumr():
     x = relay.Var("x", nat())
     add_acc_to_each = relay.Function([acc, x], relay.Tuple([add(x, acc), add(x, acc)]))
 
-    vals = cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())))
+    vals = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
     res = intrp.evaluate(map_accumr(add_acc_to_each, z(), vals))
 
     sum = count(res[0])
@@ -549,7 +577,10 @@ def test_map_accuml():
     x = relay.Var("x", nat())
     add_to_acc = relay.Function([acc, x], relay.Tuple([add(x, acc), x]))
 
-    vals = cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())))
+    vals = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
     res = intrp.evaluate(map_accuml(add_to_acc, z(), vals))
 
     sum = count(res[0])
@@ -582,7 +613,10 @@ def test_optional_matching():
         foldr(
             condense,
             nil(),
-            cons(some(make_nat_expr(prelude, 3)), cons(none(), cons(some(make_nat_expr(prelude, 1)), nil()))),
+            cons(
+                some(make_nat_expr(prelude, 3)),
+                cons(none(), cons(some(make_nat_expr(prelude, 1)), nil())),
+            ),
         )
     )
 
@@ -700,8 +734,14 @@ def test_nested_matches():
         [a],
     )
 
-    first_list = cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())))
-    second_list = cons(make_nat_expr(prelude, 4), cons(make_nat_expr(prelude, 5), cons(make_nat_expr(prelude, 6), nil())))
+    first_list = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
+    second_list = cons(
+        make_nat_expr(prelude, 4),
+        cons(make_nat_expr(prelude, 5), cons(make_nat_expr(prelude, 6), nil())),
+    )
     final_list = cons(first_list, cons(second_list, nil()))
 
     res = intrp.evaluate(flatten(final_list))
@@ -773,6 +813,7 @@ def test_iterate():
     expr = relay.Call(iterate(double, relay.const(2)), [make_nat_expr(prelude, 3)])
     res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

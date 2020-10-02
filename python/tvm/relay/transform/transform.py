@@ -1033,6 +1033,7 @@ def SimplifyExpr():
     """
     return _ffi_api.SimplifyExpr()
 
+
 def AnnotateSpans():
     """
     Annotate a program with span information by first generating its textual

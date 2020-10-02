@@ -98,13 +98,12 @@ SourceMap SourceMap::Global() { return global_source_map; }
 
 void SourceMap::Add(const Source& source) { (*this)->source_map.Set(source->source_name, source); }
 
-TVM_REGISTER_GLOBAL("SourceMapAdd")
-    .set_body_typed([](SourceMap map, String name, String content) {
-      auto src_name = SourceName::Get(name);
-      Source source(src_name, content);
-      map.Add(source);
-      return src_name;
-    });
+TVM_REGISTER_GLOBAL("SourceMapAdd").set_body_typed([](SourceMap map, String name, String content) {
+  auto src_name = SourceName::Get(name);
+  Source source(src_name, content);
+  map.Add(source);
+  return src_name;
+});
 
 }  // namespace parser
 }  // namespace tvm

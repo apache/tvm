@@ -28,6 +28,7 @@ std_out = get_default_renderer()()
 
 __TESTING__ = None
 
+
 def testing_renderer(diag_ctx):
     global __TESTING__
     if __TESTING__ and __TESTING__.mirror:
@@ -36,7 +37,9 @@ def testing_renderer(diag_ctx):
     if __TESTING__:
         __TESTING__._render(diag_ctx)
 
+
 set_default_renderer(testing_renderer)
+
 
 class DiagnosticTesting:
     def __init__(self, mirror=False):
@@ -53,7 +56,6 @@ class DiagnosticTesting:
         __TESTING__ = None
         if type is DiagnosticError and self.matches:
             return True
-
 
     def assert_message(self, in_message):
         self.messages.append(in_message)

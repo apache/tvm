@@ -335,6 +335,7 @@ def fuse0(mod):
     mod = relay.transform.InferType()(mod)
     return relay.transform.FuseOps(fuse_opt_level=0)(mod)
 
+
 def fuse2(mod):
     mod = relay.transform.InferType()(mod)
     return relay.transform.FuseOps(fuse_opt_level=2)(mod)
@@ -558,7 +559,7 @@ def test_immutable():
     mod = transform.InferType()(before())
     new_mod = transform.FuseOps(fuse_opt_level=2)(mod)
     assert tvm.ir.structural_equal(mod, transform.InferType()(before()))
-    assert tvm.ir.structural_equal(new_mod,  transform.InferType()(expected()))
+    assert tvm.ir.structural_equal(new_mod, transform.InferType()(expected()))
 
 
 def test_split():

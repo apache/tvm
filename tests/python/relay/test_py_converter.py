@@ -351,9 +351,7 @@ def test_local_recursion():
                 v,
                 [
                     relay.Clause(
-                        relay.PatternConstructor(
-                            cons, [relay.PatternVar(h), relay.PatternVar(t)]
-                        ),
+                        relay.PatternConstructor(cons, [relay.PatternVar(h), relay.PatternVar(t)]),
                         cons(h, f(t)),
                     ),
                     relay.Clause(relay.PatternConstructor(nil, []), nil()),

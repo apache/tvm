@@ -25,6 +25,7 @@ from tvm.relay.testing import count as count_, make_nat_value, make_nat_expr
 
 import numpy as np
 
+
 def vmobj_to_list(mod, o, dtype="float32"):
     _, tensor_nil, _, _, _, _, _, _, _ = mod.get_type(f"tensor_{dtype}_t")
     if isinstance(o, tvm.nd.NDArray):
@@ -59,8 +60,8 @@ def vmobj_to_list(mod, o, dtype="float32"):
 
 def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
     for kind in ["debug", "vm"]:
-        for target, ctx in [('llvm', tvm.cpu(0))]: #testing.enabled_targets():
-        # for target, ctx in testing.enabled_targets():
+        for target, ctx in [("llvm", tvm.cpu(0))]:  # testing.enabled_targets():
+            # for target, ctx in testing.enabled_targets():
             if kind == "debug" and ctx.device_type != tvm.cpu().device_type:
                 continue
             ex = relay.create_executor(kind, mod=ta_mod, ctx=ctx, target=target)

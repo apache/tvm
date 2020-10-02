@@ -1287,7 +1287,7 @@ def test_flatten_tuple_output():
     )
 
     partitioned = seq(create_graph())
-    partitioned  = transform.InferType()(partitioned)
+    partitioned = transform.InferType()(partitioned)
     expected_mod = transform.InferType()(expected())
     assert tvm.ir.structural_equal(partitioned, expected_mod, map_free_vars=True)
 

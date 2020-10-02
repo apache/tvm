@@ -18,10 +18,12 @@
 """The under development unified IR parsing infrastructure."""
 from .. import _ffi, Object
 
+
 @_ffi.register_object("SourceMap")
 class SourceMap(Object):
     def add(self, name, content):
         return _ffi.get_global_func("SourceMapAdd")(self, name, content)
+
 
 def parse(source, source_name="from_string"):
     return _ffi_api.ParseModule(source_name, source)

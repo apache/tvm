@@ -27,7 +27,6 @@ from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import (
-
     make_nat_expr,
     run_infer_type,
     check_grad,

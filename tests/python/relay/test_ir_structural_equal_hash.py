@@ -632,9 +632,7 @@ def test_match_sequal():
         [
             nil_case,
             relay.Clause(
-                relay.PatternConstructor(
-                    cons, [relay.PatternWildcard(), relay.PatternWildcard()]
-                ),
+                relay.PatternConstructor(cons, [relay.PatternWildcard(), relay.PatternWildcard()]),
                 nil(),
             ),
         ],
@@ -646,9 +644,7 @@ def test_match_sequal():
         data,
         [
             relay.Clause(relay.PatternConstructor(none), nil()),
-            relay.Clause(
-                relay.PatternConstructor(some, [relay.PatternVar(x)]), cons(x, nil())
-            ),
+            relay.Clause(relay.PatternConstructor(some, [relay.PatternVar(x)]), cons(x, nil())),
         ],
     )
 

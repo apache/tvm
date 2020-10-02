@@ -755,9 +755,7 @@ class Parser {
           auto global_tok = Match(TokenType::kGlobal);
           auto global_name = global_tok.ToString();
           auto global = AddOrGet(&global_names, global_name);
-          auto func = WithSpan<relay::Function>([&]() {
-            return ParseFunctionDef();
-          });
+          auto func = WithSpan<relay::Function>([&]() { return ParseFunctionDef(); });
           ICHECK(func->span.defined()) << "spans must be set in parser";
           defs.funcs.push_back(GlobalFunc(global, func));
           continue;
