@@ -75,8 +75,6 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             b = tvm.nd.array(b_np, ctx)
             c = tvm.nd.array(c_np, ctx)
             d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
-            print(tvm.lower(s, [A, B, C, D], simple_mode=True))
-            exit()
             f = tvm.build(s, [A, B, C, D], device, name="dense")
             f(a, b, c, d)
             tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)

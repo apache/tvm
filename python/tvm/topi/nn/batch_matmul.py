@@ -42,7 +42,7 @@ def batch_matmul(x, y):
     y_shape = get_const_tuple(y.shape)
     XB = x_shape[0]
     YB = y_shape[0]
-    assert (XB == YB) or (XB == 1) or (YB == 1), "batch dimension doesn't match"
+    assert (XB == YB) or (XB == 1) or (YB == 1), "batch dimensions don't match"
     assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
     _, M, K = x.shape
     batch = max(XB, YB)

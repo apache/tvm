@@ -35,6 +35,7 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "../../transforms/infer_layout_util.h"
 #include "../make_op.h"
@@ -851,10 +852,10 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
-  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]) || 
+  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]) ||
         reporter->AssertEQ(x->shape[0], 1) ||
         reporter->AssertEQ(y->shape[0], 1))
-      << "BatchDot: batch dimension doesn't match, "
+      << "BatchDot: batch dimensions don't match, "
       << " x shape=" << x->shape << ", y shape=" << y->shape;
   CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
       << "BatchDot: shapes of x and y is inconsistent, "
