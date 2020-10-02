@@ -644,7 +644,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
 
     Notes:
         * The rows of matrix B are transposed
-    This function returns a TensorIntrin that can be used to tensorize a schedule.
+        * The tiling strategy is picked to maximize register usage.
 
     Parameters
     ----------
@@ -659,8 +659,8 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
     # This needs to be a variable number of "rows" since TVM
     # "thinks" I only need to compute one row because of
     # padding
-    A = te.placeholder((te.var("rows"), 4), dtype, name="data")
-    B = te.placeholder((4, 4), dtype, name="kernel")
+    A = te.placeholder((te.var("rows"), 4), dtype, name="A")
+    B = te.placeholder((4, 4), dtype, name="B")
     dtype_vec = dtype + "x16"
 
     k = te.reduce_axis((0, 4), name="k")
@@ -692,8 +692,8 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
             # Load all the elements of tile A.
             # vec_a = [a, b, c, d,
             #          e, f, g, h,
-            #          i, l, m, n,
-            #          o, p, q, r,];
+            #          l, m, n, o,
+            #          p, q, r, s];
             vec_a = ins[0].vload([0, 0], dtype_vec)
 
             # Replicate 4 times the i-th row of A. For instance,
@@ -753,15 +753,15 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
 
 def gemm_acc_nx16_int8_int8_int32(dtype, rows):
     """
-    Int8 16x4 matrix multiplication and accumulation using sdot/udot instructions
-    This function takes two arrays of int8 datatype -- A[rows][4] and
+    Int8 nx16 matrix multiplication and accumulation using sdot/udot instructions
+    This function takes two arrays of int8 datatype -- A[n][4] and
     B[4][16] and produces a rowsx16 matrix which is equal to A*B
     The pseudo code is as follows.
 
     .. code-block:: c
 
-        void mmla_16x4_int8_int8_int32(int8 A[rows][16], int8 B[4][16][4], int32 output[rows][16]){
-            for (int i = 0; i < rows; i++){
+        void mmla_nx16_int8_int8_int32(int8 A[n][16], int8 B[4][16][4], int32 output[n][16]){
+            for (int i = 0; i < n; i++){
                 for (int j = 0; i < 16; i++){
                     for (int k = 0; k < 16; k++){
                         out[i][j] += A[i][k] * B[k//4][j][k%4]
@@ -775,21 +775,22 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
         * The tile size of B is 16x4. Since the reduction variable k moves between 0 and 16
           we need 4 tiles of B to compute a single row of the output. The first 4 values of
           k will be fetched from B[0][j][k], the second batch of 4 from B[1][j][k] and so on
-
-    This function returns a TensorIntrin that can be used to tensorize a schedule.
+        * The tiling strategy is picked to maximize register usage.
 
     Parameters
     ----------
     dtype: str, {"uint8", "int8"}
         Whether it works on unsigned int or signed int
+    rows: int
+        Number of of the output rows "n"
 
     Returns
     -------
     intrin : TensorIntrin
         The Arm TensorIntrin that can be used in tensorizing schedule
     """
-    A = te.placeholder((rows, 16), dtype, name="data")
-    B = te.placeholder((4, 16, 4), dtype, name="kernel")
+    A = te.placeholder((rows, 16), dtype, name="A")
+    B = te.placeholder((4, 16, 4), dtype, name="B")
     dtype_vec = dtype + "x16"
     idxm = tvm.tir.indexmod
     k = te.reduce_axis((0, 16), name="k")
@@ -827,24 +828,34 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
             # Iterate on the number of rows of the output
             for k in range(0, rows):
                 # Load 16 elements of A
-                # vec_a = [a, b, c, e, f, g, h, i, l, m, n, o, p, q, r,];
+                # vec_a = [a, b, c, d, e, f, g, h, l, m, n, o, p, q, r, s];
                 vec_a = ins[0].vload([k, 0], dtype_vec)
 
-                # Iterate over each column of the output
+                # Iterate over each of the 4 rowsx4 tiles of the output
                 for j in range(0, 4):
                     # Accumulate over each of the 4 (16x4) tiles contained in B
                     for i in range(0, 4):
-                        # As before, replicate a single 4-element group of A
+                        # Replicate a single 4-element group of A (A[k, i:i+4])
                         vec_aa = select_word(vec_a, i, dtype_vec)
-                        # Load 4 rows (each rows with 4 elements) from B
+
+                        # Load 4 rows (each rows with 4 elements) from B (B[i:i+4, j:j+4])
                         # vec_b = [0, 16, 32, 48,
                         #          1, 17, 33, 49,
                         #          2, 18, 34, 50,
                         #          3, 19, 35, 51,];
                         vec_b = ins[1].vload([i, 4 * j, 0], dtype_vec)
-                        # Store the result of the accumulation in the
-                        # correct part of the output
+
+                        # Accumulate in the correct part of the output
                         vec_c = outs[0].vload([k, 4 * j], "int32x4")
+
+                        # Compute the dot product between the rowsx4 tile
+                        # from A and the 4x4 tile from B
+                        #
+                        # For instance, for i=0, we have:
+                        # sdot(vec_aa[0], vec_b) = [a*0+b*16+c*32+d*48,
+                        #                           a*1+b*17+c*33+d*49,
+                        #                           a*2+b*18+c*34+d*50,
+                        #                           a*3+b*19+c*35+d*51]
                         vdot = tvm.tir.call_llvm_intrin(
                             "int32x4",
                             llvm_intrin,
