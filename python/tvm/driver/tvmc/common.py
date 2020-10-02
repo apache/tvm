@@ -20,6 +20,8 @@ Common utility functions shared by TVMC modules.
 import logging
 import os.path
 
+from urllib.parse import urlparse
+
 import tvm
 
 from tvm import relay
@@ -102,3 +104,36 @@ def target_from_cli(target):
     logger.debug("creating target from input: %s", target)
 
     return tvm.target.Target(target)
+
+
+def tracker_host_port_from_cli(rpc_tracker_str):
+    """Extract hostname and (optional) port from strings
+    like "1.2.3.4:9090" or "4.3.2.1".
+
+    Used as a helper function to cover --rpc-tracker
+    command line argument, in different subcommands.
+
+    Parameters
+    ----------
+    rpc_tracker_str : str
+        hostname (or IP address) and port of the RPC tracker,
+        in the format 'hostname[:port]'.
+
+    Returns
+    -------
+    rpc_hostname : str or None
+        hostname or IP address, extracted from input.
+    rpc_port : int or None
+        port number extracted from input (9090 default).
+    """
+
+    rpc_hostname = rpc_port = None
+
+    if rpc_tracker_str:
+        parsed_url = urlparse("//%s" % rpc_tracker_str)
+        rpc_hostname = parsed_url.hostname
+        rpc_port = parsed_url.port or 9090
+        logger.info("RPC tracker hostname: %s", rpc_hostname)
+        logger.info("RPC tracker port: %s", rpc_port)
+
+    return rpc_hostname, rpc_port

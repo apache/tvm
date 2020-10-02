@@ -73,6 +73,9 @@ def _server_env(load_library, work_path=None):
     @tvm._ffi.register_func("tvm.rpc.server.download_linked_module", override=True)
     def download_linked_module(file_name):
         """Load module from remote side."""
+        # c++ compiler/linker
+        cc = os.environ.get("CXX", "g++")
+
         # pylint: disable=import-outside-toplevel
         path = temp.relpath(file_name)
 
@@ -80,7 +83,7 @@ def _server_env(load_library, work_path=None):
             # Extra dependencies during runtime.
             from tvm.contrib import cc as _cc
 
-            _cc.create_shared(path + ".so", path)
+            _cc.create_shared(path + ".so", path, cc=cc)
             path += ".so"
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
@@ -89,7 +92,7 @@ def _server_env(load_library, work_path=None):
             tar_temp = util.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)
             files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-            _cc.create_shared(path + ".so", files)
+            _cc.create_shared(path + ".so", files, cc=cc)
             path += ".so"
         elif path.endswith(".dylib") or path.endswith(".so"):
             pass

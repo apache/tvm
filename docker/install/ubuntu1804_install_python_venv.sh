@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,48 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.7.0" %}
+set -e
+set -u
+set -o pipefail
 
-package:
-  name: tvm
-  version: {{ version }}
+# install python and pip, don't modify this, modify install_python_package.sh
+apt-get update
+apt-get install -y software-properties-common
+apt-get install -y python3-dev python3-setuptools python3-venv
 
-source:
-  path: ../..
+python3 -mvenv /opt/tvm-venv
 
-build:
-  number: 0
-
-requirements:
-  build:
-    - {{ compiler('cxx') }}
-  host:
-    - python {{ python }}
-    - cython
-    - numpy
-    - setuptools
-    - decorator
-    - tvm-libs {{ version }}
-  run:
-    - python {{ python }}
-    - {{ pin_compatible('numpy') }}
-    - decorator
-    - tvm-libs {{ version }}
-    - psutil
-
-test:
-  imports:
-    - tvm
-  requires:
-    - pytest
-    - scipy
-  source_files:
-    - tests/python
-  commands:
-    - python -m pytest -v tests/python/integration
-
-about:
-  home: https://github.com/apache/incubator-tvm
-  license: Apache-2.0
-  license_family: Apache
-  summary: a low level domain specific language for compiling tensor computation pipelines
+# Pin pip version
+/opt/tvm-venv/bin/pip3 install pip==19.3.1

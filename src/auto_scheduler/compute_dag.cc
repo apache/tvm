@@ -969,6 +969,9 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
       }
     }  // end for placeholder
   }    // end for stage
+  p_dag->access_analyzer = AccessAnalyzer(p_dag->tensors);
+  p_dag->ops = p_dag->access_analyzer->ops_topo_order;
+  p_dag->flop_ct = FlopEstimator().EstimateFlop(p_dag->ops);
 }
 
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
@@ -989,16 +992,15 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   if (stage_to_axes == nullptr) {
     stage_to_axes = &temp_stage_to_axes;
   }
-  Array<te::Operation> ops;
+  Array<te::Operation> out_ops;
   for (const auto& op : operator->()->ops) {
-    if (!op->IsInstance<te::PlaceholderOpNode>()) {
-      ops.push_back(op);
+    if (operator->()->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
     }
   }
+
   // Create the initial schedule
-  // TODO(jcf94): Currently we only checked single output dag for TVM Auto-scheduler,
-  // update this after testing with multiple outputs.
-  te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule(out_ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -1019,16 +1021,14 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
 String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const {
   Array<te::Stage> stages;
   StageToAxesMap stage_to_axes;
-  Array<te::Operation> ops;
+  Array<te::Operation> out_ops;
   for (const auto& op : operator->()->ops) {
-    if (!op->IsInstance<te::PlaceholderOpNode>()) {
-      ops.push_back(op);
+    if (operator->()->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
     }
   }
   // Create the initial schedule
-  // TODO(jcf94): Currently we only checked single output dag for TVM Auto-scheduler,
-  // update this after testing with multiple outputs.
-  te::Schedule schedule = te::create_schedule({ops.back()});
+  te::Schedule schedule = te::create_schedule(out_ops);
 
   // init axes
   for (const auto& x : operator->()->ops) {
@@ -1040,16 +1040,18 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
   std::stringstream ss;
   for (const auto& stage : stages) {
     if (stage->op->IsInstance<te::ComputeOpNode>()) {
+      auto op_name = CleanName(stage->op->name);
+
       for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
-        ss << stage->leaf_iter_vars[i]->var->name_hint;
+        ss << CleanName(stage->leaf_iter_vars[i]->var->name_hint, op_name);
         if (i != stage->leaf_iter_vars.size() - 1) {
           ss << ", ";
         }
       }
       ss << " = "
-         << "tuple(" << stage->op->name << ".op.axis)"
+         << "tuple(" << op_name << ".op.axis)"
          << " + "
-         << "tuple(" << stage->op->name << ".op.reduce_axis)\n";
+         << "tuple(" << op_name << ".op.reduce_axis)\n";
     }
   }
   // Call each step's PrintAsPythonAPI method

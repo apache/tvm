@@ -28,6 +28,7 @@
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/search_task.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -74,6 +75,12 @@ class SketchGenerationRule {
    */
   virtual std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy,
                                                    const State& state, int stage_id) const = 0;
+
+  /*!
+   * \brief Get the name of this rule.
+   * \return A string of the rule name.
+   */
+  virtual std::string GetRuleName() const = 0;
 };
 
 #define DEFINE_SKETCH_GENERATION_RULE(rule_name)                                                 \
@@ -83,6 +90,7 @@ class SketchGenerationRule {
                                 int stage_id) const final;                                       \
     std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state, \
                                              int stage_id) const final;                          \
+    std::string GetRuleName() const final { return #rule_name; }                                 \
   };
 
 /*! \brief The rule that simply skips the current stage. It returns an unchanged state and move to

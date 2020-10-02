@@ -209,16 +209,20 @@ inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
 }
 
 /*!
- * \brief Clean the name of an iterator to make it valid in python code.
+ * \brief Clean the name of an iterator or an op to make it valid in python code.
  * \param str The original name.
+ * \param prefix The name prefix to differentiate the same name (e.g., the same iterator names).
  * \return The cleaned name.
  */
-inline std::string CleanName(const std::string& str) {
+inline std::string CleanName(const std::string& str, const std::string& prefix = "") {
   std::string ret = str;
   StrReplace(&ret, ".", "_");
   StrReplace(&ret, "@", "_");
   StrReplace(&ret, "outer", "o");
   StrReplace(&ret, "inner", "i");
+  if (prefix != "") {
+    return prefix + "_" + ret;
+  }
   return ret;
 }
 
