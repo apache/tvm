@@ -110,7 +110,6 @@ def schedule_cuda_transpose(s, out):
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         no, ni = s[op].split(n, factor=warp_size)
         mo, mi = s[op].split(m, factor=warp_size)
-        # TODO: should we use multiple warps?
         s[op].reorder(mo, no, mi, ni)
         s[op].bind(mo, te.thread_axis("blockIdx.x"))
         s[op].bind(no, te.thread_axis("blockIdx.y"))
@@ -119,8 +118,11 @@ def schedule_cuda_transpose(s, out):
         thread_x = te.thread_axis("threadIdx.x")
         thread_y = te.thread_axis("threadIdx.y")
         s[op].bind(ni, thread_x)
+        # This is a hack to make the scheduling language realize that this axis
+        # can be scheduled.
         a, _ = s[c].split(s[c].op.axis[1], factor=1)
         s[c].bind(a, thread_x)
+        # Use 4 warps per block. Slightly faster than 1 warp per block
         ao, _ = s[op].split(mi, nparts=4)
         s[op].bind(ao, thread_y)
         ao, _ = s[c].split(s[c].op.axis[0], nparts=4)
