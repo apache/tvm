@@ -797,7 +797,11 @@ bool ArgWhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
-  CHECK(tt != nullptr);
+
+  if (tt == nullptr) {
+    return false;
+  }
+
   const auto& input_shape = tt->shape;
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
@@ -1676,7 +1680,10 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* condition = types[0].as<TensorTypeNode>();
   const auto* x = types[1].as<TensorTypeNode>();
   const auto* y = types[2].as<TensorTypeNode>();
-  CHECK(condition != nullptr && x != nullptr && y != nullptr);
+
+  if (condition == nullptr || x == nullptr || y == nullptr) {
+    return false;
+  }
 
   const auto& cond_shape = condition->shape;
   const auto& x_shape = x->shape;
@@ -2023,7 +2030,11 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+
+  if (data == nullptr) {
+    return false;
+  }
+
   auto dshape = data->shape;
   int64_t num_axis = dshape.size();
 
@@ -3054,7 +3065,10 @@ bool SparseToDenseRel(const Array<Type>& types, int num_inputs, const Attrs& att
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto sparse_values = types[1].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
-  CHECK(sparse_indices != nullptr && sparse_values != nullptr && default_value != nullptr);
+
+  if (sparse_indices == nullptr || sparse_values == nullptr || default_value == nullptr) {
+    return false;
+  }
 
   CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
 
