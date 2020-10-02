@@ -49,18 +49,18 @@ using tvm::runtime::TypedPackedFunc;
 
 extern const char* kTVM_INTERNAL_ERROR_MESSAGE;
 
-#define INTERNAL_INDENT "  "
+#define ICHECK_INDENT "  "
 
 #define ICHECK_BINARY_OP(name, op, x, y)                           \
   if (dmlc::LogCheckError _check_err = dmlc::LogCheck##name(x, y)) \
   dmlc::LogMessageFatal(__FILE__, __LINE__).stream()               \
       << kTVM_INTERNAL_ERROR_MESSAGE << std::endl                  \
-      << INTERNAL_INDENT << "Check failed: " << #x " " #op " " #y << *(_check_err.str) << ": "
+      << ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << *(_check_err.str) << ": "
 
 #define ICHECK(x)                                    \
   if (!(x))                                          \
   dmlc::LogMessageFatal(__FILE__, __LINE__).stream() \
-      << kTVM_INTERNAL_ERROR_MESSAGE << INTERNAL_INDENT << "Check failed: " #x << ": "
+      << kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << ": "
 
 #define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
 #define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
