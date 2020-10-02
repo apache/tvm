@@ -14,23 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Defines a unary natural number (Peano natural number) abstract
 data type for Relay and provides some utility functions for it.
 Nats are useful for testing purposes, as they make it easy to write
 test cases for recursion and pattern matching."""
 
-from tvm.relay.adt import Constructor, TypeData, Clause, Match, PatternConstructor, PatternVar
 from tvm.relay.backend.interpreter import ConstructorValue
-from tvm.relay.expr import Var, GlobalVar
-from tvm.relay.function import Function
-from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType
-
 
 def get_type(prelude, name):
     ty_var = prelude.mod.get_global_type_var(name)
     ty_data = prelude.mod.type_definitions[ty_var]
     return tuple([ty_var] + list(ty_data.constructors))
-
 
 def count(prelude, n):
     """Takes a ConstructorValue corresponding to a nat ADT
@@ -38,7 +33,7 @@ def count(prelude, n):
     using an ADT value in Python.
     """
     assert isinstance(n, ConstructorValue)
-    nat, z, s = get_type(prelude, "nat")
+    _, z, s = prelude.mod.get_type("nat")
     if n.tag == z.tag:
         return 0
     assert n.tag == s.tag
@@ -49,7 +44,7 @@ def make_nat_value(prelude, n):
     """The inverse of count(): Given a non-negative Python integer,
     constructs a ConstructorValue representing that value as a nat.
     """
-    nat, z, s = get_type(prelude, "nat")
+    _, z, s = prelude.mod.get_type("nat")
     if n == 0:
         return ConstructorValue(z.tag, [], z)
     return ConstructorValue(s.tag, [make_nat_value(prelude, n - 1)], s)
@@ -60,7 +55,7 @@ def make_nat_expr(prelude, n):
     expression representing that integer's value as a nat.
     """
     assert n >= 0
-    _, z, s = get_type(prelude, "nat")
+    _, z, s = prelude.mod.get_type("nat")
     ret = z()
     while n > 0:
         ret = s(ret)
