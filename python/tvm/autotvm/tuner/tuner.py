@@ -121,6 +121,7 @@ class Tuner(object):
 
         GLOBAL_SCOPE.in_tuning = True
         i = error_ct = 0
+        errors = []
         while i < n_trial:
             if not self.has_next():
                 break
@@ -139,6 +140,7 @@ class Tuner(object):
                 else:
                     flops = 0
                     error_ct += 1
+                    errors.extend([r.costs[0] for r in results])
 
                 if flops > self.best_flops:
                     self.best_flops = flops
@@ -174,6 +176,11 @@ class Tuner(object):
             else:
                 logger.setLevel(old_level)
 
+        if error_ct == i:
+            logging.warning(
+                "Could not find a single schedule for task %s. A fallback config will be used. The following errors occured:\n  %s"
+                % (self.task, "\n  ".join(errors))
+            )
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
