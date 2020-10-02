@@ -118,3 +118,34 @@ def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     tvm.relay.analysis.post_order_visit(after["main"], _is_layout_transform)
 
     assert not any(layout_transform_calls), "Unexpected 'layout_transform' call"
+
+
+def test_tracker_host_port_from_cli__hostname_port():
+    input_str = "1.2.3.4:9090"
+    expected_host = "1.2.3.4"
+    expected_port = 9090
+
+    actual_host, actual_port = tvmc.common.tracker_host_port_from_cli(input_str)
+
+    assert expected_host == actual_host
+    assert expected_port == actual_port
+
+
+def test_tracker_host_port_from_cli__hostname_port__empty():
+    input_str = ""
+
+    actual_host, actual_port = tvmc.common.tracker_host_port_from_cli(input_str)
+
+    assert actual_host is None
+    assert actual_port is None
+
+
+def test_tracker_host_port_from_cli__only_hostname__default_port_is_9090():
+    input_str = "1.2.3.4"
+    expected_host = "1.2.3.4"
+    expected_port = 9090
+
+    actual_host, actual_port = tvmc.common.tracker_host_port_from_cli(input_str)
+
+    assert expected_host == actual_host
+    assert expected_port == actual_port
