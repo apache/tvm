@@ -27,8 +27,7 @@ from .. import nn
 from ..util import traverse_inline
 
 
-@autotvm.register_topi_compute("sparse_dense.cuda")
-def sparse_dense(cfg, data, weight_data, weight_indices, weight_indptr):
+def sparse_dense(data, weight_data, weight_indices, weight_indptr):
     """
     Computes sparse-dense matrix multiplication of `data` and
     `(weight_data, weight_indices, weight_indptr).T`
@@ -62,8 +61,7 @@ def sparse_dense(cfg, data, weight_data, weight_indices, weight_indptr):
     return nn.sparse_dense(data, weight_data, weight_indices, weight_indptr)
 
 
-@autotvm.register_topi_schedule("sparse_dense.cuda")
-def schedule_sparse_dense(cfg, outs):
+def schedule_sparse_dense(outs):
     """Create schedule for sparse dense"""
     # pylint:disable=invalid-name
     s = te.create_schedule([x.op for x in outs])
@@ -87,12 +85,7 @@ def schedule_sparse_dense(cfg, outs):
 
             thread_x = te.thread_axis("threadIdx.x")
 
-            cfg.define_split("tile_c", c, num_outputs=2)
-            if cfg.is_fallback:
-                cfg["tile_c"] = SplitEntity([-1, 8])
-            _, ci = cfg["tile_c"].apply(s, y_bsrmm, c)
-
-            y_bsrmm_factored = s.rfactor(y_bsrmm, ci)
+            y_bsrmm_factored = s.rfactor(y_bsrmm, c)
             tx = s[y_bsrmm].op.reduce_axis[0]
             s[y_bsrmm].bind(tx, thread_x)
             s[y_bsrmm_factored].compute_at(s[y_bsrmm], tx)
@@ -284,8 +277,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     return out
 
 
-@autotvm.register_topi_compute("sparse_dense_padded.cuda")
-def sparse_dense_padded(_, data, weight_data, weight_indices, weight_indptr):
+def sparse_dense_padded(data, weight_data, weight_indices, weight_indptr):
     """
     Computes sparse-dense matrix multiplication of `data` and
     `(weight_data, weight_indices, weight_indptr).T`
@@ -320,8 +312,7 @@ def sparse_dense_padded(_, data, weight_data, weight_indices, weight_indptr):
     return sparse_dense_tir(data, weight_data, weight_indices, weight_indptr)
 
 
-@autotvm.register_topi_schedule("sparse_dense_padded.cuda")
-def schedule_sparse_dense_padded(_, outs):
+def schedule_sparse_dense_padded(outs):
     """Create schedule for sparse dense"""
     # XXX: this will fail if we don't include the data_t Tensor in the schedule
     # ops. Maybe create_schedule should do some analysis so this isn't
