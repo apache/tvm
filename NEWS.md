@@ -27,7 +27,7 @@ If you check in something that is not reflected in Roadmap issue, please reply
 to that issue so it can get added.
 
 ## 0.7
-v0.7 brings many major features. The community works together to refactor the internal code base to bring an unified IR code structure with unified IRModule, type system and pass infrastructure. We have also bought many exciting new features, some highlights include:
+v0.7 brings many major features. The community works together to refactor the internal code base to bring an unified IR code structure with a unified IRModule, type system and pass infrastructure. We have also bought many exciting new features, some highlights include:
 
 * Initial automatic scheduling support
 * Initial command line driver interface
