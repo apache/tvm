@@ -20,8 +20,7 @@ import numpy as np
 import scipy.sparse as sp
 
 import tvm
-from tvm import autotvm, relay, te
-from tvm.autotvm.task.space import SplitEntity
+from tvm import relay, te
 
 from .. import nn
 from ..util import traverse_inline
