@@ -17,6 +17,7 @@
 # pylint: disable=unused-argument, no-self-use, invalid-name
 """Base class of tuner"""
 import logging
+import tempfile
 
 import numpy as np
 
@@ -177,11 +178,14 @@ class Tuner(object):
                 logger.setLevel(old_level)
 
         if error_ct == i:
+            _, f = tempfile.mkstemp(prefix="tvm_tuning_", suffix=".log", text=True)
+            with open(f, "w") as file:
+                file.write("\n".join(errors))
             logging.warning(
-                "Could not find a single schedule for task %s. A fallback config will be used. "
-                "The following errors occured:\n  %s",
+                "Could not find a single schedule for task %s. "
+                "A file containing the errors has been written to %s.",
                 self.task,
-                "\n  ".join(errors),
+                f,
             )
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
