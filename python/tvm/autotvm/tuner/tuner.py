@@ -178,7 +178,7 @@ class Tuner(object):
                 logger.setLevel(old_level)
 
         if error_ct == i:
-            _, f = tempfile.mkstemp(prefix="tvm_tuning_", suffix=".log", text=True)
+            _, f = tempfile.mkstemp(prefix="tvm_tuning_errors_", suffix=".log", text=True)
             with open(f, "w") as file:
                 file.write("\n".join(errors))
             logging.warning(
