@@ -19,10 +19,9 @@
 from tvm.ir import IRModule, TypeCall
 from tvm.tir import Any
 from tvm.relay.transform import ToANormalFormExpr
-from tvm.parser import AnnotateSpans
 
 from .ty import GlobalTypeVar, TensorType, scalar_type
-from .expr import Var, GlobalVar, If, const, Tuple
+from .expr import Var, GlobalVar, If, const
 from .function import Function
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
@@ -1462,6 +1461,7 @@ class Prelude:
         for ctor in ctors:
             if ctor.name_hint == name:
                 return ctor
+        raise Exception(f"could not find {name}")
 
     def get_tensor_ctor(self, canonical, dtype):
         ty = self.get_type("tensor_t", dtype)
@@ -1489,6 +1489,7 @@ class Prelude:
         for ctor in ctors:
             if ctor.name_hint == name:
                 return ctor
+        raise Exception(f"could not find {name}")
 
     def get_tensor_ctor_static(self, name, dtype, shape):
         """Get constructor corresponding to the canonical name"""
