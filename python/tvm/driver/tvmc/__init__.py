@@ -20,3 +20,4 @@ TVMC - TVM driver command-line interface
 
 from . import autotuner
 from . import compiler
+from . import runner
