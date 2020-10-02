@@ -178,8 +178,10 @@ class Tuner(object):
 
         if error_ct == i:
             logging.warning(
-                "Could not find a single schedule for task %s. A fallback config will be used. The following errors occured:\n  %s"
-                % (self.task, "\n  ".join(errors))
+                "Could not find a single schedule for task %s. A fallback config will be used. "
+                "The following errors occured:\n  %s",
+                self.task,
+                "\n  ".join(errors),
             )
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
