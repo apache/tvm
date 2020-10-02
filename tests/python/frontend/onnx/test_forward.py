@@ -945,6 +945,7 @@ def test_batch_matmul():
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4))
     verify_batch_matmul((2, 4, 3), (3, 4))
     verify_batch_matmul((2, 3, 4, 3), (3, 4))
+    verify_batch_matmul((1, 4, 3), (2, 3, 4))
 
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):

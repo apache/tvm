@@ -851,14 +851,15 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
-  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
-      << "BatchDot: batch dimension doesn't match, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
+  //CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+  //    << "BatchDot: batch dimension doesn't match, "
+  //    << " x shape=" << x->shape << ", y shape=" << y->shape;
   CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
       << "BatchDot: shapes of x and y is inconsistent, "
       << " x shape=" << x->shape << ", y shape=" << y->shape;
 
   Array<tvm::PrimExpr> oshape = x->shape;
+  oshape.Set(0, max(x->shape[0], y->shape[0]));
   oshape.Set(2, y->shape[1]);
 
   // assign output type

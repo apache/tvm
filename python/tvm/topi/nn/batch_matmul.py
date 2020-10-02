@@ -22,7 +22,7 @@ from ..util import get_const_tuple
 
 def batch_matmul(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch.
+    data in batch. Supports broadcasting for batch dimension.
 
     Parameters
     ----------
@@ -40,11 +40,16 @@ def batch_matmul(x, y):
     assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     x_shape = get_const_tuple(x.shape)
     y_shape = get_const_tuple(y.shape)
-    assert x_shape[0] == y_shape[0], "batch dimension doesn't match"
+    XB = x_shape[0]
+    YB = y_shape[0]
+    assert (XB == YB) or (XB == 1) or (YB == 1), "batch dimension doesn't match"
     assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
-    batch, M, K = x.shape
+    _, M, K = x.shape
+    batch = max(XB, YB)
     N = y.shape[1]
     k = te.reduce_axis((0, K), name="k")
     return te.compute(
-        (batch, M, N), lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k), tag="batch_matmul"
+        (batch, M, N),
+        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
+        tag="batch_matmul",
     )

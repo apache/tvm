@@ -32,16 +32,16 @@ _batch_matmul_implement = {
 }
 
 
-def verify_batch_matmul(batch, M, N, K):
-    x = te.placeholder((batch, M, K), name="x")
-    y = te.placeholder((batch, N, K), name="y")
+def verify_batch_matmul(x_batch, y_batch, M, N, K):
+    x = te.placeholder((x_batch, M, K), name="x")
+    y = te.placeholder((y_batch, N, K), name="y")
     dtype = x.dtype
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_batch_matmul")
     def get_ref_data():
-        a_np = np.random.uniform(size=(batch, M, K)).astype(dtype)
-        b_np = np.random.uniform(size=(batch, N, K)).astype(dtype)
+        a_np = np.random.uniform(size=(x_batch, M, K)).astype(dtype)
+        b_np = np.random.uniform(size=(y_batch, N, K)).astype(dtype)
         c_np = tvm.topi.testing.batch_matmul(a_np, b_np)
         return (a_np, b_np, c_np)
 
@@ -67,10 +67,13 @@ def verify_batch_matmul(batch, M, N, K):
 
 @tvm.testing.uses_gpu
 def test_batch_matmul():
-    verify_batch_matmul(1, 16, 16, 32)
-    verify_batch_matmul(5, 16, 16, 32)
-    verify_batch_matmul(5, 16, 20, 32)
-    verify_batch_matmul(30, 16, 20, 32)
+    verify_batch_matmul(1, 1, 16, 16, 32)
+    verify_batch_matmul(5, 5, 16, 16, 32)
+    verify_batch_matmul(5, 5, 16, 20, 32)
+    verify_batch_matmul(30, 30, 16, 20, 32)
+    # Test batch broadcasting.
+    verify_batch_matmul(1, 5, 16, 16, 32)
+    verify_batch_matmul(5, 1, 16, 16, 32)
 
 
 if __name__ == "__main__":

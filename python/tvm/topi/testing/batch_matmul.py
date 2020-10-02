@@ -35,9 +35,10 @@ def batch_matmul(x, y):
     out : numpy.ndarray
         3-D with shape [batch, M, N]
     """
-    batch, M, _ = x.shape
-    N = y.shape[1]
+    XB, M, _ = x.shape
+    YB, N, _ = y.shape
+    batch = max(XB, YB)
     out = np.zeros((batch, M, N)).astype(x.dtype)
     for i in range(batch):
-        out[i] = np.dot(x[i], y[i].T)
+        out[i] = np.dot(x[i if XB != 1 else 0], y[i if YB != 1 else 0].T)
     return out

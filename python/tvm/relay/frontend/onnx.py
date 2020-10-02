@@ -499,18 +499,14 @@ class MatMul(OnnxOpConverter):
             # Convert a and b into 3 dimensional tensors.
             a = _op.reshape(inputs[0], [-1, a_shape[-2], a_shape[-1]])
             b = _op.reshape(inputs[1], [-1, b_shape[-2], b_shape[-1]])
-            # Broadcast b to match batch size of a
-            new_b_shape = list(infer_shape(b))
-            new_a_shape = infer_shape(a)
-            if new_a_shape[0] > new_b_shape[0]:
-                new_b_shape[0] = new_a_shape[0]
-                b = _op.broadcast_to(b, new_b_shape)
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
+            # Determine output batch dim.
+            batch = a_shape[0] if (len(a_shape) != len(b_shape)) else max(a_shape[0], b_shape[0])
             # Reshape output to original dimensions.
-            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+            return _op.reshape(output, [batch, *a_shape[1:-2], a_shape[-2], b_shape[-1]])
         # Otherwise a simple dense op will get the job done.
         input_1_t = _op.transpose(inputs[1], axes=(1, 0))
         return _op.nn.dense(inputs[0], input_1_t)
