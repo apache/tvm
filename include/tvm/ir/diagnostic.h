@@ -69,7 +69,7 @@ extern const char* kTVM_INTERNAL_ERROR_MESSAGE;
 #define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
 #define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
 #define ICHECK_NOTNULL(x)                                                                        \
-  ((x) == NULL ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                              \
+  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                              \
                      << kTVM_INTERNAL_ERROR_MESSAGE << __INDENT << "Check not null: " #x << ' ', \
    (x) : (x))  // NOLINT(*)
 
@@ -95,7 +95,7 @@ class DiagnosticNode : public Object {
   /*! \brief The span at which to report an error. */
   Span span;
   /*! \brief The diagnostic message. */
-  std::string message;
+  String message;
 
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) {
