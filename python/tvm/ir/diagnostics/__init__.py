@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name
 """
 The diagnostic interface to TVM, used for reporting and rendering
-diagnostic information about the compiler. This module exposes
-three key abstractions a Diagnostic, the DiagnosticContext,
+diagnostic information by the compiler. This module exposes
+three key abstractions: a Diagnostic, the DiagnosticContext,
 and the DiagnosticRenderer.
 """
 import enum
@@ -28,10 +28,20 @@ from ... import get_global_func, register_func, Object
 
 
 def get_default_renderer():
+    """
+    Get the default diagnostic renderer.
+
+    Returns
+    -------
+    renderer_factory: Callable[[], DiagnosticRenderer]
+    """
     return _ffi_api.DefaultRenderer
 
 
 def set_default_renderer(render_func):
+    """
+    Sets a renderer factory function which when called produces a new diagnostic renderer.
+    """
     def _render_factory():
         return DiagnosticRenderer(render_func)
 
@@ -39,6 +49,7 @@ def set_default_renderer(render_func):
 
 
 class DiagnosticLevel(enum.IntEnum):
+    """The diagnostic level, see diagnostic.h for more details."""
     BUG = 10
     ERROR = 20
     WARNING = 30
@@ -53,14 +64,24 @@ class Diagnostic(Object):
     def __init__(self, level, span, message):
         self.__init_handle_by_constructor__(_ffi_api.Diagnostic, level, span, message)
 
-
-# Register the diagnostic renderer.
 @tvm._ffi.register_object("DiagnosticRenderer")
 class DiagnosticRenderer(Object):
+    """
+    A diagnostic renderer, which given a diagnostic context produces a "rendered"
+    form of the diagnostics for either human or computer consumption.
+    """
     def __init__(self, render_func):
         self.__init_handle_by_constructor__(_ffi_api.DiagnosticRenderer, render_func)
 
     def render(self, ctx):
+        """
+        Render the provided context.
+
+        Params
+        ------
+        ctx: DiagnosticContext
+            The diagnostic context to render.
+        """
         return _ffi_api.DiagnosticRendererRender(self, ctx)
 
 
@@ -76,7 +97,9 @@ class DiagnosticContext(Object):
         self.__init_handle_by_constructor__(_ffi_api.DiagnosticContext, module, renderer)
 
     def emit(self, diagnostic):
+        """Emit a diagnostic."""
         _ffi_api.Emit(self, diagnostic)
 
     def render(self):
+        """Render the current context using its renderer member."""
         _ffi_api.DiagnosticContextRender(self)
