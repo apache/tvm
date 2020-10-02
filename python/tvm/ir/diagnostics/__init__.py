@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """
-The diagnostic interface to TVM, uses for reporting and rendering
+The diagnostic interface to TVM, used for reporting and rendering
 diagnostic information about the compiler. This module exposes
 three key abstractions a Diagnostic, the DiagnosticContext,
 and the DiagnosticRenderer.

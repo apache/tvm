@@ -118,7 +118,7 @@ class TypeReporterNode : public Object {
    * \brief Set the location at which to report unification errors.
    * \param span The span at which to report the error.
    */
-  TVM_DLL virtual void SetLocation(const Span& span) = 0;
+  TVM_DLL virtual void SetSpan(const Span& span) = 0;
 
   TVM_DLL virtual Span GetSpan() = 0;
 

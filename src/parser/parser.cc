@@ -605,9 +605,9 @@ class Parser {
     return ast;
   }
 
-  /*! \brief Parse a meta reference this is of the form `meta[type_key][node_index]`.
+  /*! \brief Parse a meta reference of the form `meta[type_key][node_index]`.
    * For example `meta[relay.Constant][0]` references the first constant, `meta[relay.Constant][1]`
-   * and so on.
+   * the second, and so on.
    */
   ObjectRef ParseMetaRef() {
     auto meta_ref = Match(TokenType::kMetaReference);

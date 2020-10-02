@@ -60,7 +60,7 @@ extern const char* kTVM_INTERNAL_ERROR_MESSAGE;
 #define ICHECK(x)                                    \
   if (!(x))                                          \
   dmlc::LogMessageFatal(__FILE__, __LINE__).stream() \
-      << kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << ": "
+      << kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << " == false : "
 
 #define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
 #define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
