@@ -229,17 +229,17 @@ void ReportAt(const DiagnosticContext& context, std::ostream& out, const Span& s
 
   // If the source name is not in the current source map, sources were not annotated.
   if (it == context->module->source_map->source_map.end()) {
-    LOG(FATAL) << "The source maps are not populated for this module."
+    LOG(FATAL) << "The source maps are not populated for this module. "
                << "Please use `tvm.relay.transform.AnnotateSpans` to attach source maps for error "
-                  "reporting."
+                  "reporting. "
                << "Error: " << diagnostic->message;
   }
 
   auto source = (*it).second;
   DLOG(INFO) << "Source: " << std::endl << source->source;
 
-  DLOG(INFO) << "ReportAt"
-             << "span = " << span << "msg = " << diagnostic->message;
+  DLOG(INFO) << "ReportAt "
+             << "span = " << span << " msg = " << diagnostic->message;
 
   auto line_text = source.GetLine(span->line);
 
