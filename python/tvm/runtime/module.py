@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel
 """Runtime Module namespace."""
+import os
 import ctypes
 import struct
 from collections import namedtuple
@@ -393,13 +394,17 @@ def load_module(path, fmt=""):
     This function will automatically call
     cc.create_shared if the path is in format .o or .tar
     """
+
+    # c++ compiler/linker
+    cc = os.environ.get("CXX", "g++")
+
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
         # Extra dependencies during runtime.
         from tvm.contrib import cc as _cc
 
-        _cc.create_shared(path + ".so", path)
+        _cc.create_shared(path + ".so", path, cc=cc)
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
@@ -408,7 +413,7 @@ def load_module(path, fmt=""):
         tar_temp = _util.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-        _cc.create_shared(path + ".so", files)
+        _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
     # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
     elif path.endswith(".obj"):
