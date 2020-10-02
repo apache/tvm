@@ -182,7 +182,7 @@ class Tuner(object):
             with open(f, "w") as file:
                 file.write("\n".join(errors))
             logging.warning(
-                "Could not find a single schedule for task %s. "
+                "Could not find any valid schedule for task %s. "
                 "A file containing the errors has been written to %s.",
                 self.task,
                 f,
