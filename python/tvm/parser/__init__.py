@@ -36,8 +36,5 @@ def fromtext(source, source_name="from_string"):
 
 
 def SpanCheck():
+    """A debugging utility for reporting missing span information."""
     return _ffi_api.SpanCheck()
-
-
-def AnnotateSpans():
-    return _ffi_api.AnnotateSpans()

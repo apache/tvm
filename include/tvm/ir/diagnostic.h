@@ -241,10 +241,20 @@ class DiagnosticContext : public ObjectRef {
   TVM_DLL DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer);
   TVM_DLL static DiagnosticContext Default(const IRModule& source_map);
 
-  /*! \brief Emit a diagnostic. */
+  /*! \brief Emit a diagnostic.
+   * \param diagnostic The diagnostic to emit.
+   */
   void Emit(const Diagnostic& diagnostic);
-  /*! \brief Emit a diagnostic. */
+
+  /*! \brief Emit a diagnostic and then immediately attempt to render all errors.
+   *
+   * \param diagnostic The diagnostic to emit.
+   *
+   * Note: this will raise an exception if you would like to instead continue execution
+   * use the Emit method instead.
+   */
   void EmitFatal(const Diagnostic& diagnostic);
+
   /*! \brief Render the errors and raise a DiagnosticError exception. */
   void Render();
 

@@ -756,16 +756,6 @@ class Parser {
           auto global_name = global_tok.ToString();
           auto global = AddOrGet(&global_names, global_name);
           auto func = WithSpan<relay::Function>([&]() {
-            // try {
-            //   global_names.Add(global_name, global);
-            // } catch (const DuplicateKeyError& e) {
-            //   this->diag_ctx.Emit(Diagnostic::Error(global_tok->span) << "a function with the
-            //   name "
-            //                                                           << "`@" << global_name <<
-            //                                                           "` "
-            //                                                           << "was previously
-            //                                                           defined");
-            // }
             return ParseFunctionDef();
           });
           ICHECK(func->span.defined()) << "spans must be set in parser";
@@ -799,14 +789,6 @@ class Parser {
     auto type_tok = Match(TokenType::kIdentifier);
     auto type_id = type_tok.ToString();
     auto type_global = AddOrGet(&type_names, type_id, TypeKind::kAdtHandle);
-
-    // try {
-    //   type_names.Add(type_id, type_global);
-    // } catch (const DuplicateKeyError& e) {
-    //   this->diag_ctx.Emit(Diagnostic::Error(type_tok->span) << "a type definition with the name "
-    //                                                         << "`" << type_id << "` "
-    //                                                         << "was previously defined");
-    // }
 
     Array<TypeVar> generics;
 
@@ -1708,20 +1690,6 @@ class Parser {
         head_type = AddOrGet(&type_names, name, TypeKind::kAdtHandle);
       }
 
-      // if (!var.defined()) {
-      //   // TODO(@jroesch): eventually remove this, this is a compatibility
-      //   // feature to deal with people explicitly grabbing GlobalVars which
-      //   // later may be re-allocated.
-      //   try {
-      //     this->module->GetGlobalTypeVar(ident.ToString());
-      //   } catch (const dmlc::Error& err) {
-      //     diag_ctx.Emit(
-      //         Diagnostic::Error(ident->span)
-      //         << "this type variable has not been previously declared anywhere, perhaps a
-      //         typo?");
-      //   }
-      // }
-
       if (!head_type.defined()) {
         diag_ctx.EmitFatal(Diagnostic::Error(tok->span)
                            << "the type constructor `" << name << "` is undefined");
@@ -1874,7 +1842,6 @@ IRModule ParseModule(std::string file_name, std::string file_content,
   // if there were any errors which allow the parser to procede we must render them
   // here.
   parser.diag_ctx.Render();
-  // SpanCheck()(parser.module);
   auto infer_type = tvm::relay::transform::InferType();
   ICHECK(infer_type.defined()) << "The type inferencer must be non-null.";
   return infer_type(mod);

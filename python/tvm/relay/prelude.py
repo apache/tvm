@@ -309,7 +309,6 @@ class StaticTensorArrayOps(object):
         if self.is_cached(write_name):
             return
 
-        print(write_name)
         write_var = GlobalVar(write_name)
         tensor_array = Var("tensor_array", self.list(self.tensor_type_var()))
         n = Var("x", scalar_type("int32"))

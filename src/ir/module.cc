@@ -224,11 +224,9 @@ void IRModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData
 }
 
 void IRModuleNode::AddTypeDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
+  // TODO(@jroesch): we have temporarily removed kind checking here, and will consolidate
+  // to the type checker in follow up PR.
   AddTypeDefUnchecked(var, type, update);
-  // need to kind check at the end because the check can look up
-  // a definition potentially
-  // CHECK(relay::KindCheck(type, GetRef<IRModule>(this)) == TypeKind::kTypeData)
-  //     << "Invalid or malformed typedata given to module: " << type;
 }
 
 void IRModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData& type,
