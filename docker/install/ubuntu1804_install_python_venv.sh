@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,11 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=redefined-builtin, wildcard-import
-"""rocm specific declaration and schedules."""
-from __future__ import absolute_import as _abs
+set -e
+set -u
+set -o pipefail
 
-from .batch_matmul import *
-from .conv2d import *
-from .dense import *
-from .nn import *
+# install python and pip, don't modify this, modify install_python_package.sh
+apt-get update
+apt-get install -y software-properties-common
+apt-get install -y python3-dev python3-setuptools python3-venv
+
+python3 -mvenv /opt/tvm-venv
+
+# Pin pip version
+/opt/tvm-venv/bin/pip3 install pip==19.3.1

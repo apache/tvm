@@ -837,6 +837,20 @@ def test_resnet_inlined_params():
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 
+def test_op_string_attr():
+    call = parse_text(
+        """
+        free_var %x: Tensor[(1, 32, 32, 3), float32];
+        free_var %y: Tensor[(1, 1, 3, 3), float32];
+        nn.conv2d(%x, %y, data_layout="NHWC", kernel_layout="HWIO")
+        """
+    )
+    assert isinstance(call.op, tvm.ir.Op)
+    assert call.op.name == "nn.conv2d"
+    assert call.attrs.data_layout == "NHWC"
+    assert call.attrs.kernel_layout == "HWIO"
+
+
 if __name__ == "__main__":
     import sys
 

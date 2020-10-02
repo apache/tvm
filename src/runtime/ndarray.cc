@@ -70,9 +70,12 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
   CHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
+  CHECK(IsContiguous(*handle)) << "ArrayCopyFromBytes only support contiguous array for now";
   DeviceAPI::Get(handle->ctx)
       ->CopyDataFromTo(data, 0, handle->data, static_cast<size_t>(handle->byte_offset), nbytes,
                        cpu_ctx, handle->ctx, handle->dtype, nullptr);
+  // Synchronize in case data become unavailable later.
+  DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
 }
 
 void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
@@ -81,9 +84,12 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
   CHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
+  CHECK(IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
   DeviceAPI::Get(handle->ctx)
       ->CopyDataFromTo(handle->data, static_cast<size_t>(handle->byte_offset), data, 0, nbytes,
                        handle->ctx, cpu_ctx, handle->dtype, nullptr);
+  // Synchronize in case data become unavailable later.
+  DeviceAPI::Get(handle->ctx)->StreamSync(handle->ctx, nullptr);
 }
 
 struct NDArray::Internal {

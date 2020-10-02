@@ -412,7 +412,7 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
 
 template <>
 inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kTVMStr) {
+  if (String::CanConvertFrom(val)) {
     *ptr = val.operator std::string();
   } else {
     LOG(FATAL) << "Expect str";
