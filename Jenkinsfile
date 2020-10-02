@@ -257,7 +257,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('cpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run}" ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
         }
       }
     }
