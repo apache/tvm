@@ -2409,6 +2409,13 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
     For convenience, we rename the `real` input names to "input_0",
     "input_1"... And renaming parameters to "param_0", "param_1"...
 
+    By default, ONNX defines models in terms of dynamic shapes. The ONNX importer
+    retains that dynamism upon import, and the compiler attempts to convert the
+    model into a static shapes at compile time. If this fails, there may still
+    be dynamic operations in the model. Not all TVM kernels currently support
+    dynamic shapes, please file an issue on discuss.tvm.ai
+    if you hit an error with dynamic kernels.
+
     Parameters
     ----------
     model : protobuf object
