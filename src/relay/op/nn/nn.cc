@@ -33,9 +33,9 @@
 #include <tvm/topi/nn/flatten.h>
 #include <tvm/topi/nn/softmax.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include "../../transforms/infer_layout_util.h"
 #include "../make_op.h"
