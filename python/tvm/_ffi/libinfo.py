@@ -70,7 +70,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     if os.environ.get("TVM_LIBRARY_PATH", None):
         dll_path.append(os.environ["TVM_LIBRARY_PATH"])
 
-    if sys.platform.startswith("linux"):
+    if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         dll_path.extend(split_env_var("LD_LIBRARY_PATH", ":"))
         dll_path.extend(split_env_var("PATH", ":"))
     elif sys.platform.startswith("darwin"):
