@@ -66,12 +66,6 @@ typed_ast = "^1.4"
 # AutoTVM
 xgboost = {version = "^1.1", optional = true}
 
-# Dev dependencies (lint, testing, and docs)
-autodocsumm = "^0.1.13"
-cpplint = "^1.5"
-pylint = "^2.4"
-pytest = "^6"
-
 #############
 # Importers #
 #############
@@ -117,6 +111,7 @@ importer-coreml = ["coremltools"]
 importer-darknet = ["opencv-python"]
 importer-keras = ["tensorflow", "tensorflow-estimator"]
 importer-onnx = ["onnx", "onnxruntime", "torch", "torchvision", "future"]
+importer-pytorch = ["torch", "torchvision", "future"]
 importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
 importer-tflite = ["tlfite", "tensorflow", "tensorflow-estimator"]
 
