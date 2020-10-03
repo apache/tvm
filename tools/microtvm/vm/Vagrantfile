@@ -1,0 +1,38 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "areusch/microtvm-staging"
+  config.vm.provision "file", source: "setup-workspace.sh", destination: "~/setup-workspace.sh"
+
+  dirs_to_mount = [Pathname.new(Pathname.new("../../..").expand_path())]
+
+  git_file = Pathname.new("../../../.git")
+  if git_file.ftype() == "file" then
+    gitdir_match = Regexp.new('^gitdir: (?<gitdir>.*/.git).*\n$', Regexp::MULTILINE).match(git_file.read())
+    if !gitdir_match.nil? then
+      dirs_to_mount.append(Pathname.new(gitdir_match.named_captures["gitdir"]))
+      puts "NOTE: also configuring git-worktree gitdir: %s" % [dirs_to_mount[-1]]
+    end
+  end
+
+  num = 0
+  dirs_to_mount.each do |d|
+    num += 1
+    config.vm.synced_folder d.to_s, d.to_s, mount_options: ["share", "nosuid", "host_inodes"]
+  end
+
+  config.vm.provision "shell", path: "setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}
+
+  # Enable USB Controller on VirtualBox
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "microtvm"
+    vb.customize ["modifyvm", :id, "--usb", "on"]
+    vb.customize ["modifyvm", :id, "--usbehci", "on"]
+    vb.customize ["modifyvm", :id, "--usbxhci", "on"]
+  end
+
+  config.vm.provider "parallels" do |prl|
+    prl.name = "microtvm"
+    prl.update_guest_tools = true
+    prl.customize ["set", :id, "--support-usb30", "on"]
+  end
+
+end

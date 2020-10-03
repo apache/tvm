@@ -1,0 +1,6 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/ubuntu2004"
+
+  load "Vagrantfile.provision"
+  microtvm_provision config, "."
+end

@@ -1,0 +1,18 @@
+../../python/tvm
+mxnet==1.6.0
+numpy==1.19.0
+tensorflow==2.1.0
+autodocsumm>=0.1.13
+pyserial>=3.4
+tflite==2.1.0
+keras==2.3.1
+tensorflow-estimator==2.1.0
+pyelftools = "*"
+sphinx-autobuild = "^0.7.1"
+jupyterlab = "^2.2.0"
+exhale = "^0.2.3"
+antlr4-python3-runtime = "^4.8"
+cpplint = "^1.5.3"
+pylint = "^2.5.3"
+west = "^0.7.3"
+pyusb = "^1.0.2"

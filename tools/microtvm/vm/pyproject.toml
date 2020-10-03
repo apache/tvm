@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "incubator-tvm"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+tvm = {path = "python"}
+mxnet = "1.6.0"
+pillow = "< 7"
+numpy = "^1.19.0"
+tensorflow = "2.1.0"
+autodocsumm = "^0.1.13"
+pyserial = "^3.4"
+tflite = "2.1.0"
+keras = "2.3.1"
+tensorflow-estimator = "2.1.0"
+pyelftools = "*"
+sphinx-autobuild = "^0.7.1"
+jupyterlab = "^2.2.0"
+exhale = "^0.2.3"
+antlr4-python3-runtime = "^4.8"
+cpplint = "^1.5.3"
+pylint = "^2.5.3"
+west = "^0.7.3"
+pyusb = "^1.0.2"
+
+[tool.poetry.dev-dependencies]
+sphinx = ">=1.5.5"
+sphinx-gallery = "^0.7.0"
+sphinx_rtd_theme = "*"
+matplotlib = "*"
+Image = "*"
+recommonmark = "*"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"

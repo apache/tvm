@@ -1,0 +1,6 @@
+def microtvm_provision(config, base_dir)
+    # microTVM provisioning.
+    config.vm.provision "file", source: base_dir + "/kitware-archive-latest.asc", destination: "~/kitware-archive-latest.asc"
+    config.vm.provision "file", source: base_dir + "/setup-tvm-user.sh", destination: "~/setup-tvm-user.sh"
+    config.vm.provision "shell", path: base_dir + "/setup.sh"
+end

@@ -1,0 +1,28 @@
+Vagrant.configure("2") do |config|
+  # From hashicorp default template:
+  # https://github.com/hashicorp/packer/blob/master/builder/vagrant/step_create_vagrantfile.go#L23-L37
+
+  config.vm.define "source" do |source|
+    source.vm.box = "{{.SourceBox}}"
+    config.ssh.insert_key = {{.InsertKey}}
+  end
+
+  config.vm.define "output" do |output|
+    output.vm.box = "{{.BoxName}}"
+    output.vm.box_url = "file://package.box"
+    config.ssh.insert_key = {{.InsertKey}}
+  end
+
+  {{ if ne .SyncedFolder "" -}}
+    config.vm.synced_folder "{{.SyncedFolder}}", "/vagrant"
+  {{- else -}}
+    config.vm.synced_folder ".", "/vagrant", disabled: true
+  {{- end}}
+
+  if File.exist?("Vagrantfile.provision")
+      load "Vagrantfile.provision"
+  else
+      load "../Vagrantfile.provision"
+  end
+  microtvm_provision config, ".."
+end
