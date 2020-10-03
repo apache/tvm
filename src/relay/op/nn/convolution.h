@@ -100,7 +100,9 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "Conv1D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
-    CHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]));
+    if (!dshape_ncw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]));
+    }
     channels = wshape[0];
     dilated_ksize = 1 + (wshape[2] - 1) * param->dilation[0];
   }
@@ -211,7 +213,9 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "Conv2D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
-    CHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1]));
+    if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1]));
+    }
     channels = wshape[0];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
@@ -322,7 +326,9 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "Conv3D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
-    CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[1]));
+    if (!dshape_ncdhw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[1]));
+    }
     channels = wshape[0];
     dilated_ksize_z = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_y = 1 + (wshape[3] - 1) * param->dilation[1];
@@ -800,7 +806,9 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << "Conv1D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
     }
-    CHECK(reporter->AssertEQ(indexdiv(dshape_ncw[1], param->groups), wshape[0]));
+    if (!dshape_ncw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(indexdiv(dshape_ncw[1], param->groups), wshape[0]));
+    }
     channels = wshape[1];
     dilated_ksize_x = 1 + (wshape[2] - 1) * param->dilation[0];
   }
@@ -808,8 +816,12 @@ bool Conv1DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   IndexExpr pad_w;
   GetPaddingWidth(param->padding, &pad_w);
   Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
-  oshape.Set(2, (param->strides[0] * (dshape_ncw[2] - 1) + dilated_ksize_x - pad_w +
-                 param->output_padding[0]));
+  if (!dshape_ncw[2].as<tir::AnyNode>()) {
+    oshape.Set(2, (param->strides[0] * (dshape_ncw[2] - 1) + dilated_ksize_x - pad_w +
+                   param->output_padding[0]));
+  } else {
+    oshape.Set(2, dshape_ncw[2]);
+  }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
@@ -890,7 +902,9 @@ bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << "Conv3D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
     }
-    CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[0]));
+    if (!dshape_ncdhw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[0]));
+    }
     channels = wshape[1];
     dilated_ksize_d = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
@@ -901,12 +915,25 @@ bool Conv3DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   Array<IndexExpr> oshape({dshape_ncdhw[0], channels, 0, 0, 0});
   IndexExpr pad_d, pad_h, pad_w;
   GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
-  oshape.Set(2, (param->strides[0] * (dshape_ncdhw[2] - 1) + dilated_ksize_d - pad_d +
-                 param->output_padding[0]));
-  oshape.Set(3, (param->strides[1] * (dshape_ncdhw[3] - 1) + dilated_ksize_y - pad_h +
-                 param->output_padding[1]));
-  oshape.Set(4, (param->strides[2] * (dshape_ncdhw[4] - 1) + dilated_ksize_x - pad_w +
-                 param->output_padding[2]));
+
+  if (!dshape_ncdhw[2].as<tir::AnyNode>()) {
+    oshape.Set(2, (param->strides[0] * (dshape_ncdhw[2] - 1) + dilated_ksize_d - pad_d +
+                   param->output_padding[0]));
+  } else {
+    oshape.Set(2, dshape_ncdhw[2]);
+  }
+  if (!dshape_ncdhw[3].as<tir::AnyNode>()) {
+    oshape.Set(3, (param->strides[1] * (dshape_ncdhw[3] - 1) + dilated_ksize_y - pad_h +
+                   param->output_padding[1]));
+  } else {
+    oshape.Set(3, dshape_ncdhw[3]);
+  }
+  if (!dshape_ncdhw[4].as<tir::AnyNode>()) {
+    oshape.Set(4, (param->strides[2] * (dshape_ncdhw[4] - 1) + dilated_ksize_x - pad_w +
+                   param->output_padding[2]));
+  } else {
+    oshape.Set(4, dshape_ncdhw[4]);
+  }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
@@ -985,7 +1012,9 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
           << "Conv2D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << Array<IndexExpr>(wshape);
     }
-    CHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[0]));
+    if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[0].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[0]));
+    }
     channels = wshape[1];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
@@ -994,10 +1023,18 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y - pad_h +
-                 param->output_padding[0]));
-  oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x - pad_w +
-                 param->output_padding[1]));
+  if (!dshape_nchw[2].as<tir::AnyNode>()) {
+    oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y - pad_h +
+                   param->output_padding[0]));
+  } else {
+    oshape.Set(2, dshape_nchw[2]);
+  }
+  if (!dshape_nchw[3].as<tir::AnyNode>()) {
+    oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x - pad_w +
+                   param->output_padding[1]));
+  } else {
+    oshape.Set(3, dshape_nchw[3]);
+  }
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
@@ -1053,7 +1090,9 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
           << "DeformableConv2D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
-    CHECK(reporter->AssertEQ(indexdiv(data->shape[1], param->groups), wshape[1]));
+    if (!data->shape[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(indexdiv(data->shape[1], param->groups), wshape[1]));
+    }
     channels = wshape[0];
     ksize_y = wshape[2];
     ksize_x = wshape[3];

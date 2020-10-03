@@ -851,15 +851,26 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
-  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
-      << "BatchDot: batch dimension doesn't match, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
-  CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
-      << "BatchDot: shapes of x and y is inconsistent, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
+  bool is_dyn = false;
+  Array<tvm::PrimExpr> oshape;
+  for (size_t i = 0; i < 3; ++i) {
+    if (x->shape[i].as<tir::AnyNode>() != nullptr || y->shape[i].as<tir::AnyNode>() != nullptr) {
+      is_dyn = true;
+      oshape.push_back(Any());
+    } else {
+      oshape.push_back(x->shape[i]);
+    }
+  }
+  if (!is_dyn) {
+    CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+        << "BatchDot: batch dimension doesn't match, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
+    CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+        << "BatchDot: shapes of x and y is inconsistent, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
 
-  Array<tvm::PrimExpr> oshape = x->shape;
-  oshape.Set(2, y->shape[1]);
+    oshape.Set(2, y->shape[1]);
+  }
 
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, x->dtype));
@@ -1021,9 +1032,15 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
-  oshape.Set(2, oshape[2] * block_size);
-  oshape.Set(3, oshape[3] * block_size);
+  if (!oshape[1].as<tir::AnyNode>()) {
+    oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
+  }
+  if (!oshape[2].as<tir::AnyNode>()) {
+    oshape.Set(2, oshape[2] * block_size);
+  }
+  if (!oshape[3].as<tir::AnyNode>()) {
+    oshape.Set(3, oshape[3] * block_size);
+  }
 
   // Assign output type
   reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
@@ -1078,9 +1095,15 @@ bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, oshape[1] * (block_size * block_size));
-  oshape.Set(2, indexdiv(oshape[2], block_size));
-  oshape.Set(3, indexdiv(oshape[3], block_size));
+  if (!oshape[1].as<tir::AnyNode>()) {
+    oshape.Set(1, oshape[1] * (block_size * block_size));
+  }
+  if (!oshape[2].as<tir::AnyNode>()) {
+    oshape.Set(2, indexdiv(oshape[2], block_size));
+  }
+  if (!oshape[3].as<tir::AnyNode>()) {
+    oshape.Set(3, indexdiv(oshape[3], block_size));
+  }
 
   // Assign output type
   reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));

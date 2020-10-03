@@ -28,31 +28,12 @@ from .. import function as _function
 from .. import op as _op
 from .. import vision as _vision
 
-from ..function import Function
-from ..expr import Call, Let
-from ..expr import If, Tuple, TupleGetItem
-from ..expr import RefCreate, RefRead, RefWrite
-from ..expr_functor import ExprFunctor
-from ..adt import Match, Clause
-from ..op.tensor import minimum as _minimum, maximum as _maximum
-
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
 from .common import infer_type, get_name
-from .common import infer_value as _infer_value
-from .common import infer_value_simulated as _infer_value_simulated
+
 
 __all__ = ["from_onnx"]
-
-g = None
-
-
-def infer_value(input_val, params, mod=None):
-    return g.infer_value(input_val, params, mod)
-
-
-def infer_value_simulated(input_val, params):
-    return g.infer_value_simulated(input_val, params)
 
 
 class onnx_input:
@@ -256,21 +237,28 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        input_shape = infer_shape(inputs[0])
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                pad_tuple = []
-                for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
-                    stride = attr["strides"][axis]
-                    kernel = attr["kernel_shape"][axis]
-                    pad = get_pad_pair(axis_shape, kernel, stride)
-                    pad_tuple.append(pad)
-                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr["pads"] = pad_tuple
+                if cls.name == "avg_pool":
+                    pad_tuple = []
+                    for axis in range(len(input_shape) - 2):
+                        axis_shape = input_shape[2 + axis]
+                        stride = attr["strides"][axis]
+                        kernel = attr["kernel_shape"][axis]
+                        pad = get_pad_pair(axis_shape, kernel, stride)
+                        pad_tuple.append(pad)
+                    pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                    attr["pads"] = pad_tuple
+                else:
+                    # Warning: Pool does not yet support dynamic shapes,
+                    # one will need to run dynamic_to_static on this model after import
+                    data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = 0
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -290,7 +278,7 @@ class Pool(OnnxOpConverter):
             transforms={"kernel_shape": "pool_size", "pads": ("padding", 0)},
             ignores=["dilations", "storage_order"],
             custom_check=dimension_constraint(),
-        )(inputs, attr, params)
+        )([data], attr, params)
 
 
 class Absolute(Unary):
@@ -331,29 +319,68 @@ class InstanceNorm(OnnxOpConverter):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
 
 
+def autopad(data, strides, kernel_shape, dilations, ndim, pad_type="constant", deconv=False):
+    """
+    Perform autopadding with dynamic input shapes
+    """
+    # get attributes as constants
+    strides = _op.const(np.array(strides), dtype="int64")
+    dilated_kernel_shape = _op.const(
+        np.array(
+            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
+        ),
+        dtype="int64",
+    )
+    shape = _op.strided_slice(_op.shape_of(data, dtype="int64"), [2], [ndim])
+    # get input shape
+
+    # set up integer constants
+    zero = _op.const(0, dtype="int64")
+    one = _op.const(1, dtype="int64")
+    two = _op.const(2, dtype="int64")
+
+    # Calculate total padding
+    mod = _op.mod(shape, strides)
+
+    left = _op.maximum(dilated_kernel_shape - strides, zero)
+    right = _op.maximum(dilated_kernel_shape - mod, zero)
+
+    total_pad = _op.where(_op.equal(mod, zero), left, right)
+    if deconv:
+        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
+
+    # split total padding into before and after
+    pad_before = _op.floor_divide(total_pad, two)
+    pad_after = total_pad - pad_before
+
+    # combine
+    pad = _op.concatenate(
+        [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
+    )
+
+    # pad N and C with zeros
+    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
+
+    return _op.nn.pad(data, pad, _op.const(0.0), pad_type)
+
+
 class Conv(OnnxOpConverter):
     """Operator converter for Conv."""
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # Use shape of input to determine convolution type.
-        input_shape = infer_shape(inputs[0])
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                pad_tuple = []
-                for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
-                    stride = attr["strides"][axis]
-                    kernel = attr["kernel_shape"][axis]
-                    dilation = attr["dilations"][axis]
-                    dilated_kernel = (kernel - 1) * dilation + 1
-                    pad = get_pad_pair(axis_shape, dilated_kernel, stride)
-                    pad_tuple.append(pad)
-                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr["pads"] = pad_tuple
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                data = autopad(data, attr["strides"], attr["kernel_shape"], attr["dilations"], ndim)
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = tuple([0 for i in range(len(input_shape) - 2)])
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -381,7 +408,7 @@ class Conv(OnnxOpConverter):
                 "group": ("groups", 1),
             },
             custom_check=dimension_constraint(),
-        )(inputs[:2], attr, params)
+        )([data, inputs[1]], attr, params)
 
         use_bias = len(inputs) == 3
         if use_bias:
@@ -400,21 +427,24 @@ class ConvTranspose(OnnxOpConverter):
         groups = attr.pop("group")
         attr["groups"] = groups
         # infer pads for auto_pad
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                input_shape = infer_shape(inputs[0])
-                in_h, in_w = input_shape[2], input_shape[3]
-                stride_h, stride_w = attr["strides"]
-                kernel_h, kernel_w = attr["kernel_shape"]
-                dilation_h, dilation_w = attr["dilations"]
-                dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-                dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-                pad_v = get_pad_pair(in_h, dilated_kernel_h, stride_h)
-                pad_h = get_pad_pair(in_w, dilated_kernel_w, stride_w)
-                attr["pads"] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                data = autopad(
+                    data,
+                    attr["strides"],
+                    attr["kernel_shape"],
+                    attr["dilations"],
+                    ndim,
+                    deconv=True,
+                )
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = (0, 0)
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -426,12 +456,13 @@ class ConvTranspose(OnnxOpConverter):
             op_name=dimension_picker("conv", "_transpose"),
             transforms={
                 "kernel_shape": "kernel_size",
-                "dilations": ("dilation", (0, 0)),
-                "pads": ("padding", (0, 0), revert_caffe2_pad),
+                "dilations": ("dilation", 1),
+                "pads": ("padding", 0),
+                "group": ("groups", 1),
             },
             disables=["output_shape"],
             custom_check=dimension_constraint(),
-        )(inputs[:2], attr, params)
+        )([data, inputs[1]], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -492,25 +523,46 @@ class MatMul(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
         # Need to check input shape as batch matmul must be supported.
-        a_shape = infer_shape(inputs[0])
+        a_shape = _op.shape_of(inputs[0])
         # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if len(a_shape) > 2:
-            b_shape = infer_shape(inputs[1])
+        if infer_shape(a_shape)[0] > 2:
+            b_shape = _op.shape_of(inputs[1])
+
+            def flatten_to_3d(x, x_shape):
+                ndims = infer_shape(x_shape)[0]
+                newshape = _op.concatenate(
+                    [_expr.const([-1]), _op.strided_slice(x_shape, [ndims - 2], [ndims])], 0
+                )
+                out = _op.reshape(x, newshape)
+                return out
+
             # Convert a and b into 3 dimensional tensors.
-            a = _op.reshape(inputs[0], [-1, a_shape[-2], a_shape[-1]])
-            b = _op.reshape(inputs[1], [-1, b_shape[-2], b_shape[-1]])
+            a = flatten_to_3d(inputs[0], a_shape)
+            b = flatten_to_3d(inputs[1], b_shape)
             # Broadcast b to match batch size of a
-            new_b_shape = list(infer_shape(b))
-            new_a_shape = infer_shape(a)
-            if new_a_shape[0] > new_b_shape[0]:
-                new_b_shape[0] = new_a_shape[0]
-                b = _op.broadcast_to(b, new_b_shape)
+            new_b_shape = _op.concatenate(
+                [
+                    _op.strided_slice(_op.shape_of(a), [0], [1]),
+                    _op.strided_slice(_op.shape_of(b), [1], [3]),
+                ],
+                0,
+            )
+            b = _op.broadcast_to(b, new_b_shape)
             # Transpose matrix dimensions of b.
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
             # Reshape output to original dimensions.
-            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+            final_shape = _op.concatenate(
+                [
+                    _op.strided_slice(a_shape, [0], [infer_shape(a_shape)[0] - 1]),
+                    _op.strided_slice(
+                        b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                    ),
+                ],
+                0,
+            )
+            return _op.reshape(output, final_shape)
         # Otherwise a simple dense op will get the job done.
         input_1_t = _op.transpose(inputs[1], axes=(1, 0))
         return _op.nn.dense(inputs[0], input_1_t)
@@ -545,23 +597,18 @@ class LpPool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        input_shape = infer_shape(inputs[0])
         dtype = infer_type(inputs[0]).checked_type.dtype
-
+        data = inputs[0]
+        input_shape = infer_shape(data)
+        ndim = len(input_shape)
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
-                pad_tuple = []
-                for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
-                    stride = attr["strides"][axis]
-                    kernel = attr["kernel_shape"][axis]
-                    pad = get_pad_pair(axis_shape, kernel, stride)
-                    pad_tuple.append(pad)
-                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
-                attr["pads"] = pad_tuple
+                # Warning: LpPool does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                data = autopad(data, attr["strides"], attr["kernel_shape"], [1] * ndim, ndim)
             elif attr["auto_pad"] == "VALID":
-                attr["pads"] = 0
+                attr["pads"] = tuple([0 for i in range(ndim - 2)])
             elif attr["auto_pad"] == "NOTSET":
                 pass
             else:
@@ -578,7 +625,7 @@ class LpPool(OnnxOpConverter):
 
         p = _expr.const(attr["p"], dtype)
         reci_p = _expr.const(1.0 / attr["p"], dtype)
-        inputs[0] = _op.power(inputs[0], p)
+        data = _op.power(data, p)
 
         out = AttrCvt(
             op_name=dimension_picker("avg_pool"),
@@ -586,7 +633,7 @@ class LpPool(OnnxOpConverter):
             extras={"count_include_pad": True},
             ignores=["p"],
             custom_check=dimension_constraint(),
-        )(inputs, attr, params)
+        )([data], attr, params)
         kernels = attr["kernel_shape"]
         out = _op.abs(out) * _expr.const(np.prod(kernels).astype(dtype))
         return _op.power(out, reci_p)
@@ -651,27 +698,23 @@ class Pad(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
-        pad_width = []
-        pads = infer_value_simulated(inputs[1], params).asnumpy()
+        pads = inputs[1]
         if len(inputs) == 3:
-            value = infer_value_simulated(inputs[2], params).asnumpy().item()
+            value = _op.take(inputs[2], _op.const(0))
         else:
             value = 0
-        attr["pad_value"] = value
-        dims = int(len(pads) / 2)
-        for i in range(dims):
-            pad_width.append((pads[i], pads[i + dims]))
-        attr["pad_width"] = pad_width
+
+        pads_shape = infer_shape(pads)
+        dims = int(pads_shape[0] / 2)
+        pad_width_expr = _op.transpose(_op.reshape(pads, (2, dims)))
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if pad_mode in ["constant", "edge", "reflect"]:
-            attr["pad_mode"] = pad_mode
-            attr.pop("mode", None)
-        else:
+
+        if not pad_mode in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
 
-        return AttrCvt("pad")(inputs[:1], attr, params)
+        return _op.nn.pad(inputs[0], pad_width_expr, value, pad_mode=pad_mode)
 
 
 class ParametricSoftPlus(OnnxOpConverter):
@@ -736,9 +779,7 @@ class Reshape(OnnxOpConverter):
             shape = tuple(params.pop(inputs[1].name_hint).asnumpy().astype("int32"))
             out = _op.reshape(inputs[0], shape)
         else:
-            data, shape = inputs
-            static_shape = infer_value_simulated(shape, params)
-            out = _op.reshape(data, newshape=tuple(static_shape.asnumpy().astype("int32")))
+            out = _op.reshape(*inputs)
         return out
 
 
@@ -883,17 +924,22 @@ class Upsample(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         scales = attr.get("scales")
+
+        input_shape = infer_shape(inputs[0])
+        dims = len(input_shape)
+
         if not scales:
             # Here we are going to higher OPSET version.
-            assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
+            assert len(inputs) == 2, "Upsample op takes 2 inputs, {} given".format(len(inputs))
+
             if get_name(inputs[1]) in params:
                 scales = params[inputs[1].name_hint].asnumpy()
             else:
-                scales = infer_value_simulated(inputs[1], params).asnumpy()
-            inputs = inputs[:1]
-        assert scales[0] == 1.0 and scales[1] == 1.0
-        input_shape = infer_shape(inputs[0])
-        dims = len(input_shape)
+                scales = inputs[1]
+
+        if not isinstance(scales, _expr.Call):
+            assert scales[0] == 1.0 and scales[1] == 1.0
+
         mode = attr.get("mode")
         if mode == b"nearest":
             method = "nearest_neighbor"
@@ -903,21 +949,47 @@ class Upsample(OnnxOpConverter):
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode)
             )
-        attr = {"scale_h": scales[-2], "scale_w": scales[-1], "method": method}
-        if dims == 5:
-            assert len(scales) == 5
-            attr["scale_d"] = scales[-3]
-            attr["layout"] = "NCDHW"
-            op_name = "upsampling3d"
+
+        if method == "nearest_neighbor":
+            align_corners = False
         else:
-            assert len(scales) == 4
-            attr["layout"] = "NCHW"
-            if method == "nearest_neighbor":
-                attr["align_corners"] = False
+            align_corners = True
+        # in 3d case, we use the purely static op
+        if dims == 5:
+            if isinstance(scales, _expr.Call):
+                scale_h = _op.take(scales, _op.const(3))
+                scale_w = _op.take(scales, _op.const(4))
+                scale_d = _op.take(scales, _op.const(1))
             else:
-                attr["align_corners"] = True
-            op_name = "upsampling"
-        return AttrCvt(op_name)(inputs, attr)
+                assert len(scales) == 5
+                scale_h = scales[-2]
+                scale_w = scales[-1]
+                scale_d = scales[-3]
+
+            layout = "NCDHW"
+            out = _op.nn.upsampling3d(
+                inputs[0], scale_d, scale_h, scale_w, layout=layout, method=method
+            )
+        # in 2d case, use dynamic op
+        else:
+            if isinstance(scales, _expr.Call):
+                scale_h = _op.take(scales, _op.const(3))
+                scale_w = _op.take(scales, _op.const(4))
+            else:
+                assert len(scales) == 4
+                scale_h = scales[-2]
+                scale_w = scales[-1]
+            layout = "NCHW"
+
+            out = _op.nn.upsampling(
+                inputs[0],
+                scale_h,
+                scale_w,
+                layout=layout,
+                method=method,
+                align_corners=align_corners,
+            )
+        return out
 
 
 class Shape(OnnxOpConverter):
@@ -970,8 +1042,7 @@ class Split(OnnxOpConverter):
                 attr["indices_or_sections"].append(index)
         # When splits isnt specified divide evenly over axis.
         else:
-            in_shape = infer_shape(inputs[0])
-            attr["indices_or_sections"] = in_shape[attr["axis"]]
+            attr["indices_or_sections"] = attr["tvm_custom"]["num_outputs"]
         return AttrCvt("split", ignores=["split"])(inputs, attr, params)
 
 
@@ -1022,38 +1093,35 @@ class Slice(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        attrs = {"starts": inputs[1], "ends": inputs[2]}
-        if len(inputs) >= 4:
-            attrs["axes"] = inputs[3]
-        if len(inputs) >= 5:
-            attrs["steps"] = inputs[4]
+        starts = inputs[1]
+        ends = inputs[2]
+        axes = inputs[3]
+        steps = inputs[4]
 
-        attrs = {k: (v, get_name(v)) for (k, v) in attrs.items()}
-        attrs = {
-            k: params[v[1]].asnumpy()
-            if v[1] in params
-            else infer_value_simulated(v[0], params).asnumpy()
-            for (k, v) in attrs.items()
-        }
+        data_rank = len(infer_shape(inputs[0]))
 
         # Update the starts and ends according to axes if required.
-        if "axes" in attrs and max(attrs["axes"] + 1) != len(attrs["axes"]):
-            new_starts, new_ends, _ = cls._common(attrs["starts"], attrs["ends"], attrs["axes"])
-            attrs["starts"] = new_starts
-            attrs["ends"] = new_ends
+        if axes is not None:
+            data_shape = _op.shape_of(inputs[0], dtype=infer_type(ends).checked_type.dtype)
+            starts = _op.scatter(
+                _op.const([0] * data_rank, dtype=infer_type(starts).checked_type.dtype),
+                axes,
+                starts,
+                axis=0,
+            )
+            ends = _op.scatter(data_shape, axes, ends, axis=0)
+            if steps is not None:
+                steps = _op.scatter(
+                    _op.const([1] * data_rank, dtype=infer_type(steps).checked_type.dtype),
+                    axes,
+                    steps,
+                    axis=0,
+                )
 
-        begins = list(attrs["starts"])
-        ends = list(attrs["ends"])
-        strides = [1] * len(begins)
+        if steps is None:
+            steps = _op.const([1] * data_rank, dtype=infer_type(starts).checked_type.dtype)
 
-        if "steps" in attrs:
-            steps = list(attrs["steps"])
-            axes = attrs["axes"]
-            assert len(steps) == len(axes)
-            for axis, step in zip(axes, steps):
-                strides[axis] = step
-
-        return _op.strided_slice(inputs[0], begin=begins, end=ends, strides=strides)
+        return _op.strided_slice(inputs[0], starts, ends, steps)
 
 
 class Gather(OnnxOpConverter):
@@ -1337,8 +1405,6 @@ class OneHot(OnnxOpConverter):
         off_value, on_value = _op.take(values, _op.const(0)), _op.take(values, _op.const(1))
         # Extract the datatype of the output from on_value.
         dtype = infer_type(on_value).checked_type.dtype
-        # Convert depth into an integer.
-        depth = int(infer_value(depth, params).asnumpy()[0])
         # set default value when axis is not set in the model
         if "axis" not in attr:
             attr["axis"] = -1
@@ -1357,8 +1423,7 @@ class ConstantOfShape(OnnxOpConverter):
         else:
             value = _expr.const(0)
             dtype = "float32"
-        static_shape = infer_value_simulated(inputs[0], params)
-        output = _op.full(value, shape=tuple(static_shape.asnumpy().astype("int32")), dtype=dtype)
+        output = _op.full(value, inputs[0], dtype=dtype)
         return output
 
 
@@ -1406,8 +1471,7 @@ class Tile(Elemwise):
 
     @classmethod
     def _impl_v6(cls, inputs, attr, params):
-        reps = tuple(infer_value_simulated(inputs[1], params).asnumpy().astype("int32"))
-        return _op.tile(inputs[0], reps)
+        return _op.tile(inputs[0], inputs[1])
 
 
 class Erf(OnnxOpConverter):
@@ -1466,11 +1530,9 @@ class Expand(OnnxOpConverter):
 
     @classmethod
     def _impl_v8(cls, inputs, attr, params):
-        in_shape = np.array(infer_shape(inputs[0])).astype("int32")
-        if get_name(inputs[1]) in params:
-            shape = params[inputs[1].name_hint].asnumpy().astype("int32")
-        else:
-            shape = infer_value_simulated(inputs[1], params).asnumpy().astype("int32")
+        dtype = infer_type(inputs[1]).checked_type.dtype
+        in_shape = _op.shape_of(inputs[0], dtype=dtype)
+        shape = inputs[1]
 
         # Currently 'op.broadcast_to' expect the rank of the given 'shape'
         # (the 2nd input) is always higher than that of the given 'input' (the 1st input)
@@ -1485,28 +1547,41 @@ class Expand(OnnxOpConverter):
             intput. Also it replaces the extent of the shape with the corresponding extent
             of the intput when it is 1.
             """
-
-            # here we flip the shapes because this can be more simply written
-            # when the innermost dimension is located at the index 0.
-            in_shape = np.flip(in_shape, axis=0)
-            shape = np.flip(shape, axis=0)
-
-            if in_shape.size < shape.size:
-                for i in range(shape.size):
-                    if i < in_shape.size and in_shape[i] > shape[i]:
-                        shape[i] = in_shape[i]
-            else:
-                for i in range(in_shape.size):
-                    if i >= shape.size:
-                        np.append(shape, in_shape[i])
-                    elif shape[i] == 1:
-                        shape[i] = in_shape[i]
-
-            new_shape = np.flip(shape, axis=0)
+            in_dims = infer_shape(in_shape)[0]
+            new_dims = infer_shape(shape)[0]
+            if in_dims < new_dims:
+                in_shape = _op.concatenate(
+                    [
+                        _expr.const(
+                            [
+                                1,
+                            ]
+                            * (new_dims - in_dims),
+                            dtype=dtype,
+                        ),
+                        in_shape,
+                    ],
+                    axis=0,
+                )
+            elif new_dims > in_dims:
+                shape = _op.concatenate(
+                    [
+                        _expr.const(
+                            [
+                                1,
+                            ]
+                            * (in_dims - new_dims),
+                            dtype=dtype,
+                        ),
+                        shape,
+                    ],
+                    axis=0,
+                )
+            new_shape = _op.maximum(in_shape, shape)
             return new_shape
 
         shape = expand_shape(in_shape, shape)
-        return _op.broadcast_to(inputs[0], shape=tuple(shape))
+        return _op.broadcast_to(inputs[0], shape=shape)
 
 
 class RNN(OnnxOpConverter):
@@ -1779,14 +1854,18 @@ class Resize(OnnxOpConverter):
                 'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
             )
 
-        in_size = np.array(infer_shape(inputs[0]))
-        scale = infer_value_simulated(inputs[2], params).asnumpy()
+        scale = inputs[2]
+        scale_shape = infer_shape(scale)
         if len(inputs) == 4:
-            assert len(scale) == 0, "One of scale or size should be passed, not both."
-            size = infer_value_simulated(inputs[3], params).asnumpy().astype(np.int32)
+            assert (
+                len(scale_shape) == 0 or scale_shape[0] == 0
+            ), "One of scale or size should be passed, not both."
+            size = inputs[3]
         else:
-            assert len(scale) != 0, "One of scale or size should be passed."
-            size = (in_size * scale).astype(np.int32)
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = (
+                _op.cast(_op.shape_of(inputs[0]), infer_type(scale).type_annotation.dtype) * scale
+            )
 
         coord_trans = attr.get("coordinate_transformation_mode")
         if coord_trans in [b"pytorch_half_pixel", b"half_pixel"]:
@@ -1800,7 +1879,7 @@ class Resize(OnnxOpConverter):
                 "Unsupported coordinate_transformation_mode: {}".format(coord_trans)
             )
         layout = "NCHW"  # ONNX assumes NCHW layout
-        out_size = (size[2], size[3])
+        out_size = _op.strided_slice(size, [2], [4])
         return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
 
 
@@ -1831,9 +1910,7 @@ class TopK(OnnxOpConverter):
         if largest == 0:
             raise ValueError("TVM only supports finding TopK largest elements")
 
-        K = int(infer_value(inputs[1], params).asnumpy()[0])
-
-        return _op.topk(inputs[0], k=K, axis=axis)
+        return _op.topk(inputs[0], inputs[1], axis=axis)
 
 
 class MaxRoiPool(OnnxOpConverter):
@@ -1898,7 +1975,7 @@ class Clip(OnnxOpConverter):
 
         assert len(inputs) <= 3, "Clip-11 takes up to 3 inputs, input, min, max"
         result = inputs[0]
-        for i, op in enumerate([_maximum, _minimum]):
+        for i, op in enumerate([_op.tensor.maximum, _op.tensor.minimum]):
             if i < len(inputs) - 1:
                 result = op(result, inputs[i + 1])
         return result
@@ -2061,7 +2138,7 @@ def _get_convert_map(opset):
     }
 
 
-class GraphProto(ExprFunctor):
+class GraphProto:
     """A helper class for handling Relay expression copying from pb2.GraphProto.
     Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
 
@@ -2077,108 +2154,22 @@ class GraphProto(ExprFunctor):
     def __init__(self, shape, dtype):
         self._nodes = {}
         self._params = {}
+        self._inputs = {}
         self._renames = {}
         self._num_input = 0
         self._num_param = 0
         self._shape = shape if shape else {}
         self._dtype = dtype
 
-        # For infering Values
-        self._tmp_params = {}
-        self._infer_simulated = True
-        self._mod = None
-        super(GraphProto, self).__init__()
+    def freeze(self, func, params):
+        bind_map = {}
+        for name in params.keys():
+            bind_map[self._nodes[name]] = _expr.const(params[name])
+        body = _expr.bind(func.body, bind_map)
+        fn = _function.Function(analysis.free_vars(body), body)
+        return fn, {}
 
-    def infer_value(self, input_val, params, mod=None):
-        self._tmp_params = params
-        self._infer_simulated = False
-        self._mod = mod
-        return self.visit(input_val).data
-
-    def infer_value_simulated(self, input_val, params):
-        self._tmp_params = params
-        self._infer_simulated = True
-        return self.visit(input_val).data
-
-    def infer(self, expr):
-        if self._infer_simulated:
-            out = _infer_value_simulated(expr, self._tmp_params)
-        else:
-            out = _infer_value(expr, self._tmp_params)
-        return _expr.const(out.asnumpy())
-
-    def visit_function(self, fn):
-        new_params = [self.visit(x) for x in fn.params]
-        new_body = self.visit(fn.body)
-        return self.infer(
-            Function(list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs)
-        )
-
-    def visit_let(self, let):
-        newvar = self.visit(let.var)
-        newval = self.visit(let.value)
-        newbody = self.visit(let.body)
-        return self.infer(Let(newvar, newval, newbody))
-
-    def visit_call(self, call):
-        new_fn = self.visit(call.op)
-        new_args = [self.visit(arg) for arg in call.args]
-        call = Call(new_fn, new_args, call.attrs)
-        if new_fn == _op.get("nn.batch_norm"):
-            return call
-        return self.infer(call)
-
-    def visit_var(self, var):
-        return self.infer(var)
-
-    def visit_global_id(self, global_var):
-        return self.infer(global_var)
-
-    def visit_if(self, ite):
-        return self.infer(
-            If(self.visit(ite.cond), self.visit(ite.true_branch), self.visit(ite.false_branch))
-        )
-
-    def visit_tuple(self, tup):
-        return Tuple([self.visit(field) for field in tup.fields])
-
-    def visit_tuple_getitem(self, op):
-        tuple_value = self.visit(op.tuple_value)
-        if not tuple_value.same_as(op.tuple_value):
-            return self.infer(TupleGetItem(tuple_value, op.index))
-        return self.infer(op)
-
-    def visit_global_var(self, gvar):
-        return self.infer(gvar)
-
-    def visit_op(self, op):
-        return op
-
-    def visit_constant(self, const):
-        return const
-
-    def visit_constructor(self, con):
-        return con
-
-    def visit_match(self, m):
-        return self.infer(
-            Match(
-                self.visit(m.data),
-                [Clause(c.lhs, self.visit(c.rhs)) for c in m.clauses],
-                complete=m.complete,
-            )
-        )
-
-    def visit_ref_create(self, r):
-        return RefCreate(self.visit(r.value))
-
-    def visit_ref_write(self, r):
-        return RefWrite(self.visit(r.ref), self.visit(r.value))
-
-    def visit_ref_read(self, r):
-        return RefRead(self.visit(r.ref))
-
-    def from_onnx(self, graph, opset):
+    def from_onnx(self, graph, opset, freeze_params=False):
         """Construct Relay expression from ONNX graph.
 
         Onnx graph is a python protobuf object.
@@ -2194,6 +2185,13 @@ class GraphProto(ExprFunctor):
             The loaded onnx graph
 
         opset : opset version
+
+        freeze_params: bool
+            If this parameter is true, the importer will take any provided
+            onnx input values (weights, shapes, etc) and embed them into the relay model
+            as Constants instead of variables. This allows more aggressive optimizations
+            at compile time and helps in making models static if certain inputs represent
+            attributes relay would traditionally consider compile-time constants.
 
         Returns
         -------
@@ -2236,6 +2234,7 @@ class GraphProto(ExprFunctor):
                 else:
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=tshape, dtype=dtype)
+            self._inputs[i_name] = self._nodes[i_name]
         # get list of unsupported ops
         convert_map = _get_convert_map(opset)
         unsupported_ops = set()
@@ -2271,11 +2270,12 @@ class GraphProto(ExprFunctor):
                 )
             else:
                 i_name = self._parse_value_proto(node)
+                node_output = self._fix_outputs(op_name, node.output)
                 attr["tvm_custom"] = {}
                 attr["tvm_custom"]["name"] = i_name
+                attr["tvm_custom"]["num_outputs"] = len(node_output)
 
                 op = self._convert_operator(op_name, inputs, attr, opset)
-                node_output = self._fix_outputs(op_name, node.output)
                 if not isinstance(op, _expr.TupleWrapper):
                     outputs_num = 1
                 else:
@@ -2294,7 +2294,18 @@ class GraphProto(ExprFunctor):
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        func = _function.Function(analysis.free_vars(outputs), outputs)
+        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
+        ## those parameters that are needed to execute the relay graph
+        free_vars = analysis.free_vars(outputs)
+        nodes = {v: k for k, v in self._nodes.items()}
+        free_vars = [nodes[var] for var in free_vars]
+        for i_name in self._params:
+            if i_name in free_vars and i_name not in self._inputs:
+                self._inputs[i_name] = self._nodes[i_name]
+        func = _function.Function([v for k, v in self._inputs.items()], outputs)
+        if freeze_params:
+            func, params = self.freeze(func, self._params)
+            return IRModule.from_expr(func), params
         return IRModule.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
@@ -2388,7 +2399,7 @@ class GraphProto(ExprFunctor):
         return outputs
 
 
-def from_onnx(model, shape=None, dtype="float32", opset=None):
+def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=False):
     """Convert a ONNX model into an equivalent Relay Function.
 
     ONNX graphs are represented as Python Protobuf objects.
@@ -2397,6 +2408,13 @@ def from_onnx(model, shape=None, dtype="float32", opset=None):
     network weights/bias such as "1", "2"...
     For convenience, we rename the `real` input names to "input_0",
     "input_1"... And renaming parameters to "param_0", "param_1"...
+
+    By default, ONNX defines models in terms of dynamic shapes. The ONNX importer
+    retains that dynamism upon import, and the compiler attempts to convert the
+    model into a static shapes at compile time. If this fails, there may still
+    be dynamic operations in the model. Not all TVM kernels currently support
+    dynamic shapes, please file an issue on discuss.tvm.ai
+    if you hit an error with dynamic kernels.
 
     Parameters
     ----------
@@ -2412,6 +2430,13 @@ def from_onnx(model, shape=None, dtype="float32", opset=None):
     opset : int, optional
         Override to autodetected opset.
         This can be helpful for some testing.
+
+    freeze_params: bool
+        If this parameter is true, the importer will take any provided
+        onnx input values (weights, shapes, etc) and embed them into the relay model
+        as Constants instead of variables. This allows more aggressive optimizations
+        at compile time and helps in making models static if certain inputs represent
+        attributes relay would traditionally consider compile-time constants.
 
     Returns
     -------
@@ -2435,7 +2460,6 @@ def from_onnx(model, shape=None, dtype="float32", opset=None):
                 warnings.warn(str(e))
     except ImportError:
         pass
-    global g
     g = GraphProto(shape, dtype)
     graph = model.graph
     if opset is None:
@@ -2443,6 +2467,5 @@ def from_onnx(model, shape=None, dtype="float32", opset=None):
             opset = model.opset_import[0].version if model.opset_import else 1
         except AttributeError:
             opset = 1
-    mod, params = g.from_onnx(graph, opset)
-    g = None
+    mod, params = g.from_onnx(graph, opset, freeze_params)
     return mod, params

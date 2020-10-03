@@ -42,12 +42,21 @@ def get_input_data_shape_dict(graph_def, input_data):
     return input_names, shape_dict
 
 
-def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None):
+def get_tvm_output_with_vm(
+    graph_def, input_data, target, ctx, opset=None, freeze_params=False, convert_to_static=False
+):
     """ Generic function to execute and get tvm output with vm executor"""
-
+    if not isinstance(input_data, list):
+        input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
-    mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+    mod, params = relay.frontend.from_onnx(
+        graph_def, shape_dict, opset=opset, freeze_params=freeze_params
+    )
+    if convert_to_static:
+        from tvm.relay import transform
+
+        mod = transform.DynamicToStatic()(mod)
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data)
@@ -118,6 +127,8 @@ def verify_with_ort_with_inputs(
     targets=None,
     use_vm=False,
     opset=None,
+    freeze_params=False,
+    convert_to_static=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -136,9 +147,16 @@ def verify_with_ort_with_inputs(
 
     for target in targets:
         ctx = tvm.context(target, 0)
-
         if use_vm:
-            tvm_out = get_tvm_output_with_vm(model, inputs, target, ctx, opset=opset)
+            tvm_out = get_tvm_output_with_vm(
+                model,
+                inputs,
+                target,
+                ctx,
+                opset=opset,
+                freeze_params=freeze_params,
+                convert_to_static=convert_to_static,
+            )
         else:
             tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
 
@@ -152,6 +170,8 @@ def verify_with_ort(
     targets=None,
     use_vm=False,
     opset=None,
+    freeze_params=False,
+    convert_to_static=False,
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
@@ -164,6 +184,8 @@ def verify_with_ort(
         targets=targets,
         use_vm=use_vm,
         opset=opset,
+        freeze_params=freeze_params,
+        convert_to_static=convert_to_static,
         dtype=dtype,
         rtol=rtol,
         atol=atol,
@@ -213,21 +235,37 @@ def test_reshape():
         tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_expand():
-    def _test_expand(name, data, shape, ref_data):
+    def _test_expand(name, data, shape, ref_data, dtype="int32"):
         shape_array = np.array(shape)
-        shape_node = onnx.helper.make_node(
-            "Constant",
-            inputs=[],
-            outputs=["shape"],
-            value=onnx.helper.make_tensor(
-                name="const_tensor",
-                data_type=onnx.TensorProto.INT32,
-                dims=shape_array.shape,
-                vals=shape_array.flatten().astype("int32"),
-            ),
-        )
+        if dtype == "int32":
+            shape_node = onnx.helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=["shape"],
+                value=onnx.helper.make_tensor(
+                    name="const_tensor",
+                    data_type=onnx.TensorProto.INT32,
+                    dims=shape_array.shape,
+                    vals=shape_array.flatten().astype("int32"),
+                ),
+            )
+        elif dtype == "int64":
+            shape_node = onnx.helper.make_node(
+                "Constant",
+                inputs=[],
+                outputs=["shape"],
+                value=onnx.helper.make_tensor(
+                    name="const_tensor",
+                    data_type=onnx.TensorProto.INT64,
+                    dims=shape_array.shape,
+                    vals=shape_array.flatten().astype("int64"),
+                ),
+            )
+        else:
+            raise "Invalid dtype"
         expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
 
         graph = helper.make_graph(
@@ -240,20 +278,22 @@ def test_expand():
         model = helper.make_model(graph, producer_name=name)
 
         for target, ctx in tvm.testing.enabled_targets():
-            tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, "float32")
+            tvm_out = get_tvm_output_with_vm(model, data, target, ctx, freeze_params=True)
             tvm.testing.assert_allclose(ref_data, tvm_out)
 
     in_shape = (3, 1)
     shape = (3, 4)
     data = np.random.uniform(size=in_shape).astype(np.float32)
     ref_data = np.tile(data, 4)
-    _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
+    _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data, "int32")
+    _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data, "int64")
 
     in_shape = (3, 1)
     shape = (2, 1, 6)
     data = np.random.uniform(size=in_shape).astype(np.float32)
     ref_data = data * np.ones(shape, dtype=np.float32)
-    _test_expand("expand_with_dim_changed_test", data, shape, ref_data)
+    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int32")
+    _test_expand("expand_with_dim_changed_test", data, shape, ref_data, "int64")
 
 
 def verify_depth_to_space(inshape, outshape, mode, blockSize):
@@ -650,11 +690,12 @@ def _test_slice_iteration_v10(indata, outdata, **attrs):
     model = helper.make_model(graph, producer_name="slice_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, "float32", opset=10)
+        tvm_out = get_tvm_output_with_vm(model, indata, target, ctx, opset=10, freeze_params=True)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
     _test_slice_iteration_v1(x, x[0:3, 0:10], starts=(0, 0), ends=(3, 10), axes=(0, 1))
@@ -856,12 +897,13 @@ def test_gather_nd():
     verify_gather_nd((4, 3, 5, 6), [[2, 1, 0, 0]], "float32")
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_onehot():
     indices_shape = [10]
     indices_array = np.random.randint(low=0, high=9, size=indices_shape, dtype="int32")
     depth = 10
-    values = np.asarray([0, 1])
+    values = np.asarray([0, 1]).astype("int32")
     out_np = np.eye(depth)[indices_array.reshape(-1)]
 
     onehot_node = helper.make_node("OneHot", ["indices", "depth", "values"], ["out"])
@@ -874,17 +916,15 @@ def test_onehot():
             helper.make_tensor_value_info("depth", TensorProto.INT32, [1]),
             helper.make_tensor_value_info("values", TensorProto.INT32, values.shape),
         ],
-        initializer=[
-            helper.make_tensor("depth", TensorProto.INT32, [1], [depth]),
-            helper.make_tensor("values", TensorProto.INT32, values.shape, values),
-        ],
         outputs=[helper.make_tensor_value_info("out", TensorProto.INT32, out_np.shape)],
     )
 
     model = helper.make_model(graph, producer_name="onehot_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, [indices_array], target, ctx, out_np.shape)
+        tvm_out = get_tvm_output_with_vm(
+            model, [indices_array, np.array([depth]).astype("int32"), values], target, ctx
+        )
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -916,7 +956,7 @@ def test_matmul():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_batch_matmul(a_shape, b_shape):
+def verify_batch_matmul(a_shape, b_shape, target, ctx):
     a_array = np.random.uniform(size=a_shape).astype("float32")
     b_array = np.random.uniform(size=b_shape).astype("float32")
     out_np = np.matmul(a_array, b_array)
@@ -935,16 +975,67 @@ def verify_batch_matmul(a_shape, b_shape):
 
     model = helper.make_model(graph, producer_name="matmul_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, [a_array, b_array], target, ctx, out_np.shape)
+    tvm_out = get_tvm_output_with_vm(model, [a_array, b_array], target, ctx)
+    tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+# TODO(mbrookhart): enable cuda once VM supports heterogenous execution
+@tvm.testing.parametrize_targets("llvm")
+def test_batch_matmul(target, ctx):
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
+    verify_batch_matmul((2, 4, 3), (3, 4), target, ctx)
+    verify_batch_matmul((2, 3, 4, 3), (3, 4), target, ctx)
+
+
+def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
+    def verify_model(ex, a_shape, b_shape):
+        a_array = np.random.uniform(size=a_shape).astype("float32")
+        b_array = np.random.uniform(size=b_shape).astype("float32")
+        # matmul
+        out_np = np.matmul(a_array, b_array)
+        # relu
+        out_np[out_np < 0] = 0
+
+        tvm_out = ex.evaluate()(a_array, b_array).asnumpy()
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
+    mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+    relu_node = helper.make_node("Relu", ["out"], ["relu"])
 
-@tvm.testing.uses_gpu
-def test_batch_matmul():
-    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4))
-    verify_batch_matmul((2, 4, 3), (3, 4))
-    verify_batch_matmul((2, 3, 4, 3), (3, 4))
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+    # matmul
+    out_np = np.matmul(a_array, b_array)
+
+    graph = helper.make_graph(
+        [mul_node, relu_node],
+        "matmul_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("relu", TensorProto.FLOAT, list(out_np.shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="matmul_test")
+
+    a_anys = [relay.Any()] * len(a_shape)
+    b_anys = [relay.Any()] * len(b_shape)
+
+    mod, params = relay.frontend.from_onnx(model, {"a": a_anys, "b": b_anys})
+
+    ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+    verify_model(ex, a_shape, b_shape)
+    verify_model(ex, [a * 2 for a in a_shape], [b * 2 for b in b_shape])
+    verify_model(ex, [a * 3 for a in a_shape], [b * 3 for b in b_shape])
+
+
+# TODO(mbrookhart): enable cuda once VM supports heterogenous execution
+@tvm.testing.parametrize_targets("llvm")
+def test_batch_matmul_dynamic_model(target, ctx):
+    verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
+    verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
+    verify_simple_dynamic_model((2, 3, 4, 3), (3, 4), target, ctx)
 
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
@@ -1149,8 +1240,9 @@ def _test_upsample_bilinear_opset9():
     model = helper.make_model(graph, producer_name="upsample_bilinear_opset9_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, "float32")
-        tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm_out = get_tvm_output_with_vm(
+            model, [in_array], target, ctx, opset=9, freeze_params=True
+        )
 
 
 def _test_upsample3d_trilinear():
@@ -1194,7 +1286,8 @@ def _test_upsample3d_trilinear():
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
@@ -1475,18 +1568,19 @@ def verify_constantofshape(input_dim, value, dtype):
         "fill_test",
         inputs,
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, list(out.shape))],
-        initializer=[helper.make_tensor("input", TensorProto.INT32, (len(input_dim),), input_dim)],
     )
 
     model = helper.make_model(graph, producer_name="fill_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, [], target, ctx, out.shape)
+        input_np = np.array(input_dim).astype("float32")
+        tvm_out = get_tvm_output_with_vm(model, [input_np], target, ctx)
 
         tvm.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_constantofshape():
     verify_constantofshape((2, 3, 4, 5), 10, "float32")
     verify_constantofshape((3, 3), 0, "int32")
@@ -1550,7 +1644,7 @@ def verify_pad_v11(indata, pads, mode="constant", value=0.0):
             ],
         )
     else:
-        inputs = [indata, pads, np.array([value])]
+        inputs = [indata, pads, np.array([value]).astype("float32")]
         outdata = np.pad(indata, pad_width=np_pads, mode="constant", constant_values=value)
         node = helper.make_node(
             "Pad", inputs=["input", "pads", "constant_value"], outputs=["output"], mode="constant"
@@ -1561,7 +1655,7 @@ def verify_pad_v11(indata, pads, mode="constant", value=0.0):
             inputs=[
                 helper.make_tensor_value_info("input", TensorProto.FLOAT, list(indata.shape)),
                 helper.make_tensor_value_info("pads", TensorProto.INT64, (len(pads),)),
-                helper.make_tensor_value_info("constant_value", TensorProto.INT64, (1,)),
+                helper.make_tensor_value_info("constant_value", TensorProto.FLOAT, (1,)),
             ],
             initializer=[
                 helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads),
@@ -1574,11 +1668,12 @@ def verify_pad_v11(indata, pads, mode="constant", value=0.0):
     model = helper.make_model(graph, producer_name="pad_test")
     #  tvm result
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, inputs, target, ctx, outdata.shape, "float32", opset=11)
+        tvm_out = get_tvm_output_with_vm(model, inputs, target, ctx, opset=11, freeze_params=False)
     tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_pad():
     verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], "constant", 0.0)
     verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], "constant", 0.0)
@@ -1660,20 +1755,28 @@ def test_all_reduce_funcs():
             )
 
 
-def verify_split(indata, outdatas, split, axis=0):
+def verify_split(indata, outdatas, split, axis=0, pass_split=True):
     indata = np.array(indata).astype(np.float32)
     outdatas = [np.array(o).astype(np.float32) for o in outdatas]
     if split:
         split_index = range(len(split))
     else:
         split_index = range(len(outdatas))
-    node = helper.make_node(
-        "Split",
-        inputs=["input"],
-        outputs=["output_{}".format(i) for i in range(len(split_index))],
-        axis=axis,
-        split=split,
-    )
+    if pass_split:
+        node = helper.make_node(
+            "Split",
+            inputs=["input"],
+            outputs=["output_{}".format(i) for i in range(len(split_index))],
+            axis=axis,
+            split=split,
+        )
+    else:
+        node = helper.make_node(
+            "Split",
+            inputs=["input"],
+            outputs=["output_{}".format(i) for i in range(len(split_index))],
+            axis=axis,
+        )
     graph = helper.make_graph(
         [node],
         "split_test",
@@ -1687,18 +1790,26 @@ def verify_split(indata, outdatas, split, axis=0):
     )
     model = helper.make_model(graph, producer_name="split_test")
 
+    import onnxruntime.backend
+
+    rep = onnxruntime.backend.prepare(model, "CPU")
+    onnx_out = rep.run(indata)
+
     for target, ctx in tvm.testing.enabled_targets():
         output_shape = [o.shape for o in outdatas]
         output_type = ["float32", "float32", "float32"]
         tvm_out = get_tvm_output(model, indata, target, ctx, output_shape, output_type)
-    for o, t in zip(outdatas, tvm_out):
-        tvm.testing.assert_allclose(o, t)
+        for o, t in zip(onnx_out, tvm_out):
+            tvm.testing.assert_allclose(o, t)
 
 
 @tvm.testing.uses_gpu
 def test_split():
     # 1D
     verify_split([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], [2, 2, 2], 0)
+    verify_split(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], [2, 2, 2], 0, False
+    )
     verify_split([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0)
     # 2D
     verify_split(
@@ -1708,7 +1819,7 @@ def test_split():
         1,
     )
     # Split evenly (unstack)
-    verify_split([1, 2, 3], [[1], [2], [3]], False)
+    verify_split([1, 2, 3], [[1], [2], [3]], False, 0, False)
 
 
 @tvm.testing.uses_gpu
@@ -2098,19 +2209,17 @@ def verify_tile_v6(indata, repeats, outdata):
             helper.make_tensor_value_info("repeats", TensorProto.INT64, list(repeats.shape)),
         ],
         outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))],
-        initializer=[
-            helper.make_tensor("repeats", TensorProto.INT64, list(repeats.shape), repeats)
-        ],
     )
 
     model = helper.make_model(graph, producer_name="tile_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, [indata], target, ctx, outdata.shape, opset=6)
+        tvm_out = get_tvm_output_with_vm(model, [indata, repeats], target, ctx, opset=6)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_tile():
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
     repeats = np.random.randint(low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
@@ -2283,9 +2392,11 @@ def test_batch_norm():
     verify_batch_norm([16, 16, 10, 10])
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_batch_norm_dynamic_subgraph():
     def verify_batch_norm_dynamic_subgraph(in_shape, o_shape):
+
         batchnorm = onnx.helper.make_node(
             "BatchNormalization", inputs=["x", "scale", "B", "mean", "var"], outputs=["Y"]
         )
@@ -2307,9 +2418,10 @@ def test_batch_norm_dynamic_subgraph():
         )
 
         model = helper.make_model(graph, producer_name="batchnorm_test")
+
         # X, inp, scale, b, mean, var
         inshapes = [in_shape, o_shape, in_shape[1], in_shape[1], in_shape[1], in_shape[1]]
-        verify_with_ort(model, inshapes, in_shape, use_vm=False)
+        verify_with_ort(model, inshapes, in_shape, use_vm=True)
 
     verify_batch_norm_dynamic_subgraph([16, 16, 10, 10], [160, 160])
 
@@ -2373,7 +2485,7 @@ def verify_conv(
 
     model = helper.make_model(graph, producer_name="conv_test")
 
-    verify_with_ort(model, [x_shape, w_shape], y_shape)
+    verify_with_ort(model, [x_shape, w_shape], y_shape, use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
@@ -2458,6 +2570,68 @@ def test_conv():
         )
 
 
+def verify_convtranspose_with_padding(
+    x_shape,
+    w_shape,
+    y_shape,
+    padding,
+    kernel_shape,
+    strides,
+    dilations,
+    auto_pad="NOTSET",
+    unset_pad=False,
+):
+    if unset_pad:
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            group=1,
+        )
+    elif padding is None:
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            group=1,
+            auto_pad=auto_pad,
+        )
+    else:
+        node = helper.make_node(
+            "ConvTranspose",
+            inputs=["x", "W"],
+            outputs=["y"],
+            kernel_shape=kernel_shape,
+            # Default values for other attributes:
+            strides=strides,
+            dilations=dilations,
+            group=1,
+            pads=padding,
+        )
+
+    graph = helper.make_graph(
+        [node],
+        "convtranspose_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+            helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape)),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="conv_test")
+
+    verify_with_ort(model, [x_shape, w_shape], y_shape, use_vm=True, convert_to_static=True)
+
+
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
     node = onnx.helper.make_node(
         "ConvTranspose",
@@ -2492,6 +2666,88 @@ def test_convtranspose():
     # [1, 2, 1, 2] list for pads
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
 
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+
+    # TODO(mbrookhart): onnxruntime in CI only supports 2D,
+    # find something else to test 1D and 3D against
+    for D in [2]:
+        # Convolution with padding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(5, D),
+            2 * repeat(1, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+        )
+        # Convolution without padding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(7, D),
+            2 * repeat(0, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+        )
+        # Convolution with autopadding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(5, D),
+            None,
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            auto_pad="SAME_UPPER",
+        )
+        # Convolution with valid autopadding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(7, D),
+            None,
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            auto_pad="VALID",
+        )
+        # Convolution with unset padding
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(7, D),
+            2 * repeat(0, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+            True,
+        )
+        # Convolution with non uniform stride
+        verify_convtranspose_with_padding(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(9, D),
+            None,
+            repeat(3, D),
+            repeat(2, D),
+            repeat(1, D),
+            auto_pad="SAME_UPPER",
+        )
+        # Convolution with dilation
+        # TODO(mbrookhart): Relay doesn't currently support convtranspose with dilation
+        # verify_convtranspose_with_padding(
+        #     (1, 1) + repeat(5, D),
+        #     (1, 1) + repeat(3, D),
+        #     (1, 1) + repeat(5, D),
+        #     2 * repeat(2, D),
+        #     repeat(3, D),
+        #     repeat(1, D),
+        #     repeat(2, D),
+        # )
+
 
 @tvm.testing.uses_gpu
 def test_unsqueeze_constant():
@@ -2515,6 +2771,7 @@ def test_unsqueeze_constant():
 
 
 def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
+    print(x_shape, kernel_shape, strides, mode, pads, auto_pad)
     x_np = np.random.uniform(size=x_shape).astype("float32")
 
     if mode == "max":
@@ -2546,7 +2803,7 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
     )
 
     model = helper.make_model(graph, producer_name="pooling_test")
-    verify_with_ort(model, [x_shape], out_shape)
+    verify_with_ort(model, [x_shape], out_shape, use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
@@ -2796,7 +3053,7 @@ def verify_lppool(x_shape, kernel_shape, p, strides, pads, out_shape, auto_pad="
     )
 
     model = helper.make_model(graph, producer_name="lppool_test")
-    verify_with_ort(model, [x_shape], out_shape)
+    verify_with_ort(model, [x_shape], out_shape, use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
@@ -3169,7 +3426,8 @@ def test_gru():
     )
 
 
-@tvm.testing.uses_gpu
+# TODO(mbrookhart): enable once VM supports heterogenous execution
+# @tvm.testing.uses_gpu
 def test_resize():
     def verify(ishape, oshape, scales, mode, coord_trans):
         nodes = [
@@ -3194,7 +3452,6 @@ def test_resize():
 
         if oshape == []:
             oshape = [round(dim * scale) for (dim, scale) in zip(ishape, scales)]
-
         graph = helper.make_graph(
             nodes,
             "resize_test",
@@ -3204,7 +3461,7 @@ def test_resize():
 
         model = helper.make_model(graph, producer_name="resize_test")
 
-        verify_with_ort(model, [ishape], oshape, use_vm=False, opset=11)
+        verify_with_ort(model, [ishape], oshape, use_vm=True, opset=11, freeze_params=True)
 
     # upsampling
     verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
@@ -3273,7 +3530,6 @@ def test_topk():
                     ],
                 ),
             ],
-            initializer=[helper.make_tensor("K", TensorProto.INT64, [1], [K])],
             outputs=[
                 helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims),
                 helper.make_tensor_value_info("Indicies", TensorProto.INT64, output_dims),
@@ -3283,17 +3539,10 @@ def test_topk():
         model = helper.make_model(graph, producer_name="topk_test")
 
         indata = np.random.uniform(-10, 10, input_dims).astype(np.float32)
-        onnx_out = get_onnxruntime_output(model, [indata, k])
+        onnx_out = get_onnxruntime_output(model, [indata, np.array([K])])
 
         for target, ctx in [("llvm", tvm.cpu())]:
-            tvm_out = get_tvm_output(
-                model,
-                indata,
-                target,
-                ctx,
-                [output_dims, output_dims],
-                output_dtype=["float32", "int64"],
-            )
+            tvm_out = get_tvm_output_with_vm(model, [indata, np.array(K)], target, ctx)
             tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
 
     for n in [12, 32]:
