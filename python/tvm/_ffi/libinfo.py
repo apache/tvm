@@ -40,7 +40,7 @@ def split_env_var(env_var, split):
     return []
 
 
-def find_lib_path(name=None, search_path=None, optional=False):
+def find_lib_path(name=None, search_path=None, optional=False, from_setup_py=False):
     """Find dynamic library files.
 
     Parameters
@@ -70,22 +70,29 @@ def find_lib_path(name=None, search_path=None, optional=False):
     if os.environ.get("TVM_LIBRARY_PATH", None):
         dll_path.append(os.environ["TVM_LIBRARY_PATH"])
 
-    if sys.platform.startswith("linux"):
-        dll_path.extend(split_env_var("LD_LIBRARY_PATH", ":"))
-        dll_path.extend(split_env_var("PATH", ":"))
-    elif sys.platform.startswith("darwin"):
-        dll_path.extend(split_env_var("DYLD_LIBRARY_PATH", ":"))
-        dll_path.extend(split_env_var("PATH", ":"))
-    elif sys.platform.startswith("win32"):
-        dll_path.extend(split_env_var("PATH", ";"))
+    if not from_setup_py:
+        if sys.platform.startswith("linux"):
+            dll_path.extend(split_env_var("LD_LIBRARY_PATH", ":"))
+            dll_path.extend(split_env_var("PATH", ":"))
+        elif sys.platform.startswith("darwin"):
+            dll_path.extend(split_env_var("DYLD_LIBRARY_PATH", ":"))
+            dll_path.extend(split_env_var("PATH", ":"))
+        elif sys.platform.startswith("win32"):
+            dll_path.extend(split_env_var("PATH", ";"))
 
-    # Pip lib directory
-    dll_path.append(os.path.join(ffi_dir, ".."))
-    # Default cmake build directory
-    dll_path.append(os.path.join(source_dir, "build"))
+        # Pip lib directory
+        dll_path.append(os.path.join(ffi_dir, ".."))
+    else:
+        # Default cmake build directory
+        source_build_dir = os.path.join(source_dir, "build")
+        source_git_dir = os.path.join(source_dir, ".git")
+        if os.path.exists(source_git_dir):   # User is in development flow
+            if os.path.isdir(source_build_dir);
+                cmake_config = os.path.join(source_build_dir, "cmake.config")
+                if not os.path.exists(cmake_config):
+
+                dll_path.append(
     dll_path.append(os.path.join(source_dir, "build", "Release"))
-    # Default make build directory
-    dll_path.append(os.path.join(source_dir, "lib"))
 
     dll_path.append(install_lib_dir)
 
