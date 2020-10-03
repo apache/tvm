@@ -20,10 +20,13 @@ set -e
 set -u
 
 export TVM_HOME="$(git rev-parse --show-toplevel)"
-
+echo "Using TVM_HOME=$TVM_HOME"
 export LD_LIBRARY_PATH="$TVM_HOME/lib:$TVM_HOME/build:${LD_LIBRARY_PATH:-}"
-export PYTHONPATH="$TVM_HOME/python"
+echo "Using LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+export PYTHONPATH="$TVM_HOME/python:${PYTHONPATH}"
+echo "Using PYTHONPATH=$PYTHONPATH"
 export RUST_DIR="$TVM_HOME/rust"
+echo "Using RUST_DIR=$RUST_DIR"
 
 
 export LLVM_CONFIG_DEFAULT=`which llvm-config-10`
