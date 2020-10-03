@@ -263,6 +263,9 @@ class RelayBuildModule : public runtime::ModuleNode {
       pass_seqs.push_back(transform::Legalize());
     }
 
+    // Convert Dynamic ops to static versions
+    pass_seqs.push_back(transform::DynamicToStatic());
+
     pass_seqs.push_back(transform::SimplifyInference());
     PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       Expr expr = args[0];

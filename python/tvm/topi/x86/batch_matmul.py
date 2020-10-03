@@ -25,7 +25,7 @@ from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @autotvm.register_topi_compute("batch_matmul.x86")
-def batch_matmul(cfg, x, y):
+def batch_matmul(cfg, x, y, out_shape=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -49,6 +49,10 @@ def batch_matmul(cfg, x, y):
     assert XK == YK, "shapes of x and y is inconsistant"
     B = XB
     K = XK
+    if out_shape is not None:
+        assert out_shape[0] == B, "got invalid output shape"
+        assert out_shape[1] == M, "got invalid output shape"
+        assert out_shape[2] == N, "got invalid output shape"
     if cfg.is_fallback:
         _default_batch_matmul_config(cfg, M, N, K)
 

@@ -58,6 +58,11 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   Array<IndexExpr> oshape;
   const auto* newshape = types[1].as<TensorTypeNode>();
+  if (newshape == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "reshape: expect input type to be TensorType but get " << types[1];
+    return false;
+  }
 
   // Doesn't support dynamic output rank
   for (int i = 0; i < newshape->shape[0].as<IntImmNode>()->value; i++) {
@@ -209,10 +214,17 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   // types = [data_type, broadcast_shape_type, ret_type]
   CHECK_EQ(types.size(), 3);
 
-  const auto* target_shape = types[1].as<TensorTypeNode>();
-  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
+  const auto* input_type = types[0].as<TensorTypeNode>();
+  const auto* target_type = types[1].as<TensorTypeNode>();
+  if (target_type == nullptr) {
+    return false;
+  }
+  if (input_type == nullptr) {
+    return false;
+  }
+  auto out_dtype = input_type->dtype;
   // rank must be static
-  const IntImmNode* rank = target_shape->shape[0].as<IntImmNode>();
+  const IntImmNode* rank = target_type->shape[0].as<IntImmNode>();
   CHECK(rank) << "Target shape must have static rank";  // rank must be static even in dyn pass
                                                         // could add support for dyn rank in futures
 
