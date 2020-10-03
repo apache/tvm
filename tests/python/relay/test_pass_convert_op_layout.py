@@ -921,6 +921,51 @@ def test_conv_roi_align_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_strided_slice_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.nn.relu(y)
+        y = relay.strided_slice(y, begin=[0, 1], end=[1, -1, 10], strides=[1, 1, 2, 1])
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        x = relay.layout_transform(x, "NCHW", "NHWC")
+        weight = relay.layout_transform(weight, "OIHW", "HWIO")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.nn.relu(y)
+        y = relay.strided_slice(y, begin=[0, 0, 0, 1], end=[1, 10, 56, -1], strides=[1, 2, 1, 1])
+        y = relay.layout_transform(y, "NHWC", "NCHW")
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_default_keyword():
     """ Check that the default keyword selects correct TVM default layout. """
 
@@ -1136,6 +1181,7 @@ if __name__ == "__main__":
     test_conv_convert_kernel_layout()
     test_conv_transpose_convert_layout()
     test_conv_roi_align_convert_layout()
+    test_conv_strided_slice_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()
     test_no_desired_layout()
