@@ -67,14 +67,26 @@ def get_lib_list():
     """Get list of paths to DSO libraries that should be included in an installation."""
     global LIB_LIST
     if LIB_LIST is None:
-        read_libinfo()
-        lib_path = LIBINFO["find_lib_path"]()
-        LIB_LIST = [lib_path[0]]
-        if LIB_LIST[0].find("runtime") == -1:
-            for name in lib_path[1:]:
-                if name.find("runtime") != -1:
-                    LIB_LIST.append(name)
-                    break
+        if sys.platform == "linux":
+            so_ext = "so"
+        elif sys.platform == "darwin":
+            so_ext = "dylib"
+        elif sys.platform in ("win32", "cygwin"):
+            so_ext = "dll"
+        else:
+            assert False, f"sys.platform {sys.platform} is not supported"
+        LIB_LIST = [
+            "../build/libtvm_runtime.{so_ext}",
+            "../build/libtvm.{so_ext}",
+        ]
+        # read_libinfo()
+        # lib_path = LIBINFO["find_lib_path"]()
+        # LIB_LIST = [lib_path[0]]
+        # if LIB_LIST[0].find("runtime") == -1:
+        #     for name in lib_path[1:]:
+        #         if name.find("runtime") != -1:
+        #             LIB_LIST.append(name)
+        #             break
 
     return LIB_LIST
 
