@@ -2175,52 +2175,97 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       }
     }
 
-    Array<Integer> new_begin, new_end;
+    Array<Integer> new_begin, new_end, new_strides;
 
-    for (size_t i = 0; i < begin.size(); i++) {
-      const LayoutAxis& axis = layout[i];
-      if (!axis.IsPrimal()) {
-        // original layout that contains splitted axes is not supported
+    // Handles layout conversion like NHWC -> NCHW
+    auto old_layout_name = layout.name();
+    auto new_layout_name = new_layout.name();
+
+    if (old_layout_name.rfind(new_layout_name, 0) != 0 &&
+        new_layout_name.rfind(old_layout_name, 0) != 0) {
+      if (old_layout_name.size() != new_layout_name.size()) {
+        // Not support NHW4c -> NCHW
         return {{Layout::Undef()}, {Layout::Undef()}};
-      }
-      auto factor = new_layout.FactorOf(axis);
-      if (factor == -1) {
-        new_begin.push_back(begin[i]);
-        new_end.push_back(end[i]);
       } else {
-        if (strides.defined() && i < strides.size()) {
-          auto stride = strides[i];
-          // arbitrary stride is not supported
-          if (stride.defined() && stride->value != 1) {
+        for (size_t i = 0; i < new_layout_name.size(); ++i) {
+          auto index = layout.IndexOf(new_layout[i]);
+          if (index == -1) {
             return {{Layout::Undef()}, {Layout::Undef()}};
           }
-        }
-        int64_t bg = begin[i].defined() ? begin[i]->value : 0;
-        int64_t ed;
-        if (!end[i].defined()) {
-          ed = shape[i].as<IntImmNode>()->value;
-        } else if (params->slice_mode == "size") {
-          if (end[i]->value < 0) {
-            ed = shape[i].as<IntImmNode>()->value;
-          } else {
-            ed = bg + end[i]->value;
-          }
-        } else {
-          ed = end[i]->value;
-        }
 
-        if (bg % factor || ed % factor) {
-          // transform to original layout
+          size_t new_index = static_cast<size_t>(index);
+          int64_t bg, ed, st;
+          if (strides.defined() && new_index < strides.size() && strides[new_index].defined()) {
+            st = strides[new_index]->value;
+          } else {
+            st = 1;
+          }
+          if (new_index < begin.size() && begin[new_index].defined()) {
+            bg = begin[new_index]->value;
+          } else {
+            bg = 0;
+          }
+          if (new_index < end.size() && end[new_index].defined()) {
+            ed = end[new_index]->value;
+          } else {
+            ed = shape[new_index].as<IntImmNode>()->value;
+          }
+
+          new_begin.push_back(bg);
+          new_end.push_back(ed);
+          new_strides.push_back(st);
+        }
+        params->begin = new_begin;
+        params->end = new_end;
+        params->strides = new_strides;
+        layout = new_layout;
+      }
+    } else {
+      for (size_t i = 0; i < begin.size(); i++) {
+        const LayoutAxis& axis = layout[i];
+        if (!axis.IsPrimal()) {
+          // original layout that contains splitted axes is not supported
           return {{Layout::Undef()}, {Layout::Undef()}};
         }
-        new_begin.push_back(tvm::Integer(bg / factor));
-        new_end.push_back(tvm::Integer(ed / factor));
-      }
-    }
+        auto factor = new_layout.FactorOf(axis);
+        if (factor == -1) {
+          new_begin.push_back(begin[i]);
+          new_end.push_back(end[i]);
+        } else {
+          if (strides.defined() && i < strides.size()) {
+            auto stride = strides[i];
+            // arbitrary stride is not supported
+            if (stride.defined() && stride->value != 1) {
+              return {{Layout::Undef()}, {Layout::Undef()}};
+            }
+          }
+          int64_t bg = begin[i].defined() ? begin[i]->value : 0;
+          int64_t ed;
+          if (!end[i].defined()) {
+            ed = shape[i].as<IntImmNode>()->value;
+          } else if (params->slice_mode == "size") {
+            if (end[i]->value < 0) {
+              ed = shape[i].as<IntImmNode>()->value;
+            } else {
+              ed = bg + end[i]->value;
+            }
+          } else {
+            ed = end[i]->value;
+          }
 
-    layout = new_layout;
-    params->begin = new_begin;
-    params->end = new_end;
+          if (bg % factor || ed % factor) {
+            // transform to original layout
+            return {{Layout::Undef()}, {Layout::Undef()}};
+          }
+          new_begin.push_back(tvm::Integer(bg / factor));
+          new_end.push_back(tvm::Integer(ed / factor));
+        }
+      }
+
+      layout = new_layout;
+      params->begin = new_begin;
+      params->end = new_end;
+    }
   }
   return {{layout}, {layout}};
 }
