@@ -46,6 +46,7 @@
 #include "../../../../runtime/contrib/ethosn/ethosn_runtime.h"
 #include "../codegen_c/codegen_c.h"
 #include "ethosn_api.h"
+#include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 
@@ -242,7 +243,11 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool disable_winograd;
   bool dump_debug_files;
   String debug_dir;
+#if _ETHOSN_API_VERSION_ == 2008
+  String compiler_algorithm;
+#else
   bool enable_cascading;
+#endif
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant)
@@ -264,7 +269,11 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(disable_winograd).set_default(false);
     TVM_ATTR_FIELD(dump_debug_files).set_default(false);
     TVM_ATTR_FIELD(debug_dir).set_default(".");
+#if _ETHOSN_API_VERSION_ == 2008
+    TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
+#else
     TVM_ATTR_FIELD(enable_cascading).set_default(false);
+#endif
   }
 };
 

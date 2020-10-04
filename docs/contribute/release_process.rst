@@ -68,6 +68,9 @@ The last step is to update the KEYS file with your code signing key https://www.
 	cd svn-tvm
 	# edit KEYS file
 	svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m "Update KEYS"
+	# update downloads.apache.org
+	svn rm --username $ASF_USERNAME --password "$ASF_PASSWORD" https://dist.apache.org/repos/dist/release/incubator/tvm/KEYS -m "Update KEYS"
+	svn cp --username $ASF_USERNAME --password "$ASF_PASSWORD" https://dist.apache.org/repos/dist/dev/incubator/tvm/KEYS https://dist.apache.org/repos/dist/release/incubator/tvm/ -m "Update KEYS"
 
 
 Cut a Release Candidate

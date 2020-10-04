@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 
@@ -71,7 +72,11 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   sl::QuantizationInfo output_q_info;
   err += Tvm2Npu(input_zero_point, input_scale, &data_q_info);
   err += Tvm2Npu(kernel_zero_point, kernel_scale, &weights_q_info);
+#if _ETHOSN_API_VERSION_ == 2008
+  err += Tvm2Npu(0, data_q_info.GetScale() * weights_q_info.GetScale(), &bias_q_info);
+#else
   err += Tvm2Npu(0, data_q_info.m_Scale * weights_q_info.m_Scale, &bias_q_info);
+#endif
   err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
 
   // Convert convolution attributes
@@ -165,7 +170,11 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
   sl::QuantizationInfo output_q_info;
   err += Tvm2Npu(input_zero_point, input_scale, &data_q_info);
   err += Tvm2Npu(kernel_zero_point, kernel_scale, &weights_q_info);
+#if _ETHOSN_API_VERSION_ == 2008
+  err += Tvm2Npu(0, data_q_info.GetScale() * weights_q_info.GetScale(), &bias_q_info);
+#else
   err += Tvm2Npu(0, data_q_info.m_Scale * weights_q_info.m_Scale, &bias_q_info);
+#endif
   err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
 
   // Create fc info
@@ -722,6 +731,10 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.query").set_body([](tvm::TVMArgs args, tvm::T
 #else
   *rv = false;
 #endif
+});
+
+TVM_REGISTER_GLOBAL("relay.ethos-n.api.version").set_body_typed([]() -> int {
+  return _ETHOSN_API_VERSION_;
 });
 
 }  // namespace ethosn
