@@ -220,7 +220,7 @@ GlobalTypeVar AddOrGet(InternTable<GlobalTypeVar>* table, const std::string& nam
   auto var = table->Get(name);
   if (var) {
     auto tvar = var.value();
-    auto tvar_kind = const_cast<TypeKind&>(tvar->kind);
+    TypeKind& tvar_kind = const_cast<TypeKind&>(tvar->kind);
     tvar_kind = kind;
     return tvar;
   } else {
