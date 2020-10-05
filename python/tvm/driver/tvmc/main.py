@@ -79,7 +79,10 @@ def _main(argv):
         sys.stdout.write("%s\n" % version)
         return 0
 
-    assert hasattr(args, "func"), "Error: missing 'func' attribute for subcommand {0}".format(argv)
+    if not hasattr(args, "func"):
+        # In case no valid subcommand is provided, show usage and exit
+        parser.print_help(sys.stderr)
+        return 1
 
     try:
         return args.func(args)
