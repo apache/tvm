@@ -87,17 +87,17 @@ _CRT_DEFAULT_OPTIONS = {
 _CRT_GENERATED_LIB_OPTIONS = copy.copy(_CRT_DEFAULT_OPTIONS)
 
 
-
 # Disable due to limitation in the TVM C codegen, which generates lots of local variable
 # declarations at the top of generated code without caring whether they're used.
 # Example:
 #   void* arg0 = (((TVMValue*)args)[0].v_handle);
 #   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
-_CRT_GENERATED_LIB_OPTIONS['cflags'].append("-Wno-unused-variable")
+_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-Wno-unused-variable")
 
 
 # Many TVM-intrinsic operators (i.e. expf, in particular)
 _CRT_GENERATED_LIB_OPTIONS["cflags"].append("-fno-builtin")
+
 
 def default_options(target_include_dir):
     """Return default opts passed to Compile commands."""
@@ -108,8 +108,9 @@ def default_options(target_include_dir):
     return {"bin_opts": bin_opts, "lib_opts": lib_opts}
 
 
-def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=None,
-                         generated_lib_opts=None):
+def build_static_runtime(
+    workspace, compiler, module, lib_opts=None, bin_opts=None, generated_lib_opts=None
+):
     """Build the on-device runtime, statically linking the given modules.
 
     Parameters
@@ -138,9 +139,8 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
     lib_opts = _CRT_DEFAULT_OPTIONS if lib_opts is None else lib_opts
     bin_opts = _CRT_DEFAULT_OPTIONS if bin_opts is None else bin_opts
     generated_lib_opts = (
-        _CRT_GENERATED_LIB_OPTIONS
-        if generated_lib_opts is None
-        else generated_lib_opts)
+        _CRT_GENERATED_LIB_OPTIONS if generated_lib_opts is None else generated_lib_opts
+    )
 
     mod_build_dir = workspace.relpath(os.path.join("build", "module"))
     os.makedirs(mod_build_dir)
