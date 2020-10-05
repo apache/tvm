@@ -543,7 +543,7 @@ class MatMul(OnnxOpConverter):
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
-            # Compute output shape.
+            # Reshape output to original dimensions.
             final_shape = _op.concatenate(
                 [
                     _op.strided_slice(a_shape, [0], [infer_shape(a_shape)[0] - 1]),
