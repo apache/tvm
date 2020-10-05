@@ -250,6 +250,7 @@ class TypeVar : public Type {
    * \brief Constructor
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
+   * \param span The span information.
    */
   TVM_DLL TypeVar(String name_hint, TypeKind kind, Span span = Span());
 
@@ -498,6 +499,7 @@ class IncompleteType : public Type {
   /*!
    * \brief Constructor.
    * \param kind kind of the type.
+   * \param span The span information.
    */
   TVM_DLL explicit IncompleteType(TypeKind kind, Span span = Span());
 
