@@ -126,7 +126,7 @@ class TransformMemorizer : public ObjectRef {
     if (src_layout.ndim_primal() < dst_layout.ndim_primal()) {
       // If scalar, then no need of layout transformation as scalar can be broadcasted easily even
       // if the other operand has a transformed layout.
-      if (IsScalar(input_expr)) {
+      if (input_expr->checked_type_.defined() && IsScalar(input_expr)) {
         return raw;
       }
       int num_new_axis = dst_layout.ndim_primal() - src_layout.ndim_primal();
