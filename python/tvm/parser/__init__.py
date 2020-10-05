@@ -19,6 +19,7 @@
 from .. import _ffi, Object
 from . import _ffi_api
 
+
 @_ffi.register_object("SourceMap")
 class SourceMap(Object):
     def add(self, name, content):
