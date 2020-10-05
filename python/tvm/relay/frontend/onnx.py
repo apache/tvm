@@ -546,8 +546,7 @@ class MatMul(OnnxOpConverter):
             # Compute output shape.
             final_shape = _op.concatenate(
                 [
-                    _op.maximum(_op.strided_slice(a_shape, [0], [1]), _op.strided_slice(b_shape, [0], [1])),
-                    _op.strided_slice(a_shape, [1], [infer_shape(a_shape)[0] - 1]),
+                    _op.strided_slice(a_shape, [0], [infer_shape(a_shape)[0] - 1]),
                     _op.strided_slice(
                         b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
                     ),

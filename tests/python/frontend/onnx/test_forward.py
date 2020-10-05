@@ -985,7 +985,6 @@ def test_batch_matmul(target, ctx):
     verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
     verify_batch_matmul((2, 4, 3), (3, 4), target, ctx)
     verify_batch_matmul((2, 3, 4, 3), (3, 4), target, ctx)
-    verify_batch_matmul((1, 4, 3), (2, 3, 4), target, ctx)
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
@@ -1037,7 +1036,6 @@ def test_batch_matmul_dynamic_model(target, ctx):
     verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
     verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
     verify_simple_dynamic_model((2, 3, 4, 3), (3, 4), target, ctx)
-    verify_simple_dynamic_model(1, 4, 3), (2, 3, 4), target, ctx)
     
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
@@ -3630,7 +3628,6 @@ if __name__ == "__main__":
     test_clip_min_max_as_inputs()
     test_onehot()
     test_matmul()
-    test_batch_matmul()
     test_gather()
     test_gatherelements()
     test_gather_nd()

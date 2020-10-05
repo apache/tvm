@@ -31,7 +31,7 @@ def batch_matmul(x, y, oshape=None):
 
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
-        
+
     oshape : List[Optional]
         Explicit intended output shape of the computation. Can be useful in cases
         with dynamic input shapes.
@@ -55,5 +55,7 @@ def batch_matmul(x, y, oshape=None):
         N = y.shape[1]
         oshape = (batch, M, N)
     return te.compute(
-        oshape, lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k), tag="batch_matmul"
+        oshape,
+        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
+        tag="batch_matmul",
     )
