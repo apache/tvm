@@ -363,13 +363,16 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "Conv3D: shape of weight is inconsistent with kernel_size, "
           << " kernel_size=" << param->kernel_size << " wshape=" << wshape;
     }
+
     if (param->channels.defined()) {
       CHECK(reporter->AssertEQ(param->channels, wshape[0]))
           << "Conv3D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
+
     if (!dshape_ncdhw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
       CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[1]));
+    }
     channels = wshape[0];
     dilated_ksize_z = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_y = 1 + (wshape[3] - 1) * param->dilation[1];
