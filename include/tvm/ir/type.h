@@ -300,6 +300,7 @@ class GlobalTypeVar : public Type {
    * \brief Constructor
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
+   * \param span The span of the type.
    */
   TVM_DLL GlobalTypeVar(String name_hint, TypeKind kind, Span span = Span());
 
@@ -341,6 +342,7 @@ class TupleType : public Type {
   /*!
    * \brief Constructor
    * \param fields Fields in the tuple.
+   * \param span The span of the type.
    */
   TVM_DLL explicit TupleType(Array<Type> fields, Span span = Span());
 
@@ -448,6 +450,7 @@ class FuncType : public Type {
    * \param ret_type The type of the return value.
    * \param type_params The type parameters.
    * \param type_constraints The type constraints.
+   * \param span The span information.
    * \sa FuncTypeNode for more docs about these fields.
    */
   TVM_DLL FuncType(Array<Type> arg_types, Type ret_type, Array<TypeVar> type_params,
