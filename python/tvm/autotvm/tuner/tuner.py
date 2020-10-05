@@ -17,6 +17,7 @@
 # pylint: disable=unused-argument, no-self-use, invalid-name
 """Base class of tuner"""
 import logging
+import tempfile
 
 import numpy as np
 
@@ -121,6 +122,7 @@ class Tuner(object):
 
         GLOBAL_SCOPE.in_tuning = True
         i = error_ct = 0
+        errors = []
         while i < n_trial:
             if not self.has_next():
                 break
@@ -139,6 +141,11 @@ class Tuner(object):
                 else:
                     flops = 0
                     error_ct += 1
+                    error = res.costs[0]
+                    if isinstance(error, str):
+                        errors.append(error)
+                    else:
+                        errors.append(str(error))
 
                 if flops > self.best_flops:
                     self.best_flops = flops
@@ -174,6 +181,16 @@ class Tuner(object):
             else:
                 logger.setLevel(old_level)
 
+        if error_ct == i:
+            _, f = tempfile.mkstemp(prefix="tvm_tuning_errors_", suffix=".log", text=True)
+            with open(f, "w") as file:
+                file.write("\n".join(errors))
+            logging.warning(
+                "Could not find any valid schedule for task %s. "
+                "A file containing the errors has been written to %s.",
+                self.task,
+                f,
+            )
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
