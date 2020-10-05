@@ -320,7 +320,7 @@ class HostFlasher(Flasher):
                 [micro_binary.abspath(micro_binary.binary_file)]
             )
             return transport.DebugWrapperTransport(
-                debugger=gdb_wrapper, transport=gdb_wrapper.Transport()
+                debugger=gdb_wrapper, transport=gdb_wrapper.transport()
             )
 
         return transport.SubprocessTransport([micro_binary.abspath(micro_binary.binary_file)])
