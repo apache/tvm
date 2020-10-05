@@ -247,15 +247,16 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
     if (!dshape_nchw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
       if (!reporter->AssertEQ(indexdiv(dshape_nchw[1], param->groups), wshape[1])) {
-      reporter->GetDiagCtx().Emit(
-          Diagnostic::Error(reporter->GetSpan())
-          << "conv2d: requires that `" << indexdiv(dshape_nchw[1], param->groups) << "`,"
-          << " the input channels (" << dshape_nchw[1] << ")"
-          << " divided by groups (" << param->groups << ")"
-          << ",\n must match the input channels"
-          << " of the weight `" << wshape[1] << "`, where the weight shape is (" << wshape << ").");
-      return false;
-    }
+        reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
+                                    << "conv2d: requires that `"
+                                    << indexdiv(dshape_nchw[1], param->groups) << "`,"
+                                    << " the input channels (" << dshape_nchw[1] << ")"
+                                    << " divided by groups (" << param->groups << ")"
+                                    << ",\n must match the input channels"
+                                    << " of the weight `" << wshape[1]
+                                    << "`, where the weight shape is (" << wshape << ").");
+        return false;
+      }
     }
     channels = wshape[0];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
