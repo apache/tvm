@@ -129,17 +129,6 @@ class Diagnostic : public ObjectRef {
 
 /*!
  * \brief A wrapper around std::stringstream to build a diagnostic.
- *
- * \code
- *
- * void ReportError(const Error& err);
- *
- * void Test(int number) {
- *   // Use error reporter to construct an error.
- *   ReportError(ErrorBuilder() << "This is an error number=" << number);
- * }
- *
- * \endcode
  */
 class DiagnosticBuilder {
  public:
