@@ -94,6 +94,11 @@ _CRT_GENERATED_LIB_OPTIONS = copy.copy(_CRT_DEFAULT_OPTIONS)
 #   void* arg0 = (((TVMValue*)args)[0].v_handle);
 #   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
 _CRT_GENERATED_LIB_OPTIONS['cflags'].append("-Wno-unused-variable")
+
+
+# Many TVM-intrinsic operators (i.e. expf, in particular)
+_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-fno-builtin")
+
 def default_options(target_include_dir):
     """Return default opts passed to Compile commands."""
     bin_opts = copy.deepcopy(_CRT_DEFAULT_OPTIONS)
