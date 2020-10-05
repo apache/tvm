@@ -211,6 +211,18 @@ stage('Build') {
         pack_lib('i386', tvm_multilib)
       }
     }
+  },
+  'BUILD: QEMU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-qemu")) {
+        init_git()
+        sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+        make(ci_qemu, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+        }
+      }
+    }
   }
 }
 
@@ -248,17 +260,6 @@ stage('Unit Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh"
-        }
-      }
-    }
-  },
-  'python3: QEMU': {
-    node('CPU') {
-      ws(per_exec_ws("tvm/ut-python-qemu")) {
-        init_git()
-        unpack_lib('cpu', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
         }
       }
     }
