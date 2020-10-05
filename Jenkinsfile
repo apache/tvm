@@ -49,6 +49,7 @@ ci_gpu = "tlcpack/ci-gpu:v0.64"
 ci_cpu = "tlcpack/ci-cpu:v0.65"
 ci_wasm = "tlcpack/ci-wasm:v0.60"
 ci_i386 = "tlcpack/ci-i386:v0.52"
+ci_qemu = "tlcpack/ci-qemu:v0.01"
 // <--- End of regex-scanned config.
 
 // tvm libraries
