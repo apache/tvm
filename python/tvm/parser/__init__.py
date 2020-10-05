@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """The under development unified IR parsing infrastructure."""
 from .. import _ffi, Object
-
+from . import _ffi_api
 
 @_ffi.register_object("SourceMap")
 class SourceMap(Object):
