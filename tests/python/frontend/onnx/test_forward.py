@@ -1036,7 +1036,7 @@ def test_batch_matmul_dynamic_model(target, ctx):
     verify_simple_dynamic_model((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
     verify_simple_dynamic_model((2, 4, 3), (3, 4), target, ctx)
     verify_simple_dynamic_model((2, 3, 4, 3), (3, 4), target, ctx)
-    
+
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
