@@ -141,7 +141,11 @@ class Tuner(object):
                 else:
                     flops = 0
                     error_ct += 1
-                    errors.append(res.costs[0])
+                    error = res.costs[0]
+                    if isinstance(error, str):
+                        errors.append(error)
+                    else:
+                        errors.append(str(error))
 
                 if flops > self.best_flops:
                     self.best_flops = flops
