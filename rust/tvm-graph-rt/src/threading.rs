@@ -215,7 +215,7 @@ pub unsafe extern "C" fn TVMBackendParallelBarrier(
 
 #[cfg(test)]
 mod tests {
-    use std::{ptr, thread, time::Duration};
+    use std::{thread, time::Duration};
 
     use super::*;
 
@@ -228,7 +228,7 @@ mod tests {
         assert_eq!(max_concurrency(), 24);
     }
 
-    extern "C" fn flambda(
+    extern "C" fn _flambda(
         task_id: usize,
         penv: *const TVMParallelGroupEnv,
         cdata: *const c_void,

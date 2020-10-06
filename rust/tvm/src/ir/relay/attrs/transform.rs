@@ -17,16 +17,15 @@
  * under the License.
  */
 
-pub mod arith;
-pub mod attrs;
-pub mod expr;
-pub mod function;
-pub mod module;
-pub mod op;
-pub mod relay;
-pub mod span;
-pub mod tir;
-pub mod ty;
+use crate::ir::attrs::BaseAttrsNode;
+use tvm_macros::Object;
 
-pub use expr::*;
-pub use module::IRModule;
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "ExpandDimsAttrs"]
+#[type_key = "relay.attrs.ExpandDimsAttrs"]
+pub struct ExpandDimsAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: i32,
+    pub num_newaxis: i32,
+}

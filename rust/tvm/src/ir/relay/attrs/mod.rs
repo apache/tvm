@@ -17,16 +17,5 @@
  * under the License.
  */
 
-pub mod arith;
-pub mod attrs;
-pub mod expr;
-pub mod function;
-pub mod module;
-pub mod op;
-pub mod relay;
-pub mod span;
-pub mod tir;
-pub mod ty;
-
-pub use expr::*;
-pub use module::IRModule;
+pub mod nn;
+pub mod transform;

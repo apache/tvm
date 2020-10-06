@@ -17,16 +17,13 @@
  * under the License.
  */
 
-pub mod arith;
-pub mod attrs;
-pub mod expr;
-pub mod function;
-pub mod module;
-pub mod op;
-pub mod relay;
-pub mod span;
-pub mod tir;
-pub mod ty;
+use crate::runtime::Object;
+use tvm_macros::Object;
 
-pub use expr::*;
-pub use module::IRModule;
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "Attrs"]
+#[type_key = "Attrs"]
+pub struct BaseAttrsNode {
+    pub base: Object,
+}
