@@ -18,6 +18,7 @@
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
 import logging
+import sys
 
 from ..error import register_error
 from .._ffi import get_global_func
@@ -126,22 +127,27 @@ class Session:
             self.session_name, self.transport_context_manager, level=logging.INFO
         ).__enter__()
 
-        timeouts = self.timeout_override
-        if timeouts is None:
-            timeouts = self.transport.timeouts()
+        try:
+            timeouts = self.timeout_override
+            if timeouts is None:
+                timeouts = self.transport.timeouts()
 
-        self._rpc = RPCSession(
-            _rpc_connect(
-                self.session_name,
-                self._wrap_transport_write,
-                self._wrap_transport_read,
-                int(timeouts.session_start_retry_timeout_sec * 1e6),
-                int(timeouts.session_start_timeout_sec * 1e6),
-                int(timeouts.session_established_timeout_sec * 1e6),
+            self._rpc = RPCSession(
+                _rpc_connect(
+                    self.session_name,
+                    self._wrap_transport_write,
+                    self._wrap_transport_read,
+                    int(timeouts.session_start_retry_timeout_sec * 1e6),
+                    int(timeouts.session_start_timeout_sec * 1e6),
+                    int(timeouts.session_established_timeout_sec * 1e6),
+                )
             )
-        )
-        self.context = self._rpc.cpu(0)
-        return self
+            self.context = self._rpc.cpu(0)
+            return self
+
+        except:
+            self.transport.__exit__(*sys.exc_info())
+            raise
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         """Tear down this session and associated RPC session resources."""

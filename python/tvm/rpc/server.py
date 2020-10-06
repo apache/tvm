@@ -29,6 +29,7 @@ import os
 import ctypes
 import socket
 import select
+import signal
 import struct
 import logging
 import multiprocessing
@@ -108,11 +109,22 @@ def _server_env(load_library, work_path=None):
     return temp
 
 
-def _serve_loop(sock, addr, load_library, work_path=None):
+def _serve_loop(sock, addr, load_library, work_path=None, microtvm_debugger=False):
     """Server loop"""
     sockfd = sock.fileno()
     temp = _server_env(load_library, work_path)
-    _ffi_api.ServerLoop(sockfd)
+    if microtvm_debugger:
+        # NOTE: multiprocessing closes stdin and sets sys.stdin to read from /dev/null.
+        # The original underlying file descriptor is still present and can be re-opened.
+        sys.stdin.close()
+        sys.stdin = os.fdopen(0)
+        old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            _ffi_api.ServerLoop(sockfd)
+        finally:
+            signal.signal(signal.SIGINT, old_sigint_handler)
+    else:
+        _ffi_api.ServerLoop(sockfd)
     if not work_path:
         temp.remove()
     logger.info("Finish serving %s", addr)
@@ -127,7 +139,7 @@ def _parse_server_opt(opts):
     return ret
 
 
-def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
+def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr, microtvm_debugger):
     """Listening loop of the server master."""
 
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
@@ -230,14 +242,26 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         work_path = util.tempdir()
         logger.info("connection from %s", addr)
         server_proc = multiprocessing.Process(
-            target=_serve_loop, args=(conn, addr, load_library, work_path)
+            target=_serve_loop, args=(conn, addr, load_library, work_path, microtvm_debugger)
         )
-        server_proc.deamon = True
-        server_proc.start()
-        # close from our side.
-        conn.close()
-        # wait until server process finish or timeout
-        server_proc.join(opts.get("timeout", None))
+        server_proc.daemon = True
+
+        def _run_server():
+            server_proc.start()
+            # close from our side.
+            conn.close()
+            # wait until server process finish or timeout
+            server_proc.join(opts.get("timeout", None))
+
+        if microtvm_debugger:
+            old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                _run_server()
+            finally:
+                old_sigint_handler = signal.signal(signal.SIGINT, old_sigint_handler)
+        else:
+            _run_server()
+
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
             # pylint: disable=import-outside-toplevel
@@ -277,7 +301,7 @@ def _connect_proxy_loop(addr, key, load_library):
             opts = _parse_server_opt(remote_key.split()[1:])
             logger.info("connected to %s", str(addr))
             process = multiprocessing.Process(target=_serve_loop, args=(sock, addr, load_library))
-            process.deamon = True
+            process.daemon = True
             process.start()
             sock.close()
             process.join(opts.get("timeout", None))
@@ -345,6 +369,10 @@ class Server(object):
 
     silent: bool, optional
         Whether run this server in silent mode.
+
+    microtvm_debugger: bool, optional
+        If True, configure the RPC server to debug microTVM binaries. Specifically, disables
+        SIGINT while the debugger is running.
     """
 
     def __init__(
@@ -359,8 +387,7 @@ class Server(object):
         load_library=None,
         custom_addr=None,
         silent=False,
-        utvm_dev_id=None,
-        utvm_dev_config_args=None,
+        microtvm_debugger=False,
     ):
         try:
             if _ffi_api.ServerLoop is None:
@@ -372,6 +399,10 @@ class Server(object):
         self.libs = []
         self.custom_addr = custom_addr
         self.use_popen = use_popen
+        self.microtvm_debugger = microtvm_debugger
+
+        if microtvm_debugger:
+            from ..micro import debugger as _
 
         if silent:
             logger.setLevel(logging.ERROR)
@@ -432,15 +463,14 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop,
-                args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr),
+                args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr,
+                      self.microtvm_debugger),
             )
-            self.proc.deamon = True
             self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key, load_library)
             )
-            self.proc.deamon = True
             self.proc.start()
 
     def terminate(self):

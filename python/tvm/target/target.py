@@ -231,7 +231,10 @@ def micro(hardware="unknown", options=None):
     options : str or list of str
         Additional options
     """
-    trans_table = {"host": ["-mcpu=native"]}
+    trans_table = {
+        "host": ["-mcpu=native"],
+        "stm32f746xx": ["-mcpu=cortex-m7", "-mfpu=fpuv5-sp-d16"],
+    }
     opts = _merge_opts(trans_table[hardware] + ["-runtime=c", "--system-lib"], options)
 
     # NOTE: in the future, the default micro target will be LLVM except when

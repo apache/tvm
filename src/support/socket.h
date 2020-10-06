@@ -311,6 +311,15 @@ class Socket {
     return errno;
 #endif
   }
+  /*! \return true when the error indicates an interrupted system call. */
+  static bool LastErrorIsInterruptedSyscall() {
+#ifdef _WIN32
+    return false;
+#else
+    int errsv = GetLastError();
+    return errsv == EINTR;
+#endif
+  }
   /*! \return whether last error was would block */
   static bool LastErrorWouldBlock() {
     int errsv = GetLastError();

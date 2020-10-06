@@ -209,6 +209,7 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
 TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mfpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
     .add_attr_option<Bool>("system-lib")
@@ -219,6 +220,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<Bool>("system-lib")
     .add_attr_option<String>("runtime")
     .add_attr_option<String>("mcpu")
+    .add_attr_option<String>("mfpu")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLGPU)

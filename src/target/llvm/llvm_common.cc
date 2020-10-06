@@ -60,10 +60,11 @@ void InitializeLLVM() {
 }
 
 void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::string* mcpu,
-                            std::string* mattr, llvm::TargetOptions* options) {
+                            std::string* mfpu, std::string* mattr, llvm::TargetOptions* options) {
   // simple parser
   triple->resize(0);
   mcpu->resize(0);
+  mfpu->resize(0);
   mattr->resize(0);
   bool soft_float_abi = false;
   if (const Optional<String>& v = target->GetAttr<String>("mtriple")) {
@@ -71,6 +72,9 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
   }
   if (const Optional<String>& v = target->GetAttr<String>("mcpu")) {
     *mcpu = v.value();
+  }
+  if (const Optional<String>& v = target->GetAttr<String>("mfpu")) {
+    *mfpu = v.value();
   }
   if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
     std::ostringstream os;
@@ -118,10 +122,10 @@ void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::stri
 }
 
 std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, bool allow_null) {
-  std::string target_triple, mcpu, mattr;
+  std::string target_triple, mcpu, mfpu, mattr;
   llvm::TargetOptions opt;
 
-  ParseLLVMTargetOptions(target, &target_triple, &mcpu, &mattr, &opt);
+  ParseLLVMTargetOptions(target, &target_triple, &mcpu, &mfpu, &mattr, &opt);
 
   if (target_triple.length() == 0 || target_triple == "default") {
     target_triple = llvm::sys::getDefaultTargetTriple();
@@ -136,6 +140,16 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
     CHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
+  if (mfpu.size() > 0) {
+    unsigned FPUID = llvm::ARM::parseFPU(mfpu);
+    std::vector<llvm::StringRef> features;
+    if (!llvm::ARM::getFPUFeatures(FPUID, features)) {
+      throw dmlc::Error(std::string(": LLVM: unsupported FPU ") + mfpu);
+    }
+    for (llvm::StringRef f : features) {
+      mattr += f.str();
+    }
+  }
   llvm::TargetMachine* tm =
       llvm_target->createTargetMachine(target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
   return std::unique_ptr<llvm::TargetMachine>(tm);
@@ -149,6 +163,9 @@ std::string LLVMTargetToString(const Target& target) {
   }
   if (Optional<String> mcpu = target->GetAttr<String>("mcpu")) {
     os << " -mcpu=" << mcpu.value();
+  }
+  if (Optional<String> mfpu = target->GetAttr<String>("mfpu")) {
+    os << " -mfpu=" << mfpu.value();
   }
   if (Optional<Array<String>> mattr = target->GetAttr<Array<String>>("mattr")) {
     bool is_first = true;

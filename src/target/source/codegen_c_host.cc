@@ -37,9 +37,10 @@ namespace codegen {
 
 CodeGenCHost::CodeGenCHost() { module_name_ = GetUniqueName("__tvm_module_ctx"); }
 
-void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
+void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_str) {
   emit_asserts_ = emit_asserts;
   declared_globals_.clear();
+  decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
@@ -303,7 +304,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
   CodeGenCHost cg;
-  cg.Init(output_ssa, emit_asserts);
+  cg.Init(output_ssa, emit_asserts, target->str());
 
   for (auto kv : mod->functions) {
     CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";

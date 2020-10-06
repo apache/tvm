@@ -17,13 +17,26 @@
 
 """Defines functions for controlling debuggers for micro TVM binaries."""
 
+import atexit
 import abc
+import errno
+import logging
 import os
 import signal
 import subprocess
+import sys
+import time
+import termios
 import threading
 
+import psutil
+
+from .._ffi import register_func
+from . import class_factory
 from . import transport
+
+
+_LOG = logging.getLogger(__name__)
 
 
 class Debugger(metaclass=abc.ABCMeta):
@@ -45,34 +58,107 @@ class Debugger(metaclass=abc.ABCMeta):
         """Terminate the debugger."""
         raise NotImplementedError()
 
+    def _run_on_terminate_callbacks(self):
+        for cb in self.on_terminate_callbacks:
+            try:
+                cb()
+            except Exception as e:
+                _LOG.warn('on_terminate_callback raised exception', exc_info=True)
+
 
 class GdbDebugger(Debugger):
     """Handles launching, suspending signals, and potentially dealing with terminal issues."""
+
+    # Number of seconds to wait in stop() for a graceful shutdown. After this time has elapsed,
+    # the debugger is kill()'d.
+    _GRACEFUL_SHUTDOWN_TIMEOUT_SEC = 5.0
+
+    # The instance of GdbDebugger that's currently started.
+    _STARTED_INSTANCE = None
+
+    @classmethod
+    def _stop_all(cls):
+        if cls._STARTED_INSTANCE:
+            cls._STARTED_INSTANCE.stop()
+
+    def __init__(self):
+        super(GdbDebugger, self).__init__()
+        self._is_running = False
 
     @abc.abstractmethod
     def popen_kwargs(self):
         raise NotImplementedError()
 
-    def _wait_restore_signal(self):
-        self.popen.wait()
-        if not self.did_terminate.is_set():
-            for callback in self.on_terminate_callbacks:
-                try:
-                    callback()
-                except Exception:  # pylint: disable=broad-except
-                    logging.warn("on_terminate_callback raised exception", exc_info=True)
+    @classmethod
+    def _sigint_handler(cls, signum, stack_frame):
+        print('sigint handler')
+        if cls._STARTED_INSTANCE is not None:
+            try:
+                print('kill subp', cls._STARTED_INSTANCE.child_pgid)
+                os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
+                return
+            except ProcessLookupError as e:
+                pass
+
+        raise KeyboardInterrupt()
 
     def start(self):
+        assert not self._is_running
+        assert not self._STARTED_INSTANCE
+
         kwargs = self.popen_kwargs()
-        self.did_terminate = threading.Event()
-        self.old_signal = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        self.did_start_new_session = (
+            kwargs.setdefault('start_new_session', True))
+
+        self.old_termios = termios.tcgetattr(sys.stdin.fileno())
+        self.old_sigint_handler = signal.signal(signal.SIGINT, self._sigint_handler)
         self.popen = subprocess.Popen(**kwargs)
-        threading.Thread(target=self._WaitRestoreSignal).start()
+        self._is_running = True
+        self.__class__._STARTED_INSTANCE = self
+        try:
+            self.child_pgid = os.getpgid(self.popen.pid)
+        except Exception as e:
+            self.stop()
+            raise
+
+    def _wait_til_pgexit(self):
+        end_time = time.monotonic() + self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC
+        while time.monotonic() < end_time:
+            try:
+                ret = os.waitid(os.P_PGID, self.child_pgid, os.WEXITED | os.WNOHANG)
+            except OSError as e:
+                if e.errno == errno.EINVAL or e.errno == errno.ECHILD:
+                    return True
+
+                elif e.errno == errno.EINTR:
+                    pass
+
+                else:
+                    raise
+
+            time.sleep(0.1)
+
+        return False
 
     def stop(self):
-        self.did_terminate.set()
-        self.popen.terminate()
-        signal.signal(signal.SIGINT, self.old_signal)
+        assert self._is_running
+        signal.signal(signal.SIGINT, self.old_sigint_handler)
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_termios)
+
+        try:
+            os.killpg(self.child_pgid, signal.SIGTERM)
+            if not self._wait_til_pgexit():
+                os.killpg(self.child_pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            _LOG.warn('error', exc_info=True)
+            pass
+
+        self._STARTED_INSTANCE = None
+        self._is_running = False
+        self._run_on_terminate_callbacks()
+
+
+atexit.register(GdbDebugger._stop_all)
 
 
 class GdbTransportDebugger(GdbDebugger):
@@ -190,11 +276,80 @@ class GdbRemoteDebugger(GdbDebugger):
     def start(self):
         if self.wrapping_context_manager is not None:
             self.wrapping_context_manager.__enter__()
-        super(GdbRemoteDebugger, self).Start()
+        super(GdbRemoteDebugger, self).start()
 
     def stop(self):
         try:
-            super(GdbRemoteDebugger, self).Stop()
+            super(GdbRemoteDebugger, self).stop()
         finally:
             if self.wrapping_context_manager is not None:
                 self.wrapping_context_manager.__exit__(None, None, None)
+
+
+GLOBAL_DEBUGGER = None
+
+
+class DebuggerFactory(class_factory.ClassFactory):
+
+  SUPERCLASS = Debugger
+
+
+def launch_debugger(debugger_factory, *args, **kw):
+  global GLOBAL_DEBUGGER
+  if GLOBAL_DEBUGGER is not None:
+    stop_debugger()
+
+  GLOBAL_DEBUGGER = debugger_factory.instantiate()
+  GLOBAL_DEBUGGER.start()
+
+
+@register_func("tvm.micro.debugger.launch_debugger")
+def _launch_debugger(debugger_factory_json):
+  launch_debugger(DebuggerFactory.from_json(debugger_factory_json))
+
+
+@register_func("tvm.micro.debugger.stop_debugger")
+def stop_debugger():
+  global GLOBAL_DEBUGGER
+  if GLOBAL_DEBUGGER is not None:
+    try:
+      GLOBAL_DEBUGGER.stop()
+    finally:
+      GLOBAL_DEBUGGER = None
+
+
+class RpcDebugger(Debugger):
+
+    def __init__(self, rpc_session, factory, wrapping_context_manager=None):
+        super(RpcDebugger, self).__init__()
+        self._factory = factory
+        self.launch_debugger = rpc_session.get_function('tvm.micro.debugger.launch_debugger')
+        self.stop_debugger = rpc_session.get_function('tvm.micro.debugger.stop_debugger')
+        self.wrapping_context_manager = wrapping_context_manager
+
+    def start(self):
+        if self.wrapping_context_manager is not None:
+            self.wrapping_context_manager.__enter__()
+
+        try:
+            self.launch_debugger(self._factory.to_json)
+        except Exception as e:
+            if self.wrapping_context_manager is not None:
+                self.wrapping_context_manager.__exit__(None, None, None)
+            raise
+
+        try:
+            input('Press [Enter] when debugger is set')
+        except Exception as e:
+            self.stop()
+            raise
+
+        self._is_running = True
+
+    def stop(self):
+      try:
+        self.stop_debugger()
+        self._run_on_terminate_callbacks()
+      finally:
+        if self.wrapping_context_manager is not None:
+          self.wrapping_context_manager.__exit__(None, None, None)

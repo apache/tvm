@@ -290,9 +290,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       target_ = Target("llvm");
     }
     llvm::EngineBuilder builder(std::move(module_));
-    std::string triple, mcpu, mattr;
+    std::string triple, mcpu, mfpu, mattr;
     llvm::TargetOptions opt;
-    ParseLLVMTargetOptions(target_, &triple, &mcpu, &mattr, &opt);
+    ParseLLVMTargetOptions(target_, &triple, &mcpu, &mfpu, &mattr, &opt);
     builder.setEngineKind(llvm::EngineKind::JIT);
     builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
     if (mcpu.length() != 0) {
