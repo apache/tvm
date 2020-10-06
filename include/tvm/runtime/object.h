@@ -133,7 +133,7 @@ struct TypeIndex {
  *    TVM_DECLARE_BASE_OBJECT_INFO(BaseObj, Object);
  *  };
  *
- *  class ObjLeaf : public ObjBase {
+ *  class LeafObj : public BaseObj {
  *   public:
  *    // fields
  *    int child_field0;
@@ -144,8 +144,8 @@ struct TypeIndex {
  *  };
  *
  *  // The following code should be put into a cc file.
- *  TVM_REGISTER_OBJECT_TYPE(ObjBase);
- *  TVM_REGISTER_OBJECT_TYPE(ObjLeaf);
+ *  TVM_REGISTER_OBJECT_TYPE(BaseObj);
+ *  TVM_REGISTER_OBJECT_TYPE(LeafObj);
  *
  *  // Usage example.
  *  void TestObjects() {
