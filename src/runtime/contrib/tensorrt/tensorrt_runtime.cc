@@ -248,8 +248,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
   std::string GetSubgraphKey() {
     // Using this key will only allow a single model per TVM_TENSORRT_CACHE_DIR directory. We could
-    // use instead use a hash of graph_json and all weights to allow many models in the same
-    // directory, but the cost of computing the hash is high.
+    // instead use a hash of graph_json and all weights to allow many models in the same directory,
+    // but the cost of computing the hash is high.
     return symbol_name_ + (dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) ? "_fp16" : "_fp32");
   }
 

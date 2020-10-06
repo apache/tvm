@@ -67,23 +67,6 @@ inline std::vector<int> TrtDimsToVector(const nvinfer1::Dims& dims) {
   return std::vector<int>(dims.d, dims.d + dims.nbDims);
 }
 
-/*!
- * \brief Helper function to convert vector to string.
- * \param vec Vector.
- * \return Vector as a string.
- */
-template <typename T>
-inline std::string DebugString(const std::vector<T>& vec) {
-  std::ostringstream ss;
-  ss << "(";
-  for (size_t i = 0; i < vec.size(); ++i) {
-    if (i != 0) ss << ", ";
-    ss << vec[i];
-  }
-  ss << ")";
-  return ss.str();
-}
-
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

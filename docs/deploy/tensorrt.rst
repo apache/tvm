@@ -46,17 +46,20 @@ There are two methods to install TensorRT:
 * Tar file installation.
 
 With the tar file installation method, you must provide the path of the extracted tar archive to
-USE_TENSORT_GRAPH_RUNTIME=/path/to/TensorRT. With the system install method,
-USE_TENSORT_GRAPH_RUNTIME=ON will automatically locate your installation.
+USE_TENSORRT_GRAPH_RUNTIME=/path/to/TensorRT. With the system install method,
+USE_TENSORRT_GRAPH_RUNTIME=ON will automatically locate your installation.
 
 Building TVM with TensorRT support
 ----------------------------------
 
-There are two separate build flags for TensorRT integration in TVM:
+There are two separate build flags for TensorRT integration in TVM. These flags also enable
+cross-compilation: USE_TENSORRT=ON will also you to build a module with TensorRT support on a host
+machine, while USE_TENSORRT_GRAPH_RUNTIME=ON will enable the TVM runtime on an edge device to
+execute the TensorRT module. You should enable both if you want to compile and also execute models.
 
-* USE_TENSORT=ON/OFF - This flag will enable compiling a TensorRT module, which does not require any
+* USE_TENSORRT=ON/OFF - This flag will enable compiling a TensorRT module, which does not require any
 TensorRT library.
-* USE_TENSORT_GRAPH_RUNTIME=ON/OFF/path-to-TensorRT - This flag will enable the TensorRT runtime
+* USE_TENSORRT_GRAPH_RUNTIME=ON/OFF/path-to-TensorRT - This flag will enable the TensorRT runtime
 module. This will build TVM against the TensorRT libraries.
 
 Example setting in config.cmake file:
@@ -96,7 +99,9 @@ regular TVM CUDA compilation and code generation.
 
 
 Build the Relay graph, using the new module and config returned by partition_for_tensorrt. The
-target must always be a cuda target.
+target must always be a cuda target. ``partition_for_tensorrt`` will automatically fill out the
+required values in the config, so there is no need to modify it - just pass it along to the
+PassContext so the values can be read during compilation.
 
 .. code:: python
 
@@ -112,8 +117,9 @@ Export the module.
     lib.export_library('compiled.so')
 
 
-Load module and run inference. The first run will take longer because the TensorRT engine will have
-to be built.
+Load module and run inference on the target machine, which must be built with
+``USE_TENSORRT_GRAPH_RUNTIME`` enabled. The first run will take longer because the TensorRT engine
+will have to be built.
 
 .. code:: python
 
@@ -125,7 +131,7 @@ to be built.
 
 
 Partitioning and Compilation Settings
-----------------
+-------------------------------------
 
 There are some options which can be configured in ``partition_for_tensorrt``.
 

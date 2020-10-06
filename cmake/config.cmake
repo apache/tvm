@@ -223,7 +223,7 @@ set(USE_ETHOSN_HW OFF)
 #
 # USE_TENSORRT - Support for compiling a relay graph offloading supported
 #                operators to TensorRT. OFF/ON
-# USE_TENSORRT_GRAPH_RUNTIME - Run TensorRT annotated functions via the TensoRT
+# USE_TENSORRT_GRAPH_RUNTIME - Run TensorRT annotated functions via the TensorRT
 #                              runtime. OFF/ON/"path/to/TensorRT"
 set(USE_TENSORRT OFF)
 set(USE_TENSORRT_GRAPH_RUNTIME OFF)
