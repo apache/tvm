@@ -766,10 +766,18 @@ Pass InferType() {
           // that works on TIR and Relay at the same time.
           if (auto* func_node = it.second.as<FunctionNode>()) {
             auto func = GetRef<Function>(func_node);
-            // If a function already has type information we can skip checking it.
-            // if (func->checked_type_.defined()) {
+
+            // Should I restor this?
+            // if (func->GetAttr<String>(attr::kCompiler).defined() ||
+            //     func->GetAttr<Integer>(attr::kSkipOptimization, 0) != 0)
+            // {
             //   continue;
             // }
+
+            // If a function already has type information we can skip checking it.
+            if (func->checked_type_.defined()) {
+              continue;
+            }
 
             // TODO(@jroesch): we should be able to move the type inferencer outside
             // of this function but it seems to be more stateful then I expect.
