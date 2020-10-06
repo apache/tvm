@@ -1105,7 +1105,7 @@ def test_alter_layout_nhwc_int8_aarch64():
         def update(self, target, workload, cfg):
             key = (str(target), workload)
             assert workload[2][1] == expected_workload_shape
-            assert workload[0] == "conv2d_NHWC_quantized_without_transform.arm_cpu"
+            assert workload[0] == "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu"
             self.memory[key] = cfg
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
