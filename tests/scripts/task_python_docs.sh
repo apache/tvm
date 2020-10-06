@@ -68,10 +68,12 @@ npm install
 npm run typedoc
 cd ..
 
+# TODO(@jroesch): add Rust to CI container
+# see: https://github.com/apache/incubator-tvm/issues/6628
 # Rust doc
-cd rust
-cargo doc --workspace --no-deps
-cd ..
+# cd rust
+# cargo doc --workspace --no-deps
+# cd ..
 
 # Prepare the doc dir
 rm -rf _docs
