@@ -17,10 +17,11 @@
  * under the License.
  */
 
+use super::{PrimExpr, PrimExprNode};
 use crate::runtime::String as TVMString;
 use crate::DataType;
 
-use super::*;
+use tvm_macros::Object;
 
 macro_rules! define_node {
     ($name:ident, $ref:expr, $typekey:expr; $node:ident { $($id:ident : $t:ty),*}) => {
@@ -43,6 +44,7 @@ macro_rules! define_node {
     }
 }
 
+// TODO(@jroesch): should move up to expr.rs to mirror TVM.
 define_node!(IntImm, "IntImm", "IntImm";
              IntImmNode { value: i64 });
 define_node!(Var, "Var", "tir.Var";

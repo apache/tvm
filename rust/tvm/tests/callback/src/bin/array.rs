@@ -36,31 +36,28 @@ use tvm::{
 
 fn main() {
     fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
-        let mut ret = 0f32;
-        let shape = &mut [2];
-        for arg in args.iter() {
-            let e = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
+        let mut ret = 0.0;
+        for arg in args {
             let arg: NDArray = arg.try_into()?;
-            let arr = arg.copy_to_ndarray(e)?;
-            let rnd: ArrayD<f32> = ArrayD::try_from(&arr)?;
+            let rnd: ArrayD<f32> = ArrayD::try_from(&arg)?;
             ret += rnd.scalar_sum();
         }
         Ok(RetValue::from(ret))
     }
 
-    let shape = &mut [2];
-    let mut data = vec![3f32, 4.0];
+    let shape = &[2];
+    let data = vec![3.0, 4.0];
     let mut arr = NDArray::empty(shape, Context::cpu(0), DataType::float(32, 1));
-    arr.copy_from_buffer(data.as_mut_slice());
+    arr.copy_from_buffer(data.as_slice());
 
     register_untyped(sum, "sum", true).unwrap();
     let func = Function::get("sum").expect("function registered");
 
     let ret: f32 = func
-        .invoke(vec![(&arr).into(), (&arr).into()])
+        .invoke(vec![(&arr).into()])
         .unwrap()
         .try_into()
         .expect("call should succeed");
 
-    assert_eq!(ret, 7f32);
+    assert_eq!(ret, 7.0);
 }
