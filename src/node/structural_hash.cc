@@ -28,6 +28,8 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include "../support/util.h"
+
 namespace tvm {
 
 // Define the dispatch functio here since primary user is in this file.
@@ -163,7 +165,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     // combine in the reverse order of the stack.
     size_t reduced_hash = task.reduced_hash;
     for (size_t i = result_stack_.size(); i != stack_begin; --i) {
-      reduced_hash = HashCombine(reduced_hash, result_stack_[i - 1]);
+      reduced_hash = support::HashCombine(reduced_hash, result_stack_[i - 1]);
     }
     result_stack_.resize(stack_begin);
     return reduced_hash;
@@ -186,8 +188,8 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           // Append the graph node counter to the hash
           // so that we can distinguish DAG from trees.
           if (entry.graph_node_hash) {
-            entry.reduced_hash =
-                HashCombine(entry.reduced_hash, std::hash<size_t>()(graph_node_counter_++));
+            entry.reduced_hash = support::HashCombine(entry.reduced_hash,
+                                                      std::hash<size_t>()(graph_node_counter_++));
           }
           hash_memo_[entry.object] = entry.reduced_hash;
         }
@@ -227,16 +229,6 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
     CHECK(object.defined());
     vtable_->SHashReduce(object.get(), SHashReducer(this, map_free_vars));
-  }
-
-  /*!
-   * \brief Combine two hash values into a single one.
-   * \param key The left operand.
-   * \param value The right operand.
-   * \return the combined result.
-   */
-  size_t HashCombine(size_t key, size_t value) {
-    return key ^ (value + 0x9e3779b9 + (key << 6) + (key >> 2));
   }
 
  private:
