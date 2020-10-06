@@ -312,6 +312,7 @@ class Partitioner : public MixedModeMutator {
     auto pf = tvm::runtime::Registry::Get(ext_opt);
     if (pf != nullptr) {
       auto mod = IRModule::FromExpr(global_region_func);
+      mod = transform::InferType()(mod);
       mod = (*pf)(mod);
       global_region_func = Downcast<Function>(mod->Lookup("main"));
     }
