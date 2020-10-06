@@ -22,7 +22,7 @@ from ..util import get_const_tuple
 
 def batch_matmul(x, y, oshape=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch.
+    data in batch. Supports broadcasting for batch dimension.
 
     Parameters
     ----------
@@ -32,24 +32,30 @@ def batch_matmul(x, y, oshape=None):
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
 
+    oshape : List[Optional]
+        Explicit intended output shape of the computation. Can be useful in cases
+        with dynamic input shapes.
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
+    x_shape = get_const_tuple(x.shape)
+    y_shape = get_const_tuple(y.shape)
+    XB = x_shape[0]
+    YB = y_shape[0]
+    _, M, K = x.shape
+    k = te.reduce_axis((0, K), name="k")
     if oshape is None:
-        assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
-        x_shape = get_const_tuple(x.shape)
-        y_shape = get_const_tuple(y.shape)
-        assert x_shape[0] == y_shape[0], "batch dimension doesn't match"
+        assert XB == YB or XB == 1 or YB == 1, "batch dimension doesn't match"
         assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
-        batch, M, K = x.shape
+        batch = max(XB, YB)
         N = y.shape[1]
-        k = te.reduce_axis((0, K), name="k")
         oshape = (batch, M, N)
-    else:
-        _, _, K = x.shape
-        k = te.reduce_axis((0, K), name="k")
     return te.compute(
-        oshape, lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k), tag="batch_matmul"
+        oshape,
+        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
+        tag="batch_matmul",
     )
