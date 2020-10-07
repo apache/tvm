@@ -193,7 +193,7 @@ class TVMContext(ctypes.Structure):
 
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()
-        self.device_type = device_type
+        self.device_type = int(device_type)
         self.device_id = device_id
 
     def _GetDeviceAttr(self, device_type, device_id, attr_id):
