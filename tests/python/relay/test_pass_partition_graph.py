@@ -416,11 +416,13 @@ def test_extern_dnnl():
         glb_var = relay.GlobalVar("dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
+        mod = transform.InferType()(mod)
 
         data = relay.var("data", shape=(ishape), dtype=dtype)
         weight = relay.var("input", shape=(w1shape), dtype=dtype)
         main_f = relay.Function([data, weight], glb_var(data, weight))
         mod["main"] = main_f
+        mod = transform.InferType()(mod)
 
         return mod
 
@@ -440,6 +442,7 @@ def test_extern_dnnl():
     mod = tvm.IRModule()
     mod["main"] = WholeGraphAnnotator("dnnl").visit(get_func())
     mod = transform.PartitionGraph()(mod)
+    mod = transform.InferType()(mod)
 
     assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
