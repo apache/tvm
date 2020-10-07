@@ -19,6 +19,9 @@
 set -e
 set -u
 
+# Python is required by apps/bundle_deploy
+source tests/scripts/setup-pytest-env.sh
+
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 # NOTE: important to use abspath, when VTA is enabled.
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw

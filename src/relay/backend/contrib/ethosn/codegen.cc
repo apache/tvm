@@ -578,7 +578,12 @@ sl::CompilationOptions EthosnCompiler::CreateOptions() {
   options.m_DisableWinograd = cfg.value()->disable_winograd;
   options.m_DebugInfo.m_DumpDebugFiles = cfg.value()->dump_debug_files;
   options.m_DebugInfo.m_DebugDir = cfg.value()->debug_dir;
+#if _ETHOSN_API_VERSION_ == 2008
+  options.m_CompilerAlgorithm =
+      sl::EthosNCompilerAlgorithmFromString(cfg.value()->compiler_algorithm.c_str());
+#else
   options.m_EnableCascading = cfg.value()->enable_cascading;
+#endif
   return options;
 }
 

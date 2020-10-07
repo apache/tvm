@@ -62,6 +62,7 @@ We do encourage everyone to work anything they are interested in.
 - [Haichen Shen](https://github.com/icemelon9) (PPMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
+- [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
 - [Jian Weng](https://github.com/were): @were: - hybrid script
@@ -111,6 +112,7 @@ We do encourage everyone to work anything they are interested in.
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
 - [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
+- [Andrew Reusch](https://github.com/areusch): @areusch
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994

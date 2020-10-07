@@ -276,14 +276,22 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
     type Error = Error;
 
     fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
+        use crate::ffi::DLTensor;
+        use crate::ndarray::NDArrayContainer;
+
         match ret_value {
             RetValue::ObjectHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
-                // println!("back to type {}", optr.count());
                 optr.downcast()
             }
-            _ => Err(Error::downcast(format!("{:?}", ret_value), "ObjectHandle")),
+            RetValue::NDArrayHandle(handle) => {
+                let optr: ObjectPtr<NDArrayContainer> =
+                    NDArrayContainer::from_raw(handle as *mut DLTensor).ok_or(Error::Null)?;
+                debug_assert!(optr.count() >= 1);
+                optr.upcast::<Object>().downcast()
+            }
+            _ => Err(Error::downcast(format!("{:?}", ret_value), T::TYPE_KEY)),
         }
     }
 }
@@ -291,9 +299,22 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
 impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         debug_assert!(object_ptr.count() >= 1);
-        let raw_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
-        assert!(!raw_ptr.is_null());
-        ArgValue::ObjectHandle(raw_ptr)
+        let object_ptr = object_ptr.upcast::<Object>();
+        match T::TYPE_KEY {
+            "runtime.NDArray" => {
+                use crate::ndarray::NDArrayContainer;
+                // TODO(this is probably not optimal)
+                let raw_ptr = NDArrayContainer::leak(object_ptr.downcast().unwrap())
+                    as *mut NDArrayContainer as *mut std::ffi::c_void;
+                assert!(!raw_ptr.is_null());
+                ArgValue::NDArrayHandle(raw_ptr)
+            }
+            _ => {
+                let raw_ptr = ObjectPtr::leak(object_ptr) as *mut Object as *mut std::ffi::c_void;
+                assert!(!raw_ptr.is_null());
+                ArgValue::ObjectHandle(raw_ptr)
+            }
+        }
     }
 }
 
@@ -301,12 +322,20 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     type Error = Error;
 
     fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
+        use crate::ffi::DLTensor;
+        use crate::ndarray::NDArrayContainer;
+
         match arg_value {
             ArgValue::ObjectHandle(handle) => {
                 let optr = ObjectPtr::from_raw(handle as *mut Object).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
-                // println!("count: {}", optr.count());
                 optr.downcast()
+            }
+            ArgValue::NDArrayHandle(handle) => {
+                let optr =
+                    NDArrayContainer::from_raw(handle as *mut DLTensor).ok_or(Error::Null)?;
+                debug_assert!(optr.count() >= 1);
+                optr.upcast::<Object>().downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", arg_value), "ObjectHandle")),
         }
@@ -402,37 +431,8 @@ mod tests {
         return o;
     }
 
-    // #[test]
-    // fn test_ref_count_boundary() {
-    //     use super::*;
-    //     use crate::function::{register, Function, Result};
-    //     // 1
-    //     let ptr = ObjectPtr::new(Object::base_object::<Object>());
-    //     assert_eq!(ptr.count(), 1);
-    //     // 2
-    //     let stay = ptr.clone();
-    //     assert_eq!(ptr.count(), 2);
-    //     register(test_fn, "my_func").unwrap();
-    //     let func = Function::get("my_func").unwrap();
-    //     let func = func.to_boxed_fn::<dyn Fn(ObjectPtr<Object>) -> Result<ObjectPtr<Object>>>();
-    //     let same = func(ptr).unwrap();
-    //     drop(func);
-    //     assert_eq!(stay.count(), 4);
-    //     assert_eq!(same.count(), 4);
-    //     drop(same);
-    //     assert_eq!(stay.count(), 3);
-    // }
-
-    // fn test_fn2(o: ArgValue<'static>) -> RetValue {
-    //     // The call machinery adds at least 1 extra count while inside the call.
-    //     match o {
-    //         ArgValue::ObjectHandle(ptr) => RetValue::ObjectHandle(ptr),
-    //         _ => panic!()
-    //     }
-    // }
-
     #[test]
-    fn test_ref_count_boundary2() {
+    fn test_ref_count_boundary3() {
         use super::*;
         use crate::function::{register, Function};
         let ptr = ObjectPtr::new(Object::base_object::<Object>());

@@ -70,7 +70,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     if os.environ.get("TVM_LIBRARY_PATH", None):
         dll_path.append(os.environ["TVM_LIBRARY_PATH"])
 
-    if sys.platform.startswith("linux"):
+    if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         dll_path.extend(split_env_var("LD_LIBRARY_PATH", ":"))
         dll_path.extend(split_env_var("PATH", ":"))
     elif sys.platform.startswith("darwin"):
@@ -217,4 +217,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by tvm/python/update_version.py
-__version__ = "0.7.dev1"
+__version__ = "0.8.dev0"

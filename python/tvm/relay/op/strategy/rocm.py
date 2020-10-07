@@ -160,3 +160,24 @@ def dense_strategy_rocm(attrs, inputs, out_type, target):
             plevel=15,
         )
     return strategy
+
+
+@batch_matmul_strategy.register("rocm")
+def batch_matmul_strategy_rocm(attrs, inputs, out_type, target):
+    """Batch matmul strategy for ROCM"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_batch_matmul(topi.cuda.batch_matmul),
+        wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
+        name="batch_matmul.cuda",
+        plevel=10,
+    )
+    if target.kind.name == "rocm" and "rocblas" in target.libs:
+        assert out_type.dtype == inputs[0].dtype, "Mixed precision not supported."
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.rocm.batch_matmul_rocblas),
+            wrap_topi_schedule(topi.rocm.schedule_batch_matmul_rocblas),
+            name="batch_matmul_rocblas.rocm",
+            plevel=12,
+        )
+    return strategy

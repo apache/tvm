@@ -72,14 +72,17 @@ def _main(argv):
     if args.verbose > 4:
         args.verbose = 4
 
-    logging.getLogger().setLevel(40 - args.verbose * 10)
+    logging.getLogger("TVMC").setLevel(40 - args.verbose * 10)
 
     if args.version:
         version = pkg_resources.get_distribution("tvm").version
         sys.stdout.write("%s\n" % version)
         return 0
 
-    assert hasattr(args, "func"), "Error: missing 'func' attribute for subcommand {0}".format(argv)
+    if not hasattr(args, "func"):
+        # In case no valid subcommand is provided, show usage and exit
+        parser.print_help(sys.stderr)
+        return 1
 
     try:
         return args.func(args)

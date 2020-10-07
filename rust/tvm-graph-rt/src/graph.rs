@@ -46,8 +46,10 @@ const _NDARRAY_LIST_MAGIC: u64 = 0xF7E5_8D4F_0504_9CB7;
 ///
 /// # Examples
 ///
-/// ```norun
-/// let graph_json = fs::read_to_string("graph.json").unwrap();
+/// ```no_run
+/// use tvm_graph_rt::Graph;
+/// use std::convert::TryFrom;
+/// let graph_json = std::fs::read_to_string("graph.json").unwrap();
 /// let graph = Graph::try_from(&graph_json).unwrap();
 /// ```
 #[derive(Serialize, Deserialize, Debug)]
@@ -147,7 +149,7 @@ impl<'a> TryFrom<&'a str> for Graph {
 ///
 /// # Examples
 ///
-/// ```norun
+/// ```no_compile
 /// use ndarray::Array;
 ///
 /// let syslib = SystemLibModule::default(); // a provider of TVM functions

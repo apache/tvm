@@ -174,7 +174,6 @@ bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
  * it's called.
  */
 
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
@@ -188,7 +187,7 @@ std::vector<tvm::runtime::NDArray> test_outputs;
 TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       test_outputs.clear();
-      for (int argc = 1; argc < args.size(); argc++) {
+      for (int argc = 0; argc < args.size(); argc++) {
         const DLTensor* tensor = args[argc];
         auto shape = std::vector<int64_t>(tensor->shape, tensor->shape + tensor->ndim);
         test_outputs.emplace_back(tvm::runtime::NDArray::Empty(shape, tensor->dtype, tensor->ctx));

@@ -62,13 +62,13 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {
-    size_t axis = param->kernel_layout.find('O');
+    size_t axis = param->kernel_layout.operator std::string().find('O');
     CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
     AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
   } else {
     // Here, total number of output channels depend on depth multiplier.
-    size_t o_axis = param->kernel_layout.find('O');
-    size_t i_axis = param->kernel_layout.find('I');
+    size_t o_axis = param->kernel_layout.operator std::string().find('O');
+    size_t i_axis = param->kernel_layout.operator std::string().find('I');
     CHECK(o_axis != std::string::npos || i_axis != std::string::npos)
         << "Kernel layout attribute is not defined";
     AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],

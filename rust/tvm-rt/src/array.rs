@@ -117,3 +117,20 @@ impl<'a, T: IsObjectRef> TryFrom<RetValue> for Array<T> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Array;
+    use crate::function::Result;
+    use crate::string::String;
+
+    #[test]
+    fn create_array_and_get() -> Result<()> {
+        let vec: Vec<String> = vec!["foo".into(), "bar".into(), "baz".into()];
+        let array = Array::from_vec(vec)?;
+        assert_eq!(array.get(0)?.to_string(), "foo");
+        assert_eq!(array.get(1)?.to_string(), "bar");
+        assert_eq!(array.get(2)?.to_string(), "baz");
+        Ok(())
+    }
+}
