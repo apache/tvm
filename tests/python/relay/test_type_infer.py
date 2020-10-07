@@ -27,7 +27,7 @@ from tvm.relay import Any
 
 def infer_mod(mod, annotate_spans=True):
     if annotate_spans:
-        mod = parser.AnnotateSpans()(mod)
+        mod = relay.transform.AnnotateSpans()(mod)
 
     mod = transform.InferType()(mod)
     return mod

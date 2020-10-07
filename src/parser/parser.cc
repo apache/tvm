@@ -1869,7 +1869,7 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
       return ParseExpr(file_name, file_content);
     });
 
-TVM_REGISTER_GLOBAL("parser.AnnotateSpans").set_body_typed([]() {
+TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
   return CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) {
         auto text = AsText(mod, true);
