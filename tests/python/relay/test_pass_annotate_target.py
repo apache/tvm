@@ -445,6 +445,14 @@ def test_while_let():
     def Let(attrs, args):  # pylint: disable=unused-variable
         return True
 
+    @tvm.ir.register_op_attr("const", "target." + target)
+    def const(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("zeros_like", "target." + target)
+    def zeros_like(attrs, args):  # pylint: disable=unused-variable
+        return True
+
     """Test that let nodes compiles correctly when surrounded by other nodes."""
 
     def before():
@@ -500,12 +508,14 @@ def test_while_let():
         cb_9 = relay.annotation.compiler_begin(relay.const(0, dtype="int32"), target)
         cb_10 = relay.annotation.compiler_begin(var1, target)
         zeros_like = relay.zeros_like(cb_10)
-        while_condition = loop(cb_9, zeros_like)
-        ce_5 = relay.annotation.compiler_end(while_condition, target)
+        ce_5 = relay.annotation.compiler_end(zeros_like, target)
+        cb_11 = relay.annotation.compiler_begin(ce_5, target)
+        while_condition = loop(cb_9, cb_11)
+        ce_6 = relay.annotation.compiler_end(while_condition, target)
 
         func_1 = relay.Function([var2, var3], if_condition)
         ret = relay.Let(
-            loop, func_1, ce_5
+            loop, func_1, ce_6
         )
         func_2 = relay.Function([var1], ret)
         mod = tvm.IRModule.from_expr(func_2)
@@ -514,7 +524,6 @@ def test_while_let():
     seq = tvm.transform.Sequential(
             [
                 transform.AnnotateTarget(target),
-                transform.MergeCompilerRegions(),
             ])
     result = seq(before())
     expected = transform.InferType()(after())
