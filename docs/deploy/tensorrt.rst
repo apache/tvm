@@ -59,9 +59,9 @@ execute the TensorRT module. You should enable both if you want to compile and a
 with the same TVM build.
 
 * USE_TENSORRT_CODEGEN=ON/OFF - This flag will enable compiling a TensorRT module, which does not require any
-TensorRT library.
+  TensorRT library.
 * USE_TENSORRT_RUNTIME=ON/OFF/path-to-TensorRT - This flag will enable the TensorRT runtime module.
-This will build TVM against the installed TensorRT library.
+  This will build TVM against the installed TensorRT library.
 
 Example setting in config.cmake file:
 
