@@ -110,8 +110,6 @@ cargo run --bin array
 cargo run --bin string
 cd -
 
-# TODO(@jroesch): we need to renable MxNet in ci-cpu image
-# https://github.com/apache/incubator-tvm/pull/6563
-# cd examples/resnet
-# cargo build
+cd examples/resnet
+cargo run
 cd -
