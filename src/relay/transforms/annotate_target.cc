@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/transforms/annotate_target.cc
+ * \file src/relay/transforms/.cc
  * \brief Wraps an expr with compiler_begin and compiler_end to indicate that
  * this expr should be handled by the external compiler.
  */
@@ -33,7 +33,7 @@
 
 namespace tvm {
 namespace relay {
-namespace annotate_target {
+namespace  {
 
 const PackedFunc* make_begin_op =
     runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
@@ -307,14 +307,14 @@ Expr AnnotateTarget(const Expr& expr, const Array<runtime::String>& targets) {
   return PostOrderRewrite(expr, &rewriter);
 }
 
-}  // namespace annotate_target
+}  // namespace 
 
 namespace transform {
 
 Pass AnnotateTarget(const Array<runtime::String>& targets) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, targets));
+        return Downcast<Function>(relay::AnnotateTarget(f, targets));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc", {"InferType"});
   return transform::Sequential({func_pass, InferType()}, "AnnotateTarget");
