@@ -222,9 +222,9 @@ set(USE_ETHOSN_HW OFF)
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
 # USE_TENSORRT_CODEGEN - Support for compiling a relay graph where supported operators are
-                         offloaded to TensorRT. OFF/ON
+#                        offloaded to TensorRT. OFF/ON
 # USE_TENSORRT_RUNTIME - Support for running TensorRT compiled modules, requires presense of
-                         TensorRT library. OFF/ON/"path/to/TensorRT"
+#                        TensorRT library. OFF/ON/"path/to/TensorRT"
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
 
