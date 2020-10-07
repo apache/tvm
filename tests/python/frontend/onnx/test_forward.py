@@ -410,6 +410,42 @@ def test_power():
     _test_power_iteration((2, 3), (1, 3))
 
 
+def verify_range(start, limit, delta, dtype):
+    dtype_map = {
+        "float32": TensorProto.FLOAT,
+        "int32": TensorProto.INT32,
+        "int64": TensorProto.INT64,
+    }
+    dtype_onnx = dtype_map[dtype]
+    y = helper.make_node("Range", ["start", "limit", "delta"], ["output"])
+    graph = helper.make_graph(
+        [y],
+        "range_test",
+        inputs=[
+            helper.make_tensor_value_info("start", dtype_onnx, []),
+            helper.make_tensor_value_info("limit", dtype_onnx, []),
+            helper.make_tensor_value_info("delta", dtype_onnx, []),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "output", dtype_onnx, np.arange(start, limit, delta).shape
+            )
+        ],
+    )
+    model = helper.make_model(graph, producer_name="range_test")
+    inputs = [np.array(x).astype(dtype) for x in [start, limit, delta]]
+    verify_with_ort_with_inputs(model, inputs, use_vm=True)
+
+
+@tvm.testing.uses_gpu
+def test_range():
+    for t in ["float32", "int32", "int64"]:
+        verify_range(0, 10, 1, t)
+        verify_range(2, 8, 2, t)
+        verify_range(-3, 6, 4, t)
+        verify_range(-2, -7, -1, t)
+
+
 @tvm.testing.uses_gpu
 def test_squeeze():
     in_shape = (1, 3, 1, 3, 1, 1)
