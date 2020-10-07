@@ -387,17 +387,6 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
-        elif len(attr["kernel_shape"]) == 2:
-            sym_pad = True
-            if "pads" in attr:
-                padding = attr["pads"]
-            else:
-                padding = [0, 0, 0, 0]
-            for i in range(0, len(padding), 2):
-                sym_pad = sym_pad and padding[i] == padding[i + 1]
-
-            if sym_pad:
-                attr["pads"] = padding[0::2]
 
         out = AttrCvt(
             op_name=dimension_picker("conv"),
