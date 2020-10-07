@@ -352,6 +352,77 @@ def test_multiple_runs():
     expected = transform.AnnotateTarget(["A", "B"])(before())
     assert tvm.ir.structural_equal(expected, mod)
 
+def test_if_else():
+    target = "test_if_else"
+
+    @tvm.ir.register_op_attr("equal", "target." + target)
+    def relu(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("tanh", "target." + target)
+    def tanh(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("sigmoid", "target." + target)
+    def sigmoid(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("If", "target." + target)
+    def If(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("erf", "target." + target)
+    def erf(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    """Test that If-else nodes compiles correctly when surrounded by supported nodes."""
+
+    def before():
+        data = relay.var('data', shape=(1, 32))
+        eq1 = relay.var('e1', shape=[], dtype='int32')
+        eq2 = relay.var('e2', shape=[], dtype='int32')
+        eq = relay.equal(eq1, eq2)
+
+        true_branch = relay.tanh(data)
+        false_branch = relay.sigmoid(data)
+        ife = relay.If(eq, true_branch, false_branch)
+        out = relay.erf(ife)
+        func = relay.Function([data, eq1, eq2], out)
+        mod = tvm.IRModule.from_expr(func)
+
+        return mod
+
+    def after():
+
+        data = relay.var('data', shape=(1, 32))
+        eq1 = relay.var('e1', shape=[], dtype='int32')
+        eq2 = relay.var('e2', shape=[], dtype='int32')
+
+        cb_1 = relay.annotation.compiler_begin(eq1, target)
+        cb_2 = relay.annotation.compiler_begin(eq2, target)
+
+        equality_condition = relay.equal(cb_1, cb_2)
+        ce_1 = relay.annotation.compiler_end(equality_condition, target)
+
+        cb_3 = relay.annotation.compiler_begin(data, target)
+        true_branch = relay.tanh(cb_3)
+        ce_2 = relay.annotation.compiler_end(true_branch, target)
+
+        cb_4 = relay.annotation.compiler_begin(data, target)
+        false_branch = relay.sigmoid(cb_4)
+        ce_3 = relay.annotation.compiler_end(false_branch, target)
+
+        if_condition = relay.If(ce_1, ce_2, ce_3)
+        cb_5 = relay.annotation.compiler_begin(if_condition, target)
+        erf_out = relay.erf(cb_5)
+        ce_4 = relay.annotation.compiler_end(erf_out, target)
+        func = relay.Function([data, eq1, eq2], ce_4)
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    result = transform.AnnotateTarget(target)(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
 
 if __name__ == "__main__":
     test_extern_dnnl()
@@ -361,3 +432,4 @@ if __name__ == "__main__":
     test_type_propagation()
     test_tuple()
     test_multiple_runs()
+    test_if_else()
