@@ -46,28 +46,29 @@ There are two methods to install TensorRT:
 * Tar file installation.
 
 With the tar file installation method, you must provide the path of the extracted tar archive to
-USE_TENSORRT_GRAPH_RUNTIME=/path/to/TensorRT. With the system install method,
-USE_TENSORRT_GRAPH_RUNTIME=ON will automatically locate your installation.
+USE_TENSORRT_RUNTIME=/path/to/TensorRT. With the system install method,
+USE_TENSORRT_RUNTIME=ON will automatically locate your installation.
 
 Building TVM with TensorRT support
 ----------------------------------
 
 There are two separate build flags for TensorRT integration in TVM. These flags also enable
-cross-compilation: USE_TENSORRT=ON will also you to build a module with TensorRT support on a host
-machine, while USE_TENSORRT_GRAPH_RUNTIME=ON will enable the TVM runtime on an edge device to
-execute the TensorRT module. You should enable both if you want to compile and also execute models.
+cross-compilation: USE_TENSORRT_CODEGEN=ON will also you to build a module with TensorRT support on
+a host machine, while USE_TENSORRT_RUNTIME=ON will enable the TVM runtime on an edge device to
+execute the TensorRT module. You should enable both if you want to compile and also execute models
+with the same TVM build.
 
-* USE_TENSORRT=ON/OFF - This flag will enable compiling a TensorRT module, which does not require any
+* USE_TENSORRT_CODEGEN=ON/OFF - This flag will enable compiling a TensorRT module, which does not require any
 TensorRT library.
-* USE_TENSORRT_GRAPH_RUNTIME=ON/OFF/path-to-TensorRT - This flag will enable the TensorRT runtime
-module. This will build TVM against the TensorRT libraries.
+* USE_TENSORRT_RUNTIME=ON/OFF/path-to-TensorRT - This flag will enable the TensorRT runtime module.
+This will build TVM against the installed TensorRT library.
 
 Example setting in config.cmake file:
 
 .. code:: cmake
 
-    set(USE_TENSORRT ON)
-    set(USE_TENSORRT_GRAPH_RUNTIME /home/ubuntu/TensorRT-7.0.0.11)
+    set(USE_TENSORRT_CODEGEN ON)
+    set(USE_TENSORRT_RUNTIME /home/ubuntu/TensorRT-7.0.0.11)
 
 
 Build and Deploy ResNet-18 with TensorRT
@@ -118,8 +119,8 @@ Export the module.
 
 
 Load module and run inference on the target machine, which must be built with
-``USE_TENSORRT_GRAPH_RUNTIME`` enabled. The first run will take longer because the TensorRT engine
-will have to be built.
+``USE_TENSORRT_RUNTIME`` enabled. The first run will take longer because the TensorRT engine will
+have to be built.
 
 .. code:: python
 
@@ -136,7 +137,7 @@ Partitioning and Compilation Settings
 There are some options which can be configured in ``partition_for_tensorrt``.
 
 * ``version`` - TensorRT version to target as tuple of (major, minor, patch). If TVM is compiled
-  with USE_TENSORRT_GRAPH_RUNTIME=ON, the linked TensorRT version will be used instead. The version
+  with USE_TENSORRT_RUNTIME=ON, the linked TensorRT version will be used instead. The version
   will affect which ops can be partitioned to TensorRT.
 * ``use_implicit_batch`` - Use TensorRT implicit batch mode (default true). Setting to false will
   enable explicit batch mode which will widen supported operators to include those which modify the
@@ -282,8 +283,6 @@ Adding a new operator
 ---------------------
 To add support for a new operator, there are a series of files we need to make changes to:
 
-* `python/relay/op/contrib/tensorrt.py` This file contains the annotation rules for TensorRT. These
-  determine which operators and their attributes that are supported.
 * `src/runtime/contrib/tensorrt/tensorrt_ops.cc` Create a new op converter class which
   implements the ``TensorRTOpConverter`` interface. You must implement the constructor to specify how
   many inputs there are and whether they are tensors or weights. You must also implement the
@@ -291,4 +290,8 @@ To add support for a new operator, there are a series of files we need to make c
   network from params to add the new TensorRT layers and push the layer outputs. You can use the
   existing converters as an example. Finally, register your new op conventer in the
   ``GetOpConverters()`` map.
+* `python/relay/op/contrib/tensorrt.py` This file contains the annotation rules for TensorRT. These
+  determine which operators and their attributes that are supported. You must register an annotation
+  function for the relay operator and specify which attributes are supported by your converter, by
+  checking the attributes are returning true or false.
 * `tests/python/contrib/test_tensorrt.py` Add unit tests for the given operator.

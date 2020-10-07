@@ -96,7 +96,7 @@ def partition_for_tensorrt(
         Constant input parameters.
     version : Optional[Tuple[int, int, int]]
         TensorRT version to target as tuple of (major, minor, patch). If TVM is compiled with
-        USE_TENSORRT_GRAPH_RUNTIME=ON, the linked TensorRT version will be used instead.
+        USE_TENSORRT_RUNTIME=ON, the linked TensorRT version will be used instead.
     use_implicit_batch : Optional[bool]
         Use TensorRT implicit batch mode (default true). Setting to false will enable explicit batch
         mode which will widen supported operators to include those which modify the batch dimension,

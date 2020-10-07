@@ -278,12 +278,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
 #else
   void Run() override {
     LOG(FATAL) << "TensorRT runtime is not enabled. "
-               << "Please build with USE_TENSORRT_GRAPH_RUNTIME.";
+               << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
   void BuildEngine() {
     LOG(WARNING) << "TensorRT runtime is not enabled. "
-                 << "Please build with USE_TENSORRT_GRAPH_RUNTIME.";
+                 << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
   bool GetCachedEnginesFromDisk() { return false; }

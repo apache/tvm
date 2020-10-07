@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# TensorRT Codegen only. This can be enabled independently of USE_TENSORRT_GRAPH_RUNTIME to enable
+# TensorRT Codegen only. This can be enabled independently of USE_TENSORRT_RUNTIME to enable
 # compilation of TensorRT modules without requiring TensorRT to be installed. The compiled modules
-# will only be able to be executed using a TVM built with USE_TENSORRT_GRAPH_RUNTIME=ON.
-if(USE_TENSORRT)
+# will only be able to be executed using a TVM built with USE_TENSORRT_RUNTIME=ON.
+if(USE_TENSORRT_CODEGEN)
     message(STATUS "Build with TensorRT codegen")
     file(GLOB COMPILER_TENSORRT_SRCS src/relay/backend/contrib/tensorrt/*.cc)
     set_source_files_properties(${COMPILER_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
@@ -29,9 +29,9 @@ if(USE_TENSORRT)
 endif()
 
 # TensorRT Runtime
-if(USE_TENSORRT_GRAPH_RUNTIME)
-    if(IS_DIRECTORY ${USE_TENSORRT_GRAPH_RUNTIME})
-        set(TENSORRT_ROOT_DIR ${USE_TENSORRT_GRAPH_RUNTIME})
+if(USE_TENSORRT_RUNTIME)
+    if(IS_DIRECTORY ${USE_TENSORRT_RUNTIME})
+        set(TENSORRT_ROOT_DIR ${USE_TENSORRT_RUNTIME})
         message(STATUS "Custom TensorRT path: " ${TENSORRT_ROOT_DIR})
     endif()
     find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS ${TENSORRT_ROOT_DIR} PATH_SUFFIXES include)

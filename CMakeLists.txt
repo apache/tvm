@@ -77,8 +77,8 @@ tvm_option(USE_COREML "Build with coreml support" OFF)
 tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
-tvm_option(USE_TENSORRT "Build with TensorRT" OFF)
-tvm_option(USE_TENSORRT_GRAPH_RUNTIME "Build with TensorRT graph runtime" OFF)
+tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
+tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
