@@ -422,14 +422,7 @@ def test_if_else():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    seq = tvm.transform.Sequential(
-            [
-                transform.AnnotateTarget(target),
-                transform.MergeCompilerRegions(),
-            ])
-    result = seq(before())
-
-    # result = transform.AnnotateTarget(target)(before())
+    result = transform.AnnotateTarget(target)(before())
     expected = transform.InferType()(after())
     assert tvm.ir.structural_equal(expected, result)
 
