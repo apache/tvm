@@ -740,11 +740,6 @@ void AddGlobalTypes(IRModule mod) {
   }
 }
 
-static bool SkipFunction(const Function& func) {
-  return (func->GetAttr<String>(attr::kCompiler).defined()) ||
-         func->GetAttr<Integer>(attr::kSkipOptimization, 0) != 0;
-}
-
 namespace transform {
 
 Pass InferType() {
@@ -774,10 +769,6 @@ Pass InferType() {
 
             // // If a function already has type information we can skip checking it.
             // if (func->checked_type_.defined()) {
-            //   continue;
-            // }
-
-            // if (SkipFunction(func)) {
             //   continue;
             // }
 
