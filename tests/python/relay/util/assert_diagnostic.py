@@ -19,9 +19,9 @@ import tvm
 from tvm import register_func, get_global_func, IRModule
 from tvm import relay
 from tvm.parser import SpanCheck
-from tvm.parser import AnnotateSpans
+from tvm.relay.transform import AnnotateSpans
 from tvm.runtime import Object
-from tvm.ir.diagnostic import get_default_renderer, set_default_renderer
+from tvm.ir.diagnostics import get_default_renderer, set_default_renderer
 from tvm.error import DiagnosticError
 
 std_out = get_default_renderer()()
