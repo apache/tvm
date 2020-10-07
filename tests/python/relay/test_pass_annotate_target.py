@@ -404,10 +404,12 @@ def test_if_else():
         equality_condition = relay.equal(cb_1, cb_2)
         ce_1 = relay.annotation.compiler_end(equality_condition, target)
 
+        # if condition
         cb_3 = relay.annotation.compiler_begin(data, target)
         true_branch = relay.tanh(cb_3)
         ce_2 = relay.annotation.compiler_end(true_branch, target)
 
+        # else condition
         cb_4 = relay.annotation.compiler_begin(data, target)
         false_branch = relay.sigmoid(cb_4)
         ce_3 = relay.annotation.compiler_end(false_branch, target)
@@ -420,9 +422,116 @@ def test_if_else():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    result = transform.AnnotateTarget(target)(before())
+    seq = tvm.transform.Sequential(
+            [
+                transform.AnnotateTarget(target),
+                transform.MergeCompilerRegions(),
+            ])
+    result = seq(before())
+
+    # result = transform.AnnotateTarget(target)(before())
     expected = transform.InferType()(after())
     assert tvm.ir.structural_equal(expected, result)
+
+def test_while_let():
+    target = "test_while_let"
+
+    @tvm.ir.register_op_attr("less", "target." + target)
+    def less(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("add", "target." + target)
+    def add(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("If", "target." + target)
+    def If(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("scope_builder", "target." + target)
+    def scope_builder(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("Let", "target." + target)
+    def Let(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    """Test that let nodes compiles correctly when surrounded by other nodes."""
+
+    def before():
+
+        var1 = relay.var("var1", shape=(2,))
+        var2 = relay.var("var2", shape=(), dtype="int32")
+        var3 = relay.var("var3", shape=(2,))
+        cond = var2 < relay.const(10, dtype="int32")
+
+        loop = relay.var("while_loop")
+        ii = var2 + relay.const(1, dtype="int32")
+        ss = var3 + var1    
+        true_branch = loop(ii,ss)
+        ife = relay.If(cond, true_branch, var3)
+        func_1 = relay.Function([var2, var3], ife)
+
+        ret = relay.Let(
+            loop, func_1, loop(relay.const(0, dtype="int32"), relay.zeros_like(var1))
+        )
+        func_2 = relay.Function([var1], ret)
+        mod = tvm.IRModule.from_expr(func_2)
+        return mod
+
+    def after():
+        var1 = relay.var("var1", shape=(2,))
+        var2 = relay.var("var2", shape=(), dtype="int32")
+        var3 = relay.var("var3", shape=(2,))
+        var4 = relay.const(10, dtype="int32")
+        
+        cb_1 = relay.annotation.compiler_begin(var2, target)
+        cb_2 = relay.annotation.compiler_begin(var4, target)
+
+        less_condition = cb_1 < cb_2
+        ce_1 = relay.annotation.compiler_end(less_condition, target)
+
+        loop = relay.var("while_loop")
+
+        # if condition
+        cb_3 = relay.annotation.compiler_begin(var2, target)
+        cb_4 = relay.annotation.compiler_begin(relay.const(1, dtype="int32"), target)
+        add_op_1 = relay.add(cb_3, cb_4)
+        ce_2 = relay.annotation.compiler_end(add_op_1, target)
+        cb_5 = relay.annotation.compiler_begin(ce_2, target)
+        cb_6 = relay.annotation.compiler_begin(var3, target)
+        cb_7 = relay.annotation.compiler_begin(var1, target)
+        add_op_2 = relay.add(cb_6, cb_7)
+        ce_3 = relay.annotation.compiler_end(add_op_2, target)
+        cb_8 = relay.annotation.compiler_begin(ce_3, target)
+        true_branch = loop(cb_5, cb_8) # while loop 
+        ce_4 = relay.annotation.compiler_end(true_branch, target)
+        if_condition = relay.If(ce_1, ce_4, var3)
+
+        cb_9 = relay.annotation.compiler_begin(relay.const(0, dtype="int32"), target)
+        cb_10 = relay.annotation.compiler_begin(var1, target)
+        zeros_like = relay.zeros_like(cb_10)
+        while_condition = loop(cb_9, zeros_like)
+        ce_5 = relay.annotation.compiler_end(while_condition, target)
+
+        func_1 = relay.Function([var2, var3], if_condition)
+        ret = relay.Let(
+            loop, func_1, ce_5
+        )
+        func_2 = relay.Function([var1], ret)
+        mod = tvm.IRModule.from_expr(func_2)
+        return mod
+
+    seq = tvm.transform.Sequential(
+            [
+                transform.AnnotateTarget(target),
+                transform.MergeCompilerRegions(),
+            ])
+    result = seq(before())
+    expected = transform.InferType()(after())
+    print(expected, result)
+    assert tvm.ir.structural_equal(expected, result)
+
 
 if __name__ == "__main__":
     test_extern_dnnl()
@@ -433,3 +542,4 @@ if __name__ == "__main__":
     test_tuple()
     test_multiple_runs()
     test_if_else()
+    test_while_let()
