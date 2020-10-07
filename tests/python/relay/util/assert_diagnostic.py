@@ -24,7 +24,7 @@ from tvm.runtime import Object
 from tvm.ir.diagnostics import get_default_renderer, set_default_renderer
 from tvm.error import DiagnosticError
 
-std_out = get_default_renderer()()
+default_renderer = get_default_renderer()()
 
 __TESTING__ = None
 
@@ -32,13 +32,10 @@ __TESTING__ = None
 def testing_renderer(diag_ctx):
     global __TESTING__
     if __TESTING__ and __TESTING__.mirror:
-        std_out.render(diag_ctx)
+        default_renderer.render(diag_ctx)
 
     if __TESTING__:
         __TESTING__._render(diag_ctx)
-
-
-set_default_renderer(testing_renderer)
 
 
 class DiagnosticTesting:
@@ -49,11 +46,13 @@ class DiagnosticTesting:
     def __enter__(self):
         global __TESTING__
         __TESTING__ = self
+        set_default_renderer(testing_renderer)
         return self
 
     def __exit__(self, type, value, traceback):
         global __TESTING__
         __TESTING__ = None
+        set_default_renderer(default_renderer)
         if type is DiagnosticError and self.matches:
             return True
 
