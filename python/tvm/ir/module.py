@@ -249,3 +249,10 @@ class IRModule(Node):
         # TODO(@jroesch): clean up prelude
         _ffi_api.Module_ImportFromStd(self, file_to_import)
         return tvm.relay.transform.InferType()(self)
+
+    def __str__(self):
+        # TODO(jroesch): why does this hang sometimes?
+        return self.astext()
+
+    def __repr__(self):
+        return self.astext()
