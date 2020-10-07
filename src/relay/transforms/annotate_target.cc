@@ -35,10 +35,9 @@ namespace tvm {
 namespace relay {
 namespace annotate_target {
 
-static const PackedFunc* make_begin_op =
+const PackedFunc* make_begin_op =
     runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
-static const PackedFunc* make_end_op =
-    runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+const PackedFunc* make_end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
 
 // A helper class to insert annotation boundaries for a program region that will
 // be handled by a specific compiler.
@@ -130,11 +129,13 @@ class AnnotateTargetRewriter : public ExprRewriter {
 
     // Peek the first argument. If it is compiler begin then this node had annotated by
     // another target before, so we also consider that target as a supported target.
-    const CallNode* first_arg_call = pre->args[0].as<CallNode>();
-    if (first_arg_call && first_arg_call->op == CompilerBeginOp()) {
-      std::string arg_target = first_arg_call->attrs.as<CompilerAttrs>()->compiler;
-      if (arg_target != "default") {
-        supported_targets.push_back(arg_target);
+    if (pre->args.size()) {
+      const CallNode* first_arg_call = pre->args[0].as<CallNode>();
+      if (first_arg_call && first_arg_call->op == CompilerBeginOp()) {
+        std::string arg_target = first_arg_call->attrs.as<CompilerAttrs>()->compiler;
+        if (arg_target != "default") {
+          supported_targets.push_back(arg_target);
+        }
       }
     }
 
@@ -234,20 +235,36 @@ class AnnotateTargetRewriter : public ExprRewriter {
   Expr Rewrite_(const LetNode* op, const Expr& post) final {
     auto let = Downcast<Let>(post);
 
-    auto target_n_args = AnnotateArgs({let->value, let->body});
-    auto new_expr = Let(let->var, std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
-    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    Expr new_expr;
+    std::pair<std::string, Array<Expr>> target_n_args;
+    Expr new_body = InsertCompilerEnd(let->body);
+    bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
+    if (is_functional_literal) {
+      new_expr = Let(let->var, let->value, new_body);
+    } else {
+      target_n_args = AnnotateArgs({let->value});
+      new_expr = Let(let->var, std::get<1>(target_n_args)[0], new_body);
+    }
+
+    return std::move(new_expr);
+  }
+
+  Expr InsertCompilerEnd(const Expr& expr) {
+    Expr new_expr = expr;
+    if (op_expr_to_target_.find(expr) != op_expr_to_target_.end()) {
+      new_expr = InsertAnnotation(expr, op_expr_to_target_[expr], make_end_op);
+      op_expr_to_target_[new_expr] = op_expr_to_target_[expr];
+    }
     return std::move(new_expr);
   }
 
   Expr Rewrite_(const IfNode* op, const Expr& post) final {
     auto expr = Downcast<If>(post);
+    Expr new_cond = InsertCompilerEnd(expr->cond);
+    Expr new_true_branch = InsertCompilerEnd(expr->true_branch);
+    Expr new_false_branch = InsertCompilerEnd(expr->false_branch);
 
-    auto target_n_args = AnnotateArgs({expr->cond, expr->true_branch, expr->false_branch});
-    CHECK_EQ(std::get<1>(target_n_args).size(), 3U);
-    auto new_expr = If(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1],
-                       std::get<1>(target_n_args)[2]);
-    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    auto new_expr = If(new_cond, new_true_branch, new_false_branch);
     return std::move(new_expr);
   }
 
