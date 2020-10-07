@@ -441,10 +441,6 @@ def test_while_let():
     def If(attrs, args):  # pylint: disable=unused-variable
         return True
 
-    @tvm.ir.register_op_attr("scope_builder", "target." + target)
-    def scope_builder(attrs, args):  # pylint: disable=unused-variable
-        return True
-
     @tvm.ir.register_op_attr("Let", "target." + target)
     def Let(attrs, args):  # pylint: disable=unused-variable
         return True
@@ -523,7 +519,7 @@ def test_while_let():
     result = seq(before())
     expected = transform.InferType()(after())
     print(expected, result)
-    assert tvm.ir.structural_equal(expected, result)
+    assert tvm.ir.structural_equal(expected, result, map_free_vars=True)
 
 
 if __name__ == "__main__":
