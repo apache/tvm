@@ -460,7 +460,7 @@ def test_while_let():
         var1 = relay.var("var1", shape=(2,))
         var2 = relay.var("var2", shape=(), dtype="int32")
         var3 = relay.var("var3", shape=(2,))
-        cond = var2 < relay.const(10, dtype="int32")
+        cond = relay.less(var2, relay.const(10, dtype="int32"))
 
         loop = relay.var("while_loop")
         ii = var2 + relay.const(1, dtype="int32")
@@ -485,7 +485,7 @@ def test_while_let():
         cb_1 = relay.annotation.compiler_begin(var2, target)
         cb_2 = relay.annotation.compiler_begin(var4, target)
 
-        less_condition = cb_1 < cb_2
+        less_condition = relay.less(cb_1, cb_2)
         ce_1 = relay.annotation.compiler_end(less_condition, target)
 
         loop = relay.var("while_loop")
@@ -527,7 +527,7 @@ def test_while_let():
             ])
     result = seq(before())
     expected = transform.InferType()(after())
-    print(expected, result)
+    # print(expected, result)
     assert tvm.ir.structural_equal(expected, result, map_free_vars=True)
 
 
