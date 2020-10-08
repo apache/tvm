@@ -212,9 +212,12 @@ def test_multiple_ends():
         mod = tvm.IRModule.from_expr(f)
         return mod
 
-    result = transform.AnnotateTarget("test")(before())
-    expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
+    for annotate_non_call_ops in [False, True]:
+        result = transform.AnnotateTarget("test", annotate_non_call_ops)(before())
+        print("Result", annotate_non_call_ops, "\n", result, "\n")
+        expected = transform.InferType()(after())
+        print("Expected", annotate_non_call_ops, "\n", expected, "\n")
+        assert tvm.ir.structural_equal(expected, result)
 
 
 def test_type_propagation():
@@ -232,8 +235,59 @@ def test_type_propagation():
         mod = tvm.IRModule.from_expr(f)
         return mod
 
-    # If the type isn't propogated, then the relu checker function will fail to get the dtype.
-    assert transform.AnnotateTarget(target)(before())
+    for annotate_non_call_ops in [False, True]:
+        # If the type isn't propogated, then the relu checker function will fail to get the dtype.
+        assert transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+
+
+def test_ref_create_read_write():
+    target = "relu"
+
+    @tvm.ir.register_op_attr("nn.relu", "target." + target)
+    def annotate(expr):
+        return True
+
+    def before():
+        ref = relay.expr.RefCreate(relay.const(1.0))
+        r = relay.expr.RefWrite(ref, relay.nn.relu(relay.expr.RefRead(ref)))
+        return tvm.IRModule.from_expr(r)
+
+    def after(annotate_non_call_ops):
+        co = relay.const(1.0)
+        if annotate_non_call_ops:
+            co = relay.annotation.compiler_begin(co, "default")
+
+        ref = relay.expr.RefCreate(co)
+        ref1 = ref
+        if annotate_non_call_ops:
+            ref = relay.annotation.compiler_end(ref, "default")
+            ref = relay.annotation.compiler_begin(ref, "default")
+            ref1 = relay.annotation.compiler_end(ref1, "default")
+            ref1 = relay.annotation.compiler_begin(ref1, "default")
+
+        read = relay.expr.RefRead(ref1)
+        if annotate_non_call_ops:
+            read = relay.annotation.compiler_end(read, "default")
+
+        beg = relay.annotation.compiler_begin(read, target)
+        relu = relay.nn.relu(beg)
+        end = relay.annotation.compiler_end(relu, target)
+
+        if annotate_non_call_ops:
+            end = relay.annotation.compiler_begin(end, "default")
+
+        r = relay.expr.RefWrite(ref, end)
+
+        if annotate_non_call_ops:
+            r = relay.annotation.compiler_end(r, "default")
+        return tvm.IRModule.from_expr(r)
+
+    for annotate_non_call_ops in [True, False, True]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        print("Actual", annotate_non_call_ops, "\n", result.astext(True), "\n")
+        expected = transform.InferType()(after(annotate_non_call_ops))
+        print("Expected", annotate_non_call_ops, "\n", expected.astext(True), "\nExp")
+        assert tvm.ir.structural_equal(expected, result)
 
 
 def test_tuple():
@@ -259,7 +313,7 @@ def test_tuple():
         mod = tvm.IRModule.from_expr(f)
         return mod
 
-    def after():
+    def after(annotate_non_call_ops):
         x = relay.var("x", shape=(10, 5))
         y = relay.var("y", shape=(10, 5))
         cb_1 = relay.annotation.compiler_begin(x, target)
@@ -268,10 +322,15 @@ def test_tuple():
         a_2 = relay.nn.relu(cb_2)
         ce_1 = relay.annotation.compiler_end(a_1, target)
         ce_2 = relay.annotation.compiler_end(a_2, target)
-        cb_3 = relay.annotation.compiler_begin(ce_1, target)
-        cb_4 = relay.annotation.compiler_begin(ce_2, target)
-        tup = relay.Tuple([cb_3, cb_4])
-        ce_3 = relay.annotation.compiler_end(tup, target)
+
+        if annotate_non_call_ops:
+            cb_3 = relay.annotation.compiler_begin(ce_1, target)
+            cb_4 = relay.annotation.compiler_begin(ce_2, target)
+            tup = relay.Tuple([cb_3, cb_4])
+            ce_3 = relay.annotation.compiler_end(tup, target)
+        else:
+            ce_3 = relay.Tuple([ce_1, ce_2])
+
         cb_3 = relay.annotation.compiler_begin(ce_3, target)
         out = relay.op._make.concatenate(cb_3, 1)
         ce_4 = relay.annotation.compiler_end(out, target)
@@ -279,9 +338,12 @@ def test_tuple():
         mod = tvm.IRModule.from_expr(f)
         return mod
 
-    result = transform.AnnotateTarget(target)(before())
-    expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
+    for annotate_non_call_ops in [False, True]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        print("RESULT", annotate_non_call_ops, "\n", result.astext(True), "\nResult")
+        expected = transform.InferType()(after(annotate_non_call_ops))
+        print("EXPECT", annotate_non_call_ops, "\n", expected.astext(True), "\nExpect")
+        assert tvm.ir.structural_equal(expected, result)
 
 
 def test_composite_function():
@@ -329,6 +391,55 @@ def test_composite_function():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_double_target():
+    @tvm.ir.register_op_attr("nn.relu", "target.double.A")
+    def relu(expr):  # pylint: disable=unused-variable
+        return True
+
+    def before():
+        x = relay.var("x", shape=(10, 5))
+        a_1 = relay.nn.relu(x)
+        mod = tvm.IRModule.from_expr(a_1)
+        return mod
+
+    for annotate_non_call_ops in [True, False]:
+        mod = before()
+        print("======================BEFORE: \n", mod.astext(True), "\n")
+        mod1 = transform.AnnotateTarget("double.A", annotate_non_call_ops)(mod)
+        print("====================== FIRST: \n", mod1.astext(True), "\n")
+        mod2 = transform.AnnotateTarget("double.A", annotate_non_call_ops)(mod1)
+        print("====================== SECOND: \n", mod2.astext(True), "\n")
+        assert tvm.ir.structural_equal(mod1, mod2)
+
+
+def test_different_targets():
+    @tvm.ir.register_op_attr("nn.relu", "target.different.A")
+    def relu(expr):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("add", "target.different.B")
+    def relu(expr):  # pylint: disable=unused-variable
+        return True
+
+    def before():
+        x = relay.var("x", shape=(10, 5))
+        a_1 = relay.nn.relu(x)
+        b_1 = relay.add(a_1, a_1)
+        mod = tvm.IRModule.from_expr(b_1)
+        return mod
+
+    for annotate_non_call_ops in [True, False]:
+        mod = before()
+        print("======================BEFORE: \n", mod.astext(True), "\n")
+        mod1 = transform.AnnotateTarget("different.A", annotate_non_call_ops)(mod)
+        print("======================A: \n", mod1.astext(True), "\n")
+        mod1 = transform.AnnotateTarget("different.B", annotate_non_call_ops)(mod1)
+        print("======================B: \n", mod1.astext(True), "\n")
+        mod2 = transform.AnnotateTarget(["different.A", "different.B"], annotate_non_call_ops)(mod)
+        print("======================B: \n", mod2.astext(True), "\n")
+        assert tvm.ir.structural_equal(mod1, mod2)
+
+
 def test_multiple_runs():
     @tvm.ir.register_op_attr("nn.relu", "target.A")
     def relu(expr):  # pylint: disable=unused-variable
@@ -349,10 +460,16 @@ def test_multiple_runs():
         mod = tvm.IRModule.from_expr(f)
         return mod
 
-    mod = transform.AnnotateTarget("A")(before())
-    mod = transform.AnnotateTarget("B")(mod)
-    expected = transform.AnnotateTarget(["A", "B"])(before())
-    assert tvm.ir.structural_equal(expected, mod)
+    for annotate_non_call_ops in [True, False]:
+        mod = transform.AnnotateTarget("target.A", annotate_non_call_ops)(before())
+        print("======================A: \n", mod.astext(True), "\n")
+        mod = transform.AnnotateTarget("target.B", annotate_non_call_ops)(mod)
+        print("======================B: \n", mod.astext(True), "\n")
+        expected = transform.AnnotateTarget(["target.A", "target.B"], annotate_non_call_ops)(
+            before()
+        )
+        print("Expected: \n", expected.astext(True), "\n")
+        assert tvm.ir.structural_equal(expected, mod)
 
 
 def test_if_else():
@@ -421,9 +538,12 @@ def test_if_else():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    result = transform.AnnotateTarget(target)(before())
+    print("BEFORE\n", before(), "\nbefore")
     expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
+    print("EXPECTED\n", expected, "\nexpected")
+    for annotate_non_call_ops in [True, False]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        assert tvm.ir.structural_equal(expected, result)
 
 
 def test_while_let():
@@ -462,7 +582,7 @@ def test_while_let():
         mod = tvm.IRModule.from_expr(func_2)
         return mod
 
-    def after():
+    def after(annotate_non_call_ops):
         var1 = relay.var("var1", shape=(2,))
         var2 = relay.var("var2", shape=(), dtype="int32")
         var3 = relay.var("var3", shape=(2,))
@@ -481,23 +601,39 @@ def test_while_let():
         cb_4 = relay.annotation.compiler_begin(relay.const(1, dtype="int32"), target)
         add_op_1 = relay.add(cb_3, cb_4)
         ce_2 = relay.annotation.compiler_end(add_op_1, target)
-        cb_5 = relay.annotation.compiler_begin(ce_2, "default")
+
+        cb_5 = relay.annotation.compiler_begin(ce_2, "default") if annotate_non_call_ops else ce_2
+
         cb_6 = relay.annotation.compiler_begin(var3, target)
         cb_7 = relay.annotation.compiler_begin(var1, target)
         add_op_2 = relay.add(cb_6, cb_7)
         ce_3 = relay.annotation.compiler_end(add_op_2, target)
-        cb_8 = relay.annotation.compiler_begin(ce_3, "default")
-        true_branch = loop(cb_5, cb_8)  # while loop
-        ce_4 = relay.annotation.compiler_end(true_branch, "default")
-        if_condition = relay.If(ce_1, ce_4, var3)
 
-        cb_9 = relay.annotation.compiler_begin(relay.const(0, dtype="int32"), "default")
+        cb_8 = relay.annotation.compiler_begin(ce_3, "default") if annotate_non_call_ops else ce_3
+
+        true_branch = loop(cb_5, cb_8)  # while loop
+        ce_4 = (
+            relay.annotation.compiler_end(true_branch, "default")
+            if annotate_non_call_ops
+            else true_branch
+        )
+        if_condition = relay.If(ce_1, ce_4, var3)
+        const_1 = relay.const(0, dtype="int32")
+        cb_9 = (
+            relay.annotation.compiler_begin(const_1, "default")
+            if annotate_non_call_ops
+            else const_1
+        )
         cb_10 = relay.annotation.compiler_begin(var1, target)
         zeros_like = relay.zeros_like(cb_10)
         ce_5 = relay.annotation.compiler_end(zeros_like, target)
-        cb_11 = relay.annotation.compiler_begin(ce_5, "default")
+        cb_11 = relay.annotation.compiler_begin(ce_5, "default") if annotate_non_call_ops else ce_5
         while_condition = loop(cb_9, cb_11)
-        ce_6 = relay.annotation.compiler_end(while_condition, "default")
+        ce_6 = (
+            relay.annotation.compiler_end(while_condition, "default")
+            if annotate_non_call_ops
+            else while_condition
+        )
 
         func_1 = relay.Function([var2, var3], if_condition)
         ret = relay.Let(loop, func_1, ce_6)
@@ -505,9 +641,13 @@ def test_while_let():
         mod = tvm.IRModule.from_expr(func_2)
         return mod
 
-    result = transform.AnnotateTarget(target)(before())
-    expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
+    print("BEFORE\n", before(), "\nbefore")
+    for annotate_non_call_ops in [False, True]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        print("RESULT", annotate_non_call_ops, "\n", result.astext(True), "\nresult")
+        expected = transform.InferType()(after(annotate_non_call_ops))
+        print("EXPECTED", annotate_non_call_ops, "\n", expected.astext(True), "\nexpected")
+        assert tvm.ir.structural_equal(expected, result)
 
 
 def test_if_free_vars():
@@ -570,9 +710,13 @@ def test_if_free_vars():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    result = transform.AnnotateTarget(target)(before())
-    expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
+    print("BEFORE\n", before(), "\nbefore")
+    for annotate_non_call_ops in [True, False, True]:
+        result = transform.AnnotateTarget(target)(before())
+        print("RESULT", annotate_non_call_ops, "\n", result.astext(True), "\nresult")
+        expected = transform.InferType()(after())
+        print("EXPECTED", annotate_non_call_ops, "\n", expected.astext(True), "\nexpected")
+        assert tvm.ir.structural_equal(expected, result)
 
 
 def test_free_vars_zeros():
@@ -607,3 +751,4 @@ if __name__ == "__main__":
     test_while_let()
     test_if_free_vars()
     test_free_vars_zeros()
+    test_two_targets_tuple()
