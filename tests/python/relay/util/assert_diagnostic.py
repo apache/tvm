@@ -21,18 +21,17 @@ from tvm import relay
 from tvm.parser import SpanCheck
 from tvm.relay.transform import AnnotateSpans
 from tvm.runtime import Object
-from tvm.ir.diagnostics import get_default_renderer, set_default_renderer
+from tvm.ir.diagnostics import get_renderer, set_default_renderer
 from tvm.error import DiagnosticError
 
-default_renderer = get_default_renderer()()
+DEFAULT_RENDERER = get_renderer()
 
 __TESTING__ = None
-
 
 def testing_renderer(diag_ctx):
     global __TESTING__
     if __TESTING__ and __TESTING__.mirror:
-        default_renderer.render(diag_ctx)
+        DEFAULT_RENDERER.render(diag_ctx)
 
     if __TESTING__:
         __TESTING__._render(diag_ctx)
@@ -52,7 +51,7 @@ class DiagnosticTesting:
     def __exit__(self, type, value, traceback):
         global __TESTING__
         __TESTING__ = None
-        set_default_renderer(default_renderer)
+        set_default_renderer(None)
         if type is DiagnosticError and self.matches:
             return True
 

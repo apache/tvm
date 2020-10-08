@@ -27,15 +27,15 @@ from . import _ffi_api
 from ... import get_global_func, register_func, Object
 
 
-def get_default_renderer():
+def get_renderer():
     """
-    Get the default diagnostic renderer.
+    Get the the diagnostic renderer.
 
     Returns
     -------
-    renderer_factory: Callable[[], DiagnosticRenderer]
+    renderer: DiagnosticRenderer
     """
-    return _ffi_api.DefaultRenderer
+    return _ffi_api.GetRenderer()
 
 
 def set_default_renderer(render_func):
@@ -43,10 +43,13 @@ def set_default_renderer(render_func):
     Sets a renderer factory function which when called produces a new diagnostic renderer.
     """
 
-    def _render_factory():
-        return DiagnosticRenderer(render_func)
+    if render_func:
+        def _render_factory():
+            return DiagnosticRenderer(render_func)
 
-    register_func("diagnostics.DefaultRenderer", _render_factory, override=True)
+        register_func("diagnostics.OverrideRenderer", _render_factory, override=True)
+    else:
+        register_func("diagnostics.OverrideRenderer", None, override=True)
 
 
 class DiagnosticLevel(enum.IntEnum):

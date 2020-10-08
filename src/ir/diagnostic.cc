@@ -152,14 +152,25 @@ void DiagnosticContext::EmitFatal(const Diagnostic& diagnostic) {
 
 /* Default Terminal Renderer. */
 static const char* DEFAULT_RENDERER = "diagnostics.DefaultRenderer";
+static const char* OVERRIDE_RENDERER = "diagnostics.OverrideRenderer";
+
+DiagnosticRenderer GetRenderer() {
+  auto override_pf = tvm::runtime::Registry::Get(OVERRIDE_RENDERER);
+  tvm::runtime::TypedPackedFunc<ObjectRef()> pf;
+  if (override_pf) {
+    pf =  tvm::runtime::TypedPackedFunc<ObjectRef()>(*override_pf);
+  } else {
+     auto default_pf = tvm::runtime::Registry::Get(DEFAULT_RENDERER);
+      ICHECK(default_pf != nullptr)
+        << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
+        << "Either this is an internal error or the default function was overloaded incorrectly.";
+    pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*default_pf);
+  }
+  return Downcast<DiagnosticRenderer>(pf());
+}
 
 DiagnosticContext DiagnosticContext::Default(const IRModule& module) {
-  auto pf = tvm::runtime::Registry::Get(DEFAULT_RENDERER);
-  ICHECK(pf != nullptr)
-      << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
-      << "Either this is an internal error or the default function was overloaded incorrectly.";
-  auto default_render = tvm::runtime::TypedPackedFunc<ObjectRef()>(*pf);
-  DiagnosticRenderer renderer = Downcast<DiagnosticRenderer>(default_render());
+  auto renderer = GetRenderer();
   return DiagnosticContext(module, renderer);
 }
 
@@ -278,5 +289,9 @@ DiagnosticRenderer TerminalRenderer(std::ostream& out) {
 }
 
 TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cout); });
+
+TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() {
+  return GetRenderer();
+});
 
 }  // namespace tvm
