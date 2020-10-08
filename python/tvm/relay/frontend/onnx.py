@@ -1893,6 +1893,19 @@ class TopK(OnnxOpConverter):
         return _op.topk(inputs[0], inputs[1], axis=axis)
 
 
+class Range(OnnxOpConverter):
+    """Operator converter for Range"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if len(inputs) != 3:
+            raise ValueError("Expect 3 input only")
+
+        return _op.arange(
+            inputs[0], inputs[1], inputs[2], dtype=infer_type(inputs[0]).checked_type.dtype
+        )
+
+
 class MaxRoiPool(OnnxOpConverter):
     """Operator converter for MaxRoiPool."""
 
@@ -2115,6 +2128,7 @@ def _get_convert_map(opset):
         "Or": Or.get_converter(opset),
         "Resize": Resize.get_converter(opset),
         "NonZero": NonZero.get_converter(opset),
+        "Range": Range.get_converter(opset),
     }
 
 
