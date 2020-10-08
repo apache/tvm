@@ -94,7 +94,7 @@ RELAY_REGISTER_OP("nn.sparse_dense")
 
 Expr MakeSparseDensePadded(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr) {
   auto attrs = make_object<SparseDenseAttrs>();
-  static const Op& op = Op::Get("nn.sparse_dense_padded");
+  static const Op& op = Op::Get("nn.internal.sparse_dense_padded");
   return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
 
@@ -103,7 +103,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense_padded")
       runtime::detail::unpack_call<Expr, 4>(MakeSparseDensePadded, args, rv);
     });
 
-RELAY_REGISTER_OP("nn.sparse_dense_padded")
+RELAY_REGISTER_OP("nn.internal.sparse_dense_padded")
     .describe(
         R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with W
 sparse. This variation uses a matrix with row lengths padded to a

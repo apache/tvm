@@ -467,7 +467,7 @@ def test_sparse_dense_padded_alter_op():
         )
         f = relay.Function([], mult)
         f_ = relay.transform.AlterOpLayout()(tvm.IRModule.from_expr(f))
-        assert f_["main"].body.op.name == "nn.sparse_dense_padded"
+        assert f_["main"].body.op.name == "nn.internal.sparse_dense_padded"
 
 
 if __name__ == "__main__":
