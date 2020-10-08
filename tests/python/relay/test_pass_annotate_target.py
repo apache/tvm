@@ -352,6 +352,7 @@ def test_multiple_runs():
     expected = transform.AnnotateTarget(["A", "B"])(before())
     assert tvm.ir.structural_equal(expected, mod)
 
+
 def test_if_else():
     target = "test_if_else"
 
@@ -378,9 +379,9 @@ def test_if_else():
     """Test that If-else nodes compiles correctly when surrounded by supported nodes."""
 
     def before():
-        data = relay.var('data', shape=(1, 32))
-        eq1 = relay.var('e1', shape=[], dtype='int32')
-        eq2 = relay.var('e2', shape=[], dtype='int32')
+        data = relay.var("data", shape=(1, 32))
+        eq1 = relay.var("e1", shape=[], dtype="int32")
+        eq2 = relay.var("e2", shape=[], dtype="int32")
         eq = relay.equal(eq1, eq2)
 
         true_branch = relay.tanh(data)
@@ -394,9 +395,9 @@ def test_if_else():
 
     def after():
 
-        data = relay.var('data', shape=(1, 32))
-        eq1 = relay.var('e1', shape=[], dtype='int32')
-        eq2 = relay.var('e2', shape=[], dtype='int32')
+        data = relay.var("data", shape=(1, 32))
+        eq1 = relay.var("e1", shape=[], dtype="int32")
+        eq2 = relay.var("e2", shape=[], dtype="int32")
 
         cb_1 = relay.annotation.compiler_begin(eq1, target)
         cb_2 = relay.annotation.compiler_begin(eq2, target)
@@ -425,6 +426,7 @@ def test_if_else():
     result = transform.AnnotateTarget(target)(before())
     expected = transform.InferType()(after())
     assert tvm.ir.structural_equal(expected, result)
+
 
 def test_while_let():
     target = "test_while_let"
@@ -464,14 +466,12 @@ def test_while_let():
 
         loop = relay.var("while_loop")
         ii = var2 + relay.const(1, dtype="int32")
-        ss = var3 + var1    
-        true_branch = loop(ii,ss)
+        ss = var3 + var1
+        true_branch = loop(ii, ss)
         ife = relay.If(cond, true_branch, var3)
         func_1 = relay.Function([var2, var3], ife)
 
-        ret = relay.Let(
-            loop, func_1, loop(relay.const(0, dtype="int32"), relay.zeros_like(var1))
-        )
+        ret = relay.Let(loop, func_1, loop(relay.const(0, dtype="int32"), relay.zeros_like(var1)))
         func_2 = relay.Function([var1], ret)
         mod = tvm.IRModule.from_expr(func_2)
         return mod
@@ -481,7 +481,7 @@ def test_while_let():
         var2 = relay.var("var2", shape=(), dtype="int32")
         var3 = relay.var("var3", shape=(2,))
         var4 = relay.const(10, dtype="int32")
-        
+
         cb_1 = relay.annotation.compiler_begin(var2, target)
         cb_2 = relay.annotation.compiler_begin(var4, target)
 
@@ -501,7 +501,7 @@ def test_while_let():
         add_op_2 = relay.add(cb_6, cb_7)
         ce_3 = relay.annotation.compiler_end(add_op_2, target)
         cb_8 = relay.annotation.compiler_begin(ce_3, target)
-        true_branch = loop(cb_5, cb_8) # while loop 
+        true_branch = loop(cb_5, cb_8)  # while loop
         ce_4 = relay.annotation.compiler_end(true_branch, target)
         if_condition = relay.If(ce_1, ce_4, var3)
 
@@ -514,17 +514,16 @@ def test_while_let():
         ce_6 = relay.annotation.compiler_end(while_condition, target)
 
         func_1 = relay.Function([var2, var3], if_condition)
-        ret = relay.Let(
-            loop, func_1, ce_6
-        )
+        ret = relay.Let(loop, func_1, ce_6)
         func_2 = relay.Function([var1], ret)
         mod = tvm.IRModule.from_expr(func_2)
         return mod
 
     seq = tvm.transform.Sequential(
-            [
-                transform.AnnotateTarget(target),
-            ])
+        [
+            transform.AnnotateTarget(target),
+        ]
+    )
     result = seq(before())
     expected = transform.InferType()(after())
     # print(expected, result)
