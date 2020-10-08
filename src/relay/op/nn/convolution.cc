@@ -431,8 +431,8 @@ weight transformation in advance.
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_gemm_without_weight_transform")
     .set_body_typed([](Expr data, Expr weight, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, std::string data_layout,
-                       std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, tvm::String data_layout,
+                       tvm::String kernel_layout, tvm::String out_layout, DataType out_dtype) {
       return MakeConvGemm<Conv2DAttrs>(
           data, weight, strides, padding, dilation, groups, channels, kernel_size, data_layout,
           kernel_layout, out_layout, out_dtype, "nn.contrib_conv2d_gemm_without_weight_transform");

@@ -198,7 +198,7 @@ inline bool IsDepthwiseConv2D(const Call& call, const Conv2DAttrs* param,
 inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
   auto param = call->attrs.as<Conv2DAttrs>();
   auto tweight = call->args[1]->type_as<TensorTypeNode>();
-  auto index = param->kernel_layout.find('O');
+  auto index = param->kernel_layout.operator std::string().find('O');
   CHECK_NE(index, std::string::npos);
   auto channels = tir::as_const_int(tweight->shape[index]);
   return *channels;

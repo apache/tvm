@@ -273,8 +273,9 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   DLContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
-  *out = NDArray::Internal::MoveToFFIHandle(
-      NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx));
+  auto ndarray = NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx);
+
+  *out = NDArray::Internal::MoveToFFIHandle(ndarray);
   API_END();
 }
 

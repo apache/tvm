@@ -46,9 +46,10 @@
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.62"
 ci_gpu = "tlcpack/ci-gpu:v0.64"
-ci_cpu = "tlcpack/ci-cpu:v0.65"
+ci_cpu = "tlcpack/ci-cpu:v0.66"
 ci_wasm = "tlcpack/ci-wasm:v0.60"
 ci_i386 = "tlcpack/ci-i386:v0.52"
+ci_qemu = "tlcpack/ci-qemu:v0.01"
 // <--- End of regex-scanned config.
 
 // tvm libraries
@@ -208,6 +209,18 @@ stage('Build') {
         sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
         make(ci_i386, 'build', '-j2')
         pack_lib('i386', tvm_multilib)
+      }
+    }
+  },
+  'BUILD: QEMU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-qemu")) {
+        init_git()
+        sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+        make(ci_qemu, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+        }
       }
     }
   }

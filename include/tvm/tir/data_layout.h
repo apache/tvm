@@ -125,6 +125,9 @@ class Layout : public ObjectRef {
   explicit Layout(const Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
+  Layout(const tvm::String& name) : Layout(name.operator std::string()) {}  // NOLINT(*)
+
+  /*! \brief construct from a string */
   Layout(const char* name) : Layout(std::string(name)) {}  // NOLINT(*)
 
   /*!

@@ -122,12 +122,15 @@ def test_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
+    _compile_hash = {"81637c89339201a07dc96e3b5dbf836a"}
+    if tei.get_ethosn_api_version() == 2008:
+        _compile_hash = {"47e216d8ab2bf491708ccf5620bc0d02"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
         model_sub_path="mobilenet_v1_1.0_224_quant.tflite",
         input_dict={"input": (1, 224, 224, 3)},
-        compile_hash="81637c89339201a07dc96e3b5dbf836a",
+        compile_hash=_compile_hash,
         output_count=1,
         host_ops=3,
         npu_partitions=1,
@@ -141,12 +144,15 @@ def test_inception_v3():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
+    _compile_hash = {"de0e175af610ebd45ccb03d170dc9664"}
+    if tei.get_ethosn_api_version() == 2008:
+        _compile_hash = {"8c9d75659cd7bc9ff6dd6d490d28f9b2"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite_11_05_08/inception_v3_quant.tgz",
         model_sub_path="inception_v3_quant.tflite",
         input_dict={"input": (1, 299, 299, 3)},
-        compile_hash="de0e175af610ebd45ccb03d170dc9664",
+        compile_hash=_compile_hash,
         output_count=1,
         host_ops=0,
         npu_partitions=1,
@@ -159,12 +165,15 @@ def test_inception_v4():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
+    _compile_hash = {"06bf6cb56344f3904bcb108e54edfe87"}
+    if tei.get_ethosn_api_version() == 2008:
+        _compile_hash = {"798292bfa596ca7c32086396b494b46c"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/inception_v4_299_quant_20181026.tgz",
         model_sub_path="inception_v4_299_quant.tflite",
         input_dict={"input": (1, 299, 299, 3)},
-        compile_hash="06bf6cb56344f3904bcb108e54edfe87",
+        compile_hash=_compile_hash,
         output_count=1,
         host_ops=3,
         npu_partitions=1,
@@ -177,12 +186,15 @@ def test_ssd_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
+    _compile_hash = {"29aec6b184b09454b4323271aadf89b1", "6211d96103880b016baa85e638abddef"}
+    if tei.get_ethosn_api_version() == 2008:
+        _compile_hash = {"5999f26e140dee0d7866491997ef78c5", "24e3a690a7e95780052792d5626c85be"}
     _test_image_network(
         model_url="https://storage.googleapis.com/download.tensorflow.org/"
         "models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
         model_sub_path="detect.tflite",
         input_dict={"normalized_input_image_tensor": (1, 300, 300, 3)},
-        compile_hash={"29aec6b184b09454b4323271aadf89b1", "6211d96103880b016baa85e638abddef"},
+        compile_hash=_compile_hash,
         output_count=4,
         host_ops=28,
         npu_partitions=2,

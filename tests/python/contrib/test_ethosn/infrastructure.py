@@ -304,3 +304,7 @@ def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, ke
     output_sc = (output_max - output_min) / 255
     output_zp = -int(output_min / output_sc)
     return output_zp, output_sc
+
+
+def get_ethosn_api_version():
+    return tvm.get_global_func("relay.ethos-n.api.version")()

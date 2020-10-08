@@ -18,7 +18,7 @@
  */
 
 use anyhow::{Context, Result};
-use std::{path::Path, process::Command};
+use std::{io::Write, path::Path, process::Command};
 
 fn main() -> Result<()> {
     let output = Command::new("python3")
@@ -26,7 +26,12 @@ fn main() -> Result<()> {
         .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
         .output()
         .with_context(|| anyhow::anyhow!("failed to run python3"))?;
-
+    if !output.status.success() {
+        std::io::stdout()
+            .write_all(&output.stderr)
+            .context("Failed to write error")?;
+        panic!("Failed to execute build script");
+    }
     assert!(
         Path::new(&format!("{}/deploy_lib.o", env!("CARGO_MANIFEST_DIR"))).exists(),
         "Could not prepare demo: {}",
@@ -37,7 +42,6 @@ fn main() -> Result<()> {
             .last()
             .unwrap_or("")
     );
-
     println!(
         "cargo:rustc-link-search=native={}",
         env!("CARGO_MANIFEST_DIR")

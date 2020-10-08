@@ -39,7 +39,7 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
 	-Icrt_config
 
-PKG_LDFLAGS = -pthread
+PKG_LDFLAGS = -pthread -lm
 
 build_dir := build
 
@@ -92,7 +92,7 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph_c.json ${build_dir}/t
 
 $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model_c.o ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_CFLAGS)
+	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
 $(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)

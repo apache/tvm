@@ -67,9 +67,13 @@ RUNTIME_LIB_SRC_DIRS = [os.path.join(CRT_ROOT_DIR, n) for n in CRT_RUNTIME_LIB_N
 RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 
 
+_COMMON_CFLAGS = ["-Wall", "-Werror"]
+
+
 _CRT_DEFAULT_OPTIONS = {
-    "ccflags": ["-std=c++11"],
-    "ldflags": ["-std=gnu++14"],
+    "cflags": ["-std=c11"] + _COMMON_CFLAGS,
+    "ccflags": ["-std=c++11"] + _COMMON_CFLAGS,
+    "ldflags": ["-std=c++11"],
     "include_dirs": [
         f"{TVM_ROOT_DIR}/include",
         f"{TVM_ROOT_DIR}/3rdparty/dlpack/include",
@@ -77,8 +81,22 @@ _CRT_DEFAULT_OPTIONS = {
         f"{TVM_ROOT_DIR}/3rdparty/dmlc-core/include",
         f"{CRT_ROOT_DIR}/include",
     ],
-    "profile": {"common": ["-Wno-unused-variable"]},
 }
+
+
+_CRT_GENERATED_LIB_OPTIONS = copy.copy(_CRT_DEFAULT_OPTIONS)
+
+
+# Disable due to limitation in the TVM C codegen, which generates lots of local variable
+# declarations at the top of generated code without caring whether they're used.
+# Example:
+#   void* arg0 = (((TVMValue*)args)[0].v_handle);
+#   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
+_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-Wno-unused-variable")
+
+
+# Many TVM-intrinsic operators (i.e. expf, in particular)
+_CRT_GENERATED_LIB_OPTIONS["cflags"].append("-fno-builtin")
 
 
 def default_options(target_include_dir):
@@ -86,12 +104,13 @@ def default_options(target_include_dir):
     bin_opts = copy.deepcopy(_CRT_DEFAULT_OPTIONS)
     bin_opts["include_dirs"].append(target_include_dir)
     lib_opts = copy.deepcopy(bin_opts)
-    lib_opts["profile"]["common"].append("-Werror")
     lib_opts["cflags"] = ["-Wno-error=incompatible-pointer-types"]
     return {"bin_opts": bin_opts, "lib_opts": lib_opts}
 
 
-def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=None):
+def build_static_runtime(
+    workspace, compiler, module, lib_opts=None, bin_opts=None, generated_lib_opts=None
+):
     """Build the on-device runtime, statically linking the given modules.
 
     Parameters
@@ -102,11 +121,15 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
     module : IRModule
         Module to statically link.
 
-    lib_opts : dict
-        Extra kwargs passed to library(),
+    lib_opts : Optional[dict]
+        The `options` parameter passed to compiler.library().
 
-    bin_opts : dict
-        Extra kwargs passed to binary(),
+    bin_opts : Optional[dict]
+        The `options` parameter passed to compiler.binary().
+
+    generated_lib_opts : Optional[dict]
+        The `options` parameter passed to compiler.library() when compiling the generated TVM C
+        source module.
 
     Returns
     -------
@@ -115,6 +138,9 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
     """
     lib_opts = _CRT_DEFAULT_OPTIONS if lib_opts is None else lib_opts
     bin_opts = _CRT_DEFAULT_OPTIONS if bin_opts is None else bin_opts
+    generated_lib_opts = (
+        _CRT_GENERATED_LIB_OPTIONS if generated_lib_opts is None else generated_lib_opts
+    )
 
     mod_build_dir = workspace.relpath(os.path.join("build", "module"))
     os.makedirs(mod_build_dir)
@@ -136,7 +162,7 @@ def build_static_runtime(workspace, compiler, module, lib_opts=None, bin_opts=No
 
         libs.append(compiler.library(lib_build_dir, lib_srcs, lib_opts))
 
-    libs.append(compiler.library(mod_build_dir, [mod_src_path], lib_opts))
+    libs.append(compiler.library(mod_build_dir, [mod_src_path], generated_lib_opts))
 
     runtime_build_dir = workspace.relpath(f"build/runtime")
     os.makedirs(runtime_build_dir)
