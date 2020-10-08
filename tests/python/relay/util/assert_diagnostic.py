@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.parser import SpanCheck
 from tvm.relay.transform import AnnotateSpans
 from tvm.runtime import Object
-from tvm.ir.diagnostics import get_renderer, set_default_renderer
+from tvm.ir.diagnostics import get_renderer, override_renderer
 from tvm.error import DiagnosticError
 
 DEFAULT_RENDERER = get_renderer()
@@ -46,13 +46,13 @@ class DiagnosticTesting:
     def __enter__(self):
         global __TESTING__
         __TESTING__ = self
-        set_default_renderer(testing_renderer)
+        override_renderer(testing_renderer)
         return self
 
     def __exit__(self, type, value, traceback):
         global __TESTING__
         __TESTING__ = None
-        set_default_renderer(None)
+        override_renderer(None)
         if type is DiagnosticError and self.matches:
             return True
 

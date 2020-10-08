@@ -292,4 +292,8 @@ TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRende
 
 TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
 
+TVM_REGISTER_GLOBAL("diagnostics.ClearRenderer").set_body_typed([]() {
+  tvm::runtime::Registry::Remove(OVERRIDE_RENDERER);
+});
+
 }  // namespace tvm

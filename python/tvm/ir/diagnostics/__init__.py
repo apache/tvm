@@ -38,19 +38,22 @@ def get_renderer():
     return _ffi_api.GetRenderer()
 
 
-def set_default_renderer(render_func):
+def override_renderer(render_func):
     """
-    Sets a renderer factory function which when called produces a new diagnostic renderer.
-    """
+    Sets a custom renderer for diagnostics.
 
+    Params
+    ------
+    render_func: Option[Callable[[DiagnosticContext], None]]
+        If the render_func is None it will remove the current custom renderer
+        and return to default behavior.
+    """
     if render_func:
-
         def _render_factory():
             return DiagnosticRenderer(render_func)
-
         register_func("diagnostics.OverrideRenderer", _render_factory, override=True)
     else:
-        register_func("diagnostics.OverrideRenderer", None, override=True)
+        _ffi_api.ClearRenderer()
 
 
 class DiagnosticLevel(enum.IntEnum):
