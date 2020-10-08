@@ -67,7 +67,7 @@ class GdbDebugger(Debugger):
         self.did_terminate = threading.Event()
         self.old_signal = signal.signal(signal.SIGINT, signal.SIG_IGN)
         self.popen = subprocess.Popen(**kwargs)
-        threading.Thread(target=self._WaitRestoreSignal).start()
+        threading.Thread(target=self._wait_restore_signal).start()
 
     def stop(self):
         self.did_terminate.set()
@@ -130,14 +130,14 @@ class GdbTransportDebugger(GdbDebugger):
         self.stdout.close()
 
     def start(self):
-        to_return = super(GdbTransportDebugger, self).Start()
+        to_return = super(GdbTransportDebugger, self).start()
         threading.Thread(target=self._wait_for_process_death, daemon=True).start()
         return to_return
 
     def stop(self):
         self.stdin.close()
         self.stdout.close()
-        super(GdbTransportDebugger, self).Stop()
+        super(GdbTransportDebugger, self).stop()
 
     class _Transport(_transport.Transport):
         def __init__(self, gdb_transport_debugger):
@@ -189,11 +189,11 @@ class GdbRemoteDebugger(GdbDebugger):
     def start(self):
         if self.wrapping_context_manager is not None:
             self.wrapping_context_manager.__enter__()
-        super(GdbRemoteDebugger, self).Start()
+        super(GdbRemoteDebugger, self).start()
 
     def stop(self):
         try:
-            super(GdbRemoteDebugger, self).Stop()
+            super(GdbRemoteDebugger, self).stop()
         finally:
             if self.wrapping_context_manager is not None:
                 self.wrapping_context_manager.__exit__(None, None, None)

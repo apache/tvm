@@ -144,7 +144,24 @@ def test_graph_runtime():
         assert (out.asnumpy() == np.array([6, 10])).all()
 
 
+def test_std_math_functions():
+    """Verify that standard math functions can be used."""
+    workspace = tvm.micro.Workspace()
+    A = tvm.te.placeholder((2,), dtype="float32", name="A")
+    B = tvm.te.compute(A.shape, lambda i: tvm.te.exp(A[i]), name="B")
+    s = tvm.te.create_schedule(B.op)
+
+    with _make_sess_from_op(workspace, "myexpf", s, [A, B]) as sess:
+        A_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        B_data = tvm.nd.array(np.array([2.0, 3.0], dtype="float32"), ctx=sess.context)
+        lib = sess.get_system_lib()
+        func = lib["myexpf"]
+        func(A_data, B_data)
+        np.testing.assert_allclose(B_data.asnumpy(), np.array([7.389056, 20.085537]))
+
+
 if __name__ == "__main__":
     test_compile_runtime()
     test_reset()
     test_graph_runtime()
+    test_std_math_functions()

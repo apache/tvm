@@ -216,12 +216,12 @@ class DebugWrapperTransport(Transport):
         self.debugger.on_terminate_callbacks.append(self.transport.close)
 
     def open(self):
-        self.debugger.Start()
+        self.debugger.start()
 
         try:
             self.transport.open()
         except Exception:
-            self.debugger.Stop()
+            self.debugger.stop()
             raise
 
     def write(self, data):
@@ -232,7 +232,7 @@ class DebugWrapperTransport(Transport):
 
     def close(self):
         self.transport.close()
-        self.debugger.Stop()
+        self.debugger.stop()
 
 
 TransportContextManager = typing.ContextManager[Transport]
