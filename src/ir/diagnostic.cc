@@ -158,10 +158,10 @@ DiagnosticRenderer GetRenderer() {
   auto override_pf = tvm::runtime::Registry::Get(OVERRIDE_RENDERER);
   tvm::runtime::TypedPackedFunc<ObjectRef()> pf;
   if (override_pf) {
-    pf =  tvm::runtime::TypedPackedFunc<ObjectRef()>(*override_pf);
+    pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*override_pf);
   } else {
-     auto default_pf = tvm::runtime::Registry::Get(DEFAULT_RENDERER);
-      ICHECK(default_pf != nullptr)
+    auto default_pf = tvm::runtime::Registry::Get(DEFAULT_RENDERER);
+    ICHECK(default_pf != nullptr)
         << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
         << "Either this is an internal error or the default function was overloaded incorrectly.";
     pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*default_pf);
@@ -290,8 +290,6 @@ DiagnosticRenderer TerminalRenderer(std::ostream& out) {
 
 TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cout); });
 
-TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() {
-  return GetRenderer();
-});
+TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
 
 }  // namespace tvm

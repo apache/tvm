@@ -44,6 +44,7 @@ def set_default_renderer(render_func):
     """
 
     if render_func:
+
         def _render_factory():
             return DiagnosticRenderer(render_func)
 

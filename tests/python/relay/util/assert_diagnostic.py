@@ -28,6 +28,7 @@ DEFAULT_RENDERER = get_renderer()
 
 __TESTING__ = None
 
+
 def testing_renderer(diag_ctx):
     global __TESTING__
     if __TESTING__ and __TESTING__.mirror:
