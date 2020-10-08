@@ -18,8 +18,8 @@
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
 
-from . import _quantize
 from .. import relay
+from . import _ffi_api
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -28,164 +28,49 @@ import numpy as np
 from collections import namedtuple, defaultdict, OrderedDict
 
 
-@tvm._ffi.register_object("hago.QConfig")
-class QConfig(Object):
+class QConfig(object):
     """Configure the quantization behavior by setting config variables.
-
-    Note
-    ----
-    This object is backed by node system in C++, with arguments that can be
-    exchanged between python and C++.
-
-    Do not construct directly, use qconfig instead.
-
-    The fields that are backed by the C++ node are immutable once an instance
-    is constructed. See _node_defaults for the fields.
     """
-
-    _node_defaults = {
-        "skip_conv_layers": [0],
-        "threshold_estimate_method": "avg_range",
-        "global_scale": 8.0,
-        "log_file": ".quantize_strategy_search.log",
-        # "do_simulation": False,
-        # "round_for_shift": True,
-        # "debug_enabled_ops": None,
-    }
-
-    # pylint: disable=no-member
-    def __init__(self, handle):
-        """Initialize the function with handle
-
-        Parameters
-        ----------
-        handle : SymbolHandle
-            the handle to the underlying C++ Symbol
-        """
-        super(QConfig, self).__init__(handle)
-        self.handle = handle
-
-    def guard(self, ref_call):
-        """Return true if op is enabled, otherwise return false"""
-        op_name = ref_call.op.name
-        if self.debug_enabled_ops is not None:
-            name_list = [x.value for x in self.debug_enabled_ops]
-            if op_name not in name_list:
-                return False
-        return True
-
-    def get_nbit_by_kind(self, kind):
-        name = kind2str(kind)
-        return getattr(self, 'nbit_' + name)
-
-    def get_dtype_by_kind(self, kind):
-        name = kind2str(kind)
-        return getattr(self, 'dtype_' + name)
+    ContextStack = []
+    def __init__(self,
+                 threshold_estimate_method="avg_range",
+                 global_scale=8.0,
+                 per_channel_scale_axis=None,
+                 log_file=".quantize_strategy_search.log"):
+        self.threshold_estimate_method = threshold_estimate_method
+        self.global_scale = global_scale
+        self.per_channel_scale_axis = per_channel_scale_axis
+        self.log_file = log_file
 
     def __enter__(self):
-        # pylint: disable=protected-access
-        _quantize._EnterQConfigScope(self)
+        QConfig.ContextStack.append(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        _quantize._ExitQConfigScope()
+        QConfig.ContextStack.pop()
 
-    def __setattr__(self, name, value):
-        if name in QConfig._node_defaults:
-            raise AttributeError(
-                "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
-        return super(QConfig, self).__setattr__(name, value)
+    def per_channel_ops(self):
+        # TODO(team): more flexible
+        return ['nn.dense', 'nn.conv2d']
+
 
 
 def current_qconfig():
     """Get the current quantization configuration."""
-    return _quantize._GetCurrentQConfig()
+    if len(QConfig.ContextStack) == 0:
+        return QConfig()
+    return QConfig.ContextStack[-1]
 
 
 def qconfig(**kwargs):
     """Configure the quantization behavior by setting config variables.
-
-    Parameters
-    ---------
-    nbit_dict: dict of QAnnotateKind -> int
-        Number of bit for every kind of annotate field.
-
-    global_scale: float
-        The global scale for calibration.
-
-    skip_conv_layers: list
-        Specifying which layers to be skipped. Provide a list of indices
-        that indicate which conv2d layers to leave untouched. Start from 0.
-
-    do_simulation: boolean
-        Whether to do simulation with float operation only.
-
-    round_for_shift: boolean
-        Whether to add bias for rounding during shift.
-
-    debug_enabled_ops: None or list of str
-        Partially quantize specified operators for debugging. The default value
-        is None, which means will try to call all operartors' annotate rewrite
-        function.
 
     Returns
     -------
     config: QConfig
         The quantization configuration
     """
-    node_args = {k: v if k not in kwargs else kwargs[k]
-                 for k, v in QConfig._node_defaults.items()}
-    return tvm.ir.make_node("hago.QConfig", **node_args)
-
-
-class QuantizeContext(object):
-    """An internal used global context object for annotation,
-    for putting some state variables like `conv2d_counter`."""
-    Current = None
-
-    def __init__(self):
-        self.qnode_map = dict()
-        self._conv2d_counter = 0
-        self._stop_quantize = False
-
-    def check_to_skip(self, ref_call):
-        """Check the index of conv2d layer to decide whether to
-        skip the current operator."""
-        if self._stop_quantize:
-            return True
-
-        if current_qconfig().skip_conv_layers is not None:
-            # check skip conv layers
-            skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-            if self._conv2d_counter in skipped_indices:
-                if ref_call.op.name == 'nn.conv2d':
-                    self._conv2d_counter += 1
-                return True
-            if ref_call.op.name == 'nn.conv2d':
-                self._conv2d_counter += 1
-
-        return False
-
-    def stop_quantize(self):
-        self._stop_quantize = True
-
-    def reset(self):
-        self._conv2d_counter = 0
-        self._stop_quantize = False
-
-    def __enter__(self):
-        self.reset()
-        return self
-
-    def __exit__(self, ptype, value, traceback):
-        pass
-
-
-def quantize_context():
-    """Get the global singleton scope"""
-    if QuantizeContext.Current is None:
-        QuantizeContext.Current = QuantizeContext()
-    return QuantizeContext.Current
+    return QConfig(**kwargs)
 
 
 def build_node_mapping(sgraph, graph):
@@ -196,7 +81,7 @@ def build_node_mapping(sgraph, graph):
     fvisit_collect_nodes.nodes = []
 
     def fvisit_collect_snodes(e):
-        if isinstance(e, relay.Call) and e.op.name == 'hago.simulated_quantize':
+        if isinstance(e, relay.Call) and e.op.name == 'nn.simulated_quantize':
             node = e.args[0]
             if node not in fvisit_collect_snodes.set:
                 # avoid multi-refer

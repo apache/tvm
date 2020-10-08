@@ -24,6 +24,11 @@ from collections import OrderedDict, namedtuple
 
 # make topology reference unknown
 
+class NodeKind:
+    Input = 1
+    Weight = 2
+    Activation = 3
+
 class Topology(object):
     def __init__(self, graph):
         self.graph = graph
@@ -31,6 +36,7 @@ class Topology(object):
         self._node2idx = self._build_node_index()
         self._edge2idx = self._build_edge_index()
         self._node2edges = self._build_node2edges()
+        self._node2kind = self._build_node2kind()
 
     def is_quantized_node(self, node):
         assert self.hardware is not None
@@ -48,6 +54,9 @@ class Topology(object):
 
     def node2edges(self):
         return self._node2edges
+
+    def node2kind(self):
+        return self._node2kind
 
     def analyze(self, hardware):
         self.hardware = hardware
@@ -131,6 +140,36 @@ class Topology(object):
         # print_edge_dict(graph, edge2choices)
         return choices
 
+    def infer_scale_shape(self):
+        """For per channel scales"""
+        print(self.graph)
+        # {edge: (iscale_shape, oscale_shape)}
+        edge2idx = self.edge2idx()
+        in_scale_shape = [()] * len(edge2idx)
+        out_scale_shape = [()] * len(edge2idx)
+        qconfig = current_qconfig()
+        axis = qconfig.per_channel_scale_axis
+        if axis is None:
+            return list(zip(in_scale_shape, out_scale_shape))
+
+        node2shape = OrderedDict()
+        def fvisit(node):
+            if isinstance(node, (relay.Constant, relay.Var, relay.Call)):
+                node2shape[node] = node.checked_type.shape
+        relay.analysis.post_order_visit(self.graph, fvisit)
+
+        for (src, node), idx in edge2idx.items():
+            if isinstance(src, relay.Constant) and  \
+                node.op.name in qconfig.per_channel_ops():
+                out_scale_shape[idx] = (node2shape[src][axis],)
+                # (node, dst)
+                out_edges = self.node2edges()[node]
+                for oedge in out_edges:
+                    in_scale_shape[edge2idx[oedge]] = (node2shape[oedge[0]][axis],)
+        print(in_scale_shape)
+        print(out_scale_shape)
+        return list(zip(in_scale_shape, out_scale_shape))
+
     def _build_node_index(self):
         node2idx = OrderedDict()
         def fvisit_build_index(node):
@@ -163,6 +202,18 @@ class Topology(object):
                     node2edges[edge[0]].append(edge) 
         relay.analysis.post_order_visit(self.graph, fvisit_build_index)
         return node2edges
+
+    def _build_node2kind(self):
+        node2kind = OrderedDict()
+        def fvisit(node):
+            if isinstance(node, relay.Var):
+                node2kind[node] = NodeKind.Input
+            elif isinstance(node, relay.Constant):
+                node2kind[node] = NodeKind.Weight
+            elif isinstance(node, relay.Call):
+                node2kind[node] = NodeKind.Activation
+        relay.analysis.post_order_visit(self.graph, fvisit)
+        return node2kind
 
     def build_node_info(self, alist):
         ret = OrderedDict()

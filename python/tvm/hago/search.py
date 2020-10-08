@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 
 from .base import * 
-from . import _quantize
+from . import _ffi_api
 from . import quantize as qtz
 from .. import relay
 from .threshold import threshold_estimate
@@ -348,7 +348,8 @@ class Tuner(object):
         self.dataset = dataset
         self.ctx = ctx
         self.target = target
-        self.stats = analysis.collect_stats(graph, dataset, ctx, target)
+        self.stats = analysis.collect_stats(graph, self.topology,
+            dataset, ctx, target)
 
         num_trials = 0
         while num_trials < self.max_trials:

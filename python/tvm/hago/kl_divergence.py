@@ -19,7 +19,7 @@
 import ctypes
 import numpy as np
 
-from . import _quantize
+from . import _ffi_api
 
 
 def _find_scale_by_kl(arr, quantized_dtype='int8',
@@ -48,5 +48,5 @@ def _find_scale_by_kl(arr, quantized_dtype='int8',
     hist_ptr = get_pointer(hist.astype(np.int32), ctypes.c_int)
     hist_edges_ptr = get_pointer(hist_edges, ctypes.c_float)
 
-    return _quantize.FindScaleByKLMinimization(hist_ptr, hist_edges_ptr,
-                                               num_bins, num_quantized_bins)
+    return _ffi_api.FindScaleByKLMinimization(hist_ptr, hist_edges_ptr,
+                                              num_bins, num_quantized_bins)

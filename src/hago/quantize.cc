@@ -52,8 +52,9 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   CHECK(data != nullptr);
   // CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
-  reporter->Assign(types[1], TensorType({}, DataType::Float(32)));     // in_scale
-  reporter->Assign(types[2], TensorType({}, DataType::Float(32)));     // out_scale
+  // Skip for supporting per-channel scales
+  // reporter->Assign(types[1], TensorType({}, DataType::Float(32)));     // in_scale
+  // reporter->Assign(types[2], TensorType({}, DataType::Float(32)));     // out_scale
   reporter->Assign(types[3], TensorType({}, DataType::Float(32)));     // clip_min
   reporter->Assign(types[4], TensorType({}, DataType::Float(32)));     // clip_max
   reporter->Assign(types[5], types[0]);                                // output
@@ -61,7 +62,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
 }
 
 
-RELAY_REGISTER_OP("hago.simulated_quantize")
+RELAY_REGISTER_OP("nn.simulated_quantize")
 .describe(R"code(simulated quantize op)code" TVM_ADD_FILELINE)
 .set_num_inputs(5)
 .add_argument("data", "Tensor", "The input data.")
@@ -78,87 +79,19 @@ Expr create_simulated_quantize(Expr data,
                                Expr in_scale, Expr out_scale,
                                Expr clip_min, Expr clip_max,
                                DataType in_dtype, DataType out_dtype,
-                               bool sign, std::string rounding) {
+                               bool sign, std::string rounding,
+                               Optional<Integer> axis) {
   auto attrs = make_object<SimulatedQuantizeAttrs>();
   attrs->in_dtype = in_dtype;
   attrs->out_dtype = out_dtype;
   attrs->sign = sign;
   attrs->rounding = rounding;
-  static const Op& op = Op::Get("hago.simulated_quantize");
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.simulated_quantize");
   return relay::Call(op, {data, in_scale, out_scale, clip_min, clip_max}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("hago._quantize.simulated_quantize").set_body_typed(create_simulated_quantize);
-
-
-/*! \brief Entry to hold the BuildConfig context stack. */
-struct TVMQConfigThreadLocalEntry {
-  /*! \brief The default build config if the stack is empty */
-  QConfig default_config;
-
-  /*! \brief The current build config context */
-  std::stack<QConfig> context_stack;
-
-  TVMQConfigThreadLocalEntry() :
-    default_config(make_object<QConfigObj>()) {
-  }
-};
-
-/*! \brief Thread local store to hold the BuildConfig context stack. */
-typedef dmlc::ThreadLocalStore<TVMQConfigThreadLocalEntry> TVMQConfigThreadLocalStore;
-
-void QConfig::EnterQConfigScope(const QConfig& build_config) {
-  TVMQConfigThreadLocalEntry *entry = TVMQConfigThreadLocalStore::Get();
-  entry->context_stack.push(build_config);
-}
-
-void QConfig::ExitQConfigScope() {
-  TVMQConfigThreadLocalEntry *entry = TVMQConfigThreadLocalStore::Get();
-  entry->context_stack.pop();
-}
-
-QConfig QConfig::Current() {
-  TVMQConfigThreadLocalEntry *entry = TVMQConfigThreadLocalStore::Get();
-  if (entry->context_stack.size() > 0) {
-    return entry->context_stack.top();
-  }
-
-  return entry->default_config;
-}
-
-TVM_REGISTER_NODE_TYPE(QConfigObj);
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<QConfigObj>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* op = static_cast<const QConfigObj*>(ref.get());
-  p->stream << "qconfig(";
-  p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
-  p->stream << "threshold_estimate_method=" << op->threshold_estimate_method << ", ";
-  p->stream << "global_scale=" << op->global_scale << ", ";
-  p->stream << "log_file=" << op->log_file;
-  p->stream << ")";
-});
-
-
-TVM_REGISTER_GLOBAL("hago._quantize._GetCurrentQConfig")
-.set_body_typed(QConfig::Current);
-
-TVM_REGISTER_GLOBAL("hago._quantize._EnterQConfigScope")
-.set_body_typed(QConfig::EnterQConfigScope);
-
-TVM_REGISTER_GLOBAL("hago._quantize._ExitQConfigScope")
-.set_body_typed(QConfig::ExitQConfigScope);
-
-OpDesc OpDescObj::make(Array<Type> in_types,
-                       Array<Type> out_types) {
-  ObjectPtr<OpDescObj> n = make_object<OpDescObj>();
-  n->in_types = std::move(in_types);
-  n->out_types = std::move(out_types);
-  return OpDesc(n);
-}
-
-TVM_REGISTER_GLOBAL("hago._make.OpDesc")
-.set_body_typed(OpDescObj::make);
+TVM_REGISTER_GLOBAL("hago.quantize.simulated_quantize").set_body_typed(create_simulated_quantize);
 
 }  // namespace hago
 }  // namespace tvm

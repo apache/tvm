@@ -17,8 +17,7 @@
 from __future__ import absolute_import
 
 from .base import *
-from . import _quantize
-from .topology import Topology, analyze_topology
+from .topology import Topology, NodeKind, analyze_topology
 from .quantize import create_quantizer
 from .record import Strategy
 from ..contrib import graph_runtime
@@ -31,29 +30,74 @@ from itertools import islice
 from collections import OrderedDict
 
 class Stats(object):
-    def __init__(self, data):
+    def __init__(self, topology, data):
         """
-        data: intermediate data * number_of_batches
+        data: [num of intermediate data][number of batch][tensor]
         """
-        self.data = data
-        # Range represents avg min/max
-        self.range = []
-        self.power_of_two_range = []
-        for idx in range(len(data)):
-            samples = len(self.data[idx])
-            arr = np.concatenate(self.data[idx]).reshape(samples, -1)
-            avg_min = np.average(np.min(arr, axis=1))
-            avg_max = np.average(np.max(arr, axis=1))
-            arange = np.amax([np.abs(avg_min), np.abs(avg_max)])
-            self.range.append(arange)
-            power_of_two_range = 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
-            self.power_of_two_range.append(power_of_two_range)
+        self.topology = topology
+        self.node_kinds = list(topology.node2kind().values())
+        self.node_edges = list(topology.node2edges().values())
+        print(self.node_kinds)
+        self.data = []
+        for idx, batched_data in enumerate(data):
+            if self.node_kinds[idx] in (NodeKind.Input, NodeKind.Activation):
+                flatten_data = np.concatenate(batched_data)
+            elif self.node_kinds[idx] == NodeKind.Weight:
+                flatten_data = batched_data[0]
+            else:
+                raise ValueError
+            self.data.append(flatten_data)
+        self._avg_range = None
+        self._pot_range = None
 
     def __len__(self):
         return len(self.data)
 
     def data(self, idx):
         return self.data[idx]
+
+    def _round2pot(self, x):
+        pot = 2**np.math.ceil(np.math.log(x, 2)) if x > 0 else 1.0
+        return pot
+
+    def _calculate_avg_range(self, arr):
+        num_samples = arr.shape[0]
+        arr = np.reshape(arr, (num_samples, -1))
+        avg_min = np.average(np.min(arr, axis=1))
+        avg_max = np.average(np.max(arr, axis=1))
+        arange = np.amax([np.abs(avg_min), np.abs(avg_max)])
+        return arange
+
+    @property
+    def avg_range(self):
+        if self._avg_range is None:
+            self._avg_range = []
+            for idx, arr in enumerate(self.data):
+                if self.node_kinds[idx] in (NodeKind.Input, NodeKind.Activation):
+                    arange = self._calculate_avg_range(arr)
+                elif self.node_kinds[idx] == NodeKind.Weight:
+                    axis = current_qconfig().per_channel_scale_axis
+                    out_edges = self.node_edges[idx]
+                    assert len(out_edges) == 1
+                    op_node = out_edges[0][1]
+                    print(op_node.op.name)
+                    if axis is not None and op_node.op.name in ['nn.dense', 'nn.conv2d']:
+                        # per channel scales
+                        axis = current_qconfig().per_channel_scale_axis
+                        arr = np.moveaxis(arr, axis, 0)
+                        num_scales = arr.shape[0]
+                        arr = np.reshape(arr, (num_scales, -1))
+                        arange = np.amax(np.abs(arr), axis=1)
+                    else:
+                        arange = np.amax(np.abs(arr))
+                self._avg_range.append(arange)
+        return self._avg_range
+
+    @property
+    def pot_range(self):
+        if self._pot_range is None:
+            self._pot_range = [self._round2pot(r) for r in self.avg_range]
+        return self._pot_range
 
     def mean(self, idx):
         pass
@@ -62,18 +106,20 @@ class Stats(object):
         pass
 
 
-def collect_stats(graph, dataset, ctx, target):
+
+def collect_stats(graph, topology, dataset, ctx, target):
     assert isinstance(graph, relay.Function)
+    assert graph == topology.graph
     logging.info("collecting statistics for calibration...")
-    outputs = []
+    nodes = []
     def fvisit(node):
         if isinstance(node, (relay.Var, relay.Constant, relay.Call)):
-            outputs.append(node)
+            nodes.append(node)
     relay.analysis.post_order_visit(graph, fvisit)
-    out = relay.Tuple(outputs)
+    out = relay.Tuple(nodes)
     func = relay.Function(graph.params, out)
     outputs = evaluate(func, dataset, ctx, target)
-    stats = Stats(outputs)
+    stats = Stats(topology, outputs)
     logging.info("statistics collected")
     return stats
 

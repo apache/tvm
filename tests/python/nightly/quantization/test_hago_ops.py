@@ -2,6 +2,7 @@ import tvm
 from tvm import relay
 from tvm import hago
 import numpy as np
+from common_utils import target_and_ctx
 
 def create_hardware():
     hardware = hago.Hardware()
@@ -11,14 +12,6 @@ def create_hardware():
     hardware.add_op_desc('nn.conv2d', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
     return hardware
 
-def target_and_ctx(device):
-    if device == 'cpu':
-        target = 'llvm'
-        ctx = tvm.cpu()
-    elif device == 'gpu':
-        target = 'cuda'
-        ctx = tvm.gpu(1)
-    return target, ctx
 
 def test_dense(ishape=(8, 16), wshape=(10, 16), batch_num=5, device='cpu'):
     target, ctx = target_and_ctx(device)
@@ -136,35 +129,36 @@ def check_results(func, params, dataset, device='cpu'):
     target, ctx = target_and_ctx(device)
     # prepared by user
     hardware = create_hardware()
-    
-    qconfig = hago.qconfig(skip_conv_layers=[0],
-                           log_file='temp.log',
-                           threshold_estimate_method="kl_estimate")
-    with qconfig:
-        func = hago.prerequisite_optimize(func, params)
-        print('after optimize')
-        print(func)
-        space = hago.generate_search_space(func, hardware)
-        # tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
-        tuner = hago.DefaultSetting(space, 'accuracy')
-        strategy, result = hago.search_quantize_strategy(func, hardware, dataset, tuner, ctx, target)
-        quantizer = hago.create_quantizer(func, hardware, strategy)
-        simulated_graph = quantizer.simulate()
-        quantized_graph = quantizer.quantize()
-        print(strategy)
-        print(result)
-        print(simulated_graph)
-        print(quantized_graph)
+
+    func = hago.prerequisite_optimize(func, params)
+    print('after optimize')
+    print(func)
+    space = hago.generate_search_space(func, hardware)
+    # tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
+    tuner = hago.DefaultSetting(space, 'accuracy')
+    strategy, result = hago.search_quantize_strategy(func, hardware, dataset, tuner, ctx, target)
+    quantizer = hago.create_quantizer(func, hardware, strategy)
+    simulated_graph = quantizer.simulate()
+    # quantized_graph = quantizer.quantize()
+    print(strategy)
+    print(result)
+    print(simulated_graph)
+    # print(quantized_graph)
 
     input_data = [ {**data, **params} for data in dataset.batches ]
-    expected = hago.base.evaluate(original_func, input_data)
-    quantized_output = hago.base.evaluate(quantized_graph, input_data)
+    expected_out = hago.base.evaluate(original_func, input_data)[0]
+    simulated_out = hago.base.evaluate(simulated_graph, input_data)[0]
 
-    tvm.testing.assert_allclose(expected, quantized_output, rtol=0.05)
+    for exp_out, sim_out in zip(expected_out, simulated_out):
+        hago.analysis.compare(exp_out, sim_out)
 
 if __name__ == '__main__':
-    device = 'cpu'
-    func, params, dataset = test_add(device=device)
-    print('original model:')
-    print(func)
-    check_results(func, params, dataset, device)
+    qconfig = hago.qconfig(log_file='temp.log',
+                           per_channel_scale_axis=1,
+                           threshold_estimate_method="avg_range")
+    with qconfig:
+        device = 'cpu'
+        func, params, dataset = test_dense(device=device)
+        print('original model:')
+        print(func)
+        check_results(func, params, dataset, device)

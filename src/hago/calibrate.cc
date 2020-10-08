@@ -142,7 +142,7 @@ float MinimizeKL(const std::vector<int>& hist, const std::vector<float>& hist_ed
   return thresholds[min_divergence_idx];
 }
 
-TVM_REGISTER_GLOBAL("hago._quantize.FindScaleByKLMinimization")
+TVM_REGISTER_GLOBAL("hago.quantize.FindScaleByKLMinimization")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       int* hist_ptr = static_cast<int*>(static_cast<void*>(args[0]));
       float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));

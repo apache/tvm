@@ -19,4 +19,4 @@
 from __future__ import absolute_import
 import tvm._ffi
 
-tvm._ffi._init_api("hago._quantize", __name__)
+tvm._ffi._init_api("hago.quantize", __name__)

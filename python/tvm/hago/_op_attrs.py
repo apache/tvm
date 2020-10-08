@@ -109,7 +109,6 @@ def compare(origin, ret, msg):
     return ret
 
 
-
 def isclose(old, new, rtol, atol):
     # compare two arrays under quantized situation
     thold = np.max(np.abs(old))
@@ -147,12 +146,13 @@ def check_overflow(data, in_dtype, output):
     tvm.nd.array(arr.astype('float32')).copyto(output)
 
 
-@_reg.register_compute("hago.simulated_quantize")
+@_reg.register_compute("nn.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 5
     assert attrs.sign
     assert attrs.rounding == "round"
+    axis = attrs.axis
 
     data, in_scale, out_scale, clip_min, clip_max = inputs
     data = my_print(data, '\n\n*******************************************')
@@ -161,6 +161,7 @@ def simulated_quantize_compute(attrs, inputs, out_type):
     origin = data
     data = inspect(data, 'original data')
 
+    ##################################
     # simulate overflow truncate error
     if attrs.in_dtype != 'float32':
         # data = topi.divide(data, in_scale)
@@ -168,24 +169,44 @@ def simulated_quantize_compute(attrs, inputs, out_type):
         #     "tvm.contrib.check_overflow", ins[0], str(attrs.in_dtype), outs[0]))
         # data = topi.multiply(data, in_scale)
 
-        data = topi.divide(data, in_scale)
+        if len(in_scale.shape) == 1:
+            assert axis is not None
+            assert len(out_scale.shape) == 0
+            # per-channel dequantize
+            expand_axes = [i for i in range(len(data.shape)) if i != axis]
+            in_scale = topi.expand_like(in_scale, data, expand_axes)
+            data = topi.divide(data, in_scale)
+        else:
+            data = topi.divide(data, in_scale)
         data = topi.cast(topi.round(data), 'int64')
         data = topi.cast(data, attrs.in_dtype)
         data = topi.multiply(data, in_scale)
 
+    ########################################
     # dequantize, directly return real value
     if attrs.out_dtype == 'float32':
         data = my_print(data, '*******************************************\n\n')
         return [topi.identity(data)]
 
 
+    #########################
     # simulate rounding error
-    scaled_data = topi.divide(data, out_scale)
+    if len(out_scale.shape) == 1:
+        assert axis is not None
+        assert len(in_scale.shape) == 0
+        # per-channel quantize
+        expand_axes = [i for i in range(len(data.shape)) if i != axis]
+        out_scale = topi.expand_like(out_scale, data, expand_axes)
+        scaled_data = topi.divide(data, out_scale)
+    else:
+        scaled_data = topi.divide(data, out_scale)
     scaled_data = inspect(scaled_data, 'scaled data')
 
     round_data = topi.round(scaled_data)
     round_data = inspect(round_data, 'round data')
 
+    #########################
+    # simulate clipping error
     clipped_data = topi.maximum(topi.minimum(round_data, clip_max), clip_min)
     clipped_data = inspect(clipped_data, 'clipped data')
 
@@ -199,8 +220,8 @@ def simulated_quantize_compute(attrs, inputs, out_type):
     return [ret]
 
 
-_reg.register_schedule("hago.simulated_quantize", tvm.relay.op.strategy.schedule_simulated_quantize)
-_reg.register_pattern("hago.simulated_quantize", _reg.OpPattern.OPAQUE)
+_reg.register_schedule("nn.simulated_quantize", tvm.relay.op.strategy.schedule_simulated_quantize)
+_reg.register_pattern("nn.simulated_quantize", _reg.OpPattern.OPAQUE)
 
 
 # infer scale function registered for ops

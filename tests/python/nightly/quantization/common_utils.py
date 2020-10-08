@@ -93,6 +93,11 @@ def quantize_hago(mod, params, calib_dataset):
         # hago.inspect_graph_statistic(graph, hardware, strategy, dataset, ctx, target='llvm')
         return tvm.IRModule.from_expr(quantized_graph)
 
-
-
-
+def target_and_ctx(device):
+    if device == 'cpu':
+        target = 'llvm'
+        ctx = tvm.cpu()
+    elif device == 'gpu':
+        target = 'cuda'
+        ctx = tvm.gpu(1)
+    return target, ctx
