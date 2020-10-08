@@ -147,6 +147,8 @@ def verify_with_ort_with_inputs(
 
     for target in targets:
         ctx = tvm.context(target, 0)
+        print(target, ctx)
+        if target == "cuda" or target == "nvptx":continue
         if use_vm:
             tvm_out = get_tvm_output_with_vm(
                 model,
@@ -159,7 +161,7 @@ def verify_with_ort_with_inputs(
             )
         else:
             tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
-
+        print(ort_out, tvm_out)
         tvm.testing.assert_allclose(flatten(ort_out), flatten(tvm_out), rtol=rtol, atol=atol)
 
 
@@ -2821,7 +2823,6 @@ def test_unsqueeze_constant():
 
 
 def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
-    print(x_shape, kernel_shape, strides, mode, pads, auto_pad)
     x_np = np.random.uniform(size=x_shape).astype("float32")
 
     if mode == "max":
@@ -3689,6 +3690,68 @@ def test_roi_align():
     verify_roi_align((5, 4, 16, 14), 32, 7, 7, sampling_ratio=1, spatial_scale=1.0)
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
 
+#@tvm.testing.uses_gpu
+def test_non_max_suppression():
+    boxes = np.array(    [0.0, 0.0, 0.3, 0.3,
+                        0.0, 0.0, 0.4, 0.4,
+                        0.0, 0.0, 0.5, 0.5,
+                        0.5, 0.5, 0.9, 0.9,
+                        0.5, 0.5, 1.0, 1.0,
+
+                        0.0, 0.0, 0.3, 0.3,
+                        0.0, 0.0, 0.4, 0.4,
+                        0.5, 0.5, 0.95, 0.95,
+                        0.5, 0.5, 0.96, 0.96,
+                        0.5, 0.5, 1.0, 1.0]).reshape([2, 5, 4]).astype("float32")
+    scores = np.array(   [0.1, 0.2, 0.6, 0.3, 0.9,
+                        0.1, 0.2, 0.6, 0.3, 0.9,
+
+                        0.1, 0.2, 0.6, 0.3, 0.9,
+                        0.1, 0.2, 0.6, 0.3, 0.9]).reshape([2, 2, 5]).astype("float32")
+    max_output_boxes_per_class = np.array(2).astype("int64")
+    iou_threshold = np.array(0.8).astype("float32")
+    output_dims = [8, 3]
+    #test.AddInput<float>("iou_threshold", {}, {0.8f});
+    #test.AddOutput<int64_t>("selected_indices", {8, 3},
+    #                        {0L, 0L, 4L,
+    #                         0L, 0L, 2L,
+    #                         0L, 1L, 4L,
+    #                         0L, 1L, 2L,
+
+    #                         1L, 0L, 4L,
+    #                         1L, 0L, 1L,
+    #                         1L, 1L, 4L,
+    #                         1L, 1L, 1L});
+    node = helper.make_node(
+        "NonMaxSuppression",
+        inputs=["boxes", "scores", "max_output_boxes_per_class", "iou_threshold"],
+        outputs=["Y"],
+        center_point_box=0,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "nms_test",
+        inputs=[
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes.shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores.shape),
+            helper.make_tensor_value_info(
+                "max_output_boxes_per_class",
+                TensorProto.INT64,
+                max_output_boxes_per_class.shape),
+            helper.make_tensor_value_info(
+                "iou_threshold",
+                TensorProto.FLOAT,
+                iou_threshold.shape
+            ),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.INT64, output_dims)],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test")
+
+
+    verify_with_ort_with_inputs(model, [boxes, scores, max_output_boxes_per_class, iou_threshold], use_vm=True)
 
 def verify_cond_loop():
     y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])

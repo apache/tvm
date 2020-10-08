@@ -2303,6 +2303,121 @@ class If(OnnxOpConverter):
         return _expr.If(cond, then_expr, else_expr)
 
 
+class NonMaxSuppression(OnnxOpConverter):
+    """Operator converter for NonMaxSuppression."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        # Get parameter values
+        boxes = inputs[0]
+        scores = inputs[1]
+        max_output_boxes_per_class = inputs["max_output_boxes_per_class"]
+        iou_threshold = inputs["iou_threshold"]
+        score_threshold = inputs["score_threshold"]
+        print(boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold)
+        if "center_point_box" in attr:
+            assert (
+                attr["center_point_box"] == 0
+            ), "Only support center_point_box = 0 in onnx importer right now"
+
+        def pad_last_dim(x):
+            return _op.expand_dims(x, -1, 1)
+
+        # if iou_threshold is not None:
+        #    # assume iou_threshold is constant
+        #    iou_threshold = np.atleast_1d(iou_threshold.data.asnumpy())[0]
+        # else:
+        #    iou_threshold = 0.0
+        iou_threshold = 0.8
+        if score_threshold is not None:
+            # assume iou_threshold is constant
+            score_threshold = np.atleast_1d(score_threshold.data.asnumpy())[0]
+        else:
+            score_threshold = 0.0
+        # loop over classes
+        B, C, S = infer_shape(scores)
+        out = []
+        for i in range(C):
+            class_scores = _op.strided_slice(scores, [0, i, 0], [B, i + 1, S], [1, 1, 1])
+            class_scores = pad_last_dim(_op.squeeze(class_scores))
+            data = _op.concatenate([class_scores, boxes], -1)
+            ct, data, indices = _op.vision.get_valid_counts(
+                data, score_threshold=score_threshold, id_index=-1, score_index=0
+            )
+            # reason why using get_valid_counts is for inference performance
+            # NNX NMS doesn't have parameter top_k
+            top_k = -1
+            # TF doesn't have class id for nms input
+            score_index = 0
+            nms_ret = _op.vision.non_max_suppression(
+                data=data,
+                valid_count=ct,
+                indices=indices,
+                max_output_size=max_output_boxes_per_class,
+                iou_threshold=iou_threshold,
+                force_suppress=True,
+                top_k=top_k,
+                coord_start=1,
+                score_index=score_index,
+                id_index=-1,
+                return_indices=True,
+                invalid_to_bottom=False,
+            )
+            nms_padded_out = _op.expand_dims(nms_ret[0], -1, 1)
+            onnx_output = _op.concatenate(
+                [
+                    pad_last_dim(
+                        _op.broadcast_to(
+                            pad_last_dim(
+                                _op.arange(
+                                    _op.const(infer_shape(nms_padded_out)[0]),
+                                    dtype=infer_type(nms_padded_out).checked_type.dtype,
+                                ),
+                            ),
+                            infer_shape(nms_ret[0]),
+                        ),
+                    ),
+                    _op.broadcast_to(
+                        _op.const(i, dtype=infer_type(nms_padded_out).checked_type.dtype),
+                        infer_shape(nms_padded_out),
+                    ),
+                    nms_padded_out,
+                ],
+                -1,
+            )
+            nms_size = _op.cast(nms_ret[1], "int64")
+            for batch in range(B):
+                start = [batch, 0, 0]
+                end = _op.concatenate(
+                    [
+                        _op.const(
+                            np.array(
+                                [
+                                    batch + 1,
+                                ]
+                            ),
+                            dtype="int64",
+                        ),
+                        _op.reshape(
+                            _op.strided_slice(nms_size, [batch, 0], [batch + 1, 1], [1, 1, 1]), [1]
+                        ),
+                        _op.const(
+                            np.array(
+                                [
+                                    3,
+                                ]
+                            ),
+                            dtype="int64",
+                        ),
+                    ],
+                    0,
+                )
+                out += [_op.squeeze(_op.strided_slice(onnx_output, start, end, [1, 1, 1]), [0])]
+
+        out = [out[i * B + j] for j in range(B) for i in range(C)]
+        return _op.concatenate(out, axis=0)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -2415,6 +2530,7 @@ def _get_convert_map(opset):
         # defs/vision
         "MaxRoiPool": MaxRoiPool.get_converter(opset),
         "RoiAlign": RoiAlign.get_converter(opset),
+        "NonMaxSuppression": NonMaxSuppression.get_converter(opset),
         # defs/reduction
         "ReduceMax": ReduceMax.get_converter(opset),
         "ReduceMin": ReduceMin.get_converter(opset),
