@@ -42,6 +42,9 @@ class BufferVar(ObjectGeneric):
 
     Do not create it directly, create use IRBuilder.
 
+    BufferVars support array access either via a linear index, or, if given a
+    shape, via a multidimensional index.
+
     Examples
     --------
     In the follow example, x is BufferVar.
@@ -54,6 +57,12 @@ class BufferVar(ObjectGeneric):
         ib = tvm.tir.ir_builder.create()
         x = ib.pointer("float32")
         x[0] = x[10] + 1
+
+        y = ib.allocate("float32", (32, 32))
+        # Array access using a linear index
+        y[(2*32) + 31] = 0.
+        # The same array access using a multidimensional index
+        y[2, 31] = 0.
 
     See Also
     --------
@@ -76,7 +85,7 @@ class BufferVar(ObjectGeneric):
         return self._content_type
 
     def _linear_index(self, index):
-        if not isinstance(index, tuple):
+        if not isinstance(index, tuple) or self._shape is None:
             return index
         assert len(index) == len(self._shape), "Index size (%s) does not match shape size (%s)" % (
             len(index),
