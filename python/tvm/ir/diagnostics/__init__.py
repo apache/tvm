@@ -49,8 +49,10 @@ def override_renderer(render_func):
         and return to default behavior.
     """
     if render_func:
+
         def _render_factory():
             return DiagnosticRenderer(render_func)
+
         register_func("diagnostics.OverrideRenderer", _render_factory, override=True)
     else:
         _ffi_api.ClearRenderer()
