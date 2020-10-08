@@ -1219,7 +1219,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           ss << op->name << " = PLACEHOLDER " << op.output(0)->shape << "\n";
         } else if (auto pop = op.as<te::ComputeOpNode>()) {
           for (size_t k = 0; k < pop->body.size(); ++k) {
-            ss << op->name << "(";
+            ss << op->name << "[" << op.output(0)->shape << "](";
             for (size_t i = 0; i < pop->axis.size(); i++) {
               ss << pop->axis[i]->var->name_hint;
               if (i != pop->axis.size() - 1) {
@@ -1231,6 +1231,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
               ss << ".v" << k;
             }
             if (auto preduce = pop->body[k].as<ReduceNode>()) {
+              ss << "[";
+              for (size_t i = 0; i < preduce->axis.size(); i++) {
+                ss << preduce->axis[i]->var->name_hint << "(" << preduce->axis[i]->dom << ")";
+                if (i != preduce->axis.size() - 1) {
+                  ss << ", ";
+                }
+              }
+
               CHECK_LT(k, preduce->combiner->result.size());
               PrimExpr combiner = preduce->combiner->result[k];
               if (combiner->IsInstance<AddNode>()) {
