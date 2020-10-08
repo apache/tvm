@@ -113,18 +113,23 @@ def _serve_loop(sock, addr, load_library, work_path=None, microtvm_debugger=Fals
     """Server loop"""
     sockfd = sock.fileno()
     temp = _server_env(load_library, work_path)
-    if microtvm_debugger:
-        # NOTE: multiprocessing closes stdin and sets sys.stdin to read from /dev/null.
-        # The original underlying file descriptor is still present and can be re-opened.
-        sys.stdin.close()
-        sys.stdin = os.fdopen(0)
-        old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
-        try:
+    try:
+        if microtvm_debugger:
+            # NOTE: multiprocessing closes stdin and sets sys.stdin to read from /dev/null.
+            # The original underlying file descriptor is still present and can be re-opened.
+            sys.stdin.close()
+            sys.stdin = os.fdopen(0)
+            old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                _ffi_api.ServerLoop(sockfd)
+            finally:
+                signal.signal(signal.SIGINT, old_sigint_handler)
+        else:
             _ffi_api.ServerLoop(sockfd)
-        finally:
-            signal.signal(signal.SIGINT, old_sigint_handler)
-    else:
-        _ffi_api.ServerLoop(sockfd)
+
+    except BaseException as e:
+        logging.info("while serving %s: encountered error", addr, exc_info=True)
+
     if not work_path:
         temp.remove()
     logger.info("Finish serving %s", addr)

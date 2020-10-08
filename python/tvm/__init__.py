@@ -82,3 +82,9 @@ def tvm_wrap_excepthook(exception_hook):
 
 
 sys.excepthook = tvm_wrap_excepthook(sys.excepthook)
+
+
+# NOTE: need to invoke this here to wait for set_class_packed_func in tvm.runtime.
+from ._ffi.syscall_interrupted import init_syscall_interrupted
+init_syscall_interrupted()
+del init_syscall_interrupted

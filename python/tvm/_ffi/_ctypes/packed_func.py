@@ -78,7 +78,9 @@ def convert_to_tvm_func(pyfunc):
         pyargs = (C_TO_PY_ARG_SWITCH[type_codes[i]](args[i]) for i in range(num_args))
         # pylint: disable=broad-except
         try:
+            print('run', local_pyfunc)
             rv = local_pyfunc(*pyargs)
+            print('cfun rv', rv)
         except Exception:
             msg = traceback.format_exc()
             msg = py2cerror(msg)

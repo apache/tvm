@@ -28,7 +28,7 @@
 #include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/registry.h>
 
-#include < algorithm>
+#include <algorithm>
 #include <chrono>
 #include <cstdarg>
 #include <memory>

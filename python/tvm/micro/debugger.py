@@ -31,6 +31,8 @@ import threading
 
 import psutil
 
+import traceback
+
 from .._ffi import register_func
 from . import class_factory
 from . import transport
@@ -84,23 +86,56 @@ class GdbDebugger(Debugger):
     def __init__(self):
         super(GdbDebugger, self).__init__()
         self._is_running = False
+        self._child_alive_lock = threading.RLock()
+        self._is_child_alive = False
 
     @abc.abstractmethod
     def popen_kwargs(self):
         raise NotImplementedError()
 
     @classmethod
-    def _sigint_handler(cls, signum, stack_frame):
-        print('sigint handler')
-        if cls._STARTED_INSTANCE is not None:
-            try:
-                print('kill subp', cls._STARTED_INSTANCE.child_pgid)
-                os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
-                return
-            except ProcessLookupError as e:
-                pass
+    def find_all_children(cls, pgid):
+        proc_by_pid = {}
+        to_inspect = []
+        my_uid = os.getuid()
+        for p in psutil.process_iter(['pid', 'ppid', 'pgid', 'uid']):
+            if p.info['uid'] != my_uid:
+                continue
 
-        raise KeyboardInterrupt()
+            proc_by_pid[p.info['pid']] = p
+            if p.info['pgid'] == pgid:
+                to_inspect.append(p.info['pid'])
+
+        children = set()
+        while to_inspect:
+            i = to_inspect.pop()
+            children.add(i)
+            to_inspect.extend(
+                proc for proc in pid_by_ppid.values() if proc.info['ppid'] == i.info['pid'])
+
+        return children
+
+    def _wait_for_child(self):
+        self.popen.wait()
+        with self._child_alive_lock:
+            self._is_child_alive = True
+
+    import traceback
+
+    @classmethod
+    def _sigint_handler(cls, signum, stack_frame):
+        print('sigint', threading.get_ident())
+        if cls._STARTED_INSTANCE is not None:
+            with cls._STARTED_INSTANCE._child_alive_lock:
+                exists = cls._STARTED_INSTANCE._is_child_alive
+            if exists:
+                try:
+                    ret = os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
+                    return
+                except ProcessLookupError as e:
+                    pass
+
+        raise Exception()
 
     def start(self):
         assert not self._is_running
@@ -111,47 +146,35 @@ class GdbDebugger(Debugger):
             kwargs.setdefault('start_new_session', True))
 
         self.old_termios = termios.tcgetattr(sys.stdin.fileno())
-        self.old_sigint_handler = signal.signal(signal.SIGINT, self._sigint_handler)
         self.popen = subprocess.Popen(**kwargs)
         self._is_running = True
         self.__class__._STARTED_INSTANCE = self
         try:
             self.child_pgid = os.getpgid(self.popen.pid)
+            print('child', self.child_pgid, os.getpgid(0))
         except Exception as e:
             self.stop()
             raise
+        with self._child_alive_lock:
+            self._is_child_alive = True
+        self.old_sigint_handler = signal.signal(signal.SIGINT, self._sigint_handler)
+        t = threading.Thread(target=self._wait_for_child)
+        t.daemon = True
+        t.start()
 
-    def _wait_til_pgexit(self):
-        end_time = time.monotonic() + self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC
-        while time.monotonic() < end_time:
-            try:
-                ret = os.waitid(os.P_PGID, self.child_pgid, os.WEXITED | os.WNOHANG)
-            except OSError as e:
-                if e.errno == errno.EINVAL or e.errno == errno.ECHILD:
-                    return True
-
-                elif e.errno == errno.EINTR:
-                    pass
-
-                else:
-                    raise
-
-            time.sleep(0.1)
-
-        return False
 
     def stop(self):
         assert self._is_running
         signal.signal(signal.SIGINT, self.old_sigint_handler)
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_termios)
 
-        try:
-            os.killpg(self.child_pgid, signal.SIGTERM)
-            if not self._wait_til_pgexit():
-                os.killpg(self.child_pgid, signal.SIGKILL)
-        except ProcessLookupError:
-            _LOG.warn('error', exc_info=True)
-            pass
+        children = psutil.Process(self.popen.pid).children(recursive=True)
+        for c in children:
+            c.terminate()
+        _, alive = psutil.wait_procs(
+            children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
+        for a in alive:
+            a.kill()
 
         self._STARTED_INSTANCE = None
         self._is_running = False
