@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 import onnx
 from tvm.ir import IRModule
+from tvm.topi.util import get_const_tuple
 
 from ... import nd as _nd
 from .. import analysis
@@ -2025,9 +2026,10 @@ class Loop(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         max_loop_count = inputs[0]
         cond = inputs[1]
-        loop_vars = inputs[2:]
-        num_vars = len(loop_vars)
+        loop_deps = inputs[2:]
+        num_deps = len(loop_deps)
         body = attr['body']
+        iter_dtype = infer_type(max_loop_count).checked_type.dtype
 
         # Determine what condition mode we're in.
         assert cond is not None or max_loop_count is not None
@@ -2036,8 +2038,8 @@ class Loop(OnnxOpConverter):
         is_condition_for_loop = cond is not None and max_loop_count is not None
 
         # Loop inputs will be packed as
-        # [iter_count, condition, loop_vars, scan_outputs]
-        def cond_fn(loop_inputs):
+        # [iter_count, condition, loop_deps, scan_outputs]
+        def cond_fn(*loop_inputs):
             i = loop_inputs[0]
             w = loop_inputs[1]
 
@@ -2057,81 +2059,83 @@ class Loop(OnnxOpConverter):
         g = GraphProto(graph_scope._shape, graph_scope._dtype)
         # Load nodes from outer graph into inner graph.
         g._nodes = graph_scope._nodes.copy()
-        # Create a list of the names of values that will update
-        # each iteration.
-        loop_iter_vars = [body.input[0].name, body.input[1].name] + [v.name_hint for v in loop_vars]
-        # Add initial loop and condition values to graph nodes.
-        g._nodes[body.input[0].name] = max_loop_count
-        g._nodes[body.input[1].name] = cond
-        # Add initial loop_var values to our node tracking.
-        for i, v in enumerate(loop_vars):
-            g._nodes[body.input[i + 2].name] = v
+
+        # Create a list of variables for each value updated in the loop.
+        def get_var(name, val):
+            if val:
+                checked_type = infer_type(val)
+                if hasattr(checked_type, "type_annotation"):
+                    checked_type = checked_type.type_annotation
+                if hasattr(checked_type, "shape"):
+                    shape = get_const_tuple(checked_type.shape)
+                    actual_shape = []
+                    for dim in shape:
+                        if isinstance(dim, int) and dim == 0:
+                            actual_shape.append(Any())
+                        else:
+                            actual_shape.append(dim)
+                    return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+                else:
+                    return _expr.var(name, type_annotation=checked_type)
+            return _expr.var(name)
+        loop_vars = [
+            _expr.var(body.input[0].name, shape=(), dtype=iter_dtype), # iteration count
+            get_var(body.input[1].name, cond), # exit condition
+        ]
+        loop_vars += [get_var(body.input[i + 2].name, v) for i, v in enumerate(loop_deps)]
+        loop_var_names = [v.name_hint for v in loop_vars]
+        
+        # Next we need to figure out which of our outputs should be scanned.
+        num_scan_outputs = len(body.output) - (1 + num_deps)
+        scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i]) for i in range(num_scan_outputs)]
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
         # want to treat as actual inputs.
-        for i in range(len(loop_iter_vars)):
+        while len(body.input) != 0:
             body.input.pop(0)
-
-        body_mod, body_params = g.from_onnx(body, 11, freeze_params=True)
-
-        # Now we have to find the inputs to our body. Unfortunately, these
-        # may be nodes that are not visible to this operation.
-        # Inputs that do not change in the loop can come from anywhere
-        # in the graph, and can have an arbitrary position in the body's
-        # argument list. We need to make a dictionary that maps the proper
-        # input index of these arguments to their value.
-        # After we compute the changing loop values, we'll insert the static
-        # ones into their proper index. We use an OrderedDict to make sure
-        # these values are inserted in the proper order.
-        body_vars = analysis.all_vars(body_mod['main'])
-        outer_scope_inputs = OrderedDict()
-        for i, var in enumerate(body_vars):
-            if var.name_hint in graph_scope._nodes.keys():
-                outer_scope_inputs[i] = graph_scope._nodes[var.name_hint]
-
-        # Body inputs a/re the combination of outer_scope_inputs and loop_vars.
-        # The body outputs are always in the form [condition, loop_vars, scan_outputs].
-        # We'll use the length of the initial loop_vars to break apart these outputs
-        # and prepare them for the next iteration.
-        # To keep track of the iteration count, we'll use a new variable that will
-        # be kept at the first index of the loop inputs and outputs.
-        # loop input / outputs will be packed as [iter_count, cond, loop_vars, scan_outputs]
 
         # New strategy: populate g._nodes with the values needed
         # by the next iteration. Then run node conversion on the updated
         # inputs to build a progressively larger expression as needed.
-        iter_dtype = infer_type(max_loop_count).checked_type.dtype
-        iter_var = _expr.var('iter_var', shape=(), dtype=iter_dtype)
         def body_fn(*loop_inputs):
             # Unpack inputs
-            i = loop_inputs[0]
-            current_vars = list(loop_inputs[2:(2 + num_vars)])
-            scan_outputs = loop_inputs[-1]
+            loop_count = loop_inputs[0]
+            cond = loop_inputs[1]
+            current_vars = list(loop_inputs[2:(2 + num_deps)])
+            scan_outputs = loop_inputs[(2 + num_deps):]
 
-            # Prepare body inputs by adding global inputs.
-            for index in outer_scope_inputs.keys():
-                loop_vars.insert(index, outer_scope_inputs[index])
+            # Prepare body inputs by adding them to node dictionary.
+            new_inputs = [loop_count, cond] + current_vars
+            for i, inp in enumerate(new_inputs):
+                g._nodes[loop_var_names[i]] = inp
 
-            # Run the body graph for one iteration.
-            body_outputs = body_mod['main'](*loop_vars)
+            # Get the output of the current loop using the updated inputs.
+            loop_outputs = g.from_onnx(body, 11, get_output_expr=True)
             # Unpack the body outputs and prepare variables for next iteration.
-            w = body_outputs[0]
-            loop_vars_new = body_outputs[1:(1 + num_vars)]
-            scan_outputs_new = body_outputs[(1 + num_vars):]
+            new_cond = loop_outputs[0]
+            new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
+            new_scan_outputs = [loop_outputs[i] for i in range(1 + num_deps, len(loop_outputs))]
 
             # Increment counter.
             if max_loop_count is not None:
-                incr = _expr.const(1, dtype='int32')
-                i = i + incr
+                incr = _expr.const(1, dtype=iter_dtype)
+                loop_count = loop_count + incr
 
-            # Pack loop outputs
-            return [i, loop_inputs[1]] + loop_vars_new + [scan_outputs_new]
+            # Add new scan outputs to tracking
+            combined_scan_outputs = []
+            for i, scan in enumerate(scan_outputs):
+                new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
+                combined_scan = _op.concatenate([scan, new_scan], axis=0)
+                combined_scan_outputs.append(combined_scan)
 
-        # Prepare first input to loop.
-        loop_init = [iter_var, cond] + loop_vars + [[]]
-        out_graph = _loops.while_loop(cond, loop_init, body_fn)
-        return out_graph
+            # Pack loop outputs for next iteration
+            # [iter_count, cond, loop_deps, loop_scans]
+            return [loop_count, new_cond] + new_loop_vars + combined_scan_outputs
+
+        loop = _loops.while_loop(cond_fn, loop_vars + scan_output_vars, body_fn)
+        # Now need to run initial values through the graph.
+        return loop
 
 
 # compatible operators that do NOT require any conversion.
@@ -2334,7 +2338,7 @@ class GraphProto:
         fn = _function.Function(analysis.free_vars(body), body)
         return fn, {}
 
-    def from_onnx(self, graph, opset, freeze_params=False):
+    def from_onnx(self, graph, opset, freeze_params=False, get_output_expr=False):
         """Construct Relay expression from ONNX graph.
 
         Onnx graph is a python protobuf object.
@@ -2357,6 +2361,11 @@ class GraphProto:
             as Constants instead of variables. This allows more aggressive optimizations
             at compile time and helps in making models static if certain inputs represent
             attributes relay would traditionally consider compile-time constants.
+
+        get_output_expr: bool
+            If set to true, this conversion will return each output expression rather
+            than a packaged module. This can be useful when converting subgraphs to 
+            relay.
 
         Returns
         -------
@@ -2459,6 +2468,9 @@ class GraphProto:
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
+        # If requested, directly return the converted expressions.
+        if get_output_expr:
+            return outputs
         ## Maintain the order of inputs and parameters from the ONNX graph, but only include
         ## those parameters that are needed to execute the relay graph
         free_vars = analysis.free_vars(outputs)
@@ -2467,12 +2479,6 @@ class GraphProto:
         for i_name in self._params:
             if i_name in free_vars and i_name not in self._inputs:
                 self._inputs[i_name] = self._nodes[i_name]
-        # For subgraphs, we may have free variables that come from an outer
-        # scope and should be converted to inputs.
-        if GraphProto.current is not self:
-            for i_name in free_vars:
-                if i_name not in self._inputs:
-                    self._inputs[i_name] = self._nodes[i_name]
         # Create a function from our output expression and all input variables.
         func = _function.Function([v for k, v in self._inputs.items()], outputs)
         if freeze_params:
