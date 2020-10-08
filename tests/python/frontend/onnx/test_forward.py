@@ -2504,6 +2504,16 @@ def test_conv():
             repeat(1, D),
             repeat(1, D),
         )
+        # Convolution with assymetric padding
+        verify_conv(
+            (1, 1) + repeat(5, D),
+            (1, 1) + repeat(3, D),
+            (1, 1) + repeat(4, D),
+            repeat(0, D) + repeat(1, D),
+            repeat(3, D),
+            repeat(1, D),
+            repeat(1, D),
+        )
         # Convolution without padding
         verify_conv(
             (1, 1) + repeat(5, D),
