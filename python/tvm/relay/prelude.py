@@ -65,7 +65,7 @@ def get_tensor_array_shape(expr, dtype, prelude):
         shape = []
         if "scalar" not in shape_str:
             for dim_str in shape_str.split("_"):
-                if dim_str == "?" or dim_str == "any":
+                if dim_str in ["?", "any"]:
                     shape.append(Any())
                 else:
                     shape.append(int(dim_str))
