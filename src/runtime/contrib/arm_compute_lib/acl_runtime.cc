@@ -443,18 +443,9 @@ class ACLRuntime : public JSONRuntimeBase {
       throw std::runtime_error("Unsupported form of add op: " + op_name);
     }
 
-    /** Initialise the kernel's inputs, output and conversion policy.
-     *
-     * @param[in]  input1 First tensor input. Data types supported: U8/QASYMM8/S16/F16/F32
-     * @param[in]  input2 Second tensor input. Data types supported: U8/QASYMM8/S16/F16/F32
-     * @param[out] output Output tensor. Data types supported: U8/QASYMM8/S16/F16/F32
-     * @param[in]  policy Policy to use to handle overflow.
-     * void configure(ITensor *input1, ITensor *input2, ITensor *output, ConvertPolicy policy);
-     *
-     * arm_compute::ConvertPolicy::SATURATE is used as add_QASYMM8_QASYMM8_QASYMM8 currently
-     * always saturates result
-     */
     auto f = std::make_shared<arm_compute::NEArithmeticAddition>();
+
+    // SATURATE is used as add_QASYMM8_QASYMM8_QASYMM8 always saturates result
     f->configure(&layer->inputs[0], &layer->inputs[1], &layer->outputs[0],
                  arm_compute::ConvertPolicy::SATURATE);
     layer->function = f;

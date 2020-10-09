@@ -110,12 +110,10 @@ def test_runtime_add():
                 "op_params": op_params,
             }
 
-            # verify_saturation=False as the result of add_QASYMM8_QASYMM8_QASYMM8
-            # is always saturated currently.
             verify(outputs, atol=atol, rtol=rtol, config=config, verify_saturation=False)
 
 
-def test_runtime_codegen_add():
+def test_codegen_add():
     if skip_codegen_test():
         return
 
@@ -131,5 +129,5 @@ def test_runtime_codegen_add():
 
 
 if __name__ == "__main__":
-    test_runtime_codegen_add()
+    test_codegen_add()
     test_runtime_add()
