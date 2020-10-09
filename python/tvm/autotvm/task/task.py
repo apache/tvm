@@ -35,12 +35,15 @@ from .dispatcher import DispatchContext, ApplyConfig
 from .space import ConfigSpace
 
 
-def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
-    raise RuntimeError(
-        "The function of this task is not found. Possibly the function "
-        "of this task is registered in another python file "
-        "which is not imported in this run"
-    )
+def _lookup_task(name):
+    task = TASK_TABLE.get(name)
+    if task is None:
+        raise RuntimeError(
+            f"Could not find a registered function for the task {name}. It is "
+            "possible that the function is registered in a python file which was "
+            "not imported in this run."
+        )
+    return task
 
 
 def serialize_args(args):
@@ -130,7 +133,7 @@ class Task(object):
 
         # init null config space
         self.config_space = None
-        self.func = TASK_TABLE.get(name, _raise_error)
+        self.func = _lookup_task(name)
 
         # auxiliary info, available after `init_space` is called
         self.flop = None
@@ -185,7 +188,7 @@ class Task(object):
         self.args = state["args"]
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
-        self.func = TASK_TABLE.get(state["name"], _raise_error)
+        self.func = _lookup_task(state["name"])
         self.flop = state["flop"]
         self.target = state["target"]
         self.target_host = state["target_host"]
