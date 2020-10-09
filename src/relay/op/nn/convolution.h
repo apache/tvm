@@ -369,6 +369,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << "Conv3D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels << " wshape=" << wshape;
     }
+
     if (!dshape_ncdhw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
       CHECK(reporter->AssertEQ(indexdiv(dshape_ncdhw[1], param->groups), wshape[1]));
     }
