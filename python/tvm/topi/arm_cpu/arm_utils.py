@@ -49,6 +49,15 @@ def is_dotprod_available():
     return arch_version >= 8.4 or ((arch_version in (8.2, 8.3)) and "+dotprod" in target.mattr)
 
 
+def is_mmla_available():
+    """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
+    target = tvm.target.Target.current(allow_none=False)
+    arch_version = get_arch_version(target.mattr)
+    return arch_version >= 8.6 or (
+        (arch_version in (8.2, 8.3, 8.4, 8.5)) and "+i8mm" in target.mattr
+    )
+
+
 def is_aarch64_arm():
     """ Checks whether we are compiling for an AArch64 target. """
     target = tvm.target.Target.current(allow_none=False)
@@ -77,7 +86,10 @@ def get_tiling_B_interleaved_t(interleave_A):
     tile_rows_B: the output tile rows of B'
     tile_cols_B: the output tile columns of B'
     """
-    if is_dotprod_available():
+    if is_mmla_available():
+        tile_rows_B = 12
+        tile_cols_B = 8
+    elif is_dotprod_available():
         # The number of tile rows of B' vary depending on the
         # strategy:
         # * If we are interleaving A, then we select 12 columns from B'(i.e.,
