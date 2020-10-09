@@ -2084,7 +2084,6 @@ class Loop(OnnxOpConverter):
         
         num_scan_outputs = len(body.output) - (1 + num_deps)
         scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i], scan=True) for i in range(num_scan_outputs)]
-        #scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i]) for i in range(num_scan_outputs)]
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
