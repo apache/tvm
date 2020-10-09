@@ -2038,15 +2038,16 @@ class Loop(OnnxOpConverter):
         is_condition_for_loop = cond is not None and max_loop_count is not None
 
         # Loop inputs will be packed as
-        # [iter_count, condition, loop_deps, scan_outputs]
+        # [iter_count, max_count, condition, loop_deps, scan_outputs]
         def cond_fn(*loop_inputs):
             i = loop_inputs[0]
-            w = loop_inputs[1]
+            max_count = loop_inputs[1]
+            w = loop_inputs[2]
 
             if cond is not None:
                 out_while = _op.equal(w, _expr.const(True, 'bool'))
             if max_loop_count is not None: 
-                out_loop = _op.less(i, max_loop_count)
+                out_loop = _op.less(i, max_count)
 
             if is_condition_for_loop:
                 return _op.logical_or(out_while, out_loop) 
@@ -2054,40 +2055,36 @@ class Loop(OnnxOpConverter):
                 return out_loop
             return out_while
 
-        # Create new graphproto converter for our body.
+        # Get the current graph proto
         graph_scope = GraphProto.current
-        g = GraphProto(graph_scope._shape, graph_scope._dtype)
-        # Load nodes from outer graph into inner graph.
-        g._nodes = graph_scope._nodes.copy()
 
         # Create a list of variables for each value updated in the loop.
-        def get_var(name, val):
-            if val:
-                checked_type = infer_type(val)
-                if hasattr(checked_type, "type_annotation"):
-                    checked_type = checked_type.type_annotation
-                if hasattr(checked_type, "shape"):
-                    shape = get_const_tuple(checked_type.shape)
-                    actual_shape = []
-                    for dim in shape:
-                        if isinstance(dim, int) and dim == 0:
-                            actual_shape.append(Any())
-                        else:
-                            actual_shape.append(dim)
-                    return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+        def get_var(name, val, scan=False):
+            checked_type = infer_type(val)
+            if hasattr(checked_type, "type_annotation"):
+                checked_type = checked_type.type_annotation
+            shape = get_const_tuple(checked_type.shape)
+            actual_shape = []
+            for dim in shape:
+                if isinstance(dim, int) and dim == 0:
+                    actual_shape.append(_ty.Any())
                 else:
-                    return _expr.var(name, type_annotation=checked_type)
-            return _expr.var(name)
+                    actual_shape.append(dim)
+            if scan:
+                return _expr.var(name, shape=[_ty.Any()] + actual_shape, dtype=checked_type.dtype)
+            else:
+                return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
         loop_vars = [
             _expr.var(body.input[0].name, shape=(), dtype=iter_dtype), # iteration count
+            _expr.var("max_count", shape=(), dtype=iter_dtype), # iteration count
             get_var(body.input[1].name, cond), # exit condition
         ]
         loop_vars += [get_var(body.input[i + 2].name, v) for i, v in enumerate(loop_deps)]
         loop_var_names = [v.name_hint for v in loop_vars]
         
-        # Next we need to figure out which of our outputs should be scanned.
         num_scan_outputs = len(body.output) - (1 + num_deps)
-        scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i]) for i in range(num_scan_outputs)]
+        scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i], scan=True) for i in range(num_scan_outputs)]
+        #scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i]) for i in range(num_scan_outputs)]
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2101,17 +2098,18 @@ class Loop(OnnxOpConverter):
         def body_fn(*loop_inputs):
             # Unpack inputs
             loop_count = loop_inputs[0]
-            cond = loop_inputs[1]
-            current_vars = list(loop_inputs[2:(2 + num_deps)])
-            scan_outputs = loop_inputs[(2 + num_deps):]
+            max_count = loop_inputs[1]
+            cond = loop_inputs[2]
+            current_vars = list(loop_inputs[3:(3 + num_deps)])
+            scan_outputs = loop_inputs[(3 + num_deps):]
 
             # Prepare body inputs by adding them to node dictionary.
-            new_inputs = [loop_count, cond] + current_vars
+            new_inputs = [loop_count, max_count, cond] + current_vars
             for i, inp in enumerate(new_inputs):
-                g._nodes[loop_var_names[i]] = inp
+                graph_scope._nodes[loop_var_names[i]] = inp
 
             # Get the output of the current loop using the updated inputs.
-            loop_outputs = g.from_onnx(body, 11, get_output_expr=True)
+            loop_outputs = graph_scope.from_onnx(body, 11, get_output_expr=True)
             # Unpack the body outputs and prepare variables for next iteration.
             new_cond = loop_outputs[0]
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
@@ -2131,11 +2129,15 @@ class Loop(OnnxOpConverter):
 
             # Pack loop outputs for next iteration
             # [iter_count, cond, loop_deps, loop_scans]
-            return [loop_count, new_cond] + new_loop_vars + combined_scan_outputs
+            return [loop_count, max_count, new_cond] + new_loop_vars + combined_scan_outputs
 
         loop = _loops.while_loop(cond_fn, loop_vars + scan_output_vars, body_fn)
         # Now need to run initial values through the graph.
-        return loop
+        # make empty constant with zero rank.
+        init_count = _expr.const(0, dtype=iter_dtype)
+        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, _op.reshape(_expr.const([]), [0, 1]))
+        outputs = _expr.TupleWrapper(_expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)]), num_deps + num_scan_outputs)
+        return outputs
 
 
 # compatible operators that do NOT require any conversion.
