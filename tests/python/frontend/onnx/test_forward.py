@@ -3775,7 +3775,7 @@ def verify_loop():
     onnx_out = get_onnxruntime_output(loop_model, input_vals)
 
     for target, ctx in [('llvm', tvm.cpu())]:
-        tvm_out = get_tvm_output(loop_model, input_vals, target, ctx, output_dtype='float32')
+        tvm_out = get_tvm_output_with_vm(loop_model, input_vals, target, ctx, freeze_params=True)
         tvm.testing.assert_allclose(
             onnx_out[0], tvm_out, rtol=1e-05, atol=1e-05)
 

@@ -111,9 +111,9 @@ def get_info(info_proto):
     for dim in info_proto.type.tensor_type.shape.dim:
         value = dim.dim_value
         if value is None:
-           value = _ty.Any 
+           value = _ty.Any
         shape.append(value)
-    
+
     name = info_proto.name
     dtype = get_type(info_proto.type.tensor_type.elem_type)
     return name, {name: shape}, {name: dtype}
@@ -2046,11 +2046,11 @@ class Loop(OnnxOpConverter):
 
             if cond is not None:
                 out_while = _op.equal(w, _expr.const(True, 'bool'))
-            if max_loop_count is not None: 
+            if max_loop_count is not None:
                 out_loop = _op.less(i, max_count)
 
             if is_condition_for_loop:
-                return _op.logical_or(out_while, out_loop) 
+                return _op.logical_or(out_while, out_loop)
             elif is_for_loop:
                 return out_loop
             return out_while
@@ -2081,7 +2081,7 @@ class Loop(OnnxOpConverter):
         ]
         loop_vars += [get_var(body.input[i + 2].name, v) for i, v in enumerate(loop_deps)]
         loop_var_names = [v.name_hint for v in loop_vars]
-        
+
         num_scan_outputs = len(body.output) - (1 + num_deps)
         scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i], scan=True) for i in range(num_scan_outputs)]
 
@@ -2134,10 +2134,13 @@ class Loop(OnnxOpConverter):
         # Now need to run initial values through the graph.
         # make empty constant with zero rank.
         init_count = _expr.const(0, dtype=iter_dtype)
-        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, _op.reshape(_expr.const([]), [0, 1]))
-        outputs = _expr.TupleWrapper(_expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)]), num_deps + num_scan_outputs)
+        let_var = _expr.var("var_cast_shape", shape=(tvm.tir.Any(), 1))
+        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, let_var)
+        tupled_result = _expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)])
+        empty_tensor = _op.reshape(_expr.const([]), [0, 1])
+        tupled_result = _expr.Let(let_var, empty_tensor, tupled_result)
+        outputs = _expr.TupleWrapper(tupled_result, num_deps + num_scan_outputs)
         return outputs
-
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -2365,7 +2368,7 @@ class GraphProto:
 
         get_output_expr: bool
             If set to true, this conversion will return each output expression rather
-            than a packaged module. This can be useful when converting subgraphs to 
+            than a packaged module. This can be useful when converting subgraphs to
             relay.
 
         Returns
