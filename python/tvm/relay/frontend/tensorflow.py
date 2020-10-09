@@ -997,12 +997,18 @@ def _tensor_array_gather():
                 static_tensor_array_ops.register()
 
                 # Output shape is (indices_shape[0],) + input_shape
-                get_data_func = prelude.get_global_var_static("tensor_get_data", dtype_str, out_shape)
+                get_data_func = prelude.get_global_var_static(
+                    "tensor_get_data", dtype_str, out_shape
+                )
                 out = get_data_func(out_tensor_t)
             else:
                 # For fixed length indices, directly generate static shape output
-                read_func = prelude.get_global_var_static("tensor_array_read", dtype_str, input_shape)
-                get_data_func = prelude.get_global_var_static("tensor_get_data", dtype_str, input_shape)
+                read_func = prelude.get_global_var_static(
+                    "tensor_array_read", dtype_str, input_shape
+                )
+                get_data_func = prelude.get_global_var_static(
+                    "tensor_get_data", dtype_str, input_shape
+                )
                 tensor_list = []
                 for i in range(indices_shape[0]):
                     index = _op.take(inputs[1], tvm.relay.const(i))
@@ -1060,7 +1066,9 @@ def _tensor_array_write():
                 if num_any_dim <= 1:
                     v = tensor_func(_op.reshape(inputs[2], new_shape))
 
-            write_func = prelude.get_global_var_static("tensor_array_write", dtype_str, input_ta_shape)
+            write_func = prelude.get_global_var_static(
+                "tensor_array_write", dtype_str, input_ta_shape
+            )
 
         return write_func(input_ta, _op.take(inputs[1], tvm.relay.const(0)), v)
 
@@ -1119,7 +1127,9 @@ def _tensor_array_split():
             static_tensor_array_ops.register()
             tensor_ctor = static_tensor_array_ops.get_ctor("tensor_constructor")
             v = tensor_ctor(inputs[1])
-            split_func = prelude.get_global_var_static("tensor_array_split", dtype_str, input_ta_shape)
+            split_func = prelude.get_global_var_static(
+                "tensor_array_split", dtype_str, input_ta_shape
+            )
 
         return split_func(input_ta, v, lengths)
 
@@ -1137,7 +1147,9 @@ def _tensor_array_concat():
         else:
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, input_shape)
             static_tensor_array_ops.register()
-            concat_func = prelude.get_global_var_static("tensor_array_concat", dtype_str, input_shape)
+            concat_func = prelude.get_global_var_static(
+                "tensor_array_concat", dtype_str, input_shape
+            )
             out_tensor = concat_func(inputs[1])
             out_shape = (Any(),) + input_shape[1:]
             static_tensor_array_ops = StaticTensorArrayOps(prelude, dtype_str, out_shape)
