@@ -195,6 +195,7 @@ def test_relay_basic():
         z = relay.add(x, y)
         func = relay.Function([x, y], z)
         mod = tvm.IRModule.from_expr(func)
+        mod = relay.transform.InferType()(mod)
         func = mod["main"]
         z = engine.lower(func, "llvm")
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
@@ -235,6 +236,7 @@ def test_relay_take():
         y = relay.op.take(x, indices=index)
         func = relay.Function([x], y)
         mod = tvm.IRModule.from_expr(func)
+        mod = relay.transform.InferType()(mod)
         func = mod["main"]
         z = engine.lower(func, "llvm")
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)

@@ -111,6 +111,7 @@ def assert_parses_as(code, expr):
 
 
 def assert_parse_module_as(code, mod):
+    mod = tvm.relay.transform.InferType()(mod)
     parsed = parse_module(code)
     assert_graph_equal(parsed, mod)
 
@@ -295,6 +296,14 @@ def test_tuple():
     assert_parses_as("(0, 1, 2)", relay.Tuple([relay.const(0), relay.const(1), relay.const(2)]))
 
 
+def test_tuple_proj():
+    x = relay.var("x", shape=())
+    assert_parses_as(
+        "free_var %x: float32; %x((%x,).0, %x)",
+        relay.Call(x, [relay.TupleGetItem(relay.Tuple([x]), 0), x]),
+    )
+
+
 def test_func():
     # 0 args
     assert_parses_as("fn () { 0 }", relay.Function([], relay.const(0), None, []))
@@ -365,6 +374,18 @@ def test_ifelse_scope():
             }
             """
         )
+
+
+def test_ref():
+    program = """
+    #[version = "0.0.5"]
+    def @main(%x: float32) {
+        %0 = ref(%x);
+        ref_write(%0, 1f);
+        ref_read(%0)
+    }
+    """
+    tvm.parser.parse(program)
 
 
 def test_call():
@@ -825,16 +846,33 @@ def inline_params(mod, params):
 
     body = relay.bind(main_fn.body, bind_map)
     main_fn = relay.Function(relay.analysis.free_vars(body), body)
-    mod["main_fn"] = main_fn
+    mod._add("main", main_fn, True)
     return mod
 
 
 def test_resnet_inlined_params():
     mod, params = relay.testing.resnet.get_workload()
     mod = inline_params(mod, params)
+    mod = relay.transform.InferType()(mod)
     text = mod.astext()
     parsed_mod = tvm.parser.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
+
+
+def test_tuple_return_value():
+    program = """
+    type Box[T] {
+        constructor(T)
+    }
+
+    def @example() {
+        %0 = ();
+        %1 = constructor(%0);
+        %2 = constructor(0f);
+        (%1, %2,)
+    }
+    """
+    parse_module(program)
 
 
 def test_op_string_attr():
@@ -845,10 +883,17 @@ def test_op_string_attr():
         nn.conv2d(%x, %y, data_layout="NHWC", kernel_layout="HWIO")
         """
     )
+
     assert isinstance(call.op, tvm.ir.Op)
     assert call.op.name == "nn.conv2d"
     assert call.attrs.data_layout == "NHWC"
     assert call.attrs.kernel_layout == "HWIO"
+
+
+def test_load_prelude():
+    mod = tvm.IRModule()
+    mod.import_from_std("prelude.rly")
+    tvm.parser.parse(mod.astext())
 
 
 if __name__ == "__main__":

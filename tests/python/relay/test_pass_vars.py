@@ -91,27 +91,28 @@ def test_bound_vars():
 def test_match_vars():
     mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
+    rlist, cons, nil = p.mod.get_type("List")
 
     x = relay.Var("x")
     y = relay.Var("y")
     z = relay.Var("z")
 
     match1 = relay.Match(
-        p.nil(),
+        nil(),
         [
-            relay.Clause(relay.PatternConstructor(p.nil), z),
+            relay.Clause(relay.PatternConstructor(nil), z),
             relay.Clause(
-                relay.PatternConstructor(p.cons, [relay.PatternVar(x), relay.PatternVar(y)]),
-                p.cons(x, y),
+                relay.PatternConstructor(cons, [relay.PatternVar(x), relay.PatternVar(y)]),
+                cons(x, y),
             ),
         ],
     )
 
     match2 = relay.Match(
-        p.nil(),
+        nil(),
         [
             relay.Clause(
-                relay.PatternConstructor(p.cons, [relay.PatternWildcard(), relay.PatternVar(x)]), y
+                relay.PatternConstructor(cons, [relay.PatternWildcard(), relay.PatternVar(x)]), y
             ),
             relay.Clause(relay.PatternWildcard(), z),
         ],

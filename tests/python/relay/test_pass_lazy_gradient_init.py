@@ -39,6 +39,7 @@ def test_tc():
     y = relay.Function([x1, x2], (x1 - x2) * x2)
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
 
     # function input/output types should remain the same
@@ -58,6 +59,7 @@ def test_add():
     y = relay.Function([x], x + x)
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     y = mod["main"]
 
@@ -83,6 +85,7 @@ def test_add_tuple():
     y = relay.Function([x], relay.TupleGetItem(x, 0) + relay.TupleGetItem(x, 1))
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     mod = tvm.transform.PrintIR(show_meta_data=True)(mod)
     y = mod["main"]
@@ -108,6 +111,7 @@ def test_mult():
     y = relay.Function([x], x * x)
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     y = mod["main"]
 
@@ -133,6 +137,7 @@ def test_ret_tuple():
     func = run_infer_type(func)
 
     mod["main"] = func
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     func = mod["main"]
 
@@ -161,6 +166,7 @@ def test_add_broadcast():
     func = run_infer_type(func)
 
     mod["main"] = func
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     func = mod["main"]
 
@@ -194,6 +200,7 @@ def test_reverse_ad_identity():
     back_func = run_infer_type(back_func)
 
     mod["main"] = back_func
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     back_func = mod["main"]
 
@@ -225,6 +232,7 @@ def test_multivar_reverse_ad():
     back_func = run_infer_type(back_func)
 
     mod["main"] = back_func
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     back_func = mod["main"]
 
@@ -257,6 +265,7 @@ def test_partial_eval():
     back_func = run_infer_type(back_func)
 
     mod["main"] = back_func
+    mod = transform.InferType()(mod)
     back_func = mod["main"]
 
     transform.PartialEvaluate()(mod)
@@ -282,7 +291,12 @@ def test_after_partial_eval():
     back_func = mod["main"]
 
     seq = tvm.transform.Sequential(
-        [transform.PartialEvaluate(), transform.LazyGradientInit(), transform.DeadCodeElimination()]
+        [
+            transform.PartialEvaluate(),
+            transform.InferType(),
+            transform.LazyGradientInit(),
+            transform.DeadCodeElimination(),
+        ]
     )
 
     mod = seq(mod)
@@ -352,6 +366,7 @@ def test_zeros():
     y = relay.Function([x], x + relay.zeros(shape, dtype))
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     y = mod["main"]
 
@@ -375,6 +390,7 @@ def test_ones():
     y = relay.Function([x], x + relay.ones(shape, dtype))
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     y = mod["main"]
 
@@ -398,6 +414,7 @@ def test_zeros_like():
     y = relay.Function([x], x + relay.zeros_like(x))
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     y = mod["main"]
 
@@ -421,6 +438,7 @@ def test_ones_like():
     y = relay.Function([x], x + relay.ones_like(x))
 
     mod["main"] = y
+    mod = transform.InferType()(mod)
     mod = transform.LazyGradientInit()(mod)
     y = mod["main"]
 

@@ -135,6 +135,11 @@ jvminstall:
 		mvn install -P$(JVM_PKG_PROFILE) -Dcxx="$(CXX)" \
 			-Dcflags="$(PKG_CFLAGS)" -Dldflags="$(PKG_LDFLAGS)" \
 			-Dcurrent_libdir="$(ROOTDIR)/$(OUTPUTDIR)" $(JVM_TEST_ARGS))
+format:
+	./tests/lint/git-clang-format.sh -i origin/master
+	black .
+	cd rust; which cargo && cargo fmt --all; cd ..
+
 
 # clean rule
 clean:

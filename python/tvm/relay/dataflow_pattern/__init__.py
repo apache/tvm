@@ -151,7 +151,7 @@ class DFPattern(Node):
         check: Callable[[Expr], bool] = lambda x: True,
     ) -> Expr:
         """
-        Parition the expression into functions defined by this pattern
+        Partition the expression into functions defined by this pattern
 
         Parameters
         ----------

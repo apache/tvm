@@ -241,6 +241,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   IRModule Optimize(IRModule relay_module, const TargetsMap& targets,
                     const std::unordered_map<std::string, runtime::NDArray>& params) {
+    ICHECK(relay_module.defined()) << "The IRModule must be defined for the Relay compiler.";
+
     if (params.size()) {
       CHECK(relay_module->ContainGlobalVar("main")) << "Missing the main entry function";
       GlobalVar main_glb_var = relay_module->GetGlobalVar("main");
@@ -293,6 +295,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Alter layout transformation is only applied to homogeneous execution yet.
     if (targets.size() == 1) {
+      pass_seqs.push_back(transform::InferType());
       pass_seqs.push_back(transform::AlterOpLayout());
     }
 
@@ -330,6 +333,8 @@ class RelayBuildModule : public runtime::ModuleNode {
     // inline functions. However, this should be very unlikely for accelerators
     // and vendor-provided libraries. So we don't handle for now.
     relay_module = transform::Inline()(relay_module);
+    relay_module = transform::InferType()(relay_module);
+
     CHECK(relay_module.defined());
 
     return relay_module;

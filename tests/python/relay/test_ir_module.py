@@ -19,24 +19,32 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions
 
 
 def constructor_list(p):
-    return [p.nil, p.cons, p.rose, p.some, p.none, p.z, p.s]
+    list_ctors = p.mod.get_type("List")
+    optional_ctors = p.mod.get_type("Option")
+    nat_ctors = p.mod.get_type("nat")
+    rose_ctors = p.mod.get_type("Tree")
+    return list_ctors[1:] + optional_ctors[1:] + nat_ctors[1:] + rose_ctors[1:]
 
 
 def adt_list(p):
-    return [p.nat, p.l, p.optional, p.tree]
+    list_ctors = p.mod.get_type("List")
+    optional_ctors = p.mod.get_type("Option")
+    nat_ctors = p.mod.get_type("nat")
+    rose_ctors = p.mod.get_type("Tree")
+    return list_ctors[:1] + optional_ctors[:1] + nat_ctors[:1] + rose_ctors[:1]
 
 
 def test_constructor_tag_round_trip():
     mod1 = tvm.IRModule()
     p1 = Prelude(mod1)
-    add_nat_definitions(p1)
+    p1.mod.import_from_std("nat.rly")
+
     mod2 = tvm.IRModule()
     p2 = Prelude(mod2)
-    add_nat_definitions(p2)
+    p2.mod.import_from_std("nat.rly")
 
     # ensure hashes match across modules
     ctors1 = constructor_list(p1)
@@ -55,7 +63,7 @@ def test_constructor_tag_differences():
     # each other
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
+    p.mod.import_from_std("nat.rly")
 
     adts = adt_list(p)
     for adt in adts:
