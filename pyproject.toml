@@ -28,7 +28,7 @@ exclude = '''
     | \.tvm_test_data
     | \.vscode
     | \.venv
-    | 3rdparty\/
+    | 3rdparty
     | build\/
     | cmake\/
     | conda\/
