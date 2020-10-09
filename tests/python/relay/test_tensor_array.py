@@ -592,8 +592,8 @@ def test_static_tensor_array_split():
         p = Prelude(mod)
         static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
         static_tensor_array_ops.register()
-        # if value_shape is not None or lengths_shape is not None:
-        #     static_tensor_array_ops.define_tensor_array_split(value_shape, lengths_shape, True)
+        if value_shape is not None or lengths_shape is not None:
+            static_tensor_array_ops.define_tensor_array_split(value_shape, lengths_shape, False)
 
         # tensor array
         v1 = relay.var("v1")
@@ -604,12 +604,14 @@ def test_static_tensor_array_split():
             relay.Any(),
         ] + shape[1:]
         test_ops = StaticTensorArrayOps(p, dtype, adt_shape)
-        test_ops.define_tensor_array()
+        test_ops.register()
         tensor_array = test_ops.get_global_var("tensor_array")
 
         tensor_array1 = tensor_array(relay.const(3))
         write_func = test_ops.get_global_var("tensor_array_write")
-        split_func = p.get_global_var_static("tensor_array_split", dtype, shape)
+        split_ops = StaticTensorArrayOps(p, dtype, shape)
+        split_ops.register()
+        split_func = split_ops.get_global_var("tensor_array_split")
         tensor = p.get_tensor_ctor_static("tensor_constructor", dtype, test_ops.shape)
         tensor_array1 = write_func(tensor_array1, relay.const(0), tensor(v1))
         tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
@@ -631,7 +633,6 @@ def test_static_tensor_array_split():
 
         tensor_array_split = split_func(tensor_array1, tensor1(value), ta_len)
         mod["main"] = relay.Function([v1, v2, v3, value, ta_len], tensor_array_split)
-        print(mod)
 
         # initialize and check
         v1_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)

@@ -65,7 +65,7 @@ def get_tensor_array_shape(expr, dtype, prelude):
         shape = []
         if "scalar" not in shape_str:
             for dim_str in shape_str.split("_"):
-                if dim_str == "?":
+                if dim_str == "?" or dim_str == "any":
                     shape.append(Any())
                 else:
                     shape.append(int(dim_str))
@@ -179,6 +179,10 @@ class StaticTensorArrayOps(object):
             return
 
         take_name = self.get_name("tensor_take")
+
+        if self.is_cached(take_name):
+            return
+
         take_var = GlobalVar(take_name)
 
         origin_tensor_constructor = self.get_ctor("tensor_constructor")
@@ -281,6 +285,10 @@ class StaticTensorArrayOps(object):
         Tensor[self.shape, self.dtype]
         """
         read_name = self.get_name("tensor_array_read")
+
+        if self.is_cached(read_name):
+            return
+
         read_var = GlobalVar(read_name)
 
         tensor_array = Var("tensor_array", self.list(self.tensor_type_var()))
@@ -436,11 +444,15 @@ class StaticTensorArrayOps(object):
         # redefine this op for static value/indices shape.
         split_name = self.get_name("tensor_array_split")
 
-        if self.is_cached(split_name) or force_update:
-            return
-
-        tensor_array_split_helper_name = self.get_name("ta_split_helper")
-        tensor_array_split_helper_var = GlobalVar(tensor_array_split_helper_name)
+        if self.is_cached(split_name):
+            if not force_update:
+                return
+            tensor_array_split_helper_var = self.get_global_var("ta_split_helper")
+            split_var = self.get_global_var("tensor_array_split")
+        else:
+            tensor_array_split_helper_name = self.get_name("ta_split_helper")
+            tensor_array_split_helper_var = GlobalVar(tensor_array_split_helper_name)
+            split_var = GlobalVar(split_name)
 
         output_shape = [
             Any(),
@@ -487,7 +499,6 @@ class StaticTensorArrayOps(object):
             self.list(output_tensor_type_var()),
             [],
         )
-        split_var = GlobalVar(split_name)
         tensor_array = Var("tensor_array", self.list(output_tensor_type_var()))
 
         value = Var("value", value_type_var())
@@ -515,6 +526,10 @@ class StaticTensorArrayOps(object):
             return
 
         concat_name = self.get_name("tensor_array_concat")
+
+        if self.is_cached(concat_name):
+            return
+
         concat_var = GlobalVar(concat_name)
 
         output_shape = [
