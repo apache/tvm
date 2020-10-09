@@ -368,10 +368,6 @@ def test_if_else():
     def sigmoid(attrs, args):  # pylint: disable=unused-variable
         return True
 
-    @tvm.ir.register_op_attr("If", "target." + target)
-    def If(attrs, args):  # pylint: disable=unused-variable
-        return True
-
     @tvm.ir.register_op_attr("erf", "target." + target)
     def erf(attrs, args):  # pylint: disable=unused-variable
         return True
@@ -380,8 +376,8 @@ def test_if_else():
 
     def before():
         data = relay.var("data", shape=(1, 32))
-        eq1 = relay.var("e1", shape=[], dtype="int32")
-        eq2 = relay.var("e2", shape=[], dtype="int32")
+        eq1 = relay.var("e1", shape=[], dtype="float32")
+        eq2 = relay.var("e2", shape=[], dtype="float32")
         eq = relay.equal(eq1, eq2)
 
         true_branch = relay.tanh(data)
@@ -396,8 +392,8 @@ def test_if_else():
     def after():
 
         data = relay.var("data", shape=(1, 32))
-        eq1 = relay.var("e1", shape=[], dtype="int32")
-        eq2 = relay.var("e2", shape=[], dtype="int32")
+        eq1 = relay.var("e1", shape=[], dtype="float32")
+        eq2 = relay.var("e2", shape=[], dtype="float32")
 
         cb_1 = relay.annotation.compiler_begin(eq1, target)
         cb_2 = relay.annotation.compiler_begin(eq2, target)
@@ -437,18 +433,6 @@ def test_while_let():
 
     @tvm.ir.register_op_attr("add", "target." + target)
     def add(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    @tvm.ir.register_op_attr("If", "target." + target)
-    def If(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    @tvm.ir.register_op_attr("Let", "target." + target)
-    def Let(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    @tvm.ir.register_op_attr("const", "target." + target)
-    def const(attrs, args):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("zeros_like", "target." + target)
@@ -495,23 +479,23 @@ def test_while_let():
         cb_4 = relay.annotation.compiler_begin(relay.const(1, dtype="int32"), target)
         add_op_1 = relay.add(cb_3, cb_4)
         ce_2 = relay.annotation.compiler_end(add_op_1, target)
-        cb_5 = relay.annotation.compiler_begin(ce_2, target)
+        cb_5 = relay.annotation.compiler_begin(ce_2, "default")
         cb_6 = relay.annotation.compiler_begin(var3, target)
         cb_7 = relay.annotation.compiler_begin(var1, target)
         add_op_2 = relay.add(cb_6, cb_7)
         ce_3 = relay.annotation.compiler_end(add_op_2, target)
-        cb_8 = relay.annotation.compiler_begin(ce_3, target)
+        cb_8 = relay.annotation.compiler_begin(ce_3, "default")
         true_branch = loop(cb_5, cb_8)  # while loop
-        ce_4 = relay.annotation.compiler_end(true_branch, target)
+        ce_4 = relay.annotation.compiler_end(true_branch, "default")
         if_condition = relay.If(ce_1, ce_4, var3)
 
-        cb_9 = relay.annotation.compiler_begin(relay.const(0, dtype="int32"), target)
+        cb_9 = relay.annotation.compiler_begin(relay.const(0, dtype="int32"), "default")
         cb_10 = relay.annotation.compiler_begin(var1, target)
         zeros_like = relay.zeros_like(cb_10)
         ce_5 = relay.annotation.compiler_end(zeros_like, target)
-        cb_11 = relay.annotation.compiler_begin(ce_5, target)
+        cb_11 = relay.annotation.compiler_begin(ce_5, "default")
         while_condition = loop(cb_9, cb_11)
-        ce_6 = relay.annotation.compiler_end(while_condition, target)
+        ce_6 = relay.annotation.compiler_end(while_condition, "default")
 
         func_1 = relay.Function([var2, var3], if_condition)
         ret = relay.Let(loop, func_1, ce_6)
@@ -519,15 +503,9 @@ def test_while_let():
         mod = tvm.IRModule.from_expr(func_2)
         return mod
 
-    seq = tvm.transform.Sequential(
-        [
-            transform.AnnotateTarget(target),
-        ]
-    )
-    result = seq(before())
+    result = transform.AnnotateTarget(target)(before())
     expected = transform.InferType()(after())
-    # print(expected, result)
-    assert tvm.ir.structural_equal(expected, result, map_free_vars=True)
+    assert tvm.ir.structural_equal(expected, result)
 
 
 if __name__ == "__main__":
