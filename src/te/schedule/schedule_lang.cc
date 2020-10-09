@@ -761,7 +761,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<StageNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const StageNode*>(node.get());
       if (op->op.defined()) {
-        p->stream << "stage(" << op->origin_op->name << ", " << op << ")";
+        p->stream << "stage(" << op->origin_op->name << ", " << op->op << ")";
       } else {
         p->stream << "group-stage(" << op << ")";
       }
