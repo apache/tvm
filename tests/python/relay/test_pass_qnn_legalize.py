@@ -138,6 +138,7 @@ def test_qnn_legalize_qnn_conv2d():
         #############################################################
         # Check that Intel VNNI gets picked up.
         with tvm.target.Target("llvm -mcpu=skylake-avx512"):
+            mod = relay.transform.InferType()(mod)
             legalized_mod = relay.qnn.transform.Legalize()(mod)
             assert "cast" in legalized_mod.astext() and "qnn.conv2d" in legalized_mod.astext()
 
@@ -168,6 +169,7 @@ def test_qnn_legalize_qnn_conv2d():
     #############################################################
     # Check no transformation for Intel VNNI.
     with tvm.target.Target("llvm -mcpu=skylake-avx512"):
+        mod = relay.transform.InferType()(mod)
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert tvm.ir.structural_equal(mod, legalized_mod)
 
@@ -229,6 +231,7 @@ def test_qnn_legalize_qnn_dense():
         #############################################################
         # Check that Intel VNNI gets picked up.
         with tvm.target.Target("llvm -mcpu=skylake-avx512"):
+            mod = relay.transform.InferType()(mod)
             legalized_mod = relay.qnn.transform.Legalize()(mod)
             assert "cast" in legalized_mod.astext() and "qnn.dense" in legalized_mod.astext()
 
@@ -259,6 +262,7 @@ def test_qnn_legalize_qnn_dense():
     #############################################################
     # Check no transformation for Intel VNNI.
     with tvm.target.Target("llvm -mcpu=skylake-avx512"):
+        mod = relay.transform.InferType()(mod)
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert tvm.ir.structural_equal(mod, legalized_mod)
 

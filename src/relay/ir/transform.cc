@@ -113,14 +113,32 @@ FunctionPass::FunctionPass(
 
 // Perform Module -> Module optimizations at the Function level.
 IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  DiagnosticContext previous = DiagnosticContext::Default(mod);
+
+  if (pass_ctx->diag_ctx) {
+    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
+    pass_ctx->diag_ctx = previous;
+    previous = tmp;
+  } else {
+    pass_ctx->diag_ctx = previous;
+  }
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
   const PassInfo& pass_info = Info();
+
   CHECK(mod.defined());
+
   DLOG(INFO) << "Executing function pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
+
   pass_ctx.Trace(mod, pass_info, true);
 
   // Execute the pass function and return a new module.
-  IRModule updated_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports());
+  IRModule updated_mod =
+      IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
+
   std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : updated_mod->functions) {
     // only picks up relay::Function
@@ -134,8 +152,18 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   for (const auto& pair : updates) {
     updated_mod->Add(pair.first, pair.second, true);
   }
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
+  pass_ctx->diag_ctx.value().Render();
+  pass_ctx->diag_ctx = previous;
+
   pass_ctx.Trace(updated_mod, pass_info, false);
-  return updated_mod;
+
+  // TODO(@jroesch): move away from eager type checking for performance reasons
+  // make issue.
+  return transform::InferType()(updated_mod);
 }
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {

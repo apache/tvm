@@ -213,13 +213,15 @@ class Interpreter(Executor):
         """
         seq = tvm.transform.Sequential(
             [
+                # tvm.parser.AnnotateSpans(),
                 transform.SimplifyInference(),
                 transform.FuseOps(0),
                 transform.ToANormalForm(),
                 transform.InferType(),
             ]
         )
-        return seq(self.mod)
+        mod = seq(self.mod)
+        return mod
 
     def _make_executor(self, expr=None):
         if expr is None or isinstance(expr, GlobalVar):

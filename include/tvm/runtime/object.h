@@ -633,7 +633,7 @@ struct ObjectPtrEqual {
  * \param ParentType The name of the ParentType
  */
 #define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                     \
-  static_assert(!ParentType::_type_final, "ParentObj maked as final");                         \
+  static_assert(!ParentType::_type_final, "ParentObj marked as final");                        \
   static uint32_t RuntimeTypeIndex() {                                                         \
     static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 ||    \
                       TypeName::_type_child_slots < ParentType::_type_child_slots,             \

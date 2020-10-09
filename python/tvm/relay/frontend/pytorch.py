@@ -57,22 +57,26 @@ def _convert_to_list_adt(py_lst, prelude):
     msg = "List elements should have identical types"
     assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
 
-    adt_lst = prelude.nil()
+    # get_type returns type_name, ctor1, ..., ctorN
+    # 1 is nil
+    _, cons, nil = prelude.mod.get_type("List")
+    adt_lst = nil()
     for elem in reversed(py_lst):
-        adt_lst = prelude.cons(elem, adt_lst)
+        adt_lst = cons(elem, adt_lst)
     return adt_lst
 
 
 def _map_tensor_array_constructor(adt_lst, prelude, shape):
     static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
     static_tensor_array_ops.register()
-    tensor_create = prelude.get_var_static("tensor_constructor", "float32", shape)
+    tensor_create = prelude.get_tensor_ctor_static("tensor_constructor", "float32", shape)
     return prelude.map(tensor_create, adt_lst)
 
 
 def _convert_to_tensor_array(adt_lst, prelude):
+    _, cons, nil = prelude.mod.get_type("List")
     if prelude.length(adt_lst) == 0:
-        return prelude.nil()
+        return nil()
 
     checked_type = _infer_type_with_prelude(prelude.hd(adt_lst), prelude)
     shape = checked_type.shape
@@ -262,12 +266,12 @@ def _concatenate(prelude):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         tensor_array, shape = _convert_to_tensor_array(lst, prelude)
         concat_shape = (Any(),) + shape[1:]
-        concat = prelude.get_var_static("tensor_array_concat", "float32", shape)
+        concat = prelude.get_global_var_static("tensor_array_concat", "float32", shape)
         concatenated = concat(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
         static_tensor_array_ops.register()
-        get_tensor = prelude.get_var_static("tensor_get_data", "float32", concat_shape)
+        get_tensor = prelude.get_global_var_static("tensor_get_data", "float32", concat_shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
@@ -2041,12 +2045,12 @@ def _tensor_array_stack(prelude):
         tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
 
         stacked_shape = (Any(),) + shape
-        stack = prelude.get_var_static("tensor_array_stack", "float32", shape)
+        stack = prelude.get_global_var_static("tensor_array_stack", "float32", shape)
         stacked = stack(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", stacked_shape)
         static_tensor_array_ops.register()
-        get_tensor = prelude.get_var_static("tensor_get_data", "float32", stacked_shape)
+        get_tensor = prelude.get_global_var_static("tensor_get_data", "float32", stacked_shape)
         return get_tensor(stacked)
 
     return _impl
@@ -2897,7 +2901,8 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
             if len(elem_tys) > 0 and not all(map(lambda ty: ty == elem_tys[0], elem_tys)):
                 msg = "List elements need have identical types"
                 raise RuntimeError(msg)
-            return prelude.l(elem_tys[0])
+            rlist, _, _ = prelude.mod.get_type("List")
+            return rlist(elem_tys[0])
         elif pt_type.kind() == "OptionalType":
             # we do not support None yet, so we fill in the type
             return get_relay_ty(ishape, itype, pt_type.getElementType())

@@ -48,6 +48,7 @@ def test_simple_graph():
     f0 = f0.with_attr("Compiler", "test_graph")
     g0 = relay.GlobalVar("g0")
     mod[g0] = f0
+    mod = relay.transform.InferType()(mod)
 
     x1 = relay.var("x1", shape=(8, 8))
     y1 = relay.var("y1", shape=(8, 8))
@@ -56,6 +57,7 @@ def test_simple_graph():
     f1 = f1.with_attr("Compiler", "test_graph")
     g1 = relay.GlobalVar("g1")
     mod[g1] = f1
+    mod = relay.transform.InferType()(mod)
 
     x = relay.var("x", shape=(8, 8))
     y = relay.var("y", shape=(8, 8))
@@ -64,6 +66,7 @@ def test_simple_graph():
     c1 = relay.Call(g1, [relay.TupleGetItem(c0, 0), z])
     fm = relay.Function([x, y, z], c1)
     mod["main"] = fm
+    mod = relay.transform.InferType()(mod)
 
     x_data = np.random.rand(8, 8).astype("float32")
     y_data = np.random.rand(8, 8).astype("float32")

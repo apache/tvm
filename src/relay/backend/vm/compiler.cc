@@ -1088,6 +1088,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::Inline());
 
   pass_seqs.push_back(MemoryOpt(target_host, targets));
+  pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();

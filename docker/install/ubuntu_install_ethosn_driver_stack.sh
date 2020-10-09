@@ -57,4 +57,3 @@ git checkout "$repo_revision"
 
 cd "driver"
 scons install_prefix="$install_path" install
-

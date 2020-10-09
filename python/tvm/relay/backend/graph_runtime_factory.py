@@ -73,8 +73,8 @@ class GraphRuntimeFactoryModule(object):
 
     def __iter__(self):
         warnings.warn(
-            "legacy graph runtime behaviour of producing json / lib / params will be "
-            " removed in the next release."
+            "legacy graph runtime behavior of producing json / lib / params will be "
+            "removed in the next release."
             " Please see documents of tvm.contrib.graph_runtime.GraphModule for the "
             " new recommended usage.",
             DeprecationWarning,

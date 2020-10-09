@@ -335,6 +335,7 @@ def test_match_order():
 def test_local_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    _, cons, nil = p.mod.get_type("List")
 
     v = relay.Var("v")
     h = relay.Var("h")
@@ -350,35 +351,35 @@ def test_local_recursion():
                 v,
                 [
                     relay.Clause(
-                        relay.PatternConstructor(
-                            p.cons, [relay.PatternVar(h), relay.PatternVar(t)]
-                        ),
-                        p.cons(h, f(t)),
+                        relay.PatternConstructor(cons, [relay.PatternVar(h), relay.PatternVar(t)]),
+                        cons(h, f(t)),
                     ),
-                    relay.Clause(relay.PatternConstructor(p.nil, []), p.nil()),
+                    relay.Clause(relay.PatternConstructor(nil, []), nil()),
                 ],
             ),
         ),
-        f(p.cons(relay.const(1), p.cons(relay.const(2), p.cons(relay.const(3), p.nil())))),
+        f(cons(relay.const(1), cons(relay.const(2), cons(relay.const(3), nil())))),
     )
 
     val = run_as_python(let, mod)
-    assert_constructor_value(val, p.cons, 2)
+    assert_constructor_value(val, cons, 2)
     assert_tensor_value(val.fields[0], 1)
-    assert_constructor_value(val.fields[1], p.cons, 2)
+    assert_constructor_value(val.fields[1], cons, 2)
     assert_tensor_value(val.fields[1].fields[0], 2)
-    assert_constructor_value(val.fields[1].fields[1], p.cons, 2)
+    assert_constructor_value(val.fields[1].fields[1], cons, 2)
     assert_tensor_value(val.fields[1].fields[1].fields[0], 3)
-    assert_constructor_value(val.fields[1].fields[1].fields[1], p.nil, 0)
+    assert_constructor_value(val.fields[1].fields[1].fields[1], nil, 0)
 
 
 def test_global_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    rlist, cons, nil = p.mod.get_type("List")
+
     copy = relay.GlobalVar("copy")
     # same as above: it copies the given list
     a = relay.TypeVar("a")
-    v = relay.Var("v", p.l(a))
+    v = relay.Var("v", rlist(a))
     h = relay.Var("h")
     t = relay.Var("t")
     copy_def = relay.Function(
@@ -387,30 +388,30 @@ def test_global_recursion():
             v,
             [
                 relay.Clause(
-                    relay.PatternConstructor(p.cons, [relay.PatternVar(h), relay.PatternVar(t)]),
-                    p.cons(h, copy(t)),
+                    relay.PatternConstructor(cons, [relay.PatternVar(h), relay.PatternVar(t)]),
+                    cons(h, copy(t)),
                 ),
-                relay.Clause(relay.PatternConstructor(p.nil, []), p.nil()),
+                relay.Clause(relay.PatternConstructor(nil, []), nil()),
             ],
         ),
-        p.l(a),
+        rlist(a),
         [a],
     )
     mod[copy] = copy_def
 
-    call1 = copy_def(p.cons(relay.const(1), p.cons(relay.const(2), p.nil())))
+    call1 = copy_def(cons(relay.const(1), cons(relay.const(2), nil())))
     val1 = run_as_python(call1, mod)
-    assert_constructor_value(val1, p.cons, 2)
+    assert_constructor_value(val1, cons, 2)
     assert_tensor_value(val1.fields[0], 1)
-    assert_constructor_value(val1.fields[1], p.cons, 2)
+    assert_constructor_value(val1.fields[1], cons, 2)
     assert_tensor_value(val1.fields[1].fields[0], 2)
-    assert_constructor_value(val1.fields[1].fields[1], p.nil, 0)
+    assert_constructor_value(val1.fields[1].fields[1], nil, 0)
 
-    call2 = copy_def(p.cons(relay.Tuple([]), p.nil()))
+    call2 = copy_def(cons(relay.Tuple([]), nil()))
     val2 = run_as_python(call2, mod)
-    assert_constructor_value(val2, p.cons, 2)
+    assert_constructor_value(val2, cons, 2)
     assert_adt_len(val2.fields[0], 0)
-    assert_constructor_value(val2.fields[1], p.nil, 0)
+    assert_constructor_value(val2.fields[1], nil, 0)
 
 
 def test_higher_order_call():
@@ -439,21 +440,22 @@ def test_higher_order_call():
 def test_match_effect_exactly_once():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    _, cons, nil = p.mod.get_type("List")
 
     # the list should be of length 1!
     # Unless we mistakenly execute the data clause more than once
     r = relay.Var("r")
-    data = seq(relay.RefWrite(r, p.cons(relay.Tuple([]), relay.RefRead(r))), relay.RefRead(r))
+    data = seq(relay.RefWrite(r, cons(relay.Tuple([]), relay.RefRead(r))), relay.RefRead(r))
     match = relay.Let(
         r,
-        relay.RefCreate(p.nil()),
+        relay.RefCreate(nil()),
         relay.Match(
             data,
             [
-                relay.Clause(relay.PatternConstructor(p.nil, []), relay.const(0)),
+                relay.Clause(relay.PatternConstructor(nil, []), relay.const(0)),
                 relay.Clause(
                     relay.PatternConstructor(
-                        p.cons, [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]
+                        cons, [relay.PatternWildcard(), relay.PatternConstructor(nil, [])]
                     ),
                     relay.const(1),
                 ),

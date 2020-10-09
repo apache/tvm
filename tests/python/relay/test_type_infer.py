@@ -19,57 +19,58 @@
 """
 import pytest
 import tvm
-from tvm import te
-from tvm import relay
+
+from tvm import IRModule, te, relay, parser
 from tvm.relay import op, transform, analysis
 from tvm.relay import Any
 
 
-def run_infer_type(expr, mod=None):
+def infer_mod(mod, annotate_spans=True):
+    if annotate_spans:
+        mod = relay.transform.AnnotateSpans()(mod)
+
+    mod = transform.InferType()(mod)
+    return mod
+
+
+def infer_expr(expr, annotate_spans=True):
+    mod = IRModule.from_expr(expr)
+    mod = infer_mod(mod, annotate_spans)
+    mod = transform.InferType()(mod)
+    entry = mod["main"]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
+
+def assert_has_type(expr, typ, mod=None):
     if not mod:
-        mod = tvm.IRModule.from_expr(expr)
-        mod = transform.InferType()(mod)
-        entry = mod["main"]
-        return entry if isinstance(expr, relay.Function) else entry.body
-    else:
-        if isinstance(expr, relay.GlobalVar):
-            gv = expr.name_hint
-        else:
-            func = expr
-            if not isinstance(expr, relay.Function):
-                func = relay.Function(analysis.free_vars(expr), expr)
-            mod["main"] = func
-            gv = "main"
-        mod = transform.InferType()(mod)
+        mod = tvm.IRModule({})
 
-        if isinstance(expr, (relay.GlobalVar, relay.Function)):
-            return mod[gv]
-        return mod[gv].body
-
-
-def assert_has_type(expr, typ, mod=tvm.IRModule({})):
-    checked_expr = run_infer_type(expr, mod)
+    mod["main"] = expr
+    mod = infer_mod(mod)
+    checked_expr = mod["main"]
     checked_type = checked_expr.checked_type
     if checked_type != typ:
         raise RuntimeError("Type mismatch %s vs %s" % (checked_type, typ))
 
 
-# initializes simple ADT for tests
 def initialize_box_adt(mod):
+    # initializes simple ADT for tests
     box = relay.GlobalTypeVar("box")
     tv = relay.TypeVar("tv")
     constructor = relay.Constructor("constructor", [tv], box)
     data = relay.TypeData(box, [tv], [constructor])
     mod[box] = data
-    return (box, constructor)
+    return box, constructor
 
 
 def test_monomorphic_let():
     "Program: let %x = 1; %x"
+    # TODO(@jroesch): this seems whack.
     sb = relay.ScopeBuilder()
+    x = relay.var("x", dtype="float64", shape=())
     x = sb.let("x", relay.const(1.0, "float64"))
     sb.ret(x)
-    xchecked = run_infer_type(sb.get())
+    xchecked = infer_expr(sb.get())
     assert xchecked.checked_type == relay.scalar_type("float64")
 
 
@@ -115,7 +116,7 @@ def test_dual_op():
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
-    fchecked = run_infer_type(f)
+    fchecked = infer_expr(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
@@ -128,7 +129,7 @@ def test_decl():
     tp = relay.TensorType((10, 10))
     x = relay.var("x", tp)
     f = relay.Function([x], relay.log(x))
-    fchecked = run_infer_type(f)
+    fchecked = infer_expr(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
@@ -156,8 +157,9 @@ def test_recursion():
         sb.ret(f(relay.subtract(n, relay.const(1, ti32)), relay.log(data)))
     mod = tvm.IRModule()
     mod[f] = relay.Function([n, data], sb.get())
-    assert "@f(%1, %2) /* ty=float32 */" in mod.astext()
-    assert mod[f].checked_type == relay.FuncType([ti32, tf32], tf32)
+    mod = infer_mod(mod)
+    assert "@f(%1, %2)" in mod.astext()
+    assert mod["f"].checked_type == relay.FuncType([ti32, tf32], tf32)
 
 
 def test_incomplete_call():
@@ -166,7 +168,7 @@ def test_incomplete_call():
     f = relay.var("f")
     func = relay.Function([x, f], relay.Call(f, [x]), tt)
 
-    ft = run_infer_type(func)
+    ft = infer_expr(func)
     f_type = relay.FuncType([tt], tt)
     assert ft.checked_type == relay.FuncType([tt, f_type], tt)
 
@@ -185,7 +187,7 @@ def test_higher_order_argument():
     # function even though id_func takes a type parameter
     ho_call = ho_func(id_func, relay.const(0, "int32"))
 
-    hc = run_infer_type(ho_call)
+    hc = infer_expr(ho_call)
     expected = relay.scalar_type("int32")
     assert hc.checked_type == expected
 
@@ -198,7 +200,7 @@ def test_higher_order_return():
     b = relay.TypeVar("b")
     nested_id = relay.Function([], id_func, relay.FuncType([b], b), [b])
 
-    ft = run_infer_type(nested_id)
+    ft = infer_expr(nested_id)
     assert ft.checked_type == relay.FuncType([], relay.FuncType([b], b), [b])
 
 
@@ -217,7 +219,7 @@ def test_higher_order_nested():
     )
 
     expected = relay.FuncType([choice_t], relay.FuncType([b], b), [b])
-    ft = run_infer_type(top)
+    ft = infer_expr(top)
     assert ft.checked_type == expected
 
 
@@ -225,7 +227,7 @@ def test_tuple():
     tp = relay.TensorType((10,))
     x = relay.var("x", tp)
     res = relay.Tuple([x, x])
-    assert run_infer_type(res).checked_type == relay.TupleType([tp, tp])
+    assert infer_expr(res).checked_type == relay.TupleType([tp, tp])
 
 
 def test_ref():
@@ -233,18 +235,18 @@ def test_ref():
     y = relay.var("y", "float32")
     r = relay.RefCreate(x)
     st = relay.scalar_type("float32")
-    assert run_infer_type(r).checked_type == relay.RefType(st)
+    assert infer_expr(r).checked_type == relay.RefType(st)
     g = relay.RefRead(r)
-    assert run_infer_type(g).checked_type == st
+    assert infer_expr(g).checked_type == st
     w = relay.RefWrite(r, y)
-    assert run_infer_type(w).checked_type == relay.TupleType([])
+    assert infer_expr(w).checked_type == relay.TupleType([])
 
 
 def test_free_expr():
-    return
     x = relay.var("x", "float32")
     y = relay.add(x, x)
-    yy = run_infer_type(y)
+    yy = infer_expr(y, annotate_spans=False)
+    assert tvm.ir.structural_equal(yy.args[0], x, map_free_vars=True)
     assert yy.checked_type == relay.scalar_type("float32")
     assert x.vid.same_as(yy.args[0].vid)
 
@@ -253,7 +255,7 @@ def test_type_args():
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
     z = relay.add(x, y)
-    ty_z = run_infer_type(z)
+    ty_z = infer_expr(z)
     ty_args = ty_z.type_args
     assert len(ty_args) == 2
     assert ty_args[0].dtype == "float32"
@@ -274,16 +276,19 @@ def test_global_var_recursion():
 
     func = relay.Function([x], relay.Call(gv, [x]), tt)
     mod[gv] = func
+    mod = infer_mod(mod)
+    func_ty = mod["main"].checked_type
 
-    ft = run_infer_type(gv, mod)
-    assert ft.checked_type == relay.FuncType([tt], tt)
+    assert func_ty == relay.FuncType([tt], tt)
 
 
 def test_equal():
     i = relay.var("i", shape=[], dtype="int32")
     eq = op.equal(i, relay.const(0, dtype="int32"))
     func = relay.Function([i], eq)
-    ft = run_infer_type(func)
+    ft = infer_expr(func)
+    expected = relay.FuncType([relay.scalar_type("int32")], relay.scalar_type("bool"))
+    assert ft.checked_type == expected
 
     assert ft.checked_type == relay.FuncType(
         [relay.scalar_type("int32")], relay.scalar_type("bool")
@@ -296,9 +301,13 @@ def test_constructor_type():
 
     a = relay.TypeVar("a")
     x = relay.Var("x", a)
-    ct = run_infer_type(relay.Function([x], constructor(x), box(a), [a]), mod)
+    func = relay.Function([x], constructor(x), box(a), [a])
+    mod["main"] = func
+    mod = infer_mod(mod)
+    func_ty = mod["main"].checked_type
+    box = mod.get_global_type_var("box")
     expected = relay.FuncType([a], box(a), [a])
-    assert ct.checked_type == expected
+    assert func_ty == expected
 
 
 def test_constructor_call():
@@ -308,10 +317,17 @@ def test_constructor_call():
     box_unit = constructor(relay.Tuple([]))
     box_constant = constructor(relay.const(0, "float32"))
 
-    ut = run_infer_type(box_unit, mod)
-    ct = run_infer_type(box_constant, mod)
-    assert ut.checked_type == box(relay.TupleType([]))
-    assert ct.checked_type == box(relay.TensorType((), "float32"))
+    func = relay.Function([], relay.Tuple([box_unit, box_constant]))
+    mod["main"] = func
+    mod = infer_mod(mod)
+    ret_type = mod["main"].checked_type.ret_type.fields
+    # NB(@jroesch): when we annotate spans the ast fragments before
+    # annotation the previous fragments will no longer be directly equal.
+    box = mod.get_global_type_var("box")
+    expected1 = box(relay.TupleType([]))
+    expected2 = box(relay.TensorType((), "float32"))
+    assert ret_type[0] == expected1
+    assert ret_type[1] == expected2
 
 
 def test_adt_match():
@@ -330,8 +346,11 @@ def test_adt_match():
         ],
     )
 
-    mt = run_infer_type(match, mod)
-    assert mt.checked_type == relay.TupleType([])
+    func = relay.Function([], match)
+    mod["main"] = func
+    mod = infer_mod(mod)
+    actual = mod["main"].checked_type.ret_type
+    assert actual == relay.TupleType([])
 
 
 def test_adt_match_type_annotations():
@@ -352,9 +371,10 @@ def test_adt_match_type_annotations():
         ],
     )
 
-    func = relay.Function([x], match)
-    ft = run_infer_type(func, mod)
-    assert ft.checked_type == relay.FuncType([tt], relay.TupleType([]))
+    mod["main"] = relay.Function([x], match)
+    mod = infer_mod(mod)
+    ft = mod["main"].checked_type
+    assert ft == relay.FuncType([tt], relay.TupleType([]))
 
 
 def test_let_polymorphism():
@@ -363,7 +383,7 @@ def test_let_polymorphism():
     x = relay.Var("x", xt)
     body = relay.Tuple([id(relay.const(1)), id(relay.Tuple([]))])
     body = relay.Let(id, relay.Function([x], x, xt, [xt]), body)
-    body = run_infer_type(body)
+    body = infer_expr(body)
     int32 = relay.TensorType((), "int32")
     tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
 
@@ -374,7 +394,7 @@ def test_if():
     true_branch = relay.Var("True", relay.TensorType([Any(), 1], dtype="float32"))
     false_branch = relay.Var("False", relay.TensorType([Any(), Any()], dtype="float32"))
     top = relay.Function([f, true_branch, false_branch], relay.If(f(), true_branch, false_branch))
-    ft = run_infer_type(top)
+    ft = infer_expr(top)
     tvm.ir.assert_structural_equal(ft.ret_type, relay.TensorType([Any(), 1], dtype="float32"))
 
 
@@ -394,4 +414,6 @@ def @main(%f: float32) -> float32 {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+
+    pytest.main(sys.argv)

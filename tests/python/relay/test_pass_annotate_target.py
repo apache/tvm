@@ -127,7 +127,9 @@ def test_extern_dnnl():
     def test_annotate():
         mod = annotated(dtype, ishape, w1shape)
         mod = transform.AnnotateTarget("dnnl")(mod)
+        mod = relay.transform.InferType()(mod)
         ref_mod = expected(dtype, ishape, w1shape)
+        ref_mod = relay.transform.InferType()(ref_mod)
         tvm.ir.assert_structural_equal(mod, ref_mod)
 
     def test_run():

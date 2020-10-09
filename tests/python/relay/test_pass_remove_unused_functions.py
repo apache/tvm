@@ -49,10 +49,13 @@ def test_remove_all_prelude_functions_but_referenced_functions():
 def test_keep_only_referenced_prelude_functions():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    l = p.nil()
+    _, cons, nil = p.mod.get_type("List")
+    hd = p.mod.get_global_var("hd")
+    tl = p.mod.get_global_var("tl")
+    l = nil()
     for i in [4, 3, 2, 1, 0]:
-        l = p.cons(relay.const(i), l)
-    body = p.hd(p.tl(p.tl(l)))
+        l = cons(relay.const(i), l)
+    body = hd(tl(tl(l)))
     mod["main"] = relay.Function([], body)
     mod = relay.transform.RemoveUnusedFunctions()(mod)
     l = set([x[0].name_hint for x in mod.functions.items()])
@@ -62,10 +65,13 @@ def test_keep_only_referenced_prelude_functions():
 def test_multiple_entry_functions():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    l = p.nil()
+    _, cons, nil = p.mod.get_type("List")
+    hd = p.mod.get_global_var("hd")
+    tl = p.mod.get_global_var("tl")
+    l = nil()
     for i in [4, 3, 2, 1, 0]:
-        l = p.cons(relay.const(i), l)
-    body = p.hd(p.tl(p.tl(l)))
+        l = cons(relay.const(i), l)
+    body = hd(tl(tl(l)))
     mod["main1"] = relay.Function([], body)
 
     x = relay.var("x", shape=(1, 16))
@@ -81,10 +87,10 @@ def test_multiple_entry_functions():
 def test_globalvar_as_call_arg():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    tensor_array = p.get_var("tensor_array", "int32")
-    tensor1 = p.get_var("tensor1", "int32")
-    write = p.get_var("tensor_array_write", "int32")
-    stack = p.get_var("tensor_array_stack", "int32")
+    tensor_array = p.get_global_var("tensor_array", "int32")
+    tensor1 = p.get_ctor(p.get_name("tensor_t", "int32"), "tensor1", "int32")
+    write = p.get_global_var("tensor_array_write", "int32")
+    stack = p.get_global_var("tensor_array_stack", "int32")
     v = relay.var("v")
     init_tensor_array = tensor_array(relay.const(3))
     tensor_array1 = write(init_tensor_array, relay.const(0), tensor1(v))
