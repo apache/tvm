@@ -22,7 +22,7 @@ from tvm import relay
 from tvm.relay.analysis import detect_feature
 from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, count
+from tvm.relay.testing import count
 from tvm.relay.analysis import Feature
 from tvm.relay.analysis import check_basic_block_normal_form
 
@@ -116,7 +116,7 @@ def test_top_level_nested_if():
         body = relay.Let(z2, relay.add(z, z), body)
         return body
 
-    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm()])
+    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm(), transform.InferType()])
     """
     free_var %z: float32
     let %x: float32 = add(%z, %z) /* ty=float32 */;
@@ -187,7 +187,7 @@ def test_nested_if():
         body = relay.If(x, true_branch, false_branch)
         return body
 
-    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm()])
+    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm(), transform.InferType()])
     """
     free_var %x: bool
     if (%x) {
@@ -263,11 +263,9 @@ def test_ref():
 def test_nat_add():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat
-    add = p.add
-    s = p.s
-    z = p.z
+    p.mod.import_from_std("nat.rly")
+    nat, z, s = p.mod.get_type("nat")
+    add = p.mod.get_global_var("nat_add")
     ctx = tvm.context("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
@@ -275,6 +273,7 @@ def test_nat_add():
     expr = add(s(z()), s(z()))
     f = relay.GlobalVar("f")
     mod[f] = relay.Function([], expr)
+    mod = transform.InferType()(mod)
     mod = transform.ToBasicBlockNormalForm()(mod)
     opt_expr = mod["f"]
     assert count(p, intrp.evaluate(opt_expr.body)) == 2
@@ -368,6 +367,7 @@ def test_gradient_if():
     net = relay.Function([cond, x, y], net)
     mod = tvm.IRModule.from_expr(net)
     mod = relay.transform.ToBasicBlockNormalForm()(mod)
+    mod = relay.transform.InferType()(mod)
     net_grad = relay.transform.gradient(mod["main"], mode="higher_order")
     mod["main"] = net_grad
     mod_grad = relay.transform.ToBasicBlockNormalForm()(mod)
@@ -420,14 +420,14 @@ def test_if():
     x = relay.var("x", shape=(), dtype="float32")
     body = if_expr(x)
     expected_body = expected_if_expr(x)
-    bblock = run_opt_pass(body, transform.ToBasicBlockNormalForm())
+    bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm(), transform.InferType()])
     expected_bblock = run_opt_pass(expected_body, transform.InferType())
     assert tvm.ir.structural_equal(bblock, expected_bblock, map_free_vars=True)
     check_basic_block_normal_form(bblock)
 
     func = relay.Function([x], body)
     expected_func = relay.Function([x], expected_body)
-    bblock = run_opt_pass(func, transform.ToBasicBlockNormalForm())
+    bblock = run_opt_pass(func, [transform.ToBasicBlockNormalForm(), transform.InferType()])
     expected_bblock = run_opt_pass(expected_func, transform.InferType())
     assert tvm.ir.structural_equal(bblock, expected_bblock)
     check_basic_block_normal_form(bblock)

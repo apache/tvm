@@ -88,6 +88,7 @@ def change_dtype(src, dst, module, params):
 
 
 def compare(module, input, src_dtype, dst_dtype, rtol, atol, params={}, target="llvm"):
+    module = relay.transform.InferType()(module)
     module = relay.transform.SimplifyInference()(module)
     ex = relay.create_executor("graph", mod=module)
 

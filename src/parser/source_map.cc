@@ -26,20 +26,28 @@
 namespace tvm {
 namespace parser {
 
+TVM_REGISTER_NODE_TYPE(SourceNode);
+
 /*! \brief Construct a source from a string. */
-Source::Source(const SourceName& src_name, const std::string& source)
-    : source_name(src_name), source(source) {
+Source::Source(SourceName src_name, std::string source) {
+  auto n = make_object<SourceNode>();
+  n->source_name = std::move(src_name);
+  n->source = std::move(source);
+
   int index = 0;
   int length = 0;
-  line_map.push_back({index, length});
-  for (auto c : source) {
+  n->line_map.push_back({index, length});
+  // NB(@jroesch):
+  std::string source_str = n->source;
+  for (auto c : source_str) {
+    DLOG(INFO) << "char=" << c;
     if (c == '\n') {
       // Record the length of the line.
-      line_map.back().second = length;
+      n->line_map.back().second = length;
       // Bump past the newline.
       index += 1;
       // Record the start of the next line, and put placeholder for length.
-      line_map.push_back({index, 0});
+      n->line_map.push_back({index, 0});
       // Reset length to zero.
       length = 0;
     } else {
@@ -47,53 +55,27 @@ Source::Source(const SourceName& src_name, const std::string& source)
       index += 1;
     }
   }
-  line_map.back().second = length;
+  n->line_map.back().second = length;
+
+  data_ = n;
 }
 
-/*! \brief Generate an error message at a specific line and column with the
- * annotated message.
- *
- * The error is written directly to the `out` std::ostream.
- *
- * \param out The output ostream.
- * \param line The line at which to report a diagnostic.
- * \param line The column at which to report a diagnostic.
- * \param msg The message to attach.
- */
-void Source::ReportAt(std::ostream& out, const Span& span, const std::string& msg) const {
-  DLOG(INFO) << "Source::ReportAt"
-             << "span = " << span << "msg = " << msg;
-  int line = span->line;
-  int column = span->column;
-
-  CHECK(line - 1 <= static_cast<int64_t>(line_map.size()))
-      << "requested line: " << (line - 1) << "line_map size: " << line_map.size()
-      << "source: " << source;
+tvm::String Source::GetLine(int line) {
+  DLOG(INFO) << "Source::GetLine: line=" << line;
+  CHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
+      << "requested line: " << line << "at index: " << (line - 1)
+      << "line_map size: " << (*this)->line_map.size() << "source: " << (*this)->source;
 
   // Adjust for zero indexing, now have (line_start, line_length);
-  auto range = line_map.at(line - 1);
+  auto range = (*this)->line_map.at(line - 1);
   int line_start = range.first;
   int line_length = range.second;
-  out << "file:" << line << ":" << column << ": parse error: " << msg << std::endl;
-  out << "    " << source.substr(line_start, line_length) << std::endl;
-  out << "    ";
-  std::stringstream marker;
-  for (int i = 1; i <= line_length; i++) {
-    if (i == column) {
-      marker << "^";
-    } else if ((column - i) < 3) {
-      marker << "~";
-    } else if ((i - column) < 3) {
-      marker << "~";
-    } else {
-      marker << " ";
-    }
-  }
-  out << marker.str();
-  out << std::endl;
+  DLOG(INFO) << "Source::GetLine: line_start=" << line_start << " line_length=" << line_length;
+  // TODO(@jroesch): expose substring on tvm::String.
+  auto line_text = std::string((*this)->source).substr(line_start, line_length);
+  DLOG(INFO) << "Source::GetLine: line_text=" << line_text;
+  return line_text;
 }
-
-// TVM_REGISTER_GLOBAL("ir.SourceName").set_body_typed(SourceName::Get);
 
 // TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 //     .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -103,11 +85,25 @@ void Source::ReportAt(std::ostream& out, const Span& span, const std::string& ms
 
 TVM_REGISTER_NODE_TYPE(SourceMapNode);
 
-SourceMap::SourceMap(Map<SourceName, tvm::String> source_map) {
+SourceMap::SourceMap(Map<SourceName, Source> source_map) {
   auto n = make_object<SourceMapNode>();
   n->source_map = std::move(source_map);
   data_ = std::move(n);
 }
+
+// TODO(@jroesch): fix this
+static SourceMap global_source_map = SourceMap(Map<SourceName, Source>());
+
+SourceMap SourceMap::Global() { return global_source_map; }
+
+void SourceMap::Add(const Source& source) { (*this)->source_map.Set(source->source_name, source); }
+
+TVM_REGISTER_GLOBAL("SourceMapAdd").set_body_typed([](SourceMap map, String name, String content) {
+  auto src_name = SourceName::Get(name);
+  Source source(src_name, content);
+  map.Add(source);
+  return src_name;
+});
 
 }  // namespace parser
 }  // namespace tvm

@@ -150,7 +150,8 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
       value_map[iv] = dom->min;
     } else {
       // Always restrict threaded IterVar to starts from 0.
-      CHECK(is_zero(dom->min));
+      CHECK(is_zero(dom->min)) << "Itervar " << iv << " must start at zero, but it starts at "
+                               << dom->min;
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(AttrStmt(bind_iv, tir::attr::thread_extent, dom->extent, no_op));
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {

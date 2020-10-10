@@ -170,12 +170,13 @@ def test_function_taking_adt_ref_tuple():
     mod = tvm.IRModule()
     prelude = relay.prelude.Prelude(mod)
     intrp = create_executor("debug", mod)
+    _, cons, nil = prelude.mod.get_type("List")
 
-    nil_value = ConstructorValue(prelude.nil.tag, [], prelude.nil)
+    nil_value = ConstructorValue(nil.tag, [], nil)
     cons_value = ConstructorValue(
-        prelude.cons.tag,
+        cons.tag,
         [nd.array(np.random.rand(1, 10).astype("float32")), nil_value],
-        prelude.cons,
+        cons,
     )
 
     ref_value = RefValue(nd.array(np.random.rand(1, 10).astype("float32")))
@@ -194,7 +195,7 @@ def test_function_taking_adt_ref_tuple():
     assert len(res_cons.fields) == len(cons_value.fields)
     tvm.testing.assert_allclose(res_cons.fields[0].asnumpy(), cons_value.fields[0].asnumpy())
     assert isinstance(res_cons.fields[1], ConstructorValue)
-    assert res_cons.fields[1].tag == prelude.nil.tag
+    assert res_cons.fields[1].tag == nil.tag
     assert len(res_cons.fields[1].fields) == 0
 
     res_ref = id_func(ref_value)

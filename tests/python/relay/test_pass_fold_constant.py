@@ -27,6 +27,7 @@ def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
 
     mod = tvm.IRModule.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -182,7 +183,8 @@ def test_fold_ndarray_size():
         y = relay.var("y", shape=c_shape, dtype="float32")
         z = relay.const(np.size(np.zeros(c_shape)), dtype=dtype)
         func = relay.Function([x, y], z)
-        return func
+        mod = tvm.IRModule.from_expr(func)
+        return mod["main"]
 
     for dtype in ["int32", "float32"]:
         zz = run_opt_pass(before(dtype), transform.FoldConstant())

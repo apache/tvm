@@ -38,6 +38,7 @@ def test_tflite_same_io_qnn_params():
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -85,6 +86,7 @@ def test_tflite_different_io_qnn_params():
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -132,8 +134,10 @@ def test_saturation():
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
+    mod = relay.transform.InferType()(mod)
 
     x_data = np.array((255, 1, 1, 0)).reshape((1, 4))
     y_data = np.array((255, 255, 128, 0)).reshape((1, 4))
@@ -157,6 +161,7 @@ def test_saturation():
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -182,6 +187,7 @@ def test_saturation():
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -207,6 +213,7 @@ def test_saturation():
 
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 

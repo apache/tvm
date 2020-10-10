@@ -75,6 +75,22 @@ reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_alter_op_layout("nn.sparse_dense")
+def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of sparse_dense"""
+    return topi.nn.sparse_dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@reg.register_compute("nn.internal.sparse_dense_padded")
+def compute_sparse_dense_padded(attrs, inputs, out_type):
+    """Compute definition of sparse_dense_padded"""
+    raise NotImplementedError("nn.internal.sparse_dense_padded is only available on cuda")
+
+
+reg.register_strategy("nn.internal.sparse_dense_padded", strategy.sparse_dense_padded_strategy)
+reg.register_pattern("nn.internal.sparse_dense_padded", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # sparse_transpose
 @reg.register_compute("nn.sparse_transpose")
 def compute_sparse_transpose(attrs, inputs, out_type):

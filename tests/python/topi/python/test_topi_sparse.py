@@ -19,6 +19,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import topi
+from tvm import relay
 import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 import tvm.contrib.sparse as tvmsp
@@ -329,11 +330,11 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     return s
 
 
-def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
+def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu, ctx, target):
     X_np = np.random.randn(M, K).astype("float32")
     W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
     W_np = W_sp_np.todense()
-    Y_np = X_np.dot(W_np.T)
+    Y_np = X_np @ W_np.T
     if use_relu:
         Y_np = np.maximum(Y_np, 0.0)
 
@@ -342,38 +343,29 @@ def verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
     W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
     X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _sparse_dense_implement)
-        with tvm.target.Target(device):
-            Y = fcompute(X, W_data, W_indices, W_indptr)
-            if use_relu:
-                Y = topi.nn.relu(Y)
-            s = fschedule([Y])
-            func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
-            Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
-            func(
-                tvm.nd.array(X_np, ctx=ctx),
-                tvm.nd.array(W_sp_np.data, ctx=ctx),
-                tvm.nd.array(W_sp_np.indices, ctx=ctx),
-                tvm.nd.array(W_sp_np.indptr, ctx=ctx),
-                Y_tvm,
-            )
-            tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
-
-    for device in ["llvm", "cuda"]:
-        check_device(device)
+    fcompute, fschedule = tvm.topi.testing.dispatch(target, _sparse_dense_implement)
+    with tvm.target.Target(target):
+        Y = fcompute(X, W_data, W_indices, W_indptr)
+        if use_relu:
+            Y = topi.nn.relu(Y)
+        s = fschedule([Y])
+        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+        func(
+            tvm.nd.array(X_np, ctx=ctx),
+            tvm.nd.array(W_sp_np.data, ctx=ctx),
+            tvm.nd.array(W_sp_np.indices, ctx=ctx),
+            tvm.nd.array(W_sp_np.indptr, ctx=ctx),
+            Y_tvm,
+        )
+        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
-@tvm.testing.uses_gpu
-def test_sparse_dense_bsr():
+@tvm.testing.parametrize_targets("llvm", "cuda")
+def test_sparse_dense_bsr_relu(ctx, target):
     M, N, K, BS_R, BS_C, density = 1, 64, 128, 8, 16, 0.9
-    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu=True)
-    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu=False)
+    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, True, ctx, target)
+    verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, False, ctx, target)
 
 
 @tvm.testing.uses_gpu
@@ -421,11 +413,69 @@ def test_sparse_dense_bsr_randomized():
             check_device(device)
 
 
+@tvm.testing.requires_cuda
+def test_sparse_dense_padded_cuda():
+    M = 128
+    N = 1280
+    K = 128
+    X_np = np.random.randn(M, K).astype("float32")
+    W_sp_np = random_bsr_matrix(N, K, 1, 1, density=0.01, dtype="float32")
+    W_sp_np_padded = tvm.topi.cuda.pad_sparse_matrix(W_sp_np, 32)
+
+    W_np = W_sp_np.todense()
+    Y_np = X_np @ W_sp_np.T
+
+    W_data = te.placeholder(shape=W_sp_np_padded.data.shape, dtype=str(W_sp_np_padded.data.dtype))
+    W_indices = te.placeholder(
+        shape=W_sp_np_padded.indices.shape, dtype=str(W_sp_np_padded.indices.dtype)
+    )
+    W_indptr = te.placeholder(
+        shape=W_sp_np_padded.indptr.shape, dtype=str(W_sp_np_padded.indptr.dtype)
+    )
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+    with tvm.target.Target("cuda"):
+        ctx = tvm.context("gpu")
+        Y = topi.cuda.sparse_dense_padded(X, W_data, W_indices, W_indptr)
+        s = topi.cuda.schedule_sparse_dense_padded([Y])
+        func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+        Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+        func(
+            tvm.nd.array(X_np, ctx=ctx),
+            tvm.nd.array(W_sp_np_padded.data, ctx=ctx),
+            tvm.nd.array(W_sp_np_padded.indices, ctx=ctx),
+            tvm.nd.array(W_sp_np_padded.indptr, ctx=ctx),
+            Y_tvm,
+        )
+        tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-5, rtol=1e-5)
+
+
+@tvm.testing.requires_cuda
+def test_sparse_dense_padded_alter_op():
+    with tvm.target.Target("cuda"):
+        M = 128
+        N = 16
+        K = 128
+        X_np = np.random.randn(M, K).astype("float32")
+        W_sp_np = random_bsr_matrix(N, K, 2, 2, density=0.01, dtype="float32")
+        mult = relay.op.nn.sparse_dense(
+            relay.Constant(tvm.nd.array(X_np)),
+            (
+                relay.Constant(tvm.nd.array(W_sp_np.data)),
+                relay.Constant(tvm.nd.array(W_sp_np.indices)),
+                relay.Constant(tvm.nd.array(W_sp_np.indptr)),
+            ),
+        )
+        f = relay.Function([], mult)
+        f_ = relay.transform.AlterOpLayout()(tvm.IRModule.from_expr(f))
+        assert f_["main"].body.op.name == "nn.internal.sparse_dense_padded"
+
+
 if __name__ == "__main__":
     test_csrmv()
     test_csrmm()
     test_dense()
     test_sparse_dense_csr()
-    test_sparse_dense_bsr()
     test_sparse_dense_bsr_randomized()
     test_sparse_transpose_csr()
+    test_sparse_dense_padded_cuda()
+    test_sparse_dense_padded_alter_op()
