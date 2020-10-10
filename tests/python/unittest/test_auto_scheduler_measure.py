@@ -166,9 +166,9 @@ def test_record_pragma_storage_align_rfactor():
 
     record_common(dag, s)
 
+
 def test_correct_measure_input():
-    tgt = tvm.target.Target('llvm')
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], tgt)
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
@@ -185,7 +185,9 @@ def test_correct_measure_input():
         correct_inp = auto_scheduler.measure_record.correct_measure_input(raw_inp)
         assert str(correct_inp.task.compute_dag) == str(inp.task.compute_dag)
 
-        correct_inp = auto_scheduler.measure_record.correct_measure_input(raw_inp, rebuild_state=True)
+        correct_inp = auto_scheduler.measure_record.correct_measure_input(
+            raw_inp, rebuild_state=True
+        )
         assert str(correct_inp.state) == str(inp.state)
 
 
@@ -193,7 +195,7 @@ def test_measure_local_builder_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], 'llvm')
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
     for enable_cpu_cache_flush in [True, False]:
         minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
@@ -212,7 +214,7 @@ def test_measure_local_builder_rpc_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], 'llvm')
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
     for enable_cpu_cache_flush in [True, False]:
         minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)

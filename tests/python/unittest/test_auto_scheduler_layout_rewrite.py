@@ -41,7 +41,7 @@ def test_apply_steps_with_layout_rewrite():
 
 def test_layout_rewrite_correctness():
     N = 128
-    target = tvm.target.Target('llvm')
+    target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 

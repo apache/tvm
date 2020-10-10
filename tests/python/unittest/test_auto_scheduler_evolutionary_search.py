@@ -94,7 +94,7 @@ def test_mutate_parallel():
                 scores.append(1 if self.is_good_state(state) else 0)
             return scores
 
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (1024, 1024, 1024), 'llvm')
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (1024, 1024, 1024), "llvm")
     policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
 
     found = False

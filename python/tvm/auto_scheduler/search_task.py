@@ -22,6 +22,7 @@ from tvm.runtime import Object
 
 from . import _ffi_api
 
+
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
 class SearchTask(Object):
     """The computation information and hardware parameters for a schedule search task.

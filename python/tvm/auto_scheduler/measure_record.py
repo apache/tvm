@@ -176,6 +176,7 @@ def load_best(filename, workload_key=None, target=None):
 
     return best_inp, best_res
 
+
 def correct_measure_input(input, rebuild_state=False):
     """
     Correct a deserialized MeasureInput by rebuilding the missing fields.
@@ -195,11 +196,13 @@ def correct_measure_input(input, rebuild_state=False):
         The corrected MeasureInput with all fileds rebuilt.
     """
     task = input.task
-    new_task = SearchTask(ComputeDAG(task.workload_key),
-                          task.workload_key,
-                          task.target,
-                          task.target_host,
-                          task.hardware_params)
+    new_task = SearchTask(
+        ComputeDAG(task.workload_key),
+        task.workload_key,
+        task.target,
+        task.target_host,
+        task.hardware_params,
+    )
 
     if rebuild_state:
         new_state = new_task.compute_dag.infer_bound_from_state(input.state)
