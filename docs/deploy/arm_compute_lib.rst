@@ -238,6 +238,7 @@ Operator support
 +----------------------+-------------------------------------------------------------------------+
 | qnn.add              | uint8                                                                   |
 +----------------------+-------------------------------------------------------------------------+
+
 .. note::
     A composite operator is a series of operators that map to a single Arm Compute Library operator. You can view this
     as being a single fused operator from the view point of Arm Compute Library. '?' denotes an optional operator in
