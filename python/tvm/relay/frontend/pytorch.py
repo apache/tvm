@@ -1878,8 +1878,6 @@ def _upsample(method, prelude):
             return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
         if _is_quantized_tensor(data, prelude):
-            import torch
-
             # Torch version > 1.4 changed upsampling API
             if _is_version_greater_than("1.4.0"):
                 num_inputs = 7
