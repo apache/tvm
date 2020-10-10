@@ -101,6 +101,7 @@ macro_rules! TVMPODValue {
                         TVMArgTypeCode_kTVMOpaqueHandle => Handle($value.v_handle),
                         TVMArgTypeCode_kTVMDLTensorHandle => ArrayHandle($value.v_handle as TVMArrayHandle),
                         TVMArgTypeCode_kTVMObjectHandle => ObjectHandle($value.v_handle),
+                        TVMArgTypeCode_kTVMObjectRValueRefArg => ObjectHandle(*($value.v_handle as *mut *mut c_void)),
                         TVMArgTypeCode_kTVMModuleHandle => ModuleHandle($value.v_handle),
                         TVMArgTypeCode_kTVMPackedFuncHandle => FuncHandle($value.v_handle),
                         TVMArgTypeCode_kTVMNDArrayHandle => NDArrayHandle($value.v_handle),

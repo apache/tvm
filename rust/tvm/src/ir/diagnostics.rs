@@ -24,12 +24,30 @@
 
 use tvm_macros::{Object, external};
 use super::module::IRModule;
-use crate::runtime::{function::{Function, Typed}, array::Array, string::String as TString};
-use crate::runtime::object::{Object, ObjectRef};
+use crate::runtime::{function::{self, Function, ToFunction, Typed}, array::Array, string::String as TString};
+use crate::runtime::object::{Object, ObjectPtr, ObjectRef};
 use crate::runtime::function::Result;
 use super::span::Span;
 
 type SourceName = ObjectRef;
+
+// Get the the diagnostic renderer.
+external! {
+    #[name("node.ArrayGetItem")]
+    fn get_renderer() -> DiagnosticRenderer;
+
+    #[name("diagnostics.DiagnosticRenderer")]
+    fn diagnostic_renderer(func: Function) -> DiagnosticRenderer;
+
+    #[name("diagnostics.Emit")]
+    fn emit(ctx: DiagnosticContext, diagnostic: Diagnostic) -> ();
+
+    #[name("diagnostics.DiagnosticContextRender")]
+    fn diagnostic_context_render(ctx: DiagnosticContext) -> ();
+
+    #[name("diagnostics.ClearRenderer")]
+    fn clear_renderer() -> ();
+}
 
 /// The diagnostic level, controls the printing of the message.
 #[repr(C)]
@@ -171,26 +189,20 @@ pub struct DiagnosticContextNode {
     pub renderer: DiagnosticRenderer,
 }
 
-// Get the the diagnostic renderer.
-external! {
-    #[name("node.ArrayGetItem")]
-    fn get_renderer() -> DiagnosticRenderer;
-
-    #[name("diagnostics.DiagnosticRenderer")]
-    fn diagnostic_renderer(func: Function) -> DiagnosticRenderer;
-
-    #[name("diagnostics.Emit")]
-    fn emit(ctx: DiagnosticContext, diagnostic: Diagnostic) -> ();
-
-    #[name("diagnostics.DiagnosticContextRender")]
-    fn diagnostic_context_render(ctx: DiagnosticContext) -> ();
-}
-
 /// A diagnostic context which records active errors
 /// and contains a renderer.
 impl DiagnosticContext {
-    pub fn new(module: IRModule, renderer: DiagnosticRenderer) {
-        todo!()
+    pub fn new<F>(module: IRModule, render_func: F) -> DiagnosticContext
+    where F: Fn(DiagnosticContext) -> () + 'static
+    {
+        let renderer = diagnostic_renderer(render_func.to_function()).unwrap();
+        let node = DiagnosticContextNode {
+            base: Object::base_object::<DiagnosticContextNode>(),
+            module,
+            diagnostics: Array::from_vec(vec![]).unwrap(),
+            renderer,
+        };
+        DiagnosticContext(Some(ObjectPtr::new(node)))
     }
 
     pub fn default(module: IRModule) -> DiagnosticContext {
@@ -223,17 +235,68 @@ impl DiagnosticContext {
 //     If the render_func is None it will remove the current custom renderer
 //     and return to default behavior.
 fn override_renderer<F>(opt_func: Option<F>) -> Result<()>
-where F: Fn(DiagnosticContext) -> ()
+where F: Fn(DiagnosticContext) -> () + 'static
 {
-    todo!()
-    // fn ()
-    // diagnostic_renderer(func)
-    // if render_func:
 
-    //     def _render_factory():
-    //         return DiagnosticRenderer(render_func)
+    match opt_func {
+        None => clear_renderer(),
+        Some(func) => {
+            let func = func.to_function();
+            let render_factory = move || {
+                diagnostic_renderer(func.clone()).unwrap()
+            };
 
-    //     register_func("diagnostics.OverrideRenderer", _render_factory, override=True)
-    // else:
-    //     _ffi_api.ClearRenderer()
+            function::register_override(
+                render_factory,
+                "diagnostics.OverrideRenderer",
+                true)?;
+
+            Ok(())
+        }
+    }
+}
+
+pub mod codespan {
+    use super::*;
+
+    use codespan_reporting::diagnostic::{Diagnostic as CDiagnostic, Label, Severity};
+    use codespan_reporting::files::SimpleFiles;
+    use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+
+    pub fn to_diagnostic(diag: super::Diagnostic) -> CDiagnostic<String> {
+        let severity = match diag.level {
+            DiagnosticLevel::Error => Severity::Error,
+            DiagnosticLevel::Warning => Severity::Warning,
+            DiagnosticLevel::Note => Severity::Note,
+            DiagnosticLevel::Help => Severity::Help,
+            DiagnosticLevel::Bug => Severity::Bug,
+        };
+
+        let file_id = "foo".into(); // diag.span.source_name;
+
+        let message: String = diag.message.as_str().unwrap().into();
+        let inner_message: String = "expected `String`, found `Nat`".into();
+        let diagnostic = CDiagnostic::new(severity)
+            .with_message(message)
+            .with_code("EXXX")
+            .with_labels(vec![
+                Label::primary(file_id, 328..331).with_message(inner_message),
+            ]);
+
+        diagnostic
+    }
+
+    pub fn init() -> Result<()> {
+        let mut files: SimpleFiles<String, String> = SimpleFiles::new();
+        let render_fn = move |diag_ctx: DiagnosticContext| {
+            // let source_map = diag_ctx.module.source_map;
+            for diagnostic in diag_ctx.diagnostics {
+
+            }
+            panic!("render_fn");
+        };
+
+        override_renderer(Some(render_fn))?;
+        Ok(())
+    }
 }
