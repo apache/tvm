@@ -123,7 +123,7 @@ class SketchPolicy(SearchPolicy):
         "gpu_multi_level_tiling_structure": "SSSRRSRS",
         # Notice: the default thread bind policy of GPU assumes the tiling structure to have at
         # least 3 spatial tiling levels in outermost
-        "max_innermost_split_factor": 16,
+        "max_innermost_split_factor": 64,
         "max_vectorize_size": 16,
         "disable_change_compute_location": 0,
     }

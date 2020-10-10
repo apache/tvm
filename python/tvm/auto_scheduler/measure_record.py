@@ -77,7 +77,7 @@ class RecordReader(Object):
         -----
         Some unimportant and expensive fields in the returned MeasureInput are not deserialized
         for faster read speed (e.g. input.task.compute_dag, input.state.stages).
-        If you want to use them, you can call the :code:`correct_measure_input` below
+        If you want to use them, you can call the :code:`recover_measure_input` below
         to rebuild these fields.
         """
         inputs, results = _ffi_api.RecordReaderReadLines(
@@ -110,7 +110,7 @@ def load_records(filename):
     -----
     Some unimportant and expensive fields in the returned MeasureInput are not deserialized
     for faster read speed (e.g., input.task.compute_dag, input.state.stages).
-    If you want to use them, you can call the :code:`correct_measure_input` below
+    If you want to use them, you can call the :code:`recover_measure_input` below
     to rebuild these fields.
     """
     return zip(*RecordReader(filename).read_lines())
@@ -177,9 +177,9 @@ def load_best(filename, workload_key=None, target=None):
     return best_inp, best_res
 
 
-def correct_measure_input(inp, rebuild_state=False):
+def recover_measure_input(inp, rebuild_state=False):
     """
-    Correct a deserialized MeasureInput by rebuilding the missing fields.
+    Recover a deserialized MeasureInput by rebuilding the missing fields.
     1. Rebuid the compute_dag in inp.task
     2. (Optional) Rebuild the stages in inp.state
 

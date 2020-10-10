@@ -167,7 +167,7 @@ def test_record_pragma_storage_align_rfactor():
     record_common(dag, s)
 
 
-def test_correct_measure_input():
+def test_recover_measure_input():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
@@ -182,10 +182,10 @@ def test_correct_measure_input():
 
         raw_inp = inputs[0]
 
-        correct_inp = auto_scheduler.measure_record.correct_measure_input(raw_inp)
+        correct_inp = auto_scheduler.measure_record.recover_measure_input(raw_inp)
         assert str(correct_inp.task.compute_dag) == str(inp.task.compute_dag)
 
-        correct_inp = auto_scheduler.measure_record.correct_measure_input(
+        correct_inp = auto_scheduler.measure_record.recover_measure_input(
             raw_inp, rebuild_state=True
         )
         assert str(correct_inp.state) == str(inp.state)
@@ -237,6 +237,6 @@ if __name__ == "__main__":
     test_record_compute_at_root_inline_cache_read_write()
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
-    test_correct_measure_input()
+    test_recover_measure_input()
     test_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
