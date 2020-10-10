@@ -166,7 +166,7 @@ def test_record_pragma_storage_align_rfactor():
 
     record_common(dag, s)
 
-def test_legalize_measure_input():
+def test_correct_measure_input():
     tgt = tvm.target.Target('llvm')
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], tgt)
 
@@ -235,6 +235,6 @@ if __name__ == "__main__":
     test_record_compute_at_root_inline_cache_read_write()
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
-    test_legalize_measure_input()
+    test_correct_measure_input()
     test_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
