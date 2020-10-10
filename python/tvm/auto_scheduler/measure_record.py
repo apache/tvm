@@ -76,7 +76,7 @@ class RecordReader(Object):
         Notes
         -----
         Some unimportant and expensive fields in the returned MeasureInput are not deserialized
-        for faster read speed (e.g., input.task.compute_dag, input.state.stages).
+        for faster read speed (e.g. input.task.compute_dag, input.state.stages).
         If you want to use them, you can call the :code:`correct_measure_input` below
         to rebuild these fields.
         """
