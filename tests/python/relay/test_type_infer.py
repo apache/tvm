@@ -22,7 +22,6 @@ import tvm
 
 from tvm import IRModule, te, relay, parser
 from tvm.relay import op, transform, analysis
-from tvm.relay import Any
 
 
 def infer_mod(mod, annotate_spans=True):
@@ -386,16 +385,6 @@ def test_let_polymorphism():
     body = infer_expr(body)
     int32 = relay.TensorType((), "int32")
     tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
-
-
-def test_if():
-    choice_t = relay.FuncType([], relay.scalar_type("bool"))
-    f = relay.Var("f", choice_t)
-    true_branch = relay.Var("True", relay.TensorType([Any(), 1], dtype="float32"))
-    false_branch = relay.Var("False", relay.TensorType([Any(), Any()], dtype="float32"))
-    top = relay.Function([f, true_branch, false_branch], relay.If(f(), true_branch, false_branch))
-    ft = infer_expr(top)
-    tvm.ir.assert_structural_equal(ft.ret_type, relay.TensorType([Any(), 1], dtype="float32"))
 
 
 def test_type_arg_infer():
