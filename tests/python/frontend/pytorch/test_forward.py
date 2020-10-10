@@ -3152,6 +3152,17 @@ def test_forward_scatter():
     verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
 
 
+def test_numel():
+    class Numel(Module):
+        def forward(self, data):
+            return torch.tensor(torch.numel(data))
+
+    targets = _get_default_vm_targets()
+    verify_script_model(Numel(), [(1,)], targets)
+    verify_script_model(Numel(), [(3, 5)], targets)
+    verify_script_model(Numel(), [(3, 5, 8)], targets)
+
+
 def test_forward_pretrained_bert_base_uncased():
     ######################################################################
     # This is an example how to run BERT models using TVM
@@ -3455,6 +3466,7 @@ if __name__ == "__main__":
     test_forward_unbind()
     test_forward_nonzero()
     test_forward_scatter()
+    test_numel()
 
     # Model tests
     test_resnet18()

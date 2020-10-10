@@ -46,6 +46,14 @@ from . import qnn_torch
 __all__ = ["from_pytorch"]
 
 
+def _is_version_greater_than(ver):
+    import torch
+    from packaging import version
+
+    # Torch version > 1.4 changed upsampling API
+    return version.parse(torch.__version__) > version.parse(ver)
+
+
 # List ADT utilities
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
@@ -1871,10 +1879,9 @@ def _upsample(method, prelude):
 
         if _is_quantized_tensor(data, prelude):
             import torch
-            from packaging import version
 
             # Torch version > 1.4 changed upsampling API
-            if version.parse(torch.__version__) > version.parse("1.4.0"):
+            if _is_version_greater_than("1.4.0"):
                 num_inputs = 7
             else:
                 num_inputs = 5
@@ -2342,13 +2349,6 @@ def _interpolate():
     return _impl
 
 
-def _intimplicit():
-    def _impl(inputs, input_types):
-        return inputs[0]
-
-    return _impl
-
-
 def _numel():
     def _impl(inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2702,8 +2702,8 @@ def _get_convert_map(prelude, default_dtype):
         "aten::scatter": _scatter(),
         "aten::scalar_tensor": _scalar_tensor(),
         "aten::__interpolate": _interpolate(),
-        "aten::IntImplicit": _intimplicit(),
-        "aten::tensor": _tensortonum(),
+        "aten::IntImplicit": _identity(),
+        "aten::tensor": _identity(),  # used for example in tensor(1.0)
         "aten::numel": _numel(),
         "aten::empty": _empty(),
     }
@@ -2714,10 +2714,10 @@ def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
     import torch
 
-    from packaging import version
-
-    # Torch version > 1.4 changed upsampling API
-    if version.parse(torch.__version__) > version.parse("1.5.0"):
+    if _is_version_greater_than("1.5.0"):
+        # This is required for torchvision detection models from 1.6 above
+        # It is the same as _jit_pass_inline, except that it has some special
+        # case behaviors for some ops such as aten::__interpolate()
         torch._C._jit_pass_onnx_function_substitution(graph)
     else:
         torch._C._jit_pass_inline(graph)
