@@ -42,10 +42,8 @@ def search_common(
 
     random.seed(seed)
     N = 128
-    workload_key = auto_scheduler.make_workload_key(workload, (N, N, N))
-    dag = auto_scheduler.ComputeDAG(workload_key)
     target = tvm.target.Target(target)
-    task = auto_scheduler.SearchTask(dag, workload_key, target)
+    task = auto_scheduler.create_task(workload, (N, N, N), target)
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -70,10 +68,10 @@ def search_common(
         print("*" * 80)
         print(target)
         print("*" * 80)
-        inp, res = auto_scheduler.load_best(log_file, workload_key, target)
+        inp, res = auto_scheduler.load_best(log_file, task.workload_key, target)
 
         print("==== Python Code ====")
-        print(dag.print_python_code_from_state(inp.state))
+        print(task.compute_dag.print_python_code_from_state(inp.state))
 
         try:
             print("==== Lowered Stmt ====")
@@ -81,7 +79,7 @@ def search_common(
             mod = tvm.build(sch, args, target)
 
             ctx = tvm.context(str(target), 0)
-            dtype = dag.tensors[0].dtype
+            dtype = task.compute_dag.tensors[0].dtype
             a = tvm.nd.array(np.random.uniform(size=(N, N)).astype(dtype), ctx)
             b = tvm.nd.array(np.random.uniform(size=(N, N)).astype(dtype), ctx)
             c = tvm.nd.array(np.zeros((N, N), dtype=dtype), ctx)

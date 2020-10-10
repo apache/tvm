@@ -25,7 +25,7 @@ We separate the measurement into two steps: build and run.
 A builder builds the executable binary files and a runner runs the binary files to
 get the measurement results. The flow of data structures is
 
-  .                `ProgramBuilder`                 `ProgramRunner`
+  .               `ProgramBuilder`                 `ProgramRunner`
   `MeasureInput` -----------------> `BuildResult` ----------------> `MeasureResult`
 
 We implement these in python to utilize python's multiprocessing and error handling.
