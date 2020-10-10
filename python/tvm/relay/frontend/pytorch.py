@@ -417,6 +417,7 @@ def _split_with_sizes():
         dim = int(inputs[2])
 
         if len(sections) == 1:
+            # a special case used in torchvision detection models
             return _expr.TupleWrapper(_expr.Tuple([data]), 1)
 
         split_index = 0
@@ -2176,9 +2177,11 @@ def _nms(prelude):
         data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
 
         # strided slice to get the dynamic result
-        return get_relay_op("strided_slice")(
+        ret = get_relay_op("strided_slice")(
             data_slice, begin=_expr.const([0]), end=size, slice_mode="size"
         )
+        # in torchvision, indices from nms are int64
+        return _op.cast(ret, "int64")
 
     return _impl
 
@@ -2355,11 +2358,11 @@ def _numel():
 
 def _empty():
     def _impl(inputs, input_types):
-        # any_dim = (Any(), )
-        return _op.zeros(inputs[0], "int32")
-        # return _op.zeros(inputs[0], _convert_dtype_value(inputs[1]))
+        shape = inputs[0]
+        return _op.zeros(shape, _convert_dtype_value(inputs[1]))
 
     return _impl
+
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
@@ -2702,7 +2705,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::IntImplicit": _intimplicit(),
         "aten::tensor": _tensortonum(),
         "aten::numel": _numel(),
-        "aten::empty": _empty()
+        "aten::empty": _empty(),
     }
     return convert_map
 
@@ -2712,6 +2715,7 @@ def _run_jit_passes(graph):
     import torch
 
     from packaging import version
+
     # Torch version > 1.4 changed upsampling API
     if version.parse(torch.__version__) > version.parse("1.5.0"):
         torch._C._jit_pass_onnx_function_substitution(graph)

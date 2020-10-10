@@ -179,6 +179,8 @@ def no_data_full_shape_func(attrs, inputs, out_ndims):
     """
     Shape func for zeros and ones.
     """
+    if len(inputs) == 0:
+        return [_convert_shape(convert(attrs.shape))]
     return [_full_shape_func(inputs[0])]
 
 
