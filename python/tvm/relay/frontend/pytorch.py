@@ -535,6 +535,9 @@ def _addcmul():
 
 def _where():
     def _impl(inputs, input_types):
+        if len(inputs) == 1:
+            return _nonzero(False)([inputs[0], True], input_types)
+
         cond = inputs[0]
         x, y = _pytorch_promote_types(inputs[1:3], input_types[1:3])
         return _op.where(cond, x, y)
@@ -2278,9 +2281,8 @@ def _nonzero(is_numpy_style):
         ret = _op.transform.argwhere(data)
 
         if is_numpy_style or (len(inputs) > 1 and inputs[1]):
-            # TODO(kevinthesun): Support this by adding unbind op
-            # ret = _unbind()([ret, 0], None)
-            raise RuntimeError("as_tuple is not supported yet for nonzero.")
+            return _unbind()([ret, 1], None)
+
         return ret
 
     return _impl

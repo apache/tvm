@@ -2865,10 +2865,19 @@ def test_forward_where():
         def forward(self, *args):
             return torch.where(args[0] > 0, args[0], args[1])
 
+    class Where3(Module):
+        def forward(self, *args):
+            return torch.where(args[0])[0]
+
     x = torch.rand([3, 2]).float()
-    verify_model(Where1().float().eval(), input_data=[x])
+    verify_model(Where1(), input_data=[x])
     y = torch.rand([3, 2])
-    verify_model(Where2().float().eval(), input_data=[x, y])
+    verify_model(Where2(), input_data=[x, y])
+
+    # a single argument variant, equivalent to torch.nonzero(..., as_tuple=True)
+    inp = torch.rand([10])
+    inp[3:8] = 0
+    verify_trace_model(Where3(), [inp], ["llvm"])
 
 
 @tvm.testing.uses_gpu
