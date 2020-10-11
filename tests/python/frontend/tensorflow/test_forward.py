@@ -206,6 +206,7 @@ def compare_tf_with_tvm(
     opt_level=3,
     mode="graph_runtime",
     cuda_layout="NCHW",
+    add_shapes_to_graph_def=True,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -221,7 +222,11 @@ def compare_tf_with_tvm(
     with tf.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
-        final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+        final_graph_def = (
+            tf_testing.AddShapesToGraphDef(sess, out_node)
+            if add_shapes_to_graph_def
+            else tf.get_default_graph().as_graph_def()
+        )
 
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
@@ -422,6 +427,7 @@ def _test_convolution(
     padding,
     data_format,
     deconv_output_shape=[],
+    add_shapes_to_graph_def=True,
 ):
     """ One iteration of convolution with given shapes and attributes """
 
@@ -456,6 +462,7 @@ def _test_convolution(
                 np.reshape(data_array, tensor_in_sizes).astype("float32"),
                 "Placeholder:0",
                 "Conv2D:0",
+                add_shapes_to_graph_def=add_shapes_to_graph_def,
             )
         elif opname == "conv_transpose":
             nn_ops.conv2d_transpose(
@@ -471,6 +478,7 @@ def _test_convolution(
                 np.reshape(data_array, tensor_in_sizes).astype("float32"),
                 "Placeholder:0",
                 "conv2d_transpose:0",
+                add_shapes_to_graph_def=add_shapes_to_graph_def,
             )
         else:
             nn_ops.depthwise_conv2d_native(
@@ -486,6 +494,7 @@ def _test_convolution(
                 np.reshape(data_array, tensor_in_sizes).astype("float32"),
                 "Placeholder:0",
                 "DepthwiseConv2dNative:0",
+                add_shapes_to_graph_def=add_shapes_to_graph_def,
             )
 
 
@@ -648,11 +657,32 @@ def test_forward_convolution():
     _test_convolution("conv", [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], "VALID", "NHWC")
     _test_convolution("conv", [4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC")
     _test_convolution("conv", [4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], "VALID", "NHWC")
+    _test_convolution(
+        "conv",
+        [4, 17, 17, 12],
+        [3, 3, 12, 32],
+        [1, 1],
+        [2, 2],
+        "VALID",
+        "NHWC",
+        add_shapes_to_graph_def=False,
+    )
     _test_convolution("depthwise", [4, 8, 8, 176], [1, 1, 176, 1], [1, 1], [1, 1], "SAME", "NHWC")
     _test_convolution("depthwise", [4, 17, 17, 19], [3, 3, 19, 1], [1, 1], [2, 2], "VALID", "NHWC")
     _test_convolution("depthwise", [4, 17, 17, 124], [1, 1, 124, 1], [1, 1], [1, 1], "SAME", "NHWC")
     _test_convolution("depthwise", [4, 17, 17, 12], [3, 3, 12, 1], [1, 1], [2, 2], "VALID", "NHWC")
     _test_convolution("depthwise", [4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], "VALID", "NHWC")
+    _test_convolution(
+        "depthwise",
+        [4, 17, 17, 12],
+        [3, 3, 12, 2],
+        [1, 1],
+        [2, 2],
+        "VALID",
+        "NHWC",
+        add_shapes_to_graph_def=False,
+    )
+
     _test_convolution(
         "conv_transpose",
         [4, 8, 8, 32],
@@ -785,6 +815,18 @@ def test_forward_convolution():
         "NHWC",
         [1, 8, 8, 1],
     )
+    # Test without adding shapes to graph def
+    _test_convolution(
+        "conv_transpose",
+        [4, 8, 8, 32],
+        [1, 1, 176, 32],
+        [1, 1],
+        [1, 1],
+        "SAME",
+        "NHWC",
+        [4, 8, 8, 176],
+        add_shapes_to_graph_def=False,
+    )
 
 
 #######################################################################
@@ -801,6 +843,7 @@ def _test_convolution3d(
     padding,
     data_format,
     deconv_output_shape=[],
+    add_shapes_to_graph_def=True,
 ):
     """ One iteration of 3D convolution with given shapes and attributes """
 
@@ -836,6 +879,7 @@ def _test_convolution3d(
                 "Placeholder:0",
                 "Conv3D:0",
                 cuda_layout="NCDHW",
+                add_shapes_to_graph_def=add_shapes_to_graph_def,
             )
 
 
@@ -866,6 +910,17 @@ def test_forward_convolution3d():
     _test_convolution3d(
         "conv", [4, 17, 17, 17, 12], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], "VALID", "NDHWC"
     )
+    # Test without adding shapes to graph def
+    _test_convolution3d(
+        "conv",
+        [4, 17, 17, 17, 12],
+        [3, 3, 3, 12, 32],
+        [1, 1, 1],
+        [2, 2, 2],
+        "VALID",
+        "NDHWC",
+        add_shapes_to_graph_def=False,
+    )
 
 
 #######################################################################
@@ -874,7 +929,13 @@ def test_forward_convolution3d():
 
 
 def _test_convolution3d_transpose(
-    data_shape, filter_shape, strides, padding, output_shape, data_format="NCDHW"
+    data_shape,
+    filter_shape,
+    strides,
+    padding,
+    output_shape,
+    data_format="NCDHW",
+    add_shapes_to_graph_def=True,
 ):
     """ One iteration of 3D convolution transpose with given shapes and attributes """
 
@@ -899,7 +960,13 @@ def _test_convolution3d_transpose(
             data_format=data_format,
         )
 
-        compare_tf_with_tvm(data_array, "Placeholder:0", "conv3d_transpose:0", cuda_layout="NDHWC")
+        compare_tf_with_tvm(
+            data_array,
+            "Placeholder:0",
+            "conv3d_transpose:0",
+            cuda_layout="NDHWC",
+            add_shapes_to_graph_def=add_shapes_to_graph_def,
+        )
 
 
 @tvm.testing.uses_gpu
@@ -971,6 +1038,17 @@ def test_forward_convolution3d_transpose():
         padding="VALID",
         output_shape=[1, 24, 24, 24, 6],
         data_format="NDHWC",
+    )
+
+    # Test without adding shapes to graph def
+    _test_convolution3d_transpose(
+        data_shape=[1, 8, 8, 8, 16],
+        filter_shape=[3, 3, 3, 6, 16],
+        strides=[3, 3, 3],
+        padding="VALID",
+        output_shape=[1, 24, 24, 24, 6],
+        data_format="NDHWC",
+        add_shapes_to_graph_def=False,
     )
 
 
