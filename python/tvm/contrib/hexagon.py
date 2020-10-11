@@ -40,7 +40,7 @@ from .._ffi.registry import register_func
 # Subsequent calls to 'link_shared' will use the newly registered linker.
 
 hexagon_toolchain_root = os.environ.get("HEXAGON_TOOLCHAIN") or ""  # pylint: disable=invalid-name
-hexagon_link_master = os.path.join(  # pylint: disable=invalid-name
+hexagon_link_main = os.path.join(  # pylint: disable=invalid-name
     hexagon_toolchain_root, "bin", "hexagon-link"
 )
 
@@ -53,7 +53,7 @@ def register_linker(f):
 @register_func("tvm.contrib.hexagon.hexagon_link")
 def hexagon_link():
     """Return path to the Hexagon linker."""
-    return hexagon_link_master
+    return hexagon_link_main
 
 
 @register_func("tvm.contrib.hexagon.link_shared")

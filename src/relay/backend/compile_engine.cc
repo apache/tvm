@@ -135,7 +135,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       candidate_name = truncated_name.str();
     }
     cache_node->func_name = candidate_name;
-    CHECK(master_op_.defined());
+    CHECK(anchor_op_.defined());
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.
     // Hence schedule only non PlaceholderOp outputs.
@@ -147,9 +147,9 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     }
     te::Schedule schedule;
     // No need to register schedule for device copy op.
-    if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      CHECK(master_implementation_.defined());
-      schedule = master_implementation_.Schedule(master_attrs_, tensor_outs, target_);
+    if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr) {
+      CHECK(anchor_implementation_.defined());
+      schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {
           schedule[scalar].compute_inline();
@@ -229,15 +229,15 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
-      CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
+      CHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
           << "Two complicated op in a primitive function "
-          << " master=" << master_op_ << " current=" << op;
+          << " anchor=" << anchor_op_ << " current=" << op;
     }
-    if (op_pattern >= master_op_pattern_) {
-      master_op_ = op;
-      master_attrs_ = call_node->attrs;
-      master_op_pattern_ = op_pattern;
-      master_implementation_ = impl;
+    if (op_pattern >= anchor_op_pattern_) {
+      anchor_op_ = op;
+      anchor_attrs_ = call_node->attrs;
+      anchor_op_pattern_ = op_pattern;
+      anchor_implementation_ = impl;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
@@ -289,10 +289,10 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
 
  private:
   tvm::Target target_;
-  Op master_op_;
-  Attrs master_attrs_;
-  int master_op_pattern_{0};
-  OpImplementation master_implementation_;
+  Op anchor_op_;
+  Attrs anchor_attrs_;
+  int anchor_op_pattern_{0};
+  OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
   // Cache device copy op for equivalence checking to reduce registry lookup

@@ -511,10 +511,10 @@ class GraphPartitioner {
     /*! \brief reference to the root node. */
     const tvm::Object* root_ref{nullptr};
     /*!
-     * \brief Reference to the master node,
+     * \brief Reference to the anchor node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
      */
-    const tvm::Object* master_ref{nullptr};
+    const tvm::Object* anchor_ref{nullptr};
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.
@@ -614,10 +614,10 @@ class GraphPartitioner {
     // update the number of nodes of the parent group
     parent->num_nodes += child->num_nodes;
     child->parent = parent;
-    // update master ref and pattern
-    if (child->master_ref != nullptr) {
-      CHECK(parent->master_ref == nullptr);
-      parent->master_ref = child->master_ref;
+    // update anchor ref and pattern
+    if (child->anchor_ref != nullptr) {
+      CHECK(parent->anchor_ref == nullptr);
+      parent->anchor_ref = child->anchor_ref;
       parent->pattern = CombinePattern(child->pattern, parent->pattern);
     }
   }
@@ -681,9 +681,9 @@ class GraphPartitioner {
       auto* group_node = arena_->make<Group>();
       group_node->pattern = graph_node->pattern;
       group_node->root_ref = graph_node->ref;
-      // set master ref if necessary.
+      // set anchor ref if necessary.
       if (group_node->pattern == kOutEWiseFusable) {
-        group_node->master_ref = graph_node->ref;
+        group_node->anchor_ref = graph_node->ref;
       }
       groups_[nid] = group_node;
     }
@@ -756,7 +756,7 @@ class GraphPartitioner {
           auto fcond = [](OpPatternKind kind, bool is_sink) {
             if (!is_sink) {
               // Elemwise, broadcast, and injective ops on the parallel branches
-              // are allowed be fused to the elemwise/broadcast master.
+              // are allowed be fused to the elemwise/broadcast anchor.
               return kind <= kInjective;
             } else {
               return (kind <= kBroadcast || kind == kCommReduce || kind == kInjective ||

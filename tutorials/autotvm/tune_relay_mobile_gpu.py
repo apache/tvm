@@ -126,7 +126,7 @@ def get_network(name, batch_size):
 # measure the speed of code on the board.
 #
 # To scale up the tuning, TVM uses RPC Tracker to manage distributed devices.
-# The RPC Tracker is a centralized master node. We can register all devices to
+# The RPC Tracker is a centralized controller node. We can register all devices to
 # the tracker. For example, if we have 10 phones, we can register all of them
 # to the tracker, and run 10 measurements in parallel, accelerating the tuning process.
 #
@@ -161,7 +161,7 @@ def get_network(name, batch_size):
 #   (replace :code:`[HOST_IP]` with the IP address of your host machine)
 #
 # * For Android:
-#   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
+#   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/main/apps/android_rpc>`_ to
 #   install TVM RPC APK on the android device. Make sure you can pass the android RPC test.
 #   Then you have already registered your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.

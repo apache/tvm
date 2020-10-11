@@ -220,7 +220,7 @@ with autotvm.tophub.context(target):
 # and an input test image.
 
 # Download ImageNet categories
-categ_url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
+categ_url = "https://github.com/uwsampl/web-data/raw/main/vta/models/"
 categ_fn = "synset.txt"
 download.download(join(categ_url, categ_fn), categ_fn)
 synset = eval(open(categ_fn).read())

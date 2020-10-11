@@ -32,7 +32,7 @@ from tvm.relay.op.contrib import get_pattern_table
 
 
 def get_real_image(im_height, im_width):
-    repo_base = "https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/"
+    repo_base = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/"
     img_name = "elephant-299.jpg"
     image_url = os.path.join(repo_base, img_name)
     img_path = download.download_testdata(image_url, img_name, module="data")

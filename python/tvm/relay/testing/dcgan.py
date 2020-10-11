@@ -19,7 +19,7 @@
 Net of the generator of DCGAN
 
 Adopted from:
-https://github.com/tqchen/mxnet-gan/blob/master/mxgan/generator.py
+https://github.com/tqchen/mxnet-gan/blob/main/mxgan/generator.py
 
 Reference:
 Radford, Alec, Luke Metz, and Soumith Chintala.
