@@ -81,6 +81,10 @@ def test_task_scheduler_gradient():
         task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func)
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
+        # Manually set the initial values to make this test more reliable
+        # on the slow CI machines.
+        task_scheduler.best_costs = [200, 0.1]
+
         # Check the result of round robin
         counters = {}
         for task in tasks:
