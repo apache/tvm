@@ -27,7 +27,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 
 def test_task_scheduler_round_robin():
     tasks = []
-    for n in [1, 2, 4]:
+    for n in [2, 4, 8]:
         tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
     def objective_func(costs):
@@ -62,7 +62,7 @@ def test_task_scheduler_round_robin():
 
 def test_task_scheduler_gradient():
     tasks = []
-    for n in [2, 1]:
+    for n in [2, 4]:
         tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
     def objective_func(costs):
@@ -80,7 +80,23 @@ def test_task_scheduler_gradient():
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func)
+
+        # Forcely rewrite the initial values.
+        # This can make this test more stable on the slow CI machines
+        task_scheduler.best_costs = np.array([1e2, 1e-8])
+
         task_scheduler.tune(tune_option, search_policy="sketch.random")
+
+        # Check the allocation results
+        counters = {}
+        for task in tasks:
+            counters[task.workload_key] = 0
+
+        for inp, res in auto_scheduler.load_records(log_file):
+            counters[inp.task.workload_key] += 1
+
+        assert counters[tasks[0].workload_key] == n_trials - 1
+        assert counters[tasks[1].workload_key] == 1
 
 
 if __name__ == "__main__":
