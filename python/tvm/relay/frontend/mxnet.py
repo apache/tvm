@@ -2251,6 +2251,16 @@ def _mx_broadcast_to(inputs, attrs):
     return _op.broadcast_to(data, tgt_shape)
 
 
+def _mx_broadcast_like(inputs, attrs):
+    assert len(inputs) == 2
+    for axes in ["lhs_axes", "rhs_axes"]:
+        if axes in attrs.attrs:
+            raise tvm.error.OpAttributeUnImplemented(
+                'Attribute "{}" is not supported for operator broadcast_like.'.format(axes)
+            )
+    return _op.broadcast_to_like(*inputs)
+
+
 def _mx_logical_not(inputs, input_types):
     data = inputs[0]
     dtype = _infer_type(data).checked_type.dtype
@@ -2410,6 +2420,7 @@ _convert_map = {
     "broadcast_logical_and": _mx_broadcast_logical(_op.logical_and),
     "broadcast_logical_xor": _mx_broadcast_logical(_op.logical_xor),
     "broadcast_to": _mx_broadcast_to,
+    "broadcast_like": _mx_broadcast_like,
     "logical_not": _mx_logical_not,
     "_equal": _mx_compare(_op.equal, _rename),
     "_not_equal": _mx_compare(_op.not_equal, _rename),
