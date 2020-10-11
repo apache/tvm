@@ -205,8 +205,10 @@ void ProgramMeasurerNode::Reset() {
   best_state.clear();
 }
 
-Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& policy,
-                                                  const Array<MeasureInput>& inputs, int batch_size) {
+Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
+                                                  const SearchPolicy& policy,
+                                                  const Array<MeasureInput>& inputs,
+                                                  int batch_size) {
   Array<MeasureResult> results;
   results.reserve(inputs.size());
 
@@ -346,10 +348,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.MeasureResult")
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ProgramMeasurer")
-.set_body_typed([](ProgramBuilder builder, ProgramRunner runner, Array<MeasureCallback> callbacks,
-                   int verbose, int max_continuous_error) {
-  return ProgramMeasurer(builder, runner, callbacks, verbose, max_continuous_error);
-});
+    .set_body_typed([](ProgramBuilder builder, ProgramRunner runner,
+                       Array<MeasureCallback> callbacks, int verbose, int max_continuous_error) {
+      return ProgramMeasurer(builder, runner, callbacks, verbose, max_continuous_error);
+    });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ProgramBuilderBuild")
     .set_body_typed([](const ProgramBuilder& builder, const Array<MeasureInput>& inputs,

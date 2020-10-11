@@ -26,9 +26,8 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 
 def test_task_scheduler_round_robin():
     tasks = []
-    target = tvm.target.Target('llvm')
     for n in [16, 32, 64]:
-        tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), target))
+        tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
     def objective_func(costs):
         return sum(costs)
@@ -38,10 +37,14 @@ def test_task_scheduler_round_robin():
         num_trials_per_task = 2
 
         # Tune all tasks
-        tune_option = auto_scheduler.TuningOptions(num_measure_trials=num_trials_per_task * len(tasks),
-                                                   num_measures_per_round=1,
-                                                   measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
-        task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func, strategy='round-robin')
+        tune_option = auto_scheduler.TuningOptions(
+            num_measure_trials=num_trials_per_task * len(tasks),
+            num_measures_per_round=1,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+        )
+        task_scheduler = auto_scheduler.SimpleTaskScheduler(
+            tasks, objective_func, strategy="round-robin"
+        )
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Check the result of round robin
@@ -58,9 +61,8 @@ def test_task_scheduler_round_robin():
 
 def test_task_scheduler_gradient():
     tasks = []
-    target = tvm.target.Target('llvm')
     for n in [16, 32]:
-        tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), target))
+        tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
     def objective_func(costs):
         return costs[0]
@@ -71,9 +73,11 @@ def test_task_scheduler_gradient():
         n_trials = 5
 
         # Tune all tasks
-        tune_option = auto_scheduler.TuningOptions(num_measure_trials=n_trials,
-                                                   num_measures_per_round=1,
-                                                   measure_callbacks=[auto_scheduler.RecordToFile(log_file)])
+        tune_option = auto_scheduler.TuningOptions(
+            num_measure_trials=n_trials,
+            num_measures_per_round=1,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+        )
         task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func)
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
@@ -84,7 +88,7 @@ def test_task_scheduler_gradient():
 
         for inp, res in auto_scheduler.load_records(log_file):
             counters[inp.task.workload_key] += 1
-            
+
         assert counters[tasks[0].workload_key] == n_trials - 1
         assert counters[tasks[1].workload_key] == 1
 

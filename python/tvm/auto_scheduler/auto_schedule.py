@@ -16,7 +16,7 @@
 # under the License.
 
 """
-The user interface and tuning option settings of the TVM auto-scheduler.
+The user interface and tuning options of the TVM auto-scheduler.
 """
 
 import tvm._ffi

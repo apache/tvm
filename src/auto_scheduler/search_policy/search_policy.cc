@@ -112,7 +112,6 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyContinueSearchOneRound")
       return Array<ObjectRef>{inputs, results};
     });
 
-
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicySetVerbose")
     .set_body_typed([](SearchPolicy policy, int verbose) { policy->verbose = verbose; });
 

@@ -19,8 +19,8 @@
 
 /*!
  * \file auto_scheduler/search_policy/sketch_policy_rules.cc
- * \brief Rules for generating the sketches, sampling the initial population, and mutating the population
- * in SketchPolicy.
+ * \brief Rules for generating the sketches, sampling the initial population, and mutating the
+ * population in SketchPolicy.
  */
 
 #include "sketch_policy_rules.h"
@@ -1112,6 +1112,10 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
             std::make_pair(stage_id, max_fusable_iter_id))) {
       break;
     }
+  }
+
+  if (max_fusable_iter_id == 0) {
+    return ResultKind::kInvalid;
   }
 
   // Randomly pick one granularity

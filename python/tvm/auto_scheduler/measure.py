@@ -189,7 +189,7 @@ class ProgramRunner(Object):
 class ProgramMeasurer(Object):
     """
     Measurer that measures the time costs of tvm programs
-    This class combines ProgramBuilder and ProgramRunner, and provides a simpler API
+    This class combines ProgramBuilder and ProgramRunner, and provides a simpler API.
 
     Parameters
     ----------
@@ -204,10 +204,12 @@ class ProgramMeasurer(Object):
     max_continuous_error : Optional[int]
         The number of allowed maximum continuous error.
     """
+
     def __init__(self, builder, runner, callbacks, verbose, max_continuous_error=None):
         max_continuous_error = max_continuous_error or -1  # -1 means using the default value
         self.__init_handle_by_constructor__(
-            _ffi_api.ProgramMeasurer, builder, runner, callbacks, verbose, max_continuous_error)
+            _ffi_api.ProgramMeasurer, builder, runner, callbacks, verbose, max_continuous_error
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.LocalBuilder")

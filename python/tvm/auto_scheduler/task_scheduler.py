@@ -14,9 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
-""" The task scheduler that allocates the time resources when tuning multiple tasks together"""
-from typing import List, Union, Callable
+""" The task scheduler that allocates the time resources when tuning multiple tasks together
+
+The details of the "gradient" strategy below can be found in the section 6 of this paper:
+L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
+Programs for Deep Learning." (OSDI 2020).
+"""
+
 import time
 import math
 import logging
@@ -29,7 +35,7 @@ from .utils import array_mean, to_str_round
 from .measure import ProgramMeasurer
 from .measure_record import RecordReader
 
-logger = logging.getLogger('auto_scheduler')
+logger = logging.getLogger("auto_scheduler")
 
 
 class TaskScheduler:
@@ -42,18 +48,18 @@ class TaskScheduler:
     objective_func: Callable[List[float] -> float]
         The objective function to be optimized
     """
-    def __init__(self,
-                 tasks,
-                 objective_func):
+
+    def __init__(self, tasks, objective_func):
         self.tasks = tasks
         self.objective_func = objective_func or sum
 
-    def compute_score(self, costs: List[float]) -> float:
+    def compute_score(self, costs) -> float:
         return self.objective_func(costs)
 
 
-def make_search_policies(search_policy, tasks,
-                         num_measures_per_round, load_model_file=None, load_log_file=None):
+def make_search_policies(
+    search_policy, tasks, num_measures_per_round, load_model_file=None, load_log_file=None
+):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
 
@@ -76,24 +82,24 @@ def make_search_policies(search_policy, tasks,
     policies: List[SearchPolicy]
         The list of search policies
     """
-    if search_policy == 'default':
-        search_policy = 'sketch.xgb'
+    if search_policy == "default":
+        search_policy = "sketch.xgb"
 
     if isinstance(search_policy, str):
-        policy_type, model_type = search_policy.split('.')
-        if model_type == 'xgb':
+        policy_type, model_type = search_policy.split(".")
+        if model_type == "xgb":
             cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
             if load_model_file:
                 logger.info("Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
                 cost_model.load_log_file(load_log_file)
-        elif model_type == 'random':
+        elif model_type == "random":
             cost_model = RandomModel()
         else:
             raise ValueError("Invalid search policy: " + search_policy)
 
-        if policy_type == 'sketch':
+        if policy_type == "sketch":
             search_policies = [SketchPolicy(task, cost_model) for task in tasks]
         else:
             raise ValueError("Invalid search policy: " + search_policy)
@@ -125,9 +131,9 @@ def derive_similarity_tag(dag, log_base=1.618):
     """
     ret = ""
     for op in dag.ops:
-        tag = op.attrs.get('ansor_task_scheduler_tag', None)
+        tag = op.attrs.get("ansor_task_scheduler_tag", None)
         if tag:
-            ret += op.attrs['ansor_task_scheduler_tag'] + "_"
+            ret += op.attrs["ansor_task_scheduler_tag"] + "_"
     if ret != "":
         ret += "%d" % int(math.log(dag.flop_ct + 1, log_base))
     return ret
@@ -162,18 +168,21 @@ class SimpleTaskScheduler(TaskScheduler):
     backward_window_size: int = 3
         The parameter used for 'gradient' strategy
     """
-    def __init__(self,
-                 tasks,
-                 objective_func,
-                 strategy = 'gradient',
-                 load_model_file: str = None,
-                 load_log_file: str = None,
-                 eps_random: float = 0.05,
-                 verbose: int = 1,
-                 alpha: float = 0.2,
-                 beta: float = 2,
-                 gamma: float = 0.5,
-                 backward_window_size: int = 3):
+
+    def __init__(
+        self,
+        tasks,
+        objective_func,
+        strategy="gradient",
+        load_model_file: str = None,
+        load_log_file: str = None,
+        eps_random: float = 0.05,
+        verbose: int = 1,
+        alpha: float = 0.2,
+        beta: float = 2,
+        gamma: float = 0.5,
+        backward_window_size: int = 3,
+    ):
         super().__init__(tasks, objective_func)
         self.strategy = strategy
         self.eps_random = eps_random
@@ -185,7 +194,7 @@ class SimpleTaskScheduler(TaskScheduler):
         self.gamma = gamma
         self.backward_window_size = backward_window_size
 
-        assert self.strategy in ['round-robin', 'gradient']
+        assert self.strategy in ["round-robin", "gradient"]
 
         # task_cts[i] saves how many times task i is tuned
         self.task_cts = [0 for _ in range(len(self.tasks))]
@@ -221,9 +230,7 @@ class SimpleTaskScheduler(TaskScheduler):
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-    def tune(self,
-             tune_option,
-             search_policy='default'):
+    def tune(self, tune_option, search_policy="default"):
         """Tune a batch of tasks together.
 
         Parameters
@@ -238,41 +245,50 @@ class SimpleTaskScheduler(TaskScheduler):
         """
         # init members
         self.tune_option = tune_option
-        self.measurer = ProgramMeasurer(tune_option.builder, tune_option.runner,
-                                        tune_option.measure_callbacks, tune_option.verbose)
+        self.measurer = ProgramMeasurer(
+            tune_option.builder,
+            tune_option.runner,
+            tune_option.measure_callbacks,
+            tune_option.verbose,
+        )
         self.ct = 0
         self.tic = time.time()
         self.sequential_now_task_idx = 0
         self.sequential_now_task_begin_ct = 0
         # reset num_measures_per_round to make sure every task is tuned at least once
-        self.num_measures_per_round = min(tune_option.num_measures_per_round,
-                                          tune_option.num_measure_trials // len(self.tasks))
+        self.num_measures_per_round = min(
+            tune_option.num_measures_per_round, tune_option.num_measure_trials // len(self.tasks)
+        )
         assert self.num_measures_per_round > 0, "num_measure_trials is too small"
 
         # restore the status of the task scheduler from a log file
         self.restore_status(self.load_log_file, self.num_measures_per_round)
 
         # make one search policy for one task
-        self.search_policies = make_search_policies(search_policy, self.tasks,
-                                                    self.num_measures_per_round,
-                                                    self.load_model_file,
-                                                    self.load_log_file)
+        self.search_policies = make_search_policies(
+            search_policy,
+            self.tasks,
+            self.num_measures_per_round,
+            self.load_model_file,
+            self.load_log_file,
+        )
         for i in range(len(self.tasks)):
             search_policy = self.search_policies[i]
             search_policy.set_verbose(tune_option.verbose)
             # todo(merrymercy): call presearch callbacks?
 
         # do a round robin first
-        if self.strategy != 'sequential':
+        if self.strategy != "sequential":
             for i in range(len(self.tasks)):
                 self.tune_task(i)
 
         # use the specific strategy to choose workload to tune
         task_idx = -1
         while self.ct < tune_option.num_measure_trials and len(self.dead_tasks) < len(self.tasks):
-            if self.strategy == 'sequential':
-                allocated_total_ct = ((tune_option.num_measure_trials - self.sequential_now_task_begin_ct)
-                                      / (len(self.tasks) - self.sequential_now_task_idx))
+            if self.strategy == "sequential":
+                allocated_total_ct = (
+                    tune_option.num_measure_trials - self.sequential_now_task_begin_ct
+                ) / (len(self.tasks) - self.sequential_now_task_idx)
                 used_ct = self.ct - self.sequential_now_task_begin_ct
 
                 if self.sequential_now_task_idx in self.dead_tasks or used_ct >= allocated_total_ct:
@@ -281,11 +297,11 @@ class SimpleTaskScheduler(TaskScheduler):
                 task_idx = self.sequential_now_task_idx
                 if task_idx >= len(self.tasks):
                     break
-            elif self.strategy == 'round-robin':
+            elif self.strategy == "round-robin":
                 task_idx = (task_idx + 1) % len(self.tasks)
                 while task_idx in self.dead_tasks:
                     task_idx = (task_idx + 1) % len(self.tasks)
-            elif self.strategy == 'gradient':
+            elif self.strategy == "gradient":
                 gradients = []
                 for i in range(len(self.tasks)):
                     if i in self.dead_tasks:
@@ -296,14 +312,21 @@ class SimpleTaskScheduler(TaskScheduler):
                     delta = 1e-7
                     new_costs = list(self.best_costs)
                     new_costs[i] -= delta
-                    chain_grad = (self.compute_score(self.best_costs) - self.compute_score(new_costs)) / delta
+                    chain_grad = (
+                        self.compute_score(self.best_costs) - self.compute_score(new_costs)
+                    ) / delta
 
                     # compute (g_i(t_i) - g(t_i - \Delta t)) / (\Delta t)
-                    if (self.task_cts[i] - 1 < len(self.task_costs_history[i]) and
-                            self.task_cts[i] - 1 - self.backward_window_size >= 0):
-                        backward_grad = (self.task_costs_history[i][self.task_cts[i] - 1]
-                                         - self.task_costs_history[i][self.task_cts[i] - 1 - self.backward_window_size]) \
-                                        / self.backward_window_size
+                    if (
+                        self.task_cts[i] - 1 < len(self.task_costs_history[i])
+                        and self.task_cts[i] - 1 - self.backward_window_size >= 0
+                    ):
+                        backward_grad = (
+                            self.task_costs_history[i][self.task_cts[i] - 1]
+                            - self.task_costs_history[i][
+                                self.task_cts[i] - 1 - self.backward_window_size
+                            ]
+                        ) / self.backward_window_size
                     else:
                         backward_grad = 0
 
@@ -313,15 +336,21 @@ class SimpleTaskScheduler(TaskScheduler):
                     g_next_2 = self.beta * 1e30
                     group_id = self.tag_to_group_id.get(self.task_tags[i], None)
                     if group_id is not None and len(self.group_task_ids[group_id]) > 1:
-                        best_flops = max([self.flop_cts[j] / self.best_costs[j]
-                                          for j in self.group_task_ids[group_id]])
+                        best_flops = max(
+                            [
+                                self.flop_cts[j] / self.best_costs[j]
+                                for j in self.group_task_ids[group_id]
+                            ]
+                        )
                         g_next_2 = self.beta * self.flop_cts[i] / best_flops
 
                     g_next = min(g_next_1, g_next_2)
                     forward_grad = g_next - self.best_costs[i]
 
                     # combine all grads
-                    grad = chain_grad * (self.alpha * backward_grad + (1 - self.alpha) * forward_grad)
+                    grad = chain_grad * (
+                        self.alpha * backward_grad + (1 - self.alpha) * forward_grad
+                    )
                     assert grad <= 0
                     gradients.append(grad)
 
@@ -336,14 +365,14 @@ class SimpleTaskScheduler(TaskScheduler):
             self.adjust_similarity_group(task_idx)
 
     def tune_task(self, task_idx):
+        """Tune the select task for one round"""
         if self.verbose >= 1:
-            logger.info("TaskScheduler: task id:\t%d" % task_idx)
-        measure_inputs, measure_results = \
-            self.search_policies[task_idx].continue_search_one_round(
-                self.num_measures_per_round,
-                self.measurer)
+            logger.info("TaskScheduler: task id:\t%d", task_idx)
+        measure_inputs, measure_results = self.search_policies[task_idx].continue_search_one_round(
+            self.num_measures_per_round, self.measurer
+        )
 
-        for inp, res in zip(measure_inputs, measure_results):
+        for _, res in zip(measure_inputs, measure_results):
             cost = array_mean(res.costs)
             if cost < self.best_costs[task_idx]:
                 self.best_costs[task_idx] = cost
@@ -358,13 +387,18 @@ class SimpleTaskScheduler(TaskScheduler):
         self.cur_score = self.compute_score(self.best_costs)
 
         if self.verbose >= 1:
-            logger.info(("TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t" +
-                         "best_costs (ms): %s\ttask_ct: %s") %
-                        (self.ct, self.cur_score * 1e3, time.time() - self.tic,
-                         to_str_round(self.best_costs * 1e3, decimal=3),
-                         self.task_cts))
+            logger.info(
+                "TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t"
+                "best_costs (ms): %s\ttask_ct: %s",
+                self.ct,
+                self.cur_score * 1e3,
+                time.time() - self.tic,
+                to_str_round(self.best_costs * 1e3, decimal=3),
+                self.task_cts,
+            )
 
     def adjust_similarity_group(self, task_idx):
+        """adjust the similarity group for the selected task"""
         group_id = self.tag_to_group_id.get(self.task_tags[task_idx], None)
         if group_id is None or len(self.group_task_ids[group_id]) <= 1:
             return
@@ -377,16 +411,17 @@ class SimpleTaskScheduler(TaskScheduler):
         # a similar speed to the fastest one in its group, this means this task
         # is actually not similar to other tasks in its group.
         # So we will reomve it from its original group.
-        if (cur_flops < best_group_flops / self.beta and
-                self.task_cts[task_idx] > 5 + max(self.task_cts[j] for j in group_ids if j != task_idx)):
+        if cur_flops < best_group_flops / self.beta and self.task_cts[task_idx] > 5 + max(
+            self.task_cts[j] for j in group_ids if j != task_idx
+        ):
             self.task_tags[task_idx] = None
             group_ids.remove(task_idx)
 
     def restore_status(self, log_file, num_measures_per_round):
-        # restore task_cts and best_costs from a log file
+        """restore task_cts and best_costs from a log file"""
         if log_file:
             str_target = str(self.tasks[0].target)
-            workload_key_to_task_id = {t.workload_key : i for i, t in enumerate(self.tasks)}
+            workload_key_to_task_id = {t.workload_key: i for i, t in enumerate(self.tasks)}
             total_ct = -1
 
             for total_ct, (inp, res) in enumerate(RecordReader(log_file)):
@@ -397,7 +432,9 @@ class SimpleTaskScheduler(TaskScheduler):
                     continue
 
                 if res.error_no == 0:
-                    self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
+                    self.best_costs[task_idx] = min(
+                        self.best_costs[task_idx], array_mean(res.costs)
+                    )
 
                 self.task_cts[task_idx] += 1
 
@@ -408,7 +445,8 @@ class SimpleTaskScheduler(TaskScheduler):
                 self.task_cts[i] = int(self.task_cts[i] / num_measures_per_round + 0.5)
                 self.task_costs_history[i].append(self.best_costs[i])
 
-            logger.info("TaskScheduler: Loaded %d measurement records from %s",
-                        total_ct + 1, log_file)
+            logger.info(
+                "TaskScheduler: Loaded %d measurement records from %s", total_ct + 1, log_file
+            )
 
         self.cur_score = self.compute_score(self.best_costs)

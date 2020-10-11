@@ -41,10 +41,7 @@ from .measure import (
     LocalRPCMeasureContext,
 )
 from .measure_record import RecordToFile, RecordReader, load_best, load_records, save_records
-<<<<<<< HEAD
 from .search_task import SearchTask
-=======
-from .task_scheduler import SimpleTaskScheduler
->>>>>>> Add task scheduler
 from .search_policy import EmptyPolicy, SketchPolicy, PreloadMeasuredStates
+from .task_scheduler import SimpleTaskScheduler
 from .workload_registry import register_workload, make_workload_key

@@ -42,12 +42,13 @@
 #ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
 
-#include <tvm/auto_scheduler/search_task.h>
 #include <tvm/auto_scheduler/measure.h>
+#include <tvm/auto_scheduler/search_task.h>
 #include <tvm/node/node.h>
 
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace tvm {

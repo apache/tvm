@@ -22,7 +22,7 @@
  * \brief This search policy constructs a search space according to the compute declaration.
  * It then randomly samples programs from the search space and uses evolutionary search with a
  * learned cost model to fine tune the sampled programs.
- * The final optimized programs are sent to actual hardware for measurements.
+ * The final optimized programs are sent to actual hardware for measurement.
  * The above process is repeated until the auto-scheduler runs out of time budget.
  *
  * Reference:
