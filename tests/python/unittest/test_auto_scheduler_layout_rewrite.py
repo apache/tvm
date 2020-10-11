@@ -41,12 +41,9 @@ def test_apply_steps_with_layout_rewrite():
 
 def test_layout_rewrite_correctness():
     N = 128
-    target = "llvm"
-    workload = matmul_auto_scheduler_test
-    workload_key = auto_scheduler.make_workload_key(workload, (N, N, N))
-    dag = auto_scheduler.ComputeDAG(workload_key)
-    target = tvm.target.Target(target)
-    task = auto_scheduler.SearchTask(dag, workload_key, target)
+    target = tvm.target.Target("llvm")
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
+    dag = task.compute_dag
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -60,7 +57,7 @@ def test_layout_rewrite_correctness():
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
-        inp, _ = auto_scheduler.load_best(log_file, workload_key, target)
+        inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(inp.state, layout_rewrite=True)
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state, layout_rewrite=False)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
@@ -89,10 +86,10 @@ def test_layout_rewrite_correctness():
             np_args_ref[1] = np_args_ref[1].transpose(new_order)
             np_args_ref[1] = np_args_ref[1].reshape((red_dim, out_dim))
 
-        func = tvm.build(s, bufs, target=inp.task.target, target_host=inp.task.target_host)
-        func_ref = tvm.build(s_ref, bufs_ref, target="llvm")
+        func = tvm.build(s, bufs, target=target)
+        func_ref = tvm.build(s_ref, bufs_ref, target=target)
 
-        ctx = tvm.context(str(inp.task.target))
+        ctx = tvm.context(str(target))
         ctx_ref = tvm.cpu()
 
         args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
