@@ -216,6 +216,7 @@ def conv2d_winograd_nhwc_auto_scheduler_test(
 
 
 def get_tiled_matmul():
+    """Get a compute dag and a state for tiled matmul"""
     A, B, C = matmul_auto_scheduler_test(512, 512, 512)
     dag = auto_scheduler.ComputeDAG([A, B, C])
 
