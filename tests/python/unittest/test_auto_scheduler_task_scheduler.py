@@ -18,7 +18,8 @@
 
 import tempfile
 
-import tvm
+import numpy as np
+
 from tvm import auto_scheduler
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test
@@ -79,13 +80,14 @@ def test_task_scheduler_gradient():
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func)
-        task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Manually set the initial values to make this test more reliable
         # on the slow CI machines.
-        task_scheduler.best_costs = [200, 0.1]
+        task_scheduler.best_costs = np.array([200, 1e-8])
 
-        # Check the result of round robin
+        task_scheduler.tune(tune_option, search_policy="sketch.random")
+
+        # Check the allocation
         counters = {}
         for task in tasks:
             counters[task.workload_key] = 0
