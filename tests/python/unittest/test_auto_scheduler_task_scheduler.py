@@ -26,7 +26,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 
 def test_task_scheduler_round_robin():
     tasks = []
-    for n in [16, 32, 64]:
+    for n in [1, 2, 4]:
         tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
     def objective_func(costs):
@@ -61,7 +61,7 @@ def test_task_scheduler_round_robin():
 
 def test_task_scheduler_gradient():
     tasks = []
-    for n in [16, 32]:
+    for n in [2, 1]:
         tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
     def objective_func(costs):
