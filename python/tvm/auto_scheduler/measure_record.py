@@ -193,7 +193,7 @@ def recover_measure_input(inp, rebuild_state=False):
     Returns
     -------
     new_input: MeasureInput
-        The corrected MeasureInput with all fileds rebuilt.
+        The fully recovered MeasureInput with all fields rebuilt.
     """
     task = inp.task
     new_task = SearchTask(
