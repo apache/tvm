@@ -63,7 +63,7 @@ def conv2d_layer(N, H, W, CO, CI, KH, KW, stride, padding):
 
 target = tvm.target.Target("cuda")
 
-# the last layer in resnet
+# Use the last layer in ResNet-50
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
 task = auto_scheduler.create_task(conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target)
 
@@ -105,6 +105,9 @@ tune_option = auto_scheduler.TuningOptions(
 
 sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 
+# Kill the process for measurement
+del measure_ctx
+
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
@@ -119,7 +122,7 @@ print(tvm.lower(sch, args, simple_mode=True))
 
 func = tvm.build(sch, args, target)
 
-# check correctness
+# Check correctness
 data_np = np.random.uniform(size=(N, CI, H, W)).astype(np.float32)
 weight_np = np.random.uniform(size=(CO, CI, KH, KW)).astype(np.float32)
 bias_np = np.random.uniform(size=(1, CO, 1, 1)).astype(np.float32)
@@ -180,6 +183,7 @@ cost_model.update_from_file(log_file)
 search_policy = auto_scheduler.SketchPolicy(
     task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
 )
+measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=5,
     runner=measure_ctx.runner,
@@ -187,5 +191,5 @@ tune_option = auto_scheduler.TuningOptions(
 )
 sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
-# kill the measurement process
+# Kill the measurement process
 del measure_ctx
