@@ -755,6 +755,24 @@ def test_forward_broadcast_to():
 
 
 @tvm.testing.uses_gpu
+def test_forward_broadcast_like():
+    def verify(input_shape, like_shape):
+        x_np = np.random.uniform(size=input_shape).astype("float32")
+        y_np = np.random.uniform(size=like_shape).astype("float32")
+        ref_res = mx.nd.broadcast_like(mx.nd.array(x_np), mx.nd.array(y_np))
+        mx_sym = mx.sym.broadcast_like(mx.sym.var("x"), mx.sym.var("y"))
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": input_shape, "y": like_shape})
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_np, y_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+    verify((1, 2, 3), (3, 2, 3))
+    verify((4, 1, 32, 32), (4, 8, 32, 32))
+
+
+@tvm.testing.uses_gpu
 def test_forward_logical_not():
     a_shape = (3, 4, 5)
     dtype = "float32"
