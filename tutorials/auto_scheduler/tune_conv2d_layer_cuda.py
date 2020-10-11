@@ -63,7 +63,7 @@ def conv2d_layer(N, H, W, CO, CI, KH, KW, stride, padding):
 
 target = tvm.target.Target("cuda")
 
-# Use the last layer in resnet
+# Use the last layer in ResNet-50
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
 task = auto_scheduler.create_task(conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target)
 
