@@ -80,25 +80,10 @@ def test_task_scheduler_gradient():
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func)
-
-        # Manually set the initial values to make this test more reliable
-        # on the slow CI machines.
-        task_scheduler.best_costs = np.array([200, 1e-8])
-
         task_scheduler.tune(tune_option, search_policy="sketch.random")
-
-        # Check the allocation
-        counters = {}
-        for task in tasks:
-            counters[task.workload_key] = 0
-
-        for inp, res in auto_scheduler.load_records(log_file):
-            counters[inp.task.workload_key] += 1
-
-        assert counters[tasks[0].workload_key] == n_trials - 1
-        assert counters[tasks[1].workload_key] == 1
 
 
 if __name__ == "__main__":
     test_task_scheduler_round_robin()
     test_task_scheduler_gradient()
+
