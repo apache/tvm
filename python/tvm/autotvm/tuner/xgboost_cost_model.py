@@ -245,6 +245,8 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
         res = pool.map(feature_extract_func, data)
+        # filter out None output, which is caused by extract exception
+        res = [r for r in res if r is not None]
 
         # filter out feature with different shapes
         fea_len = len(self._get_feature([0])[0])
