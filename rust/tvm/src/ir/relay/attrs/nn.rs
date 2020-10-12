@@ -94,3 +94,15 @@ pub struct SoftmaxAttrsNode {
     pub base: BaseAttrsNode,
     pub axis: i32,
 }
+
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "BatchNormAttrs"]
+#[type_key = "relay.attrs.BatchNormAttrs"]
+pub struct BatchNormAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: i32,
+    pub epsilon: f64,
+    pub center: bool,
+    pub scale: bool,
+}
