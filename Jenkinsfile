@@ -94,8 +94,8 @@ def init_git_win() {
 }
 
 def cancel_previous_build() {
-    // cancel previous build if it is not on master.
-    if (env.BRANCH_NAME != "master") {
+    // cancel previous build if it is not on main.
+    if (env.BRANCH_NAME != "main") {
         def buildNumber = env.BUILD_NUMBER as int
         // Milestone API allows us to cancel previous build
         // with the same milestone number
@@ -328,14 +328,14 @@ stage('Build packages') {
     }
   }
   // Here we could upload the packages to anaconda for releases
-  // and/or the master branch
+  // and/or the main branch
 }
 */
 
 stage('Deploy') {
     node('doc') {
       ws(per_exec_ws("tvm/deploy-docs")) {
-        if (env.BRANCH_NAME == "master") {
+        if (env.BRANCH_NAME == "main") {
            unpack_lib('mydocs', 'docs.tgz')
            sh "cp docs.tgz /var/docs/docs.tgz"
            sh "tar xf docs.tgz -C /var/docs"

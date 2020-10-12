@@ -126,7 +126,7 @@ def transform_image(image):
 
 
 def get_cat_image():
-    img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+    img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
     img_path = download_testdata(img_url, "cat.png", module="data")
     shutil.copyfile(img_path, "cat.png")
     img = Image.open(img_path).resize((224, 224))

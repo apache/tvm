@@ -95,8 +95,8 @@ class ThreadGroup::Impl {
 
  private:
   // bind worker threads to disjoint cores
-  // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
-  // the master thread is bound to core 0.
+  // if worker 0 is offloaded to main, i.e. exclude_worker0 is true,
+  // the main thread is bound to core 0.
   void SetAffinity(bool exclude_worker0, bool reverse = false) {
 #if defined(__ANDROID__)
 #ifndef CPU_SET
@@ -130,9 +130,9 @@ class ThreadGroup::Impl {
       pthread_setaffinity_np(threads_[i].native_handle(), sizeof(cpu_set_t), &cpuset);
 #endif
     }
-    if (exclude_worker0) {  // master thread run task
+    if (exclude_worker0) {  // main thread run task
       // Master thread will have free migration on needed cores.
-      // Typically, the OS will schedule the master thread to run at core 0,
+      // Typically, the OS will schedule the main thread to run at core 0,
       // which is idle, when other workers are running.
       // See the comment inside SetMasterThreadFullCpuAffinity function to get more detail.
       SetMasterThreadFullCpuAffinity(reverse);
@@ -148,11 +148,11 @@ class ThreadGroup::Impl {
     // And we use config_threadpool API to set we will only use 4xA53.
     // The sorted_order will be [4, 5, 0, 1, 2, 3].
     // When to call this API, we have spawn threads on little cores for other workers
-    // in SetAffinity function. And for tvm master thread, it should also run on little cores,
+    // in SetAffinity function. And for tvm main thread, it should also run on little cores,
     // not big cores (4, 5).
 
     // Note: this works well on x86 too. Because x86 doesn't have BIG.LITTLE,
-    // our implementation will use kBig mode by default and will let master thread
+    // our implementation will use kBig mode by default and will let main thread
     // run on intended cores.
     if (reverse) {
       for (int i = 0; i < little_count_; ++i) {

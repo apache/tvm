@@ -22,7 +22,7 @@ InferBound Pass
 *******************************************
 
 
-The InferBound pass is run after normalize, and before ScheduleOps `build_module.py <https://github.com/apache/incubator-tvm/blob/master/python/tvm/driver/build_module.py>`_. The main job of InferBound is to create the bounds map, which specifies a Range for each IterVar in the program. These bounds are then passed to ScheduleOps, where they are used to set the extents of For loops, see `MakeLoopNest <https://github.com/apache/incubator-tvm/blob/master/src/te/operation/op_util.cc>`_, and to set the sizes of allocated buffers (`BuildRealize <https://github.com/apache/incubator-tvm/blob/master/src/te/operation/compute_op.cc>`_), among other uses.
+The InferBound pass is run after normalize, and before ScheduleOps `build_module.py <https://github.com/apache/incubator-tvm/blob/main/python/tvm/driver/build_module.py>`_. The main job of InferBound is to create the bounds map, which specifies a Range for each IterVar in the program. These bounds are then passed to ScheduleOps, where they are used to set the extents of For loops, see `MakeLoopNest <https://github.com/apache/incubator-tvm/blob/main/src/te/operation/op_util.cc>`_, and to set the sizes of allocated buffers (`BuildRealize <https://github.com/apache/incubator-tvm/blob/main/src/te/operation/compute_op.cc>`_), among other uses.
 
 The output of InferBound is a map from IterVar to Range:
 
@@ -53,9 +53,9 @@ Therefore, let's review the Range and IterVar classes:
    	};
    }
 
-Note that IterVarNode also contains a Range ``dom``. This ``dom`` may or may not have a meaningful value, depending on when the IterVar was created. For example, when ``tvm.compute`` is called, an `IterVar is created <https://github.com/apache/incubator-tvm/blob/master/src/te/operation/compute_op.cc>`_ for each axis and reduce axis, with dom's equal to the shape supplied in the call to ``tvm.compute``.
+Note that IterVarNode also contains a Range ``dom``. This ``dom`` may or may not have a meaningful value, depending on when the IterVar was created. For example, when ``tvm.compute`` is called, an `IterVar is created <https://github.com/apache/incubator-tvm/blob/main/src/te/operation/compute_op.cc>`_ for each axis and reduce axis, with dom's equal to the shape supplied in the call to ``tvm.compute``.
 
-On the other hand, when ``tvm.split`` is called, `IterVars are created <https://github.com/apache/incubator-tvm/blob/master/src/te/schedule/schedule_lang.cc>`_ for the inner and outer axes, but these IterVars are not given a meaningful ``dom`` value.
+On the other hand, when ``tvm.split`` is called, `IterVars are created <https://github.com/apache/incubator-tvm/blob/main/src/te/schedule/schedule_lang.cc>`_ for the inner and outer axes, but these IterVars are not given a meaningful ``dom`` value.
 
 In any case, the ``dom`` member of an IterVar is never modified during InferBound. However, keep in mind that the ``dom`` member of an IterVar is sometimes used as default value for the Ranges InferBound computes.
 
@@ -117,14 +117,14 @@ Tensors haven't been mentioned yet, but in the context of TVM, a Tensor represen
    	int value_index;
    };
 
-In the Operation class declaration above, we can see that each operation also has a list of InputTensors. Thus the stages of the schedule form a DAG, where each stage is a node in the graph. There is an edge in the graph from Stage A to Stage B, if the operation of Stage B has an input tensor whose source operation is the op of Stage A. Put simply, there is an edge from A to B, if B consumes a tensor produced by A. See the diagram below. This graph is created at the beginning of InferBound, by a call to `CreateReadGraph <https://github.com/apache/incubator-tvm/blob/master/src/te/schedule/bound.cc>`_.
+In the Operation class declaration above, we can see that each operation also has a list of InputTensors. Thus the stages of the schedule form a DAG, where each stage is a node in the graph. There is an edge in the graph from Stage A to Stage B, if the operation of Stage B has an input tensor whose source operation is the op of Stage A. Put simply, there is an edge from A to B, if B consumes a tensor produced by A. See the diagram below. This graph is created at the beginning of InferBound, by a call to `CreateReadGraph <https://github.com/apache/incubator-tvm/blob/main/src/te/schedule/bound.cc>`_.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/stage_graph.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/stage_graph.png
     :align: center
 
 InferBound makes one pass through the graph, visiting each stage exactly once. InferBound starts from the output stages (i.e., the solid blue nodes in the graph above), and moves upwards (in the opposite direction of the edges). This is achieved by performing a reverse topological sort on the nodes of the graph. Therefore, when InferBound visits a stage, each of its consumer stages has already been visited.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/inferbound_traversal.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/inferbound_traversal.png
     :align: center
 
 The InferBound pass is shown in the following pseudo-code:
@@ -161,7 +161,7 @@ The InferBound pass traverses the stage graph, as described above. However, with
 
 Recall that all IterVars of the stage are related by IterVarRelations. The IterVarRelations of a stage form a directed acyclic hyper-graph, where each node of the graph corresponds to an IterVar, and each hyper-edge corresponds to an IterVarRelation. We can also represent this hyper-graph as a DAG, which is simpler to visualize as shown below.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/relations.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/relations.png
     :align: center
 
 
@@ -206,7 +206,7 @@ This process can seem complicated. One reason is that a stage can have more than
 
 As mentioned above, a consumer may only require a small number of elements from each tensor. The consumers can be thought of as making requests to the stage, for certain regions of its output tensors. The job of Phases 1-3 is to establish the regions of each output tensor that are required by each consumer.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/inferbound_phases.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/inferbound_phases.png
     :align: center
 
 IntSets
@@ -320,13 +320,13 @@ A ComputeOp has only a single output Tensor, whose axes correspond to the axis v
    // i is the dimension
    rmap[axis[i]] = arith::Union(tmap[output][i]).cover_range(axis[i]->dom);
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/gatherbound.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/gatherbound.png
     :align: center
 
 
 The union of IntSets is computed by converting each IntSet to an Interval, and then taking the minimum of all minimums, and the maximum of all of these interval's maximums.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/union.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/union.png
     :align: center
 
 
@@ -335,7 +335,7 @@ This clearly results in some unnecessary computation, i.e., tensor elements will
 Unfortunately, even if we're lucky and the IntervalSet unions do not produce unnecessary computation, the fact that GatherBound considers each dimension of the tensor separately can also cause unnecessary computation. For example, in the diagram below the two consumers A and B require disjoint regions of the 2D tensor: consumer A requires T[0:2, 0:2], and consumer B requires T[2:4, 2:4]. GatherBound operates on each dimension of the tensor separately. For the first dimension of the tensor, GatherBound takes the union of intervals 0:2 and 2:4, producing 0:4 (note that no approximation was required here). Similarly for the second dimension of the tensor. Therefore, the dimension-wise union of these two requests is T[0:4, 0:4]. So GatherBound will cause all 16 elements of tensor T to be computed, even though only half of those elements will ever be used.
 
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/gatherbound_problem.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/gatherbound_problem.png
     :align: center
 
 .. _InferBoundCA:
@@ -691,7 +691,7 @@ Determining the amount of B that must be computed is the responsibility of Infer
 When InferRootBound is working on stage B, it visits B's consumer stage C to find out how much of B is requested by C. C has root_iter_vars ci and cj, which have been fused and then split. This results in the following :ref:`IterVarHyperGraph` for stage C.
 
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_problem.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/passupdomain_problem.png
     :align: center
 
 
@@ -750,16 +750,16 @@ This example shows that schedules containing a split of fused axes are difficult
 
 If the split factor is 4, or 8, in the above example, the region of B needed in each iteration of the outer loop is rectangular.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_div.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/passupdomain_div.png
     :align: center
 
 However, if the split factor is changed from 4 to 3 in the example above, it is easy to see that the region of B that C needs can no longer be described by an independent Range for each of its axes.
 
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_nodiv.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/passupdomain_nodiv.png
     :align: center
 
 The best that can be done with rectangular regions is shown in the following diagram. The orange regions are the minimum rectangular regions covering the region of B that needs to be computed, at each iteration of the outer loop.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_min.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/docs/inferbound/passupdomain_min.png
     :align: center

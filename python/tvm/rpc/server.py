@@ -131,7 +131,7 @@ def _parse_server_opt(opts):
 
 
 def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
-    """Listening loop of the server master."""
+    """Listening loop of the server."""
 
     def _accept_conn(listen_sock, tracker_conn, ping_period=2):
         """Accept connection from the other places.

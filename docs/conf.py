@@ -48,7 +48,7 @@ sys.path.insert(0, os.path.join(curr_path, "../vta/python"))
 project = "tvm"
 author = "Apache Software Foundation"
 copyright = "2020, %s" % author
-github_doc_root = "https://github.com/apache/incubator-tvm/tree/master/docs/"
+github_doc_root = "https://github.com/apache/incubator-tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
 # Version information.

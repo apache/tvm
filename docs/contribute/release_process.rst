@@ -59,7 +59,7 @@ After generating the gpg key, you need to upload your key to a public key server
 
 If you want to do the release on another machine, you can transfer your gpg key to that machine via the :code:`gpg --export` and :code:`gpg --import` commands.
 
-The last step is to update the KEYS file with your code signing key https://www.apache.org/dev/openpgp.html#export-public-key. Check in the changes to the TVM master branch, as well as ASF SVN,
+The last step is to update the KEYS file with your code signing key https://www.apache.org/dev/openpgp.html#export-public-key. Check in the changes to the TVM main branch, as well as ASF SVN,
 
 .. code-block:: bash
 
@@ -90,7 +90,7 @@ To cut a release candidate, one needs to first cut a branch using selected versi
 Go to the GitHub repositories "releases" tab and click "Draft a new release",
 
 - Provide the release tag in the form of “v1.0.0.rc0” where 0 means it’s the first release candidate
-- Select the commit by clicking Target: branch > Recent commits > $commit_hash 
+- Select the commit by clicking Target: branch > Recent commits > $commit_hash
 - Copy and paste release note draft into the description box
 - Select "This is a pre-release"
 - Click "Publish release"
@@ -115,7 +115,7 @@ Create source code artifacts,
 	rm -rf .DS_Store
 	find . -name ".git*" -print0 | xargs -0 rm -rf
 	cd ..
-	brew install gnu-tar 
+	brew install gnu-tar
 	gtar -czvf apache-tvm-src-v0.6.0.rc0-incubating.tar.gz apache-tvm-src-v0.6.0.rc0-incubating
 
 Use your GPG key to sign the created artifact. First make sure your GPG is set to use the correct private key,
@@ -147,7 +147,7 @@ The release manager also needs to upload the artifacts to ASF SVN,
 	cd svn-tvm
 	mkdir tvm-v0.6.0-rc0
 	# copy files into it
-	svn add tvm-0.6.0-rc0 
+	svn add tvm-0.6.0-rc0
 	svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m "Add RC"
 
 
