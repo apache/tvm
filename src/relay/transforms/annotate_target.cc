@@ -77,7 +77,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
         compiler_ends.push_back(call->args[0]);
       } else if (op_expr_to_target_.find(arg) != op_expr_to_target_.end()) {
         arg_target = op_expr_to_target_[arg];
-        compiler_ends.push_back(InsertAnnotation(arg, arg_target, make_end_op));
+        compiler_ends.push_back(InsertCompilerEndAndPropogateTarget(arg));
       } else {
         // Input vars.
         compiler_ends.push_back(arg);
@@ -136,7 +136,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
       CHECK(op_expr_to_target_.find(input_expr) != op_expr_to_target_.end());
       return InsertAnnotation(input_expr, op_expr_to_target_[input_expr], make_end_op);
     }
-
+    // Check prior to peeking first argument
     if (pre->args.size()) {
       // Peek the first argument. If it is compiler begin then this node had annotated by
       // another target before, so we also consider that target as a supported target.
