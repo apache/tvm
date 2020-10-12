@@ -45,7 +45,7 @@ except ImportError:
 import tvm.relay.testing.tf as tf_testing
 
 # Base location for model related files.
-repo_base = "https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/"
+repo_base = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/"
 
 # Test image
 img_name = "elephant-299.jpg"

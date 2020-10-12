@@ -57,7 +57,7 @@ mlmodel = cm.models.MLModel(model_path)
 # Load a test image
 # ------------------
 # A single cat dominates the examples!
-img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_path = download_testdata(img_url, "cat.png", module="data")
 img = Image.open(img_path).resize((224, 224))
 # Mobilenet.mlmodel's input is BGR format

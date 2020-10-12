@@ -322,7 +322,7 @@ def tune_and_evaluate(tuning_opt):
 #
 # If you have multiple devices, you can use all of them for measurement.
 # TVM uses the RPC Tracker to manage distributed devices.
-# The RPC Tracker is a centralized master node. We can register all devices to
+# The RPC Tracker is a centralized controller node. We can register all devices to
 # the tracker. For example, if we have 10 GPU cards, we can register all of them
 # to the tracker, and run 10 measurements in parallel, accelerating the tuning process.
 #

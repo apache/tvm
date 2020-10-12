@@ -2190,7 +2190,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Fix benchmark layout in graph tuner (#3926)
 * Fix Android Demo LLVM version (#3962)
 * Cast filepath arguments to string (#3968)
-* Fixes "common" sub crate using nightly and master (#3965)
+* Fixes "common" sub crate using nightly and main (#3965)
 * Changes to make tensorize work. These changes also fix the previously broken test. (#3981)
 * Remove FLOP computation when calling 3rd party library (#4005)
 * Use a more intuitive way to limit the #ops in a group (#4018)
@@ -2254,7 +2254,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 
 
 ### Depreciations
-* Deprecating python2 support in the master branch and following release (v0.6). (#2994, #2986)
+* Deprecating python2 support and following release (v0.6). (#2994, #2986)
 * NNVM is deprecated and will be removed in a future version. (#4333, #4368)
 
 

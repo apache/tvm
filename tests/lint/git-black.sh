@@ -32,7 +32,7 @@ if [[ "$#" -lt 1 ]]; then
     echo "Run black on Python files that changed since <commit>"
     echo "Examples:"
     echo "- Compare last one commit: tests/lint/git-black.sh HEAD~1"
-    echo "- Compare against upstream/master: tests/lint/git-black.sh upstream/master"
+    echo "- Compare against upstream/main: tests/lint/git-black.sh upstream/main"
     echo "The -i will use black to format files in-place instead of checking them."
     exit 1
 fi

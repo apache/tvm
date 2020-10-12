@@ -81,7 +81,7 @@ tedd.viz_dataflow_graph(s, dot_file_path="/tmp/dfg.dot")
 # tedd.viz_dataflow_graph(s, show_svg = True)
 
 ######################################################################
-# .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_dfg.png
+# .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/tedd_dfg.png
 #      :align: center
 #
 # The first one is a dataflow graph.  Every node represents a stage with name and memory
@@ -105,7 +105,7 @@ tedd.viz_schedule_tree(s, dot_file_path="/tmp/scheduletree2.dot")
 # tedd.viz_schedule_tree(s, show_svg = True)
 
 ######################################################################
-# .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_st.png
+# .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/tedd_st.png
 #      :align: center
 #
 # Now, let us take a close look at the second schedule tree.  Every block under ROOT
@@ -138,7 +138,7 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path="/tmp/itervar.dot")
 # tedd.viz_itervar_relationship_graph(s, show_svg = True)
 
 ######################################################################
-# .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_itervar_rel.png
+# .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/tedd_itervar_rel.png
 #      :align: center
 #
 # The last one is an IterVar Relationship Graph.  Every subgraph represents a
