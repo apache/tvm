@@ -77,7 +77,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
         compiler_ends.push_back(call->args[0]);
       } else if (op_expr_to_target_.find(arg) != op_expr_to_target_.end()) {
         arg_target = op_expr_to_target_[arg];
-        compiler_ends.push_back(InsertCompilerEndAndPropogateTarget(arg));
+        compiler_ends.push_back(InsertAnnotation(arg, arg_target, make_end_op));
       } else {
         // Input vars.
         compiler_ends.push_back(arg);
