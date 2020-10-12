@@ -138,8 +138,8 @@ class AnnotateTargetRewriter : public ExprRewriter {
     }
 
     if (pre->args.size()) {
-        // Peek the first argument. If it is compiler begin then this node had annotated by
-        // another target before, so we also consider that target as a supported target.
+      // Peek the first argument. If it is compiler begin then this node had annotated by
+      // another target before, so we also consider that target as a supported target.
       const CallNode* first_arg_call = pre->args[0].as<CallNode>();
       if (first_arg_call && first_arg_call->op == CompilerBeginOp()) {
         std::string arg_target = first_arg_call->attrs.as<CompilerAttrs>()->compiler;
@@ -244,8 +244,8 @@ class AnnotateTargetRewriter : public ExprRewriter {
     Expr new_expr;
     std::pair<std::string, Array<Expr>> target_n_args;
     Expr new_body = InsertCompilerEndAndPropogateTarget(let->body);
-    bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
-    if (is_functional_literal) {
+    // Do not annotate function literal with let binding.
+    if (let->value->IsInstance<FunctionNode>()) {
       new_expr = Let(let->var, let->value, new_body);
     } else {
       target_n_args = AnnotateArgs({let->value});
