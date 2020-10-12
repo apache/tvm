@@ -331,7 +331,11 @@ SketchGenerationRule::ConditionKind RuleCrossThreadReduction::MeetCondition(
         GetCumulativeSpaceAndReductionLength(state->stages[stage_id]);
 
     if (NeedsMultilevelTiling(policy.search_task, state, stage_id)) {
-      // Do rfactor if we do not have enough parallelism on space iters
+      // Avoid rfactor if we have enough parallelism on space iters
+      if (cum_space_len > policy.search_task->hardware_params->max_threads_per_block) {
+        return ConditionKind::kSkip;
+      }
+
       return cum_space_len < cum_reduce_len ? ConditionKind::kApply : ConditionKind::kSkip;
     } else if (cum_reduce_len > 1) {
       // Try rfactor for other reduction operators
