@@ -56,6 +56,21 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(double double_multiplie
   return std::make_pair(significand, exponent);
 }
 
+Expr PowerOfTwoMultiply(Expr tensor, int32_t exp) {
+  Expr out;
+  if (exp > 0) {
+    // power of 2 is greater than 0, apply left shift.
+    out = LeftShift(tensor, MakeConstantScalar(DataType::Int(32), exp));
+  } else {
+    // power of 2 is less than 0, round and then apply right shift.
+    exp = -exp;
+    auto rounding_factor = 1 << (exp - 1);
+    auto rounded_t = Add(tensor, MakeConstantScalar(DataType::Int(32), rounding_factor));
+    out = RightShift(rounded_t, MakeConstantScalar(DataType::Int(32), exp));
+  }
+  return out;
+}
+
 Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
                                  const Array<IndexExpr>& input_shape) {
   // Choose high precision datatype to be int64. This is for avoiding overflow

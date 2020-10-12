@@ -155,17 +155,20 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     if (!IsEqualScalar(input_scale, output_scale)) {
       int32_t fixed_point_multiplier, shift;
       std::tie(fixed_point_multiplier, shift) = GetFixedPointMultiplierShift(double_multiplier);
-
       const bool is_upward_rounding = (param->rounding == "UPWARD");
 
-      // When using upward rounding (i.e., x.5 rounded to x+1), leverage
-      // the FixedPointMultiply operator
-      scaled_int32_t =
-          (is_upward_rounding
-               ? FixedPointMultiply(scaled_int32_t, fixed_point_multiplier, shift)
-               : FixedPointMultiplyToNearest(scaled_int32_t, double_multiplier, input_shape));
+      if (is_upward_rounding && fixed_point_multiplier == (1 << 30)) {
+        // Power of 2
+        scaled_int32_t = PowerOfTwoMultiply(scaled_int32_t, shift - 1);
+      } else {
+        // When using upward rounding (i.e., x.5 rounded to x+1), leverage
+        // the FixedPointMultiply operator
+        scaled_int32_t =
+            (is_upward_rounding
+                 ? FixedPointMultiply(scaled_int32_t, fixed_point_multiplier, shift)
+                 : FixedPointMultiplyToNearest(scaled_int32_t, double_multiplier, input_shape));
+      }
     }
-
   } else {
     // This is per-channel (per=axis) quantization.
     std::vector<double> double_multipliers;
