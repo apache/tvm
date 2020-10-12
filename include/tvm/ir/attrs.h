@@ -336,7 +336,10 @@ struct AttrInitEntry {
   // internal value.
   T* value_;
   // whether the value is missing.
-  bool value_missing_{true};
+  // NOTE: initialize to false so that the destructor does not throw unless
+  // AttrInitVisitor::operator() is committed to returning an instance of this class.
+  // It is expected not to set this to true until that is true.
+  bool value_missing_{false};
 
   AttrInitEntry() = default;
 
