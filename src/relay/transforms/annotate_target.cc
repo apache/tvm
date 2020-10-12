@@ -109,6 +109,16 @@ class AnnotateTargetRewriter : public ExprRewriter {
   }
 
   Expr InsertCompilerEndAndPropogateTarget(const Expr& expr) {
+    /*!
+     * \brief This function inserts compiler end to expr and maps the corresponding target to the
+     * new expression.
+     *
+     *  This function checks for expr existence within the map and inserts the annotation
+     *  Further, it propagates the target to the new expression and returns it
+     *
+     * \param expr A relay expression
+     * \return An annotated and target-propagated relay expression.
+     */
     Expr new_expr = expr;
     if (op_expr_to_target_.find(expr) != op_expr_to_target_.end()) {
       new_expr = InsertAnnotation(expr, op_expr_to_target_[expr], make_end_op);
