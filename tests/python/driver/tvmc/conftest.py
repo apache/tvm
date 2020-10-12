@@ -138,11 +138,7 @@ def imagenet_cat(tmpdir_factory):
     tmpdir_name = tmpdir_factory.mktemp("data")
     cat_file_name = "imagenet_cat.npz"
 
-<<<<<<< HEAD
     cat_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
-=======
-    cat_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
->>>>>>> [tvmc] Introduce 'run' subcommand (part 4/4) (#6578)
     image_path = download_testdata(cat_url, "inputs", module=["tvmc"])
     resized_image = Image.open(image_path).resize((224, 224))
     image_data = np.asarray(resized_image).astype("float32")
@@ -152,3 +148,4 @@ def imagenet_cat(tmpdir_factory):
     np.savez(cat_file_full_path, input=image_data)
 
     return cat_file_full_path
+    
