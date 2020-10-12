@@ -617,6 +617,20 @@ class ConstantOfShapeOnes(ConstantOfShapeZeros):
         return {"value": 1}
 
 
+class LRN(OpConverter):
+    """ Operator converter for LRN.
+    """
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {
+            'alpha': attrs.alpha,
+            'beta': attrs.beta,
+            'bias': attrs.bias,
+            'size': attrs.size
+            #axis?
+        }
+
 relay_to_onnx_op_mapping = {
     "reshape": Reshape,
     "nn.conv2d": Conv,
@@ -650,6 +664,7 @@ relay_to_onnx_op_mapping = {
     "layout_transform": LayoutTransform,
     "clip": Clip,
     "expand_dims": Expand,
+    'nn.lrn': LRN,
 }
 
 
