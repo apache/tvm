@@ -128,9 +128,9 @@ class AnnotateTargetRewriter : public ExprRewriter {
       return InsertAnnotation(input_expr, op_expr_to_target_[input_expr], make_end_op);
     }
 
-    // Peek the first argument. If it is compiler begin then this node had annotated by
-    // another target before, so we also consider that target as a supported target.
     if (pre->args.size()) {
+        // Peek the first argument. If it is compiler begin then this node had annotated by
+        // another target before, so we also consider that target as a supported target.
       const CallNode* first_arg_call = pre->args[0].as<CallNode>();
       if (first_arg_call && first_arg_call->op == CompilerBeginOp()) {
         std::string arg_target = first_arg_call->attrs.as<CompilerAttrs>()->compiler;
