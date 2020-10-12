@@ -146,7 +146,11 @@ def _argx(func, func_name):
             raise TypeError(
                 "Unsupported argument for `{}` : `axis` should be a constant".format(func_name)
             )
-        return func(inputs[0], axis=axis_input_value, keepdims=False)
+        out = func(inputs[0], axis=axis_input_value, keepdims=False)
+        dtype = attr["output_type"].name
+        if dtype != "int32":
+            out = _op.cast(out, dtype=dtype)
+        return out
 
     return _impl
 
