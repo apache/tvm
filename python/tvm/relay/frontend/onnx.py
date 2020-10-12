@@ -2055,8 +2055,11 @@ class Loop(OnnxOpConverter):
                 return out_loop
             return out_while
 
-        # Get the current graph proto
+        # Get the current graph proto and create a clone for the subgraph
         graph_scope = GraphProto.current
+        subgraph_scope = GraphProto(graph_scope._shape, graph_scope._dtype)
+        # Load nodes from outer graph into inner graph.
+        subgraph_scope._nodes = graph_scope._nodes.copy()
 
         # Create a list of variables for each value updated in the loop.
         def get_var(name, val, scan=False):
@@ -2105,10 +2108,11 @@ class Loop(OnnxOpConverter):
             # Prepare body inputs by adding them to node dictionary.
             new_inputs = [loop_count, max_count, cond] + current_vars
             for i, inp in enumerate(new_inputs):
-                graph_scope._nodes[loop_var_names[i]] = inp
+                subgraph_scope._nodes[loop_var_names[i]] = inp
 
             # Get the output of the current loop using the updated inputs.
-            loop_outputs = graph_scope.from_onnx(body, 11, get_output_expr=True)
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(body, 11, get_output_expr=True)
             # Unpack the body outputs and prepare variables for next iteration.
             new_cond = loop_outputs[0]
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
@@ -2134,12 +2138,14 @@ class Loop(OnnxOpConverter):
         # Now need to run initial values through the graph.
         # make empty constant with zero rank.
         init_count = _expr.const(0, dtype=iter_dtype)
-        let_var = _expr.var("var_cast_shape", shape=(tvm.tir.Any(), 1))
-        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, let_var)
-        tupled_result = _expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)])
-        empty_tensor = _op.reshape(_expr.const([]), [0, 1])
-        tupled_result = _expr.Let(let_var, empty_tensor, tupled_result)
-        outputs = _expr.TupleWrapper(tupled_result, num_deps + num_scan_outputs)
+        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, _op.reshape(_expr.const(0, dtype='float32'), [1, 1]))
+        outputs = _expr.TupleWrapper(_expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)]), num_deps + num_scan_outputs)
+
+        # Update outer graph with constants found in the subgraph.
+        free_vars = analysis.free_vars(loop)
+        graph_scope._params.update(subgraph_scope._params)
+        for var in free_vars:
+            graph_scope._nodes.update({var.name_hint: var})
         return outputs
 
 # compatible operators that do NOT require any conversion.
