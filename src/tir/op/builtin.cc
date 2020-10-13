@@ -42,6 +42,10 @@ TIR_DEFINE_BUILTIN_FUNC(reinterpret)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_num_inputs(1);
 
+TIR_DEFINE_BUILTIN_FUNC(myreturn)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_num_inputs(1);
+
 TIR_DEFINE_BUILTIN_FUNC(likely)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kExprAnnotation))
