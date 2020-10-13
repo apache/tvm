@@ -1601,16 +1601,16 @@ def _test_argx(func, data, **kwargs):
 
     with tf.Graph().as_default():
         inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
-        func(inp, name="argx0", output_type=tf.int32, **kwargs)
-
+        func(inp, name="argx0", **kwargs)
         compare_tf_with_tvm(data, "c0:0", "argx0:0")
 
 
 def test_forward_argminmax():
-    for axis in [None, 0, 1, 2]:
-        data = np.random.uniform(size=(8, 4, 9)).astype("float32")
-        _test_argx(tf.argmax, data=data, axis=axis)
-        _test_argx(tf.argmin, data=data, axis=axis)
+    for output_type in [tf.int64, tf.int32]:
+        for axis in [None, 0, 1, 2]:
+            data = np.random.uniform(size=(8, 4, 9)).astype("float32")
+            _test_argx(tf.argmax, data=data, axis=axis, output_type=output_type)
+            _test_argx(tf.argmin, data=data, axis=axis, output_type=output_type)
 
 
 #######################################################################
