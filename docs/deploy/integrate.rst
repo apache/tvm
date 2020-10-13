@@ -43,7 +43,8 @@ The only thing we have to do in C++ is to convert your array to DLTensor and pas
 ``DLTensor*`` to the generated function.
 
 
-## Integrate User Defined Python Array
+Integrate User Defined Python Array
+-----------------------------------
 
 Assume you have a python object ``MyArray``. There are three things that you need to do
 
@@ -64,6 +65,6 @@ Assume you have a python object ``MyArray``. There are three things that you nee
            dltensor_addr = self.get_dltensor_addr()
            return dltensor_addr
 
-       # You can put registration step in a separate file mypkg.tvm.py
-       # and only optionally import that if you only want optional dependency.
-  tvm.register_extension(MyArray)
+   # You can put registration step in a separate file mypkg.tvm.py
+   # and only optionally import that if you only want optional dependency.
+   tvm.register_extension(MyArray)
