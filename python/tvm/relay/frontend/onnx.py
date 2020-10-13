@@ -535,16 +535,14 @@ class MatMul(OnnxOpConverter):
             output = _op.nn.batch_matmul(a, b)
             # Determine the output batch dimension.
             if a_rank >= b_rank:
-                out_batch = _op.strided_slice(a_shape, [0], [1])
-                a_start = [1]
+                out_batch = _op.strided_slice(a_shape, [0], [infer_shape(a_shape)[0] - 2])
             else:
-                out_batch = _op.strided_slice(b_shape, [0], [1])
-                a_start = [0]
+                out_batch = _op.strided_slice(b_shape, [0], [infer_shape(b_shape)[0] - 2])
             # Reshape output to original dimensions.
             final_shape = _op.concatenate(
                 [
                     out_batch,
-                    _op.strided_slice(a_shape, a_start, [infer_shape(a_shape)[0] - 1]),
+                    _op.strided_slice(a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]),
                     _op.strided_slice(
                         b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
                     ),
