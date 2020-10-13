@@ -6,7 +6,7 @@ class SchemaExpr(object):
 class ObjectDef(SchemaExpr):
     def __init__(self, name, type_key, base, fields=[],
                  fvisit_attrs=False, fsequal_reduce=False,
-                 fshash_reduce=False):
+                 fshash_reduce=False, comment=None):
         self.name = name
         self.type_key = type_key
         self.base = base
@@ -14,6 +14,7 @@ class ObjectDef(SchemaExpr):
         self.fvisit_attrs = fvisit_attrs
         self.fsequal_reduce = fsequal_reduce
         self.fshash_reduce = fshash_reduce
+        self.comment = comment
 
 
 class ObjectRefDef(SchemaExpr):

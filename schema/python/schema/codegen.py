@@ -46,6 +46,53 @@ class AttrsCollector(ExprFunctor):
 
 
 class CodeGenCPP(ExprFunctor):
+    def generate_class_comment(self, obj):
+        root = obj.comment['Root']
+        print(obj.comment.keys())
+        root[0] = '\\brief ' + root[0].strip()
+        ret = ['/*!']
+        for line in root:
+            ret.append(' * ' + line.strip())
+
+        # for see also
+        if 'See Also' in obj.comment:
+            ret.append(' * ')
+            sa = obj.comment['See Also']
+            sa[0] = '\\sa ' + sa[0].strip()
+            for line in sa:
+                ret.append(' * ' + line.strip())
+
+        ret.append(' */\n')
+        return '\n'.join(ret)
+
+    def generate_fields_comment(self, obj):
+        if 'Attributes' not in obj.comment:
+            return ''
+        field_keys = [field.name for field in obj.fields]
+        lines = obj.comment['Attributes']
+        delimiter = []
+        for lnum, line in enumerate(lines):
+            if line.strip() in field_keys:
+                delimiter.append(lnum)
+        delimiter.append(len(lines))
+        ret = {}
+        for idx in range(len(delimiter) - 1):
+            key = lines[delimiter[idx]].strip()
+            begin_lnum = delimiter[idx] + 1
+            end_lnum = delimiter[idx + 1]
+            if begin_lnum + 1 == end_lnum:
+                # single line comment 
+                ret[key] = '/*! \\brief ' + lines[begin_lnum].strip() + ' */'
+            else:
+                # multiple lines comment 
+                ret_lines = ['/*!']
+                ret_lines.append('   * \\brief ' + lines[begin_lnum].strip())
+                for line in lines[begin_lnum+1:end_lnum]:
+                    ret_lines.append('   * ' + line.strip())
+                ret_lines.append('   */')
+                ret[key] = '\n'.join(ret_lines)
+        return ret
+
     def generate_fvisit_attrs(self, obj, fields):
         if not obj.fvisit_attrs or len(fields) == 0:
             return ""
@@ -93,6 +140,7 @@ class CodeGenCPP(ExprFunctor):
 
     def visit_object_def(self, obj):
         template = \
+        "{comment}" \
         "class {name} : public {base_name} {{\n" \
         " public:" \
         "{fields}" \
@@ -103,9 +151,12 @@ class CodeGenCPP(ExprFunctor):
         "  static constexpr const char* _type_key = \"{type_key}\";\n" \
         "  TVM_DECLARE_BASE_OBJECT_INFO({name}, {base_name});\n" \
         "}};"
+        comment = self.generate_class_comment(obj)
+        fields_comment = self.generate_fields_comment(obj) 
         base_name = obj.base.name
         fields = [""]
         for field in obj.fields:
+            fields.append(fields_comment[field.name])
             fields.append(self.visit(field))
         fields = "\n  ".join(fields)
 
@@ -115,7 +166,8 @@ class CodeGenCPP(ExprFunctor):
         fsequal_reduce = self.generate_fsequal_reduce(obj, collector.fields)
         fshash_reduce = self.generate_fshash_reduce(obj, collector.fields)
 
-        src = template.format(name=obj.name,
+        src = template.format(comment=comment,
+                              name=obj.name,
                               base_name=base_name,
                               fields=fields,
                               fvisit_fields=fvisit_fields,
@@ -124,15 +176,28 @@ class CodeGenCPP(ExprFunctor):
                               type_key=obj.type_key)
         return src
 
+    def generate_object_ref_comment(self, objref):
+        obj_name = objref.internal.name
+        ret = []
+        ret.append('/*!')
+        ret.append(' * \\brief Managed reference to {}'.format(obj_name))
+        ret.append(' *')
+        ret.append(' * \\sa {}'.format(obj_name))
+        ret.append(' */\n')
+        return '\n'.join(ret)
+
     def visit_object_ref_def(self, objref):
         template = \
+        "{comment}" \
         "class {name} : public {base_name} {{\n" \
         " public:\n" \
         "  TVM_DEFINE_OBJECT_REF_METHODS({name}, {base_name}, {obj_name});\n" \
         "}};"
+        comment = self.generate_object_ref_comment(objref)
         base_name = objref.base.name
         obj_name = objref.internal.name
-        src = template.format(name=objref.name,
+        src = template.format(comment=comment,
+                              name=objref.name,
                               base_name=base_name,
                               obj_name=obj_name)
         return src

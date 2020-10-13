@@ -1,6 +1,15 @@
 // tschema: GlobalVarNode
+/*!
+ * \brief \brief Global variable that lives in the top-level module.
+ *
+ * A GlobalVar only refers to function definitions.
+ * This is used to enable recursive calls between function.
+ *
+ * \sa \sa GlobalVarNode
+ */
 class GlobalVarNode : public RelayExprNode {
  public:
+  /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("span", &span);
@@ -22,8 +31,14 @@ class GlobalVarNode : public RelayExprNode {
 // tschema: end
 
 // tschema: IntImmNode
+/*!
+ * \brief \brief Constant integer literals in the program.
+ *
+ * \sa \sa IntImm
+ */
 class IntImmNode : public PrimExprNode {
  public:
+  /*! \brief The internal value. */
   int64_t value;
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -42,6 +57,11 @@ class IntImmNode : public PrimExprNode {
 // tschema: end
 
 // tschema: IntImm
+/*!
+ * \brief Managed reference to IntImmNode
+ *
+ * \sa IntImmNode
+ */
 class IntImm : public PrimExpr {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
