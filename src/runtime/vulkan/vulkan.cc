@@ -498,17 +498,13 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     uint32_t queue_family_index = queue_family_indexes[0];
     float priority = 1.0f;
 
-    std::vector<VkDeviceQueueCreateInfo> queue_create_info;
-    for (const auto& index : queue_family_indexes) {
-      struct VkDeviceQueueCreateInfo info {};
-      info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-      info.pNext = nullptr;
-      info.flags = 0;
-      info.queueFamilyIndex = index;
-      info.queueCount = 1;
-      info.pQueuePriorities = &priority;
-      queue_create_info.push_back(info);
-    }
+    struct VkDeviceQueueCreateInfo queue_create_info;
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.pNext = nullptr;
+    queue_create_info.flags = 0;
+    queue_create_info.queueFamilyIndex = queue_family_index;
+    queue_create_info.queueCount = 1;
+    queue_create_info.pQueuePriorities = &priority;
 
     VulkanContext ctx;
     // setup context
@@ -546,8 +542,8 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_create_info.pNext = nullptr;
     device_create_info.flags = 0;
-    device_create_info.queueCreateInfoCount = queue_create_info.size();
-    device_create_info.pQueueCreateInfos = queue_create_info.data();
+    device_create_info.queueCreateInfoCount = 1;
+    device_create_info.pQueueCreateInfos = &queue_create_info;
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = nullptr;
     device_create_info.enabledExtensionCount = extensions.size();
