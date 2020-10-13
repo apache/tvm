@@ -54,7 +54,7 @@ with open(os.path.join(target_dir,"deploy_param.params"), "wb") as fo:
 
 Now, we need to input the artifacts to create and run the *Graph Runtime* to detect our input cat image
 
-![cat](https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true)
+![cat](https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true)
 
 as demostrated in the following Rust snippet
 

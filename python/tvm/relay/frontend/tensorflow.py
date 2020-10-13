@@ -146,7 +146,11 @@ def _argx(func, func_name):
             raise TypeError(
                 "Unsupported argument for `{}` : `axis` should be a constant".format(func_name)
             )
-        return func(inputs[0], axis=axis_input_value, keepdims=False)
+        out = func(inputs[0], axis=axis_input_value, keepdims=False)
+        dtype = attr["output_type"].name
+        if dtype != "int32":
+            out = _op.cast(out, dtype=dtype)
+        return out
 
     return _impl
 
@@ -303,7 +307,12 @@ def _conv(opname):
             )
             attr["data_format"] = "NCHW"
 
-            if opname == "conv_transpose" and len(attr["_output_shapes"]) > 0:
+            # Check whether output shapes attribute is set and not None
+            if (
+                opname == "conv_transpose"
+                and len(attr["_output_shapes"]) > 0
+                and attr["_output_shapes"][0]
+            ):
                 tmp_shape = attr["_output_shapes"][0]
                 tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
                 attr["_output_shapes"][0] = tmp_shape
@@ -386,7 +395,12 @@ def _conv(opname):
             kernel_h, kernel_w = attr["kernel_shape"]
 
             pdata_shape = input_shape
-            if opname == "conv_transpose" and len(attr["_output_shapes"]) > 0:
+            # Check whether output shapes attribute is set and not None
+            if (
+                opname == "conv_transpose"
+                and len(attr["_output_shapes"]) > 0
+                and attr["_output_shapes"][0]
+            ):
                 pdata_shape = attr["_output_shapes"][0]
 
             if attr["data_format"] == "NHWC":

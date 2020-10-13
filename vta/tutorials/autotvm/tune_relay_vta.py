@@ -119,7 +119,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # measure the speed of code on the board.
 #
 # To scale up tuning, TVM uses an RPC Tracker to manage multiple devices.
-# The RPC Tracker is a centralized master node. We can register all devices to
+# The RPC Tracker is a centralized controller node. We can register all devices to
 # the tracker. For example, if we have 10 Pynq boards, we can register all of them
 # to the tracker, and run 10 measurements in parallel, accelerating the tuning process.
 #

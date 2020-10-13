@@ -36,7 +36,7 @@ C++ Code Styles
 
 We use `clang-format` to enforce the code style. Because different version
 of clang-format might change by its version, it is recommended to use the same
-version of the clang-format as the master.
+version of the clang-format as the main one.
 You can also use the following command via docker.
 
 .. code:: bash

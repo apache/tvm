@@ -32,7 +32,7 @@ if [[ "$#" -lt 1 ]]; then
     echo "Run clang-format on files that changed since <commit>"
     echo "Examples:"
     echo "- Compare last one commit: tests/lint/git-clang-format.sh HEAD~1"
-    echo "- Compare against upstream/master: tests/lint/git-clang-format.sh upstream/master"
+    echo "- Compare against upstream/main: tests/lint/git-clang-format.sh upstream/main"
     echo "You can also add -i option to do inplace format"
     exit 1
 fi

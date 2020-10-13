@@ -223,7 +223,7 @@ def get_workload(model_path, model_sub_path=None, inputs_dict=None, output=None)
     if model_sub_path:
         path_model = get_workload_official(model_path, model_sub_path)
     else:
-        repo_base = "https://github.com/dmlc/web-data/raw/master/tensorflow/models/"
+        repo_base = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/"
         model_url = os.path.join(repo_base, model_path)
         path_model = download_testdata(model_url, model_path, module="tf")
 

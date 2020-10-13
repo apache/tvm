@@ -70,7 +70,7 @@ scripted_model = torch.jit.trace(model, input_data).eval()
 # Classic cat example!
 from PIL import Image
 
-img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_path = download_testdata(img_url, "cat.png", module="data")
 img = Image.open(img_path).resize((224, 224))
 
