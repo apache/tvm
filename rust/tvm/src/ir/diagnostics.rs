@@ -24,7 +24,7 @@
 
 use tvm_macros::{Object, external};
 use super::module::IRModule;
-use crate::runtime::{function::{self, Function, ToFunction, Typed}, array::Array, string::String as TString};
+use crate::runtime::{function::{self, Function, ToFunction}, array::Array, string::String as TString};
 use crate::runtime::object::{Object, ObjectPtr, ObjectRef};
 use crate::runtime::function::Result;
 use super::span::Span;
@@ -121,42 +121,19 @@ pub struct DiagnosticBuilder {
 //    * of compiler diagnostics to std::out and std::err in
 //    * a human readable form.
 //    */
-//   class DiagnosticRendererNode : public Object {
-//    public:
-//     TypedPackedFunc<void(DiagnosticContext ctx)> renderer;
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "DiagnosticRenderer"]
+#[type_key = "DiagnosticRenderer"]
+/// A diagnostic renderer, which given a diagnostic context produces a "rendered"
+/// form of the diagnostics for either human or computer consumption.
+pub struct DiagnosticRendererNode {
+    /// The base type.
+    pub base: Object,
+    // TODO(@jroesch): we can't easily exposed packed functions due to
+    // memory layout
+}
 
-//     // override attr visitor
-//     void VisitAttrs(AttrVisitor* v) {}
-
-//     static constexpr const char* _type_key = "DiagnosticRenderer";
-//     TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticRendererNode, Object);
-//   };
-
-//   class DiagnosticRenderer : public ObjectRef {
-//    public:
-//     TVM_DLL DiagnosticRenderer(TypedPackedFunc<void(DiagnosticContext ctx)> render);
-//     TVM_DLL DiagnosticRenderer()
-//         : DiagnosticRenderer(TypedPackedFunc<void(DiagnosticContext ctx)>()) {}
-
-//     void Render(const DiagnosticContext& ctx);
-
-//     DiagnosticRendererNode* operator->() {
-//       CHECK(get() != nullptr);
-//       return static_cast<DiagnosticRendererNode*>(get_mutable());
-//     }
-
-//     TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DiagnosticRenderer, ObjectRef, DiagnosticRendererNode);
-//   };
-
-// @tvm._ffi.register_object("DiagnosticRenderer")
-// class DiagnosticRenderer(Object):
-//     """
-//     A diagnostic renderer, which given a diagnostic context produces a "rendered"
-//     form of the diagnostics for either human or computer consumption.
-//     """
-
-//     def __init__(self, render_func):
-//         self.__init_handle_by_constructor__(_ffi_api.DiagnosticRenderer, render_func)
 
 //     def render(self, ctx):
 //         """
@@ -168,7 +145,6 @@ pub struct DiagnosticBuilder {
 //             The diagnostic context to render.
 //         """
 //         return _ffi_api.DiagnosticRendererRender(self, ctx
-pub type DiagnosticRenderer = ObjectRef;
 
 #[repr(C)]
 #[derive(Object)]
@@ -227,8 +203,7 @@ impl DiagnosticContext {
     }
 }
 
-// Sets a custom renderer for diagnostics.
-
+// Override the global diagnostics renderer.
 // Params
 // ------
 // render_func: Option[Callable[[DiagnosticContext], None]]
@@ -263,6 +238,27 @@ pub mod codespan {
     use codespan_reporting::files::SimpleFiles;
     use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
+    enum StartOrEnd {
+        Start,
+        End,
+    }
+
+    struct SpanToBytes {
+        inner: HashMap<std::String, HashMap<usize, (StartOrEnd,
+    }
+
+    struct ByteRange<FileId> {
+        file_id: FileId,
+        start_pos: usize,
+        end_pos: usize,
+    }
+
+    // impl SpanToBytes {
+    //     fn to_byte_pos(&self, span: tvm::ir::Span) -> ByteRange<FileId> {
+
+    //     }
+    // }
+
     pub fn to_diagnostic(diag: super::Diagnostic) -> CDiagnostic<String> {
         let severity = match diag.level {
             DiagnosticLevel::Error => Severity::Error,
@@ -290,9 +286,9 @@ pub mod codespan {
         let mut files: SimpleFiles<String, String> = SimpleFiles::new();
         let render_fn = move |diag_ctx: DiagnosticContext| {
             // let source_map = diag_ctx.module.source_map;
-            for diagnostic in diag_ctx.diagnostics {
+            // for diagnostic in diag_ctx.diagnostics {
 
-            }
+            // }
             panic!("render_fn");
         };
 
