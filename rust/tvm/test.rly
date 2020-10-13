@@ -1,0 +1,2 @@
+#[version = "0.0.5"]
+fn @main(%x: int32) -> float32 { %x }

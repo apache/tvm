@@ -1,0 +1,13 @@
+[package]
+name = "compiler-ext"
+version = "0.1.0"
+authors = ["Jared Roesch <jroesch@octoml.ai>"]
+edition = "2018"
+# TODO(@jroesch): would be cool to figure out how to statically link instead.
+
+[lib]
+crate-type = ["cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

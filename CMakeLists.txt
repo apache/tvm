@@ -79,6 +79,7 @@ tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
 tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
+tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
