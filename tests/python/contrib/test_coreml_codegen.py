@@ -76,12 +76,14 @@ def _create_graph_annotated():
     func2 = func2.with_attr("global_symbol", target + "_2")
     gv2 = relay.GlobalVar(target + "_2")
     mod[gv2] = func2
+    mod = relay.transform.InferType()(mod)
 
     # body
     x = relay.var("x", shape=shape)
     y = relay.var("y", shape=shape)
     func = relay.Function([x, y], gv0(y) - gv2(x))
     mod["main"] = func
+    mod = relay.transform.InferType()(mod)
 
     return mod
 
