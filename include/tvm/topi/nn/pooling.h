@@ -75,8 +75,8 @@ inline Tensor pool_impl(const Tensor& x, const Array<PrimExpr>& kernel_size,
   auto stride_height = cast(DataType::DataType::Int(32), stride_size[0]);
   auto stride_width = cast(DataType::DataType::Int(32), stride_size[1]);
 
-  auto height = x->shape[height_axis];
-  auto width = x->shape[width_axis];
+  auto height = cast(DataType::DataType::Int(32), x->shape[height_axis]);
+  auto width = cast(DataType::DataType::Int(32), x->shape[width_axis]);
 
   auto pad_top = cast(DataType::DataType::Int(32), padding_size[0]);
   auto pad_left = cast(DataType::DataType::Int(32), padding_size[1]);
@@ -107,6 +107,9 @@ inline Tensor pool_impl(const Tensor& x, const Array<PrimExpr>& kernel_size,
   auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width));
 
   Array<PrimExpr> out_shape = x->shape;
+  for (size_t i = 0; i < out_shape.size(); ++i) {
+    out_shape.Set(i, cast(DataType::DataType::Int(32), out_shape[i]));
+  }
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
@@ -189,8 +192,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   auto stride_height = cast(DataType::DataType::Int(32), stride_size[0]);
   auto stride_width = cast(DataType::DataType::Int(32), stride_size[1]);
 
-  auto height = x->shape[height_axis];
-  auto width = x->shape[width_axis];
+  auto height = cast(DataType::DataType::Int(32), x->shape[height_axis]);
+  auto width = cast(DataType::DataType::Int(32), x->shape[width_axis]);
 
   auto pad_top = cast(DataType::DataType::Int(32), padding_size[0]);
   auto pad_left = cast(DataType::DataType::Int(32), padding_size[1]);
@@ -220,7 +223,12 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   auto dheight = tvm::te::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width));
 
-  Array<PrimExpr> out_shape = x->shape;
+  Array<PrimExpr> data_shape = x->shape;
+  for (size_t i = 0; i < data_shape.size(); ++i) {
+    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
+  }
+
+  Array<PrimExpr> out_shape = data_shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
@@ -232,7 +240,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
                       ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
 
   if (pool_type == kMaxPool) {
-    Array<PrimExpr> ravel_shape{x->shape.begin(), x->shape.end()};
+    Array<PrimExpr> ravel_shape{data_shape.begin(), data_shape.end()};
     ravel_shape.Set(height_axis, ravel_shape[height_axis] + pad_top + pad_bottom);
     ravel_shape.Set(width_axis, ravel_shape[width_axis] + pad_left + pad_right);
 
@@ -257,7 +265,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     auto mp_inds = mp_argmax[0];
 
     return tvm::te::compute(
-        x->shape,
+        data_shape,
         [&](const Array<Var>& inds) {
           Array<PrimExpr> pad_inds{inds.begin(), inds.end()};
           pad_inds.Set(height_axis, pad_inds[height_axis] + pad_top);
@@ -288,7 +296,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
         tvm::te::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height));
     auto windoww = tvm::te::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
     return tvm::te::compute(
-        x->shape,
+        data_shape,
         [&](const Array<Var>& inds) {
           PrimExpr pad_h_idx = inds[height_axis] + pad_top;
           PrimExpr pad_w_idx = inds[width_axis] + pad_left;
@@ -483,10 +491,14 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
   const auto n_dim = output_size.size();
   CHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
 
-  Array<PrimExpr> out_shape = x->shape;
+  Array<PrimExpr> data_shape = x->shape;
+  for (size_t i = 0; i < data_shape.size(); ++i) {
+    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
+  }
+  Array<PrimExpr> out_shape = data_shape;
   Array<PrimExpr> in_size, out_size;
   for (size_t i = 0; i < n_dim; ++i) {
-    in_size.push_back(x->shape[axes[i]]);
+    in_size.push_back(data_shape[axes[i]]);
     out_size.push_back(cast(DataType::Int(32), output_size[i]));
     out_shape.Set(axes[i], out_size[i]);
   }
@@ -661,7 +673,11 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
   std::vector<PrimExpr> pad_tail(k_size);
   Array<PrimExpr> pad_before(std::vector<PrimExpr>(x_size, 0));
   Array<PrimExpr> pad_after(std::vector<PrimExpr>(x_size, 0));
-  Array<PrimExpr> out_shape = x->shape;
+  Array<PrimExpr> data_shape = x->shape;
+  for (size_t i = 0; i < data_shape.size(); ++i) {
+    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
+  }
+  Array<PrimExpr> out_shape = data_shape;
 
   bool do_pad = false;
   for (int i = 0; i < k_size; i++) {
@@ -687,7 +703,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
 
     arith::Analyzer analyzer;
     auto out_dim = analyzer.Simplify(
-        indexdiv(x->shape[ii] - kernel[i] + pad_head[i] + pad_tail[i], stride[i]) + 1);
+        indexdiv(data_shape[ii] - kernel[i] + pad_head[i] + pad_tail[i], stride[i]) + 1);
 
     out_shape.Set(ii, out_dim);
   }
@@ -746,7 +762,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
             for (int i = 0; i < k_size; i++) {
               int ii = axis[i];
               start[i] = output[ii] * stride[i] - pad_head[i];
-              end[i] = min(start[i] + kernel[i], x->shape[ii]);
+              end[i] = min(start[i] + kernel[i], data_shape[ii]);
               start[i] = max(start[i], make_const(DataType::Int(32), 0));
               kernel_size *= (end[i] - start[i]);
             }
