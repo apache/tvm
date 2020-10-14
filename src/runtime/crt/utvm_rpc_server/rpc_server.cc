@@ -137,7 +137,6 @@ class MicroRPCServer {
     }
 
     tvm_crt_error_t err = kTvmErrorNoError;
-    //    printf("loop %d %02x\n", *new_data_size_bytes,  **new_data);
     if (new_data != nullptr && new_data_size_bytes != nullptr && *new_data_size_bytes > 0) {
       size_t bytes_consumed;
       err = unframer_.Write(*new_data, *new_data_size_bytes, &bytes_consumed);
@@ -145,13 +144,11 @@ class MicroRPCServer {
       *new_data_size_bytes -= bytes_consumed;
     }
 
-    if (err != kTvmErrorNoError) {
-      return err;
-    } else if (is_running_) {
-      return kTvmErrorNoError;
-    } else {
-      return kTvmErrorPlatformShutdown;
+    if (err == kTvmErrorNoError && !is_running_) {
+      err = kTvmErrorPlatformShutdown;
     }
+
+    return err;
   }
 
   void Log(const uint8_t* message, size_t message_size_bytes) {

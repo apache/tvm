@@ -40,7 +40,6 @@ from .. import debugger
 from ..transport import debug
 from ..transport import file_descriptor
 
-# from ..transport import serial
 from ..transport import Transport, TransportClosedError, TransportTimeouts
 from ..transport import wakeup
 
