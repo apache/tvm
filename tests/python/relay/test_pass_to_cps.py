@@ -21,7 +21,7 @@ from tvm.relay.analysis import detect_feature
 from tvm.relay.transform import to_cps, un_cps
 from tvm.relay.analysis import Feature
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr, rand, run_infer_type, run_opt_pass
+from tvm.relay.testing import make_nat_expr, rand, run_infer_type, run_opt_pass
 from tvm.relay import create_executor
 from tvm.relay import transform
 
@@ -44,16 +44,19 @@ def test_double():
 def test_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
+    p.mod.import_from_std("nat.rly")
+    nat_iterate = p.mod.get_global_var("nat_iterate")
     shape = (10, 10)
     dtype = "float32"
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     double = relay.Function([x], x + x)
     i = relay.var("i", t)
-    func = relay.Function([i], p.nat_iterate(double, make_nat_expr(p, 3))(i))
+    func = relay.Function([i], nat_iterate(double, make_nat_expr(p, 3))(i))
     mod["main"] = func
+    mod = relay.transform.InferType()(mod)
     mod["main"] = to_cps(mod["main"], mod=mod)
+    mod = relay.transform.InferType()(mod)
     mod["main"] = un_cps(mod["main"])
     ex = create_executor(mod=mod)
     i_nd = rand(dtype, *shape)

@@ -207,7 +207,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
 
     for (auto& kv : lowered_funcs_) {
       if (ret.lowered_funcs.count(kv.first) == 0) {
-        ret.lowered_funcs.Set(kv.first, IRModule());
+        ret.lowered_funcs.Set(kv.first, IRModule(Map<GlobalVar, BaseFunc>({})));
       }
       auto& mod = ret.lowered_funcs[kv.first];
       mod->Update(kv.second);
@@ -403,7 +403,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     CCacheKey key = (*pf0)(func, target);
     CachedFunc lowered_func = (*pf1)(compile_engine_, key);
     if (!lowered_funcs_.count(target->str())) {
-      lowered_funcs_[target->str()] = IRModule();
+      lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
     lowered_funcs_[target->str()]->Update(lowered_func->funcs);
     return GraphAddCallNode(op, _GetUniqueName(lowered_func->func_name), lowered_func->func_name);

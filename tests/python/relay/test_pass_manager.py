@@ -212,6 +212,7 @@ def test_function_class_pass():
     mod = fpass(mod)
     # wrap in expr
     mod2 = tvm.IRModule.from_expr(f1)
+    mod2 = tvm.relay.transform.InferType()(mod2)
     assert tvm.ir.structural_equal(mod["main"], mod2["main"])
 
 
@@ -564,7 +565,9 @@ def test_print_debug_callback():
     with tvm.transform.PassContext(opt_level=3, trace=_tracer):
         mod = seq(mod)
 
-    assert __TRACE_COUNTER__ == 3
+    # TODO(@jroesch): when we remove new fn pass behavior we need to remove
+    # change this back to 3
+    assert __TRACE_COUNTER__ == 5
 
 
 if __name__ == "__main__":

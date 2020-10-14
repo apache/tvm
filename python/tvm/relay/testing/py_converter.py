@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=no-else-return
 """Utility for converting Relay code into a Python script with equivalent semantics"""
+import sys
 import ast
 from ast import alias, Assign, Load, Name, NameConstant, Num, Return, Store, Str
 import re
@@ -26,6 +28,8 @@ from tvm.relay.backend import compile_engine
 from tvm.relay.expr import Expr, GlobalVar, Var
 from tvm.relay.function import Function
 from tvm.relay.expr_functor import ExprFunctor
+
+__MAJOR__, __MINOR__, _, _, _ = sys.version_info
 
 OUTPUT_VAR_NAME = "_py_out"
 
@@ -82,8 +86,12 @@ class PythonConverter(ExprFunctor):
         # we finally must assign the final expression to the output var
         # so it can be read after running EXEC
         body.append(Assign([Name(OUTPUT_VAR_NAME, Store())], prog_body))
+        global __MAJOR__, __MINOR__
 
-        return ast.fix_missing_locations(ast.Module(body=body))
+        if __MAJOR__ == 3 and __MINOR__ == 8:
+            return ast.fix_missing_locations(ast.Module(body=body, type_ignores=[]))
+        else:
+            return ast.fix_missing_locations(ast.Module(body=body))
 
     def optimize(self, prog: Expr):
         """Performs optimizations necessary to be able to generate code for prog."""
@@ -210,11 +218,17 @@ class PythonConverter(ExprFunctor):
 
     def create_def(self, func_name: str, arguments: [str], body):
         """Wrapper over function definition AST node, whose constructor is inconvenient."""
+        inner_args = [ast.arg(argument, None) for argument in arguments]
+
+        global __MAJOR__, __MINOR__
+        if __MAJOR__ == 3 and __MINOR__ == 8:
+            arguments = ast.arguments([], inner_args, None, [], [], None, [])
+        else:
+            arguments = ast.arguments(inner_args, None, [], [], None, [])
+
         return ast.FunctionDef(
             func_name,
-            ast.arguments(
-                [ast.arg(argument, None) for argument in arguments], None, [], [], None, []
-            ),
+            arguments,
             body,
             [],
             None,
@@ -576,8 +590,11 @@ def to_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):
     """Converts the given Relay expression into a Python script (as a Python AST object).
     For easiest debugging, import the astor package and use to_source()."""
     mod = mod if mod is not None else tvm.IRModule()
+    mod = relay.transform.InferType()(mod)
     converter = PythonConverter(mod, target)
-    return converter.convert(expr)
+    python = converter.convert(expr)
+    assert python
+    return python
 
 
 def run_as_python(expr: Expr, mod=None, target=tvm.target.Target("llvm")):

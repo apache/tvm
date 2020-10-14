@@ -121,6 +121,7 @@ def fuse_partitions(pre_mod, mid_mod, post_mod):
             relay.GlobalVar("dequantize_outputs"): post_func,
         }
     )
+
     # construct a `main` that strings together the partitions, such that its
     # behaviour is equivalent to `main` in an *unpartitioned* module
     scope_builder = relay.ScopeBuilder()
@@ -142,7 +143,7 @@ def fuse_partitions(pre_mod, mid_mod, post_mod):
     )
     scope_builder.ret(dequantized_outputs)
     fused_mod["main"] = relay.Function(fused_mod_main_params, scope_builder.get())
-    return fused_mod
+    return relay.transform.InferType()(fused_mod)
 
 
 class PrefixCutter(ExprMutator):
@@ -217,6 +218,7 @@ def partition_prefix(mod, quantized_dtypes):
     assert func.attrs is None, "unimplemented"
     mid_func = relay.Function(relay.analysis.free_vars(mid_body), mid_body)
     mid_mod = tvm.IRModule.from_expr(mid_func)
+    mid_mod = relay.transform.InferType()(mid_mod)
 
     scope_builder = prefix_cutter.prefix_sb
     # make sure we pass through all inputs in the prefix function's return expr
@@ -237,6 +239,7 @@ def partition_prefix(mod, quantized_dtypes):
     pre_func_body = scope_builder.get()
     pre_func = relay.Function(relay.analysis.free_vars(pre_func_body), pre_func_body)
     pre_mod = tvm.IRModule.from_expr(pre_func)
+    pre_mod = relay.transform.InferType()(pre_mod)
 
     return pre_mod, mid_mod
 
@@ -288,6 +291,7 @@ def partition_suffix(mod, quantized_dtypes):
     assert func.attrs is None, "unimplemented"
     post_func = relay.Function(relay.analysis.free_vars(post_body), post_body, func.ret_type)
     post_mod = tvm.IRModule.from_expr(post_func)
+    post_mod = relay.transform.InferType()(post_mod)
 
     mid_body = suffix_cutter.mid_body
     if mid_body is None:
@@ -298,9 +302,11 @@ def partition_suffix(mod, quantized_dtypes):
         post_body = relay.Var("input", mid_mod["main"].ret_type)
         post_func = relay.Function([post_body], post_body)
         post_mod = tvm.IRModule.from_expr(post_func)
+        post_mod = relay.transform.InferType()(post_mod)
     else:
         mid_func = relay.Function(func.params, mid_body)
         mid_mod = tvm.IRModule.from_expr(mid_func)
+        mid_mod = relay.transform.InferType()(mid_mod)
 
     return mid_mod, post_mod
 

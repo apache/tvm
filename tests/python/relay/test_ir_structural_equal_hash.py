@@ -589,63 +589,62 @@ def test_constructor_sequal():
     # smoke test: it should be pointer equality
     mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
+    _, cons, nil = p.mod.get_type("List")
 
-    assert consistent_equal(p.nil, p.nil)
-    assert consistent_equal(p.cons, p.cons)
-    assert not consistent_equal(p.nil, p.cons)
+    assert consistent_equal(nil, nil)
+    assert consistent_equal(cons, cons)
+    assert not consistent_equal(nil, cons)
 
 
 def test_match_sequal():
     mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
+    _, cons, nil = p.mod.get_type("List")
+    _, none, some = p.mod.get_type("Option")
 
     x = relay.Var("x")
     y = relay.Var("y")
-    nil_case = relay.Clause(relay.PatternConstructor(p.nil), p.nil())
+    nil_case = relay.Clause(relay.PatternConstructor(nil), nil())
     cons_case = relay.Clause(
-        relay.PatternConstructor(p.cons, [relay.PatternVar(x), relay.PatternVar(y)]), p.cons(x, y)
+        relay.PatternConstructor(cons, [relay.PatternVar(x), relay.PatternVar(y)]), cons(x, y)
     )
 
     z = relay.Var("z")
     a = relay.Var("a")
     equivalent_cons = relay.Clause(
-        relay.PatternConstructor(p.cons, [relay.PatternVar(z), relay.PatternVar(a)]), p.cons(z, a)
+        relay.PatternConstructor(cons, [relay.PatternVar(z), relay.PatternVar(a)]), cons(z, a)
     )
 
-    data = p.cons(relay.const(1), p.cons(relay.const(2), p.nil()))
+    data = cons(relay.const(1), cons(relay.const(2), nil()))
 
     match = relay.Match(data, [nil_case, cons_case])
     equivalent = relay.Match(data, [nil_case, equivalent_cons])
     empty = relay.Match(data, [])
     no_cons = relay.Match(data, [nil_case])
     no_nil = relay.Match(data, [cons_case])
-    different_data = relay.Match(p.nil(), [nil_case, cons_case])
+    different_data = relay.Match(nil(), [nil_case, cons_case])
     different_order = relay.Match(data, [cons_case, nil_case])
     different_nil = relay.Match(
-        data, [relay.Clause(relay.PatternConstructor(p.nil), p.cons(p.nil(), p.nil())), cons_case]
+        data, [relay.Clause(relay.PatternConstructor(nil), cons(nil(), nil())), cons_case]
     )
     different_cons = relay.Match(
         data,
         [
             nil_case,
             relay.Clause(
-                relay.PatternConstructor(
-                    p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
-                ),
-                p.nil(),
+                relay.PatternConstructor(cons, [relay.PatternWildcard(), relay.PatternWildcard()]),
+                nil(),
             ),
         ],
     )
     another_case = relay.Match(
-        data, [nil_case, cons_case, relay.Clause(relay.PatternWildcard(), p.nil())]
+        data, [nil_case, cons_case, relay.Clause(relay.PatternWildcard(), nil())]
     )
     wrong_constructors = relay.Match(
         data,
         [
-            relay.Clause(relay.PatternConstructor(p.none), p.nil()),
-            relay.Clause(
-                relay.PatternConstructor(p.some, [relay.PatternVar(x)]), p.cons(x, p.nil())
-            ),
+            relay.Clause(relay.PatternConstructor(none), nil()),
+            relay.Clause(relay.PatternConstructor(some, [relay.PatternVar(x)]), cons(x, nil())),
         ],
     )
 

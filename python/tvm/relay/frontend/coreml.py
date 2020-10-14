@@ -138,7 +138,7 @@ def _ActivationParams(op, inexpr, etab):
     if whichActivation == "ReLU":
         return _op.nn.relu(inexpr)
     if whichActivation == "leakyReLU":
-        _op.nn.leaky_relu(inexpr, alpha=_expr.const(par.alpha, dtype="float32"))
+        return _op.nn.leaky_relu(inexpr, alpha=par.alpha)
     elif whichActivation == "thresholdedReLU":
         alpha_tensor = _op.full_like(inexpr, fill_value=_expr.const(par.alpha, dtype="float32"))
         return _op.multiply(inexpr, _op.greater(inexpr, alpha_tensor).as_type("float32"))

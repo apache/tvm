@@ -125,6 +125,7 @@ z_myfloat = x_myfloat + y_myfloat
 z = relay.cast(z_myfloat, dtype="float32")
 program = relay.Function([x, y], z)
 module = tvm.IRModule.from_expr(program)
+module = relay.transform.InferType()(module)
 
 ######################################################################
 # Now we have a Relay program that uses myfloat!
@@ -286,6 +287,8 @@ from tvm.relay.frontend.change_datatype import ChangeDatatype
 
 src_dtype = "float32"
 dst_dtype = "custom[myfloat]32"
+
+module = relay.transform.InferType()(module)
 
 # Currently, custom datatypes only work if you run simplify_inference beforehand
 module = tvm.relay.transform.SimplifyInference()(module)

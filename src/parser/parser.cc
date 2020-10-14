@@ -21,19 +21,22 @@
  * \file parser.cc
  * \brief A parser for TVM IR.
  */
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
+#include <tvm/parser/parser.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/transform.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
 
-#include "./diagnostic.h"
 #include "./meta_ref.h"
 #include "./op_table.h"
+#include "./span_check.h"
 #include "./tokenizer.h"
 
 namespace tvm {
@@ -44,6 +47,22 @@ using Expr = relay::Expr;
 
 /*! \brief The meta table maps from type key to a sequence of objects. */
 using MetaTable = Map<String, Array<ObjectRef>>;
+
+using tvm::transform::CreateModulePass;
+using tvm::transform::PassContext;
+
+/*! \brief A helper for passing around spans with data structures with
+ * no span field.
+ */
+template <typename T>
+struct Spanned {
+  T data;
+  Span span;
+
+  Spanned() = default;
+  Spanned(const Spanned<T>& other) = default;
+  Spanned(T data, Span span) : data(data), span(span) {}
+};
 
 /*! \brief A wrapper structure for capturing the result of parsing
  * a global definition *before* we add it to the IRModule.
@@ -175,7 +194,7 @@ struct InternTable {
   }
 
   /*! \brief Return the unique allocation. */
-  Optional<T> Get(const std::string& name) {
+  Optional<T> Get(const std::string& name) const {
     auto it = table.find(name);
     if (it != table.end()) {
       return Optional<T>(it->second);
@@ -184,6 +203,32 @@ struct InternTable {
     }
   }
 };
+
+GlobalVar AddOrGet(InternTable<GlobalVar>* table, const std::string& name) {
+  auto var = table->Get(name);
+  if (var) {
+    return var.value();
+  } else {
+    auto gvar = GlobalVar(name);
+    table->Add(name, gvar);
+    return gvar;
+  }
+}
+
+GlobalTypeVar AddOrGet(InternTable<GlobalTypeVar>* table, const std::string& name,
+                       TypeKind kind = TypeKind::kType) {
+  auto var = table->Get(name);
+  if (var) {
+    auto tvar = var.value();
+    TypeKind& tvar_kind = const_cast<TypeKind&>(tvar->kind);
+    tvar_kind = kind;
+    return tvar;
+  } else {
+    auto gvar = GlobalTypeVar(name, kind);
+    table->Add(name, gvar);
+    return gvar;
+  }
+}
 
 /*! \brief The parser class is the main interface to the parser.
  * the parser is not currently exposed beyond this .cc file.
@@ -228,10 +273,13 @@ class Parser {
   /*! \brief The version that the parser is parsing. */
   SemVer version;
 
-  /*! \brief The diagnostic context used for error reporting. */
-  DiagnosticContext* diag_ctx;
+  /*! \brief The IRModule we are building. */
+  IRModule module;
 
-  const SourceName& source_name;
+  /*! \brief The diagnostic context used for error reporting. */
+  DiagnosticContext diag_ctx;
+
+  const Source& source;
 
   /*! \brief The current position in the token stream. */
   int pos;
@@ -266,15 +314,37 @@ class Parser {
   /*! \brief The metadata section. */
   MetaTable meta_table;
 
-  Parser(DiagnosticContext* ctx, const SourceName& source_name, std::vector<Token> tokens,
-         OperatorTable op_table, Source source, MetaTable table)
-      : diag_ctx(ctx),
-        source_name(source_name),
+  Parser(IRModule module, DiagnosticContext ctx, const Source& source, std::vector<Token> tokens,
+         OperatorTable op_table, MetaTable table)
+      : module(module),
+        diag_ctx(ctx),
+        source(source),
         pos(0),
         tokens(tokens),
         op_table(op_table),
         ignore_whitespace(true),
-        meta_table(table) {}
+        meta_table(table) {
+    InitializeGlobals();
+    InitializeTypeDefs();
+  }
+
+  /*! If we are parsing into a module with previously loaded data types we need to
+   * map constructor names and variable names in the global tables.
+   */
+  void InitializeTypeDefs() {
+    for (auto pair : this->module->type_definitions) {
+      type_names.Add(pair.first->name_hint, pair.first);
+      for (auto ctor : pair.second->constructors) {
+        ctors.Add(ctor->name_hint, ctor);
+      }
+    }
+  }
+
+  void InitializeGlobals() {
+    for (auto pair : this->module->functions) {
+      global_names.Add(pair.first->name_hint, pair.first);
+    }
+  }
 
   /*! \brief Examine the next token in the stream, the current parser is configured to be
    * whitespace insensitive so we will skip all whitespace or comment tokens. */
@@ -322,9 +392,9 @@ class Parser {
    */
   void Consume(const TokenType& token_type) {
     if (tokens[pos]->token_type != token_type) {
-      this->diag_ctx->EmitFatal(Diagnostic::Error(tokens[pos]->span)
-                                << "expected a " << Pretty(token_type) << " found "
-                                << Pretty(Peek()->token_type));
+      this->diag_ctx.EmitFatal(Diagnostic::Error(tokens[pos]->span)
+                               << "expected a " << Pretty(token_type) << " found "
+                               << Pretty(Peek()->token_type));
     }
     pos++;
   }
@@ -347,6 +417,7 @@ class Parser {
    * Useful for matching optional tokens, effectively looksahead by one.
    */
   bool WhenMatch(const TokenType& token_type) {
+    DLOG(INFO) << "Parser::WhenMatch: Peek() == " << Peek();
     if (Peek()->token_type == token_type) {
       Consume(token_type);
       return true;
@@ -414,8 +485,8 @@ class Parser {
   Var LookupLocal(const Token& local) {
     auto var = this->expr_scopes.Lookup(local.ToString());
     if (!var.defined()) {
-      diag_ctx->Emit(Diagnostic::Error(local->span)
-                     << "this local variable has not been previously declared");
+      diag_ctx.Emit(Diagnostic::Error(local->span)
+                    << "this local variable has not been previously declared");
     }
     return var;
   }
@@ -426,11 +497,6 @@ class Parser {
    */
   TypeVar LookupTypeVar(const Token& ident) {
     auto var = this->type_scopes.Lookup(ident.ToString());
-    if (!var.defined()) {
-      diag_ctx->Emit(
-          Diagnostic::Error(ident->span)
-          << "this type variable has not been previously declared anywhere, perhaps a typo?");
-    }
     return var;
   }
 
@@ -467,12 +533,12 @@ class Parser {
       return data;
     } else if (token->token_type == TokenType::kFloat) {
       DLContext ctx = {DLDeviceType::kDLCPU, 0};
-      auto dtype = String2DLDataType("float32");
-      auto data = NDArray::Empty({}, dtype, ctx);
+      auto float_imm = Downcast<tvm::FloatImm>(token->data);
+      auto data = NDArray::Empty({}, float_imm->dtype, ctx);
       auto array = reinterpret_cast<float*>(data->data);
       // revisit this, literal node issue.
       // TODO(@jroesch): bounds checking
-      float value = Downcast<tvm::FloatImm>(token->data)->value;
+      float value = float_imm->value;
       array[0] = value;
       return data;
     } else {
@@ -516,6 +582,33 @@ class Parser {
     return Bracket(TokenType::kLCurly, TokenType::kRCurly, parser);
   }
 
+  template <typename R>
+  R WithSpan(std::function<R()> parser) {
+    auto start_span = Peek()->span;
+    DLOG(INFO) << "WithSpan: start_span = " << start_span;
+    R ast = parser();
+    if (ast.defined()) {
+      // The token at the head of the stream is now 1 past where we parsed. So we find its start
+      // position as its start and end, so that when we merge we only grow the spanned region
+      // to the start of the current stream.
+      auto span_pos = pos - 1;
+      while ((tokens.at(span_pos)->token_type == TokenType::kWhitespace ||
+              tokens.at(span_pos)->token_type == TokenType::kNewline ||
+              tokens.at(span_pos)->token_type == TokenType::kLineComment ||
+              tokens.at(span_pos)->token_type == TokenType::kComment)) {
+        span_pos--;
+      }
+      auto end_token = tokens.at(span_pos);
+      DLOG(INFO) << "WithSpan: end_span = " << end_token->span;
+      ast->span = start_span.Merge(end_token->span);
+    }
+    return ast;
+  }
+
+  /*! \brief Parse a meta reference of the form `meta[type_key][node_index]`.
+   * For example `meta[relay.Constant][0]` references the first constant, `meta[relay.Constant][1]`
+   * the second, and so on.
+   */
   ObjectRef ParseMetaRef() {
     auto meta_ref = Match(TokenType::kMetaReference);
     Call ref = Downcast<Call>(meta_ref->data);
@@ -528,14 +621,14 @@ class Parser {
       if (index < nodes.size()) {
         return nodes[index];
       } else {
-        this->diag_ctx->Emit(Diagnostic::Error(meta_ref->span)
-                             << "the node index `" << index << "` is out of bounds for `"
-                             << type_key << "`");
+        this->diag_ctx.Emit(Diagnostic::Error(meta_ref->span)
+                            << "the node index `" << index << "` is out of bounds for `" << type_key
+                            << "`");
         return ObjectRef();
       }
     } else {
-      this->diag_ctx->Emit(Diagnostic::Error(meta_ref->span)
-                           << "no entry in the meta table for `" << type_key << "`");
+      this->diag_ctx.Emit(Diagnostic::Error(meta_ref->span)
+                          << "no entry in the meta table for `" << type_key << "`");
       return ObjectRef();
     }
   }
@@ -553,8 +646,8 @@ class Parser {
   template <typename T>
   Array<T> ParseSequence(TokenType start, TokenType sep, TokenType stop, std::function<T()> parse,
                          std::function<bool()> before_stop = nullptr) {
-    DLOG(INFO) << "Parser::ParseSequence: start=" << ToString(start) << "sep=" << ToString(sep)
-               << "stop=" << ToString(stop);
+    DLOG(INFO) << "Parser::ParseSequence: start=" << ToString(start) << " sep=" << ToString(sep)
+               << " stop=" << ToString(stop);
     Match(start);
 
     // This is for the empty arguments list case, if we have <start> <leftovers> <stop> token stream
@@ -571,6 +664,7 @@ class Parser {
     if (WhenMatch(stop)) {
       return Array<T>();
     } else {
+      DLOG(INFO) << "Parser::ParseSequence: parse first";
       auto data = parse();
       Array<T> elements = {data};
 
@@ -579,6 +673,7 @@ class Parser {
         // parse '( expr ',' * ')'
       } else if (WhenMatch(sep)) {
         while (true) {
+          DLOG(INFO) << "Parser::ParseSequence: parse element";
           if (WhenMatch(stop)) {
             break;
           } else {
@@ -598,9 +693,9 @@ class Parser {
         return elements;
       } else {
         auto next = Peek();
-        this->diag_ctx->EmitFatal(Diagnostic::Error(next->span)
-                                  << "expected a " << Pretty(stop) << " found  "
-                                  << Pretty(next->token_type));
+        this->diag_ctx.EmitFatal(Diagnostic::Error(next->span)
+                                 << "expected a " << Pretty(stop) << " found  "
+                                 << Pretty(next->token_type));
         return Array<T>(nullptr);
       }
     }
@@ -616,20 +711,16 @@ class Parser {
     auto metadata = ParseMetadata();
 
     Match(TokenType::kEndOfFile);
-    Map<tvm::GlobalVar, BaseFunc> funcs;
-    Map<tvm::GlobalTypeVar, TypeData> types;
 
     for (auto type_def : defs.types) {
-      types.Set(type_def->header, type_def);
+      module->AddTypeDef(type_def->header, type_def);
     }
-
-    auto mod = IRModule({}, types);
 
     for (auto func : defs.funcs) {
-      mod->Add(func.global, func.function);
+      module->Add(func.global, func.function, true);
     }
 
-    return mod;
+    return module;
   }
 
   /*! \brief Parse the semantic versioning header. */
@@ -638,14 +729,16 @@ class Parser {
       auto version = Match(TokenType::kVersion);
       // TODO(@jroesch): we currently only support 0.0.5.
       if (version.ToString() != "\"0.0.5\"") {
-        this->diag_ctx->Emit(Diagnostic::Error(version->span)
-                             << "invalid semantic version `" << version.ToString() << "`");
+        this->diag_ctx.Emit(Diagnostic::Error(version->span)
+                            << "invalid semantic version `" << version.ToString() << "`");
       }
     } else if (required) {
-      this->diag_ctx->Emit(Diagnostic::Error(Peek()->span)
-                           << "expected text format semantic version, found a  "
-                           << PrettyPrint(Peek())
-                           << "you can annotate it as #[version = \"0.0.5\"]");
+      this->diag_ctx.Emit(Diagnostic::Error(Peek()->span)
+                          << "expected text format semantic version, found a  "
+                          << PrettyPrint(Peek()));
+
+      this->diag_ctx.Emit(Diagnostic::Help(Peek()->span)
+                          << "you can annotate it as #[version = \"0.0.5\"]");
     }
     return SemVer(0, 0, 5);
   }
@@ -661,15 +754,9 @@ class Parser {
           Consume(TokenType::kDefn);
           auto global_tok = Match(TokenType::kGlobal);
           auto global_name = global_tok.ToString();
-          auto global = GlobalVar(global_name);
-          try {
-            global_names.Add(global_name, global);
-          } catch (const DuplicateKeyError& e) {
-            this->diag_ctx->Emit(Diagnostic::Error(global_tok->span) << "a function with the name "
-                                                                     << "`@" << global_name << "` "
-                                                                     << "was previously defined");
-          }
-          auto func = ParseFunctionDef();
+          auto global = AddOrGet(&global_names, global_name);
+          auto func = WithSpan<relay::Function>([&]() { return ParseFunctionDef(); });
+          ICHECK(func->span.defined()) << "spans must be set in parser";
           defs.funcs.push_back(GlobalFunc(global, func));
           continue;
         }
@@ -681,8 +768,8 @@ class Parser {
           Consume(TokenType::kExtern);
           auto type_def = ParseTypeDef();
           if (type_def->constructors.size()) {
-            diag_ctx->Emit(Diagnostic::Error(next->span)
-                           << "an external type may not have any constructors");
+            diag_ctx.Emit(Diagnostic::Error(next->span)
+                          << "an external type may not have any constructors");
           }
           defs.types.push_back(type_def);
         }
@@ -699,15 +786,7 @@ class Parser {
     // Parse the type's identifier.
     auto type_tok = Match(TokenType::kIdentifier);
     auto type_id = type_tok.ToString();
-    auto type_global = tvm::GlobalTypeVar(type_id, TypeKind::kAdtHandle);
-
-    try {
-      type_names.Add(type_id, type_global);
-    } catch (const DuplicateKeyError& e) {
-      this->diag_ctx->Emit(Diagnostic::Error(type_tok->span) << "a type definition with the name "
-                                                             << "`" << type_id << "` "
-                                                             << "was previously defined");
-    }
+    auto type_global = AddOrGet(&type_names, type_id, TypeKind::kAdtHandle);
 
     Array<TypeVar> generics;
 
@@ -748,10 +827,10 @@ class Parser {
             try {
               this->ctors.Add(ctor_name, ctor);
             } catch (const DuplicateKeyError& e) {
-              this->diag_ctx->EmitFatal(Diagnostic::Error(ctor_tok->span)
-                                        << "a constructor with the name "
-                                        << "`" << ctor_name << "` "
-                                        << "was previously defined");
+              this->diag_ctx.EmitFatal(Diagnostic::Error(ctor_tok->span)
+                                       << "a constructor with the name "
+                                       << "`" << ctor_name << "` "
+                                       << "was previously defined");
             }
 
             return ctor;
@@ -793,7 +872,7 @@ class Parser {
   /*! \brief Parse a single Relay expression. */
   Expr ParseExpr() {
     DLOG(INFO) << "Parser::ParseExpr";
-    return ConsumeWhitespace<Expr>([this] {
+    return WithSpan<Expr>([this] {
       std::vector<Expr> exprs;
 
       while (true) {
@@ -807,11 +886,13 @@ class Parser {
             // Stack should only grow proportionally to the number of
             // nested scopes.
             // Parses `{` expression `}`.
-            auto block = Bracket<Expr>(TokenType::kLCurly, TokenType::kRCurly, [&]() {
-              PushScope();
-              auto expr = ParseExpr();
-              PopScopes(1);
-              return expr;
+            auto block = WithSpan<Expr>([&]() {
+              return Bracket<Expr>(TokenType::kLCurly, TokenType::kRCurly, [&]() {
+                PushScope();
+                auto expr = ParseExpr();
+                PopScopes(1);
+                return expr;
+              });
             });
             exprs.push_back(block);
             break;
@@ -866,15 +947,20 @@ class Parser {
       CHECK_GE(exprs.size(), 1);
 
       if (exprs.size() == 1) {
+        // ICHECK(exprs[0].defined() && exprs[0]->span.defined())
+        //   << "parser must set expression spans.\n"
+        //   << exprs[0];
         return exprs[0];
       } else {
         auto body = exprs.back();
         exprs.pop_back();
         while (exprs.size()) {
           auto value = exprs.back();
+          ICHECK(value->span.defined()) << "parser must set expression spans.";
           exprs.pop_back();
-          body = relay::Let(Var("", IncompleteType()), value, body);
+          body = relay::Let(Var("", IncompleteType()), value, body, value->span.Merge(body->span));
         }
+        ICHECK(body->span.defined()) << "parser must set expression spans.";
         return body;
       }
     });
@@ -907,7 +993,7 @@ class Parser {
     // the call depth will be the same before
     // and after parsing the n bindings.
     DLOG(INFO) << "Parser::ParseBindingExpr";
-    std::vector<std::pair<Var, Expr>> bindings;
+    std::vector<std::tuple<Var, Expr, Span>> bindings;
     int scopes = 0;
 
     while (true) {
@@ -919,6 +1005,7 @@ class Parser {
         Match(TokenType::kSemicolon);
         AddGraphBinding(next, val);
       } else if (next->token_type == TokenType::kLet) {
+        auto span = next->span;
         // Parse the 'let'.
         Consume(TokenType::kLet);
 
@@ -942,7 +1029,8 @@ class Parser {
         Consume(TokenType::kSemicolon);
 
         // Add the bindings to the local data structure.
-        bindings.push_back({var, val});
+        std::tuple<relay::Var, relay::Expr, Span> tuple(var, val, span);
+        bindings.push_back(tuple);
         scopes++;
         PushScope();
       } else {
@@ -964,7 +1052,8 @@ class Parser {
         } else {
           // We can now build the let binding up backwards.
           for (auto binding = bindings.rbegin(); binding != bindings.rend(); binding++) {
-            body = relay::Let(binding->first, binding->second, body);
+            auto span = body->span.Merge(std::get<2>(*binding));
+            body = relay::Let(std::get<0>(*binding), std::get<1>(*binding), body, span);
           }
           return body;
         }
@@ -978,87 +1067,92 @@ class Parser {
    */
   Function ParseFunctionDef() {
     DLOG(INFO) << "Parser::ParseFunctionDef";
-    PushScope();
-    PushTypeScope();
-
-    Array<TypeVar> generics;
-    if (Peek()->token_type == TokenType::kLSquare) {
-      // If we have generics we need to add a type scope.
+    return WithSpan<Function>([&]() {
+      PushScope();
       PushTypeScope();
-      generics = ParseSequence<TypeVar>(
-          TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
-            auto type_var_name = Match(TokenType::kIdentifier).ToString();
-            return BindTypeVar(type_var_name, TypeKind::kType);
+
+      Array<TypeVar> generics;
+      if (Peek()->token_type == TokenType::kLSquare) {
+        // If we have generics we need to add a type scope.
+        PushTypeScope();
+        generics = ParseSequence<TypeVar>(
+            TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare, [&]() {
+              auto type_var_name = Match(TokenType::kIdentifier).ToString();
+              return BindTypeVar(type_var_name, TypeKind::kType);
+            });
+      }
+
+      Map<String, ObjectRef> raw_attrs;
+
+      auto params = ParseSequence<Var>(
+          TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
+          [&]() {
+            auto token = Match(TokenType::kLocal);
+            auto string = token.ToString();
+            Type type;
+            if (WhenMatch(TokenType::kColon)) {
+              type = ParseType();
+            }
+            return BindVar(string, type);
+          },
+          [&] {
+            auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
+            auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
+
+            if (is_ident && next_is_equal) {
+              raw_attrs = ParseAttrs();
+              return true;
+            }
+
+            return false;
           });
-    }
 
-    Map<String, ObjectRef> raw_attrs;
+      Type ret_type;
+      if (WhenMatch(TokenType::kMinus)) {
+        Match(TokenType::kRAngle);
+        ret_type = ParseType();
+      }
 
-    auto params = ParseSequence<Var>(
-        TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
-        [&]() {
-          auto token = Match(TokenType::kLocal);
-          auto string = token.ToString();
-          Type type;
-          if (WhenMatch(TokenType::kColon)) {
-            type = ParseType();
-          }
-          return BindVar(string, type);
-        },
-        [&] {
-          auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
-          auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
+      auto body = Block<Expr>([&]() { return ParseExpr(); });
 
-          if (is_ident && next_is_equal) {
-            raw_attrs = ParseAttrs();
-            return true;
-          }
+      PopTypeScopes(1);
+      PopScopes(1);
 
-          return false;
-        });
-
-    Type ret_type;
-    if (WhenMatch(TokenType::kMinus)) {
-      Match(TokenType::kRAngle);
-      ret_type = ParseType();
-    }
-
-    auto body = Block<Expr>([&]() { return ParseExpr(); });
-
-    PopTypeScopes(1);
-    PopScopes(1);
-
-    // TODO(@jroesch): attributes should never be null, they should always be empty.
-    if (raw_attrs.size()) {
-      return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
-    } else {
-      return relay::Function(params, body, ret_type, generics);
-    }
+      // TODO(@jroesch): attributes should never be null, they should always be empty.
+      if (raw_attrs.size()) {
+        return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+      } else {
+        return relay::Function(params, body, ret_type, generics, tvm::DictAttrs());
+      }
+    });
   }
 
   /*! \brief Parse an if-expression. */
   Expr ParseIf() {
-    DLOG(INFO) << "Parser::ParseIf";
-    Consume(TokenType::kIf);
-    auto guard = Parens<Expr>([&] { return ParseExpr(); });
+    return WithSpan<Expr>([&]() {
+      DLOG(INFO) << "Parser::ParseIf";
+      Consume(TokenType::kIf);
 
-    auto true_branch = Block<Expr>([&] {
-      this->PushScope();
-      auto expr = ParseExpr();
-      this->PopScopes(1);
-      return expr;
+      auto guard = WithSpan<Expr>([&] { return Parens<Expr>([&] { return ParseExpr(); }); });
+
+      auto true_branch = Block<Expr>([&] {
+        this->PushScope();
+        auto expr = ParseExpr();
+        this->PopScopes(1);
+        return expr;
+      });
+
+      Match(TokenType::kElse);
+
+      auto false_branch = Block<Expr>([&] {
+        this->PushScope();
+        auto expr = ParseExpr();
+        this->PopScopes(1);
+        return expr;
+      });
+
+      return relay::If(guard, true_branch, false_branch);
     });
-
-    Match(TokenType::kElse);
-
-    auto false_branch = Block<Expr>([&] {
-      this->PushScope();
-      auto expr = ParseExpr();
-      this->PopScopes(1);
-      return expr;
-    });
-
-    return relay::If(guard, true_branch, false_branch);
   }
 
   /* This factors parsing a list of patterns for both tuples, and constructors. */
@@ -1094,7 +1188,15 @@ class Parser {
       case TokenType::kIdentifier: {
         auto id = Match(TokenType::kIdentifier);
         auto ctor = ctors.Get(id.ToString());
-        CHECK(ctor) << "undefined identifier";
+        if (!ctor) {
+          diag_ctx.EmitFatal(
+              // TODO(@jroesch): split into error and help
+              // deal with multiple rendering
+              Diagnostic::Error(id->span)
+              << "undefined constructor name `" << id.ToString()
+              << "`, perhaps you intended to write a"
+              << "pattern variable, considering changing this to `%" << id.ToString() << "`");
+        }
         if (Peek()->token_type == TokenType::kOpenParen) {
           auto fields = ParsePatternList();
           return PatternConstructor(ctor.value(), fields);
@@ -1118,22 +1220,27 @@ class Parser {
   }
 
   Expr ParseMatch(bool is_total) {
-    Expr scrutinee = ParseExpr();
+    return WithSpan<Expr>([&]() {
+      Expr scrutinee = ParseAtomicExpr();
 
-    Array<Clause> clauses = ParseSequence<Clause>(
-        TokenType::kLCurly, TokenType::kComma, TokenType::kRCurly, [&] { return ParseMatchArm(); });
+      Array<Clause> clauses =
+          ParseSequence<Clause>(TokenType::kLCurly, TokenType::kComma, TokenType::kRCurly,
+                                [&] { return ParseMatchArm(); });
 
-    return relay::Match(scrutinee, clauses, is_total);
+      return relay::Match(scrutinee, clauses, is_total);
+    });
   }
 
   Expr ParseExprBinOp() {
     DLOG(INFO) << "Parser::ParseExprBinOp";
-    return ConsumeWhitespace<Expr>([this] {
+    return WithSpan<Expr>([this] {
       // We must parse at least one expression, the default
       // case is that there is no operator and we will fall
       // through.
       std::vector<Expr> exprs;
-      exprs.push_back(ParseCallExpr());
+      Expr expr = WithSpan<Expr>([this] { return ParseCallExpr(); });
+
+      exprs.push_back(expr);
 
       // Now we parse an optional op.
       std::vector<Rule> ops;
@@ -1150,7 +1257,8 @@ class Parser {
         // Read the operation we parsed;
         auto op = opt_op[0];
 
-        Expr right = ParseCallExpr();
+        Expr right = WithSpan<Expr>([this] { return ParseCallExpr(); });
+        CHECK(right->span.defined());
 
         // If the operator stack is empty
         // we parse an operator and expression
@@ -1177,7 +1285,9 @@ class Parser {
           exprs.pop_back();
           Expr left = exprs.back();
           exprs.pop_back();
-          exprs.push_back(relay::Call(new_op.op, {left, right}));
+          CHECK(new_op.op.defined()) << "a call op must be set " << new_op.op;
+          exprs.push_back(
+              relay::Call(new_op.op, {left, right}, Attrs(), {}, left->span.Merge(right->span)));
         }
 
         exprs.push_back(right);
@@ -1191,11 +1301,16 @@ class Parser {
         exprs.pop_back();
         Expr left = exprs.back();
         exprs.pop_back();
-        exprs.push_back(relay::Call(new_op.op, {left, right}));
+        CHECK(new_op.op.defined()) << "a call op must be set " << new_op.op;
+        exprs.push_back(
+            relay::Call(new_op.op, {left, right}, Attrs(), {}, left->span.Merge(right->span)));
       }
 
-      CHECK_EQ(ops.size(), 0);
-      CHECK_EQ(exprs.size(), 1);
+      ICHECK_EQ(ops.size(), 0) << "No operations should be left on the operation stack.";
+
+      ICHECK_EQ(exprs.size(), 1)
+          << "Only a single expression should be left on the expression stack.";
+
       return exprs[0];
     });
   }
@@ -1254,49 +1369,46 @@ class Parser {
   }
 
   Expr ParseCallArgs(Expr op) {
-    try {
-      DLOG(INFO) << "Parser::ParseCallArgs";
-      Map<String, ObjectRef> raw_attrs;
-      std::string op_key;
-      bool is_op = false;
+    CHECK(op.defined()) << "the operator must be defined";
 
-      if (auto op_node = op.as<OpNode>()) {
-        is_op = true;
-        op_key = op_node->attrs_type_key;
+    DLOG(INFO) << "Parser::ParseCallArgs";
+    Map<String, ObjectRef> raw_attrs;
+    std::string op_key;
+    bool is_op = false;
+
+    if (auto op_node = op.as<OpNode>()) {
+      is_op = true;
+      op_key = op_node->attrs_type_key;
+    }
+
+    if (Peek()->token_type == TokenType::kOpenParen) {
+      Array<Expr> args = ParseSequence<Expr>(
+          TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
+          [&] { return ParseExpr(); },
+          [&] {
+            auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
+            auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
+
+            if (is_op && is_ident && next_is_equal) {
+              raw_attrs = ParseAttrs();
+              return true;
+            }
+
+            return false;
+          });
+
+      Attrs attrs;
+
+      if (is_op && op_key.size()) {
+        auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
+        CHECK(attr_obj.defined());
+        attrs = Downcast<Attrs>(attr_obj);
       }
 
-      if (Peek()->token_type == TokenType::kOpenParen) {
-        Array<Expr> args = ParseSequence<Expr>(
-            TokenType::kOpenParen, TokenType::kComma, TokenType::kCloseParen,
-            [&] { return ParseExpr(); },
-            [&] {
-              auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
-              auto next_is_equal = Lookahead(2)->token_type == TokenType::kEqual;
-
-              if (is_op && is_ident && next_is_equal) {
-                raw_attrs = ParseAttrs();
-                return true;
-              }
-
-              return false;
-            });
-
-        Attrs attrs;
-
-        if (is_op && op_key.size()) {
-          auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
-          CHECK(attr_obj.defined());
-          attrs = Downcast<Attrs>(attr_obj);
-        }
-
-        return Expr(Call(op, args, attrs, {}));
-      } else {
-        return Expr();
-      }
-    } catch (...) {
-      // TODO(@jroesch): AttrErrors should have fields
-      this->diag_ctx->Emit(Diagnostic::Error(Peek()->span));
-      // << err.what());
+      // TODO(@jroesch): in a secondary pass adjust spans.
+      return Expr(Call(op, args, attrs, {}));
+    } else {
+      return Expr();
     }
 
     return Expr();
@@ -1304,25 +1416,19 @@ class Parser {
 
   Expr ParseCallExpr() {
     DLOG(INFO) << "Parser::ParseCallExpr";
-    return ConsumeWhitespace<Expr>([this] {
+    return WithSpan<Expr>([this] {
       Expr expr = ParseAtomicExpr();
       // Parse as many call args as possible, building up expression
       //
       // NB(@jroesch): this seems like a hack but in order to parse curried functions
       // and avoid complex grammar we will parse multiple call lists in a row.
       while (Peek()->token_type == TokenType::kOpenParen) {
-        try {
-          auto new_expr = ParseCallArgs(expr);
+        auto new_expr = ParseCallArgs(expr);
 
-          if (new_expr.defined()) {
-            expr = new_expr;
-          } else {
-            break;
-          }
-        } catch (...) {
-          // TODO(@jroesch): AttrErrors should have fields
-          this->diag_ctx->EmitFatal(Diagnostic::Error(Peek()->span));
-          // << err.what());
+        if (new_expr.defined()) {
+          expr = new_expr;
+        } else {
+          break;
         }
       }
 
@@ -1337,21 +1443,22 @@ class Parser {
     });
   }
 
-  Expr GetOp(const std::string& op_name, const Token& tok) {
-    DLOG(INFO) << "op_name=" << op_name << " token=" << tok;
+  Expr GetOp(const std::string& op_name, const Span& span) {
+    DLOG(INFO) << "op_name=" << op_name << " span=" << span;
     try {
       return Op::Get(op_name);
     } catch (const dmlc::Error& e) {
-      this->diag_ctx->Emit(Diagnostic::Error(tok->span)
-                           << "operator `" << op_name
-                           << "` not found, perhaps you forgot to register it?");
+      // we can relax this, but probably need to relax checks or return non-null here.
+      this->diag_ctx.EmitFatal(Diagnostic::Error(span)
+                               << "operator `" << op_name
+                               << "` not found, perhaps you forgot to register it?");
       return Expr();
     }
   }
 
   Expr ParseAtomicExpr() {
     DLOG(INFO) << "Parser::ParseAtomicExpr";
-    auto expr = ConsumeWhitespace<Expr>([this] {
+    Expr expr = WithSpan<Expr>([this] {
       auto next = Peek();
       switch (next->token_type) {
         case TokenType::kInteger:
@@ -1359,6 +1466,7 @@ class Parser {
           Consume(next->token_type);
           auto number = NumberToNDArray(next);
           Expr e = Constant(number, next->span);
+          ICHECK(e->span.defined()) << "constant spans must be defined";
           return e;
         }
         case TokenType::kBoolean: {
@@ -1366,6 +1474,7 @@ class Parser {
           int value = Downcast<tvm::Integer>(next->data);
           auto boolean = BooleanToNDarray(value);
           Expr e = Constant(boolean, next->span);
+          ICHECK(e->span.defined()) << "constant spans must be defined";
           return e;
         }
         // Parse a local of the form `%x`.
@@ -1375,17 +1484,10 @@ class Parser {
         }
         // Parse a local of the form `@x`.
         case TokenType::kGlobal: {
-          auto string = next.ToString();
+          auto global_name = next.ToString();
           Consume(TokenType::kGlobal);
-          auto global = global_names.Get(string);
-          if (!global) {
-            // TODO(@jroesch): fix global's needing span information
-            auto global_var = GlobalVar(string);
-            global_names.Add(string, global_var);
-            return Expr(global_var);
-          } else {
-            return Expr(global.value());
-          }
+          auto global = AddOrGet(&global_names, global_name);
+          return Expr(global);
         }
         // Parse a local of the form `x`.
         // Right now we fail to parse `x.y`.
@@ -1395,7 +1497,9 @@ class Parser {
             Consume(TokenType::kIdentifier);
             return Expr(ctor.value());
           } else {
-            auto idents = ParseHierarchicalName();
+            auto spanned_idents = ParseHierarchicalName();
+            auto idents = spanned_idents.data;
+            auto span = spanned_idents.span;
             CHECK_NE(idents.size(), 0);
             std::stringstream op_name;
             int i = 0;
@@ -1407,7 +1511,7 @@ class Parser {
                 i++;
               }
             }
-            return GetOp(op_name.str(), next);
+            return GetOp(op_name.str(), span);
           }
         }
         case TokenType::kGraph: {
@@ -1419,49 +1523,88 @@ class Parser {
         }
         case TokenType::kFn: {
           Consume(TokenType::kFn);
-          return Expr(ParseFunctionDef());
+          Expr e = ParseFunctionDef();
+          ICHECK(e->span.defined()) << "function spans must be defined.\n" << e;
+          return e;
+        }
+        case TokenType::kRef: {
+          Consume(TokenType::kRef);
+          Match(TokenType::kOpenParen);
+          auto ref_value = ParseExpr();
+          Match(TokenType::kCloseParen);
+          return static_cast<Expr>(RefCreate(ref_value));
+        }
+        case TokenType::kRefRead: {
+          return WithSpan<Expr>([&]() {
+            Consume(TokenType::kRefRead);
+            Match(TokenType::kOpenParen);
+            auto ref = ParseExpr();
+            Match(TokenType::kCloseParen);
+            return static_cast<Expr>(RefRead(ref));
+          });
+        }
+        case TokenType::kRefWrite: {
+          return WithSpan<Expr>([&]() {
+            Consume(TokenType::kRefWrite);
+            Match(TokenType::kOpenParen);
+            auto ref = ParseExpr();
+            Match(TokenType::kComma);
+            auto value = ParseExpr();
+            Match(TokenType::kCloseParen);
+            return static_cast<Expr>(RefWrite(ref, value));
+          });
         }
         case TokenType::kOpenParen: {
+          Span sp = next->span;
           Consume(TokenType::kOpenParen);
           // parse '(' ')'
           if (WhenMatch(TokenType::kCloseParen)) {
             return Expr(Tuple(Array<Expr>()));
           } else {
-            auto expr = ParseExpr();
+            Expr subexpr = ParseExpr();
             // parse '(' expr ')'
             if (WhenMatch(TokenType::kCloseParen)) {
-              return expr;
+              return subexpr;
               // parse '( expr ',' * ')'
             } else if (WhenMatch(TokenType::kComma)) {
-              Array<Expr> exprs = {expr};
+              Array<Expr> exprs = {subexpr};
               while (true) {
                 if (WhenMatch(TokenType::kCloseParen)) {
                   break;
                 } else {
-                  auto expr = ParseExpr();
-                  WhenMatch(TokenType::kComma);
-                  exprs.push_back(expr);
+                  auto element = ParseExpr();
+                  auto comma = Peek();
+                  if (WhenMatch(TokenType::kComma)) {
+                    sp = sp.Merge(element->span.Merge(comma->span));
+                  } else {
+                    sp = sp.Merge(element->span);
+                  }
+                  exprs.push_back(element);
                 }
               }
-              return static_cast<Expr>(Tuple(exprs));
+              Expr tuple = Tuple(exprs, sp);
+              ICHECK(tuple->span.defined()) << "tuple span should be defined";
+              return tuple;
             }
           }
         }
         default: {
-          this->diag_ctx->EmitFatal(Diagnostic::Error(next->span)
-                                    << "expected an expression found  "
-                                    << Pretty(next->token_type));
+          this->diag_ctx.EmitFatal(Diagnostic::Error(next->span)
+                                   << "expected an expression found  " << Pretty(next->token_type));
           return Expr();
         }
       }
     });
 
     if (WhenMatch(TokenType::kPeriod)) {
-      auto index = Match(TokenType::kInteger).ToNumber();
-      expr = relay::TupleGetItem(expr, index);
+      auto token = Match(TokenType::kInteger);
+      auto index = token.ToNumber();
+      auto span = token->span.Merge(expr->span);
+      DLOG(INFO) << "Parser::ParseAtomicExpr: tuple get item";
+      return relay::TupleGetItem(expr, index, span);
+    } else {
+      return expr;
     }
-
-    return expr;
   }
 
   /*! \brief Parse a hierarchical name.
@@ -1475,10 +1618,19 @@ class Parser {
    * single stream inserting the required periods needed
    * to look up registered names.
    */
-  Array<String> ParseHierarchicalName() {
+  Spanned<Array<String>> ParseHierarchicalName() {
     Array<String> idents;
+    Span span;
     while (Peek()->token_type == TokenType::kIdentifier) {
-      auto name = Peek().ToString();
+      auto token = Peek();
+
+      if (span.defined()) {
+        span = span.Merge(token->span);
+      } else {
+        span = token->span;
+      }
+
+      auto name = token.ToString();
       idents.push_back(name);
       Consume(TokenType::kIdentifier);
 
@@ -1492,7 +1644,7 @@ class Parser {
       }
     }
 
-    return idents;
+    return Spanned<Array<String>>(idents, span);
   }
 
   /*! \brief Parse a shape. */
@@ -1527,29 +1679,36 @@ class Parser {
 
   // Parses a user defined ADT or type variable.
   Type ParseNonPrimitiveType(const Token& tok) {
-    auto name = tok.ToString();
-    Type head_type;
-    auto global_type = type_names.Get(name);
+    return WithSpan<Type>([&]() {
+      auto name = tok.ToString();
+      Type head_type = LookupTypeVar(tok);
 
-    if (!global_type) {
-      head_type = LookupTypeVar(tok);
-    } else {
-      head_type = global_type.value();
-    }
+      if (!head_type.defined()) {
+        // head_type = type_names.Get(name);
+        head_type = AddOrGet(&type_names, name, TypeKind::kAdtHandle);
+      }
 
-    CHECK(head_type.defined()) << "internal error: head type must be defined";
+      if (!head_type.defined()) {
+        diag_ctx.EmitFatal(Diagnostic::Error(tok->span)
+                           << "the type constructor `" << name << "` is undefined");
+      }
 
-    Array<Type> arg_types;
-    if (Peek()->token_type == TokenType::kLSquare) {
-      arg_types = ParseSequence<Type>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare,
-                                      [&]() { return ParseType(); });
-    }
+      Array<Type> arg_types;
+      if (Peek()->token_type == TokenType::kLSquare) {
+        arg_types = ParseSequence<Type>(TokenType::kLSquare, TokenType::kComma, TokenType::kRSquare,
+                                        [&]() { return ParseType(); });
+      }
 
-    if (arg_types.size()) {
-      return TypeCall(head_type, arg_types);
-    } else {
-      return head_type;
-    }
+      if (arg_types.size()) {
+        return static_cast<Type>(TypeCall(head_type, arg_types));
+      } else {
+        if (head_type.as<GlobalTypeVarNode>()) {
+          return static_cast<Type>(TypeCall(head_type, {}));
+        } else {
+          return static_cast<Type>(head_type);
+        }
+      }
+    });
   }
 
   /*! \brief Parses a TVM type.
@@ -1558,42 +1717,45 @@ class Parser {
    * a scalar type or an incomplete type `_`.
    */
   Type ParseType() {
-    auto tok = Peek();
+    return WithSpan<Type>([&]() -> Type {
+      auto tok = Peek();
 
-    if (tok->token_type == TokenType::kOpenParen) {
-      auto tys = ParseSequence<relay::Type>(TokenType::kOpenParen, TokenType::kComma,
-                                            TokenType::kCloseParen, [&]() { return ParseType(); });
-      return relay::TupleType(tys);
-    } else if (WhenMatch(TokenType::kFn)) {
-      return ParseFunctionType();
-    } else if (WhenMatch(TokenType::kIdentifier)) {
-      auto id = tok.ToString();
-      if (id == "Tensor") {
-        Match(TokenType::kLSquare);
-        auto shape = ParseShape();
-        Match(TokenType::kComma);
-        auto dtype_tok = Match(TokenType::kIdentifier);
-        auto dtype = DataType(String2DLDataType(dtype_tok.ToString()));
-        Match(TokenType::kRSquare);
-        return TensorType(shape, dtype);
-      } else {
-        auto ty = tok.ToString();
-        if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 ||
-            ty.find("bool", 0) == 0) {
-          // Need to do better error handling here.
-          auto dtype = DataType(String2DLDataType(tok.ToString()));
-          return TensorType({}, dtype);
+      if (tok->token_type == TokenType::kOpenParen) {
+        auto tys =
+            ParseSequence<relay::Type>(TokenType::kOpenParen, TokenType::kComma,
+                                       TokenType::kCloseParen, [&]() { return ParseType(); });
+        return relay::TupleType(tys);
+      } else if (WhenMatch(TokenType::kFn)) {
+        return ParseFunctionType();
+      } else if (WhenMatch(TokenType::kIdentifier)) {
+        auto id = tok.ToString();
+        if (id == "Tensor") {
+          Match(TokenType::kLSquare);
+          auto shape = ParseShape();
+          Match(TokenType::kComma);
+          auto dtype_tok = Match(TokenType::kIdentifier);
+          auto dtype = DataType(String2DLDataType(dtype_tok.ToString()));
+          Match(TokenType::kRSquare);
+          return TensorType(shape, dtype);
         } else {
-          return ParseNonPrimitiveType(tok);
+          auto ty = tok.ToString();
+          if (ty.rfind("int", 0) == 0 || ty.find("float", 0) == 0 || ty.find("uint", 0) == 0 ||
+              ty.find("bool", 0) == 0) {
+            // Need to do better error handling here.
+            auto dtype = DataType(String2DLDataType(tok.ToString()));
+            return TensorType({}, dtype);
+          } else {
+            return ParseNonPrimitiveType(tok);
+          }
         }
+      } else if (WhenMatch(TokenType::kUnderscore)) {
+        return IncompleteType();
+      } else {
+        this->diag_ctx.EmitFatal(Diagnostic::Error(tok->span)
+                                 << "failed to parse type found " << tok);
+        return Type();
       }
-    } else if (WhenMatch(TokenType::kUnderscore)) {
-      return IncompleteType();
-    } else {
-      this->diag_ctx->EmitFatal(Diagnostic::Error(tok->span)
-                                << "failed to parse type found " << tok);
-      return Type();
-    }
+    });
   }
 
   template <typename R>
@@ -1642,32 +1804,50 @@ class Parser {
   }
 };
 
-IRModule ParseModule(std::string file_name, std::string file_content) {
-  DLOG(INFO) << "ParseModule";
+Parser InitParser(const std::string& file_name, const std::string& file_content,
+                  Optional<IRModule> init_module) {
+  DLOG(INFO) << "InitParser: file_name: " << file_name
+             << "file_content_size: " << file_content.size();
   SourceName src_name = SourceName::Get(file_name);
-  Source src(src_name, file_content);
-  DiagnosticContext ctx(src);
-  auto tokens_and_table = Tokenize(&ctx, src_name, file_content);
+  Source source(src_name, file_content);
+
+  IRModule module;
+  if (!init_module) {
+    SourceMap source_map;
+    module = IRModule({}, {}, {}, source_map);
+  } else {
+    module = init_module.value();
+  }
+
+  module->source_map.Add(source);
+
+  auto diag_ctx = DiagnosticContext::Default(module);
+  auto tokens_and_table = Tokenize(diag_ctx, source);
+
   auto tokens = tokens_and_table.first;
   auto meta_data_table = tokens_and_table.second;
-  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), src, meta_data_table.ToMetadata());
+
+  return Parser(module, diag_ctx, source, tokens, DefaultOpTable(), meta_data_table.ToMetadata());
+}
+
+IRModule ParseModule(std::string file_name, std::string file_content,
+                     Optional<IRModule> init_module) {
+  DLOG(INFO) << "ParseModule";
+  auto parser = InitParser(file_name, file_content, init_module);
   auto mod = parser.ParseModule();
+  ICHECK(mod.defined()) << "The parser must return a non-null module.";
   // NB(@jroesch): it is very important that we render any errors before we procede
   // if there were any errors which allow the parser to procede we must render them
   // here.
-  parser.diag_ctx->Render(std::cout);
-  return mod;
+  parser.diag_ctx.Render();
+  auto infer_type = tvm::relay::transform::InferType();
+  ICHECK(infer_type.defined()) << "The type inferencer must be non-null.";
+  return infer_type(mod);
 }
 
 Expr ParseExpr(std::string file_name, std::string file_content) {
   DLOG(INFO) << "ParseExpr";
-  SourceName src_name = SourceName::Get(file_name);
-  Source src(src_name, file_content);
-  DiagnosticContext ctx(src);
-  auto tokens_and_table = Tokenize(&ctx, src_name, file_content);
-  auto tokens = tokens_and_table.first;
-  auto meta_data_table = tokens_and_table.second;
-  Parser parser(&ctx, src_name, tokens, DefaultOpTable(), src, meta_data_table.ToMetadata());
+  auto parser = InitParser(file_name, file_content, Optional<IRModule>());
   parser.ParseSemVer(false);
   parser.PushScope();
   auto expr = parser.ParseExpr();
@@ -1675,7 +1855,7 @@ Expr ParseExpr(std::string file_name, std::string file_content) {
   // NB(@jroesch): it is very important that we render any errors before we procede
   // if there were any errors which allow the parser to procede we must render them
   // here.
-  parser.diag_ctx->Render(std::cout);
+  parser.diag_ctx.Render();
   return expr;
 }
 
@@ -1688,6 +1868,15 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
     .set_body_typed([](tvm::String file_name, tvm::String file_content) {
       return ParseExpr(file_name, file_content);
     });
+
+TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
+  return CreateModulePass(
+      [](const IRModule& mod, const PassContext& ctx) {
+        auto text = AsText(mod, true);
+        return ParseModule("GeneratedSource", text);
+      },
+      0, "AnnotateSpans", {});
+});
 
 }  // namespace parser
 }  // namespace tvm

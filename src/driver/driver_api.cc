@@ -215,6 +215,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
       tir::transform::CombineContextCall(),
   };
   auto opt_host = transform::Sequential(host_pass_list);
+  CHECK(mod_mixed.defined()) << "This module must be defined";
   auto mhost = opt_host(mod_mixed);
 
   // device pipeline
@@ -271,14 +272,23 @@ runtime::Module build(const Map<Target, IRModule>& inputs, const Target& target_
 
   IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
 
-  for (const auto& it : inputs) {
-    auto pair = SplitDevHostFuncs(it.second, it.first, target_host_val, pass_ctx);
-    auto& mhost = pair.first;
-    auto& mdevice = pair.second;
+  CHECK(mhost_all.defined()) << "The host module must be defined";
 
-    mhost_all->Update(mhost);
-    if (mdevice->functions.size() != 0) {
-      device_modules.push_back(codegen::Build(mdevice, it.first));
+  for (const auto& it : inputs) {
+    if (it.second.defined()) {
+      auto pair = SplitDevHostFuncs(it.second, it.first, target_host_val, pass_ctx);
+      auto& mhost = pair.first;
+      auto& mdevice = pair.second;
+
+      CHECK(mhost.defined()) << "The split host module must be defined";
+
+      CHECK(mhost_all.defined()) << "The host module must be defined";
+
+      mhost_all->Update(mhost);
+
+      if (mdevice->functions.size() != 0) {
+        device_modules.push_back(codegen::Build(mdevice, it.first));
+      }
     }
   }
 

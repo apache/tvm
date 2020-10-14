@@ -282,14 +282,36 @@ ModulePass::ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>
 
 // Module -> Module optimizations.
 IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  DiagnosticContext previous = DiagnosticContext::Default(mod);
+
+  if (pass_ctx->diag_ctx) {
+    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
+    pass_ctx->diag_ctx = previous;
+    previous = tmp;
+  } else {
+    pass_ctx->diag_ctx = previous;
+  }
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
   const PassInfo& pass_info = Info();
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
 
-  CHECK(mod.defined());
+  ICHECK(mod.defined()) << "The input module must be set.";
+
   pass_ctx.Trace(mod, pass_info, true);
   mod = pass_func(std::move(mod), pass_ctx);
-  CHECK(mod.defined());
+
+  ICHECK(mod.defined()) << "The return value of a module pass must be set.";
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
+  pass_ctx->diag_ctx.value().Render();
+  pass_ctx->diag_ctx = previous;
+
   pass_ctx.Trace(mod, pass_info, false);
   return mod;
 }

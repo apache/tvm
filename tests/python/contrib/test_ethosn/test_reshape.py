@@ -76,6 +76,7 @@ def test_reshape_failure():
         model, params = _get_model(input_shape, output_shape, dtype)
         mod = tei.make_module(model, params)
         pattern = get_pattern_table("ethos-n")
+        mod = tei.make_module(model, params)
         mod = relay.transform.MergeComposite(pattern)(mod)
         mod = tei.make_ethosn_partition(mod["main"].body)
         tei.test_error(mod, {}, err_msg)

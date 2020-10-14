@@ -85,6 +85,7 @@ def test_single_constructor_adt():
 def test_too_specific_match():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    _, cons, nil = mod.get_type("List")
 
     v = relay.Var("v")
     match = relay.Match(
@@ -92,11 +93,11 @@ def test_too_specific_match():
         [
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternWildcard(),
                         relay.PatternConstructor(
-                            p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                            cons, [relay.PatternWildcard(), relay.PatternWildcard()]
                         ),
                     ],
                 ),
@@ -113,11 +114,11 @@ def test_too_specific_match():
     assert len(unmatched) == 2
     for case in unmatched:
         assert isinstance(case, relay.PatternConstructor)
-        if case.constructor == p.nil:
+        if case.constructor == nil:
             nil_found = True
-        if case.constructor == p.cons:
+        if case.constructor == cons:
             assert isinstance(case.patterns[1], relay.PatternConstructor)
-            assert case.patterns[1].constructor == p.nil
+            assert case.patterns[1].constructor == nil
             single_length_found = True
     assert nil_found and single_length_found
 
@@ -127,11 +128,11 @@ def test_too_specific_match():
         [
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternWildcard(),
                         relay.PatternConstructor(
-                            p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                            cons, [relay.PatternWildcard(), relay.PatternWildcard()]
                         ),
                     ],
                 ),
@@ -146,6 +147,7 @@ def test_too_specific_match():
 def test_multiple_constructor_clauses():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    _, cons, nil = mod.get_type("List")
 
     v = relay.Var("v")
     match = relay.Match(
@@ -154,33 +156,33 @@ def test_multiple_constructor_clauses():
             # list of length exactly 1
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons, [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]
+                    cons, [relay.PatternWildcard(), relay.PatternConstructor(nil, [])]
                 ),
                 v,
             ),
             # list of length exactly 2
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternWildcard(),
                         relay.PatternConstructor(
-                            p.cons, [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]
+                            cons, [relay.PatternWildcard(), relay.PatternConstructor(nil, [])]
                         ),
                     ],
                 ),
                 v,
             ),
             # empty list
-            relay.Clause(relay.PatternConstructor(p.nil, []), v),
+            relay.Clause(relay.PatternConstructor(nil, []), v),
             # list of length 2 or more
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternWildcard(),
                         relay.PatternConstructor(
-                            p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                            cons, [relay.PatternWildcard(), relay.PatternWildcard()]
                         ),
                     ],
                 ),
@@ -194,6 +196,7 @@ def test_multiple_constructor_clauses():
 def test_missing_in_the_middle():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    _, cons, nil = mod.get_type("List")
 
     v = relay.Var("v")
     match = relay.Match(
@@ -202,24 +205,24 @@ def test_missing_in_the_middle():
             # list of length exactly 1
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons, [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]
+                    cons, [relay.PatternWildcard(), relay.PatternConstructor(nil, [])]
                 ),
                 v,
             ),
             # empty list
-            relay.Clause(relay.PatternConstructor(p.nil, []), v),
+            relay.Clause(relay.PatternConstructor(nil, []), v),
             # list of length 3 or more
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternWildcard(),
                         relay.PatternConstructor(
-                            p.cons,
+                            cons,
                             [
                                 relay.PatternWildcard(),
                                 relay.PatternConstructor(
-                                    p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                                    cons, [relay.PatternWildcard(), relay.PatternWildcard()]
                                 ),
                             ],
                         ),
@@ -234,11 +237,11 @@ def test_missing_in_the_middle():
     unmatched = unmatched_cases(match, mod)
     assert len(unmatched) == 1
     assert isinstance(unmatched[0], relay.PatternConstructor)
-    assert unmatched[0].constructor == p.cons
+    assert unmatched[0].constructor == cons
     assert isinstance(unmatched[0].patterns[1], relay.PatternConstructor)
-    assert unmatched[0].patterns[1].constructor == p.cons
+    assert unmatched[0].patterns[1].constructor == cons
     assert isinstance(unmatched[0].patterns[1].patterns[1], relay.PatternConstructor)
-    assert unmatched[0].patterns[1].patterns[1].constructor == p.nil
+    assert unmatched[0].patterns[1].patterns[1].constructor == nil
 
 
 def test_mixed_adt_constructors():
@@ -250,6 +253,7 @@ def test_mixed_adt_constructors():
     mod[box] = box_data
 
     p = Prelude(mod)
+    _, cons, nil = p.mod.get_type("List")
 
     v = relay.Var("v")
     box_of_lists_inc = relay.Match(
@@ -260,7 +264,7 @@ def test_mixed_adt_constructors():
                     box_ctor,
                     [
                         relay.PatternConstructor(
-                            p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                            cons, [relay.PatternWildcard(), relay.PatternWildcard()]
                         )
                     ],
                 ),
@@ -274,20 +278,20 @@ def test_mixed_adt_constructors():
     assert len(unmatched) == 1
     assert isinstance(unmatched[0], relay.PatternConstructor)
     assert unmatched[0].constructor == box_ctor
-    assert len(unmatched[0].patterns) == 1 and unmatched[0].patterns[0].constructor == p.nil
+    assert len(unmatched[0].patterns) == 1 and unmatched[0].patterns[0].constructor == nil
 
     box_of_lists_comp = relay.Match(
         v,
         [
             relay.Clause(
-                relay.PatternConstructor(box_ctor, [relay.PatternConstructor(p.nil, [])]), v
+                relay.PatternConstructor(box_ctor, [relay.PatternConstructor(nil, [])]), v
             ),
             relay.Clause(
                 relay.PatternConstructor(
                     box_ctor,
                     [
                         relay.PatternConstructor(
-                            p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
+                            cons, [relay.PatternWildcard(), relay.PatternWildcard()]
                         )
                     ],
                 ),
@@ -302,7 +306,7 @@ def test_mixed_adt_constructors():
         [
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternConstructor(box_ctor, [relay.PatternWildcard()]),
                         relay.PatternWildcard(),
@@ -317,7 +321,7 @@ def test_mixed_adt_constructors():
     unmatched = unmatched_cases(list_of_boxes_inc, mod)
     assert len(unmatched) == 1
     assert isinstance(unmatched[0], relay.PatternConstructor)
-    assert unmatched[0].constructor == p.nil
+    assert unmatched[0].constructor == nil
 
     list_of_boxes_comp = relay.Match(
         v,
@@ -325,10 +329,10 @@ def test_mixed_adt_constructors():
             # exactly one box
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternConstructor(box_ctor, [relay.PatternWildcard()]),
-                        relay.PatternConstructor(p.nil, []),
+                        relay.PatternConstructor(nil, []),
                     ],
                 ),
                 v,
@@ -336,14 +340,14 @@ def test_mixed_adt_constructors():
             # exactly two boxes
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternConstructor(box_ctor, [relay.PatternWildcard()]),
                         relay.PatternConstructor(
-                            p.cons,
+                            cons,
                             [
                                 relay.PatternConstructor(box_ctor, [relay.PatternWildcard()]),
-                                relay.PatternConstructor(p.nil, []),
+                                relay.PatternConstructor(nil, []),
                             ],
                         ),
                     ],
@@ -353,20 +357,20 @@ def test_mixed_adt_constructors():
             # exactly three boxes
             relay.Clause(
                 relay.PatternConstructor(
-                    p.cons,
+                    cons,
                     [
                         relay.PatternConstructor(box_ctor, [relay.PatternWildcard()]),
                         relay.PatternConstructor(
-                            p.cons,
+                            cons,
                             [
                                 relay.PatternConstructor(box_ctor, [relay.PatternWildcard()]),
                                 relay.PatternConstructor(
-                                    p.cons,
+                                    cons,
                                     [
                                         relay.PatternConstructor(
                                             box_ctor, [relay.PatternWildcard()]
                                         ),
-                                        relay.PatternConstructor(p.nil, []),
+                                        relay.PatternConstructor(nil, []),
                                     ],
                                 ),
                             ],
@@ -377,13 +381,11 @@ def test_mixed_adt_constructors():
             ),
             # one or more boxes
             relay.Clause(
-                relay.PatternConstructor(
-                    p.cons, [relay.PatternWildcard(), relay.PatternWildcard()]
-                ),
+                relay.PatternConstructor(cons, [relay.PatternWildcard(), relay.PatternWildcard()]),
                 v,
             ),
             # no boxes
-            relay.Clause(relay.PatternConstructor(p.nil, []), v),
+            relay.Clause(relay.PatternConstructor(nil, []), v),
         ],
     )
     assert len(unmatched_cases(list_of_boxes_comp, mod)) == 0

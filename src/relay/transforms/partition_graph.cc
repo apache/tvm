@@ -207,6 +207,7 @@ class Partitioner : public MixedModeMutator {
         func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
                         func->attrs);
         module_->Update(pair.first, func);
+        module_ = transform::InferType()(module_);
       }
     }
     return module_;
@@ -311,6 +312,7 @@ class Partitioner : public MixedModeMutator {
     auto pf = tvm::runtime::Registry::Get(ext_opt);
     if (pf != nullptr) {
       auto mod = IRModule::FromExpr(global_region_func);
+      mod = transform::InferType()(mod);
       mod = (*pf)(mod);
       global_region_func = Downcast<Function>(mod->Lookup("main"));
     }
@@ -331,6 +333,7 @@ class Partitioner : public MixedModeMutator {
     // optimizing it.
     GlobalVar glob_func(fname);
     module_->Add(glob_func, global_region_func);
+    module_ = relay::transform::InferType()(module_);
 
     // Create a call node for the function.
     auto call = Call(glob_func, param_expr);
@@ -415,6 +418,7 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
       auto removed = PostOrderRewrite(func->body, &remover);
       func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
       module->Update(pair.first, func);
+      module = relay::transform::InferType()(module);
     }
   }
   return module;
@@ -470,6 +474,7 @@ IRModule FlattenTupleOutputs(IRModule module) {
       auto removed = PostOrderRewrite(func->body, &to_flattener);
       func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
       module->Update(pair.first, func);
+      module = relay::transform::InferType()(module);
     }
   }
   return module;

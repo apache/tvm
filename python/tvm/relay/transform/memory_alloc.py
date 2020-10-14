@@ -21,6 +21,7 @@ A pass for manifesting explicit memory allocations.
 import numpy as np
 
 from tvm.ir.transform import PassContext, module_pass
+from tvm.relay.transform import InferType
 from tvm import nd, container
 from ..function import Function
 from ..expr_functor import ExprVisitor, ExprMutator
@@ -351,6 +352,7 @@ class ManifestAlloc:
         # TODO(@jroesch): Is there a way to do one shot initialization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")
+        mod = InferType()(mod)
 
         assert isinstance(self.targets, (dict, container.Map))
         if len(self.targets) > 1:

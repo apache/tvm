@@ -57,20 +57,21 @@ def test_func():
     show(astext(f))
 
 
-def test_env():
+def test_mod():
     x = relay.var("x", "float32")
     y = relay.var("y", "float32")
     z = relay.add(x, y)
     z = relay.add(z, z)
     f = relay.Function([x, y], z)
-    env = tvm.IRModule()
-    env["myf"] = f
-    text = astext(env)
+    mod = tvm.IRModule()
+    mod["myf"] = f
+    mod = relay.transform.InferType()(mod)
+    text = astext(mod)
     assert "def @myf" in text
-    assert "def @myf" in str(env)
+    assert "def @myf" in str(mod)
     assert "add(%0, %0) /* ty=float32 */" in text
-    assert "add(%0, %0) /* ty=float32 */" in str(env)
-    show(env.astext(annotate=lambda x: str(x.checked_type.dtype) if type(x) == relay.Call else ""))
+    assert "add(%0, %0) /* ty=float32 */" in str(mod)
+    show(mod.astext(annotate=lambda x: str(x.checked_type.dtype) if type(x) == relay.Call else ""))
     show(text)
 
 

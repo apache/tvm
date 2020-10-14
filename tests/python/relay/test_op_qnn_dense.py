@@ -207,6 +207,7 @@ def qnn_dense_driver(test_configuration):
 
     mod = relay.Function(relay.analysis.free_vars(mod), mod)
     mod = tvm.IRModule.from_expr(mod)
+    mod = relay.transform.InferType()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     with tvm.transform.PassContext(opt_level=2):
         graph, lib, params = relay.build(mod, "llvm", params=None)

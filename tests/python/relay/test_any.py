@@ -22,6 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
+from util.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
 
@@ -985,11 +986,9 @@ def test_recursive_concat_with_wrong_annotation():
     start = relay.var("start", shape=(), dtype="int32")
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
-    try:
+    with DiagnosticTesting() as diagnostics:
+        diagnostics.assert_message("in particular dimension 0 conflicts 2 does not match 1")
         func = infer_type(func)
-        assert False
-    except Exception as e:
-        assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)
 
 
 @tvm.testing.uses_gpu

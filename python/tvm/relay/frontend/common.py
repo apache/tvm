@@ -478,7 +478,8 @@ def infer_type(node, mod=None):
         new_mod = IRModule.from_expr(node)
         if mod is not None:
             new_mod.update(mod)
-            new_mod = _transform.InferType()(new_mod)
+
+        new_mod = _transform.InferType()(new_mod)
         entry = new_mod["main"]
         ret = entry if isinstance(node, _function.Function) else entry.body
 

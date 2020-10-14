@@ -387,17 +387,6 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
-        elif len(attr["kernel_shape"]) == 2:
-            sym_pad = True
-            if "pads" in attr:
-                padding = attr["pads"]
-            else:
-                padding = [0, 0, 0, 0]
-            for i in range(0, len(padding), 2):
-                sym_pad = sym_pad and padding[i] == padding[i + 1]
-
-            if sym_pad:
-                attr["pads"] = padding[0::2]
 
         out = AttrCvt(
             op_name=dimension_picker("conv"),
@@ -1904,6 +1893,19 @@ class TopK(OnnxOpConverter):
         return _op.topk(inputs[0], inputs[1], axis=axis)
 
 
+class Range(OnnxOpConverter):
+    """Operator converter for Range"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if len(inputs) != 3:
+            raise ValueError("Expect 3 input only")
+
+        return _op.arange(
+            inputs[0], inputs[1], inputs[2], dtype=infer_type(inputs[0]).checked_type.dtype
+        )
+
+
 class MaxRoiPool(OnnxOpConverter):
     """Operator converter for MaxRoiPool."""
 
@@ -2126,6 +2128,7 @@ def _get_convert_map(opset):
         "Or": Or.get_converter(opset),
         "Resize": Resize.get_converter(opset),
         "NonZero": NonZero.get_converter(opset),
+        "Range": Range.get_converter(opset),
     }
 
 

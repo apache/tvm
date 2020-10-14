@@ -124,8 +124,9 @@ def test_match():
 
 def test_match_completeness():
     p = relay.prelude.Prelude()
+    _, _, nil = p.mod.get_type("List")
     for completeness in [True, False]:
-        match_expr = relay.adt.Match(p.nil, [], complete=completeness)
+        match_expr = relay.adt.Match(nil, [], complete=completeness)
         result_expr = ExprMutator().visit(match_expr)
         # ensure the mutator doesn't mangle the completeness flag
         assert result_expr.complete == completeness

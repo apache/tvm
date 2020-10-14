@@ -253,7 +253,8 @@ def convert_list_to_vmobj(py_lst):
 
     mod = tvm.IRModule()
     prelude = Prelude(mod)
-    adt_lst = ADT(prelude.nil.tag, [])
+    list, cons, nil = mod.get_type("List")
+    adt_lst = ADT(nil.tag, [])
     for elem in reversed(py_lst):
         if isinstance(elem, np.ndarray):
             vmobj = wrap_nd_array(elem)
@@ -261,7 +262,7 @@ def convert_list_to_vmobj(py_lst):
             vmobj = tuple_object([wrap_nd_array(e) for e in elem])
         elif isinstance(elem, list):
             vmobj = convert_list_to_vmobj(elem)
-        adt_lst = ADT(prelude.cons.tag, [vmobj, adt_lst])
+        adt_lst = ADT(cons.tag, [vmobj, adt_lst])
     return adt_lst
 
 

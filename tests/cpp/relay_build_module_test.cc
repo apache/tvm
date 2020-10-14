@@ -116,12 +116,14 @@ TEST(Relay, BuildModule) {
   Target llvm_tgt = Target("llvm");
   targets.Set(0, llvm_tgt);
   auto relay_mod = tvm::IRModule::FromExpr(func);
+  CHECK(relay_mod.defined()) << "Module must be defined";
   build_f(relay_mod, targets, llvm_tgt);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run
   auto ctx = A->ctx;
   auto pfr = tvm::runtime::Registry::Get("tvm.graph_runtime.create");
+  CHECK(mod.defined()) << "Module must be defined";
   tvm::runtime::Module run_mod = (*pfr)(json, mod, (int)ctx.device_type, (int)ctx.device_id);
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);

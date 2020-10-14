@@ -59,6 +59,7 @@ def partition_for_arm_compute_lib(mod, params=None):
 
     seq = tvm.transform.Sequential(
         [
+            transform.InferType(),
             transform.MergeComposite(arm_compute_lib_pattern_table()),
             transform.AnnotateTarget("arm_compute_lib"),
             transform.PartitionGraph(),
