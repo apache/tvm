@@ -242,7 +242,7 @@ import networkx as nx
 
 def prepare_params(g, data):
     params = {}
-    params["infeats"] = data.features.astype("float32")  # Only support float32 as feature for now
+    params["infeats"] = data.features.numpy().astype("float32")  # Only support float32 as feature for now
 
     # Generate adjacency matrix
     adjacency = nx.to_scipy_sparse_matrix(g)
@@ -350,5 +350,6 @@ test_mask = data.test_mask
 acc = evaluate(data, logits_tvm)
 print("Test accuracy of TVM results: {:.2%}".format(acc))
 
+import tvm.testing
 # Verify the results with the DGL model
 tvm.testing.assert_allclose(logits_torch, logits_tvm, atol=1e-3)
