@@ -81,7 +81,8 @@ def test_stage_order():
     for idx, op in enumerate(stage_ops_1):
         if op.name == "A":
             assert (
-                stage_ops_1[idx + 1].name == "A.shared" and stage_ops_1[idx + 2].name == "A.shared"
+                stage_ops_1[idx + 1].name == "A.shared.d"
+                and stage_ops_1[idx + 2].name == "A.shared"
             )
         elif op.name in ["B", "C"]:
             assert stage_ops_1[idx + 1].name == "%s.shared" % op.name

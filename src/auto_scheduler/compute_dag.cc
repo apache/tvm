@@ -1310,10 +1310,8 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
       if (tensors) {
         return ComputeDAG(tensors.value());
       }
-      if (sch) {
-        return ComputeDAG(sch.value());
-      }
-      LOG(FATAL) << "Both tensors and schedule are null";
+      CHECK(sch) << "Both tensors and schedule are null"; 
+      return ComputeDAG(sch.value());
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
