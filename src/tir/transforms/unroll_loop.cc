@@ -33,7 +33,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
