@@ -29,7 +29,7 @@
 
 #include <vector>
 
-#include "../../transforms/infer_layout_util.h"
+#include "../../transforms/infer_layout_utils.h"
 #include "../op_common.h"
 #include "convolution_make.h"
 

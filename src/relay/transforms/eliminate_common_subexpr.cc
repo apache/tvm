@@ -32,7 +32,7 @@
 
 #include <unordered_map>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

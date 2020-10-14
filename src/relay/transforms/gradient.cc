@@ -29,8 +29,8 @@
 #include <tvm/te/operation.h>
 
 #include "let_list.h"
-#include "pass_util.h"
-#include "pattern_util.h"
+#include "pass_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

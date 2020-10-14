@@ -28,7 +28,7 @@
 
 #include "../schedule/message_passing.h"
 #include "compute_op.h"
-#include "op_util.h"
+#include "op_utils.h"
 
 namespace tvm {
 namespace te {

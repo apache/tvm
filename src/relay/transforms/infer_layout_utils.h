@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file infer_layout_util.h
+ * \file infer_layout_utils.h
  * \brief Utility functions to alter the layouts of operators or replace primitive operators with
           other expressions. This pass can be used for computing convolution in
           custom layouts or other general weight pre-transformation.
  */
 
-#ifndef TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTIL_H_
-#define TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTIL_H_
+#ifndef TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTILS_H_
+#define TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTILS_H_
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op_attr_types.h>
@@ -34,7 +34,7 @@
 #include <string>
 #include <tuple>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -235,4 +235,4 @@ static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts
 }  //  namespace relay
 }  //  namespace tvm
 
-#endif  // TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTIL_H_
+#endif  // TVM_RELAY_TRANSFORMS_INFER_LAYOUT_UTILS_H_

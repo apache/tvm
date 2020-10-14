@@ -45,7 +45,7 @@
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "llvm_common.h"
 
 namespace tvm {

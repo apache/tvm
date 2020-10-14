@@ -27,7 +27,7 @@
 
 #include <unordered_set>
 
-#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "message_passing.h"
 #include "operation_inline.h"
 

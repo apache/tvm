@@ -25,7 +25,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include "../../runtime/file_util.h"
+#include "../../runtime/file_utils.h"
 #include "../../runtime/meta_data.h"
 #include "codegen_source_base.h"
 

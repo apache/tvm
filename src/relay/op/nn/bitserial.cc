@@ -26,7 +26,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
-#include "../../transforms/infer_layout_util.h"
+#include "../../transforms/infer_layout_utils.h"
 #include "../op_common.h"
 
 namespace tvm {

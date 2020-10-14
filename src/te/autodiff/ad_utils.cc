@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file ad_util.cc
+ * \file ad_utils.cc
  * \brief Utility for tensor-level auto-differentiation.
  */
-#include "ad_util.h"
+#include "ad_utils.h"
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>

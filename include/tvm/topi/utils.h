@@ -19,10 +19,10 @@
 
 /*!
  * \brief Topi utility function
- * \file topi/util.h
+ * \file topi/utils.h
  */
-#ifndef TVM_TOPI_UTIL_H_
-#define TVM_TOPI_UTIL_H_
+#ifndef TVM_TOPI_UTILS_H_
+#define TVM_TOPI_UTILS_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/packed_func.h>
@@ -44,4 +44,4 @@ inline Array<Integer> ArrayOrInt(TVMArgValue arg) {
 }
 }  // namespace topi
 }  // namespace tvm
-#endif  // TVM_TOPI_UTIL_H_
+#endif  // TVM_TOPI_UTILS_H_

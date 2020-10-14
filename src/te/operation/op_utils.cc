@@ -19,9 +19,9 @@
 
 /*!
  * \brief Utility to make loop nest.
- * \file op_util.cc
+ * \file op_utils.cc
  */
-#include "op_util.h"
+#include "op_utils.h"
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>

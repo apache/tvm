@@ -30,7 +30,7 @@
 
 #include <mutex>
 
-#include "../../runtime/file_util.h"
+#include "../../runtime/file_utils.h"
 #include "../../runtime/library_module.h"
 #include "codegen_blob.h"
 #include "codegen_llvm.h"

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file op_util.h
+ * \file op_utils.h
  * \brief Common utility used in operator construction.
  */
-#ifndef TVM_TE_OPERATION_OP_UTIL_H_
-#define TVM_TE_OPERATION_OP_UTIL_H_
+#ifndef TVM_TE_OPERATION_OP_UTILS_H_
+#define TVM_TE_OPERATION_OP_UTILS_H_
 
 #include <tvm/te/schedule.h>
 #include <tvm/tir/expr.h>
@@ -32,7 +32,7 @@
 #include <vector>
 
 #include "../../tir/transforms/arg_binder.h"
-#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "../schedule/message_passing.h"
 
 namespace tvm {
@@ -101,4 +101,4 @@ tir::ForType IterVarTypeToForType(IterVarType iter_type);
 
 }  // namespace te
 }  // namespace tvm
-#endif  // TVM_TE_OPERATION_OP_UTIL_H_
+#endif  // TVM_TE_OPERATION_OP_UTILS_H_

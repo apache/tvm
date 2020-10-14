@@ -19,11 +19,11 @@
 
 /*!
  *
- * \file tvm/relay/_transforms/pass_util.h
+ * \file tvm/relay/_transforms/pass_utils.h
  * \brief Utilities for writing passes
  */
-#ifndef TVM_RELAY_TRANSFORMS_PASS_UTIL_H_
-#define TVM_RELAY_TRANSFORMS_PASS_UTIL_H_
+#ifndef TVM_RELAY_TRANSFORMS_PASS_UTILS_H_
+#define TVM_RELAY_TRANSFORMS_PASS_UTILS_H_
 
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
@@ -276,4 +276,4 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_TRANSFORMS_PASS_UTIL_H_
+#endif  // TVM_RELAY_TRANSFORMS_PASS_UTILS_H_

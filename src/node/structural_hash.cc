@@ -28,7 +28,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include "../support/util.h"
+#include "../support/utils.h"
 
 namespace tvm {
 
