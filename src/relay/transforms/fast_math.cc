@@ -27,7 +27,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/transform.h>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

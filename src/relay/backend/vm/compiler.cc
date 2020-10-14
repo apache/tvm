@@ -46,7 +46,7 @@
 #include "../../../target/source/codegen_source_base.h"
 #include "../../backend/compile_engine.h"
 #include "../../op/op_common.h"
-#include "../../transforms/pass_util.h"
+#include "../../transforms/pass_utils.h"
 #include "../utils.h"
 #include "compiler.h"
 

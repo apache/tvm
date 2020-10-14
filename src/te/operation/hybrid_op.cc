@@ -35,7 +35,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "op_util.h"
+#include "op_utils.h"
 
 namespace tvm {
 namespace te {

@@ -19,12 +19,12 @@
 
 /*!
  *
- * \file tvm/relay/_pattern_util.h
+ * \file tvm/relay/transforms/pattern_utils.h
  * \brief Header of internal operator functions
  *  These can be used for writing passes.
  */
-#ifndef TVM_RELAY_TRANSFORMS_PATTERN_UTIL_H_
-#define TVM_RELAY_TRANSFORMS_PATTERN_UTIL_H_
+#ifndef TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
+#define TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_
 
 #include <builtin_fp16.h>
 #include <tvm/node/structural_equal.h>
@@ -676,4 +676,4 @@ Expr CastHint(Expr data, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_TRANSFORMS_PATTERN_UTIL_H_
+#endif  // TVM_RELAY_TRANSFORMS_PATTERN_UTILS_H_

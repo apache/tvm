@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file file_util.cc
+ * \file file_utils.cc
  */
-#include "file_util.h"
+#include "file_utils.h"
 
 #include <dmlc/json.h>
 #include <dmlc/logging.h>

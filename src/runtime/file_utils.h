@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file file_util.h
- * \brief Minimum file manipulation util for runtime.
+ * \file file_utils.h
+ * \brief Minimum file manipulation utils for runtime.
  */
-#ifndef TVM_RUNTIME_FILE_UTIL_H_
-#define TVM_RUNTIME_FILE_UTIL_H_
+#ifndef TVM_RUNTIME_FILE_UTILS_H_
+#define TVM_RUNTIME_FILE_UTILS_H_
 
 #include <string>
 #include <unordered_map>
@@ -94,4 +94,4 @@ void LoadMetaDataFromFile(const std::string& file_name,
 void RemoveFile(const std::string& file_name);
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_FILE_UTIL_H_
+#endif  // TVM_RUNTIME_FILE_UTILS_H_

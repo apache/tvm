@@ -33,7 +33,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/topi/elemwise.h>
 
-#include "../transforms/infer_layout_util.h"
+#include "../transforms/infer_layout_utils.h"
 #include "type_relations.h"
 
 namespace tvm {

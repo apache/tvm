@@ -33,7 +33,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../transforms/infer_layout_util.h"
+#include "../transforms/infer_layout_utils.h"
 #include "type_relations.h"
 
 namespace tvm {

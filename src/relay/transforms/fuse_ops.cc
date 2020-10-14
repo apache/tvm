@@ -31,8 +31,8 @@
 #include <tvm/tir/op.h>
 
 #include "../../support/arena.h"
-#include "pass_util.h"
-#include "pattern_util.h"
+#include "pass_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

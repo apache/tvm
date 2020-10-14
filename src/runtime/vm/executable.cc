@@ -37,7 +37,7 @@
 #include <utility>
 #include <vector>
 
-#include "serialize_util.h"
+#include "serialize_utils.h"
 
 namespace tvm {
 namespace runtime {

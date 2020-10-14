@@ -39,7 +39,7 @@
 #include <memory>
 #include <vector>
 
-#include "ad_util.h"
+#include "ad_utils.h"
 
 namespace tvm {
 namespace te {

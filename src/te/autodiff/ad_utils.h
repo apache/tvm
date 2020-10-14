@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file ad_util.h
+ * \file ad_utils.h
  * \brief Helper utilities to implement auto-differentiation.
  */
-#ifndef TVM_TE_AUTODIFF_AD_UTIL_H_
-#define TVM_TE_AUTODIFF_AD_UTIL_H_
+#ifndef TVM_TE_AUTODIFF_AD_UTILS_H_
+#define TVM_TE_AUTODIFF_AD_UTILS_H_
 
 #include <tvm/arith/int_solver.h>
 #include <tvm/te/operation.h>
@@ -132,4 +132,4 @@ TVM_DLL Tensor RemoveJacobianAndLiftNonzeroCond(const Tensor& tensor,
 
 }  // namespace te
 }  // namespace tvm
-#endif  // TVM_TE_AUTODIFF_AD_UTIL_H_
+#endif  // TVM_TE_AUTODIFF_AD_UTILS_H_
