@@ -57,7 +57,8 @@ namespace arith {
  * \brief Base class of all iter map expressions.
  *
  *  An IterMapExpr is a special expression to store
- *  the result of IterMapDetection, it should not
+ *  the result of IterMapDetection.
+ *  It should not appear in a legal TIR PrimFunc.
  */
 class IterMapExprNode : public PrimExprNode {
  public:

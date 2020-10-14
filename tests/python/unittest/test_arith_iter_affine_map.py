@@ -96,6 +96,10 @@ def test_fuse():
     res = tvm.arith.detect_iter_map([y * 3 + x, y], var_dom([(x, 3), (y, 4)]))
     assert len(res) == 0
 
+    # duplication 2
+    res = tvm.arith.detect_iter_map([y, x + 1, y], var_dom([(x, 3), (y, 4)]))
+    assert len(res) == 0
+
     # factor mismatch
     res = tvm.arith.detect_iter_map([y * 4 + x], var_dom([(x, 3), (y, 4)]))
     assert len(res) == 0

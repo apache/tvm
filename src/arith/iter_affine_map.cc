@@ -112,9 +112,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /*!
- * \brief Util to check if all splits in the sumexpr are
- *        independent and complete (covers all the original iter space).
+ * \brief Collector that collects
+ *  the outgoing split reference of each IterMark.
  *
+ *  These out-going splits can then be used to
+ *  check if the iterators are independent.
  */
 class IterMarkSplitCollector {
  public:
@@ -148,7 +150,8 @@ class IterMarkSplitCollector {
   }
 };
 
-// Rewriter to rewrite oinformations in iter
+// Rewriter to rewrite PrimExpr to IterMapExpr
+// when possible
 class IterMapRewriter : public ExprMutator {
  public:
   using Parent = ExprMutator;
@@ -178,6 +181,17 @@ class IterMapRewriter : public ExprMutator {
   }
 
   bool CheckBijective(const Array<IterSumExpr>& indices) {
+    // This function checks two conditions:
+    // - C0: Each iter mark should be fully covered by non-overlapping splits.
+    // - C1: All of the input iterators are used.
+    //
+    // Example: given x in [0, 8) y in [0, 6)
+    // - indices = [x, x+1, y] won't pass because x and x+1 contribute
+    //   two splits that overlaps with each other.
+    // - indices = [x / 4, x % 4, y] will pass because x / 4 and x % 4
+    //   contribute two non-overlapping splits that covers x.
+    // - indices = [x / 4, x % 4] won't pass because y is not used.
+    //
     IterMarkSplitCollector collector;
     // We can check that for each iter mark:
     // All the splits that refers to the itermark covers its extent.
