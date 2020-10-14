@@ -57,7 +57,7 @@ def global_pool(data, pool_type, layout="NCHW"):
 
 
 def pool(
-        data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW", count_include_pad=True
+    data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW", count_include_pad=True
 ):
     """Perform pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
@@ -117,15 +117,15 @@ def pool(
 
 
 def pool_grad(
-        grads,
-        data,
-        kernel,
-        stride,
-        padding,
-        pool_type,
-        ceil_mode=False,
-        layout="NCHW",
-        count_include_pad=True,
+    grads,
+    data,
+    kernel,
+    stride,
+    padding,
+    pool_type,
+    ceil_mode=False,
+    layout="NCHW",
+    count_include_pad=True,
 ):
     """Gradient of pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
@@ -235,7 +235,7 @@ def adaptive_pool3d(data, output_size, pool_type, layout="NCDHW"):
 
 
 def pool1d(
-        data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCW", count_include_pad=True
+    data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCW", count_include_pad=True
 ):
     """Perform pooling on width dimension of data.
        Width axis is determined according to the layout string.
@@ -303,14 +303,14 @@ def pool1d(
 
 
 def pool3d(
-        data,
-        kernel,
-        stride,
-        padding,
-        pool_type,
-        ceil_mode=False,
-        layout="NCDHW",
-        count_include_pad=True,
+    data,
+    kernel,
+    stride,
+    padding,
+    pool_type,
+    ceil_mode=False,
+    layout="NCDHW",
+    count_include_pad=True,
 ):
     """Perform pooling on depth, height and width dimension of data.
        It decides the depth, height and width dimension according to the layout string,

@@ -23,6 +23,7 @@ by the script.
 """
 import numpy as np
 import tvm
+import pytest
 from tvm import te
 from tvm.contrib import graph_runtime
 from tvm.contrib.download import download_testdata
@@ -174,6 +175,7 @@ def _test_rnn_network(net, states):
     tvm.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-4, atol=1e-4)
 
 
+@pytest.mark.skip("neo-ai/tvm: skip due to taking too long and causing timeout")
 def test_forward_extraction():
     """test extraction model"""
     model_name = "extraction"
@@ -186,6 +188,7 @@ def test_forward_extraction():
     LIB.free_network(net)
 
 
+@pytest.mark.skip("neo-ai/tvm: skip due to taking too long and causing timeout")
 def test_forward_alexnet():
     """test alexnet model"""
     model_name = "alexnet"
@@ -198,6 +201,7 @@ def test_forward_alexnet():
     LIB.free_network(net)
 
 
+@pytest.mark.skip("neo-ai/tvm: skip due to taking too long and causing timeout")
 def test_forward_resnet50():
     """test resnet50 model"""
     model_name = "resnet50"
@@ -210,6 +214,7 @@ def test_forward_resnet50():
     LIB.free_network(net)
 
 
+@pytest.mark.skip("neo-ai/tvm: skip due to taking too long and causing timeout")
 def test_forward_resnext50():
     """test resnet50 model"""
     model_name = "resnext50"
@@ -222,6 +227,7 @@ def test_forward_resnext50():
     LIB.free_network(net)
 
 
+@pytest.mark.skip("neo-ai/tvm: skip due to taking too long and causing timeout")
 def test_forward_yolov2():
     """test yolov2 model"""
     model_name = "yolov2"

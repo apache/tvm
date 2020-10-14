@@ -275,4 +275,3 @@ register_shape_func("sigmoid", False, elemwise_shape_func)
 register_shape_func("isnan", False, elemwise_shape_func)
 register_shape_func("isinf", False, elemwise_shape_func)
 register_shape_func("where", False, elemwise_shape_func)
-
