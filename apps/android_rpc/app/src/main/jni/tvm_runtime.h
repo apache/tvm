@@ -42,6 +42,7 @@
 #include "../src/runtime/dso_library.cc"
 #include "../src/runtime/file_util.cc"
 #include "../src/runtime/graph/graph_runtime.cc"
+#include "../src/runtime/graph/graph_runtime_factory.cc"
 #include "../src/runtime/library_module.cc"
 #include "../src/runtime/module.cc"
 #include "../src/runtime/ndarray.cc"
@@ -71,6 +72,10 @@
 
 #ifdef USE_SORT
 #include "../src/runtime/contrib/sort/sort.cc"
+#endif
+
+#ifdef USE_RANDOM
+#include "../src/runtime/contrib/random/random.cc"
 #endif
 
 #include <android/log.h>

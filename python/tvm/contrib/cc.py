@@ -17,6 +17,7 @@
 """Util to invoke C/C++ compilers in the system."""
 # pylint: disable=invalid-name
 import sys
+import os
 import subprocess
 
 from .._ffi.base import py_str
@@ -39,7 +40,11 @@ def create_shared(output, objects, options=None, cc="g++"):
     cc : Optional[str]
         The compiler command.
     """
-    if sys.platform == "darwin" or sys.platform.startswith("linux"):
+    if (
+        sys.platform == "darwin"
+        or sys.platform.startswith("linux")
+        or sys.platform.startswith("freebsd")
+    ):
         _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
@@ -103,7 +108,9 @@ def get_target_by_dump_machine(compiler):
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
 create_shared.get_target_triple = get_target_by_dump_machine(
-    "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None
+    os.environ.get(
+        "CXX", "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None
+    )
 )
 
 

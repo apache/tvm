@@ -19,7 +19,7 @@
 
 use crate::runtime::{Object, ObjectPtr};
 
-use super::*;
+use tvm_macros::Object;
 
 macro_rules! define_node {
     ($name:ident, $ref:expr, $typekey:expr; $node:ident { $($id:ident : $t:ty),*}) => {

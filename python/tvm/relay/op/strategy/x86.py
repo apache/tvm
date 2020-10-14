@@ -21,6 +21,7 @@ import logging
 import re
 from tvm import topi
 from tvm.te import SpecializedCondition
+from tvm.relay.ty import is_dynamic
 from .generic import *
 from .. import op as _op
 
@@ -173,6 +174,14 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
                 name="group_conv2d_nchw.generic",
+            )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWIO"
+            logger.warning("group_conv2d is not optimized for x86.")
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.group_conv2d_nhwc, has_groups=True),
+                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nhwc),
+                name="group_conv2d_nhwc.generic",
             )
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
@@ -347,12 +356,20 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_batch_matmul(topi.x86.batch_matmul),
-        wrap_topi_schedule(topi.x86.schedule_batch_matmul),
-        name="batch_matmul.x86",
-        plevel=10,
-    )
+    if is_dynamic(out_type):
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.nn.batch_matmul),
+            wrap_topi_schedule(topi.generic.nn.schedule_batch_matmul),
+            name="batch_matmul.generic",
+            plevel=10,
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.x86.batch_matmul),
+            wrap_topi_schedule(topi.x86.schedule_batch_matmul),
+            name="batch_matmul.x86",
+            plevel=10,
+        )
     if "cblas" in target.libs:
         strategy.add_implementation(
             wrap_compute_batch_matmul(topi.x86.batch_matmul_cblas),
@@ -380,6 +397,8 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
 def roi_align_strategy_cpu(attrs, inputs, out_type, target):
     """roi_align x86 strategy"""
     strategy = _op.OpStrategy()
+    layout = attrs.layout
+    assert layout == "NCHW", "only support nchw for now"
     strategy.add_implementation(
         wrap_compute_roi_align(topi.x86.roi_align_nchw),
         wrap_topi_schedule(topi.generic.schedule_roi_align),

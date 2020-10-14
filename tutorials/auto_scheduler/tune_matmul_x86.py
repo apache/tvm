@@ -32,12 +32,12 @@ We use matrix multiplication as an example in this tutorial.
 
 import numpy as np
 import tvm
-from tvm import te, testing, auto_scheduler
+from tvm import te, auto_scheduler
 
 ######################################################################
 # Define the computation
 # ^^^^^^^^^^^^^^^^^^^^^^
-# To begin with, we define the computation of a matmul with bias add.
+# To begin with, let us define the computation of a matmul with bias add.
 # The function should return the list of input/output tensors.
 # From these tensors, the auto-scheduler can get the whole computational graph.
 
@@ -59,9 +59,13 @@ def matmul_add(N, L, M, dtype):
 # Create the search task
 # ^^^^^^^^^^^^^^^^^^^^^^
 # We then create a search task with N=L=M=128 and dtype="float32"
+# If your machine supports avx instructions, you can
+#
+#   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
+#   - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
 
 target = tvm.target.Target("llvm")
-task = auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
+task = tvm.auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
 
 # Inspect the computational graph
 print(task.compute_dag)
@@ -69,13 +73,13 @@ print(task.compute_dag)
 ######################################################################
 # Next, we set parameters for the auto-scheduler.
 #
-# * `num_measure_trials` is the number of measurement trials we can use during the search.
+# * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use `RecordToFile` to dump measurement records into a file `matmul.json`.
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a file `matmul.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
-# * see :any:`auto_schedule.TuningOptions`: for more parameters
+# * see :any:`auto_scheduler.TuningOptions` for more parameters
 
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile("matmul.json")]
@@ -93,25 +97,38 @@ sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
-# parallelization, vectorization, unrolling and fusion.
+# parallelization, vectorization, unrolling and operator fusion.
 
 print(tvm.lower(sch, args, simple_mode=True))
 
 ######################################################################
-# Check correctness
-# ^^^^^^^^^^^^^^^^^
-# We build the binary and check its correctness
+# Check correctness and evaluate performance
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# We build the binary and check its correctness and performance.
 
 func = tvm.build(sch, args)
 a_np = np.random.uniform(size=(128, 128)).astype(np.float32)
 b_np = np.random.uniform(size=(128, 128)).astype(np.float32)
 c_np = np.random.uniform(size=(128, 128)).astype(np.float32)
-d_np = a_np.dot(b_np) + c_np
+out_np = a_np.dot(b_np) + c_np
 
-d_tvm = tvm.nd.empty(d_np.shape)
-func(tvm.nd.array(a_np), tvm.nd.array(b_np), tvm.nd.array(c_np), d_tvm)
+ctx = tvm.cpu()
+a_tvm = tvm.nd.array(a_np, ctx=ctx)
+b_tvm = tvm.nd.array(b_np, ctx=ctx)
+c_tvm = tvm.nd.array(c_np, ctx=ctx)
+out_tvm = tvm.nd.empty(out_np.shape, ctx=ctx)
+func(a_tvm, b_tvm, c_tvm, out_tvm)
 
-tvm.testing.assert_allclose(d_np, d_tvm.asnumpy(), rtol=1e-3)
+# Check results
+np.testing.assert_allclose(out_np, out_tvm.asnumpy(), rtol=1e-3)
+
+# Evaluate execution time.
+evaluator = func.time_evaluator(func.entry_name, ctx, min_repeat_ms=500)
+print(
+    "Execution time of this operator: %.3f ms"
+    % (np.median(evaluator(a_tvm, b_tvm, c_tvm, out_tvm).results) * 1000)
+)
+
 
 ######################################################################
 # Using the record file
@@ -129,6 +146,7 @@ inp, res = auto_scheduler.load_best("matmul.json", task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
+print("Equivalent python schedule:")
 print(task.compute_dag.print_python_code_from_state(inp.state))
 
 # Rebuild the binary. This shows how you can apply the best schedule from a
@@ -161,13 +179,16 @@ def resume_search(task, log_file):
 # .. note::
 #   We cannot run the line above because of the conflict between
 #   python's multiprocessing and tvm's thread pool.
-#   After running a tvm generated binary (L112), the python's multiprocessing
-#   library will hang forever.
-#   You have to make sure that you don't run any tvm generated binaries before
-#   calling ansor's search. To run the L156 above, you should comment out L112-114.
+#   After running a tvm generated binary the python's multiprocessing library
+#   will hang forever. You have to make sure that you don't run any tvm
+#   generated binaries before calling auot-scheduler's search.
+#   To run the function above, you should comment out all code in
+#   "Check correctness and evaluate performance" section.
 #
 #   You should be careful about this problem in your applications.
 #   There are other workarounds for this problem.
 #   For example, you can start a new thread/process (with the builtin python library
 #   threading or multiprocessing) and run the tvm binaries in the new thread/process.
 #   This provides an isolation and avoids the conflict in the main thread/process.
+#   You can also use :any:`auto_scheduler.LocalRPCMeasureContext` for auto-scheduler,
+#   as shown in the GPU tutorial (:ref:`auto-scheduler-conv-gpu`).

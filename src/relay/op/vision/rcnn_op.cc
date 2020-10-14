@@ -25,6 +25,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 
+#include "../../transforms/infer_layout_util.h"
+
 namespace tvm {
 namespace relay {
 
@@ -43,12 +45,34 @@ bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(roi_align_attrs);
   CHECK_EQ(dshape.size(), 4) << "Input data should be 4-D.";
   CHECK_EQ(rshape.size(), 2) << "Input rois should be 2-D.";
-  CHECK_EQ(roi_align_attrs->layout, "NCHW") << "ROI Align only supports NCHW layout";
   // assign output type
-  std::vector<IndexExpr> oshape(
-      {rshape[0], dshape[1], roi_align_attrs->pooled_size[0], roi_align_attrs->pooled_size[1]});
+  std::vector<IndexExpr> oshape;
+  if (roi_align_attrs->layout == "NCHW") {
+    oshape = {rshape[0], dshape[1], roi_align_attrs->pooled_size[0],
+              roi_align_attrs->pooled_size[1]};
+  } else {
+    CHECK_EQ(roi_align_attrs->layout, "NHWC") << "Unexpected ROI Align layout";
+    oshape = {rshape[0], roi_align_attrs->pooled_size[0], roi_align_attrs->pooled_size[1],
+              dshape[3]};
+  }
+
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
+}
+
+template <typename T>
+Array<Array<Layout> > ROIAlignInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  // NOTE: Discard "const" qualifier here.
+  T* params = const_cast<T*>(attrs.as<T>());
+  Layout data_layout = params->layout;
+
+  // Layout inference needs to define the layout for all inputs and output data layouts.
+  // For roi_align, the second inputs is 2-D tensor with shape [num_roi, 5].
+  // So, we set the layout as "N5".
+  return Array<Array<Layout> >{{data_layout, Layout("N5")}, {data_layout}};
 }
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
@@ -78,7 +102,9 @@ RELAY_REGISTER_OP("vision.roi_align")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("rois", "Tensor", "The input rois")
     .set_support_level(5)
-    .add_type_rel("ROIAlign", ROIAlignRel);
+    .add_type_rel("ROIAlign", ROIAlignRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   ROIAlignInferCorrectLayout<ROIAlignAttrs>);
 
 TVM_REGISTER_NODE_TYPE(ROIPoolAttrs);
 

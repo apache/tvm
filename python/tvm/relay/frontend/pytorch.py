@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
-# pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
+# pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
 """PT: PyTorch frontend."""
 import itertools
 import logging
@@ -36,6 +36,7 @@ from .. import transform
 from .common import AttrCvt, get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import try_infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import infer_type as _infer_type
 from ..prelude import Prelude, StaticTensorArrayOps
@@ -43,6 +44,14 @@ from ..prelude import Prelude, StaticTensorArrayOps
 from . import qnn_torch
 
 __all__ = ["from_pytorch"]
+
+
+def _is_version_greater_than(ver):
+    import torch
+    from packaging import version
+
+    # Torch version > 1.4 changed upsampling API
+    return version.parse(torch.__version__) > version.parse(ver)
 
 
 # List ADT utilities
@@ -56,22 +65,26 @@ def _convert_to_list_adt(py_lst, prelude):
     msg = "List elements should have identical types"
     assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
 
-    adt_lst = prelude.nil()
+    # get_type returns type_name, ctor1, ..., ctorN
+    # 1 is nil
+    _, cons, nil = prelude.mod.get_type("List")
+    adt_lst = nil()
     for elem in reversed(py_lst):
-        adt_lst = prelude.cons(elem, adt_lst)
+        adt_lst = cons(elem, adt_lst)
     return adt_lst
 
 
 def _map_tensor_array_constructor(adt_lst, prelude, shape):
     static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
     static_tensor_array_ops.register()
-    tensor_create = prelude.get_var_static("tensor_constructor", "float32", shape)
+    tensor_create = prelude.get_tensor_ctor_static("tensor_constructor", "float32", shape)
     return prelude.map(tensor_create, adt_lst)
 
 
 def _convert_to_tensor_array(adt_lst, prelude):
+    _, cons, nil = prelude.mod.get_type("List")
     if prelude.length(adt_lst) == 0:
-        return prelude.nil()
+        return nil()
 
     checked_type = _infer_type_with_prelude(prelude.hd(adt_lst), prelude)
     shape = checked_type.shape
@@ -185,11 +198,8 @@ def _arange():
         def _get_value(val, dtype):
             # dtype is a tvm dtype
             if isinstance(val, _expr.Expr):
-                try:
-                    ret = _infer_value(_op.cast(val, dtype), {}).asnumpy()
-                    ret = _expr.const(ret, dtype)
-                except Exception:
-                    ret = _op.cast(val, dtype)
+                inp = _op.cast(val, dtype)
+                ret, _ = try_infer_value(inp, lambda ret: _expr.const(ret, dtype))
             else:
                 ret = _create_typed_const(val, dtype)
             return ret
@@ -264,12 +274,12 @@ def _concatenate(prelude):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         tensor_array, shape = _convert_to_tensor_array(lst, prelude)
         concat_shape = (Any(),) + shape[1:]
-        concat = prelude.get_var_static("tensor_array_concat", "float32", shape)
+        concat = prelude.get_global_var_static("tensor_array_concat", "float32", shape)
         concatenated = concat(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
         static_tensor_array_ops.register()
-        get_tensor = prelude.get_var_static("tensor_get_data", "float32", concat_shape)
+        get_tensor = prelude.get_global_var_static("tensor_get_data", "float32", concat_shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
@@ -305,10 +315,7 @@ def _slice():
         dim = int(inputs[1])
         stride = int(inputs[4])
         if isinstance(inputs[2], _expr.Call):
-            try:
-                begin[dim] = np.asscalar(_infer_value(inputs[2], {}).asnumpy().astype(np.int))
-            except Exception:
-                begin[dim] = inputs[2]
+            begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
         else:
             begin[dim] = int(inputs[2])
 
@@ -329,10 +336,9 @@ def _slice():
             target_end = int(inputs[3])
         else:
             if isinstance(inputs[3], _expr.Expr):
-                try:
-                    target_end = np.asscalar(_infer_value(inputs[3], {}).asnumpy().astype(np.int))
-                except Exception:
-                    target_end = inputs[3]
+                target_end, _ = try_infer_value(
+                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+                )
             else:
                 target_end = inputs[3]
 
@@ -415,13 +421,18 @@ def _split():
 def _split_with_sizes():
     def _impl(inputs, input_types):
         data = inputs[0]
+        sections = inputs[1]
         dim = int(inputs[2])
+
+        if len(sections) == 1:
+            # a special case used in torchvision detection models
+            return _expr.TupleWrapper(_expr.Tuple([data]), 1)
 
         split_index = 0
         indices = []
-        sections = inputs[1]
         for i in range(len(sections) - 1):
-            split_index += sections[i]
+            index, _ = try_infer_value(sections[i], lambda ret: int(ret))
+            split_index += index
             indices.append(split_index)
 
         return _op.split(data, indices, dim)
@@ -457,10 +468,7 @@ def _topk():
         sort = bool(inputs[4])
 
         if isinstance(inputs[1], _expr.Expr):
-            try:
-                k = _infer_value(inputs[1], {}).asnumpy().tolist()
-            except Exception:
-                k = inputs[1]
+            k, _ = try_infer_value(inputs[1], lambda ret: ret.tolist())
         else:
             k = inputs[1]
 
@@ -527,6 +535,9 @@ def _addcmul():
 
 def _where():
     def _impl(inputs, input_types):
+        if len(inputs) == 1:
+            return _nonzero(False)([inputs[0], True], input_types)
+
         cond = inputs[0]
         x, y = _pytorch_promote_types(inputs[1:3], input_types[1:3])
         return _op.where(cond, x, y)
@@ -546,15 +557,15 @@ def _full_impl(data, fill_value, dtype):
                     size.append(dim)
                 new_shape.append(dim)
             else:
-                try:
-                    dim = int(_infer_value(dim, {}).asnumpy())
+                dim, success = try_infer_value(dim, lambda ret: int(ret), lambda: 0)
+                new_shape.append(dim)
+
+                if success:
                     if isinstance(size, list):
                         size.append(dim)
-                    new_shape.append(dim)
-                except Exception:
+                else:
                     size = None
                     need_reshape = True
-                    new_shape.append(0)
         else:
             if isinstance(size, list):
                 size.append(dim)
@@ -1346,12 +1357,11 @@ def _reshape():
             if isinstance(s, _expr.Constant):
                 tmp_shape.append(int(s.data.asnumpy()))
             elif isinstance(s, _expr.Expr):
-                try:
-                    dim = int(_infer_value(s, {}).asnumpy())
-                    tmp_shape.append(dim)
-                except Exception:
+                dim, success = try_infer_value(s, lambda ret: int(ret))
+                tmp_shape.append(dim)
+
+                if not success:
                     is_dyn = True
-                    tmp_shape.append(s)
             else:
                 tmp_shape.append(s)
 
@@ -1822,13 +1832,14 @@ def _to():
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
         cast_map = {
+            5: "float16",
             6: "float32",
             7: "float64",
             3: "int32",
             4: "int64",
         }
 
-        cast_func = {6: float, 7: float, 3: int, 4: int}
+        cast_func = {5: float, 6: float, 7: float, 3: int, 4: int}
 
         ret = data
         if isinstance(data, _expr.Expr):
@@ -1870,11 +1881,8 @@ def _upsample(method, prelude):
             return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
         if _is_quantized_tensor(data, prelude):
-            import torch
-            from packaging import version
-
             # Torch version > 1.4 changed upsampling API
-            if version.parse(torch.__version__) > version.parse("1.4.0"):
+            if _is_version_greater_than("1.4.0"):
                 num_inputs = 7
             else:
                 num_inputs = 5
@@ -2050,12 +2058,12 @@ def _tensor_array_stack(prelude):
         tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
 
         stacked_shape = (Any(),) + shape
-        stack = prelude.get_var_static("tensor_array_stack", "float32", shape)
+        stack = prelude.get_global_var_static("tensor_array_stack", "float32", shape)
         stacked = stack(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", stacked_shape)
         static_tensor_array_ops.register()
-        get_tensor = prelude.get_var_static("tensor_get_data", "float32", stacked_shape)
+        get_tensor = prelude.get_global_var_static("tensor_get_data", "float32", stacked_shape)
         return get_tensor(stacked)
 
     return _impl
@@ -2177,9 +2185,11 @@ def _nms(prelude):
         data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
 
         # strided slice to get the dynamic result
-        return get_relay_op("strided_slice")(
+        ret = get_relay_op("strided_slice")(
             data_slice, begin=_expr.const([0]), end=size, slice_mode="size"
         )
+        # in torchvision, indices from nms are int64
+        return _op.cast(ret, "int64")
 
     return _impl
 
@@ -2271,9 +2281,8 @@ def _nonzero(is_numpy_style):
         ret = _op.transform.argwhere(data)
 
         if is_numpy_style or (len(inputs) > 1 and inputs[1]):
-            # TODO(kevinthesun): Support this by adding unbind op
-            # ret = _unbind()([ret, 0], None)
-            raise RuntimeError("as_tuple is not supported yet for nonzero.")
+            return _unbind()([ret, 1], None)
+
         return ret
 
     return _impl
@@ -2312,13 +2321,15 @@ def _interpolate():
         if isinstance(inputs[1], _expr.Expr):
             out_size = inputs[1]
         elif isinstance(inputs[1], list):
-            try:
-                infer_res = [_infer_value(size, {}) for size in inputs[1]]
-                out_size = [np.asscalar(res.asnumpy().astype(np.int)) for res in infer_res]
-            except Exception:
-                h = _op.expand_dims(inputs[1][0], axis=0)
-                w = _op.expand_dims(inputs[1][1], axis=0)
-                out_size = _op.concatenate([h, w], axis=0)
+            out_size = []
+            for i in [0, 1]:
+                size, _ = try_infer_value(
+                    inputs[1][i],
+                    lambda ret: ret.astype(np.int),
+                    lambda: _op.expand_dims(inputs[1][i], axis=0),
+                )
+                out_size.append(size)
+            out_size = _op.concatenate(out_size, axis=0)
 
         data = inputs[0]
         align_corners = inputs[4]
@@ -2334,6 +2345,21 @@ def _interpolate():
             coord_trans = "half_pixel"
 
         return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+
+    return _impl
+
+
+def _numel():
+    def _impl(inputs, input_types):
+        return _op.ndarray_size(inputs[0])
+
+    return _impl
+
+
+def _empty():
+    def _impl(inputs, input_types):
+        shape = inputs[0]
+        return _op.zeros(shape, _convert_dtype_value(inputs[1]))
 
     return _impl
 
@@ -2429,21 +2455,21 @@ def _convert_data_type(input_type, default_dtype=None):
         return default_dtype
 
     input_type = input_type.lower()
-    if input_type in ["double", "torch.float64"]:
+    if input_type in ["double", "float64", "torch.float64"]:
         return "float64"
-    elif input_type in ["float", "torch.float32"]:
+    elif input_type in ["float", "float32", "torch.float32"]:
         return "float32"
-    elif input_type in ["half", "torch.float16"]:
+    elif input_type in ["half", "float16", "torch.float16"]:
         return "float16"
-    elif input_type in ["long", "torch.int64"]:
+    elif input_type in ["long", "int64", "torch.int64"]:
         return "int64"
-    elif input_type in ["int", "torch.int32"]:
+    elif input_type in ["int", "int32", "torch.int32"]:
         return "int32"
-    elif input_type in ["short", "torch.int16"]:
+    elif input_type in ["short", "int16", "torch.int16"]:
         return "int16"
-    elif input_type in ["char", "torch.int8"]:
+    elif input_type in ["char", "int8", "torch.int8"]:
         return "int8"
-    elif input_type in ["byte", "torch.uint8"]:
+    elif input_type in ["byte", "uint8", "torch.uint8"]:
         return "uint8"
     elif input_type in ["quint8", "torch.quint8"]:
         return "quint8"
@@ -2676,6 +2702,10 @@ def _get_convert_map(prelude, default_dtype):
         "aten::scatter": _scatter(),
         "aten::scalar_tensor": _scalar_tensor(),
         "aten::__interpolate": _interpolate(),
+        "aten::IntImplicit": _identity(),
+        "aten::tensor": _identity(),  # used for example in tensor(1.0)
+        "aten::numel": _numel(),
+        "aten::empty": _empty(),
     }
     return convert_map
 
@@ -2684,7 +2714,13 @@ def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
     import torch
 
-    torch._C._jit_pass_inline(graph)
+    if _is_version_greater_than("1.5.0"):
+        # This is required for torchvision detection models from 1.6 above
+        # It is the same as _jit_pass_inline, except that it has some special
+        # case behaviors for some ops such as aten::__interpolate()
+        torch._C._jit_pass_onnx_function_substitution(graph)
+    else:
+        torch._C._jit_pass_inline(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
@@ -2851,7 +2887,7 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_dtype="float32"):
+def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_dtype="float32"):
     """
     Return Relay vars from input shapes and create entries based on
     expected graph inputs - to allow translation
@@ -2862,17 +2898,17 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
         # a module has "self" as first input, which we do not need/want
         graph_inputs = graph_inputs[1:]
 
-    if not isinstance(input_shapes, list):
-        msg = "Graph inputs input_shapes should be a list"
+    if not isinstance(input_infos, list):
+        msg = "Graph inputs input_infos should be a list"
         raise RuntimeError(msg)
 
-    if len(graph_inputs) != len(input_shapes):
-        msg = "PyTorch has {} inputs and input_shapes lists {}.".format(
-            len(graph_inputs), len(input_shapes)
+    if len(graph_inputs) != len(input_infos):
+        msg = "PyTorch has {} inputs and input_infos lists {}.".format(
+            len(graph_inputs), len(input_infos)
         )
         raise RuntimeError(msg)
 
-    def get_relay_ty(ishape, pt_type):
+    def get_relay_ty(ishape, itype, pt_type):
         if pt_type.kind() == "TensorType":
             if not (_is_int_seq(ishape) or len(ishape) == 0):
                 msg = "Shape for Tensors must be lists of ints"
@@ -2884,6 +2920,8 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
                 msg = "Shapes of input list and information in the graph do not match"
                 raise RuntimeError(msg)
             pt_dtype = pt_type.scalarType()
+            if not pt_dtype and itype:
+                pt_dtype = itype
             dtype = _convert_data_type(pt_dtype, default_dtype=default_dtype)
             return TensorType(ishape, dtype)
         elif pt_type.kind() == "TupleType":
@@ -2891,37 +2929,46 @@ def _get_relay_input_vars(graph, input_shapes, prelude, is_module=True, default_
                 msg = "Shapes for tuples must be tuples"
                 raise RuntimeError(msg)
             return TupleType(
-                [get_relay_ty(elem, pt_t) for elem, pt_t in zip(ishape, pt_type.elements())]
+                [get_relay_ty(elem, itype, pt_t) for elem, pt_t in zip(ishape, pt_type.elements())]
             )
         elif pt_type.kind() == "ListType":
             if not isinstance(ishape, list):
                 msg = "Shapes for lists must be lists"
                 raise RuntimeError(msg)
             pt_elemtype = pt_type.getElementType()
-            elem_tys = [get_relay_ty(s, pt_elemtype) for s in ishape]
+            elem_tys = [get_relay_ty(s, itype, pt_elemtype) for s in ishape]
             if len(elem_tys) > 0 and not all(map(lambda ty: ty == elem_tys[0], elem_tys)):
                 msg = "List elements need have identical types"
                 raise RuntimeError(msg)
-            return prelude.l(elem_tys[0])
+            rlist, _, _ = prelude.mod.get_type("List")
+            return rlist(elem_tys[0])
         elif pt_type.kind() == "OptionalType":
             # we do not support None yet, so we fill in the type
-            return get_relay_ty(ishape, pt_type.getElementType())
+            return get_relay_ty(ishape, itype, pt_type.getElementType())
         # TODO: scalar inputs
         raise NotImplementedError("unsupported input type")
 
     input_vars = {}
 
-    for num, inp in enumerate(input_shapes):
+    new_input_infos = []
+    for num, inp in enumerate(input_infos):
         if not isinstance(inp, tuple):
             msg = "Graph input {} is not a tuple".format(num)
             raise RuntimeError(msg)
         if len(inp) != 2 or not isinstance(inp[0], str):
-            msg = "Graph input {} is not valid, expected ('name', shape)".format(inp)
+            msg = (
+                "Graph input {} is not valid,"
+                " expected ('name', shape) or ('name', (shape, dtype))".format(inp)
+            )
             raise RuntimeError(msg)
+        if not isinstance(inp[1], tuple) or len(inp[1]) == 0 or not isinstance(inp[1][-1], str):
+            new_input_infos.append((inp[0], (inp[1], default_dtype)))
+        else:
+            new_input_infos.append(inp)
 
     input_types = [
-        (name, get_relay_ty(shape, gi.type()))
-        for (name, shape), gi in zip(input_shapes, graph_inputs)
+        (name, get_relay_ty(info[0], info[1], gi.type()))
+        for (name, info), gi in zip(new_input_infos, graph_inputs)
     ]
 
     ir_inputs = [i.debugName() for i in graph_inputs]
@@ -3252,7 +3299,7 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_dtype="float32"):
+def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dtype="float32"):
     """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -3262,10 +3309,15 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_shapes : List of tuples of input name and input dimensions
-        Graph level input shape list
+    input_infos: List of tuples of (input name, input shape)
+                 or (input name, (input shape, input types))
+        Graph level input shape and type list
         The same input names need to be used for deployment, so choose easy to
         remember names (such as: input0, input1)
+        e.g.
+          [('input0', (1, 2)), ('input1', (3, 4))]
+          or
+          [('input0', ((1, 2), 'int')), ('input1', ((3, 4), 'float'))]
 
     custom_convert_map: Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
@@ -3297,7 +3349,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None, default_d
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
     outputs = _get_relay_input_vars(
-        graph, input_shapes, prelude, default_dtype=default_dtype, is_module=is_module
+        graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}

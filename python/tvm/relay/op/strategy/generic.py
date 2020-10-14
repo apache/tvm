@@ -256,6 +256,13 @@ def conv2d_strategy(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
                 name="group_conv2d_nchw.generic",
             )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWIO"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.group_conv2d_nhwc, has_groups=True),
+                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nhwc),
+                name="group_conv2d_nhwc.generic",
+            )
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
@@ -676,7 +683,7 @@ def wrap_compute_batch_matmul(topi_compute):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1])]
+        return [topi_compute(inputs[0], inputs[1], out_type.shape)]
 
     return _compute_batch_matmul
 
@@ -715,6 +722,12 @@ def sparse_dense_strategy(attrs, inputs, out_type, target):
         name="sparse_dense.generic",
     )
     return strategy
+
+
+@override_native_generic_func("sparse_dense_padded_strategy")
+def sparse_dense_padded_strategy(attrs, inputs, out_type, target):
+    """sparse dense padded generic strategy"""
+    raise NotImplementedError("sparse_dense_padded is only implemented for cuda")
 
 
 # sparse_transpose
@@ -948,6 +961,8 @@ def wrap_compute_roi_align(topi_compute):
 def roi_align_strategy(attrs, inputs, out_type, target):
     """roi_align generic strategy"""
     strategy = _op.OpStrategy()
+    layout = attrs.layout
+    assert layout == "NCHW", "only support nchw for now"
     strategy.add_implementation(
         wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
         wrap_topi_schedule(topi.generic.schedule_roi_align),

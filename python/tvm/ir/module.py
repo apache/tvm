@@ -72,9 +72,9 @@ class IRModule(Node):
         val: Union[Function, Type]
             The value.
         """
-        return self._add(var, val)
+        return self._add(var, val, True)
 
-    def _add(self, var, val, update=False):
+    def _add(self, var, val, update=True):
         if isinstance(val, _expr.RelayExpr):
             if isinstance(var, string_types):
                 if _ffi_api.Module_ContainGlobalVar(self, var):
@@ -116,7 +116,8 @@ class IRModule(Node):
             The module to merge into the current Module.
         """
         if isinstance(other, dict):
-            other = Module(other)
+            other = IRModule(other)
+
         return _ffi_api.Module_Update(self, other)
 
     def update_func(self, var, func):
@@ -210,6 +211,11 @@ class IRModule(Node):
         """
         return _ffi_api.Module_LookupTag(self, tag)
 
+    def get_type(self, name):
+        ty_var = self.get_global_type_var(name)
+        ty_data = self.type_definitions[ty_var]
+        return tuple([ty_var] + list(ty_data.constructors))
+
     @staticmethod
     def from_expr(expr, functions=None, type_defs=None):
         """Construct a module from a standalone expression.
@@ -240,4 +246,13 @@ class IRModule(Node):
         return _ffi_api.Module_Import(self, file_to_import)
 
     def import_from_std(self, file_to_import):
-        return _ffi_api.Module_ImportFromStd(self, file_to_import)
+        # TODO(@jroesch): clean up prelude
+        _ffi_api.Module_ImportFromStd(self, file_to_import)
+        return tvm.relay.transform.InferType()(self)
+
+    def __str__(self):
+        # TODO(jroesch): why does this hang sometimes?
+        return self.astext()
+
+    def __repr__(self):
+        return self.astext()

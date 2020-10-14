@@ -142,7 +142,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
 
   if (!layouts[0].defined() && !layouts[1].defined()) {
     // both undefined, infer fails
-    return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
+    return Array<Array<Layout>>{{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}};
   } else if (!layouts[0].defined() || !layouts[1].defined()) {
     // only one is defined, use shape information to help infer
     int defined_idx = layouts[0].defined() ? 0 : 1;
@@ -157,7 +157,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
       // only know the tensor with smaller dimensions,
       // so we cannot infer the final broadcasted output.
       // fails in this case.
-      return Array<Array<Layout>>{{Layout::Undef()}, {Layout::Undef()}};
+      return Array<Array<Layout>>{{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}};
     }
   } else if (layouts[0].defined() && layouts[1].defined() &&
              (layouts[0].ndim() == 0 || layouts[1].ndim() == 0)) {

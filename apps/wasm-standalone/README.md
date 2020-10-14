@@ -37,7 +37,7 @@
 
 ## Motivation
 
-<img src="https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tvm_support_list.png" alt="TVM hardware support" width="600"/>
+<img src="https://github.com/dmlc/web-data/raw/main/tvm/tutorial/tvm_support_list.png" alt="TVM hardware support" width="600"/>
 
 As demonstrated in TVM runtime [tutorials](https://tvm.apache.org/docs/tutorials/get_started/relay_quick_start.html), TVM already supports WASM as the optional hardware backend, so we can leverage the features of WebAssembly (portability, security) and TVM runtime (domain-specific, optimization) to build a flexible and auto-optimized graph compiler for all deep learning frameworks.
 
@@ -165,7 +165,7 @@ Options:
 Next perform model inference using these commands below:
 ```
 $ cp ../../../wasm-graph/lib/wasm_graph_resnet50.wasm ./
-$ wget -O cat.png https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true
+$ wget -O cat.png https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true
 $ wget -O synset.csv https://raw.githubusercontent.com/kazum/tvm-wasm/master/synset.csv
 $ ./target/debug/test_graph_resnet50 -g ./wasm_graph_resnet50.wasm -i ./cat.png -l ./synset.csv
 original image dimensions: (256, 256)

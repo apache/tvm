@@ -59,6 +59,7 @@ def partition_for_arm_compute_lib(mod, params=None):
 
     seq = tvm.transform.Sequential(
         [
+            transform.InferType(),
             transform.MergeComposite(arm_compute_lib_pattern_table()),
             transform.AnnotateTarget("arm_compute_lib"),
             transform.PartitionGraph(),
@@ -336,4 +337,32 @@ def global_avg_pool2d(attrs, args):
         return False
     if attrs.layout != "NHWC":
         return False
+    return True
+
+
+@tvm.ir.register_op_attr("maximum", "target.arm_compute_lib")
+def maximum(attrs, args):
+    """Check if the external ACL codegen for maximum should be used."""
+    type_a = args[0].checked_type
+    type_b = args[0].checked_type
+    return (type_a.dtype == "float32") and (type_b.dtype == "float32")
+
+
+@tvm.ir.register_op_attr("add", "target.arm_compute_lib")
+def add(attrs, args):
+    """Check if the external ACL codegen for add should be used."""
+    for typ in [args[0].checked_type, args[1].checked_type]:
+        if typ.dtype != "float32":
+            return False
+
+    return True
+
+
+@tvm.ir.register_op_attr("qnn.add", "target.arm_compute_lib")
+def qnn_add(attrs, args):
+    """Check if the external ACL codegen for add should be used."""
+    for typ in [args[0].checked_type, args[1].checked_type]:
+        if typ.dtype != "uint8":
+            return False
+
     return True

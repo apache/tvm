@@ -28,6 +28,7 @@
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/search_task.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -74,6 +75,12 @@ class SketchGenerationRule {
    */
   virtual std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy,
                                                    const State& state, int stage_id) const = 0;
+
+  /*!
+   * \brief Get the name of this rule.
+   * \return A string of the rule name.
+   */
+  virtual std::string GetRuleName() const = 0;
 };
 
 #define DEFINE_SKETCH_GENERATION_RULE(rule_name)                                                 \
@@ -83,6 +90,7 @@ class SketchGenerationRule {
                                 int stage_id) const final;                                       \
     std::vector<std::pair<State, int>> Apply(const SketchPolicyNode& policy, const State& state, \
                                              int stage_id) const final;                          \
+    std::string GetRuleName() const final { return #rule_name; }                                 \
   };
 
 /*! \brief The rule that simply skips the current stage. It returns an unchanged state and move to
@@ -124,7 +132,7 @@ DEFINE_SKETCH_GENERATION_RULE(RuleSpecialComputeLocationGPU);
 
 /********** Init Population **********/
 
-/*! \brief The base class for derivation rules used in the initial population. */
+/*! \brief The base class for rules used to annotate the sketches to get the initial population. */
 class PopulationGenerationRule {
  public:
   /*! \brief Result enumeration of the apply function. */
@@ -137,19 +145,24 @@ class PopulationGenerationRule {
    * \param state The state to apply this rule, update inplace.
    * \return The result of this rule, indicate if there's any valid state generated.
    */
-  virtual ResultKind Apply(SketchPolicyNode* policy, State* state) const = 0;
+  virtual ResultKind Apply(SketchPolicyNode* policy, State* state,
+                           std::mt19937* rand_gen) const = 0;
+
+  /*! \brief The deconstructor */
+  virtual ~PopulationGenerationRule() = default;
 };
 
-#define DEFINE_INIT_POPULATION_RULE(rule_name)                            \
-  class rule_name : public PopulationGenerationRule {                     \
-   public:                                                                \
-    ResultKind Apply(SketchPolicyNode* policy, State* state) const final; \
+// A helper to define population initialization rules
+#define DEFINE_INIT_POPULATION_RULE(rule_name)                                                    \
+  class rule_name : public PopulationGenerationRule {                                             \
+   public:                                                                                        \
+    ResultKind Apply(SketchPolicyNode* policy, State* state, std::mt19937* rand_gen) const final; \
   };
 
 /*! \brief The rule that fills the incomplete SplitSteps. */
 DEFINE_INIT_POPULATION_RULE(InitFillTileSize);
 
-/*! \brief The rule that randomly changes the computation location for some stages, which do not
+/*! \brief The rule that randomly changes the computation location for some stages that do not
  * need tiling and are not strictly inlineable(e.g. data padding). */
 DEFINE_INIT_POPULATION_RULE(InitChangeComputeLocation);
 
@@ -170,50 +183,37 @@ DEFINE_INIT_POPULATION_RULE(InitThreadBind);
 /*! \brief The base class for mutation rules used in the evolutionary search. */
 class PopulationMutationRule : public PopulationGenerationRule {
  public:
-  /*!
-   * \brief Get the priority level of this mutation rule.
-   * \return The priority level of this mutation rule. Higher the better.
+  /* \brief The constructor
+   * \param selection_weight the probabiliy of applying this rule is
+   *        proportional to this weight
    */
-  virtual int GetLevel(const SearchTask& task) const = 0;
+  explicit PopulationMutationRule(double selection_weight) : weight(selection_weight) {}
+
+  /* \brief The weight of this rule */
+  double weight;
 };
 
-// A helper to define mutation rules with a constant rule level.
-#define DEFINE_MUTATE_POPULATION_RULE(rule_name, rule_level)                \
-  class rule_name : public PopulationMutationRule {                         \
-   public:                                                                  \
-    ResultKind Apply(SketchPolicyNode* policy, State* state) const final;   \
-    int GetLevel(const SearchTask& task) const final { return rule_level; } \
+// A helper to define mutation rules used in the evolutionary search
+#define DEFINE_MUTATE_POPULATION_RULE(rule_name)                                                  \
+  class rule_name : public PopulationMutationRule {                                               \
+   public:                                                                                        \
+    explicit rule_name(double weight) : PopulationMutationRule(weight) {}                         \
+    ResultKind Apply(SketchPolicyNode* policy, State* state, std::mt19937* rand_gen) const final; \
   };
 
 /*! \brief The rule that mutates tile size by randomly dividing a tile size by a factor
     and multipling it to another tile size. */
-DEFINE_MUTATE_POPULATION_RULE(MutateTileSize, 100);
+DEFINE_MUTATE_POPULATION_RULE(MutateTileSize);
 
-/*! \brief The rule that mutates the fusion iterators annotated by parallel. */
-DEFINE_MUTATE_POPULATION_RULE(MutateParallel, 50);
+/*! \brief The rule that mutates the number of fused outer iterators annotated by parallel. */
+DEFINE_MUTATE_POPULATION_RULE(MutateParallel);
 
-/*! \brief The rule that mutates the factor of a randomly selected auto max unroll step. */
-class MutateMaxUnrollFactor : public PopulationMutationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-  int GetLevel(const SearchTask& task) const final { return 10; }
-
-  const std::vector<int> cpu_unroll_cands_ = {0, 16, 64, 512, 1024};
-  const std::vector<int> gpu_unroll_cands_ = {0, 16, 64, 512};
-};
-
-/*! \brief The rule that randomly changes the computation location for some stages, which do not
+/*! \brief The rule that randomly changes the computation location for some stages that do not
  * need tiling and are not strictly inlineable(e.g. data padding). */
-class MutateComputeLocation : public PopulationMutationRule {
- public:
-  ResultKind Apply(SketchPolicyNode* policy, State* state) const final;
-  int GetLevel(const SearchTask& task) const final {
-    if (IsGPUTask(task)) {
-      return 0;
-    }
-    return 5;
-  }
-};
+DEFINE_MUTATE_POPULATION_RULE(MutateComputeLocation);
+
+/*! \brief The rule that mutates the value of a randomly selected auto unroll pragma step. */
+DEFINE_MUTATE_POPULATION_RULE(MutateAutoUnroll);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

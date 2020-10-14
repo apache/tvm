@@ -1282,6 +1282,20 @@ class String : public ObjectRef {
   bool empty() const { return size() == 0; }
 
   /*!
+   * \brief Read an element.
+   * \param pos The position at which to read the character.
+   *
+   * \return The char at position
+   */
+  char at(size_t pos) const {
+    if (pos < size()) {
+      return data()[pos];
+    } else {
+      throw std::out_of_range("tvm::String index out of bounds");
+    }
+  }
+
+  /*!
    * \brief Return the data pointer
    *
    * \return const char* data pointer

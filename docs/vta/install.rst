@@ -466,7 +466,7 @@ This would add quartus binary path into your ``PATH`` environment variable, so y
 Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file `Configs.scala <https://github.com/apache/incubator-tvm/blob/master/3rdparty/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala>`_, and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file `Configs.scala <https://github.com/apache/incubator-tvm/blob/main/3rdparty/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala>`_, and they can be customized by the user.
 
 For Intel FPGA, bitstream generation is driven by a top-level ``Makefile`` under ``<tvm root>/3rdparty/vta-hw/hardware/intel``.
 

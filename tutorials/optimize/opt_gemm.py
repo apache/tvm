@@ -231,7 +231,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # array to convert the continuous access pattern on certain dimension to a sequential pattern after
 # flattening.
 #
-# .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/array-packing.png
+# .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/array-packing.png
 #      :align: center
 #
 

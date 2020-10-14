@@ -1088,6 +1088,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::Inline());
 
   pass_seqs.push_back(MemoryOpt(target_host, targets));
+  pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();
@@ -1149,7 +1150,7 @@ void VMCompiler::Codegen() {
     }
     exec_->lib = tvm::build(build_funcs, target_host_);
   } else {
-    // There is no function handled by TVM. We create a virtual master module
+    // There is no function handled by TVM. We create a virtual main module
     // to make sure a DSO module will be also available.
     exec_->lib = codegen::CSourceModuleCreate(";", "");
   }

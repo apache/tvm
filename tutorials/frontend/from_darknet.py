@@ -60,7 +60,7 @@ MODEL_NAME = "yolov3"
 # Download cfg and weights file if first time.
 CFG_NAME = MODEL_NAME + ".cfg"
 WEIGHTS_NAME = MODEL_NAME + ".weights"
-REPO_URL = "https://github.com/dmlc/web-data/blob/master/darknet/"
+REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 CFG_URL = REPO_URL + "cfg/" + CFG_NAME + "?raw=true"
 WEIGHTS_URL = "https://pjreddie.com/media/files/" + WEIGHTS_NAME
 
@@ -195,6 +195,7 @@ with open(coco_path) as f:
 
 names = [x.strip() for x in content]
 
+tvm.relay.testing.yolo_detection.show_detections(img, dets, thresh, names, last_layer.classes)
 tvm.relay.testing.yolo_detection.draw_detections(
     font_path, img, dets, thresh, names, last_layer.classes
 )

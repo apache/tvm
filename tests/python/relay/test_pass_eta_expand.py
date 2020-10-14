@@ -68,7 +68,9 @@ def test_eta_expand_constructor():
         }
     """
     )
-    seq = tvm.transform.Sequential([_transform.EtaExpand(expand_constructor=True)])
+    seq = tvm.transform.Sequential(
+        [_transform.EtaExpand(expand_constructor=True), _transform.InferType()]
+    )
     with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
     expected = tvm.parser.fromtext(

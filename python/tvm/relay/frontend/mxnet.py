@@ -608,6 +608,10 @@ def _mx_linear_regression_output(inputs, _):
     return inputs[0]
 
 
+def _mx_logistic_regression_output(inputs, _):
+    return _op.sigmoid(inputs[0])
+
+
 def _mx_concat(inputs, attrs):
     axis = attrs.get_int("dim", 1)
     return _op.concatenate(tuple(inputs), axis=axis)
@@ -764,6 +768,23 @@ def _mx_multibox_detection(inputs, attrs):
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1], inputs[2], **new_attrs0)
     return _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **new_attrs1)
+
+
+def _mx_dot(inputs, attrs):
+    assert len(inputs) == 2
+    a, b = inputs
+    rank_a = len(_infer_type(a).checked_type.shape)
+    rank_b = len(_infer_type(b).checked_type.shape)
+    if rank_a != 2 or rank_b != 2:
+        raise tvm.error.OpAttributeUnimplemented("Only 2-D arrays are supported.")
+    transpose_a = attrs.get_bool("transpose_a", False)
+    transpose_b = attrs.get_bool("transpose_b", False)
+    if transpose_a is True:
+        msg = 'Value {} in attribute "transpose_a" of operator dot ' "is not valid."
+        raise tvm.error.OpAttributeInvalid(msg.format(transpose_a))
+    if transpose_b is False:
+        b = _op.transpose(b, axes=[1, 0])
+    return _op.nn.dense(a, b)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -2230,6 +2251,16 @@ def _mx_broadcast_to(inputs, attrs):
     return _op.broadcast_to(data, tgt_shape)
 
 
+def _mx_broadcast_like(inputs, attrs):
+    assert len(inputs) == 2
+    for axes in ["lhs_axes", "rhs_axes"]:
+        if axes in attrs.attrs:
+            raise tvm.error.OpAttributeUnImplemented(
+                'Attribute "{}" is not supported for operator broadcast_like.'.format(axes)
+            )
+    return _op.broadcast_to_like(*inputs)
+
+
 def _mx_logical_not(inputs, input_types):
     data = inputs[0]
     dtype = _infer_type(data).checked_type.dtype
@@ -2389,6 +2420,7 @@ _convert_map = {
     "broadcast_logical_and": _mx_broadcast_logical(_op.logical_and),
     "broadcast_logical_xor": _mx_broadcast_logical(_op.logical_xor),
     "broadcast_to": _mx_broadcast_to,
+    "broadcast_like": _mx_broadcast_like,
     "logical_not": _mx_logical_not,
     "_equal": _mx_compare(_op.equal, _rename),
     "_not_equal": _mx_compare(_op.not_equal, _rename),
@@ -2495,6 +2527,7 @@ _convert_map = {
     "Concat": _mx_concat,
     "concat": _mx_concat,
     "stack": _mx_stack,
+    "dot": _mx_dot,
     "batch_dot": _mx_batch_dot,
     "LeakyReLU": _mx_leaky_relu,
     "_arange": _mx_arange,
@@ -2520,6 +2553,7 @@ _convert_map = {
     "SoftmaxOutput": _mx_softmax_output,
     "SoftmaxActivation": _mx_softmax_activation,
     "LinearRegressionOutput": _mx_linear_regression_output,
+    "LogisticRegressionOutput": _mx_logistic_regression_output,
     "smooth_l1": _mx_smooth_l1,
     "make_loss": _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,

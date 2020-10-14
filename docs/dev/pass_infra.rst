@@ -196,7 +196,7 @@ optimizations (IPO), which are similar to the module pass used in LLVM. Some
 typical passes in Relay that need the global picture of a module, such as
 A-normal form conversion and lambda lifting, etc., fall into this set. At this
 level, users can even add and/or delete functions in a module. Note that all
-passes 
+passes
 
 .. code:: c++
 
@@ -530,20 +530,20 @@ optimization pipeline and debug Relay and tir passes, please refer to the
 
 .. _Block: https://mxnet.incubator.apache.org/api/python/docs/api/gluon/block.html#gluon-block
 
-.. _include/tvm/ir/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/ir/transform.h
+.. _include/tvm/ir/transform.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/ir/transform.h
 
-.. _src/relay/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/ir/transform.cc
+.. _src/relay/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/main/src/relay/ir/transform.cc
 
-.. _src/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/master/src/ir/transform.cc
+.. _src/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/main/src/ir/transform.cc
 
-.. _src/relay/pass/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/fold_constant.cc
+.. _src/relay/pass/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/main/src/relay/pass/fold_constant.cc
 
-.. _python/tvm/relay/transform.py: https://github.com/apache/incubator-tvm/blob/master/python/tvm/relay/transform.py
+.. _python/tvm/relay/transform.py: https://github.com/apache/incubator-tvm/blob/main/python/tvm/relay/transform.py
 
-.. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/relay/transform.h
+.. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/relay/transform.h
 
-.. _python/tvm/ir/transform.py: https://github.com/apache/incubator-tvm/blob/master/python/tvm/ir/transform.py
+.. _python/tvm/ir/transform.py: https://github.com/apache/incubator-tvm/blob/main/python/tvm/ir/transform.py
 
-.. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/incubator-tvm/blob/master/src/tir/transforms/unroll_loop.cc
+.. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/incubator-tvm/blob/main/src/tir/transforms/unroll_loop.cc
 
-.. _use pass infra: https://github.com/apache/incubator-tvm/blob/master/tutorials/dev/use_pass_infra.py
+.. _use pass infra: https://github.com/apache/incubator-tvm/blob/main/tutorials/dev/use_pass_infra.py

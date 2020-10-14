@@ -31,6 +31,7 @@ from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
+from .transform import InferType
 from .backend import graph_runtime_factory as _graph_runtime_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
@@ -363,6 +364,7 @@ class GraphExecutor(_interpreter.Executor):
     def _make_executor(self, expr=None):
         if expr:
             self.mod["main"] = expr
+        self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
         if _ty.is_dynamic(ret_type):
             raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)

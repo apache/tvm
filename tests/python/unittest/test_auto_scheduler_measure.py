@@ -167,45 +167,69 @@ def test_record_pragma_storage_align_rfactor():
     record_common(dag, s)
 
 
-def test_measure_local_builder_runner(enable_cpu_cache_flush=False):
+def test_recover_measure_input():
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
+
+    inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
+    res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
+
+    with tempfile.NamedTemporaryFile() as fp:
+        auto_scheduler.save_records(fp.name, [inp], [res])
+
+        log_reader = auto_scheduler.RecordReader(fp.name)
+        inputs, results = log_reader.read_lines()
+        assert len(inputs) == 1
+
+        raw_inp = inputs[0]
+
+        correct_inp = auto_scheduler.measure_record.recover_measure_input(raw_inp)
+        assert str(correct_inp.task.compute_dag) == str(inp.task.compute_dag)
+
+        correct_inp = auto_scheduler.measure_record.recover_measure_input(
+            raw_inp, rebuild_state=True
+        )
+        assert str(correct_inp.state) == str(inp.state)
+
+
+def test_measure_local_builder_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    dag, s0 = get_tiled_matmul()
-    tgt = tvm.target.Target("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", tgt)
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
-    minp = auto_scheduler.MeasureInput(task, s0)
-    local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner(
-        timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
-    )
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        local_runner = auto_scheduler.LocalRunner(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
 
-    bress = local_builder.build([minp])
-    assert bress[0].error_no == 0
-    mress = local_runner.run([minp], bress)
-    assert mress[0].error_no == 0
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = local_runner.run([minp], bress)
+        assert mress[0].error_no == 0
 
 
-def test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False):
+def test_measure_local_builder_rpc_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    dag, s0 = get_tiled_matmul()
-    tgt = tvm.target.Target("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", tgt)
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
-    minp = auto_scheduler.MeasureInput(task, s0)
-    local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(
-        timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
-    )
-    rpc_runner = measure_ctx.runner
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+        rpc_runner = measure_ctx.runner
 
-    bress = local_builder.build([minp])
-    assert bress[0].error_no == 0
-    mress = rpc_runner.run([minp], bress)
-    assert mress[0].error_no == 0
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = rpc_runner.run([minp], bress)
+        assert mress[0].error_no == 0
+
+        del measure_ctx
 
 
 if __name__ == "__main__":
@@ -213,7 +237,6 @@ if __name__ == "__main__":
     test_record_compute_at_root_inline_cache_read_write()
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
-    test_measure_local_builder_runner(enable_cpu_cache_flush=True)
-    test_measure_local_builder_runner(enable_cpu_cache_flush=False)
-    test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=True)
-    test_measure_local_builder_rpc_runner(enable_cpu_cache_flush=False)
+    test_recover_measure_input()
+    test_measure_local_builder_runner()
+    test_measure_local_builder_rpc_runner()

@@ -87,17 +87,6 @@ set(USE_OPENGL OFF)
 # Whether enable MicroTVM runtime
 set(USE_MICRO OFF)
 
-# Whether to enable SGX runtime
-#
-# Possible values for USE_SGX:
-# - /path/to/sgxsdk: path to Intel SGX SDK
-# - OFF: disable SGX
-#
-# SGX_MODE := HW|SIM
-set(USE_SGX OFF)
-set(SGX_MODE "SIM")
-set(RUST_SGX_SDK "/path/to/rust-sgx-sdk")
-
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
@@ -131,6 +120,15 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
+# Whether to build with BYODT software emulated posit custom datatype
+# 
+# Possible values:
+# - ON: enable BYODT posit, requires setting UNIVERSAL_PATH
+# - OFF: disable BYODT posit
+#
+# set(UNIVERSAL_PATH /path/to/stillwater-universal) for ON
+set(USE_BYODT_POSIT OFF)
+
 # Whether use BLAS, choices: openblas, atlas, apple
 set(USE_BLAS none)
 

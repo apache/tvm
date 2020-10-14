@@ -33,6 +33,7 @@
 #include <tvm/topi/nn/flatten.h>
 #include <tvm/topi/nn/softmax.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -851,15 +852,27 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
-  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
-      << "BatchDot: batch dimension doesn't match, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
-  CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
-      << "BatchDot: shapes of x and y is inconsistent, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
+  bool is_dyn = false;
+  Array<tvm::PrimExpr> oshape;
+  for (size_t i = 0; i < 3; ++i) {
+    if (x->shape[i].as<tir::AnyNode>() != nullptr || y->shape[i].as<tir::AnyNode>() != nullptr) {
+      is_dyn = true;
+      oshape.push_back(Any());
+    } else {
+      oshape.push_back(x->shape[i]);
+    }
+  }
+  if (!is_dyn) {
+    CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
+          reporter->AssertEQ(y->shape[0], 1))
+        << "BatchDot: batch dimensions don't match, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
+    CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+        << "BatchDot: shapes of x and y is inconsistent, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
 
-  Array<tvm::PrimExpr> oshape = x->shape;
-  oshape.Set(2, y->shape[1]);
+    oshape.Set(2, y->shape[1]);
+  }
 
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, x->dtype));
@@ -961,9 +974,10 @@ bool DilateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 // Positional relay function to create dilate operator used by frontend FFI.
-Expr MakeDilate(Expr data, Array<IndexExpr> strides) {
+Expr MakeDilate(Expr data, Array<IndexExpr> strides, double dilation_value = 0.0) {
   auto attrs = make_object<DilateAttrs>();
   attrs->strides = std::move(strides);
+  attrs->dilation_value = std::move(dilation_value);
   static const Op& op = Op::Get("nn.dilate");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -972,7 +986,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.dilate").set_body_typed(MakeDilate);
 
 RELAY_REGISTER_OP("nn.dilate")
     .describe(R"code(
-Dilate data with zeros.
+Dilate data with given dilation value (0 by default).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .add_argument("x", "1D Tensor", "Data to dilate.")
@@ -1020,9 +1034,15 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
-  oshape.Set(2, oshape[2] * block_size);
-  oshape.Set(3, oshape[3] * block_size);
+  if (!oshape[1].as<tir::AnyNode>()) {
+    oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
+  }
+  if (!oshape[2].as<tir::AnyNode>()) {
+    oshape.Set(2, oshape[2] * block_size);
+  }
+  if (!oshape[3].as<tir::AnyNode>()) {
+    oshape.Set(3, oshape[3] * block_size);
+  }
 
   // Assign output type
   reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
@@ -1077,9 +1097,15 @@ bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, oshape[1] * (block_size * block_size));
-  oshape.Set(2, indexdiv(oshape[2], block_size));
-  oshape.Set(3, indexdiv(oshape[3], block_size));
+  if (!oshape[1].as<tir::AnyNode>()) {
+    oshape.Set(1, oshape[1] * (block_size * block_size));
+  }
+  if (!oshape[2].as<tir::AnyNode>()) {
+    oshape.Set(2, indexdiv(oshape[2], block_size));
+  }
+  if (!oshape[3].as<tir::AnyNode>()) {
+    oshape.Set(3, indexdiv(oshape[3], block_size));
+  }
 
   // Assign output type
   reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));

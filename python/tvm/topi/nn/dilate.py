@@ -23,8 +23,8 @@ from .. import tag
 
 
 @te.tag_scope(tag=tag.INJECTIVE + ",dilate")
-def dilate(data, strides, name="DilatedInput"):
-    """Dilate data with zeros.
+def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
+    """Dilate data with given dilation value (0 by default).
 
     Parameters
     ----------
@@ -33,6 +33,9 @@ def dilate(data, strides, name="DilatedInput"):
 
     strides : list / tuple of n ints
         Dilation stride on each dimension, 1 means no dilation.
+
+    dilation_value : int/float, optional
+        Value used to dilate the input.
 
     name : str, optional
         The name prefix operators generated
@@ -62,7 +65,7 @@ def dilate(data, strides, name="DilatedInput"):
         if not_zero:
             not_zero = tvm.tir.all(*not_zero)
             return tvm.tir.if_then_else(
-                not_zero, data(*index_tuple), tvm.tir.const(0.0, data.dtype)
+                not_zero, data(*index_tuple), tvm.tir.const(dilation_value, data.dtype)
             )
         return data(*index_tuple)
 

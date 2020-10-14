@@ -31,7 +31,7 @@ Notice that you need to build TVM with cuda and llvm enabled.
 # ----------------------------------------------
 # The image below shows hardware backend currently supported by TVM:
 #
-# .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tvm_support_list.png
+# .. image:: https://github.com/dmlc/web-data/raw/main/tvm/tutorial/tvm_support_list.png
 #      :align: center
 #
 # In this tutorial, we'll choose cuda and llvm as target backends.

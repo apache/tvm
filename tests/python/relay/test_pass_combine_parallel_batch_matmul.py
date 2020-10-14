@@ -25,6 +25,7 @@ def run_opt_pass(expr, opt_pass):
     "runs the opt_pass on the expr of a function the function"
     assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
+    mod = tvm.relay.transform.InferType()(mod)
     mod = opt_pass(mod)
     return mod["main"]
 

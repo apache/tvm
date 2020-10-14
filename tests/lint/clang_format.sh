@@ -17,7 +17,7 @@
 # under the License.
 
 
-# check lastest change, for squash merge into master
+# check lastest change, for squash merge into main
 ./tests/lint/git-clang-format.sh HEAD~1
-# chekc against origin/master for PRs.
-./tests/lint/git-clang-format.sh origin/master
+# chekc against origin/main for PRs.
+./tests/lint/git-clang-format.sh origin/main

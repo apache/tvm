@@ -27,10 +27,10 @@ endif()
 set(FASTRPC_SRC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 include_directories(include)
-include_directories(${HEXAGON_SDK_ROOT}/incs)
-include_directories(${HEXAGON_SDK_ROOT}/incs/stddef)
+include_directories(SYSTEM ${HEXAGON_SDK_ROOT}/incs)
+include_directories(SYSTEM ${HEXAGON_SDK_ROOT}/incs/stddef)
 include_directories(
-    ${HEXAGON_SDK_ROOT}/libs/common/remote/ship/android_Release_aarch64)
+    SYSTEM ${HEXAGON_SDK_ROOT}/libs/common/remote/ship/android_Release_aarch64)
 
 set(QAIC_EXE "${HEXAGON_SDK_ROOT}/tools/qaic/Ubuntu16/qaic")
 set(QAIC_FLAGS
@@ -96,9 +96,9 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
   endif()
 
   include_directories(
-      ${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/include/qurt)
+      SYSTEM ${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/include/qurt)
   include_directories(
-      ${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/include/posix)
+      SYSTEM ${HEXAGON_SDK_ROOT}/libs/common/qurt/${HEXARCH_DIR}/include/posix)
 
   # Extra compile flags (both C and C++).
   set(EXTRA_COMP_FLAGS
@@ -158,11 +158,11 @@ if("${FASTRPC_LIBS}" STREQUAL "SKEL")
 else()
   # Stub libraries.
   #
-  include_directories(${HEXAGON_SDK_ROOT}/incs/a1std)
-  include_directories(${HEXAGON_SDK_ROOT}/incs/qlist)
-  include_directories(${HEXAGON_SDK_ROOT}/libs/common/rpcmem/inc)
+  include_directories(SYSTEM ${HEXAGON_SDK_ROOT}/incs/a1std)
+  include_directories(SYSTEM ${HEXAGON_SDK_ROOT}/incs/qlist)
+  include_directories(SYSTEM ${HEXAGON_SDK_ROOT}/libs/common/rpcmem/inc)
   link_directories(
-      ${HEXAGON_SDK_ROOT}/libs/common/remote/ship/android_Release_aarch64)
+      SYSTEM ${HEXAGON_SDK_ROOT}/libs/common/remote/ship/android_Release_aarch64)
 
   add_library(tvm_remote_nd_stub SHARED
       "${FASTRPC_SRC}/include/${TVM_REMOTE_ND_H}"

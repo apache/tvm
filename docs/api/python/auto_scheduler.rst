@@ -18,18 +18,7 @@
 tvm.auto_scheduler
 ------------------
 .. automodule:: tvm.auto_scheduler
-
-tvm.auto_scheduler.auto_schedule
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.auto_scheduler.auto_schedule
-
-.. autoclass:: tvm.auto_scheduler.auto_schedule.SearchTask
-
-.. autoclass:: tvm.auto_scheduler.auto_schedule.TuningOptions
-
-.. autofunction:: tvm.auto_scheduler.auto_schedule.create_task
-
-.. autofunction:: tvm.auto_scheduler.auto_schedule.auto_schedule
-
-
+   :members:
+   :imported-members:
+   :autosummary:
 

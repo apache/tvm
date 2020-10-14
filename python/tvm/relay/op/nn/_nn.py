@@ -75,6 +75,22 @@ reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_alter_op_layout("nn.sparse_dense")
+def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of sparse_dense"""
+    return topi.nn.sparse_dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@reg.register_compute("nn.internal.sparse_dense_padded")
+def compute_sparse_dense_padded(attrs, inputs, out_type):
+    """Compute definition of sparse_dense_padded"""
+    raise NotImplementedError("nn.internal.sparse_dense_padded is only available on cuda")
+
+
+reg.register_strategy("nn.internal.sparse_dense_padded", strategy.sparse_dense_padded_strategy)
+reg.register_pattern("nn.internal.sparse_dense_padded", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # sparse_transpose
 @reg.register_compute("nn.sparse_transpose")
 def compute_sparse_transpose(attrs, inputs, out_type):
@@ -668,7 +684,7 @@ reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 # dilate
 @reg.register_compute("nn.dilate")
 def compute_dilate(attrs, inputs, out_dtype):
-    return [topi.nn.dilate(inputs[0], attrs.strides)]
+    return [topi.nn.dilate(inputs[0], attrs.strides, attrs.dilation_value)]
 
 
 reg.register_broadcast_schedule("nn.dilate")
@@ -719,6 +735,42 @@ reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 #####################
 #  Shape functions  #
 #####################
+
+
+@script
+def _conv_shape_func(dshape, kshape, strides, padding, dilation):
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[1] = kshape[0]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 2] - 1) * dilation[i] + 1
+        out[i + 2] = (dshape[i + 2] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
+def conv_shape_func(attrs, inputs, _):
+    """
+    Shape function for contrib_conv2d_NCHWc op.
+    """
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+
+    return [
+        _conv_shape_func(
+            inputs[0],
+            inputs[1],
+            convert(strides),
+            convert(padding),
+            convert(dilation),
+        )
+    ]
+
+
+reg.register_shape_func("nn.conv1d", False, conv_shape_func)
+reg.register_shape_func("nn.conv2d", False, conv_shape_func)
+reg.register_shape_func("nn.conv3d", False, conv_shape_func)
 
 
 @script
@@ -923,6 +975,25 @@ def dense_shape_func(attrs, inputs, _):
     Shape function for dense op.
     """
     ret = [_dense_shape_func(inputs[0], inputs[1])]
+    return ret
+
+
+@script
+def _batch_matmul_shape_func(data_shape, weight_shape):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0] - 1):
+        out[i] = data_shape[i]
+    out[out.shape[0] - 1] = weight_shape[weight_shape.shape[0] - 2]
+
+    return out
+
+
+@reg.register_shape_func("nn.batch_matmul", False)
+def batch_matmul_shape_func(attrs, inputs, _):
+    """
+    Shape function for dense op.
+    """
+    ret = [_batch_matmul_shape_func(inputs[0], inputs[1])]
     return ret
 
 

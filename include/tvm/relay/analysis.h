@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_ANALYSIS_H_
 #define TVM_RELAY_ANALYSIS_H_
 
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
@@ -49,10 +50,12 @@ namespace relay {
  *
  * \param t The type to check.
  * \param mod The global module.
+ * \param diag_ctx The Diagnostic context.
  *
  * \return The kind of the passed type.
  */
-TVM_DLL Kind KindCheck(const Type& t, const IRModule& mod);
+TVM_DLL Kind KindCheck(const Type& t, const IRModule& mod,
+                       Optional<DiagnosticContext> diag_ctx = Optional<DiagnosticContext>());
 
 /*!
  * \brief Check whether an expression is constant.
@@ -80,14 +83,16 @@ TVM_DLL bool BasicBlockNormalFormCheck(const Expr& e);
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
- * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice,
+ * `let f = (x -> x) in let g = (x -> x + 1) in f(g(2))` also bound x twice,
  * although x is not shadowed.
  *
  * \param expr the expression to check.
+ * \param diag_ctx the diagnostic context
  *
  * \return true iff all Var in expr is bound at most once.
  */
-TVM_DLL bool WellFormed(const Expr& expr);
+TVM_DLL bool WellFormed(const Expr& expr,
+                        Optional<DiagnosticContext> diag_ctx = Optional<DiagnosticContext>());
 
 /*!
  * \brief Get all bound variables from expression expr.

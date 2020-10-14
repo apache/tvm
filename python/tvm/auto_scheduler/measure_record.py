@@ -21,7 +21,9 @@ import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object
-from .measure import MeasureCallback, MeasureErrorNo
+from .compute_dag import ComputeDAG
+from .measure import MeasureErrorNo, MeasureInput, MeasureCallback
+from .search_task import SearchTask
 from . import _ffi_api
 
 
@@ -66,10 +68,17 @@ class RecordReader(Object):
 
         Returns
         -------
-        inputs : List[MeasureInput]
+        inputs : List[auto_scheduler.measure.MeasureInput]
             The MeasureInputs loaded from the log file.
-        results : List[MeasureResult]
+        results : List[auto_scheduler.measure.MeasureResult]
             The MeasureResults loaded from the log file.
+
+        Notes
+        -----
+        Some unimportant and expensive fields in the returned MeasureInput are not deserialized
+        for faster read speed (e.g. input.task.compute_dag, input.state.stages).
+        If you want to use them, you can call the :code:`recover_measure_input` below
+        to rebuild these fields.
         """
         inputs, results = _ffi_api.RecordReaderReadLines(
             self, max_lines if max_lines else -1, skip_lines
@@ -95,7 +104,14 @@ def load_records(filename):
 
     Returns
     -------
-    logs : List[MeasureInput, MeasureResult]
+    logs : List[auto_scheduler.measure.MeasureInput, auto_scheduler.measure.MeasureResult]
+
+    Notes
+    -----
+    Some unimportant and expensive fields in the returned MeasureInput are not deserialized
+    for faster read speed (e.g., input.task.compute_dag, input.state.stages).
+    If you want to use them, you can call the :code:`recover_measure_input` below
+    to rebuild these fields.
     """
     return zip(*RecordReader(filename).read_lines())
 
@@ -133,9 +149,9 @@ def load_best(filename, workload_key=None, target=None):
 
     Returns
     -------
-    input : MeasureInput
+    input : auto_scheduler.measure.MeasureInput
         The best State's MeasureInput from this log fine.
-    result : MeasureResult
+    result : auto_scheduler.measure.MeasureResult
         The best State's MeasureResult from this log fine.
     """
     log_reader = RecordReader(filename)
@@ -159,3 +175,38 @@ def load_best(filename, workload_key=None, target=None):
             best_res = res
 
     return best_inp, best_res
+
+
+def recover_measure_input(inp, rebuild_state=False):
+    """
+    Recover a deserialized MeasureInput by rebuilding the missing fields.
+    1. Rebuid the compute_dag in inp.task
+    2. (Optional) Rebuild the stages in inp.state
+
+    Parameters
+    ----------
+    inp: MeasureInput
+        The deserialized MeasureInput
+    rebuild_state: bool = False
+        Whether rebuild the stages in MeasureInput.State
+
+    Returns
+    -------
+    new_input: MeasureInput
+        The fully recovered MeasureInput with all fields rebuilt.
+    """
+    task = inp.task
+    new_task = SearchTask(
+        ComputeDAG(task.workload_key),
+        task.workload_key,
+        task.target,
+        task.target_host,
+        task.hardware_params,
+    )
+
+    if rebuild_state:
+        new_state = new_task.compute_dag.infer_bound_from_state(inp.state)
+    else:
+        new_state = inp.state
+
+    return MeasureInput(new_task, new_state)

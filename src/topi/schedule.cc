@@ -21,7 +21,6 @@
  * \brief Registration of TVM schedules
  * \file schedule.cc
  */
-#define TOPI_REDUCE_ATLEAST1D 0
 
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/module.h>

@@ -63,7 +63,7 @@ onnx_model = onnx.load(model_path)
 # A single cat dominates the examples!
 from PIL import Image
 
-img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_path = download_testdata(img_url, "cat.png", module="data")
 img = Image.open(img_path).resize((224, 224))
 img_ycbcr = img.convert("YCbCr")  # convert to YCbCr
@@ -103,3 +103,12 @@ canvas[0:224, 0:224, :] = np.asarray(img)
 canvas[:, 672:, :] = np.asarray(result)
 plt.imshow(canvas.astype(np.uint8))
 plt.show()
+
+######################################################################
+# Notes
+# ---------------------------------------------
+# By default, ONNX defines models in terms of dynamic shapes. The ONNX importer
+# retains that dynamism upon import, and the compiler attemps to convert the model
+# into a static shapes at compile time. If this fails, there may still be dynamic
+# operations in the model. Not all TVM kernels currently support dynamic shapes,
+# please file an issue on discuss.tvm.ai if you hit an error with dynamic kernels.

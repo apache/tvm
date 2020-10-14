@@ -22,6 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
+from util.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
 
@@ -423,6 +424,49 @@ def test_any_reshape_like():
     check_result([data_np, shape_like_np], mod, shape_like_np.shape, assert_shape=True)
 
 
+def verify_any_conv2d(
+    data_shape,
+    kernel_shape,
+    strides,
+    padding,
+    dilation,
+    static_data_shape,
+    ref_out_shape,
+):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    kernel = relay.var("kernel", shape=kernel_shape, dtype=dtype)
+    y = relay.nn.conv2d(data, kernel, strides, padding, dilation, kernel_size=kernel_shape[2:4])
+    mod["main"] = relay.Function([data, kernel], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+
+# TODO(@kevinthesun): Support dynamic input height and width.
+@tvm.testing.uses_gpu
+def test_any_conv2d():
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (2, 2),
+        (2, 64, 224, 224),
+        (2, 64, 222, 222),
+    )
+
+
 def verify_any_conv2d_NCHWc(
     data_shape,
     kernel_shape,
@@ -458,6 +502,7 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+@tvm.testing.uses_gpu
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
@@ -519,6 +564,7 @@ def verify_any_conv2d_transpose_nchw(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
+@tvm.testing.uses_gpu
 def test_any_conv2d_transpose_nchw():
     verify_any_conv2d_transpose_nchw(
         (relay.Any(), 64, 224, 224),
@@ -695,18 +741,24 @@ def test_any_pad():
     verify_any_pad(any_dims(4), ((1, 0), (1, 3), (0, 2), (9, 0)), (13, 11, 3, 1))
 
 
-def verify_any_dilate(data_shape, strides, static_data_shape):
+def verify_any_dilate(data_shape, strides, static_data_shape, dilation_value=None):
     assert len(data_shape) == len(strides)
     mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var("data", shape=data_shape, dtype=dtype)
-    y = relay.nn.dilate(data, strides)
+    if dilation_value is None:
+        y = relay.nn.dilate(data, strides)
+    else:
+        y = relay.nn.dilate(data, strides, dilation_value)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     ref_shape = tuple(
         (static_data_shape[i] - 1) * strides[i] + 1 for i in range(len(static_data_shape))
     )
-    ref_out = np.zeros(shape=ref_shape, dtype=dtype)
+    if dilation_value is None:
+        dilation_value = 0.0
+    ref_out = np.ones(shape=ref_shape, dtype=dtype)
+    ref_out = dilation_value * ref_out
     ref_out[tuple(slice(None, None, strides[i]) for i in range(len(data_shape)))] = data_np
     check_result([data_np], mod, ref_out)
 
@@ -721,6 +773,7 @@ def test_any_dilate():
     verify_any_dilate(any_dims(3), (1, 1, 5), (1, 2, 3))
     verify_any_dilate(any_dims(3), (3, 7, 5), (1, 2, 3))
     verify_any_dilate(any_dims(4), (3, 7, 1, 5), (1, 2, 3, 4))
+    verify_any_dilate(any_dims(4), (3, 7, 1, 5), (1, 2, 3, 4), 1.0)
 
 
 def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
@@ -933,11 +986,9 @@ def test_recursive_concat_with_wrong_annotation():
     start = relay.var("start", shape=(), dtype="int32")
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
-    try:
+    with DiagnosticTesting() as diagnostics:
+        diagnostics.assert_message("in particular dimension 0 conflicts 2 does not match 1")
         func = infer_type(func)
-        assert False
-    except Exception as e:
-        assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)
 
 
 @tvm.testing.uses_gpu

@@ -331,8 +331,14 @@ def test_tuple_get_root():
     assert tvm.ir.structural_equal(zz, after)
 
 
-fuse0 = relay.transform.FuseOps(fuse_opt_level=0)
-fuse2 = relay.transform.FuseOps(fuse_opt_level=2)
+def fuse0(mod):
+    mod = relay.transform.InferType()(mod)
+    return relay.transform.FuseOps(fuse_opt_level=0)(mod)
+
+
+def fuse2(mod):
+    mod = relay.transform.InferType()(mod)
+    return relay.transform.FuseOps(fuse_opt_level=2)(mod)
 
 
 def test_tuple_intermediate():
@@ -550,10 +556,10 @@ def test_immutable():
         mod["main"] = relay.Function([x], y)
         return mod
 
-    mod = before()
+    mod = transform.InferType()(before())
     new_mod = transform.FuseOps(fuse_opt_level=2)(mod)
-    assert tvm.ir.structural_equal(mod, before())
-    assert tvm.ir.structural_equal(new_mod, expected())
+    assert tvm.ir.structural_equal(mod, transform.InferType()(before()))
+    assert tvm.ir.structural_equal(new_mod, transform.InferType()(expected()))
 
 
 def test_split():
@@ -565,6 +571,7 @@ def test_split():
     c = relay.TupleGetItem(y, 2)
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], a + relay.RefRead(relay.RefCreate(b)) + c)
+    mod = transform.InferType()(mod)
     mod = transform.FuseOps()(mod)
 
 

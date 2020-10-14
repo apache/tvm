@@ -37,7 +37,7 @@ void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
   const VarNode* buf = op->buffer_var.as<VarNode>();
   StorageScope scope = GetScope(buf);
   if (Enabled(buf, scope)) {
-    CHECK(allow_append_);
+    CHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = op->buffer_var;

@@ -29,6 +29,8 @@
 
 #include <string>
 
+#include "tvm/runtime/container.h"
+
 namespace tvm {
 namespace relay {
 
@@ -115,9 +117,9 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -596,11 +598,13 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
 /*! \brief Attributes used in dilate operator */
 struct DilateAttrs : public tvm::AttrsNode<DilateAttrs> {
   Array<IndexExpr> strides;
+  double dilation_value;
 
   TVM_DECLARE_ATTRS(DilateAttrs, "relay.attrs.DilateAttrs") {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("Dilation stride on each dimension, 1 means no dilation.");
+    TVM_ATTR_FIELD(dilation_value).set_default(0.0).describe("Value used to dilate the input.");
   }
 };
 
@@ -679,7 +683,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  std::string layout;
+  tvm::String layout;
   bool ceil_mode;
 
   TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relay.attrs.MaxPool2DAttrs") {
@@ -742,7 +746,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
 
 /*! \brief Attributes for global pool operator */
 struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
-  std::string layout;
+  tvm::String layout;
 
   TVM_DECLARE_ATTRS(GlobalPool2DAttrs, "relay.attrs.GlobalPool2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(

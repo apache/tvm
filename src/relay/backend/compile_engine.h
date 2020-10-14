@@ -82,7 +82,7 @@ struct CachedFuncNode : public Object {
   /*! \brief The schedule to the function */
   te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
-  IRModule funcs = IRModule();
+  IRModule funcs = IRModule(Map<GlobalVar, BaseFunc>({}));
 
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;

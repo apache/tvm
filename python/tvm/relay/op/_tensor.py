@@ -179,6 +179,8 @@ def no_data_full_shape_func(attrs, inputs, out_ndims):
     """
     Shape func for zeros and ones.
     """
+    if len(inputs) == 0:
+        return [_convert_shape(convert(attrs.shape))]
     return [_full_shape_func(inputs[0])]
 
 
@@ -241,6 +243,7 @@ register_shape_func("subtract", False, broadcast_shape_func)
 register_shape_func("multiply", False, broadcast_shape_func)
 register_shape_func("divide", False, broadcast_shape_func)
 register_shape_func("floor_divide", False, broadcast_shape_func)
+register_shape_func("power", False, broadcast_shape_func)
 register_shape_func("mod", False, broadcast_shape_func)
 register_shape_func("floor_mod", False, broadcast_shape_func)
 register_shape_func("logical_and", False, broadcast_shape_func)

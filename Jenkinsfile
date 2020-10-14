@@ -46,9 +46,10 @@
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.62"
 ci_gpu = "tlcpack/ci-gpu:v0.64"
-ci_cpu = "tlcpack/ci-cpu:v0.65"
+ci_cpu = "tlcpack/ci-cpu:v0.66"
 ci_wasm = "tlcpack/ci-wasm:v0.60"
 ci_i386 = "tlcpack/ci-i386:v0.52"
+ci_qemu = "tlcpack/ci-qemu:v0.01"
 // <--- End of regex-scanned config.
 
 // tvm libraries
@@ -92,6 +93,19 @@ def init_git_win() {
     }
 }
 
+def cancel_previous_build() {
+    // cancel previous build if it is not on main.
+    if (env.BRANCH_NAME != "main") {
+        def buildNumber = env.BUILD_NUMBER as int
+        // Milestone API allows us to cancel previous build
+        // with the same milestone number
+        if (buildNumber > 1) milestone(buildNumber - 1)
+        milestone(buildNumber)
+    }
+}
+
+cancel_previous_build()
+
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
     node('CPU') {
@@ -112,7 +126,11 @@ def make(docker_type, path, make_flag) {
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
       // always run cpp test when build
       sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
-    } catch (exc) {
+    } catch (hudson.AbortException ae) {
+      // script exited due to user abort, directly throw instead of retry
+      if (ae.getMessage().contains('script returned exit code 143')) {
+        throw ae
+      }
       echo 'Incremental compilation failed. Fall back to build from scratch'
       sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
@@ -191,6 +209,18 @@ stage('Build') {
         sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
         make(ci_i386, 'build', '-j2')
         pack_lib('i386', tvm_multilib)
+      }
+    }
+  },
+  'BUILD: QEMU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-qemu")) {
+        init_git()
+        sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+        make(ci_qemu, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+        }
       }
     }
   }
@@ -298,14 +328,14 @@ stage('Build packages') {
     }
   }
   // Here we could upload the packages to anaconda for releases
-  // and/or the master branch
+  // and/or the main branch
 }
 */
 
 stage('Deploy') {
     node('doc') {
       ws(per_exec_ws("tvm/deploy-docs")) {
-        if (env.BRANCH_NAME == "master") {
+        if (env.BRANCH_NAME == "main") {
            unpack_lib('mydocs', 'docs.tgz')
            sh "cp docs.tgz /var/docs/docs.tgz"
            sh "tar xf docs.tgz -C /var/docs"

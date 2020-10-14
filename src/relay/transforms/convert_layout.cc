@@ -88,22 +88,23 @@ class ConvertTransformMemorizer : public TransformMemorizer {
     Expr new_e;
     bool modified = false;
     if (fconvert_layout.count(op)) {
-      tvm::Array<tvm::te::Tensor> tinfos;
-      for (auto expr : ref_call->args) {
-        auto ttype = expr->type_as<TensorTypeNode>();
-        tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
-      }
-
       auto desired_layouts = operator->()->desired_layouts_;
-      if (desired_layouts.find(op->name) == desired_layouts.end()) {
-        LOG(FATAL) << "Desired layout(s) not specified for op: " << op->name;
-      }
-      Array<String> op_desired_layouts = desired_layouts.at(op->name);
-      Expr altered_value =
-          fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
-      if (altered_value.defined()) {
-        new_e = altered_value;
-        modified = true;
+      if (desired_layouts.find(op->name) != desired_layouts.end()) {
+        tvm::Array<tvm::te::Tensor> tinfos;
+        for (auto expr : ref_call->args) {
+          auto ttype = expr->type_as<TensorTypeNode>();
+          tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
+        }
+
+        Array<String> op_desired_layouts = desired_layouts.at(op->name);
+        Expr altered_value =
+            fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
+        if (altered_value.defined()) {
+          new_e = altered_value;
+          modified = true;
+        }
+      } else {
+        LOG(WARNING) << "Desired layout(s) not specified for op: " << op->name;
       }
     }
     if (!modified) {

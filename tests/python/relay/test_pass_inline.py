@@ -507,10 +507,11 @@ def test_inline_globalvar_without_args():
         g1 = relay.GlobalVar("g1")
         g2 = relay.GlobalVar("g2")
         mod[g1] = fn1
+        mod = relay.transform.InferType()(mod)
         mod[g2] = fn2
         p = relay.var("p", "bool")
         mod["main"] = relay.Function([p], relay.Call(relay.If(p, g1, g2), []))
-        return mod
+        return relay.transform.InferType()(mod)
 
     def expected():
         mod = tvm.IRModule({})
@@ -520,7 +521,7 @@ def test_inline_globalvar_without_args():
         fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         p = relay.var("p", "bool")
         mod["main"] = relay.Function([p], relay.Call(relay.If(p, fn1, fn2), []))
-        return mod
+        return relay.transform.InferType()(mod)
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)

@@ -71,7 +71,7 @@ assert tvm.runtime.enabled("rpc")
 # Model Name
 # ----------------------------------------------------------------------------
 MODEL_NAME = "yolov3-tiny"
-REPO_URL = "https://github.com/dmlc/web-data/blob/master/darknet/"
+REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 
 cfg_path = download_testdata(
     "https://github.com/pjreddie/darknet/blob/master/cfg/" + MODEL_NAME + ".cfg" + "?raw=true",
