@@ -674,7 +674,6 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
     node->ops.push_back(stage->op);
   }
 
-  //node->ops = node->access_analyzer->ops_topo_order;
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);

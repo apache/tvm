@@ -104,6 +104,7 @@ def test_stage_order():
     for op1, op2 in zip(stage_ops_1, stage_ops_2):
         assert op1.name == op2.name
 
+
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
