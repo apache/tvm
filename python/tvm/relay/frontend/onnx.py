@@ -518,6 +518,7 @@ class MatMul(OnnxOpConverter):
         b_rank = infer_shape(b_shape)[0]
         # When performing a batch matmul, we need to properly handle N-dim shapes.
         if a_rank > 2 or b_rank > 2:
+
             def flatten_to_3d(x, x_shape):
                 ndims = infer_shape(x_shape)[0]
                 newshape = _op.concatenate(
@@ -542,7 +543,9 @@ class MatMul(OnnxOpConverter):
             final_shape = _op.concatenate(
                 [
                     out_batch,
-                    _op.strided_slice(a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]),
+                    _op.strided_slice(
+                        a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                    ),
                     _op.strided_slice(
                         b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
                     ),
