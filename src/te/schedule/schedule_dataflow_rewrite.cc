@@ -138,6 +138,15 @@ Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
   }
   os << "." << scope;
 
+  // when a schedule has multiple cache_read on the same tensor,
+  // we make sure their op names are unique. e.g., w.shared, w.shared.d, w.shared.d.d
+  for (auto pair : (*this)->stage_map) {
+    auto stage = pair.second;
+    if (stage->op->name == os.str()) {
+      os << ".d";
+    }
+  }
+
   std::unordered_map<Tensor, Tensor> vsub;
   Stage s = operator[](tensor->op);
   Tensor sugar_tensor = s->op.output(tensor->value_index);

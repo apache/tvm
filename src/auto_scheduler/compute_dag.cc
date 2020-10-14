@@ -1006,8 +1006,21 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
     }  // end for placeholder
   }    // end for stage
   p_dag->access_analyzer = AccessAnalyzer(p_dag->tensors);
-  p_dag->ops = p_dag->access_analyzer->ops_topo_order;
+
+  Array<te::Operation> out_ops;
+  for (const auto& op : p_dag->access_analyzer->ops_topo_order) {
+    if (p_dag->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
+    }
+  }
+
+  p_dag->ops.clear();
+  te::Schedule sch = te::create_schedule(out_ops);
+  for (auto stage : sch->stages) {
+    p_dag->ops.push_back(stage->op);
+  }
   p_dag->flop_ct = FlopEstimator().EstimateFlop(p_dag->ops);
+  p_dag->init_state = State(p_dag->ops);
 }
 
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(

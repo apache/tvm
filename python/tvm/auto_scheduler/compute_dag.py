@@ -47,7 +47,7 @@ class ComputeDAG(Object):
 
     Parameters
     ----------
-    compute : Union[List[Tensor], str]
+    compute : Union[List[Tensor], str, Schedule]
         Input/output tensors or workload key for a compute declaration.
     """
 
