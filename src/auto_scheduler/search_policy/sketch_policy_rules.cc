@@ -700,7 +700,6 @@ PopulationGenerationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* 
 
 PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy, State* state,
                                                            std::mt19937* rand_gen) const {
-
   // Collect all stages that are roots of stages that perform multi-level tiling.
   std::set<int> multi_level_tiling_root_set;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
