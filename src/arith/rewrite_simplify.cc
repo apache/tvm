@@ -882,6 +882,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     TVM_TRY_REWRITE_IF(floormod(x + y * c1, c2), floormod(x, c2),
                        c2.Eval()->value > 0 && c1.Eval()->value % c2.Eval()->value == 0);
 
+    TVM_TRY_REWRITE(floormod(x * y, y), ZeroWithTypeLike(x));
+    TVM_TRY_REWRITE(floormod(y * x, y), ZeroWithTypeLike(y));
+
     // try modular analysis
     if (floormod(x, c1).Match(ret)) {
       ModularSet mod = analyzer_->modular_set(x.Eval());

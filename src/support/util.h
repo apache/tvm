@@ -152,6 +152,16 @@ inline int Execute(std::string cmd, std::string* err_msg) {
   return 255;
 }
 
+/*!
+ * \brief Combine two hash values into a single one.
+ * \param key The left operand.
+ * \param value The right operand.
+ * \return the combined result.
+ */
+inline size_t HashCombine(size_t key, size_t value) {
+  return key ^ (value + 0x9e3779b9 + (key << 6) + (key >> 2));
+}
+
 }  // namespace support
 }  // namespace tvm
 #endif  // TVM_SUPPORT_UTIL_H_
