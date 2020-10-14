@@ -902,6 +902,40 @@ def _batch_matmul():
 
     return _impl
 
+def _sparse_tensor_dense_matmul():
+    # Sparse utility from Numpy
+    from scipy import sparse
+
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+
+        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+
+        data = inputs[3]
+
+        rows = [x[0] for x in indices_tensor]
+        cols = [x[1] for x in indices_tensor]
+
+        # Create Numpy sparse Tensor(CSR)
+        weight_sp = sparse.csr_matrix((values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist()))
+        weight_sp = sparse.csr_matrix(weight_sp.transpose())
+
+        weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
+        weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
+        weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
+
+        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
+
+        # If both are true means First input was dense and second was sparse
+        # TODO: Support other adjoint option too
+        if attr.get("adjoint_a") and attr.get("adjoint_b"):
+            ret = _op.transpose(ret)
+
+        return ret
+
+    return _impl
 
 def _identity():
     def _impl(inputs, attr, params, mod):
@@ -2407,6 +2441,7 @@ _convert_map = {
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
+    "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
