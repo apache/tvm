@@ -902,6 +902,7 @@ def _batch_matmul():
 
     return _impl
 
+
 def _sparse_tensor_dense_matmul():
     # Sparse utility from Numpy
     from scipy import sparse
@@ -919,7 +920,9 @@ def _sparse_tensor_dense_matmul():
         cols = [x[1] for x in indices_tensor]
 
         # Create Numpy sparse Tensor(CSR)
-        weight_sp = sparse.csr_matrix((values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist()))
+        weight_sp = sparse.csr_matrix(
+            (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
+        )
         weight_sp = sparse.csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
@@ -936,6 +939,7 @@ def _sparse_tensor_dense_matmul():
         return ret
 
     return _impl
+
 
 def _identity():
     def _impl(inputs, attr, params, mod):

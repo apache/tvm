@@ -1749,6 +1749,7 @@ def test_forward_batch_matmul():
     _test_batch_matmul((3, 4, 5, 6), (3, 4, 5, 6), "int32", True, False)
     _test_batch_matmul((2, 3, 4, 2, 3, 4, 5, 6), (2, 3, 4, 2, 3, 4, 5, 6), "float32", False, True)
 
+
 #######################################################################
 # SparseTensorDenseMatMul
 # ----------------------------------
@@ -1757,22 +1758,29 @@ def test_forward_batch_matmul():
 def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=False):
     """ One iteration of sparse_dense_matmul """
 
-    #TODO: Support adjoint options too
+    # TODO: Support adjoint options too
     for adjoint_a in [False]:
         for adjoint_b in [False]:
             with tf.Graph().as_default():
-                A_sp = tf.sparse.SparseTensor(indices=[[0, 0], [1, 2]], values=[4., 8.], dense_shape=A_shape)
+                A_sp = tf.sparse.SparseTensor(
+                    indices=[[0, 0], [1, 2]], values=[4.0, 8.0], dense_shape=A_shape
+                )
                 B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
 
                 if flip:
-                    result = tf.sparse.sparse_dense_matmul(B, A_sp, adjoint_a=adjoint_a, adjoint_b=adjoint_b)
+                    result = tf.sparse.sparse_dense_matmul(
+                        B, A_sp, adjoint_a=adjoint_a, adjoint_b=adjoint_b
+                    )
                 else:
-                    result = tf.sparse.sparse_dense_matmul(A_sp, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b)
+                    result = tf.sparse.sparse_dense_matmul(
+                        A_sp, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b
+                    )
 
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
-                #TODO: There is an issue in cuda scheduling for csr, work in progress
+                # TODO: There is an issue in cuda scheduling for csr, work in progress
                 compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+
 
 def test_forward_sparse_dense_matmul():
     """ sparse_dense_matmul op test"""
@@ -1781,19 +1789,23 @@ def test_forward_sparse_dense_matmul():
     # In order to create a SparseTensor, it requires 3 input as below:
     #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
     #
-    # Above Sparse can be represented in Dense as below:
+    # Above Sparse can be represented in Dense as below :
     #    [[1, 0, 0, 0]
     #     [0, 0, 2, 0]
     #     [0, 0, 0, 0]]
     #
-    #------------------------------------------------------------------
+    # ------------------------------------------------------------------
 
-    #TODO: False case for flip need to be supported
-    #_test_sparse_dense_matmul([[0, 0], [1, 2]], [4., 8.], [3, 4], [4, 3], "float32")
-    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4., 8.], [3, 5], [4, 3], "float32", True)
-    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4., 8.], [3, 3], [3, 3], "float32", True)
-    _test_sparse_dense_matmul([[0, 0], [1, 3], [4, 3]], [3., 6., 9.], [5, 5], [5, 5], "float32", True)
-    _test_sparse_dense_matmul([[0, 0], [1, 3], [4, 3]], [3., 6., 9.], [9, 5], [7, 9], "float32", True)
+    # TODO: False case for flip need to be supported
+    # _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [4, 3], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 5], [4, 3], "float32", True)
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32", True)
+    _test_sparse_dense_matmul(
+        [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32", True
+    )
+    _test_sparse_dense_matmul(
+        [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [9, 5], [7, 9], "float32", True
+    )
 
 
 #######################################################################

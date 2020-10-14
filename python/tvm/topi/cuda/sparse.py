@@ -369,12 +369,12 @@ def _alter_sparse_dense_layout(_attrs, inputs, _tinfos, _out_type):
     ):
         if len(inputs[1].data.asnumpy().shape) == 1:
             sparse_matrix = sp.csr_matrix(
-	            (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
-	        ).tobsr()
-        else :
+                (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
+            ).tobsr()
+        else:
             sparse_matrix = sp.bsr_matrix(
-	            (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
-	        )
+                (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
+            )
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         sparse_matrix = pad_sparse_matrix(sparse_matrix, warp_size)
         return relay.nn._make.sparse_dense_padded(
