@@ -36,7 +36,7 @@
 #include <vector>
 
 #include "arg_binder.h"
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
