@@ -56,7 +56,7 @@
 #include <memory>
 #include <utility>
 
-#include "ad_util.h"
+#include "ad_utils.h"
 
 namespace tvm {
 namespace te {

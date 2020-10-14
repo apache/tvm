@@ -57,7 +57,7 @@
 #include <tvm/relay/transform.h>
 
 #include "let_list.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {

@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 
-#include "../../runtime/file_util.h"
+#include "../../runtime/file_utils.h"
 #include "../../runtime/opencl/aocl/aocl_module.h"
 #include "../build_common.h"
 #include "codegen_opencl.h"

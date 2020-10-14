@@ -30,7 +30,7 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/topi/elemwise.h>
 
-#include "../../transforms/infer_layout_util.h"
+#include "../../transforms/infer_layout_utils.h"
 #include "../op_common.h"
 #include "../type_relations.h"
 

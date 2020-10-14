@@ -29,7 +29,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/container.h>
 
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {

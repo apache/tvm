@@ -28,8 +28,8 @@
 #include <tvm/relay/qnn/attrs.h>
 
 #include "../../op/nn/nn.h"
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {

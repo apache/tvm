@@ -25,7 +25,7 @@ from tvm.tir import expr as _expr
 from tvm.tir import call_intrin
 from tvm.tir.stmt import For
 
-from .util import _internal_assert
+from .utils import _internal_assert
 
 # pylint: disable=redefined-builtin,invalid-name
 

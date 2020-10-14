@@ -28,9 +28,9 @@
 #include <tvm/tir/expr.h>
 
 #include "../../op/tensor/transform.h"
-#include "../../transforms/infer_layout_util.h"
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/infer_layout_utils.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {

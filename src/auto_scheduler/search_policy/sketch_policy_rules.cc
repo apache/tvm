@@ -702,11 +702,14 @@ PopulationGenerationRule::ResultKind InitVectorization::Apply(SketchPolicyNode* 
 
 PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* policy, State* state,
                                                            std::mt19937* rand_gen) const {
+  // Collect all stages that are roots of stages that perform multi-level tiling.
   std::set<int> multi_level_tiling_root_set;
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     if (NeedsMultilevelTiling(policy->search_task, *state, stage_id)) {
       const Stage& stage = (*state)->stages[stage_id];
-      if (stage->compute_at != ComputeAtKind::kIter) {
+      if (stage->compute_at == ComputeAtKind::kInlined) {
+        continue;
+      } else if (stage->compute_at != ComputeAtKind::kIter) {
         // This stage is not multi-level tiled,
         // so it must be produced by RuleCrossThreadReduction.
         CHECK(HasCrossThreadReduction(*state, stage_id));

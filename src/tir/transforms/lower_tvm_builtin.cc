@@ -29,7 +29,7 @@
 
 #include <unordered_set>
 
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {

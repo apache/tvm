@@ -231,7 +231,7 @@ Adding a Gradient in C++
 Adding a gradient in C++ is similar to adding one in Python, but the
 interface for registering is slightly different.
 
-First, make sure ``src/relay/pass/pattern_util.h`` is included. It provides
+First, make sure ``src/relay/pass/pattern_utils.h`` is included. It provides
 helper functions for creating nodes in the Relay AST. Then, define the
 gradient in a similar fashion as in the Python example:
 
