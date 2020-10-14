@@ -27,7 +27,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {

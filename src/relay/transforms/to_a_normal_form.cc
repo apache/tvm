@@ -31,7 +31,7 @@
 #include "../../support/arena.h"
 #include "../analysis/dependency_graph.h"
 #include "let_list.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {

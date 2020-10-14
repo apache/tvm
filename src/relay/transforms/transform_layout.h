@@ -34,8 +34,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "infer_layout_util.h"
-#include "pattern_util.h"
+#include "infer_layout_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

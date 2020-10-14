@@ -32,8 +32,8 @@
 #include <vector>
 
 #include "../../op/type_relations.h"
-#include "../../transforms/infer_layout_util.h"
-#include "../util.h"
+#include "../../transforms/infer_layout_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {

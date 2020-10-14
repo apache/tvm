@@ -31,7 +31,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/pattern_functor.h>
 
-#include "../transforms/pass_util.h"
+#include "../transforms/pass_utils.h"
 
 namespace tvm {
 namespace relay {

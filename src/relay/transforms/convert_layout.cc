@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 #include "transform_layout.h"
 
 namespace tvm {

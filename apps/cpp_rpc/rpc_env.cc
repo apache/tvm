@@ -40,8 +40,8 @@ int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
 #include <string>
 #include <vector>
 
-#include "../../src/runtime/file_util.h"
-#include "../../src/support/util.h"
+#include "../../src/runtime/file_utils.h"
+#include "../../src/support/utils.h"
 #include "rpc_env.h"
 
 namespace {

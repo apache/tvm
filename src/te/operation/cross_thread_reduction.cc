@@ -24,7 +24,7 @@
 #include <tvm/tir/builtin.h>
 
 #include "compute_op.h"
-#include "op_util.h"
+#include "op_utils.h"
 
 namespace tvm {
 namespace te {

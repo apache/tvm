@@ -26,7 +26,7 @@
 
 #include <tvm/relay/transform.h>
 
-#include "../transforms/pattern_util.h"
+#include "../transforms/pattern_utils.h"
 #include "./quantize.h"
 
 namespace tvm {

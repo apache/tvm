@@ -35,7 +35,7 @@ from tvm._ffi.base import decorate
 
 from .module import HybridModule
 from .parser import source_to_op
-from .util import _pruned_source
+from .utils import _pruned_source
 
 
 def script(pyfunc):
@@ -51,7 +51,7 @@ def script(pyfunc):
     """
     # pylint: disable=import-outside-toplevel, missing-docstring
     def wrapped_func(func, *args, **kwargs):
-        from .util import _is_tvm_arg_types
+        from .utils import _is_tvm_arg_types
 
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)

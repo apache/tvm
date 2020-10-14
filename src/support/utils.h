@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file util.h
+ * \file utils.h
  * \brief Defines some common utility function..
  */
-#ifndef TVM_SUPPORT_UTIL_H_
-#define TVM_SUPPORT_UTIL_H_
+#ifndef TVM_SUPPORT_UTILS_H_
+#define TVM_SUPPORT_UTILS_H_
 
 #include <stdio.h>
 #ifndef _WIN32
@@ -164,4 +164,4 @@ inline size_t HashCombine(size_t key, size_t value) {
 
 }  // namespace support
 }  // namespace tvm
-#endif  // TVM_SUPPORT_UTIL_H_
+#endif  // TVM_SUPPORT_UTILS_H_

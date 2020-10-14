@@ -33,7 +33,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../tir/transforms/ir_util.h"
+#include "../tir/transforms/ir_utils.h"
 
 namespace tvm {
 namespace arith {
