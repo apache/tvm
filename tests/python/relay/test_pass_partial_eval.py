@@ -26,7 +26,7 @@ from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead,
 from tvm.relay import TensorType, Tuple, If, Clause, PatternConstructor, PatternVar, Match
 from tvm.relay import GlobalVar, Call
 from tvm.relay.transform import gradient
-from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
+from tvm.relay.testing import make_nat_expr, run_infer_type
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
@@ -52,7 +52,12 @@ def tipe(expr):
 
 
 def dcpe(expr, mod=None, grad=False):
-    passes = [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+    passes = [
+        transform.PartialEvaluate(),
+        transform.InferType(),
+        transform.DeadCodeElimination(inline_once=True),
+        transform.InferType(),
+    ]
     if grad:
         expr = gradient(run_infer_type(expr))
     if mod:
@@ -175,23 +180,29 @@ def test_head_cons():
     p = Prelude(mod)
     t = TypeVar("t")
     x = Var("x", t)
-    body = p.hd(p.cons(x, p.nil()))
+    rlist, cons, nil = p.mod.get_type("List")
+    hd = p.mod.get_global_var("hd")
+    body = hd(cons(x, nil()))
     f = Function([x], body, None, [t])
     res = dcpe(f, mod)
-    assert tvm.ir.structural_equal(res, Function([x], x, t, [t]))
+    expected_mod = tvm.IRModule.from_expr(Function([x], x, t, [t]))
+    assert tvm.ir.structural_equal(res, expected_mod["main"])
 
 
 def test_map():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    rlist, cons, nil = p.mod.get_type("List")
+    rmap = p.mod.get_global_var("map")
     f = GlobalVar("f")
     t = TypeVar("t")
     a = Var("a", t)
     mod[f] = Function([a], a, t, [t])
-    orig = p.map(f, p.cons(const(1), p.cons(const(2), p.cons(const(3), p.nil()))))
-    expected = p.cons((const(1)), p.cons((const(2)), p.cons((const(3)), p.nil())))
+    orig = rmap(f, cons(const(1), cons(const(2), cons(const(3), nil()))))
+    expected = cons((const(1)), cons((const(2)), cons((const(3)), nil())))
     expected = Function([], expected)
     mod["main"] = expected
+    mod = transform.InferType()(mod)
     expected = mod["main"]
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
@@ -206,6 +217,7 @@ def test_loop():
     mod[loop] = Function([x], loop(x), t, [t])
     expected = Call(loop, [const(1)])
     mod["main"] = Function([], expected)
+    mod = transform.InferType()(mod)
     expected = mod["main"].body
     call = Function([], loop(const(1)))
     res = dcpe(call, mod=mod)
@@ -215,12 +227,12 @@ def test_loop():
 def test_swap_loop():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat()
-    x = Var("x", nat)
-    y = Var("y", nat)
+    p.mod.import_from_std("nat.rly")
+    nat, _, _ = p.mod.get_type("nat")
+    x = Var("x", nat())
+    y = Var("y", nat())
     loop = GlobalVar("loop")
-    mod[loop] = Function([x, y], loop(y, x), nat)
+    mod[loop] = Function([x, y], loop(y, x), nat())
     prog = loop(make_nat_expr(p, 1), make_nat_expr(p, 2))
     res = Function([], prog)
     res = dcpe(res, mod=mod)
@@ -231,17 +243,17 @@ def test_abs_diff():
     # TODO(@M.K.): refactor using tuple pattern (not yet implemented)
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat()
-    x = Var("x", nat)
-    y = Var("y", nat)
-    xp = Var("x'", nat)
-    yp = Var("y'", nat)
+    p.mod.import_from_std("nat.rly")
+    nat, z, s = p.mod.get_type("nat")
+    x = Var("x", nat())
+    y = Var("y", nat())
+    xp = Var("x'", nat())
+    yp = Var("y'", nat())
     diff = GlobalVar("diff")
-    y_z_case = Clause(PatternConstructor(p.z, []), x)
-    y_s_case = Clause(PatternConstructor(p.s, [PatternVar(yp)]), diff(yp, xp))
-    x_z_case = Clause(PatternConstructor(p.z, []), y)
-    x_s_case = Clause(PatternConstructor(p.s, [PatternVar(xp)]), Match(y, [y_z_case, y_s_case]))
+    y_z_case = Clause(PatternConstructor(z, []), x)
+    y_s_case = Clause(PatternConstructor(s, [PatternVar(yp)]), diff(yp, xp))
+    x_z_case = Clause(PatternConstructor(z, []), y)
+    x_s_case = Clause(PatternConstructor(s, [PatternVar(xp)]), Match(y, [y_z_case, y_s_case]))
     mod[diff] = Function([x, y], Match(x, [x_z_case, x_s_case]))
     orig = diff(make_nat_expr(p, 7), make_nat_expr(p, 3))
     orig = Function([], orig)
@@ -252,13 +264,13 @@ def test_abs_diff():
 def test_match_nat_id():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat()
-    x = Var("x", nat)
-    y = Var("y", nat)
+    p.mod.import_from_std("nat.rly")
+    nat, z, s = p.mod.get_type("nat")
+    x = Var("x", nat())
+    y = Var("y", nat())
     nat_id = GlobalVar("nat_id")
-    z_case = Clause(PatternConstructor(p.z, []), p.z())
-    s_case = Clause(PatternConstructor(p.s, [PatternVar(y)]), p.s(y))
+    z_case = Clause(PatternConstructor(z, []), z())
+    s_case = Clause(PatternConstructor(s, [PatternVar(y)]), s(y))
     mod[nat_id] = Function([x], Match(x, [z_case, s_case]))
     orig = nat_id(make_nat_expr(p, 3))
     orig = Function([], orig)
@@ -269,10 +281,10 @@ def test_match_nat_id():
 def test_nat_id():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat()
-    x = Var("x", nat)
-    y = Var("y", nat)
+    p.mod.import_from_std("nat.rly")
+    nat, _, _ = p.mod.get_type("nat")
+    x = Var("x", nat())
+    y = Var("y", nat())
     nat_id = GlobalVar("nat_id")
     mod[nat_id] = Function([x], x)
     orig = nat_id(make_nat_expr(p, 3))
@@ -284,11 +296,11 @@ def test_nat_id():
 def test_global_match_nat_id():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat()
-    x = Var("x", nat)
-    z_case = Clause(PatternConstructor(p.z, []), p.z())
-    s_case = Clause(PatternConstructor(p.s, [PatternVar(x)]), p.s(x))
+    p.mod.import_from_std("nat.rly")
+    nat, z, s = p.mod.get_type("nat")
+    x = Var("x", nat())
+    z_case = Clause(PatternConstructor(z, []), z())
+    s_case = Clause(PatternConstructor(s, [PatternVar(x)]), s(x))
     orig = Match(make_nat_expr(p, 3), [z_case, s_case])
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
@@ -298,8 +310,9 @@ def test_global_match_nat_id():
 def test_double():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    orig = p.double(make_nat_expr(p, 3))
+    p.mod.import_from_std("nat.rly")
+    double = p.mod.get_global_var("nat_double")
+    orig = double(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
     assert tvm.ir.structural_equal(res.body, make_nat_expr(p, 6))
@@ -325,7 +338,7 @@ def test_triangle_number():
 def test_nat_update():
     m = tvm.IRModule()
     p = Prelude(m)
-    add_nat_definitions(p)
+    p.mod.import_from_std("nat.rly")
     m = transform.ToANormalForm()(m)
     transform.PartialEvaluate()(m)
 

@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.analysis import detect_feature
 from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, count
+from tvm.relay.testing import count
 from tvm.relay.analysis import Feature
 
 
@@ -146,11 +146,9 @@ def test_ref():
 def test_nat_add():
     mod = tvm.IRModule()
     p = Prelude(mod)
-    add_nat_definitions(p)
-    nat = p.nat
-    add = p.add
-    s = p.s
-    z = p.z
+    p.mod.import_from_std("nat.rly")
+    nat, z, s = p.mod.get_type("nat")
+    add = p.mod.get_global_var("nat_add")
     ctx = tvm.context("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
@@ -195,6 +193,7 @@ def test_gradient_if():
     net = relay.Function([cond, x, y], net)
     mod = tvm.IRModule.from_expr(net)
     mod = relay.transform.ToANormalForm()(mod)
+    mod = relay.transform.InferType()(mod)
     mod["main"] = relay.transform.gradient(mod["main"], mode="higher_order")
     mod = relay.transform.ToANormalForm()(mod)
 

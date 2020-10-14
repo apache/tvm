@@ -28,6 +28,7 @@
 #ifndef TVM_TIR_OP_H_
 #define TVM_TIR_OP_H_
 
+#include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/tir/expr.h>

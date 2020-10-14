@@ -25,6 +25,7 @@
 #define TVM_IR_TYPE_RELATION_H_
 
 #include <tvm/ir/attrs.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type.h>
@@ -100,7 +101,7 @@ class TypeReporterNode : public Object {
    * \brief assert shape expression comparison.
    * \note Use assert only if any of the condition input is symbolic.
    * \param cond The condition of operation.
-   * \return false if assertation can be proven to have failed
+   * \return false if assertion can be proven to have failed
    *      true if solver can still proceed.
    */
   TVM_DLL virtual bool Assert(const PrimExpr& cond) = 0;
@@ -108,16 +109,20 @@ class TypeReporterNode : public Object {
    * \brief assert shape expression equals each other.
    * \param lhs The left operand.
    * \param rhs The right operand.
-   * \return false if assertation can be proven to have failed
+   * \return false if assertion can be proven to have failed
    *      true if solver can still proceed.
    */
   TVM_DLL virtual bool AssertEQ(const PrimExpr& lhs, const PrimExpr& rhs) = 0;
 
   /*!
    * \brief Set the location at which to report unification errors.
-   * \param ref The program node to report the error.
+   * \param span The span at which to report the error.
    */
-  TVM_DLL virtual void SetLocation(const ObjectRef& ref) = 0;
+  TVM_DLL virtual void SetSpan(const Span& span) = 0;
+
+  TVM_DLL virtual Span GetSpan() = 0;
+
+  TVM_DLL virtual DiagnosticContext GetDiagCtx() = 0;
 
   /*!
    * \brief Retrieve the current global module.

@@ -150,6 +150,8 @@ def run_tvm_graph(
         return vmobj_to_list(result)
     elif mode == "vm":
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
+            print(mod["main"])
+            mod = relay.transform.InferType()(mod)
             vm_exec = relay.vm.compile(mod, target="llvm", params=params)
         if serialize:
             code, lib = vm_exec.save()

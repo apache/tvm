@@ -67,21 +67,22 @@ bool IsIdentLetter(char c) { return '_' == c || ('a' <= c && c <= 'z') || ('A' <
 bool IsIdent(char c) { return IsIdentLetter(c) || IsDigit(c); }
 
 static std::unordered_map<std::string, TokenType> KEYWORD_TABLE = {
-    {"let", TokenType::kLet},         {"fn", TokenType::kFn},
-    {"def", TokenType::kDefn},        {"if", TokenType::kIf},
-    {"else", TokenType::kElse},       {"type", TokenType::kTypeDef},
-    {"match", TokenType::kMatch},     {"extern", TokenType::kExtern},
-    {"free_var", TokenType::kFreeVar}};
+    {"let", TokenType::kLet},          {"fn", TokenType::kFn},
+    {"def", TokenType::kDefn},         {"if", TokenType::kIf},
+    {"else", TokenType::kElse},        {"type", TokenType::kTypeDef},
+    {"match", TokenType::kMatch},      {"extern", TokenType::kExtern},
+    {"free_var", TokenType::kFreeVar}, {"ref", TokenType::kRef},
+    {"ref_read", TokenType::kRefRead}, {"ref_write", TokenType::kRefWrite}};
 
 struct Tokenizer {
-  DiagnosticContext* diag_ctx;
+  DiagnosticContext diag_ctx;
   const SourceName& source_name;
 
   size_t pos;
   int col;
   int line;
   char next_char;
-  const std::string& source;
+  String source;
   std::vector<Token> tokens;
 
   char Next() {
@@ -187,13 +188,26 @@ struct Tokenizer {
     } catch (const std::invalid_argument& ia) {
       auto token = NewToken(TokenType::kFloat);
 
-      if (number.back() == 'f') {
-        number.pop_back();
+      auto suffix_pos = number.rfind("f");
+
+      auto literal_text = number.substr(0, suffix_pos);
+
+      auto suffix = number.substr(suffix_pos + 1, number.size() - suffix_pos);
+
+      int width = 32;
+
+      if (suffix.size()) {
+        try {
+          width = std::stoi(suffix);
+        } catch (const std::invalid_argument& err) {
+          this->diag_ctx.Emit(Diagnostic::Error(token->span)
+                              << "invalid numeric suffix `" << suffix << "`");
+        }
       }
 
-      double value = stod(number);
+      double value = stod(literal_text);
       value = is_pos ? value : -value;
-      token->data = tvm::FloatImm(DataType::Float(64), value);
+      token->data = tvm::FloatImm(DataType::Float(width), value);
       return token;
     }
   }
@@ -278,15 +292,15 @@ struct Tokenizer {
       } else {
         // TOOD(@jroesch): maybe make this a warning an continue parsing?
         auto span = SpanFrom(line, column);
-        this->diag_ctx->EmitFatal(Diagnostic::Error(span) << "unsupported attribute " << attribute);
+        this->diag_ctx.EmitFatal(Diagnostic::Error(span) << "unsupported attribute " << attribute);
         return Token();
       }
     } else {
       auto span = SpanFrom(line, column);
       this->diag_ctx
-          ->EmitFatal(Diagnostic::Error(span)
-                      << "`#` denotes the start of an attribute can only be followed by `[`"
-                      << " found `" << Peek() << "`");
+          .EmitFatal(Diagnostic::Error(span)
+                     << "`#` denotes the start of an attribute can only be followed by `[`"
+                     << " found `" << Peek() << "`");
       return Token();
     }
   }
@@ -307,7 +321,7 @@ struct Tokenizer {
         return token;
       } else {
         auto span = SpanFrom(line, col);
-        this->diag_ctx->EmitFatal(
+        this->diag_ctx.EmitFatal(
             Diagnostic::Error(span)
             << "\\r carriage returns must be followed by a \\n in the TVM text format");
         return Token();
@@ -347,9 +361,13 @@ struct Tokenizer {
       }
 
       bool is_float = false;
+
       // Remove trailing floating point prefix.
       if (More() && Peek() == 'f') {
-        Next();
+        ss << Next();
+        while (More() && IsNumeric(Peek())) {
+          ss << Next();
+        }
         is_float = true;
       }
 
@@ -525,14 +543,13 @@ struct Tokenizer {
     this->tokens.push_back(NewToken(TokenType::kEndOfFile));
   }
 
-  explicit Tokenizer(DiagnosticContext* ctx, const SourceName& source_name,
-                     const std::string& source)
+  explicit Tokenizer(const DiagnosticContext& ctx, const Source& source)
       : diag_ctx(ctx),
-        source_name(source_name),
+        source_name(source->source_name),
         pos(0),
         col(1),
         line(1),
-        source(source),
+        source(source->source),
         tokens() {}
 };
 
@@ -615,9 +632,8 @@ std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
   return out;
 }
 
-std::pair<std::vector<Token>, Token> Tokenize(DiagnosticContext* ctx, const SourceName& source_name,
-                                              const std::string& source) {
-  auto tokenizer = Tokenizer(ctx, source_name, source);
+std::pair<std::vector<Token>, Token> Tokenize(const DiagnosticContext& ctx, const Source& source) {
+  auto tokenizer = Tokenizer(ctx, source);
   tokenizer.Tokenize();
   Token meta_table(Span(), TokenType::kUnknown, ObjectRef());
   auto tokens = Condense(tokenizer.tokens, &meta_table);

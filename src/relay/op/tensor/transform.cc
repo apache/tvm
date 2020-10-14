@@ -797,7 +797,11 @@ bool ArgWhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
-  CHECK(tt != nullptr);
+
+  if (tt == nullptr) {
+    return false;
+  }
+
   const auto& input_shape = tt->shape;
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
@@ -1676,7 +1680,10 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const auto* condition = types[0].as<TensorTypeNode>();
   const auto* x = types[1].as<TensorTypeNode>();
   const auto* y = types[2].as<TensorTypeNode>();
-  CHECK(condition != nullptr && x != nullptr && y != nullptr);
+
+  if (condition == nullptr || x == nullptr || y == nullptr) {
+    return false;
+  }
 
   const auto& cond_shape = condition->shape;
   const auto& x_shape = x->shape;
@@ -1815,9 +1822,9 @@ bool SqueezeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (p.second) {
         result_shape.push_back(p.first);
       } else {
-        const int64_t* axis_ptr = tir::as_const_int(p.first);
-        CHECK(axis_ptr != nullptr) << "cannot get concrete shape of input tensor";
-        CHECK_EQ(*axis_ptr, 1) << "cannot squeeze axis with dimension not equal to 1";
+        if (const int64_t* axis_ptr = tir::as_const_int(p.first)) {
+          CHECK_EQ(*axis_ptr, 1) << "cannot squeeze axis with dimension not equal to 1";
+        }
       }
     }
   }
@@ -2021,9 +2028,15 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
                      const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
-  CHECK(param != nullptr);
+  if (param == nullptr) {
+    return false;
+  }
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+
+  if (data == nullptr) {
+    return false;
+  }
+
   auto dshape = data->shape;
   int64_t num_axis = dshape.size();
 
@@ -2162,52 +2175,97 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       }
     }
 
-    Array<Integer> new_begin, new_end;
+    Array<Integer> new_begin, new_end, new_strides;
 
-    for (size_t i = 0; i < begin.size(); i++) {
-      const LayoutAxis& axis = layout[i];
-      if (!axis.IsPrimal()) {
-        // original layout that contains splitted axes is not supported
+    // Handles layout conversion like NHWC -> NCHW
+    auto old_layout_name = layout.name();
+    auto new_layout_name = new_layout.name();
+
+    if (old_layout_name.rfind(new_layout_name, 0) != 0 &&
+        new_layout_name.rfind(old_layout_name, 0) != 0) {
+      if (old_layout_name.size() != new_layout_name.size()) {
+        // Not support NHW4c -> NCHW
         return {{Layout::Undef()}, {Layout::Undef()}};
-      }
-      auto factor = new_layout.FactorOf(axis);
-      if (factor == -1) {
-        new_begin.push_back(begin[i]);
-        new_end.push_back(end[i]);
       } else {
-        if (strides.defined() && i < strides.size()) {
-          auto stride = strides[i];
-          // arbitrary stride is not supported
-          if (stride.defined() && stride->value != 1) {
+        for (size_t i = 0; i < new_layout_name.size(); ++i) {
+          auto index = layout.IndexOf(new_layout[i]);
+          if (index == -1) {
             return {{Layout::Undef()}, {Layout::Undef()}};
           }
-        }
-        int64_t bg = begin[i].defined() ? begin[i]->value : 0;
-        int64_t ed;
-        if (!end[i].defined()) {
-          ed = shape[i].as<IntImmNode>()->value;
-        } else if (params->slice_mode == "size") {
-          if (end[i]->value < 0) {
-            ed = shape[i].as<IntImmNode>()->value;
-          } else {
-            ed = bg + end[i]->value;
-          }
-        } else {
-          ed = end[i]->value;
-        }
 
-        if (bg % factor || ed % factor) {
-          // transform to original layout
+          size_t new_index = static_cast<size_t>(index);
+          int64_t bg, ed, st;
+          if (strides.defined() && new_index < strides.size() && strides[new_index].defined()) {
+            st = strides[new_index]->value;
+          } else {
+            st = 1;
+          }
+          if (new_index < begin.size() && begin[new_index].defined()) {
+            bg = begin[new_index]->value;
+          } else {
+            bg = 0;
+          }
+          if (new_index < end.size() && end[new_index].defined()) {
+            ed = end[new_index]->value;
+          } else {
+            ed = shape[new_index].as<IntImmNode>()->value;
+          }
+
+          new_begin.push_back(bg);
+          new_end.push_back(ed);
+          new_strides.push_back(st);
+        }
+        params->begin = new_begin;
+        params->end = new_end;
+        params->strides = new_strides;
+        layout = new_layout;
+      }
+    } else {
+      for (size_t i = 0; i < begin.size(); i++) {
+        const LayoutAxis& axis = layout[i];
+        if (!axis.IsPrimal()) {
+          // original layout that contains splitted axes is not supported
           return {{Layout::Undef()}, {Layout::Undef()}};
         }
-        new_begin.push_back(tvm::Integer(bg / factor));
-        new_end.push_back(tvm::Integer(ed / factor));
-      }
-    }
+        auto factor = new_layout.FactorOf(axis);
+        if (factor == -1) {
+          new_begin.push_back(begin[i]);
+          new_end.push_back(end[i]);
+        } else {
+          if (strides.defined() && i < strides.size()) {
+            auto stride = strides[i];
+            // arbitrary stride is not supported
+            if (stride.defined() && stride->value != 1) {
+              return {{Layout::Undef()}, {Layout::Undef()}};
+            }
+          }
+          int64_t bg = begin[i].defined() ? begin[i]->value : 0;
+          int64_t ed;
+          if (!end[i].defined()) {
+            ed = shape[i].as<IntImmNode>()->value;
+          } else if (params->slice_mode == "size") {
+            if (end[i]->value < 0) {
+              ed = shape[i].as<IntImmNode>()->value;
+            } else {
+              ed = bg + end[i]->value;
+            }
+          } else {
+            ed = end[i]->value;
+          }
 
-    layout = new_layout;
-    params->begin = new_begin;
-    params->end = new_end;
+          if (bg % factor || ed % factor) {
+            // transform to original layout
+            return {{Layout::Undef()}, {Layout::Undef()}};
+          }
+          new_begin.push_back(tvm::Integer(bg / factor));
+          new_end.push_back(tvm::Integer(ed / factor));
+        }
+      }
+
+      layout = new_layout;
+      params->begin = new_begin;
+      params->end = new_end;
+    }
   }
   return {{layout}, {layout}};
 }
@@ -3054,7 +3112,10 @@ bool SparseToDenseRel(const Array<Type>& types, int num_inputs, const Attrs& att
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto sparse_values = types[1].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
-  CHECK(sparse_indices != nullptr && sparse_values != nullptr && default_value != nullptr);
+
+  if (sparse_indices == nullptr || sparse_values == nullptr || default_value == nullptr) {
+    return false;
+  }
 
   CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
 

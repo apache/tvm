@@ -302,6 +302,15 @@ def nhwc_winograd_cuda(
     tile_size = _infer_tile_size(data, kernel)
     N, H, W, CI = get_const_tuple(data.shape)
 
+    if isinstance(N, tvm.tir.Any):
+        N = tvm.te.size_var("n")
+
+    if not isinstance(H, int) or not isinstance(W, int):
+        raise RuntimeError(
+            "cuda winograd nhwc conv2d doesn't support dynamic \
+                           input height or width."
+        )
+
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
     else:
@@ -330,7 +339,7 @@ def nhwc_winograd_cuda(
     H = (H + pt + pb - KH) // HSTR + 1
     W = (W + pl + pr - KW) // WSTR + 1
     nH, nW = (H + m - 1) // m, (W + m - 1) // m
-    P = N * nH * nW
+    P = N * nH * nW if isinstance(N, int) else nH * nW
 
     # Determine whether the shape is available with tensorcore
     shape_judge = (
@@ -432,7 +441,8 @@ def nhwc_winograd_cuda(
         name="output",
         tag="conv2d_nhwc_winograd",
     )
-    cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
+    if isinstance(N, int):
+        cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
     return output
 
 

@@ -409,3 +409,18 @@ impl<'a> TryFrom<ArgValue<'a>> for bool {
         try_downcast!(val -> bool, |ArgValue::Int(val)| { !(val == 0) })
     }
 }
+
+impl From<()> for RetValue {
+    fn from(_: ()) -> Self {
+        RetValue::Null
+    }
+}
+
+impl TryFrom<RetValue> for () {
+    type Error = ValueDowncastError;
+
+    fn try_from(val: RetValue) -> Result<(), Self::Error> {
+        try_downcast!(val -> bool,
+            |RetValue::Null| { () })
+    }
+}

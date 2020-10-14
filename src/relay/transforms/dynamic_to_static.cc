@@ -227,6 +227,9 @@ Expr DynamicToStatic(Function f, IRModule m) {
     vars.Set(kv.second, kv.first);
   }
   const auto gv = vars[f];
+  // Put a limit on the while loop
+  // Primarily used to prevent accidental infinite lops in development
+  const int loop_limit = 1000;
   int i = 0;
   do {
     pre = expr;
@@ -236,13 +239,13 @@ Expr DynamicToStatic(Function f, IRModule m) {
     expr = mutator.Mutate(m->functions[gv]);
     m->Update(gv, Downcast<BaseFunc>(expr));
     i += 1;
-  } while (pre != expr && i < 1000);
+  } while (!StructuralEqual()(pre, expr) && i < loop_limit);
   return expr;
 }
 
 namespace transform {
 
-Pass ConvertDynamicToStatic() {
+Pass DynamicToStatic() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(DynamicToStatic(f, m));
@@ -251,7 +254,7 @@ Pass ConvertDynamicToStatic() {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.DynamicToStatic").set_body_typed([]() {
-  return ConvertDynamicToStatic();
+  return DynamicToStatic();
 });
 
 }  // namespace transform

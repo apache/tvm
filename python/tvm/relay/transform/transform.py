@@ -1032,3 +1032,17 @@ def SimplifyExpr():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.SimplifyExpr()
+
+
+def AnnotateSpans():
+    """
+    Annotate a program with span information by first generating its textual
+    representation and then parsing it back into a Relay AST annotated with
+    span information.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The regsistered AnnotateSpans pass.
+    """
+    return _ffi_api.AnnotateSpans()

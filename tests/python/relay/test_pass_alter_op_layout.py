@@ -463,6 +463,95 @@ def test_alter_layout_scalar():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_alter_layout_scalar_regression():
+    """regression test where scalar fails"""
+
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 16))
+        bias = relay.var("bias", shape=(1, 1, 1, 16))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=16,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.add(y, bias)
+        mean = relay.mean(y, axis=3, exclude=True)
+        var = relay.variance(y, axis=3, exclude=True)
+        gamma = relay.var("gamma")
+        beta = relay.var("beta")
+        y = relay.nn.batch_norm(y, gamma, beta, mean, var, axis=3)
+        y = y[0]
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW16c"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 16))
+        bias = relay.var("bias", shape=(1, 1, 1, 16))
+        x = relay.layout_transform(x, src_layout="NHWC", dst_layout="NCHW")
+        x = relay.layout_transform(x, src_layout="NCHW", dst_layout="NCHW16c")
+        weight = relay.layout_transform(weight, src_layout="HWIO", dst_layout="OIHW")
+        y = relay.nn.conv2d(
+            x, weight, channels=16, kernel_size=(3, 3), padding=(1, 1), data_layout="NCHW16c"
+        )
+        bias = relay.layout_transform(bias, src_layout="NHWC", dst_layout="NCHW")
+        bias = relay.layout_transform(bias, src_layout="NCHW", dst_layout="NCHW16c")
+        add = relay.add(y, bias)
+        y = relay.layout_transform(add, src_layout="NCHW16c", dst_layout="NCHW")
+        y = relay.layout_transform(y, src_layout="NCHW", dst_layout="NHWC")
+        mean = relay.mean(y, axis=3, exclude=True)
+        var = relay.variance(y, axis=3, exclude=True)
+        denom = relay.const(1.0) / relay.sqrt(var + relay.const(1e-05))
+        gamma = relay.var("gamma", shape=(16,))
+        denom = denom * gamma
+        denom_expand1 = relay.expand_dims(denom, axis=1, num_newaxis=2)
+        denom_expand2 = relay.expand_dims(denom_expand1, axis=0)
+        denom_nchwc16 = relay.layout_transform(
+            denom_expand2, src_layout="NCHW", dst_layout="NCHW16c"
+        )
+        out = add * denom_nchwc16
+        beta = relay.var("beta", shape=(16,))
+        numerator = (-mean) * denom + beta
+        numerator_expand1 = relay.expand_dims(numerator, axis=1, num_newaxis=2)
+        numerator_expand2 = relay.expand_dims(numerator_expand1, axis=0)
+        numerator_nchwc16 = relay.layout_transform(
+            numerator_expand2, src_layout="NCHW", dst_layout="NCHW16c"
+        )
+        out = out + numerator_nchwc16
+        out = relay.layout_transform(out, src_layout="NCHW16c", dst_layout="NCHW")
+        y = relay.layout_transform(out, src_layout="NCHW", dst_layout="NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        desired_layouts = {"nn.conv2d": ["NCHW", "default"], "nn.batch_norm": ["NHWC", "default"]}
+        a = run_opt_pass(
+            a,
+            [
+                transform.InferType(),
+                relay.transform.ConvertLayout(desired_layouts),
+                transform.SimplifyInference(),
+                transform.CanonicalizeOps(),
+                transform.AlterOpLayout(),
+            ],
+        )
+        b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_alter_layout_concatenate():
     """ NCHW, NHWC and corner case concatenate layout transform."""
 
@@ -626,6 +715,8 @@ def test_alter_layout_strided_slice():
     mod_new = tvm.IRModule()
     mod_before["main"] = a
     mod_new["main"] = b
+    mod_before = transform.InferType()(mod_before)
+    mod_new = transform.InferType()(mod_new)
     with relay.build_config(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug", "vm"]:
@@ -1016,7 +1107,7 @@ def test_alter_layout_nhwc_int8_aarch64():
         def update(self, target, workload, cfg):
             key = (str(target), workload)
             assert workload[2][1] == expected_workload_shape
-            assert workload[0] == "conv2d_NHWC_quantized_without_transform.arm_cpu"
+            assert workload[0] == "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu"
             self.memory[key] = cfg
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
@@ -1082,7 +1173,9 @@ def test_alter_op_with_global_var():
         mod = tvm.IRModule()
         foo = relay.GlobalVar("foo")
         mod[foo] = relay.Function([x, weight], y)
+        mod = transform.InferType()(mod)
         mod["main"] = relay.Function([x, weight], foo(x, weight))
+        mod = transform.InferType()(mod)
         return mod
 
     def alter_conv2d(attrs, inputs, tinfos, out_type):
@@ -1104,6 +1197,7 @@ def test_alter_op_with_global_var():
         mod = tvm.IRModule()
         foo = relay.GlobalVar("foo")
         mod[foo] = relay.Function([x, weight], y)
+        mod = transform.InferType()(mod)
         mod["main"] = relay.Function([x, weight], foo(x, weight))
         return mod
 

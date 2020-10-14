@@ -196,7 +196,8 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       auto channels = GetConv2DSuperChannelsDim(conv2d);
       num_filters += channels;
     }
-    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
+    auto index =
+        branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.operator std::string().find('O');
     CHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(Tuple(weights), index),
                            tir::make_const(DataType::Int(32), num_filters));

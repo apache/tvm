@@ -133,7 +133,8 @@ class ZephyrCompiler(tvm.micro.Compiler):
         args = []
         for key, define in cls.OPT_KEY_TO_CMAKE_DEFINE.items():
             if key in options:
-                args.append(f'-DEXTRA_{define}={";".join(options[key])}')
+                quoted_opts = [shlex.quote(o).replace(";", "\\;") for o in options[key]]
+                args.append(f'-DEXTRA_{define}={" ".join(quoted_opts)}')
 
         if "cmake_args" in options:
             args.extend(options["cmake_args"])

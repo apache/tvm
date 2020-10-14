@@ -24,7 +24,12 @@ from ..generic import conv2d as conv2d_generic
 from .. import nn
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .tensor_intrin import dot_int8_int8_int32
-from .conv2d_gemm import compute_conv2d_gemm_without_weight_transform, schedule_conv2d_gemm
+from .conv2d_gemm import (
+    compute_conv2d_gemm_without_weight_transform,
+    schedule_conv2d_gemm_interleaved,
+    schedule_conv2d_gemm_native,
+)
+from .arm_utils import get_tiling_B_interleaved_t
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
@@ -115,30 +120,46 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
     return s
 
 
-@autotvm.register_topi_compute("conv2d_NHWC_quantized.arm_cpu")
-def compute_conv2d_NHWC_quantized(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def _compute_conv2d_NHWC_quantized(
+    cfg, data, kernel, strides, padding, dilation, out_dtype, interleave_A
+):
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
-    tile_rows = 4
-    tile_cols = 16
-    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_rows, tile_cols)
+    tile_rows_B, tile_cols_B = get_tiling_B_interleaved_t(interleave_A)
+
+    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_rows_B, tile_cols_B)
     return compute_conv2d_gemm_without_weight_transform(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC
+        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC, interleave_A
     )
 
 
-@autotvm.register_topi_compute("conv2d_NHWC_quantized_without_transform.arm_cpu")
-def compute_conv2d_NHWC_quantized_without_transform(
-    cfg, data, B, strides, padding, dilation, out_dtype, kernel_size=None, output_channels=None
+def _compute_conv2d_NHWC_quantized_without_transform(
+    cfg,
+    data,
+    B,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    kernel_size=None,
+    output_channels=None,
+    interleave_A=False,
 ):
-    """Compute for conv2d_NHWC_quantized without weight transform."""
     return compute_conv2d_gemm_without_weight_transform(
-        cfg, data, B, strides, padding, dilation, out_dtype, kernel_size, output_channels
+        cfg,
+        data,
+        B,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        kernel_size,
+        output_channels,
+        interleave_A,
     )
 
 
-@autotvm.register_topi_schedule("conv2d_NHWC_quantized.arm_cpu")
-def schedule_conv2d_NHWC_quantized(cfg, outs):
+def _schedule_conv2d_NHWC_quantized(cfg, outs, interleave_A):
     """Create schedule for tensors"""
     s = te.create_schedule([x.op for x in outs])
     # Vectorize the output and then inline all the rest
@@ -153,12 +174,79 @@ def schedule_conv2d_NHWC_quantized(cfg, outs):
         """Traverse operators from computation graph"""
         if op.name == "conv2d_gemm_output":
             conv_out = op.output(0)
-            schedule_conv2d_gemm(cfg, s, conv_out, out)
+            if interleave_A:
+                schedule_conv2d_gemm_interleaved(cfg, s, conv_out, out)
+            else:
+                schedule_conv2d_gemm_native(cfg, s, conv_out, out)
             if out != conv_out:
                 s[conv_out].compute_at(s[out], inner)
             else:
                 C = conv_out.op.input_tensors[0]
-                s[C].compute_at(s[out], inner)
+                if interleave_A:
+                    s[C].compute_at(s[out], inner)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+# Interleaved schedules: those schedule will interleave the input data. The
+# weights are interleaved and transposed
+@autotvm.register_topi_compute("conv2d_NHWC_quantized_interleaved.arm_cpu")
+def compute_conv2d_NHWC_quantized_interleaved(
+    cfg, data, kernel, strides, padding, dilation, out_dtype
+):
+    """ Interface for interleaved compute_conv2d_NHWC_quantized_interleaved"""
+    return _compute_conv2d_NHWC_quantized(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, True
+    )
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu")
+def compute_conv2d_NHWC_quantized_interleaved_without_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
+):
+    """ Interface for interleaved compute_conv2d_NHWC_quantized_interleaved_without_transform"""
+    return _compute_conv2d_NHWC_quantized_without_transform(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels, True
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized_interleaved.arm_cpu")
+def schedule_conv2d_NHWC_quantized_interleaved(cfg, outs):
+    """ Interface for interleaved schedule_conv2d_NHWC_quantized_interleaved"""
+    return _schedule_conv2d_NHWC_quantized(cfg, outs, True)
+
+
+# Native schedules: those schedule won't interleave A (which is left in its native form).
+# The weights are interleaved and transposed
+@autotvm.register_topi_compute("conv2d_NHWC_quantized_native.arm_cpu")
+def compute_conv2d_NHWC_quantized_native(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """ Interface for native compute_conv2d_NHWC_quantized"""
+    return _compute_conv2d_NHWC_quantized(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, False
+    )
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_quantized_native_without_transform.arm_cpu")
+def compute_conv2d_NHWC_quantized_native_without_transform(
+    cfg, data, kernel, strides, padding, dilation, out_dtype, kernel_size, output_channels
+):
+    """ Interface for compute_conv2d_NHWC_quantized_native_without_transform"""
+    return _compute_conv2d_NHWC_quantized_without_transform(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        kernel_size,
+        output_channels,
+        False,
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_quantized_native.arm_cpu")
+def schedule_conv2d_NHWC_quantized_native(cfg, outs):
+    """ Interface for native schedule_conv2d_NHWC_quantized"""
+    return _schedule_conv2d_NHWC_quantized(cfg, outs, False)

@@ -21,13 +21,12 @@ from tvm.relay import testing
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps
-from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
+from tvm.relay.testing import count as count_, make_nat_value, make_nat_expr
 
 import numpy as np
 
-mod = tvm.IRModule()
-p = Prelude(mod)
-add_nat_definitions(p)
+prelude = p = Prelude(tvm.IRModule({}))
+p.mod.import_from_std("nat.rly")
 
 
 def count(e):
@@ -35,21 +34,16 @@ def count(e):
 
 
 ctx = tvm.context("llvm", 0)
-intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
+intrp = create_executor(mod=prelude.mod, ctx=ctx, target="llvm")
 
-z = p.z
-s = p.s
-nat = p.nat
-double = p.double
-add = p.add
+nat, z, s = prelude.mod.get_type("nat")
 
-optional = p.optional
-some = p.some
-none = p.none
+double = p.mod.get_global_var("nat_double")
+add = p.mod.get_global_var("nat_add")
 
-nil = p.nil
-cons = p.cons
-l = p.l
+optional, some, none = prelude.mod.get_type("Option")
+rlist, cons, nil = prelude.mod.get_type("List")
+
 hd = p.hd
 tl = p.tl
 nth = p.nth
@@ -70,29 +64,13 @@ unfoldr = p.unfoldr
 map_accumr = p.map_accumr
 map_accuml = p.map_accuml
 
-tree = p.tree
-rose = p.rose
+tree, rose = prelude.mod.get_type("Tree")
+
 tmap = p.tmap
 size = p.size
 
 compose = p.compose
 iterate = p.iterate
-
-# this is an example of creating the adt value in python side
-def make_nat(n):
-    if n != 0:
-        return ConstructorValue(s, [make_nat(n - 1)])
-    else:
-        return ConstructorValue(z, [])
-
-
-def make_nat_expr(n):
-    assert n >= 0
-    ret = z()
-    while n > 0:
-        ret = s(ret)
-        n = n - 1
-    return ret
 
 
 def to_list(l):
@@ -100,11 +78,11 @@ def to_list(l):
     val = l
     ret = []
     while True:
-        if val.tag == p.cons.tag:
+        if val.tag == cons.tag:
             ret.append(val.fields[0])
             val = val.fields[1]
         else:
-            assert val.tag == p.nil.tag
+            assert val.tag == nil.tag
             break
     return ret
 
@@ -112,7 +90,7 @@ def to_list(l):
 def tree_to_dict(t):
     assert isinstance(t, ConstructorValue)
     ret = {}
-    assert t.tag == p.rose.tag
+    assert t.tag == rose.tag
     ret["member"] = t.fields[0]
     ret["children"] = []
     for subtree in to_list(t.fields[1]):
@@ -158,7 +136,7 @@ def get_scalar(tv):
     return tv.asnumpy().item()
 
 
-@tvm.testing.uses_gpu
+# @tvm.testing.uses_gpu
 def test_nat_value():
     assert count(make_nat_value(p, 10)) == 10
     assert count(intrp.evaluate(s(s(z())))) == 2
@@ -168,24 +146,25 @@ def test_nat_value():
 def test_nat_constructor():
     func = relay.Function([], z())
     test_z = relay.GlobalVar("test_z")
-    mod[test_z] = func
-    assert mod[test_z].body.checked_type == nat()
     test_sz = relay.GlobalVar("test_sz")
+    prelude.mod[test_z] = func
     func = relay.Function([], s(z()))
-    mod[test_sz] = func
-    assert mod[test_sz].body.checked_type == nat()
+    prelude.mod[test_sz] = func
+    ck_mod = relay.transform.InferType()(prelude.mod)
+    assert ck_mod[test_z].body.checked_type == nat()
+    assert ck_mod[test_sz].body.checked_type == nat()
 
 
 @tvm.testing.uses_gpu
 def test_double():
-    assert mod[double].checked_type == relay.FuncType([nat()], nat())
+    assert prelude.mod[double].checked_type == relay.FuncType([nat()], nat())
     res = intrp.evaluate(double(s(z())))
     assert count(res) == 2
 
 
 @tvm.testing.uses_gpu
 def test_add():
-    assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
+    assert prelude.mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     res = intrp.evaluate(add(s(z()), s(z())))
     assert count(res) == 2
 
@@ -194,8 +173,9 @@ def test_add():
 def test_list_constructor():
     test_consz = relay.GlobalVar("test_consz")
     func = relay.Function([], cons(z(), nil()))
-    mod[test_consz] = func
-    assert mod[test_consz].body.checked_type == l(nat())
+    prelude.mod[test_consz] = func
+    ck_mod = relay.transform.InferType()(prelude.mod)
+    assert ck_mod[test_consz].body.checked_type == rlist(nat())
 
 
 @tvm.testing.uses_gpu
@@ -203,7 +183,7 @@ def test_hd_tl():
     expected = list(range(10))
     l = nil()
     for i in reversed(expected):
-        l = cons(make_nat_expr(i), l)
+        l = cons(make_nat_expr(prelude, i), l)
 
     got = []
     for i in range(len(expected)):
@@ -221,6 +201,7 @@ def test_nth():
         l = cons(relay.const(i), l)
 
     for i in range(len(expected)):
+        nth = prelude.mod.get_global_var("nth")
         item = intrp.evaluate(nth(l, relay.const(i)))
         assert get_scalar(item) == i
 
@@ -231,11 +212,11 @@ def test_update():
     l = nil()
     # create zero initialized list
     for i in range(len(expected)):
-        l = cons(make_nat_expr(0), l)
+        l = cons(make_nat_expr(prelude, 0), l)
 
     # set value
     for i, v in enumerate(expected):
-        l = update(l, relay.const(i), make_nat_expr(v))
+        l = update(l, relay.const(i), make_nat_expr(prelude, v))
 
     got = []
     for i in range(len(expected)):
@@ -247,7 +228,9 @@ def test_update():
 @tvm.testing.uses_gpu
 def test_length():
     a = relay.TypeVar("a")
-    assert mod[length].checked_type == relay.FuncType([l(a)], relay.scalar_type("int32"), [a])
+    assert prelude.mod[length].checked_type == relay.FuncType(
+        [rlist(a)], relay.scalar_type("int32"), [a]
+    )
     res = intrp.evaluate(length(cons(z(), cons(z(), cons(z(), nil())))))
     assert get_scalar(res) == 3
 
@@ -256,8 +239,8 @@ def test_length():
 def test_map():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
-    lhs = mod[map].checked_type
-    rhs = relay.FuncType([relay.FuncType([a], b), l(a)], l(b), [a, b])
+    lhs = prelude.mod[map].checked_type
+    rhs = relay.FuncType([relay.FuncType([a], b), rlist(a)], rlist(b), [a, b])
     assert lhs == rhs
 
     x = relay.Var("x")
@@ -272,8 +255,9 @@ def test_map():
 def test_foldl():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
-    lhs = mod[foldl].checked_type
-    rhs = relay.FuncType([relay.FuncType([a, b], a), a, l(b)], a, [a, b])
+
+    lhs = prelude.mod[foldl].checked_type
+    rhs = relay.FuncType([relay.FuncType([a, b], a), a, rlist(b)], a, [a, b])
     assert lhs == rhs
 
     x = relay.Var("x")
@@ -283,7 +267,10 @@ def test_foldl():
         foldl(
             rev_dup,
             nil(),
-            cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil()))),
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            ),
         )
     )
     reversed = to_list(res)
@@ -297,8 +284,8 @@ def test_foldl():
 def test_foldr():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
-    lhs = mod[foldr].checked_type
-    rhs = relay.FuncType([relay.FuncType([a, b], b), b, l(a)], b, [a, b])
+    lhs = prelude.mod[foldr].checked_type
+    rhs = relay.FuncType([relay.FuncType([a, b], b), b, rlist(a)], b, [a, b])
     assert lhs == rhs
 
     x = relay.Var("x")
@@ -308,7 +295,10 @@ def test_foldr():
         foldr(
             identity,
             nil(),
-            cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil()))),
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            ),
         )
     )
     same = to_list(res)
@@ -319,15 +309,21 @@ def test_foldr():
 @tvm.testing.uses_gpu
 def test_foldr1():
     a = relay.TypeVar("a")
-    lhs = mod[p.foldr1].checked_type
-    rhs = relay.FuncType([relay.FuncType([a, a], a), l(a)], a, [a])
+    lhs = prelude.mod[foldr1].checked_type
+    rhs = relay.FuncType([relay.FuncType([a, a], a), rlist(a)], a, [a])
     assert lhs == rhs
 
     x = relay.Var("x")
     y = relay.Var("y")
     f = relay.Function([x, y], add(x, y))
     res = intrp.evaluate(
-        foldr1(f, cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil()))))
+        foldr1(
+            f,
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            ),
+        )
     )
 
     assert count(res) == 6
@@ -335,8 +331,8 @@ def test_foldr1():
 
 @tvm.testing.uses_gpu
 def test_sum():
-    assert mod[sum].checked_type == relay.FuncType(
-        [l(relay.scalar_type("int32"))], relay.scalar_type("int32")
+    assert prelude.mod[sum].checked_type == relay.FuncType(
+        [rlist(relay.scalar_type("int32"))], relay.scalar_type("int32")
     )
     res = intrp.evaluate(sum(cons(relay.const(1), cons(relay.const(2), nil()))))
     assert get_scalar(res) == 3
@@ -345,10 +341,10 @@ def test_sum():
 @tvm.testing.uses_gpu
 def test_concat():
     a = relay.TypeVar("a")
-    assert mod[concat].checked_type == relay.FuncType([l(a), l(a)], l(a), [a])
+    assert prelude.mod[concat].checked_type == relay.FuncType([rlist(a), rlist(a)], rlist(a), [a])
 
-    l1 = cons(make_nat_expr(1), cons(make_nat_expr(2), nil()))
-    l2 = cons(make_nat_expr(3), cons(make_nat_expr(4), nil()))
+    l1 = cons(make_nat_expr(prelude, 1), cons(make_nat_expr(prelude, 2), nil()))
+    l2 = cons(make_nat_expr(prelude, 3), cons(make_nat_expr(prelude, 4), nil()))
     res = intrp.evaluate(concat(l1, l2))
 
     catted = to_list(res)
@@ -363,9 +359,9 @@ def test_concat():
 def test_filter():
     a = relay.TypeVar("a")
     expected_type = relay.FuncType(
-        [relay.FuncType([a], relay.scalar_type("bool")), l(a)], l(a), [a]
+        [relay.FuncType([a], relay.scalar_type("bool")), rlist(a)], rlist(a), [a]
     )
-    assert mod[filter].checked_type == expected_type
+    assert prelude.mod[filter].checked_type == expected_type
 
     x = relay.Var("x", nat())
     greater_than_one = relay.Function(
@@ -387,13 +383,14 @@ def test_filter():
         filter(
             greater_than_one,
             cons(
-                make_nat_expr(1),
+                make_nat_expr(prelude, 1),
                 cons(
-                    make_nat_expr(1),
+                    make_nat_expr(prelude, 1),
                     cons(
-                        make_nat_expr(3),
+                        make_nat_expr(prelude, 3),
                         cons(
-                            make_nat_expr(1), cons(make_nat_expr(5), cons(make_nat_expr(1), nil()))
+                            make_nat_expr(prelude, 1),
+                            cons(make_nat_expr(prelude, 5), cons(make_nat_expr(prelude, 1), nil())),
                         ),
                     ),
                 ),
@@ -410,10 +407,13 @@ def test_filter():
 def test_zip():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
-    expected_type = relay.FuncType([l(a), l(b)], l(relay.TupleType([a, b])), [a, b])
-    assert mod[zip].checked_type == expected_type
+    expected_type = relay.FuncType([rlist(a), rlist(b)], rlist(relay.TupleType([a, b])), [a, b])
+    assert prelude.mod[zip].checked_type == expected_type
 
-    l1 = cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil())))
+    l1 = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
     l2 = cons(nil(), cons(cons(nil(), nil()), cons(cons(nil(), cons(nil(), nil())), nil())))
 
     res = intrp.evaluate(zip(l1, l2))
@@ -427,7 +427,7 @@ def test_zip():
     assert len(to_list(zipped[2][1])) == 2
 
     # test truncation
-    l3 = cons(make_nat_expr(4), cons(make_nat_expr(5), nil()))
+    l3 = cons(make_nat_expr(prelude, 4), cons(make_nat_expr(prelude, 5), nil()))
     shorter_res = intrp.evaluate(zip(l3, l2))
     truncated = to_list(shorter_res)
     assert len(truncated) == 2
@@ -447,10 +447,15 @@ def test_zip():
 @tvm.testing.uses_gpu
 def test_rev():
     a = relay.TypeVar("a")
-    assert mod[rev].checked_type == relay.FuncType([l(a)], l(a), [a])
+    assert prelude.mod[rev].checked_type == relay.FuncType([rlist(a)], rlist(a), [a])
 
     res = intrp.evaluate(
-        rev(cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil()))))
+        rev(
+            cons(
+                make_nat_expr(prelude, 1),
+                cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+            )
+        )
     )
     reversed = to_list(res)
 
@@ -465,7 +470,7 @@ def test_unfoldr():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
     expected_type = relay.FuncType(
-        [relay.FuncType([a], optional(relay.TupleType([a, b]))), a], l(b), [a, b]
+        [relay.FuncType([a], optional(relay.TupleType([a, b]))), a], rlist(b), [a, b]
     )
 
     x = relay.Var("x", nat())
@@ -483,7 +488,7 @@ def test_unfoldr():
         ),
     )
 
-    res = intrp.evaluate(unfoldr(count_down, make_nat_expr(3)))
+    res = intrp.evaluate(unfoldr(count_down, make_nat_expr(prelude, 3)))
     unfolded = to_list(res)
 
     assert len(unfolded) == 3
@@ -497,7 +502,7 @@ def test_unfoldl():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
     expected_type = relay.FuncType(
-        [relay.FuncType([a], optional(relay.TupleType([a, b]))), a], l(b), [a, b]
+        [relay.FuncType([a], optional(relay.TupleType([a, b]))), a], rlist(b), [a, b]
     )
 
     x = relay.Var("x", nat())
@@ -515,7 +520,7 @@ def test_unfoldl():
         ),
     )
 
-    res = intrp.evaluate(unfoldl(count_down, make_nat_expr(3)))
+    res = intrp.evaluate(unfoldl(count_down, make_nat_expr(prelude, 3)))
     unfolded = to_list(res)
 
     assert len(unfolded) == 3
@@ -530,17 +535,20 @@ def test_map_accumr():
     b = relay.TypeVar("b")
     c = relay.TypeVar("c")
     expected_type = relay.FuncType(
-        [relay.FuncType([a, b], relay.TupleType([a, c])), a, l(b)],
-        relay.TupleType([a, l(c)]),
+        [relay.FuncType([a, b], relay.TupleType([a, c])), a, rlist(b)],
+        relay.TupleType([a, rlist(c)]),
         [a, b, c],
     )
-    assert mod[map_accumr].checked_type == expected_type
+    assert prelude.mod[map_accumr].checked_type == expected_type
 
     acc = relay.Var("acc", nat())
     x = relay.Var("x", nat())
     add_acc_to_each = relay.Function([acc, x], relay.Tuple([add(x, acc), add(x, acc)]))
 
-    vals = cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil())))
+    vals = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
     res = intrp.evaluate(map_accumr(add_acc_to_each, z(), vals))
 
     sum = count(res[0])
@@ -559,17 +567,20 @@ def test_map_accuml():
     b = relay.TypeVar("b")
     c = relay.TypeVar("c")
     expected_type = relay.FuncType(
-        [relay.FuncType([a, b], relay.TupleType([a, c])), a, l(b)],
-        relay.TupleType([a, l(c)]),
+        [relay.FuncType([a, b], relay.TupleType([a, c])), a, rlist(b)],
+        relay.TupleType([a, rlist(c)]),
         [a, b, c],
     )
-    assert mod[map_accuml].checked_type == expected_type
+    assert prelude.mod[map_accuml].checked_type == expected_type
 
     acc = relay.Var("acc", nat())
     x = relay.Var("x", nat())
     add_to_acc = relay.Function([acc, x], relay.Tuple([add(x, acc), x]))
 
-    vals = cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil())))
+    vals = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
     res = intrp.evaluate(map_accuml(add_to_acc, z(), vals))
 
     sum = count(res[0])
@@ -602,7 +613,10 @@ def test_optional_matching():
         foldr(
             condense,
             nil(),
-            cons(some(make_nat_expr(3)), cons(none(), cons(some(make_nat_expr(1)), nil()))),
+            cons(
+                some(make_nat_expr(prelude, 3)),
+                cons(none(), cons(some(make_nat_expr(prelude, 1)), nil())),
+            ),
         )
     )
 
@@ -616,7 +630,7 @@ def test_optional_matching():
 def test_tmap():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
-    lhs = mod[tmap].checked_type
+    lhs = prelude.mod[tmap].checked_type
     rhs = relay.FuncType([relay.FuncType([a], b), tree(a)], tree(b), [a, b])
     assert lhs == rhs
 
@@ -637,7 +651,7 @@ def test_tmap():
 @tvm.testing.uses_gpu
 def test_size():
     a = relay.TypeVar("a")
-    lhs = mod[size].checked_type
+    lhs = prelude.mod[size].checked_type
     rhs = relay.FuncType([tree(a)], relay.scalar_type("int32"), [a])
     assert lhs == rhs
 
@@ -658,7 +672,7 @@ def test_wildcard_match_solo():
 
 @tvm.testing.uses_gpu
 def test_wildcard_match_order():
-    x = relay.Var("x", l(nat()))
+    x = relay.Var("x", rlist(nat()))
     y = relay.Var("y")
     a = relay.Var("a")
     return_zero = relay.Function(
@@ -684,7 +698,8 @@ def test_wildcard_match_order():
 @tvm.testing.uses_gpu
 def test_nested_matches():
     a = relay.TypeVar("a")
-    x = relay.Var("x")
+    # TODO(@jroesch): inference should be able to handle this one
+    x = relay.Var("x", type_annotation=rlist(rlist(a)))
     y = relay.Var("y")
     w = relay.Var("w")
     h = relay.Var("h")
@@ -703,7 +718,7 @@ def test_nested_matches():
         ],
     )
 
-    mod[flatten] = relay.Function(
+    prelude.mod[flatten] = relay.Function(
         [x],
         relay.Match(
             x,
@@ -715,12 +730,18 @@ def test_nested_matches():
                 ),
             ],
         ),
-        l(a),
+        rlist(a),
         [a],
     )
 
-    first_list = cons(make_nat_expr(1), cons(make_nat_expr(2), cons(make_nat_expr(3), nil())))
-    second_list = cons(make_nat_expr(4), cons(make_nat_expr(5), cons(make_nat_expr(6), nil())))
+    first_list = cons(
+        make_nat_expr(prelude, 1),
+        cons(make_nat_expr(prelude, 2), cons(make_nat_expr(prelude, 3), nil())),
+    )
+    second_list = cons(
+        make_nat_expr(prelude, 4),
+        cons(make_nat_expr(prelude, 5), cons(make_nat_expr(prelude, 6), nil())),
+    )
     final_list = cons(first_list, cons(second_list, nil()))
 
     res = intrp.evaluate(flatten(final_list))
@@ -751,7 +772,7 @@ def test_match_full_var():
 
 @tvm.testing.uses_gpu
 def test_nested_pattern_match():
-    x = relay.Var("x", l(nat()))
+    x = relay.Var("x", rlist(nat()))
     h1 = relay.Var("h1")
     h2 = relay.Var("h2")
     t = relay.Var("t")
@@ -789,724 +810,9 @@ def test_compose():
 
 @tvm.testing.uses_gpu
 def test_iterate():
-    expr = relay.Call(iterate(double, relay.const(2)), [make_nat_expr(3)])
+    expr = relay.Call(iterate(double, relay.const(2)), [make_nat_expr(prelude, 3)])
     res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
-
-
-def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
-    for kind in ["debug", "vm"]:
-        for target, ctx in testing.enabled_targets():
-            if kind == "debug" and ctx.device_type != tvm.cpu().device_type:
-                continue
-            ex = relay.create_executor(kind, mod=ta_mod, ctx=ctx, target=target)
-            result = ex.evaluate()(*args)
-            got = vmobj_to_list(result, dtype)
-            tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
-
-
-@tvm.testing.uses_gpu
-def test_tensor_expand_dims():
-    def run(dtype):
-        x = relay.var("x")
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        expand_dims_func = p.get_var("tensor_expand_dims", dtype)
-        tensor1 = p.get_var("tensor1", dtype)
-        mod["main"] = relay.Function([x], expand_dims_func(tensor1(x)))
-        x_np = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
-        expected = [np.expand_dims(x_np, axis=0)]
-        check_tensor_array(mod, expected, x_np)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_constructor():
-    def run(dtype):
-        x = relay.var("x")
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        tensor_array = p.get_var("tensor_array", dtype)
-        mod["main"] = relay.Function([x], tensor_array(x))
-        expected = np.array([0, 0, 0, 0, 0])
-        check_tensor_array(mod, expected, 5, dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_read():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        l = relay.var("l")
-        i = relay.var("i")
-        read_func = p.get_var("tensor_array_read", dtype)
-        tensor_array = p.get_var("tensor_array", dtype)
-        mod["main"] = relay.Function([l, i], read_func(tensor_array(l), i))
-        expected = [0]
-        check_tensor_array(mod, expected, *(1, 0), dtype=dtype)
-        check_tensor_array(mod, expected, *(5, 1), dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_write():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        tensor_array = p.get_var("tensor_array", dtype)
-        init_tensor_array = tensor_array(relay.const(2))
-        write_func = p.get_var("tensor_array_write", dtype)
-        tensor1 = p.get_var("tensor1", dtype)
-        tensor_array1 = write_func(init_tensor_array, relay.const(0), tensor1(v1))
-        tensor_array2 = write_func(tensor_array1, relay.const(1), tensor1(v2))
-        mod["main"] = relay.Function([v1, v2], tensor_array2)
-        expected = [3, 7]
-        check_tensor_array(mod, expected, *(3, 7), dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_stack():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        tensor_array = p.get_var("tensor_array", dtype)
-        tensor1 = p.get_var("tensor1", dtype)
-        write = p.get_var("tensor_array_write", dtype)
-        stack = p.get_var("tensor_array_stack", dtype)
-        v = relay.var("v")
-        init_tensor_array = tensor_array(relay.const(3))
-        tensor_array1 = write(init_tensor_array, relay.const(0), tensor1(v))
-        tensor_array2 = write(tensor_array1, relay.const(1), tensor1(v))
-        tensor_array3 = write(tensor_array2, relay.const(2), tensor1(v))
-        tensor_array4 = stack(tensor_array3)
-        mod["main"] = relay.Function([v], tensor_array4)
-        t = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
-        expected = [np.stack([t, t, t])]
-        check_tensor_array(mod, expected, t, dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_unstack():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        unstack_tensor1 = p.get_var("tensor_array_unstack_tensor1", dtype)
-        v = relay.var("v")
-        mod["main"] = relay.Function([v], unstack_tensor1(v))
-        t = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
-        check_tensor_array(mod, t, t, dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_take():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        take = p.get_var("tensor_take", dtype)
-        tensor2 = p.get_var("tensor2", dtype)
-        v = relay.var("v")
-        lower = relay.var("lower")
-        upper = relay.var("upper")
-        mod["main"] = relay.Function([v, lower, upper], take(tensor2(v), lower, upper))
-        v_data = np.random.uniform(low=0.0, high=8.0, size=(10, 10)).astype(dtype)
-        expected = [np.take(v_data, range(2, 5), axis=0)]
-        check_tensor_array(mod, expected, *(v_data, 2, 5), dtype=dtype)
-        expected = [np.take(v_data, range(0, 9), axis=0)]
-        check_tensor_array(mod, expected, *(v_data, 0, 9), dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_concatenate():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        concat = p.get_var("tensor_concatenate", dtype)
-        tensor1 = p.get_var("tensor1", dtype)
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        mod["main"] = relay.Function([v1, v2], concat(tensor1(v1), tensor1(v2)))
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=(5,)).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=(5,)).astype(dtype)
-        expected = [np.concatenate((v1_data, v2_data))]
-        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_concat():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        tensor_array = p.get_var("tensor_array", dtype)
-        tensor_array1 = tensor_array(relay.const(2))
-        write_func = p.get_var("tensor_array_write", dtype)
-        concat_func = p.get_var("tensor_array_concat", dtype)
-        tensor1 = p.get_var("tensor2", dtype)
-        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor1(v1))
-        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor1(v2))
-        tensor_array_concat = concat_func(tensor_array1)
-        mod["main"] = relay.Function([v1, v2], tensor_array_concat)
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=(1, 3)).astype(dtype)
-        expected = [np.concatenate((v1_data, v2_data), axis=0)]
-        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_scatter():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-
-        # tensor array
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        v3 = relay.var("v2")
-        tensor_array = p.get_var("tensor_array", dtype)
-        tensor_array1 = tensor_array(relay.const(3))
-        write_func = p.get_var("tensor_array_write", dtype)
-        scatter_func = p.get_var("tensor_array_scatter", dtype)
-        tensor2 = p.get_var("tensor2", dtype)
-        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor2(v1))
-        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor2(v2))
-        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor2(v3))
-
-        # indices array
-        index = relay.var("index")
-
-        # values array
-        value_0 = relay.var("value_0")
-        value_1 = relay.var("value_1")
-        values_array = tensor_array(relay.const(2))
-        values_array = write_func(values_array, relay.const(0), tensor2(value_0))
-        values_array = write_func(values_array, relay.const(1), tensor2(value_1))
-
-        # create the scatter function
-        tensor_array_scatter = scatter_func(tensor_array1, index, values_array)
-        mod["main"] = relay.Function([v1, v2, v3, index, value_0, value_1], tensor_array_scatter)
-
-        # initialize and check
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        v3_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        index_data = np.array([0, 1], dtype="int32")
-        val1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        val2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        expected = [val1_data, val2_data, v3_data]
-        check_tensor_array(
-            mod,
-            expected,
-            *(v1_data, v2_data, v3_data, index_data, val1_data, val2_data),
-            dtype=dtype,
-        )
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_tensor_array_split():
-    def run(dtype):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-
-        # tensor array
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        v3 = relay.var("v2")
-        tensor_array = p.get_var("tensor_array", dtype)
-        tensor_array1 = tensor_array(relay.const(3))
-        write_func = p.get_var("tensor_array_write", dtype)
-        split_func = p.get_var("tensor_array_split", dtype)
-        tensor2 = p.get_var("tensor2", dtype)
-        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor2(v1))
-        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor2(v2))
-        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor2(v3))
-
-        # value tensor
-        value = relay.var("value")
-
-        # lengths tensor
-        ta_len = relay.var("length")
-
-        # create the scatter function
-        tensor_array_split = split_func(tensor_array1, tensor2(value), ta_len)
-        mod["main"] = relay.Function([v1, v2, v3, value, ta_len], tensor_array_split)
-
-        # initialize and check
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        v3_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        value_data = np.random.uniform(low=0.0, high=8.0, size=(4, 3)).astype(dtype)
-        length_data = np.array([2, 2], dtype="int32")
-        expected = np.concatenate([value_data, v3_data])
-        expected = np.split(expected, indices_or_sections=[2, 4])
-        check_tensor_array(
-            mod, expected, *(v1_data, v2_data, v3_data, value_data, length_data), dtype=dtype
-        )
-
-    run("float32")
-    run("int32")
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_take():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        take = p.get_var_static("tensor_take", dtype, shape)
-        tensor_constructor = p.get_var_static("tensor_constructor", dtype, shape)
-        v = relay.var("v")
-        lower = relay.var("lower")
-        upper = relay.var("upper")
-        mod["main"] = relay.Function([v, lower, upper], take(tensor_constructor(v), lower, upper))
-        v_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        expected = [np.take(v_data, range(2, 5), axis=0)]
-        check_tensor_array(mod, expected, *(v_data, 2, 5), dtype=dtype)
-        expected = [np.take(v_data, range(0, 9), axis=0)]
-        check_tensor_array(mod, expected, *(v_data, 0, 9), dtype=dtype)
-
-    run("float32", [10, 10])
-    run("int32", [15, 11])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_concatenate():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        concat = p.get_var_static("tensor_concatenate", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        mod["main"] = relay.Function([v1, v2], concat(tensor(v1), tensor(v2)))
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        expected = [np.concatenate((v1_data, v2_data))]
-        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
-
-    run(
-        "float32",
-        [
-            5,
-        ],
-    )
-    run("int32", [2, 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_expand_dims():
-    def run(dtype, shape):
-        x = relay.var("x")
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        expand_dims_func = p.get_var_static("tensor_expand_dims", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        mod["main"] = relay.Function([x], expand_dims_func(tensor(x)))
-        x_np = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        expected = [np.expand_dims(x_np, axis=0)]
-        check_tensor_array(mod, expected, x_np)
-
-    run("float32", [])
-    run(
-        "int32",
-        [
-            2,
-        ],
-    )
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_constructor():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-        tensor_constructor = p.get_name_static("tensor_constructor", dtype, shape)
-        assert tensor_constructor != None
-
-    run("float32", [1, 1])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_read():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        np_data_list = []
-        ta_length = 3
-        for _ in range(ta_length):
-            np_data_list.append(np.random.uniform(0, 10, size=shape).astype(dtype))
-
-        v0 = relay.var("v0")
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        n = relay.var("n")
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        init_tensor_array = tensor_array(relay.const(ta_length))
-        read_func = p.get_var_static("tensor_array_read", dtype, shape)
-        write_func = p.get_var_static("tensor_array_write", dtype, shape)
-        tensor_array0 = write_func(init_tensor_array, relay.const(0), tensor(v0))
-        tensor_array1 = write_func(tensor_array0, relay.const(1), tensor(v1))
-        tensor_array2 = write_func(tensor_array1, relay.const(2), tensor(v2))
-
-        mod["main"] = relay.Function([v0, v1, v2, n], read_func(tensor_array2, n))
-        expected = [np_data_list[0]]
-        check_tensor_array(mod, expected, *list(np_data_list + [0]), dtype=dtype)
-        expected = [np_data_list[1]]
-        check_tensor_array(mod, expected, *list(np_data_list + [1]), dtype=dtype)
-        expected = [np_data_list[2]]
-        check_tensor_array(mod, expected, *list(np_data_list + [2]), dtype=dtype)
-
-    run("float32", [])
-    run("int32", [2, 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_write():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        ta_length = 2
-        np_data_list = [
-            np.random.uniform(0, 10, size=shape).astype(dtype) for _ in range(ta_length)
-        ]
-
-        v0 = relay.var("v0")
-        v1 = relay.var("v1")
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        init_tensor_array = tensor_array(relay.const(ta_length))
-        write_func = p.get_var_static("tensor_array_write", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        tensor_array0 = write_func(init_tensor_array, relay.const(0), tensor(v0))
-        tensor_array1 = write_func(tensor_array0, relay.const(1), tensor(v1))
-        mod["main"] = relay.Function([v0, v1], tensor_array1)
-        expected = np_data_list
-        check_tensor_array(mod, expected, *np_data_list, dtype=dtype)
-
-    run("float32", [])
-    run("int32", [2, 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_unstack():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        unstack_tensor = p.get_var_static("tensor_array_unstack", dtype, shape)
-        v = relay.var("v")
-        mod["main"] = relay.Function([v], unstack_tensor(v))
-        t = np.random.uniform(low=0, high=10, size=shape).astype(dtype)
-        (*expected,) = t
-        check_tensor_array(mod, expected, t, dtype=dtype)
-
-    run("float32", [4])
-    run("int32", [2, 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_scatter():
-    def run(dtype, shape, indices_shape=None):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-        if indices_shape is not None:
-            static_tensor_array_ops.define_tensor_array_scatter(indices_shape, True)
-
-        # tensor array
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        v3 = relay.var("v2")
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        tensor_array0 = tensor_array(relay.const(3))
-        write_func = p.get_var_static("tensor_array_write", dtype, shape)
-        scatter_func = p.get_var_static("tensor_array_scatter", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        tensor_array1 = write_func(tensor_array0, relay.const(0), tensor(v1))
-        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
-        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor(v3))
-
-        # indices array
-        index = relay.var("index")
-
-        # values array
-        value_0 = relay.var("value_0")
-        value_1 = relay.var("value_1")
-        values_array = tensor_array(relay.const(2))
-        values_array = write_func(values_array, relay.const(0), tensor(value_0))
-        values_array = write_func(values_array, relay.const(1), tensor(value_1))
-
-        # create the scatter function
-        tensor_array_scatter = scatter_func(tensor_array1, index, values_array)
-        mod["main"] = relay.Function([v1, v2, v3, index, value_0, value_1], tensor_array_scatter)
-
-        # initialize and check
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        v3_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        index_data = np.array([0, 1], dtype="int32")
-        val1_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        val2_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        expected = [val1_data, val2_data, v3_data]
-        check_tensor_array(
-            mod,
-            expected,
-            *(v1_data, v2_data, v3_data, index_data, val1_data, val2_data),
-            dtype=dtype,
-        )
-
-    run("float32", [2, 3])
-    run("int32", [2, 3])
-    run(
-        "float32",
-        [2, 3],
-        [
-            2,
-        ],
-    )
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_split():
-    def run(dtype, shape, value_shape=None, lengths_shape=None):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-        if value_shape is not None or lengths_shape is not None:
-            static_tensor_array_ops.define_tensor_array_split(value_shape, lengths_shape, True)
-
-        # tensor array
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        v3 = relay.var("v2")
-
-        adt_shape = [
-            relay.Any(),
-        ] + shape[1:]
-        origin_shape = static_tensor_array_ops.shape
-        static_tensor_array_ops.shape = adt_shape
-        static_tensor_array_ops.define_tensor_array()
-        tensor_array = p.get_var_static("tensor_array", dtype, adt_shape)
-        static_tensor_array_ops.shape = origin_shape
-        tensor_array1 = tensor_array(relay.const(3))
-        write_func = p.get_var_static("tensor_array_write", dtype, adt_shape)
-        split_func = p.get_var_static("tensor_array_split", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, adt_shape)
-        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor(v1))
-        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
-        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor(v3))
-
-        # value tensor
-        value = relay.var("value")
-
-        # lengths tensor
-        ta_len = relay.var("length")
-
-        # create the split function
-        if value_shape is None:
-            tensor1 = p.get_var_static("tensor_constructor", dtype, shape)
-        else:
-            static_tensor_array_ops = StaticTensorArrayOps(p, dtype, value_shape)
-            static_tensor_array_ops.register()
-            tensor1 = p.get_var_static("tensor_constructor", dtype, value_shape)
-        tensor_array_split = split_func(tensor_array1, tensor1(value), ta_len)
-        mod["main"] = relay.Function([v1, v2, v3, value, ta_len], tensor_array_split)
-
-        # initialize and check
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
-        v3_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
-        value_data = np.random.uniform(low=0.0, high=8.0, size=value_shape or shape).astype(dtype)
-        length_data = np.array([2, 2], dtype="int32")
-        expected = np.concatenate([value_data, v3_data])
-        expected = np.split(expected, indices_or_sections=[2, 4])
-        check_tensor_array(
-            mod, expected, *(v1_data, v2_data, v3_data, value_data, length_data), dtype=dtype
-        )
-
-    run("float32", [4, 3])
-    run("int32", [4, 3])
-    run(
-        "int32",
-        [relay.Any(), 3],
-        [4, 3],
-        [
-            2,
-        ],
-    )
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_concat():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        tensor_array1 = tensor_array(relay.const(2))
-        write_func = p.get_var_static("tensor_array_write", dtype, shape)
-        concat_func = p.get_var_static("tensor_array_concat", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor(v1))
-        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
-        tensor_array_concat = concat_func(tensor_array1)
-        mod["main"] = relay.Function([v1, v2], tensor_array_concat)
-        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
-        v2_data = np.random.uniform(low=0.0, high=8.0, size=(1, 3)).astype(dtype)
-        expected = [np.concatenate((v1_data, v2_data), axis=0)]
-        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
-
-    run("float32", [relay.Any(), 3])
-    run("int32", [relay.Any(), 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_gather():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        write = p.get_var_static("tensor_array_write", dtype, shape)
-        gather = p.get_var_static("tensor_array_gather", dtype, shape)
-        v = relay.var("v")
-        indice = relay.var("indice")
-        init_tensor_array = tensor_array(relay.const(3))
-        tensor_array1 = write(init_tensor_array, relay.const(0), tensor(v))
-        tensor_array2 = write(tensor_array1, relay.const(1), tensor(v))
-        tensor_array3 = write(tensor_array2, relay.const(2), tensor(v))
-        out = gather(tensor_array3, indice)
-        mod["main"] = relay.Function([v, indice], out)
-        t = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        indice_data = np.array([0, 2], dtype="int32")
-        expected = [np.stack([t, t])]
-        check_tensor_array(mod, expected, *(t, indice_data), dtype=dtype)
-
-    run("float32", [])
-    run("int32", [2, 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_array_stack():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        write = p.get_var_static("tensor_array_write", dtype, shape)
-        stack = p.get_var_static("tensor_array_stack", dtype, shape)
-        v = relay.var("v")
-        init_tensor_array = tensor_array(relay.const(3))
-        tensor_array1 = write(init_tensor_array, relay.const(0), tensor(v))
-        tensor_array2 = write(tensor_array1, relay.const(1), tensor(v))
-        tensor_array3 = write(tensor_array2, relay.const(2), tensor(v))
-        tensor_array4 = stack(tensor_array3)
-        mod["main"] = relay.Function([v], tensor_array4)
-        t = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
-        expected = [np.stack([t, t, t])]
-        check_tensor_array(mod, expected, t, dtype=dtype)
-
-    run("float32", [])
-    run("int32", [2, 3])
-
-
-@tvm.testing.uses_gpu
-def test_static_tensor_get_data():
-    def run(dtype, shape):
-        mod = tvm.IRModule()
-        p = Prelude(mod)
-        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
-        static_tensor_array_ops.register()
-
-        np_data_list = []
-        ta_length = 3
-        for _ in range(ta_length):
-            np_data_list.append(np.random.uniform(0, 10, size=shape).astype(dtype))
-
-        v0 = relay.var("v0")
-        v1 = relay.var("v1")
-        v2 = relay.var("v2")
-        n = relay.var("n")
-        tensor = p.get_var_static("tensor_constructor", dtype, shape)
-        tensor_array = p.get_var_static("tensor_array", dtype, shape)
-        init_tensor_array = tensor_array(relay.const(ta_length))
-        read_func = p.get_var_static("tensor_array_read", dtype, shape)
-        write_func = p.get_var_static("tensor_array_write", dtype, shape)
-        get_data_func = p.get_var_static("tensor_get_data", dtype, shape)
-        tensor_array0 = write_func(init_tensor_array, relay.const(0), tensor(v0))
-        tensor_array1 = write_func(tensor_array0, relay.const(1), tensor(v1))
-        tensor_array2 = write_func(tensor_array1, relay.const(2), tensor(v2))
-
-        mod["main"] = relay.Function([v0, v1, v2, n], get_data_func(read_func(tensor_array2, n)))
-        expected = [np_data_list[0]]
-        check_tensor_array(mod, expected, *list(np_data_list + [0]), dtype=dtype)
-        expected = [np_data_list[1]]
-        check_tensor_array(mod, expected, *list(np_data_list + [1]), dtype=dtype)
-        expected = [np_data_list[2]]
-        check_tensor_array(mod, expected, *list(np_data_list + [2]), dtype=dtype)
-
-    run("float32", [])
-    run("int32", [2, 3])
 
 
 if __name__ == "__main__":

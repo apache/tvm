@@ -29,8 +29,10 @@
 // and are only used in minimum cases where they are clearly marked.
 //
 // Rationale: We calls into relay's analysis module to verify correctness.
+#include <tvm/ir/type_functor.h>
 #include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
 #include <fstream>
@@ -41,7 +43,7 @@ namespace tvm {
 
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
-                   std::unordered_set<String> import_set) {
+                   std::unordered_set<String> import_set, parser::SourceMap source_map) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -49,6 +51,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->global_var_map_ = {};
   n->constructor_tag_map_ = {};
   n->import_set_ = std::move(import_set);
+  n->source_map = source_map;
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -174,46 +177,23 @@ tvm::Array<GlobalTypeVar> IRModuleNode::GetGlobalTypeVars() const {
   return tvm::Array<GlobalTypeVar>(global_type_vars);
 }
 
-template <typename T>
-tvm::Array<T> concat(const tvm::Array<T>& l, const tvm::Array<T>& r) {
-  tvm::Array<T> ret(l);
-  for (const T& t : r) {
-    ret.push_back(t);
-  }
-  return ret;
-}
-
-// helper function to run type check
-relay::Function RunTypeCheck(const IRModule& mod, const GlobalVar& var, relay::Function f) {
-  auto func = Downcast<relay::Function>(relay::DeDup(std::move(f)));
+void WarnIfMalformed(const IRModule& mod, relay::Function func) {
+  func = Downcast<relay::Function>(relay::DeDup(func));
   // Type check the item before we add it to the module.
   auto fv = relay::FreeVars(func);
   auto ftv = relay::FreeTypeVars(func, mod);
-  CHECK_EQ(fv.size(), 0) << "There are free variables: " << fv
-                         << " in function: " << AsText(func, false);
+  // TODO(@jroesch): refactor to use diagnostic context
+  CHECK_EQ(fv.size(), 0) << "There are free variables: " << fv << std::endl;
   CHECK_EQ(ftv.size(), 0) << "There are free type variables: " << fv
                           << " in function: " << AsText(func, false);
-  // Type check the item before we add it to the module.
-  relay::Function checked_func = InferType(func, mod, var);
-  return checked_func;
 }
 
 void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
   BaseFunc checked_func = f;
   if (auto* ptr = f.as<relay::FunctionNode>()) {
-    checked_func = RunTypeCheck(GetRef<IRModule>(this), var, GetRef<relay::Function>(ptr));
+    WarnIfMalformed(GetRef<IRModule>(this), GetRef<relay::Function>(ptr));
   }
 
-  Type type = checked_func->checked_type();
-  CHECK(type.as<relay::IncompleteTypeNode>() == nullptr);
-
-  if (functions.find(var) != functions.end()) {
-    CHECK(update) << "Already have definition for " << var->name_hint;
-    auto old_type = functions[var]->checked_type();
-    CHECK(tvm::StructuralEqual()(type, old_type))
-        << "Module#update changes type, not possible in this mode.";
-  }
-  var->checked_type_ = type;
   AddUnchecked(var, checked_func);
 }
 
@@ -244,11 +224,9 @@ void IRModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData
 }
 
 void IRModuleNode::AddTypeDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
+  // TODO(@jroesch): we have temporarily removed kind checking here, and will consolidate
+  // to the type checker in follow up PR.
   AddTypeDefUnchecked(var, type, update);
-  // need to kind check at the end because the check can look up
-  // a definition potentially
-  CHECK(relay::KindCheck(type, GetRef<IRModule>(this)) == TypeKind::kTypeData)
-      << "Invalid or malformed typedata given to module: " << type;
 }
 
 void IRModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData& type,
@@ -306,20 +284,66 @@ Constructor IRModuleNode::LookupTag(const int32_t tag) {
   return (*it).second;
 }
 
+struct Renamer : relay::ExprMutator, TypeMutator {
+  Map<String, GlobalVar> defs;
+  Map<String, GlobalTypeVar> types;
+  std::unordered_map<int32_t, Constructor> ctors;
+
+  Renamer(Map<String, GlobalVar> defs_one, Map<String, GlobalVar> defs_two,
+          Map<String, GlobalTypeVar> types_one, Map<String, GlobalTypeVar> types_two,
+          std::unordered_map<int32_t, Constructor> ctors_one,
+          std::unordered_map<int32_t, Constructor> ctor_two) {
+    for (auto pair : defs_one) {
+      defs.Set(pair.first, pair.second);
+    }
+
+    for (auto pair : defs_two) {
+      auto it = defs.find(pair.first);
+      if (it == defs.end()) {
+        defs.Set(pair.first, pair.second);
+      }
+    }
+
+    for (auto pair : types_one) {
+      types.Set(pair.first, pair.second);
+    }
+
+    for (auto pair : types_two) {
+      auto it = types.find(pair.first);
+      if (it == types.end()) {
+        types.Set(pair.first, pair.second);
+      }
+    }
+  }
+
+  relay::Expr VisitExpr_(const GlobalVarNode* node) override { return defs.at(node->name_hint); }
+
+  Type VisitType_(const GlobalTypeVarNode* node) override { return types.at(node->name_hint); }
+};
+
 void IRModuleNode::Update(const IRModule& mod) {
-  // add functions and type defs. we add them unchecked first, so all definitions
-  // can reference each other, independent of the order in which they were defined.
-  for (auto pair : mod->functions) {
-    this->AddUnchecked(pair.first, pair.second);
-  }
+  Renamer renamer(this->global_var_map_, mod->global_var_map_, this->global_type_var_map_,
+                  mod->global_type_var_map_, this->constructor_tag_map_, mod->constructor_tag_map_);
+
+  this->global_var_map_ = renamer.defs;
+  this->global_type_var_map_ = renamer.types;
+  this->constructor_tag_map_ = renamer.ctors;
+
   for (auto pair : mod->type_definitions) {
-    this->AddTypeDefUnchecked(pair.first, pair.second);
+    auto tvar = renamer.types.at(pair.first->name_hint);
+    auto ty = renamer.ExprMutator::VisitType(pair.second);
+    this->AddTypeDefUnchecked(tvar, Downcast<TypeData>(ty), true);
   }
+
   for (auto pair : mod->functions) {
-    this->Update(pair.first, pair.second);
-  }
-  for (auto pair : mod->type_definitions) {
-    this->UpdateTypeDef(pair.first, pair.second);
+    if (auto rfn = pair.second.as<relay::FunctionNode>()) {
+      auto gvar = renamer.defs.at(pair.first->name_hint);
+      auto fn = renamer.VisitExpr(GetRef<relay::Function>(rfn));
+      this->AddUnchecked(gvar, Downcast<BaseFunc>(fn));
+    } else {
+      // TODO(@jroesch): rename into IRModule.
+      this->AddUnchecked(pair.first, pair.second);
+    }
   }
 }
 
@@ -351,7 +375,7 @@ void IRModuleNode::Import(const String& path) {
     std::fstream src_file(path, std::fstream::in);
     std::string file_contents{std::istreambuf_iterator<char>(src_file),
                               std::istreambuf_iterator<char>()};
-    auto mod_to_import = IRModule::FromText(file_contents, path);
+    auto mod_to_import = parser::ParseModule(path, file_contents, GetRef<IRModule>(this));
     Update(mod_to_import);
   }
 }
@@ -462,7 +486,7 @@ TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd").set_body_typed([](IRModule mod, S
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IRModuleNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const IRModuleNode*>(ref.get());
-      p->stream << "IRModuleNode( " << node->functions << ")";
+      p->stream << "IRModule(" << node->functions << ")";
     });
 
 }  // namespace tvm

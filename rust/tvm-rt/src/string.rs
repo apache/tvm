@@ -114,9 +114,7 @@ impl Hash for String {
 
 impl std::fmt::Debug for String {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO(@mwillsey): remove this clone?
-        let string: String = self.clone().into();
-        formatter.write_fmt(format_args!("{:?}", string))
+        formatter.write_fmt(format_args!("{:?}", self.to_string_lossy()))
     }
 }
 

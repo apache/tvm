@@ -52,11 +52,12 @@ def test_tuple_get_item():
 def test_adt():
     mod = tvm.IRModule()
     p = Prelude(mod)
+    _, none, some = p.mod.get_type("Option")
     x = relay.Var("x")
-    some_case = relay.Clause(relay.PatternConstructor(p.some, [relay.PatternVar(x)]), x)
+    some_case = relay.Clause(relay.PatternConstructor(some, [relay.PatternVar(x)]), x)
     default_case = relay.Clause(relay.PatternVar(x), x)
-    m0 = relay.Match(p.none(), [default_case])
-    m1 = relay.Match(p.none(), [some_case, default_case])
+    m0 = relay.Match(none(), [default_case])
+    m1 = relay.Match(none(), [some_case, default_case])
     assert well_formed(m0)
     assert not well_formed(m1)
 

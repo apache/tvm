@@ -151,7 +151,6 @@ class GdbDebugger(Debugger):
         self.__class__._STARTED_INSTANCE = self
         try:
             self.child_pgid = os.getpgid(self.popen.pid)
-            print('child', self.child_pgid, os.getpgid(0))
         except Exception as e:
             self.stop()
             raise
@@ -161,7 +160,6 @@ class GdbDebugger(Debugger):
         t = threading.Thread(target=self._wait_for_child)
         t.daemon = True
         t.start()
-
 
     def stop(self):
         assert self._is_running
@@ -238,13 +236,13 @@ class GdbTransportDebugger(GdbDebugger):
         self.fd_transport.close()
 
     def start(self):
-        to_return = super(GdbTransportDebugger, self).Start()
+        to_return = super(GdbTransportDebugger, self).start()
         threading.Thread(target=self._wait_for_process_death, daemon=True).start()
         return to_return
 
     def stop(self):
         self.fd_transport.close()
-        super(GdbTransportDebugger, self).Stop()
+        super(GdbTransportDebugger, self).stop()
 
     class _Transport(transport.Transport):
         def __init__(self, gdb_transport_debugger):

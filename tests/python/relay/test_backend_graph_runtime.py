@@ -125,8 +125,10 @@ def test_plan_memory():
     z = relay.exp(z)
     func = relay.Function([x, y], z)
     mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
     mod = relay.transform.FuseOps(0)(mod)
     func = mod["main"]
+    mod = relay.transform.InferType()(mod)
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()

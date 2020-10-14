@@ -18,11 +18,13 @@ import os
 import pytest
 import tarfile
 
-import tvm.driver.tvmc.compiler
+import numpy as np
+
+from PIL import Image
+
+from tvm.driver import tvmc
 
 from tvm.contrib.download import download_testdata
-
-from tvm.driver.tvmc.common import convert_graph_layout
 
 # Support functions
 
@@ -40,7 +42,7 @@ def download_and_untar(model_url, model_sub_path, temp_dir):
 
 
 def get_sample_compiled_module(target_dir):
-    """Support function that retuns a TFLite compiled module"""
+    """Support function that returns a TFLite compiled module"""
     base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
     model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
     model_file = download_and_untar(
@@ -49,7 +51,7 @@ def get_sample_compiled_module(target_dir):
         temp_dir=target_dir,
     )
 
-    return tvmc.compiler.compile_model(model_file, targets=["llvm"])
+    return tvmc.compiler.compile_model(model_file, target="llvm")
 
 
 # PyTest fixtures
@@ -110,6 +112,18 @@ def onnx_resnet50():
 
 @pytest.fixture(scope="session")
 def tflite_compiled_module_as_tarfile(tmpdir_factory):
+
+    # Not all CI environments will have TFLite installed
+    # so we need to safely skip this fixture that will
+    # crash the tests that rely on it.
+    # As this is a pytest.fixture, we cannot take advantage
+    # of pytest.importorskip. Using the block below instead.
+    try:
+        import tflite
+    except ImportError:
+        print("Cannot import tflite, which is required by tflite_compiled_module_as_tarfile.")
+        return ""
+
     target_dir = tmpdir_factory.mktemp("data")
     graph, lib, params, _ = get_sample_compiled_module(target_dir)
 
@@ -117,3 +131,20 @@ def tflite_compiled_module_as_tarfile(tmpdir_factory):
     tvmc.compiler.save_module(module_file, graph, lib, params)
 
     return module_file
+
+
+@pytest.fixture(scope="session")
+def imagenet_cat(tmpdir_factory):
+    tmpdir_name = tmpdir_factory.mktemp("data")
+    cat_file_name = "imagenet_cat.npz"
+
+    cat_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+    image_path = download_testdata(cat_url, "inputs", module=["tvmc"])
+    resized_image = Image.open(image_path).resize((224, 224))
+    image_data = np.asarray(resized_image).astype("float32")
+    image_data = np.expand_dims(image_data, axis=0)
+
+    cat_file_full_path = os.path.join(tmpdir_name, cat_file_name)
+    np.savez(cat_file_full_path, input=image_data)
+
+    return cat_file_full_path

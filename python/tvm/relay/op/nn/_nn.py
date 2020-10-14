@@ -722,29 +722,18 @@ reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @script
-def _conv2d_shape_func(dshape, kshape, strides, padding, dilation):
+def _conv_shape_func(dshape, kshape, strides, padding, dilation):
     out = output_tensor((dshape.shape[0],), "int64")
-    height = dshape[2]
-    width = dshape[3]
-    kheight = kshape[2]
-    kwidth = kshape[3]
-    dilated_kh = (kheight - 1) * dilation[0] + 1
-    dilated_kw = (kwidth - 1) * dilation[1] + 1
-
-    oc = kshape[0]
-
-    out_height = (height + 2 * padding[0] - dilated_kh) // strides[0] + 1
-    out_width = (width + 2 * padding[1] - dilated_kw) // strides[1] + 1
-
     out[0] = dshape[0]
-    out[1] = oc
-    out[2] = out_height
-    out[3] = out_width
+    out[1] = kshape[0]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 2] - 1) * dilation[i] + 1
+        out[i + 2] = (dshape[i + 2] + 2 * padding[i] - dilated_k) // strides[i] + 1
     return out
 
 
-@reg.register_shape_func("nn.conv2d", False)
-def conv2d_shape_func(attrs, inputs, _):
+def conv_shape_func(attrs, inputs, _):
     """
     Shape function for contrib_conv2d_NCHWc op.
     """
@@ -753,7 +742,7 @@ def conv2d_shape_func(attrs, inputs, _):
     dilation = get_const_tuple(attrs.dilation)
 
     return [
-        _conv2d_shape_func(
+        _conv_shape_func(
             inputs[0],
             inputs[1],
             convert(strides),
@@ -761,6 +750,11 @@ def conv2d_shape_func(attrs, inputs, _):
             convert(dilation),
         )
     ]
+
+
+reg.register_shape_func("nn.conv1d", False, conv_shape_func)
+reg.register_shape_func("nn.conv2d", False, conv_shape_func)
+reg.register_shape_func("nn.conv3d", False, conv_shape_func)
 
 
 @script
@@ -965,6 +959,25 @@ def dense_shape_func(attrs, inputs, _):
     Shape function for dense op.
     """
     ret = [_dense_shape_func(inputs[0], inputs[1])]
+    return ret
+
+
+@script
+def _batch_matmul_shape_func(data_shape, weight_shape):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0] - 1):
+        out[i] = data_shape[i]
+    out[out.shape[0] - 1] = weight_shape[weight_shape.shape[0] - 2]
+
+    return out
+
+
+@reg.register_shape_func("nn.batch_matmul", False)
+def batch_matmul_shape_func(attrs, inputs, _):
+    """
+    Shape function for dense op.
+    """
+    ret = [_batch_matmul_shape_func(inputs[0], inputs[1])]
     return ret
 
 

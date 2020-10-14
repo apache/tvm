@@ -43,6 +43,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  decl_stream << "#include <math.h>\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }

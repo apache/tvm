@@ -16,7 +16,7 @@
 # under the License.
 from tvm.ir import IRModule, structural_equal
 from tvm import relay as rly
-from tvm.relay.transform import SimplifyInference
+from tvm.relay.transform import SimplifyInference, InferType
 
 
 def test_simplify_batchnorm(dtype="float32"):
@@ -66,7 +66,9 @@ def test_simplify_batchnorm(dtype="float32"):
             )
 
         mod = IRModule.from_expr(y1)
+
         simplify = SimplifyInference()
+        mod = InferType()(mod)
         mod = simplify(mod)
         y1 = mod["main"].body
 

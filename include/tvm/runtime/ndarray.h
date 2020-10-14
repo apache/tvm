@@ -80,8 +80,7 @@ class NDArray : public ObjectRef {
    * \param data The source bytes to be copied from.
    * \param nbytes The size of the buffer in bytes
    *        Must be equal to the size of the NDArray.
-   * \note The copy may happen asynchronously if it involves a GPU context.
-   *       TVMSynchronize is necessary.
+   * \note The copy always triggers a TVMSynchronize.
    */
   TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
   /*!
@@ -97,8 +96,7 @@ class NDArray : public ObjectRef {
    * \param data The source bytes to be copied from.
    * \param nbytes The size of the data buffer.
    *        Must be equal to the size of the NDArray.
-   * \note The copy may happen asynchronously if it involves a GPU context.
-   *       TVMSynchronize is necessary.
+   * \note The copy always triggers a TVMSynchronize.
    */
   TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
   /*!
@@ -373,8 +371,9 @@ inline ObjectPtr<Object> NDArray::FFIDataFromHandle(TVMArrayHandle handle) {
 inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
   // NOTE: it is necessary to cast to container then to base
   //       so that the FFI handle uses the ContainerBase address.
-  return reinterpret_cast<TVMArrayHandle>(static_cast<NDArray::ContainerBase*>(
+  auto ptr = reinterpret_cast<TVMArrayHandle>(static_cast<NDArray::ContainerBase*>(
       static_cast<NDArray::Container*>(const_cast<Object*>(nd.get()))));
+  return ptr;
 }
 
 inline void NDArray::FFIDecRef(TVMArrayHandle handle) {

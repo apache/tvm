@@ -5,13 +5,9 @@ cmake_minimum_required(VERSION 3.13.1)
 set(ENV{QEMU_BIN_PATH} "${CMAKE_SOURCE_DIR}/qemu-hack")
 
 set(QEMU_PIPE "\${QEMU_PIPE}")  # QEMU_PIPE is set by the calling TVM instance.
-#get_filename_component(QEMU_PID_ABSPATH "./qemu.pid" ABSOLUTE)
-#set(QEMU_PID_ABSPATH "/tmp/qemu.pid")
-#file(TOUCH "${QEMU_PID_ABSPATH}")
-#list(APPEND QEMU_EXTRA_FLAGS "-pidfile" "${QEMU_PID_ABSPATH}")
 
 find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
-project(hello_world)
+project(microtvm_zephyr_runtime)
 
 
 set(CMAKE_VERBOSE_MAKEFILE ON)

@@ -22,6 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
+from util.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
 
@@ -444,7 +445,7 @@ def verify_any_conv2d(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
-# TODO(@kevinthesun): Support gpu to enable gpu tests.
+@tvm.testing.uses_gpu
 def test_any_conv2d():
     verify_any_conv2d(
         (relay.Any(), 64, 224, 224),
@@ -501,7 +502,7 @@ def verify_any_conv2d_NCHWc(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
-# TODO(@kevinthesun): Support gpu to enable gpu tests.
+@tvm.testing.uses_gpu
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc(
         (relay.Any(), 8, 224, 224, 8),
@@ -563,7 +564,7 @@ def verify_any_conv2d_transpose_nchw(
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
-# TODO(@kevinthesun): Support gpu to enable gpu tests.
+@tvm.testing.uses_gpu
 def test_any_conv2d_transpose_nchw():
     verify_any_conv2d_transpose_nchw(
         (relay.Any(), 64, 224, 224),
@@ -985,11 +986,9 @@ def test_recursive_concat_with_wrong_annotation():
     start = relay.var("start", shape=(), dtype="int32")
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
-    try:
+    with DiagnosticTesting() as diagnostics:
+        diagnostics.assert_message("in particular dimension 0 conflicts 2 does not match 1")
         func = infer_type(func)
-        assert False
-    except Exception as e:
-        assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)
 
 
 @tvm.testing.uses_gpu

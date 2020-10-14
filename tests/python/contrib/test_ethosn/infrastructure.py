@@ -43,18 +43,42 @@ def get_real_image(im_height, im_width):
 
 
 def assert_lib_hash(lib, golden):
+    """Check that the Ethos-N runtime modules in a library hash to the same values
+    as given by the golden hash(es).
+
+    If there's only one Ethos-N module, the golden hash may be provided as a str.
+    If there's multiple, a set of golden hashes should be provided to correspond
+    with each Ethos-N module that is expected.
+
+    This function is used to ensure that no change is made which alters the output
+    of a compilation. If such a change is made deliberately (eg. to fix a bug) then
+    the golden hash should be updated after verifying on hardware that the behaviour
+    is still correct.
+
+    This method is used because of the lack of hardware availability in upstream CI.
+    """
+    # Convert str hash into a set of hashes
+    if isinstance(golden, str):
+        golden = {golden}
+
     temp = util.tempdir()
     path = temp.relpath("lib.cmm")
-    lib.imported_modules[1].save(path)
-    lib_hash = md5(open(path, "rb").read()).hexdigest()
-    assert lib_hash == golden, "Expected hash: {} Got hash: {}".format(golden, lib_hash)
+    hash_set = set()
+    for mod in lib.imported_modules:
+        if mod.type_key == "ethos-n":
+            mod.save(path)
+            lib_hash = md5(open(path, "rb").read()).hexdigest()
+            hash_set.add(lib_hash)
+
+    assert hash_set == golden, "Expected hash: {} Got hash: {}".format(golden, hash_set)
 
 
 def make_module(func, params):
     func = relay.Function(relay.analysis.free_vars(func), func)
     if params:
         relay.build_module.bind_params_by_name(func, params)
-    return tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
+    return relay.transform.InferType()(mod)
 
 
 def make_ethosn_composite(ethosn_expr, name):
@@ -69,20 +93,28 @@ def make_ethosn_partition(ethosn_expr):
     # Create an Ethos-N global function
     mod = tvm.IRModule({})
     vars = relay.analysis.free_vars(ethosn_expr)
-    func = relay.Function(vars, ethosn_expr)
+    # NB: it is illegal to reuse variables inside and outside a scope in Relay
+    # if you want to duplicate types and names you must re-allocate them.
+    fresh_vars = [relay.Var(v.name_hint, v.type_annotation) for v in vars]
+    binds = {}
+    for var, fresh_var in zip(vars, fresh_vars):
+        binds[var] = fresh_var
+    ethosn_expr_fresh = relay.bind(ethosn_expr, binds)
+    func = relay.Function(fresh_vars, ethosn_expr_fresh)
     func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
     func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
     func = func.with_attr("Compiler", "ethos-n")
     func = func.with_attr("global_symbol", "ethos-n_0")
     g1 = relay.GlobalVar("ethos-n_0")
     mod[g1] = func
+    mod = relay.transform.InferType()(mod)
 
     # These are the vars to call the Ethos-N partition with
     more_vars = relay.analysis.free_vars(ethosn_expr)
     # Call the Ethos-N partition in main
     call_fn1 = g1(*more_vars)
     mod["main"] = relay.Function(more_vars, call_fn1)
-    return mod
+    return relay.transform.InferType()(mod)
 
 
 def get_host_op_count(mod):
@@ -102,6 +134,21 @@ def get_host_op_count(mod):
 
 
 def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
+    """Build a network with or without Ethos-N offloading.
+
+    Parameters
+    ----------
+    mod : IRModule
+        The Relay module to build.
+    params : dict of str to NDArray
+        The weights to build with.
+    npu : bool, optional
+        Whether to build with Ethos-N offloading.
+    expected_host_ops : int, optional
+        The number of ops expected to remain on the host.
+    npu_partitions : int, optional
+        The number of Ethos-N partitions expected.
+    """
     relay.backend.compile_engine.get().clear()
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": 0}}
@@ -112,9 +159,12 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
                 mod = tvm.IRModule()
                 mod["main"] = f
                 pattern = get_pattern_table("ethos-n")
+                mod = relay.transform.InferType()(mod)
                 mod = relay.transform.MergeComposite(pattern)(mod)
                 mod = relay.transform.AnnotateTarget("ethos-n")(mod)
+                mod = relay.transform.InferType()(mod)
                 mod = relay.transform.MergeCompilerRegions()(mod)
+                mod = relay.transform.InferType()(mod)
                 mod = relay.transform.PartitionGraph()(mod)
                 host_op_count = get_host_op_count(mod)
                 assert (
@@ -133,6 +183,28 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
 
 
 def run(lib, inputs, outputs, npu=True):
+    """Run a module with specified inputs.
+
+    Parameters
+    ----------
+    lib : runtime.Module
+        The runtime module.
+    inputs : dict of str to NDArray
+        The input dictionary.
+    outputs : int
+        The expected number of outputs.
+    npu : bool
+        Whether or not any part of the lib is offloaded to Ethos-N.
+        If it's false (i.e. it's all running on the CPU), we set
+        the mocked result equal to the output so that a subsequent
+        mocked run on the NPU returns the same value.
+
+    Returns
+    -------
+    out : list of NDArray
+        The results.
+
+    """
     # Export and load lib to confirm this works
     lib_name = "mod.so"
     temp = util.tempdir()
@@ -144,7 +216,7 @@ def run(lib, inputs, outputs, npu=True):
     module.run()
     out = [module.get_output(i) for i in range(outputs)]
     if not npu:
-        inference_result(0, out)
+        inference_result(out)
     return out
 
 
@@ -171,12 +243,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
             tvm.testing.assert_allclose(outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
 
 
-def inference_result(checksum, outputs):
+def inference_result(outputs):
     """Set the expected results of an Ethos inference, if the testing
     infrastructure is available. This assumes that the entire graph
     was offloaded to the neural processor."""
     if tvm.get_global_func("relay.ethos-n.test.infra.inference_result", True):
-        return _infrastructure.inference_result(checksum, *outputs)
+        return _infrastructure.inference_result(*outputs)
     return False
 
 
@@ -185,6 +257,7 @@ def test_error(mod, params, err_msg):
     with tvm.transform.PassContext(opt_level=3):
         with tvm.target.Target("llvm"):
             try:
+                mod = relay.transform.InferType()(mod)
                 relay.build(mod, params)
             except tvm.error.TVMError as e:
                 caught = e.args[0]
@@ -244,3 +317,7 @@ def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, ke
     output_sc = (output_max - output_min) / 255
     output_zp = -int(output_min / output_sc)
     return output_zp, output_sc
+
+
+def get_ethosn_api_version():
+    return tvm.get_global_func("relay.ethos-n.api.version")()

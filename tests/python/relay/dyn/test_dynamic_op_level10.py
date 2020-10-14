@@ -27,34 +27,62 @@ import tvm.topi.testing
 import random
 import tvm.testing
 
-# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# TODO(mbrookhart): Enable when the VM supports heterogenus execution
 # @tvm.testing.uses_gpu
-def test_dyn_broadcast_to():
-    dtype = "uint8"
-    rank = 3
-    shape_type = "int64"
-    dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), shape_type))
-    x_shape = (1,)
-    x = relay.Var("x", relay.ty.TensorType(x_shape, dtype))
-    z = relay.broadcast_to(x, dyn_shape)
-    zz = run_infer_type(z)
+def test_broadcast_to():
+    def verify_more_dynamic_broadcast_to(x_shape, out_shape):
+        rank = len(out_shape)
+        dtype = "float32"
+        shape_type = "int64"
+        reshape_shape = relay.Var("shape", relay.ty.TensorType((len(x_shape),), shape_type))
+        broadcast_shape = relay.Var("shape", relay.ty.TensorType((rank,), shape_type))
+        x = relay.Var("x", relay.ty.TensorType((np.prod(x_shape),), dtype))
+        r = relay.reshape(x, reshape_shape)
+        z = relay.broadcast_to(r, broadcast_shape)
 
-    assert zz.checked_type == relay.ty.TensorType((relay.Any(),) * rank, dtype)
+        func = relay.Function([x, reshape_shape, broadcast_shape], z)
 
-    func = relay.Function([x, dyn_shape], z)
+        x = np.random.uniform(size=np.prod(x_shape)).astype(dtype)
+        ref_res = np.broadcast_to(np.reshape(x, x_shape), out_shape)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(
+                    x, np.array(x_shape).astype(shape_type), np.array(out_shape).astype(shape_type)
+                )
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    x = np.random.uniform(size=x_shape).astype(dtype)
-    dyn_shape = (1,) * rank
-    ref_res = np.broadcast_to(x, dyn_shape)
-    for target, ctx in tvm.testing.enabled_targets():
-        for kind in ["vm", "debug"]:
-            mod = tvm.ir.IRModule.from_expr(func)
-            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(x, np.array(dyn_shape).astype(shape_type))
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_more_dynamic_broadcast_to((4, 3), (3, 4, 3))
+
+    def verify_broadcast_to(x_shape, out_shape):
+        rank = len(out_shape)
+        dtype = "float32"
+        shape_type = "int64"
+        dyn_shape = relay.Var("shape", relay.ty.TensorType((rank,), shape_type))
+        x = relay.Var("x", relay.ty.TensorType(x_shape, dtype))
+        z = relay.broadcast_to(x, dyn_shape)
+        zz = run_infer_type(z)
+
+        assert zz.checked_type == relay.ty.TensorType((relay.Any(),) * rank, dtype)
+
+        func = relay.Function([x, dyn_shape], z)
+
+        x = np.random.uniform(size=x_shape).astype(dtype)
+        ref_res = np.broadcast_to(x, out_shape)
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x, np.array(out_shape).astype(shape_type))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_broadcast_to((1,), (1, 1, 1))
+    verify_broadcast_to((1, 1), (4, 1, 1))
+    verify_broadcast_to((4, 1), (1, 4, 3))
 
 
-# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# TODO(mbrookhart): Enable when the VM supports heterogenus execution
 # @tvm.testing.uses_gpu
 def test_dyn_one_hot():
     def _get_oshape(indices_shape, depth, axis):
