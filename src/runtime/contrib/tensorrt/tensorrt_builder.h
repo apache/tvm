@@ -55,6 +55,7 @@ struct TrtEngineAndContext {
   std::vector<std::string> inputs;
   std::vector<bool> input_is_baked;
   std::vector<std::string> outputs;
+  std::vector<runtime::NDArray> device_mem_buffers;
 };
 
 }  // namespace runtime

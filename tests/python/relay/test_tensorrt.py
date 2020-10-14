@@ -24,6 +24,7 @@ import tvm.relay.tensorrt
 import pytest
 from tvm.contrib import graph_runtime
 
+
 def should_skip():
     if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
         print("skip because cuda is not enabled.")
@@ -33,22 +34,23 @@ def should_skip():
         return True
     return False
 
+
 def test_tensorrt_simple():
     if should_skip():
         return
-    dtype = 'float32'
+    dtype = "float32"
     xshape = (1, 3, 2, 2)
-    yshape = (1, 3,  1,  1)
-    zshape = (1,  1,  1,  1)
-    x = relay.var('x', shape=(xshape), dtype=dtype)
-    y = relay.var('y', shape=(yshape), dtype=dtype)
-    z = relay.var('z', shape=(zshape), dtype=dtype)
+    yshape = (1, 3, 1, 1)
+    zshape = (1, 1, 1, 1)
+    x = relay.var("x", shape=(xshape), dtype=dtype)
+    y = relay.var("y", shape=(yshape), dtype=dtype)
+    z = relay.var("z", shape=(zshape), dtype=dtype)
     w = z * (x + y)
     out = relay.nn.relu(w)
     f = relay.Function([x, y, z], out)
 
     mod = tvm.IRModule()
-    mod['main'] = f
+    mod["main"] = f
     mod = relay.tensorrt.EnableTrt(mod)
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, "cuda")
@@ -59,32 +61,69 @@ def test_tensorrt_simple():
     mod.run(x=x_data, y=y_data, z=z_data)
     results = [mod.get_output(i).asnumpy() for i in range(mod.get_num_outputs())]
 
+
+def test_tensorrt_simple_cpu_io():
+    if should_skip():
+        return
+    dtype = "float32"
+    xshape = (1, 3, 2, 2)
+    yshape = (1, 3, 1, 1)
+    zshape = (1, 1, 1, 1)
+    x = relay.var("x", shape=(xshape), dtype=dtype)
+    y = relay.var("y", shape=(yshape), dtype=dtype)
+    z = relay.var("z", shape=(zshape), dtype=dtype)
+    w = z * (x + y)
+    out = relay.nn.relu(w)
+    f = relay.Function([x, y, z], out)
+
+    x_data = np.random.uniform(-1, 1, xshape).astype(dtype)
+    y_data = np.random.uniform(-1, 1, yshape).astype(dtype)
+    z_data = np.random.uniform(-1, 1, zshape).astype(dtype)
+
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = relay.tensorrt.EnableTrt(mod)
+    params = {"y": y_data}
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(mod, target="llvm", params=params)
+    mod = graph_runtime.create(graph, lib, ctx=tvm.cpu())
+    mod.set_input(**params)
+    mod.run(x=x_data, z=z_data)
+    results = [mod.get_output(i).asnumpy() for i in range(mod.get_num_outputs())]
+
+
 def test_tensorrt_not_compatible():
     if should_skip():
         return
-    dtype = 'float32'
+    dtype = "float32"
     xshape = (1, 32, 14, 14)
-    x = relay.var('x', shape=(xshape), dtype=dtype)
+    x = relay.var("x", shape=(xshape), dtype=dtype)
     y = relay.add(x, x)
     z = relay.erf(y)
     out = relay.nn.relu(z)
     f = relay.Function([x], out)
     mod = tvm.IRModule()
-    mod['main'] = f
+    mod["main"] = f
     mod = relay.tensorrt.EnableTrt(mod)
-    assert not mod['main'].attrs
+    assert not mod["main"].attrs
+
 
 def test_tensorrt_ops():
     if should_skip():
         return
+
     def run_and_verify(config):
         f, input_shapes, is_param = config
         params = {x: np.random.uniform(-1, 1, input_shapes[x]).astype(np.float32) for x in is_param}
-        input_dict = {k: np.random.uniform(-1, 1, v).astype(np.float32) for k, v in input_shapes.items() if k not in is_param}
+        input_dict = {
+            k: np.random.uniform(-1, 1, v).astype(np.float32)
+            for k, v in input_shapes.items()
+            if k not in is_param
+        }
 
-        # Run TRT 
+        # Run TRT
         mod = tvm.IRModule()
-        mod['main'] = f
+        mod["main"] = f
         mod = relay.tensorrt.EnableTrt(mod, params)
         with relay.build_config(opt_level=3):
             graph, lib, graph_params = relay.build(mod, "cuda", params=params)
@@ -95,14 +134,14 @@ def test_tensorrt_ops():
 
         # Run reference
         mod = tvm.IRModule()
-        mod['main'] = f
+        mod["main"] = f
         with relay.build_config(opt_level=3):
             graph, lib, graph_params = relay.build(mod, "cuda", params=params)
         mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
         mod.set_input(**graph_params)
         mod.run(**input_dict)
         ref_results = [mod.get_output(i) for i in range(mod.get_num_outputs())]
-        
+
         assert len(results) == len(ref_results)
         for i in range(len(results)):
             res = results[i].asnumpy()
@@ -110,245 +149,381 @@ def test_tensorrt_ops():
             assert res.shape == ref_res.shape
             tvm.testing.assert_allclose(res, ref_res, rtol=1e-3, atol=1e-3)
 
-    def test_conv2d(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), groups=1, padding=(0, 0), strides=(1, 1), dilation=(1, 1)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
-        out = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4], groups=groups, padding=padding, strides=strides, dilation=dilation)
+    def test_conv2d(
+        x_shape=(1, 32, 8, 8),
+        k_shape=(16, 32, 3, 3),
+        groups=1,
+        padding=(0, 0),
+        strides=(1, 1),
+        dilation=(1, 1),
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
+        out = relay.nn.conv2d(
+            x,
+            kernel,
+            channels=k_shape[0],
+            kernel_size=k_shape[2:4],
+            groups=groups,
+            padding=padding,
+            strides=strides,
+            dilation=dilation,
+        )
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
-    def test_conv2d_const_weights(x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), groups=1, padding=(0, 0), strides=(1, 1), dilation=(1, 1)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+    def test_conv2d_const_weights(
+        x_shape=(1, 32, 8, 8),
+        k_shape=(16, 32, 3, 3),
+        groups=1,
+        padding=(0, 0),
+        strides=(1, 1),
+        dilation=(1, 1),
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         kernel = relay.const(np.ones(k_shape).astype("float32"))
-        out = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4], groups=groups, padding=padding, strides=strides, dilation=dilation)
+        out = relay.nn.conv2d(
+            x,
+            kernel,
+            channels=k_shape[0],
+            kernel_size=k_shape[2:4],
+            groups=groups,
+            padding=padding,
+            strides=strides,
+            dilation=dilation,
+        )
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
-    
+        return f, {"x": x_shape}, []
+
     def test_dense(x_shape=(1, 16), k_shape=(32, 16)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
         # Dense requires constant weights in TensorRT, so the weights are transposed by us.
         out = relay.nn.dense(x, kernel, units=k_shape[0])
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
-    
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
+
     def test_bias_add(x_shape=(1, 16), channels=16):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        bias = relay.var('bias', shape=(channels,), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        bias = relay.var("bias", shape=(channels,), dtype="float32")
         out = relay.nn.bias_add(x, bias)
         f = relay.Function([x, bias], out)
-        return f, {'x': x_shape, 'bias': (channels,)}, ['bias']
-    
-    def test_pool2d(op, x_shape=(1, 3, 32, 32), pool_size=(2, 2), strides=(2, 2), padding=(0, 0), ceil_mode=False, count_include_pad=None):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        return f, {"x": x_shape, "bias": (channels,)}, ["bias"]
+
+    def test_pool2d(
+        op,
+        x_shape=(1, 3, 32, 32),
+        pool_size=(2, 2),
+        strides=(2, 2),
+        padding=(0, 0),
+        ceil_mode=False,
+        count_include_pad=None,
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         if count_include_pad is not None:
-            out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode, count_include_pad=count_include_pad)
+            out = op(
+                x,
+                pool_size=pool_size,
+                strides=strides,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+            )
         else:
             out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_global_pool2d(op, x_shape=(1, 3, 32, 32)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = op(x)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_batch_flatten(x_shape=(1, 3, 4, 6)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.nn.batch_flatten(x)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
-    
+        return f, {"x": x_shape}, []
+
     def test_expand_dims(x_shape=(1, 3), axis=1, num_newaxis=1):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.expand_dims(x, axis, num_newaxis)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_squeeze(x_shape, axis):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.squeeze(x, axis=axis)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
-    
+        return f, {"x": x_shape}, []
+
     def test_concatenate(input_shapes, axis):
         concat_inputs = []
         shapes_dict = {}
         for i in range(len(input_shapes)):
-            name = 'input_{}'.format(i)
-            concat_inputs.append(relay.var(name, shape=(input_shapes[i]), dtype='float32'))
+            name = "input_{}".format(i)
+            concat_inputs.append(relay.var(name, shape=(input_shapes[i]), dtype="float32"))
             shapes_dict[name] = input_shapes[i]
         out = relay.concatenate(concat_inputs, axis)
         f = relay.Function(concat_inputs, out)
         return f, shapes_dict, []
-    
-    def test_conv2d_transpose(x_shape=(1, 32, 8, 8), k_shape=(32, 16, 3, 3), groups=1, padding=(0, 0), strides=(1, 1)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
-        out = relay.nn.conv2d_transpose(x, kernel, channels=k_shape[1], kernel_size=k_shape[2:4], groups=groups, padding=padding, strides=strides)
+
+    def test_conv2d_transpose(
+        x_shape=(1, 32, 8, 8), k_shape=(32, 16, 3, 3), groups=1, padding=(0, 0), strides=(1, 1)
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
+        out = relay.nn.conv2d_transpose(
+            x,
+            kernel,
+            channels=k_shape[1],
+            kernel_size=k_shape[2:4],
+            groups=groups,
+            padding=padding,
+            strides=strides,
+        )
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
-    
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
+
     def test_reshape(x_shape, new_shape):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.reshape(x, new_shape)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
-    
+        return f, {"x": x_shape}, []
+
     def test_transpose(x_shape, order):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.transpose(x, order)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
-    def test_transpose_weights_conv2d(x_shape=(1, 32, 9, 9), k_shape=(3, 3, 32, 16), order=(3, 2, 0, 1)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+    def test_transpose_weights_conv2d(
+        x_shape=(1, 32, 9, 9), k_shape=(3, 3, 32, 16), order=(3, 2, 0, 1)
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
         kernel_t = relay.transpose(kernel, order)
         # Conv2d requires constant weights in TensorRT, so the weights are transposed by us.
         out = relay.nn.conv2d(x, kernel_t, channels=k_shape[order[0]], kernel_size=(3, 3))
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     def test_transpose_weights_dense(x_shape=(1, 16), k_shape=(16, 32)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
         kernel_t = relay.transpose(kernel, (1, 0))
         # Dense requires constant weights in TensorRT, so the weights are transposed by us.
         out = relay.nn.dense(x, kernel_t)
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     def test_dense_from_pytorch(x_shape=(1, 16), k_shape=(32, 16)):
         # FixPyTorchAddmm will fold away the tranpose -> mult -> transpose.
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
         kernel_t = relay.transpose(kernel, (1, 0))
-        beta = relay.const(1, dtype='float32')
+        beta = relay.const(1, dtype="float32")
         kernel_t = relay.multiply(kernel_t, beta)
         kernel_t = relay.transpose(kernel_t, (1, 0))
         # Dense requires constant weights in TensorRT, so the weights are transposed by us.
         out = relay.nn.dense(x, kernel_t)
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     def test_float_const(x_shape=(1, 16)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        beta = relay.const(1, dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        beta = relay.const(1, dtype="float32")
         out = relay.multiply(x, beta)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_pad(x_shape, pad_width):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.nn.pad(x, pad_width=pad_width)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_softmax(x_shape, axis):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.nn.softmax(x, axis=axis)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_batch_norm(x_shape, param_shape, axis=1, epsilon=1e-5):
-        x = relay.var("x", shape=(x_shape), dtype='float32')
-        beta = relay.var("beta", shape=(param_shape), dtype='float32')
-        gamma = relay.var("gamma",  shape=(param_shape), dtype='float32')
-        moving_mean = relay.var("moving_mean", shape=(param_shape), dtype='float32')
-        moving_var = relay.var("moving_var", shape=(param_shape), dtype='float32')
-        out, _, _ = relay.nn.batch_norm(x, gamma=gamma, beta=beta, moving_mean=moving_mean, moving_var=moving_var,
-                                        axis=axis, center=True, scale=True, epsilon=epsilon)
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        beta = relay.var("beta", shape=(param_shape), dtype="float32")
+        gamma = relay.var("gamma", shape=(param_shape), dtype="float32")
+        moving_mean = relay.var("moving_mean", shape=(param_shape), dtype="float32")
+        moving_var = relay.var("moving_var", shape=(param_shape), dtype="float32")
+        out, _, _ = relay.nn.batch_norm(
+            x,
+            gamma=gamma,
+            beta=beta,
+            moving_mean=moving_mean,
+            moving_var=moving_var,
+            axis=axis,
+            center=True,
+            scale=True,
+            epsilon=epsilon,
+        )
         f = relay.Function([x, gamma, beta, moving_mean, moving_var], out)
-        return f, {'x': x_shape, 'beta': param_shape, 'gamma': param_shape,
-                   'moving_mean': param_shape, 'moving_var': param_shape}, ['beta', 'gamma', 'moving_mean', 'moving_var']
+        return (
+            f,
+            {
+                "x": x_shape,
+                "beta": param_shape,
+                "gamma": param_shape,
+                "moving_mean": param_shape,
+                "moving_var": param_shape,
+            },
+            ["beta", "gamma", "moving_mean", "moving_var"],
+        )
 
     def test_unary(op, x_shape=(1, 8, 3, 3)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = op(x)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_clip(x_shape=(1, 8, 3, 3)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.clip(x, a_min=-0.2, a_max=0.4)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_leaky_relu(x_shape=(1, 8, 3, 3)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.nn.leaky_relu(x, alpha=0.1)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
-    
+        return f, {"x": x_shape}, []
+
     def test_binary(op, x_shape, y_shape, y_is_const=False):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         if y_is_const:
-            y = relay.const(np.ones(y_shape).astype('float32'))
+            y = relay.const(np.ones(y_shape).astype("float32"))
             out = op(x, y)
             f = relay.Function([x], out)
-            return f, {'x': x_shape}, []
-        y = relay.var('y', shape=(y_shape), dtype='float32')
+            return f, {"x": x_shape}, []
+        y = relay.var("y", shape=(y_shape), dtype="float32")
         out = op(x, y)
         f = relay.Function([x, y], out)
-        return f, {'x': x_shape, 'y': y_shape}, []
+        return f, {"x": x_shape, "y": y_shape}, []
 
     def test_reduce(op, x_shape=(1, 2, 3, 4), axis=(2, 3), keepdims=False):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = op(x, axis=axis, keepdims=keepdims)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_strided_slice(x_shape, begin, end, strides=None):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = relay.strided_slice(x, begin, end, strides)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_adaptive_pool2d(op, x_shape=(1, 3, 32, 32), out_size=(1, 1)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         out = op(x, out_size)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
-    def test_resize(x_shape=(1, 3, 16, 16), out_size=(32, 32), layout='NCHW', method='nearest_neighbor', coordinate_transformation_mode='align_corners'):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        out = relay.image.resize(x, out_size, layout=layout, method=method, coordinate_transformation_mode=coordinate_transformation_mode)
+    def test_resize(
+        x_shape=(1, 3, 16, 16),
+        out_size=(32, 32),
+        layout="NCHW",
+        method="nearest_neighbor",
+        coordinate_transformation_mode="align_corners",
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        out = relay.image.resize(
+            x,
+            out_size,
+            layout=layout,
+            method=method,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
     def test_multiple_outputs():
-        x = relay.var('x', shape=(1, 3), dtype='float32')
-        y = relay.var('y', shape=(1, 3), dtype='float32')
+        x = relay.var("x", shape=(1, 3), dtype="float32")
+        y = relay.var("y", shape=(1, 3), dtype="float32")
         z = relay.add(x, y)
         w = relay.add(z, y)
         out = relay.Tuple((z, w))
         f = relay.Function([x, y], out)
-        return f, {'x': (1, 3), 'y': (1, 3)}, []
+        return f, {"x": (1, 3), "y": (1, 3)}, []
 
-    def test_conv3d(x_shape=(1, 32, 8, 8, 8), k_shape=(16, 32, 3, 3, 3), groups=1, padding=(0, 0, 0), strides=(1, 1, 1), dilation=(1, 1, 1)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
-        out = relay.nn.conv3d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:], groups=groups, padding=padding, strides=strides, dilation=dilation)
+    def test_conv3d(
+        x_shape=(1, 32, 8, 8, 8),
+        k_shape=(16, 32, 3, 3, 3),
+        groups=1,
+        padding=(0, 0, 0),
+        strides=(1, 1, 1),
+        dilation=(1, 1, 1),
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
+        out = relay.nn.conv3d(
+            x,
+            kernel,
+            channels=k_shape[0],
+            kernel_size=k_shape[2:],
+            groups=groups,
+            padding=padding,
+            strides=strides,
+            dilation=dilation,
+        )
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
-    def test_pool3d(op, x_shape=(1, 3, 8, 32, 32), pool_size=(2, 2, 2), strides=(2, 2, 2), padding=(0, 0, 0), ceil_mode=False, count_include_pad=None):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
+    def test_pool3d(
+        op,
+        x_shape=(1, 3, 8, 32, 32),
+        pool_size=(2, 2, 2),
+        strides=(2, 2, 2),
+        padding=(0, 0, 0),
+        ceil_mode=False,
+        count_include_pad=None,
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
         if count_include_pad is not None:
-            out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode, count_include_pad=count_include_pad)
+            out = op(
+                x,
+                pool_size=pool_size,
+                strides=strides,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+            )
         else:
             out = op(x, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode)
         f = relay.Function([x], out)
-        return f, {'x': x_shape}, []
+        return f, {"x": x_shape}, []
 
-    def test_conv3d_transpose(x_shape=(1, 32, 8, 8, 8), k_shape=(32, 16, 3, 3, 3), groups=1, padding=(0, 0, 0), strides=(1, 1, 1), output_padding=(0, 0, 0)):
-        x = relay.var('x', shape=(x_shape), dtype='float32')
-        kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
-        out = relay.nn.conv3d_transpose(x, kernel, channels=k_shape[1], kernel_size=k_shape[2:5], groups=groups, padding=padding, strides=strides, output_padding=output_padding)
+    def test_conv3d_transpose(
+        x_shape=(1, 32, 8, 8, 8),
+        k_shape=(32, 16, 3, 3, 3),
+        groups=1,
+        padding=(0, 0, 0),
+        strides=(1, 1, 1),
+        output_padding=(0, 0, 0),
+    ):
+        x = relay.var("x", shape=(x_shape), dtype="float32")
+        kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
+        out = relay.nn.conv3d_transpose(
+            x,
+            kernel,
+            channels=k_shape[1],
+            kernel_size=k_shape[2:5],
+            groups=groups,
+            padding=padding,
+            strides=strides,
+            output_padding=output_padding,
+        )
         f = relay.Function([x, kernel], out)
-        return f, {'x': x_shape, 'kernel': k_shape}, ['kernel']
+        return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     run_and_verify(test_float_const())
     run_and_verify(test_multiple_outputs())
@@ -364,8 +539,15 @@ def test_tensorrt_ops():
         for padding in [(0, 0), (1, 1)]:
             for strides in [(1, 1), (2, 2)]:
                 for dilation in [(1, 1), (2, 2)]:
-                    run_and_verify(test_conv2d(k_shape=k_shape, groups=groups, padding=padding,
-                                               strides=strides, dilation=dilation))
+                    run_and_verify(
+                        test_conv2d(
+                            k_shape=k_shape,
+                            groups=groups,
+                            padding=padding,
+                            strides=strides,
+                            dilation=dilation,
+                        )
+                    )
     # Disabled due to incorrect results from TVM.
     run_and_verify(test_conv2d_const_weights())
     run_and_verify(test_dense())
@@ -391,12 +573,42 @@ def test_tensorrt_ops():
                         # Skip "inclusive-counted blended or average pooling is not supported in combination with asymmetric padding"
                         if count_include_pad and (padding == (0, 0, 1, 1) or strides == (2, 2)):
                             continue
-                        run_and_verify(test_pool2d(relay.nn.avg_pool2d, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode, count_include_pad=count_include_pad))
-                    run_and_verify(test_pool2d(relay.nn.max_pool2d, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode))
+                        run_and_verify(
+                            test_pool2d(
+                                relay.nn.avg_pool2d,
+                                pool_size=pool_size,
+                                strides=strides,
+                                padding=padding,
+                                ceil_mode=ceil_mode,
+                                count_include_pad=count_include_pad,
+                            )
+                        )
+                    run_and_verify(
+                        test_pool2d(
+                            relay.nn.max_pool2d,
+                            pool_size=pool_size,
+                            strides=strides,
+                            padding=padding,
+                            ceil_mode=ceil_mode,
+                        )
+                    )
     for op in [relay.nn.global_max_pool2d, relay.nn.global_max_pool2d]:
         run_and_verify(test_global_pool2d(op))
-    for op in [relay.nn.relu, relay.sigmoid, relay.tanh, relay.exp, relay.log, relay.sqrt,
-               relay.abs, relay.negative, relay.sin, relay.cos, relay.atan, relay.ceil, relay.floor]:
+    for op in [
+        relay.nn.relu,
+        relay.sigmoid,
+        relay.tanh,
+        relay.exp,
+        relay.log,
+        relay.sqrt,
+        relay.abs,
+        relay.negative,
+        relay.sin,
+        relay.cos,
+        relay.atan,
+        relay.ceil,
+        relay.floor,
+    ]:
         run_and_verify(test_unary(op))
     run_and_verify(test_batch_flatten())
     run_and_verify(test_expand_dims())
@@ -404,8 +616,8 @@ def test_tensorrt_ops():
     run_and_verify(test_squeeze((1, 3, 1), (-1,)))
     run_and_verify(test_concatenate([(1, 2, 6, 6), (1, 3, 6, 6)], axis=1))
     for padding in [(0, 0), (1, 1)]:
-        for strides in [(1, 1), (2, 2)]:           
-                run_and_verify(test_conv2d_transpose(padding=padding, strides=strides))
+        for strides in [(1, 1), (2, 2)]:
+            run_and_verify(test_conv2d_transpose(padding=padding, strides=strides))
     run_and_verify(test_transpose((1, 16, 7, 7), [0, 2, 3, 1]))
     run_and_verify(test_transpose((1, 7, 7, 16), [0, 3, 1, 2]))
     run_and_verify(test_transpose_weights_conv2d())
@@ -442,21 +654,30 @@ def test_tensorrt_ops():
     run_and_verify(test_pool3d(relay.nn.max_pool3d, strides=(1, 1, 1)))
     run_and_verify(test_conv3d_transpose())
 
+
 def test_tensorrt_integration(test_all_models=False):
     if should_skip():
         return
-    
+
     def test_model(model, i_data, input_shape, dtype, use_trt=True, num_iteration=1):
         import mxnet as mx
         from mxnet.gluon.model_zoo.vision import get_model
+
         def check_trt_used(graph):
             import json
+
             graph = json.loads(graph)
-            num_trt_subgraphs = sum([1 for n in graph['nodes'] if n.get('attrs', {}).get('func_name', '') == 'tensorrt_0'])
+            num_trt_subgraphs = sum(
+                [
+                    1
+                    for n in graph["nodes"]
+                    if n.get("attrs", {}).get("func_name", "") == "tensorrt_0"
+                ]
+            )
             assert num_trt_subgraphs == 1
 
         block = get_model(model, pretrained=True)
-        mod, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
+        mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
 
         if use_trt:
             mod = relay.tensorrt.EnableTrt(mod, params)
@@ -486,80 +707,87 @@ def test_tensorrt_integration(test_all_models=False):
 
     latency = {}
     models = [
-        'alexnet',
-        'resnet18_v1',
-        'resnet18_v2',
-        'squeezenet1.0',
-        'mobilenet0.25',
-        'mobilenetv2_0.25',
-        'vgg11',
-        'densenet121',
+        "alexnet",
+        "resnet18_v1",
+        "resnet18_v2",
+        "squeezenet1.0",
+        "mobilenet0.25",
+        "mobilenetv2_0.25",
+        "vgg11",
+        "densenet121",
     ]
     additional_models = [
-        'resnet34_v1',
-        'resnet50_v1',
-        'resnet101_v1',
-        'resnet152_v1',
-        'resnet34_v2',
-        'resnet50_v2',
-        'resnet101_v2',
-        'resnet152_v2',
-        'mobilenet0.5',
-        'mobilenet0.75',
-        'mobilenet1.0',
-        'mobilenetv2_0.5',
-        'mobilenetv2_0.75',
-        'mobilenetv2_1.0',
-        'vgg16',
-        'densenet169',
-        'densenet201']
+        "resnet34_v1",
+        "resnet50_v1",
+        "resnet101_v1",
+        "resnet152_v1",
+        "resnet34_v2",
+        "resnet50_v2",
+        "resnet101_v2",
+        "resnet152_v2",
+        "mobilenet0.5",
+        "mobilenet0.75",
+        "mobilenet1.0",
+        "mobilenetv2_0.5",
+        "mobilenetv2_0.75",
+        "mobilenetv2_1.0",
+        "vgg16",
+        "densenet169",
+        "densenet201",
+    ]
     if test_all_models:
         models.extend(additional_models)
-    
-    dtype = 'float32'
+
+    dtype = "float32"
     input_shape = (1, 3, 224, 224)
     i_data = np.random.uniform(-1, 1, input_shape).astype(dtype)
     for model in models:
         latency[model], res = test_model(model, i_data, input_shape, dtype, use_trt=True)
         _, ref_res = test_model(model, i_data, input_shape, dtype, use_trt=False, num_iteration=1)
         tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-3)
-    
+
     for model in models:
         print(model, latency[model])
+
 
 def test_tensorrt_serialize():
     if should_skip():
         return
     import mxnet
     from mxnet.gluon.model_zoo.vision import get_model
-    block = get_model('resnet18_v1', pretrained=True)
-    mod, params = relay.frontend.from_mxnet(block, shape={'data': (1, 3, 224, 224)}, dtype='float32')
+
+    block = get_model("resnet18_v1", pretrained=True)
+    mod, params = relay.frontend.from_mxnet(
+        block, shape={"data": (1, 3, 224, 224)}, dtype="float32"
+    )
     # Compile
     mod = relay.tensorrt.EnableTrt(mod, params)
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, "cuda")
     # Serialize
-    with open('compiled.json', 'w') as f_graph_json:
+    with open("compiled.json", "w") as f_graph_json:
         f_graph_json.write(graph)
-    with open('compiled.params', 'wb') as f_params:
+    with open("compiled.params", "wb") as f_params:
         f_params.write(relay.save_param_dict(params))
-    lib.export_library('compiled.so')
+    lib.export_library("compiled.so")
     # Deserialize
-    with open('compiled.json', 'r') as f_graph_json:
+    with open("compiled.json", "r") as f_graph_json:
         graph = f_graph_json.read()
-    with open('compiled.params', 'rb') as f_params:
+    with open("compiled.params", "rb") as f_params:
         params = bytearray(f_params.read())
     lib = tvm.runtime.load_module("compiled.so")
     # Run
     mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
     mod.load_params(params)
-    i_data = np.random.uniform(0, 1, (1, 3, 224, 224)).astype('float32')
+    i_data = np.random.uniform(0, 1, (1, 3, 224, 224)).astype("float32")
     for i in range(10):
         mod.run(data=i_data)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_tensorrt_ops()
     test_tensorrt_simple()
+    test_tensorrt_simple_cpu_io()
     test_tensorrt_not_compatible()
     test_tensorrt_integration()
     test_tensorrt_serialize()
