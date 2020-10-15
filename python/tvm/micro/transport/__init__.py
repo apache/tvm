@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,14 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+"""Defines abstractions and implementations related to the microTVM RPC transport layer."""
 
-source tests/scripts/setup-pytest-env.sh
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
-TVM_FFI=ctypes python3 -m pytest tests/micro/qemu
-make cython3
-TVM_FFI=cython python3 -m pytest tests/micro/qemu
+from .base import IoTimeoutError
+from .base import Transport
+from .base import TransportClosedError
+from .base import TransportLogger
+from .base import TransportTimeouts
+from .debug import DebugWrapperTransport
+from .subprocess import SubprocessTransport

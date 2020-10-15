@@ -28,7 +28,7 @@ class MicroLibrary(artifact.Artifact):
     ARTIFACT_TYPE = "micro_library"
 
     @classmethod
-    def from_unarchived(cls, base_dir, labelled_files, metadata):
+    def from_unarchived(cls, base_dir, labelled_files, metadata, immobile):
         library_files = labelled_files["library_files"]
         del labelled_files["library_files"]
 
@@ -43,10 +43,17 @@ class MicroLibrary(artifact.Artifact):
             debug_files=debug_files,
             labelled_files=labelled_files,
             metadata=metadata,
+            immobile=immobile,
         )
 
     def __init__(
-        self, base_dir, library_files, debug_files=None, labelled_files=None, metadata=None
+        self,
+        base_dir,
+        library_files,
+        debug_files=None,
+        labelled_files=None,
+        metadata=None,
+        immobile=False,
     ):
         labelled_files = {} if labelled_files is None else dict(labelled_files)
         metadata = {} if metadata is None else dict(metadata)
@@ -54,7 +61,7 @@ class MicroLibrary(artifact.Artifact):
         if debug_files is not None:
             labelled_files["debug_files"] = debug_files
 
-        super(MicroLibrary, self).__init__(base_dir, labelled_files, metadata)
+        super(MicroLibrary, self).__init__(base_dir, labelled_files, metadata, immobile=immobile)
 
         self.library_files = library_files
         self.debug_file = debug_files

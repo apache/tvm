@@ -19,12 +19,9 @@
 from __future__ import absolute_import
 
 import argparse
-import ast
-import json
 import multiprocessing
 import sys
 import logging
-import tvm
 from .. import rpc
 
 
@@ -45,9 +42,6 @@ def main(args):
     else:
         tracker_addr = None
 
-    if args.utvm_dev_config or args.utvm_dev_id:
-        init_utvm(args)
-
     server = rpc.Server(
         args.host,
         args.port,
@@ -59,40 +53,6 @@ def main(args):
         silent=args.silent,
     )
     server.proc.join()
-
-
-def init_utvm(args):
-    """MicroTVM-specific RPC initialization
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        parsed args from command-line invocation
-    """
-    from tvm import micro  # pylint: disable=import-outside-toplevel
-
-    if args.utvm_dev_config and args.utvm_dev_id:
-        raise RuntimeError("only one of --utvm-dev-config and --utvm-dev-id allowed")
-
-    if args.utvm_dev_config:
-        with open(args.utvm_dev_config, "r") as dev_conf_file:
-            dev_config = json.load(dev_conf_file)
-    else:
-        dev_config_args = ast.literal_eval(args.utvm_dev_config_args)
-        generate_config_func = micro.device.get_device_funcs(args.utvm_dev_id)["generate_config"]
-        dev_config = generate_config_func(*dev_config_args)
-
-    if args.utvm_dev_config or args.utvm_dev_id:
-        # add MicroTVM overrides
-        @tvm.register_func("tvm.rpc.server.start", override=True)
-        def server_start():
-            # pylint: disable=unused-variable
-            session = micro.Session(dev_config)
-            session._enter()
-
-            @tvm.register_func("tvm.rpc.server.shutdown", override=True)
-            def server_shutdown():
-                session._exit()
 
 
 if __name__ == "__main__":
@@ -120,35 +80,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--custom-addr", type=str, help="Custom IP Address to Report to RPC Tracker"
-    )
-    parser.add_argument(
-        "--utvm-dev-config",
-        type=str,
-        help=(
-            "JSON config file for the target device (if using MicroTVM). "
-            "This file should contain serialized output similar to that returned "
-            "from the device module's generate_config. Can't be specified when "
-            "--utvm-dev-config-args is specified."
-        ),
-    )
-    parser.add_argument(
-        "--utvm-dev-config-args",
-        type=str,
-        help=(
-            "Arguments to the device module's generate_config function. "
-            "Must be a python literal parseable by literal_eval. If specified, "
-            "the device configuration is generated using the device module's "
-            "generate_config. Can't be specified when --utvm-dev-config is "
-            "specified."
-        ),
-    )
-    parser.add_argument(
-        "--utvm-dev-id",
-        type=str,
-        help=(
-            "Unique ID for the target device (if using MicroTVM). Should "
-            "match the name of a module underneath tvm.micro.device)."
-        ),
     )
 
     parser.set_defaults(fork=True)
