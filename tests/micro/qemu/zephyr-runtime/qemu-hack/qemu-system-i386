@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,14 +16,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+# Zephyr insists on running qemu with a -pidfile option, but that option doesn't appear to
+# work given the way we've configured docker (the underlying filesystem doesn't suppor the
+# file locking it needs to). This script strips any -pidfile option, then invokes qemu.
 
-source tests/scripts/setup-pytest-env.sh
+ARGS=( "$(basename $0)" )
+while [ "$#" -gt 0 ]; do
+    if [ "$1" == "-pidfile" ]; then
+        shift
+    else
+        ARGS=( "${ARGS[@]}" "$1" )
+    fi
+    shift
+done
 
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
-TVM_FFI=ctypes python3 -m pytest tests/micro/qemu
-make cython3
-TVM_FFI=cython python3 -m pytest tests/micro/qemu
+"${ARGS[@]}"

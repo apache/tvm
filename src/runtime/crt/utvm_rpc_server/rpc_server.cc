@@ -117,7 +117,6 @@ class MicroRPCServer {
         io_{&session_, &receive_buffer_},
         unframer_{session_.Receiver()},
         rpc_server_{&io_},
-        has_pending_byte_{false},
         is_running_{true} {}
 
   void* operator new(size_t count, void* ptr) { return ptr; }
@@ -126,25 +125,30 @@ class MicroRPCServer {
 
   /*! \brief Process one message from the receive buffer, if possible.
    *
-   * \return true if additional messages could be processed. false if the server shutdown request
-   * has been received.
+   * \param new_data If not nullptr, a pointer to a buffer pointer, which should point at new input
+   *     data to process. On return, updated to point past data that has been consumed.
+   * \param new_data_size_bytes Points to the number of valid bytes in `new_data`. On return,
+   *     updated to the number of unprocessed bytes remaining in `new_data` (usually 0).
+   * \return an error code indicating the outcome of the processing loop.
    */
-  bool Loop() {
-    if (has_pending_byte_) {
-      size_t bytes_consumed;
-      CHECK_EQ(unframer_.Write(&pending_byte_, 1, &bytes_consumed), kTvmErrorNoError,
-               "unframer_.Write");
-      CHECK_EQ(bytes_consumed, 1, "bytes_consumed");
-      has_pending_byte_ = false;
+  tvm_crt_error_t Loop(uint8_t** new_data, size_t* new_data_size_bytes) {
+    if (!is_running_) {
+      return kTvmErrorPlatformShutdown;
     }
 
-    return is_running_;
-  }
+    tvm_crt_error_t err = kTvmErrorNoError;
+    if (new_data != nullptr && new_data_size_bytes != nullptr && *new_data_size_bytes > 0) {
+      size_t bytes_consumed;
+      err = unframer_.Write(*new_data, *new_data_size_bytes, &bytes_consumed);
+      *new_data += bytes_consumed;
+      *new_data_size_bytes -= bytes_consumed;
+    }
 
-  void HandleReceivedByte(uint8_t byte) {
-    CHECK(!has_pending_byte_);
-    has_pending_byte_ = true;
-    pending_byte_ = byte;
+    if (err == kTvmErrorNoError && !is_running_) {
+      err = kTvmErrorPlatformShutdown;
+    }
+
+    return err;
   }
 
   void Log(const uint8_t* message, size_t message_size_bytes) {
@@ -164,8 +168,6 @@ class MicroRPCServer {
   Unframer unframer_;
   MinRPCServer<MicroIOHandler> rpc_server_;
 
-  bool has_pending_byte_;
-  uint8_t pending_byte_;
   bool is_running_;
 
   void HandleCompleteMessage(MessageType message_type, FrameBuffer* buf) {
@@ -243,19 +245,11 @@ void TVMLogf(const char* format, ...) {
   }
 }
 
-size_t UTvmRpcServerReceiveByte(utvm_rpc_server_t server_ptr, uint8_t byte) {
-  // NOTE(areusch): In the future, this function is intended to work from an IRQ context. That's not
-  // needed at present.
+tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server_ptr, uint8_t** new_data,
+                                  size_t* new_data_size_bytes) {
   tvm::runtime::micro_rpc::MicroRPCServer* server =
       static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
-  server->HandleReceivedByte(byte);
-  return 1;
-}
-
-bool UTvmRpcServerLoop(utvm_rpc_server_t server_ptr) {
-  tvm::runtime::micro_rpc::MicroRPCServer* server =
-      static_cast<tvm::runtime::micro_rpc::MicroRPCServer*>(server_ptr);
-  return server->Loop();
+  return server->Loop(new_data, new_data_size_bytes);
 }
 
 }  // extern "C"

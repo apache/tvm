@@ -124,6 +124,9 @@ ALLOW_SPECIFIC_FILE = {
     "docs/_static/img/tvm-logo-square.png",
     # pytest config
     "pytest.ini",
+    # Zephyr tests
+    "tests/micro/qemu/zephyr-runtime/prj.conf",
+    "tests/micro/qemu/zephyr-runtime/qemu-hack/qemu-system-i386",
 }
 
 

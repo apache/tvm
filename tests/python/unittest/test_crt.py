@@ -29,7 +29,6 @@ import numpy as np
 import tvm
 import tvm.relay
 import tvm.micro
-from tvm.micro import transport
 
 from tvm.topi.util import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -110,7 +109,7 @@ def test_reset():
         try:
             sess._rpc.get_function("tvm.testing.reset_server")()
             assert False, "expected to raise SessionTerminatedError; did not raise"
-        except transport.SessionTerminatedError:
+        except tvm.micro.SessionTerminatedError:
             pass
 
 
