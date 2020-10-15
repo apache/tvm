@@ -218,4 +218,4 @@ class DiagnosticContext : public ObjectRef {
 DiagnosticRenderer TerminalRenderer(std::ostream& ostream);
 
 }  // namespace tvm
-#endif  // TVM_IR_DIAGNOSTIC_H_
+#endif  // TVM_IR_DIAGNOSTIC_CONTEXT_H_
