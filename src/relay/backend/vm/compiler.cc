@@ -58,12 +58,6 @@ namespace transform {
 Pass LambdaLift();
 Pass InlinePrimitives();
 
-Pass ManifestAlloc(Target target_host, vm::TargetsMap targets) {
-  auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
-  ICHECK(f != nullptr) << "unable to load allocation manifestation pass";
-  return (*f)(target_host, targets);
-}
-
 Pass MemoryPlan() {
   auto f = tvm::runtime::Registry::Get("relay.transform.MemoryPlan");
   ICHECK(f != nullptr) << "unable to load the memory planning pass";
