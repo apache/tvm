@@ -231,7 +231,7 @@ class ComputeDAG : public ObjectRef {
    * according to the loop nest derived with `transform_steps`.
    * \param transform_steps Transform steps of a state.
    */
-  void RewriteLayout(Array<Step>* transform_steps, LayoutRewriteOption layout_rewrite);
+  ComputeDAG RewriteLayout(Array<Step>* transform_steps, LayoutRewriteOption layout_rewrite) const;
 
   /*!
    * \brief Apply the history transform steps to get a TVM schedule.
