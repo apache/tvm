@@ -290,7 +290,35 @@ runtime::Module CCompiler(const ObjectRef& ref) {
   return csource.CreateCSourceModule(ref);
 }
 
+/*!
+ * \brief A visitor to add the constants used as params for MetadataModule.
+ */
+struct CCompilerConstantUpdater : public ExprVisitor {
+ public:
+  CCompilerConstantUpdater() = default;
+
+  Map<String, runtime::NDArray> GetConstants(const Expr& expr) {
+    VisitExpr(expr);
+    return this->params_;
+  }
+
+  void VisitExpr_(const ConstantNode* cn) final {
+    std::string name = "ccompiler_p" + std::to_string(const_idx_++);
+    params_.Set(name, cn->data);
+  }
+
+ private:
+  int const_idx_{0};
+  Map<String, runtime::NDArray> params_;
+};
+
+Map<String, runtime::NDArray> GetConstants(const Expr& expr) {
+  return CCompilerConstantUpdater().GetConstants(expr);
+}
+
 TVM_REGISTER_GLOBAL("relay.ext.ccompiler").set_body_typed(CCompiler);
+
+TVM_REGISTER_GLOBAL("relay.ext.ccompiler.constant_updater").set_body_typed(GetConstants);
 
 }  // namespace contrib
 }  // namespace relay

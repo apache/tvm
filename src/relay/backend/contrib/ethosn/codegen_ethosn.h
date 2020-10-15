@@ -338,6 +338,10 @@ runtime::Module CompileEthosn(const ObjectRef& ref) {
 
 TVM_REGISTER_GLOBAL("relay.ext.ethos-n").set_body_typed(CompileEthosn);
 
+TVM_REGISTER_GLOBAL("relay.ext.ethos-n.constant_updater").set_body_typed([](Expr expr) {
+  return Map<String, runtime::NDArray>();
+});
+
 }  // namespace ethosn
 }  // namespace contrib
 }  // namespace relay
