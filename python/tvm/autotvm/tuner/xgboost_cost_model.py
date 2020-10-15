@@ -153,11 +153,6 @@ class XGBoostCostModel(CostModel):
 
         self._close_pool()
 
-        # use global variable to pass common arguments
-        global _extract_space, _extract_target, _extract_task
-        _extract_space = space
-        _extract_target = target
-        _extract_task = task
         self.pool = multiprocessing.Pool(self.num_threads)
 
     def _close_pool(self):
@@ -321,10 +316,11 @@ class XGBoostCostModel(CostModel):
 
         indexes = np.array(indexes)
         need_extract = [x for x in indexes if x not in fea_cache]
+        args = [(self.space.get(x), self.target, self.task) for x in need_extract]
 
         if need_extract:
             pool = self._get_pool()
-            feas = pool.map(self.feature_extract_func, need_extract)
+            feas = pool.map(self.feature_extract_func, args)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
 
@@ -344,17 +340,16 @@ class XGBoostCostModel(CostModel):
         self._close_pool()
 
 
-_extract_space = None
 _extract_target = None
 _extract_task = None
 
 
-def _extract_itervar_feature_index(index):
+def _extract_itervar_feature_index(args):
     """extract iteration var feature for an index in extract_space"""
     try:
-        config = _extract_space.get(index)
-        with _extract_target:
-            sch, args = _extract_task.instantiate(config)
+        config, target, task = args
+        with target:
+            sch, args = task.instantiate(config)
         fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
         fea = np.concatenate((fea, list(config.get_other_option().values())))
         return fea
@@ -381,10 +376,10 @@ def _extract_itervar_feature_log(arg):
         return None
 
 
-def _extract_knob_feature_index(index):
+def _extract_knob_feature_index(args):
     """extract knob feature for an index in extract_space"""
     try:
-        config = _extract_space.get(index)
+        config, _, _ = args
         return config.get_flatten_feature()
     except Exception:  # pylint: disable=broad-except
         return None
@@ -408,12 +403,12 @@ def _extract_knob_feature_log(arg):
         return None
 
 
-def _extract_curve_feature_index(index):
+def _extract_curve_feature_index(args):
     """extract sampled curve feature for an index in extract_space"""
     try:
-        config = _extract_space.get(index)
-        with _extract_target:
-            sch, args = _extract_task.instantiate(config)
+        config, target, task = args
+        with target:
+            sch, args = task.instantiate(config)
         fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
         fea = np.concatenate((fea, list(config.get_other_option().values())))
         return np.array(fea)

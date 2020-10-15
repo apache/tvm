@@ -182,12 +182,10 @@ def test_recover_measure_input():
 
         raw_inp = inputs[0]
 
-        correct_inp = auto_scheduler.measure_record.recover_measure_input(raw_inp)
+        correct_inp = auto_scheduler.measure.recover_measure_input(raw_inp)
         assert str(correct_inp.task.compute_dag) == str(inp.task.compute_dag)
 
-        correct_inp = auto_scheduler.measure_record.recover_measure_input(
-            raw_inp, rebuild_state=True
-        )
+        correct_inp = auto_scheduler.measure.recover_measure_input(raw_inp, rebuild_state=True)
         assert str(correct_inp.state) == str(inp.state)
 
 

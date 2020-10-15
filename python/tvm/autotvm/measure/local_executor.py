@@ -18,7 +18,7 @@
 
 import signal
 
-from multiprocessing import Process, Queue
+import multiprocessing
 
 try:
     from queue import Empty
@@ -60,7 +60,7 @@ def call_with_timeout(queue, timeout, func, args, kwargs):
     """A wrapper to support timeout of a function call"""
 
     # start a new process for timeout (cannot use thread because we have c function)
-    p = Process(target=_execute_func, args=(func, queue, args, kwargs))
+    p = multiprocessing.Process(target=_execute_func, args=(func, queue, args, kwargs))
     p.start()
     p.join(timeout=timeout)
 
@@ -151,7 +151,9 @@ class LocalExecutor(executor.Executor):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
-        queue = Queue(2)  # Size of 2 to avoid a race condition with size 1.
-        process = Process(target=call_with_timeout, args=(queue, self.timeout, func, args, kwargs))
+        queue = multiprocessing.Queue(2)  # Size of 2 to avoid a race condition with size 1.
+        process = multiprocessing.Process(
+            target=call_with_timeout, args=(queue, self.timeout, func, args, kwargs)
+        )
         process.start()
         return LocalFuture(process, queue)

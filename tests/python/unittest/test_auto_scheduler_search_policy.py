@@ -26,6 +26,7 @@ import tvm.testing
 from tvm import auto_scheduler
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingThread
+import multiprocessing
 
 
 def search_common(
@@ -156,9 +157,8 @@ def test_sketch_search_policy_cuda_rpc_runner():
     t.join()
 
 
+@tvm.testing.requires_cuda
 def test_sketch_search_policy_cuda_xgbmodel_rpc_runner():
-    if not tvm.runtime.enabled("cuda"):
-        return
     measure_ctx = auto_scheduler.LocalRPCMeasureContext()
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
