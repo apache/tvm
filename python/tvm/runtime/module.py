@@ -17,7 +17,6 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel
 """Runtime Module namespace."""
-import os
 import ctypes
 import struct
 import logging
