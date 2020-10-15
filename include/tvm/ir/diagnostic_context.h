@@ -34,6 +34,7 @@
 #include <tvm/parser/source_map.h>
 
 #include <sstream>
+#include <string>
 
 namespace tvm {
 
