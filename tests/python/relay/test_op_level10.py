@@ -425,17 +425,18 @@ def test_ndarray_size():
 
 
 def verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc):
-    x = relay.var("x", relay.TensorType(dshape, "float32"))
-    y = opfunc(x, out_size, layout)
-    func = relay.Function([x], y)
+    for shape_dtype in ["int32", "int64"]:
+        x = relay.var("x", shape=[tvm.tir.IntImm(shape_dtype, x) for x in dshape], dtype=dtype)
+        y = opfunc(x, out_size, layout)
+        func = relay.Function([x], y)
 
-    np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
-    np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
+        np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
+        np_out = tvm.topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
 
-    for target, ctx in tvm.testing.enabled_targets():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        relay_out = intrp1.evaluate(func)(np_data)
-        tvm.testing.assert_allclose(relay_out.asnumpy(), np_out, rtol=1e-5, atol=1e-5)
+        for target, ctx in tvm.testing.enabled_targets():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            relay_out = intrp1.evaluate(func)(np_data)
+            tvm.testing.assert_allclose(relay_out.asnumpy(), np_out, rtol=1e-5, atol=1e-5)
 
 
 def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
@@ -452,6 +453,7 @@ def verify_adaptive_pool3d(dshape, out_size, pool_type, layout="NCHW", dtype="fl
 def test_adaptive_pool():
     verify_adaptive_pool2d((1, 9, 224, 224), (1, 1), "max")
     verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg")
+    verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg", dtype="int32")
     verify_adaptive_pool2d((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool2d((1, 5, 46, 97), (4, 96), "avg")
     verify_adaptive_pool2d((1, 224, 224, 3), (1, 1), "max", layout="NHWC")
@@ -459,6 +461,8 @@ def test_adaptive_pool():
     verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "max", layout="NCDHW")
     verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW")
     verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NDHWC")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW", dtype="int32")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NDHWC", dtype="int32")
     verify_adaptive_pool3d((1, 16, 32, 32, 32), (2, 4, 4), "max", layout="NDHWC")
 
 
