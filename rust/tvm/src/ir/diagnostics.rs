@@ -17,17 +17,20 @@
  * under the License.
  */
 
+use super::module::IRModule;
+use super::span::Span;
+use crate::runtime::function::Result;
+use crate::runtime::object::{Object, ObjectPtr, ObjectRef};
+use crate::runtime::{
+    array::Array,
+    function::{self, Function, ToFunction},
+    string::String as TString,
+};
 /// The diagnostic interface to TVM, used for reporting and rendering
 /// diagnostic information by the compiler. This module exposes
 /// three key abstractions: a Diagnostic, the DiagnosticContext,
 /// and the DiagnosticRenderer.
-
-use tvm_macros::{Object, external};
-use super::module::IRModule;
-use crate::runtime::{function::{self, Function, ToFunction}, array::Array, string::String as TString};
-use crate::runtime::object::{Object, ObjectPtr, ObjectRef};
-use crate::runtime::function::Result;
-use super::span::Span;
+use tvm_macros::{external, Object};
 
 type SourceName = ObjectRef;
 
@@ -134,7 +137,6 @@ pub struct DiagnosticRendererNode {
     // memory layout
 }
 
-
 //     def render(self, ctx):
 //         """
 //         Render the provided context.
@@ -169,7 +171,8 @@ pub struct DiagnosticContextNode {
 /// and contains a renderer.
 impl DiagnosticContext {
     pub fn new<F>(module: IRModule, render_func: F) -> DiagnosticContext
-    where F: Fn(DiagnosticContext) -> () + 'static
+    where
+        F: Fn(DiagnosticContext) -> () + 'static,
     {
         let renderer = diagnostic_renderer(render_func.to_function()).unwrap();
         let node = DiagnosticContextNode {
@@ -210,21 +213,16 @@ impl DiagnosticContext {
 //     If the render_func is None it will remove the current custom renderer
 //     and return to default behavior.
 fn override_renderer<F>(opt_func: Option<F>) -> Result<()>
-where F: Fn(DiagnosticContext) -> () + 'static
+where
+    F: Fn(DiagnosticContext) -> () + 'static,
 {
-
     match opt_func {
         None => clear_renderer(),
         Some(func) => {
             let func = func.to_function();
-            let render_factory = move || {
-                diagnostic_renderer(func.clone()).unwrap()
-            };
+            let render_factory = move || diagnostic_renderer(func.clone()).unwrap();
 
-            function::register_override(
-                render_factory,
-                "diagnostics.OverrideRenderer",
-                true)?;
+            function::register_override(render_factory, "diagnostics.OverrideRenderer", true)?;
 
             Ok(())
         }
@@ -243,9 +241,9 @@ pub mod codespan {
         End,
     }
 
-    struct SpanToBytes {
-        inner: HashMap<std::String, HashMap<usize, (StartOrEnd,
-    }
+    // struct SpanToBytes {
+    //     inner: HashMap<std::String, HashMap<usize, (StartOrEnd,
+    // }
 
     struct ByteRange<FileId> {
         file_id: FileId,
@@ -276,7 +274,7 @@ pub mod codespan {
             .with_message(message)
             .with_code("EXXX")
             .with_labels(vec![
-                Label::primary(file_id, 328..331).with_message(inner_message),
+                Label::primary(file_id, 328..331).with_message(inner_message)
             ]);
 
         diagnostic

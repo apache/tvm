@@ -28,6 +28,7 @@ use super::attrs::Attrs;
 use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
 use super::ty::{Type, TypeNode};
+use super::span::Span;
 
 use tvm_macros::Object;
 use tvm_rt::NDArray;
@@ -51,7 +52,7 @@ impl ExprNode {
             span: ObjectRef::null(),
             checked_type: Type::from(TypeNode {
                 base: Object::base_object::<TypeNode>(),
-                span: ObjectRef::null(),
+                span: Span::empty(),
             }),
         }
     }

@@ -6,7 +6,6 @@ use structopt::StructOpt;
 use tvm::ir::diagnostics::codespan;
 use tvm::ir::IRModule;
 
-
 #[derive(Debug, StructOpt)]
 #[structopt(name = "tyck", about = "Parse and type check a Relay program.")]
 struct Opt {

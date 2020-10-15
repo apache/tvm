@@ -60,6 +60,7 @@ fn main() -> Result<()> {
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
         println!("cargo:rustc-link-lib=dylib=tvm");
+        println!("cargo:rustc-link-lib=dylib=llvm-10");
         println!("cargo:rustc-link-search={}/build", tvm_home);
     }
 
