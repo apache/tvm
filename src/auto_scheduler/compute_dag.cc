@@ -984,8 +984,6 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
         }
       }
 
-      p_dag->init_state = State(p_dag->ops);
-
       Array<te::Tensor> old_tensors = p_dag->tensors;
       ArrayNode* p_tensors = p_dag->tensors.CopyOnWrite();
 
