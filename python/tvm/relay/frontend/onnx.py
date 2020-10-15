@@ -2138,7 +2138,7 @@ class Loop(OnnxOpConverter):
         # Now need to run initial values through the graph.
         # make empty constant with zero rank.
         init_count = _expr.const(0, dtype=iter_dtype)
-        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, _op.reshape(_expr.const(0, dtype='float32'), [1, 1]))
+        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, _op.reshape(_expr.const([], dtype='float32'), [0, 1]))
         outputs = _expr.TupleWrapper(_expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)]), num_deps + num_scan_outputs)
 
         # Update outer graph with constants found in the subgraph.
