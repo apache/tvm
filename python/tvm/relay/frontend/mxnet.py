@@ -58,6 +58,11 @@ __all__ = ["from_mxnet"]
 _activation_map = {"sigmoid": _op.sigmoid, "tanh": _op.tanh, "relu": _op.nn.relu}
 
 
+def get_tuple_shape(shape_expr):
+    """Get the tuple shape from a shape expression"""
+    return tuple([ele.value for ele in shape_expr])
+
+
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx  # pylint: disable=import-outside-toplevel
 
@@ -627,6 +632,21 @@ def _mx_expand_dims(inputs, attrs):
     return _op.expand_dims(inputs[0], axis=axis)
 
 
+def _mx_where(inputs, attrs):
+    cond, lhs, rhs = inputs
+    cond_shape = get_tuple_shape(_infer_type(cond).checked_type.shape)
+    lhs_shape = get_tuple_shape(_infer_type(lhs).checked_type.shape)
+    rhs_shape = get_tuple_shape(_infer_type(rhs).checked_type.shape)
+    out_shape = np.broadcast(np.empty(cond_shape), np.empty(lhs_shape), np.empty(rhs_shape)).shape
+    if out_shape != cond_shape:
+        cond = _op.broadcast_to(cond, out_shape)
+    if out_shape != lhs_shape:
+        lhs = _op.broadcast_to(lhs, out_shape)
+    if out_shape != rhs_shape:
+        rhs = _op.broadcast_to(rhs, out_shape)
+    return _op.where(cond, lhs, rhs)
+
+
 def _mx_pad(inputs, attrs):
     pad_mode = attrs.get_str("mode", None)
     if pad_mode is None:
@@ -790,6 +810,16 @@ def _mx_dot(inputs, attrs):
 def _mx_batch_dot(inputs, attrs):
     assert len(inputs) == 2
     a, b = inputs
+    a_shape = _infer_type(a).checked_type.shape
+    batch_shapes = None
+    if len(a_shape) > 3:
+        batch_shapes = a_shape[:-2]
+        a = _op.reverse_reshape(a, newshape=(-1, 0, 0))
+    b_shape = _infer_type(b).checked_type.shape
+    if len(b_shape) > 3:
+        if batch_shapes is None:
+            batch_shapes = b_shape[:-2]
+        b = _op.reverse_reshape(b, newshape=(-1, 0, 0))
     transpose_a = attrs.get_bool("transpose_a", False)
     transpose_b = attrs.get_bool("transpose_b", False)
     if transpose_a is True:
@@ -797,7 +827,10 @@ def _mx_batch_dot(inputs, attrs):
         raise tvm.error.OpAttributeInvalid(msg.format(transpose_a))
     if transpose_b is False:
         b = _op.transpose(b, axes=[0, 2, 1])
-    return _op.nn.batch_matmul(a, b)
+    out = _op.nn.batch_matmul(a, b)
+    if batch_shapes is not None:
+        out = _op.reverse_reshape(out, newshape=tuple(batch_shapes) + (0, 0))
+    return out
 
 
 def _mx_arange(inputs, attrs):
@@ -2317,6 +2350,8 @@ def _mx_npx_reshape(inputs, attrs):
             new_shape_list.append(num)
         elif num == -2:
             new_shape_list.append(0)
+        elif num == -3:
+            continue
         elif num == -4:
             new_shape_list.append(-2)
         elif num == -5:
@@ -2346,12 +2381,21 @@ def _mx_split_v2(inputs, attrs):
 
 
 def _mx_npi_where_rscalar(inputs, attrs):
+    cond, dat = inputs
     scalar = attrs.get_float("scalar")
-    dtype = _infer_type(inputs[1]).checked_type.dtype
+    cond_shape = get_tuple_shape(_infer_type(cond).checked_type.shape)
+    dat_shape = get_tuple_shape(_infer_type(dat).checked_type.shape)
+    dtype = _infer_type(dat).checked_type.dtype
+    # Check for broadcasting
+    out_shape = np.broadcast(np.empty(cond_shape), np.empty(dat_shape)).shape
+    if out_shape != cond_shape:
+        cond = _op.broadcast_to(cond, out_shape)
+    if out_shape != dat_shape:
+        dat = _op.broadcast_to(dat, out_shape)
     scalar = _expr.const(scalar, dtype=dtype)
-    ones = _op.ones_like(inputs[1])
+    ones = _op.ones_like(dat)
     scalar = _op.multiply(ones, scalar)
-    return _op.where(inputs[0], inputs[1], scalar)
+    return _op.where(cond, dat, scalar)
 
 
 # Note: due to attribute conversion constraint
@@ -2372,7 +2416,6 @@ _identity_list = [
     "reshape_like",
     "zeros_like",
     "ones_like",
-    "where",
     "cos",
     "cosh",
     "sin",
@@ -2384,6 +2427,7 @@ _identity_list = [
 _convert_map = {
     "_copy": _rename(_op.copy),
     "relu": _rename(_op.nn.relu),
+    "where": _mx_where,
     "broadcast_add": _rename(_op.add),
     "broadcast_plus": _rename(_op.add),
     "broadcast_sub": _rename(_op.subtract),
@@ -2717,7 +2761,6 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             else:
                 raise RuntimeError("unexpected type %s" % type(res))
             node_map[nid] = res
-
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _function.Function(analysis.free_vars(outputs), outputs)
