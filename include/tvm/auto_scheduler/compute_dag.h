@@ -195,6 +195,22 @@ class ComputeDAGNode : public Object {
 };
 
 /*!
+ * \brief Several options for applying layout rewrite.
+ * This is a optimization to rewrite the shape of input tensor according to the schedule we get.
+ */
+enum class LayoutRewriteOption : int {
+  /*! \brief Do not process layout rewrite. */
+  NoRewrite = 0,
+  /*!
+   * \brief Modify the placeholder to suit the schedule.
+   * \note This should be used along with the graph optimization in Relay.
+   */
+  RewriteWithPlaceholder = 1,
+  /*! \brief Insert a pre-transpose stage between placeholer and compute op to suit the schedule. */
+  RewriteWithPreTranspose = 2
+};
+
+/*!
  * \brief Managed reference to ComputeDAGNode.
  * \sa ComputeDAGNode
  */
@@ -215,7 +231,7 @@ class ComputeDAG : public ObjectRef {
    * according to the loop nest derived with `transform_steps`.
    * \param transform_steps Transform steps of a state.
    */
-  void RewriteLayout(const Array<Step>& transform_steps);
+  void RewriteLayout(Array<Step>* transform_steps, LayoutRewriteOption layout_rewrite);
 
   /*!
    * \brief Apply the history transform steps to get a TVM schedule.
@@ -229,10 +245,10 @@ class ComputeDAG : public ObjectRef {
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
-  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(const Array<Step>& transform_steps,
-                                                        Array<te::Stage>* stages = nullptr,
-                                                        StageToAxesMap* stage_to_axes = nullptr,
-                                                        bool layout_rewrite = false) const;
+  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(
+      const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
+      StageToAxesMap* stage_to_axes = nullptr,
+      LayoutRewriteOption layout_rewrite = LayoutRewriteOption::NoRewrite) const;
 
   /*!
    * \brief Print transform steps as equivalent python schedule API.

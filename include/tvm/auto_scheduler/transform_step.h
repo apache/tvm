@@ -846,7 +846,7 @@ class ComputeAtStep : public Step {
    */
   explicit ComputeAtStep(dmlc::JSONReader* reader);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ComputeAtStep, Step, ComputeAtStepNode);
 };
 
 /*! \brief Compute inline step that corresponds to te::Stage::compute_inline */
