@@ -111,5 +111,5 @@ cargo run --bin string
 cd -
 
 cd examples/resnet
-cargo run
+# cargo run
 cd -
