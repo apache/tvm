@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-import time
 
 import tvm
 from tvm import relay
 import tvm.relay.testing
 import tvm.relay.tensorrt
-import pytest
 from tvm.contrib import graph_runtime
+from tvm.runtime.vm import VirtualMachine
 
 
 def should_skip():
@@ -33,6 +32,37 @@ def should_skip():
         print("skip because tensorrt runtime is not available")
         return True
     return False
+
+
+def vmobj_to_list(o):
+    if isinstance(o, tvm.nd.NDArray):
+        return [o.asnumpy()]
+    elif isinstance(o, tvm.runtime.container.ADT) or isinstance(o, list):
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f))
+        return result
+    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+        if o.constructor.name_hint == "Cons":
+            tl = vmobj_to_list(o.fields[1])
+            hd = vmobj_to_list(o.fields[0])
+            hd.extend(tl)
+            return hd
+        elif o.constructor.name_hint == "Nil":
+            return []
+        elif "tensor_nil" in o.constructor.name_hint:
+            return [0]
+        elif "tensor" in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
+
+
+def assert_result_matches(res1, res2):
+    for r1, r2 in zip(vmobj_to_list(res1), vmobj_to_list(res2)):
+        tvm.testing.assert_allclose(r1, r2, rtol=1e-3, atol=1e-3)
 
 
 def test_tensorrt_simple():
@@ -49,17 +79,26 @@ def test_tensorrt_simple():
     out = relay.nn.relu(w)
     f = relay.Function([x, y, z], out)
 
-    mod = tvm.IRModule()
-    mod["main"] = f
-    mod = relay.tensorrt.EnableTrt(mod)
-    with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod, "cuda")
-    mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
     x_data = np.random.uniform(-1, 1, xshape).astype(dtype)
     y_data = np.random.uniform(-1, 1, yshape).astype(dtype)
     z_data = np.random.uniform(-1, 1, zshape).astype(dtype)
-    mod.run(x=x_data, y=y_data, z=z_data)
-    results = [mod.get_output(i).asnumpy() for i in range(mod.get_num_outputs())]
+    mod = tvm.IRModule()
+    mod["main"] = f
+
+    result_dict = dict()
+    for mode in ["vm", "graph"]:
+        for use_trt in [True, False]:
+            result_key = mode + ("_trt" if use_trt else "")
+            if use_trt:
+                mod = relay.tensorrt.EnableTrt(mod)
+            with relay.build_config(opt_level=3):
+                relay_exec = relay.create_executor(mode, mod=mod, ctx=tvm.gpu(0), target="cuda")
+                results = relay_exec.evaluate()(x_data, y_data, z_data)
+            result_dict[result_key] = results
+
+    assert_result_matches(result_dict["vm_trt"], result_dict["vm"])
+    assert_result_matches(result_dict["graph_trt"], result_dict["graph"])
+    assert_result_matches(result_dict["graph_trt"], result_dict["vm_trt"])
 
 
 def test_tensorrt_simple_cpu_io():
@@ -121,33 +160,22 @@ def test_tensorrt_ops():
             if k not in is_param
         }
 
-        # Run TRT
-        mod = tvm.IRModule()
-        mod["main"] = f
-        mod = relay.tensorrt.EnableTrt(mod, params)
-        with relay.build_config(opt_level=3):
-            graph, lib, graph_params = relay.build(mod, "cuda", params=params)
-        mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
-        mod.set_input(**graph_params)
-        mod.run(**input_dict)
-        results = [mod.get_output(i) for i in range(mod.get_num_outputs())]
+        results = dict()
+        for mode in ["graph", "vm"]:
+            for use_trt in [True, False]:
+                mod = tvm.IRModule()
+                mod["main"] = f
+                result_key = mode + ("_trt" if use_trt else "")
+                if use_trt:
+                    mod = relay.tensorrt.EnableTrt(mod, params)
 
-        # Run reference
-        mod = tvm.IRModule()
-        mod["main"] = f
-        with relay.build_config(opt_level=3):
-            graph, lib, graph_params = relay.build(mod, "cuda", params=params)
-        mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
-        mod.set_input(**graph_params)
-        mod.run(**input_dict)
-        ref_results = [mod.get_output(i) for i in range(mod.get_num_outputs())]
+                with relay.build_config(opt_level=3):
+                    vm_exec = relay.create_executor(mode, mod=mod, ctx=tvm.gpu(0), target="cuda")
+                    results[result_key] = vm_exec.evaluate()(**input_dict, **params)
 
-        assert len(results) == len(ref_results)
-        for i in range(len(results)):
-            res = results[i].asnumpy()
-            ref_res = ref_results[i].asnumpy()
-            assert res.shape == ref_res.shape
-            tvm.testing.assert_allclose(res, ref_res, rtol=1e-3, atol=1e-3)
+        assert_result_matches(results["vm_trt"], results["vm"])
+        assert_result_matches(results["graph_trt"], results["graph"])
+        assert_result_matches(results["graph_trt"], results["vm_trt"])
 
     def test_conv2d(
         x_shape=(1, 32, 8, 8),
@@ -659,20 +687,14 @@ def test_tensorrt_integration(test_all_models=False):
     if should_skip():
         return
 
-    def test_model(model, i_data, input_shape, dtype, use_trt=True, num_iteration=1):
-        import mxnet as mx
+    def test_model(model, mode, i_data, input_shape, dtype, use_trt=True):
         from mxnet.gluon.model_zoo.vision import get_model
 
-        def check_trt_used(graph):
-            import json
+        assert mode in ["graph", "vm"]
 
-            graph = json.loads(graph)
+        def check_trt_used(mod):
             num_trt_subgraphs = sum(
-                [
-                    1
-                    for n in graph["nodes"]
-                    if n.get("attrs", {}).get("func_name", "") == "tensorrt_0"
-                ]
+                [1 if gv.name_hint == "tensorrt_0" else 0 for gv in mod.get_global_vars()]
             )
             assert num_trt_subgraphs == 1
 
@@ -681,31 +703,14 @@ def test_tensorrt_integration(test_all_models=False):
 
         if use_trt:
             mod = relay.tensorrt.EnableTrt(mod, params)
-            with relay.build_config(opt_level=3):
-                graph, lib, params = relay.build(mod, "cuda")
-            check_trt_used(graph)
-        else:
-            with relay.build_config(opt_level=3):
-                graph, lib, params = relay.build(mod, "cuda", params=params)
+            check_trt_used(mod)
 
-        mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
-        mod.set_input(**params)
-        # Warmup
-        for i in range(10):
-            mod.run(data=i_data)
+        with relay.build_config(opt_level=3):
+            exec = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(0), target="llvm")
 
-        # Time
-        times = []
-        for i in range(num_iteration):
-            start_time = time.time()
-            mod.run(data=i_data)
-            res = mod.get_output(0)
-            times.append(time.time() - start_time)
-        latency = 1000.0 * np.mean(times)
-        print(model, latency)
-        return latency, res
+        res = exec.evaluate()(i_data, **params)
+        return res
 
-    latency = {}
     models = [
         "alexnet",
         "resnet18_v1",
@@ -735,53 +740,113 @@ def test_tensorrt_integration(test_all_models=False):
         "densenet169",
         "densenet201",
     ]
+
     if test_all_models:
         models.extend(additional_models)
 
     dtype = "float32"
     input_shape = (1, 3, 224, 224)
     i_data = np.random.uniform(-1, 1, input_shape).astype(dtype)
+
+    results = dict()
     for model in models:
-        latency[model], res = test_model(model, i_data, input_shape, dtype, use_trt=True)
-        _, ref_res = test_model(model, i_data, input_shape, dtype, use_trt=False, num_iteration=1)
-        tvm.testing.assert_allclose(res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-3)
+        print("Testing model : {}".format(model))
+        for mode in ["vm", "graph"]:
+            for use_trt in [True, False]:
+                result_key = mode + ("_trt" if use_trt else "")
+                results[result_key] = test_model(
+                    model, mode, i_data, input_shape, dtype, use_trt=use_trt
+                )
 
-    for model in models:
-        print(model, latency[model])
+        assert_result_matches(results["vm_trt"], results["vm"])
+        assert_result_matches(results["graph_trt"], results["graph"])
+        assert_result_matches(results["graph_trt"], results["vm_trt"])
 
 
-def test_tensorrt_serialize():
+def test_tensorrt_serialize(data_shape=(1, 3, 224, 224)):
     if should_skip():
         return
-    import mxnet
+
     from mxnet.gluon.model_zoo.vision import get_model
 
+    i_data = np.random.uniform(0, 1, data_shape).astype("float32")
     block = get_model("resnet18_v1", pretrained=True)
-    mod, params = relay.frontend.from_mxnet(
-        block, shape={"data": (1, 3, 224, 224)}, dtype="float32"
-    )
-    # Compile
+    mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype="float32")
     mod = relay.tensorrt.EnableTrt(mod, params)
-    with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod, "cuda")
-    # Serialize
-    with open("compiled.json", "w") as f_graph_json:
-        f_graph_json.write(graph)
-    with open("compiled.params", "wb") as f_params:
-        f_params.write(relay.save_param_dict(params))
-    lib.export_library("compiled.so")
-    # Deserialize
-    with open("compiled.json", "r") as f_graph_json:
-        graph = f_graph_json.read()
-    with open("compiled.params", "rb") as f_params:
-        params = bytearray(f_params.read())
-    lib = tvm.runtime.load_module("compiled.so")
-    # Run
-    mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
-    mod.load_params(params)
-    i_data = np.random.uniform(0, 1, (1, 3, 224, 224)).astype("float32")
-    for i in range(10):
-        mod.run(data=i_data)
+
+    def compile_vm(mod, params):
+        with relay.build_config(opt_level=3):
+            vm_exec = relay.vm.compile(mod, target="llvm", params=params)
+            code, lib = vm_exec.save()
+        return code, lib
+
+    def run_vm(code, lib):
+        vm_exec = tvm.runtime.vm.Executable.load_exec(code, lib)
+        vm = VirtualMachine(vm_exec, tvm.cpu(0))
+        result = vm.invoke("main", data=i_data)
+        return result
+
+    def save_vm(code, lib):
+        # save and load the code and lib file.
+        lib.export_library("path_lib.so")
+        with open("path_code.ro", "wb") as fo:
+            fo.write(code)
+
+    def load_vm():
+        lib = tvm.runtime.load_module("path_lib.so")
+        code = bytearray(open("path_code.ro", "rb").read())
+        return lib, code
+
+    def compile_graph(mod, params):
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(mod, params=params, target="cuda")
+            params = relay.save_param_dict(params)
+        return graph, lib, params
+
+    def run_graph(graph, lib, params):
+        mod_ = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
+        mod_.load_params(params)
+        mod_.run(data=i_data)
+        res = mod_.get_output(0)
+        return res
+
+    def save_graph(graph, lib, params):
+        # Serialize
+        with open("compiled.json", "w") as f_graph_json:
+            f_graph_json.write(graph)
+        with open("compiled.params", "wb") as f_params:
+            f_params.write(params)
+        lib.export_library("compiled.so")
+
+    def load_graph():
+        # Deserialize
+        with open("compiled.json", "r") as f_graph_json:
+            graph = f_graph_json.read()
+        with open("compiled.params", "rb") as f_params:
+            params = bytearray(f_params.read())
+        lib = tvm.runtime.load_module("compiled.so")
+        return graph, lib, params
+
+    # Test serialization with graph runtime and check if the results match
+    graph, lib, graph_params = compile_graph(mod, params)
+    save_graph(graph, lib, graph_params)
+    loaded_graph, loaded_lib, loaded_params = load_graph()
+
+    ref_res_graph = run_graph(graph, lib, graph_params)
+    res_graph_serialized = run_graph(loaded_graph, loaded_lib, loaded_params)
+    assert_result_matches(res_graph_serialized, ref_res_graph)
+
+    # Test serialization with VM and check if the results match
+    code, lib = compile_vm(mod, params)
+    save_vm(code, lib)
+    loaded_lib, loaded_code = load_vm()
+
+    ref_res_vm = run_vm(code, lib)
+    res_vm_serialized = run_vm(loaded_code, loaded_lib)
+    assert_result_matches(res_vm_serialized, ref_res_vm)
+
+    # Finally check accuracy between VM and graph
+    assert_result_matches(res_vm_serialized, res_graph_serialized)
 
 
 if __name__ == "__main__":
