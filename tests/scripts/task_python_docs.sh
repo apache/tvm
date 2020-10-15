@@ -68,10 +68,12 @@ npm install
 npm run typedoc
 cd ..
 
+# TODO(@jroesch): add Rust to CI container
+# see: https://github.com/apache/incubator-tvm/issues/6628
 # Rust doc
-cd rust
-cargo doc --workspace --no-deps
-cd ..
+# cd rust
+# cargo doc --workspace --no-deps
+# cd ..
 
 # Prepare the doc dir
 rm -rf _docs
@@ -80,7 +82,8 @@ rm -f _docs/.buildinfo
 mkdir -p _docs/api
 mv docs/doxygen/html _docs/api/doxygen
 mv jvm/core/target/site/apidocs _docs/api/javadoc
-mv rust/target/doc _docs/api/rust
+# See above TODO
+# mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/api/typedoc
 
 echo "Start creating the docs tarball.."
