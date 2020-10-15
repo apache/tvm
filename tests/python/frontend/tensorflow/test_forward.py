@@ -1358,7 +1358,7 @@ def test_forward_squeeze():
 # TensorArray
 # -----------
 def test_tensor_array_write_read():
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         pytest.skip("Needs fixing for tflite >= 1.15.0")
 
     def run(dtype_str, infer_shape, element_shape):
@@ -1384,7 +1384,7 @@ def test_tensor_array_write_read():
 
 
 def test_tensor_array_scatter():
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         pytest.skip("Needs fixing for tflite >= 1.15.0")
 
     def run(dtype_str, infer_shape):
@@ -1414,7 +1414,7 @@ def test_tensor_array_scatter():
 
 
 def test_tensor_array_gather():
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         pytest.skip("Needs fixing for tflite >= 1.15.0")
 
     def run(dtype_str, infer_shape):
@@ -1434,7 +1434,7 @@ def test_tensor_array_gather():
 
 
 def test_tensor_array_split():
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         pytest.skip("Needs fixing for tflite >= 1.15.0")
 
     def run(dtype_str, infer_shape):
@@ -1465,7 +1465,7 @@ def test_tensor_array_split():
 
 
 def test_tensor_array_concat():
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
         pytest.skip("Needs fixing for tflite >= 1.15.0")
 
     def run(dtype_str, infer_shape):
@@ -2997,7 +2997,7 @@ def _test_ssd_impl():
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i], rtol=1e-3, atol=1e-3)
 
 
-@pytest.mark.skip('neo-ai/tvm: skip because stack limit of 100mb is exceeded by WellFormedChecker')
+@pytest.mark.skip("neo-ai/tvm: skip because stack limit of 100mb is exceeded by WellFormedChecker")
 def test_forward_ssd():
     run_thread = threading.Thread(target=_test_ssd_impl, args=())
     old_stack_size = threading.stack_size(100 * 1024 * 1024)

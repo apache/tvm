@@ -70,7 +70,7 @@ def assert_has_cross_thread_reduction(state, stage_id):
     assert _ffi_api.SearchPolicyUtilsHasCrossThreadReduction(state, stage_id)
 
 
-@pytest.mark.skip('neo-ai/tvm: skip due to different number of sketches')
+@pytest.mark.skip("neo-ai/tvm: skip due to different number of sketches")
 def test_cpu_matmul_sketch():
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "llvm")
     """ 3 multi-level tiling sketches
@@ -159,7 +159,7 @@ def test_cpu_conv2d_bn_relu_sketch():
     assert_is_not_tiled(sketches[2].stages[10])
 
 
-@pytest.mark.skip('neo-ai/tvm: skip due to different number of sketches')
+@pytest.mark.skip("neo-ai/tvm: skip due to different number of sketches")
 def test_cpu_max_pool2d_sketch():
     sketches = generate_sketches(max_pool2d_auto_scheduler_test, (1, 56, 56, 512, 1), "llvm")
     """ 1 default sketch """
