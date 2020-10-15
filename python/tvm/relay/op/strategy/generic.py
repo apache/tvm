@@ -911,10 +911,12 @@ def wrap_compute_nms(topi_compute):
 
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[3]
+        iou_threshold = inputs[4]
         if attrs.max_output_size is not None:
             max_output_size = attrs.max_output_size
+        if attrs.iou_threshold is not None:
+            iou_threshold = get_const_float(attrs.iou_threshold)
         return_indices = bool(get_const_int(attrs.return_indices))
-        iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
         coord_start = get_const_int(attrs.coord_start)

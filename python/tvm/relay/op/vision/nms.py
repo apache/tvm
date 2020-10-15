@@ -94,7 +94,7 @@ def non_max_suppression(
         Max number of output valid boxes for each instance.
         Return all valid boxes if the value of max_output_size is less than 0.
 
-    iou_threshold : float, optional
+    iou_threshold : float or relay.Expr, optional
         Non-maximum suppression threshold.
 
     force_suppress : bool, optional
@@ -128,6 +128,8 @@ def non_max_suppression(
     """
     if isinstance(max_output_size, int):
         max_output_size = expr.const(max_output_size, "int32")
+    if isinstance(iou_threshold, float):
+        iou_threshold = expr.const(iou_threshold, "float32")
     out = _make.non_max_suppression(
         data,
         valid_count,

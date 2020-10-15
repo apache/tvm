@@ -2314,7 +2314,6 @@ class NonMaxSuppression(OnnxOpConverter):
         max_output_boxes_per_class = inputs["max_output_boxes_per_class"]
         iou_threshold = inputs["iou_threshold"]
         score_threshold = inputs["score_threshold"]
-        print(boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold)
         if "center_point_box" in attr:
             assert (
                 attr["center_point_box"] == 0
@@ -2323,16 +2322,9 @@ class NonMaxSuppression(OnnxOpConverter):
         def pad_last_dim(x):
             return _op.expand_dims(x, -1, 1)
 
-        # if iou_threshold is not None:
-        #    # assume iou_threshold is constant
-        #    iou_threshold = np.atleast_1d(iou_threshold.data.asnumpy())[0]
-        # else:
-        #    iou_threshold = 0.0
-        iou_threshold = 0.8
-        if score_threshold is not None:
-            # assume iou_threshold is constant
-            score_threshold = np.atleast_1d(score_threshold.data.asnumpy())[0]
-        else:
+        if iou_threshold is None:
+            iou_threshold = 0.0
+        if score_threshold is None:
             score_threshold = 0.0
         # loop over classes
         B, C, S = infer_shape(scores)
