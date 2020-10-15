@@ -513,9 +513,11 @@ class MatMul(OnnxOpConverter):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
         # Need to check input shape as batch matmul must be supported.
         a_shape = _op.shape_of(inputs[0])
+        a_rank = infer_shape(a_shape)[0]
+        b_shape = _op.shape_of(inputs[1])
+        b_rank = infer_shape(b_shape)[0]
         # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if infer_shape(a_shape)[0] > 2:
-            b_shape = _op.shape_of(inputs[1])
+        if a_rank > 2 or b_rank > 2:
 
             def flatten_to_3d(x, x_shape):
                 ndims = infer_shape(x_shape)[0]
@@ -532,10 +534,31 @@ class MatMul(OnnxOpConverter):
             b = _op.transpose(b, [0, 2, 1])
             # Perform a batch matmul.
             output = _op.nn.batch_matmul(a, b)
+            # Determine the output batch dimension.
+            if a_rank > b_rank:
+                out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
+            elif a_rank < b_rank:
+                out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
+            # If its unclear how broadcasting should be applied, the output
+            # shape is determined by choosing the maximum value from each input.
+            else:
+                out_batch = _op.concatenate(
+                    [
+                        _op.maximum(
+                            _op.strided_slice(a_shape, [i], [i + 1]),
+                            _op.strided_slice(b_shape, [i], [i + 1]),
+                        )
+                        for i in range(a_rank - 2)
+                    ],
+                    0,
+                )
             # Reshape output to original dimensions.
             final_shape = _op.concatenate(
                 [
-                    _op.strided_slice(a_shape, [0], [infer_shape(a_shape)[0] - 1]),
+                    out_batch,
+                    _op.strided_slice(
+                        a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                    ),
                     _op.strided_slice(
                         b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
                     ),
@@ -684,9 +707,7 @@ class Pad(OnnxOpConverter):
         else:
             value = 0
 
-        pads_shape = infer_shape(pads)
-        dims = int(pads_shape[0] / 2)
-        pad_width_expr = _op.transpose(_op.reshape(pads, (2, dims)))
+        pad_width_expr = _op.transpose(_op.reshape(pads, (2, -1)))
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
 
         if not pad_mode in ["constant", "edge", "reflect"]:

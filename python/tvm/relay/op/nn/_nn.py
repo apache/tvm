@@ -982,7 +982,10 @@ def dense_shape_func(attrs, inputs, _):
 def _batch_matmul_shape_func(data_shape, weight_shape):
     out = output_tensor((data_shape.shape[0],), "int64")
     for i in const_range(out.shape[0] - 1):
-        out[i] = data_shape[i]
+        if i == 0:
+            out[i] = max(data_shape[i], weight_shape[i])
+        else:
+            out[i] = data_shape[i]
     out[out.shape[0] - 1] = weight_shape[weight_shape.shape[0] - 2]
 
     return out
