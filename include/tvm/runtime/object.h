@@ -23,8 +23,8 @@
 #ifndef TVM_RUNTIME_OBJECT_H_
 #define TVM_RUNTIME_OBJECT_H_
 
-#include <tvm/ir/diagnostic.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/support/diagnostic.h>
 
 #include <string>
 #include <type_traits>

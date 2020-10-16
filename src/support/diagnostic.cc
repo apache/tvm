@@ -21,8 +21,8 @@
  * \file src/ir/transform.cc
  * \brief Infrastructure for transformation passes.
  */
-#include <tvm/ir/diagnostic_context.h>
 #include <tvm/parser/source_map.h>
+#include <tvm/support/diagnostic_context.h>
 
 #include <rang.hpp>
 

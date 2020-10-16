@@ -41,8 +41,6 @@ namespace tvm {
 using tvm::parser::SourceMap;
 using tvm::runtime::TypedPackedFunc;
 
-extern const char* kTVM_INTERNAL_ERROR_MESSAGE;
-
 class DiagnosticBuilder;
 
 /*! \brief A compiler diagnostic. */
