@@ -3829,7 +3829,6 @@ if __name__ == "__main__":
     test_clip_min_max_as_inputs()
     test_onehot()
     test_matmul()
-    test_batch_matmul()
     test_gather()
     test_gatherelements()
     test_gather_nd()
