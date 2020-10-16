@@ -45,8 +45,8 @@
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.62"
-ci_gpu = "tlcpack/ci-gpu:v0.64"
-ci_cpu = "tlcpack/ci-cpu:v0.66"
+ci_gpu = "tlcpack/ci-gpu:v0.65"
+ci_cpu = "tlcpack/ci-cpu:v0.67"
 ci_wasm = "tlcpack/ci-wasm:v0.60"
 ci_i386 = "tlcpack/ci-i386:v0.52"
 ci_qemu = "tlcpack/ci-qemu:v0.01"
