@@ -2427,8 +2427,8 @@ def _mx_split_v2(inputs, attrs):
 def _mx_npi_where_rscalar(inputs, attrs):
     cond, dat = inputs
     scalar = attrs.get_float("scalar")
-    cond_shape = get_tuple_shape(_infer_type(cond).checked_type.shape)
-    dat_shape = get_tuple_shape(_infer_type(dat).checked_type.shape)
+    cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
+    dat_shape = get_const_tuple(_infer_type(dat).checked_type.shape)
     dtype = _infer_type(dat).checked_type.dtype
     # Check for broadcasting
     out_shape = np.broadcast(np.empty(cond_shape), np.empty(dat_shape)).shape
