@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     codespan::init().expect("Rust based diagnostics");
     let opt = Opt::from_args();
     println!("{:?}", &opt);
-    let module = IRModule::parse_file(opt.input)?;
+    let module = IRModule::parse_file(opt.input);
 
     // for (k, v) in module.functions {
     //     println!("Function name: {:?}", v);

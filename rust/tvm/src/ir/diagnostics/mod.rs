@@ -207,9 +207,7 @@ impl DiagnosticContext {
     }
 }
 
-// Override the global diagnostics renderer.
-// Params
-// ------
+/// Override the global diagnostics renderer.
 // render_func: Option[Callable[[DiagnosticContext], None]]
 //     If the render_func is None it will remove the current custom renderer
 //     and return to default behavior.
