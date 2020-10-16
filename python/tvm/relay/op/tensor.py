@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Basic tensor operations."""
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, unused-argument
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 from tvm.te.hybrid import script
