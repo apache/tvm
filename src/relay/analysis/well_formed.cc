@@ -32,7 +32,7 @@ namespace tvm {
 namespace relay {
 
 //! brief make sure each Var is bound at most once in a scope.
-class WellFormedChecker : private ExprVisitor, PatternVisitor {
+class WellFormedChecker : private MixedModeVisitor, PatternVisitor {
  public:
   Optional<DiagnosticContext> diag_ctx;
   Span occurs_in;
@@ -78,6 +78,8 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
     current_bound.insert(v);
     total_bound.insert(v);
   }
+
+  using MixedModeVisitor::VisitExpr_;
 
   void VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
@@ -126,7 +128,7 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
 
     // CHECK(call->attrs.defined());
     CHECK(call->type_args.defined());
-    ExprVisitor::VisitExpr_(call);
+    MixedModeVisitor::VisitExpr_(call);
   }
 
   void VisitClause(const Clause& c) final {
@@ -139,18 +141,14 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
 
   void VisitVar(const Var& v) final { Bound(v); }
 
-  void VisitExpr(const Expr& e) final {
+ public:
+  bool CheckWellFormed(const Expr& e) {
     if (auto v = e.as<VarNode>()) {
       VisitExpr_(v);
     } else {
       // this->occurs_in = e->span;
-      ExprVisitor::VisitExpr(e);
+      VisitExpr(e);
     }
-  }
-
- public:
-  bool CheckWellFormed(const Expr& e) {
-    this->VisitExpr(e);
     return well_formed;
   }
 };

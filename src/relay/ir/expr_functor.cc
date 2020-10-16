@@ -517,9 +517,11 @@ TVM_REGISTER_GLOBAL("relay.analysis.post_order_visit").set_body_typed([](Expr ex
 });
 
 // Implement bind.
-class ExprBinder : public ExprMutator, PatternMutator {
+class ExprBinder : public MixedModeMutator, PatternMutator {
  public:
   explicit ExprBinder(const tvm::Map<Var, Expr>& args_map) : args_map_(args_map) {}
+
+  using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
     CHECK(!args_map_.count(op->var)) << "Cannot bind an internel variable in let";
