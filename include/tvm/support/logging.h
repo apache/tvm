@@ -113,7 +113,12 @@
 
 namespace tvm {
 
-extern const char* kTVM_INTERNAL_ERROR_MESSAGE;
+constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
+    "\n---------------------------------------------------------------\n"
+    "An internal invariant was violated during the execution of TVM.\n"
+    "Please read TVM's error reporting guidelines.\n"
+    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
+    "---------------------------------------------------------------\n";
 
 #define ICHECK_INDENT "  "
 
