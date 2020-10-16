@@ -36,8 +36,7 @@ tvm::export!(test_fn, test_fn2);
 #[no_mangle]
 fn compiler_ext_initialize() -> i32 {
     let _ = env_logger::try_init();
-    tvm_export("rust_ext")
-        .expect("failed to initialize Rust compiler_ext");
+    tvm_export("rust_ext").expect("failed to initialize Rust compiler_ext");
     log::debug!("done!");
     return 0;
 }

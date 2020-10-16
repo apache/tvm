@@ -68,7 +68,9 @@ pub enum Error {
     Infallible(#[from] std::convert::Infallible),
     #[error("a panic occurred while executing a Rust packed function")]
     Panic,
-    #[error("one or more error diagnostics were emitted, please check diagnostic render for output.")]
+    #[error(
+        "one or more error diagnostics were emitted, please check diagnostic render for output."
+    )]
     DiagnosticError(String),
     #[error("{0}")]
     Raw(String),

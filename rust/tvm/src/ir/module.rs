@@ -32,7 +32,6 @@ use super::expr::GlobalVar;
 use super::function::BaseFunc;
 use super::source_map::SourceMap;
 
-
 // TODO(@jroesch): define type
 type TypeData = ObjectRef;
 type GlobalTypeVar = ObjectRef;
@@ -133,7 +132,9 @@ impl IRModule {
         parse_module(file_name.into(), source.into())
     }
 
-    pub fn parse_file<P: 'static + AsRef<Path>>(file_path: P) -> std::result::Result<IRModule, Error> {
+    pub fn parse_file<P: 'static + AsRef<Path>>(
+        file_path: P,
+    ) -> std::result::Result<IRModule, Error> {
         let file_path = file_path.as_ref();
         let file_path_as_str = file_path.to_str().unwrap().to_string();
         let source = std::fs::read_to_string(file_path)?;

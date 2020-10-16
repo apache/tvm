@@ -27,8 +27,8 @@ use crate::runtime::{object::*, String as TString};
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
-use super::ty::{Type, TypeNode};
 use super::span::Span;
+use super::ty::{Type, TypeNode};
 
 use tvm_macros::Object;
 use tvm_rt::NDArray;

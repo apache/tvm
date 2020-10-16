@@ -20,9 +20,11 @@ fn main() -> Result<()> {
     let opt = Opt::from_args();
     println!("{:?}", &opt);
     let _module = match IRModule::parse_file(opt.input) {
-        Err(ir::module::Error::TVM(Error::DiagnosticError(_))) => { return Ok(()) },
-        Err(e) => { return Err(e.into()); },
-        Ok(module) => module
+        Err(ir::module::Error::TVM(Error::DiagnosticError(_))) => return Ok(()),
+        Err(e) => {
+            return Err(e.into());
+        }
+        Ok(module) => module,
     };
 
     Ok(())

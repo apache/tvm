@@ -128,7 +128,7 @@ impl Function {
                 type_codes.as_mut_ptr() as *mut c_int,
                 num_args as c_int,
                 &mut ret_val as *mut _,
-                &mut ret_type_code as *mut _
+                &mut ret_type_code as *mut _,
             )
         };
 

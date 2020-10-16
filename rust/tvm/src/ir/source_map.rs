@@ -19,7 +19,7 @@
 
 use crate::runtime::map::Map;
 use crate::runtime::object::Object;
-use crate::runtime::string::{String as TString};
+use crate::runtime::string::String as TString;
 
 use super::span::{SourceName, Span};
 
@@ -39,11 +39,9 @@ pub struct SourceNode {
 
     /// The raw source. */
     pub source: TString,
-
-   // A mapping of line breaks into the raw source.
-   // std::vector<std::pair<int, int>> line_map;
+    // A mapping of line breaks into the raw source.
+    // std::vector<std::pair<int, int>> line_map;
 }
-
 
 //  class Source : public ObjectRef {
 //   public:
@@ -53,7 +51,6 @@ pub struct SourceNode {
 //    TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Source, ObjectRef, SourceNode);
 //  };
 
-
 /// A mapping from a unique source name to source fragments.
 #[repr(C)]
 #[derive(Object)]
@@ -61,6 +58,6 @@ pub struct SourceNode {
 #[ref_name = "SourceMap"]
 pub struct SourceMapNode {
     pub base: Object,
-   /// The source mapping.
-   pub source_map: Map<SourceName, Source>,
+    /// The source mapping.
+    pub source_map: Map<SourceName, Source>,
 }

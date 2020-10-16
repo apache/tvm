@@ -18,7 +18,7 @@
 * under the License.
 */
 
-use crate::runtime::{ObjectRef, Object, String as TString};
+use crate::runtime::{Object, ObjectRef, String as TString};
 use tvm_macros::Object;
 
 /// A source file name, contained in a Span.
