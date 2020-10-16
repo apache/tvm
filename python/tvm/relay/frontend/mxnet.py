@@ -627,7 +627,7 @@ def _mx_expand_dims(inputs, attrs):
     return _op.expand_dims(inputs[0], axis=axis)
 
 
-def _mx_where(inputs, attrs):
+def _mx_where(inputs, _):
     cond, lhs, rhs = inputs
     cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
     lhs_shape = get_const_tuple(_infer_type(lhs).checked_type.shape)
@@ -2339,7 +2339,6 @@ def _mx_npx_reshape(inputs, attrs):
     shape = attrs.get_int_tuple("newshape")
     reverse = attrs.get_bool("reverse", False)
     shape_list = list(shape)
-    new_shape_list = []
     old_shape = get_const_tuple(_infer_type(inputs[0]).checked_type.shape)
     new_shape = []
     if reverse:
