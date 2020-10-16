@@ -26,13 +26,7 @@ from tvm.relay import expr as _expr
 from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
-from packaging import version
-
-
-def _is_newer_than_1_5():
-    import torch
-
-    return version.parse(torch.__version__) > version.parse("1.5.0")
+from .pytorch_utils import is_version_greater_than
 
 
 class QNNParam:
@@ -55,7 +49,7 @@ class QNNParam:
 
 
 class ConvPackedParam(QNNParam):
-    """A placeholder for quantized conv2d op attributs
+    """A placeholder for quantized conv2d op attributes
     As of PyTorch 1.6, attributes of quantized conv2d ops, like
     stride, padding etc are stored in ConvPackedParams objects,
     together with weights and quantization parameters
@@ -179,7 +173,7 @@ def _get_quant_param_for_input(input_value):
     # 6th and 7th arg are output scale and zp respectively.
 
     # PyTorch 1.6 changed qconv API
-    if _is_newer_than_1_5():
+    if is_version_greater_than("1.5.0"):
         qconv_indices = (2, 3)
     else:
         qconv_indices = (6, 7)
@@ -532,7 +526,7 @@ def _quantized_conv2d(with_relu=False):
             assert len(inputs) == 6, "Input quant params not found in op inputs"
 
             # These are manually added by add_input_quant_params_to_op_inputs above
-            # In torch, they are retrieved from QTensor data structure at runt
+            # In torch, they are retrieved from QTensor data structure at runtime
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
         else:
