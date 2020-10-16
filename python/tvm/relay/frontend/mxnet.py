@@ -2365,9 +2365,11 @@ def _mx_npx_reshape(inputs, attrs):
             ptr += 1
         elif ele == -3:
             if old_shape[ptr] != 1:
-                raise tvm.error.OpAttributeInvalid("Dimension of the original shape "
-                                                   "that corresponds to -3 must be 1. Received"
-                                                   " {}".format(old_shape[ptr]))
+                raise tvm.error.OpAttributeInvalid(
+                    "Dimension of the original shape "
+                    "that corresponds to -3 must be 1. Received"
+                    " {}".format(old_shape[ptr])
+                )
             ptr += 1
         elif ele == -4:
             new_shape += old_shape[ptr:]
@@ -2384,15 +2386,19 @@ def _mx_npx_reshape(inputs, attrs):
                 raise tvm.error.OpAttributeInvalid("The lhs and rhs can not both be -1.")
             if lhs == -1:
                 if old_shape[ptr] % rhs != 0:
-                    raise tvm.error.OpAttributeInvalid("When splitting the axis, "
-                                                       "the dimension of the split axis must "
-                                                       "be divisible by the splitted values.")
+                    raise tvm.error.OpAttributeInvalid(
+                        "When splitting the axis, "
+                        "the dimension of the split axis must "
+                        "be divisible by the splitted values."
+                    )
                 lhs = old_shape[ptr] // rhs
             if rhs == -1:
                 if old_shape[ptr] % lhs != 0:
-                    raise tvm.error.OpAttributeInvalid("When splitting the axis, "
-                                                       "the dimension of the split axis must "
-                                                       "be divisible by the splitted values.")
+                    raise tvm.error.OpAttributeInvalid(
+                        "When splitting the axis, "
+                        "the dimension of the split axis must "
+                        "be divisible by the splitted values."
+                    )
                 rhs = old_shape[ptr] // lhs
             new_shape.append(lhs)
             new_shape.append(rhs)
