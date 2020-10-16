@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file src/ir/diagnostic_context.cc
+ * \file src/ir/diagnostic.cc
  * \brief Implementation of DiagnosticContext and friends.
  */
-#include <tvm/ir/diagnostic_context.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/parser/source_map.h>
 
 #include <rang.hpp>

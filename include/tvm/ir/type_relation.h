@@ -25,7 +25,7 @@
 #define TVM_IR_TYPE_RELATION_H_
 
 #include <tvm/ir/attrs.h>
-#include <tvm/ir/diagnostic_context.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type.h>

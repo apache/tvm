@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file diagnostic_context.h
+ * \file diagnostic.h
  * \brief A new diagnostic interface for TVM error reporting.
  *
  */
 
-#ifndef TVM_IR_DIAGNOSTIC_CONTEXT_H_
-#define TVM_IR_DIAGNOSTIC_CONTEXT_H_
+#ifndef TVM_IR_DIAGNOSTIC_H_
+#define TVM_IR_DIAGNOSTIC_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/parser/source_map.h>
@@ -213,4 +213,4 @@ class DiagnosticContext : public ObjectRef {
 DiagnosticRenderer TerminalRenderer(std::ostream& ostream);
 
 }  // namespace tvm
-#endif  // TVM_IR_DIAGNOSTIC_CONTEXT_H_
+#endif  // TVM_IR_DIAGNOSTIC_H_
