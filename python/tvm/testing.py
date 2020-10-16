@@ -617,6 +617,23 @@ def requires_llvm(*args):
     return _compose(args, _requires_llvm)
 
 
+def requires_micro(*args):
+    """Mark a test as requiring microTVM to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_micro = [
+        pytest.mark.skipif(
+            tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON",
+            reason="MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.",
+        )
+    ]
+    return _compose(args, _requires_micro)
+
+
 def _target_to_requirement(target):
     # mapping from target to decorator
     if target.startswith("cuda"):
