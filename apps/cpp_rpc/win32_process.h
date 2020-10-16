@@ -23,8 +23,12 @@
  */
 #ifndef TVM_APPS_CPP_RPC_WIN32_PROCESS_H_
 #define TVM_APPS_CPP_RPC_WIN32_PROCESS_H_
+
 #include <chrono>
 #include <string>
+
+#include "../../src/support/socket.h"
+
 namespace tvm {
 namespace runtime {
 /*!
