@@ -1136,7 +1136,7 @@ void VMCompiler::Codegen() {
         backend::ConstantUpdater const_visit(cfunc->func_name, &params_);
         const_visit(func);
       } else {
-        Map<String, tvm::runtime::NDArray> constants = (*pf)(func);
+        Map<String, tvm::runtime::NDArray> constants = (*pf)(func, cfunc->func_name);
         for (const auto& it : constants) {
           std::string const_name(it.first);
           // Constant names should begin this the compiler name (to avoid conflicts)

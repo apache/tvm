@@ -237,12 +237,12 @@ def test_extern_gcc_consts():
         compiler.codegen()
         params = compiler.get_params()
         assert len(params) == 1
-        assert "ccompiler_p0" in params.keys()
+        assert "ccompiler_0_p0" in params.keys()
 
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
         _, _, params = relay.build(mod, target="llvm")
         assert len(params) == 1
-        assert "ccompiler_p0" in params.keys()
+        assert "ccompiler_0_p0" in params.keys()
 
 
 def test_extern_dnnl():

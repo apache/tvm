@@ -295,7 +295,7 @@ runtime::Module CCompiler(const ObjectRef& ref) {
  */
 struct CCompilerConstantUpdater : public ExprVisitor {
  public:
-  CCompilerConstantUpdater() = default;
+  explicit CCompilerConstantUpdater(const std::string& symbol) : symbol_(symbol) {};
 
   Map<String, runtime::NDArray> GetConstants(const Expr& expr) {
     VisitExpr(expr);
@@ -303,17 +303,18 @@ struct CCompilerConstantUpdater : public ExprVisitor {
   }
 
   void VisitExpr_(const ConstantNode* cn) final {
-    std::string name = "ccompiler_p" + std::to_string(const_idx_++);
+    std::string name = symbol_ + "_p" + std::to_string(const_idx_++);
     params_.Set(name, cn->data);
   }
 
  private:
   int const_idx_{0};
+  std::string symbol_;
   Map<String, runtime::NDArray> params_;
 };
 
-Map<String, runtime::NDArray> GetConstants(const Expr& expr) {
-  return CCompilerConstantUpdater().GetConstants(expr);
+Map<String, runtime::NDArray> GetConstants(const Expr& expr, const std::string symbol) {
+  return CCompilerConstantUpdater(symbol).GetConstants(expr);
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.ccompiler").set_body_typed(CCompiler);

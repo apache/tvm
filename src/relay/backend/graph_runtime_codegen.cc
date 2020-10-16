@@ -384,7 +384,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
         ConstantUpdater const_visit(symbol, &params_);
         const_visit(func);
       } else {
-        Map<String, tvm::runtime::NDArray> constants = (*pf)(func);
+        Map<String, tvm::runtime::NDArray> constants = (*pf)(func, symbol);
         for (const auto& it : constants) {
           std::string const_name(it.first);
           // Constant names should begin this the compiler name (to avoid conflicts)
