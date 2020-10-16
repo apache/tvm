@@ -28,7 +28,6 @@ import numpy as np
 
 import tvm
 import tvm.relay
-import tvm.micro
 
 from tvm.topi.util import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
@@ -84,8 +83,11 @@ def _make_ident_sess(workspace):
     return _make_sess_from_op(workspace, "ident", sched, [A, B])
 
 
+@tvm.testing.requires_micro
 def test_compile_runtime():
     """Test compiling the on-device runtime."""
+    import tvm.micro
+
     workspace = tvm.micro.Workspace()
 
     with _make_add_sess(workspace) as sess:
@@ -101,8 +103,12 @@ def test_compile_runtime():
         assert (C_data.asnumpy() == np.array([6, 7])).all()
 
 
+@tvm.testing.requires_micro
 def test_reset():
     """Test when the remote end resets during a session."""
+    import tvm.micro
+    from tvm.micro import transport
+
     workspace = tvm.micro.Workspace()
 
     with _make_add_sess(workspace) as sess:
@@ -113,8 +119,11 @@ def test_reset():
             pass
 
 
+@tvm.testing.requires_micro
 def test_graph_runtime():
     """Test use of the graph runtime with microTVM."""
+    import tvm.micro
+
     workspace = tvm.micro.Workspace()
     relay_mod = tvm.parser.fromtext(
         """
@@ -143,8 +152,11 @@ def test_graph_runtime():
         assert (out.asnumpy() == np.array([6, 10])).all()
 
 
+@tvm.testing.requires_micro
 def test_std_math_functions():
     """Verify that standard math functions can be used."""
+    import tvm.micro
+
     workspace = tvm.micro.Workspace()
     A = tvm.te.placeholder((2,), dtype="float32", name="A")
     B = tvm.te.compute(A.shape, lambda i: tvm.te.exp(A[i]), name="B")
