@@ -132,7 +132,6 @@ class Session:
             timeouts = self.timeout_override
             if timeouts is None:
                 timeouts = self.transport.timeouts()
-            print('established timeout', timeouts.session_established_timeout_sec)
 
             self._rpc = RPCSession(
                 _rpc_connect(

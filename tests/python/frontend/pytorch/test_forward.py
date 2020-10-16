@@ -2865,10 +2865,19 @@ def test_forward_where():
         def forward(self, *args):
             return torch.where(args[0] > 0, args[0], args[1])
 
+    class Where3(Module):
+        def forward(self, *args):
+            return torch.where(args[0])[0]
+
     x = torch.rand([3, 2]).float()
-    verify_model(Where1().float().eval(), input_data=[x])
+    verify_model(Where1(), input_data=[x])
     y = torch.rand([3, 2])
-    verify_model(Where2().float().eval(), input_data=[x, y])
+    verify_model(Where2(), input_data=[x, y])
+
+    # a single argument variant, equivalent to torch.nonzero(..., as_tuple=True)
+    inp = torch.rand([10])
+    inp[3:8] = 0
+    verify_trace_model(Where3(), [inp], ["llvm"])
 
 
 @tvm.testing.uses_gpu
@@ -3150,6 +3159,17 @@ def test_forward_scatter():
 
     # TODO: add scatter gpu schedule to enable gpu test.
     verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
+
+
+def test_numel():
+    class Numel(Module):
+        def forward(self, data):
+            return torch.tensor(torch.numel(data))
+
+    targets = _get_default_vm_targets()
+    verify_script_model(Numel(), [(1,)], targets)
+    verify_script_model(Numel(), [(3, 5)], targets)
+    verify_script_model(Numel(), [(3, 5, 8)], targets)
 
 
 def test_forward_pretrained_bert_base_uncased():
@@ -3455,6 +3475,7 @@ if __name__ == "__main__":
     test_forward_unbind()
     test_forward_nonzero()
     test_forward_scatter()
+    test_numel()
 
     # Model tests
     test_resnet18()

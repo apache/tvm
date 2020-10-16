@@ -28,12 +28,9 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 
 
 def get_sample_records(number):
-    """Generate random a list of random MeasureInput and MeasureResult pairs"""
+    """Generate a list of random MeasureInput and MeasureResult pairs"""
     N = 128
-    workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (N, N, N))
-    dag = auto_scheduler.ComputeDAG(workload_key)
-    target = tvm.target.Target("llvm")
-    task = auto_scheduler.SearchTask(dag, workload_key, target)
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), "llvm")
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
     states = policy.sample_initial_population(number)
 
@@ -43,11 +40,11 @@ def get_sample_records(number):
         for _ in range(len(inputs))
     ]
 
-    return task, dag, inputs, results
+    return task, inputs, results
 
 
 def test_random_model():
-    task, dag, inputs, results = get_sample_records(50)
+    task, inputs, results = get_sample_records(50)
 
     model = auto_scheduler.RandomModel()
     model.update(inputs, results)
@@ -56,7 +53,7 @@ def test_random_model():
 
 
 def test_xgb_model():
-    task, dag, inputs, results = get_sample_records(50)
+    task, inputs, results = get_sample_records(50)
 
     model = auto_scheduler.XGBModel(num_warmup_sample=-1)
     model.update(inputs, results)
@@ -66,13 +63,16 @@ def test_xgb_model():
     costs = [np.mean([x.value for x in res.costs]) for res in results]
     throughputs = np.min(costs) / costs
 
+    # test regression quality
     rmse = np.sqrt(np.mean([np.square(pred - label) for pred, label in zip(preds, throughputs)]))
     assert rmse <= 0.3
 
+    # test loading a record file
     with tempfile.NamedTemporaryFile() as fp:
         auto_scheduler.save_records(fp.name, inputs, results)
         model.update_from_file(fp.name)
 
+    # test model serialization
     with tempfile.NamedTemporaryFile() as fp:
         model.save(fp.name)
         model.load(fp.name)

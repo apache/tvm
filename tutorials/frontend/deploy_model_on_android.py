@@ -106,7 +106,7 @@ from tvm.contrib.download import download_testdata
 # --------------------------------------
 # Now we can register our Android device to the tracker.
 #
-# Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
+# Follow this `readme page <https://github.com/apache/incubator-tvm/tree/main/apps/android_rpc>`_ to
 # install TVM RPC APK on the android device.
 #
 # Here is an example of config.mk. I enabled OpenCL and Vulkan.
@@ -139,7 +139,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. note::
 #
-#   At this time, don't forget to `create a standalone toolchain <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc#architecture-and-android-standalone-toolchain>`_ .
+#   At this time, don't forget to `create a standalone toolchain <https://github.com/apache/incubator-tvm/tree/main/apps/android_rpc#architecture-and-android-standalone-toolchain>`_ .
 #
 #   for example
 #
@@ -206,7 +206,7 @@ keras_mobilenet_v2.load_weights(weights_path)
 ######################################################################
 # In order to test our model, here we download an image of cat and
 # transform its format.
-img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
 img_name = "cat.png"
 img_path = download_testdata(img_url, img_name, module="data")
 image = Image.open(img_path).resize((224, 224))

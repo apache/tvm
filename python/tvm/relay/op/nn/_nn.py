@@ -75,6 +75,22 @@ reg.register_strategy("nn.sparse_dense", strategy.sparse_dense_strategy)
 reg.register_pattern("nn.sparse_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_alter_op_layout("nn.sparse_dense")
+def alter_op_layout_sparse_dense(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of sparse_dense"""
+    return topi.nn.sparse_dense_alter_layout(attrs, inputs, tinfos, out_type)
+
+
+@reg.register_compute("nn.internal.sparse_dense_padded")
+def compute_sparse_dense_padded(attrs, inputs, out_type):
+    """Compute definition of sparse_dense_padded"""
+    raise NotImplementedError("nn.internal.sparse_dense_padded is only available on cuda")
+
+
+reg.register_strategy("nn.internal.sparse_dense_padded", strategy.sparse_dense_padded_strategy)
+reg.register_pattern("nn.internal.sparse_dense_padded", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # sparse_transpose
 @reg.register_compute("nn.sparse_transpose")
 def compute_sparse_transpose(attrs, inputs, out_type):
@@ -966,7 +982,10 @@ def dense_shape_func(attrs, inputs, _):
 def _batch_matmul_shape_func(data_shape, weight_shape):
     out = output_tensor((data_shape.shape[0],), "int64")
     for i in const_range(out.shape[0] - 1):
-        out[i] = data_shape[i]
+        if i == 0:
+            out[i] = max(data_shape[i], weight_shape[i])
+        else:
+            out[i] = data_shape[i]
     out[out.shape[0] - 1] = weight_shape[weight_shape.shape[0] - 2]
 
     return out

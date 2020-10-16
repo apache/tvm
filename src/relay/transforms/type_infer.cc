@@ -46,7 +46,7 @@
 #include <tvm/relay/transform.h>
 
 #include "../analysis/type_solver.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {

@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/runtime/vm/serialize_util.h
+ * \file src/runtime/vm/serialize_utils.h
  * \brief Definitions of helpers for serializing and deserializing a Relay VM.
  */
-#ifndef TVM_RUNTIME_VM_SERIALIZE_UTIL_H_
-#define TVM_RUNTIME_VM_SERIALIZE_UTIL_H_
+#ifndef TVM_RUNTIME_VM_SERIALIZE_UTILS_H_
+#define TVM_RUNTIME_VM_SERIALIZE_UTILS_H_
 
 #include <dmlc/common.h>
 #include <dmlc/memory_io.h>
@@ -164,4 +164,4 @@ struct VMInstructionSerializer {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_VM_SERIALIZE_UTIL_H_
+#endif  // TVM_RUNTIME_VM_SERIALIZE_UTILS_H_

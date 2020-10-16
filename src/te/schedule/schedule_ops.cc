@@ -31,8 +31,8 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../tir/transforms/ir_util.h"
-#include "../operation/op_util.h"
+#include "../../tir/transforms/ir_utils.h"
+#include "../operation/op_utils.h"
 #include "graph.h"
 
 namespace tvm {

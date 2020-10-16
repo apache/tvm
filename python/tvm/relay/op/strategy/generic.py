@@ -724,6 +724,12 @@ def sparse_dense_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("sparse_dense_padded_strategy")
+def sparse_dense_padded_strategy(attrs, inputs, out_type, target):
+    """sparse dense padded generic strategy"""
+    raise NotImplementedError("sparse_dense_padded is only implemented for cuda")
+
+
 # sparse_transpose
 @generic_func
 def schedule_sparse_transpose(attrs, outs, target):

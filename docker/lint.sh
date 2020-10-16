@@ -45,7 +45,7 @@ function run_lint_step() {
                 # NOTE: need to run git status to update some docker-side cache. Otherwise,
                 # git-clang-format will fail with "The following files would be modified but have
                 # unstaged changes:"
-                cmd=( bash -c 'git status &>/dev/null && tests/lint/git-clang-format.sh -i origin/master' )
+                cmd=( bash -c 'git status &>/dev/null && tests/lint/git-clang-format.sh -i origin/main' )
             fi
             ;;
         cpplint)
@@ -58,7 +58,7 @@ function run_lint_step() {
             if [ $inplace_fix -eq 0 ]; then
                 cmd=( tests/lint/python_format.sh )
             else
-                cmd=( tests/lint/git-black.sh -i origin/master )
+                cmd=( tests/lint/git-black.sh -i origin/main )
             fi
             ;;
         jnilint)

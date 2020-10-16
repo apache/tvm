@@ -46,7 +46,7 @@
 #include "../../../target/source/codegen_source_base.h"
 #include "../../backend/compile_engine.h"
 #include "../../op/op_common.h"
-#include "../../transforms/pass_util.h"
+#include "../../transforms/pass_utils.h"
 #include "../utils.h"
 #include "compiler.h"
 
@@ -1150,7 +1150,7 @@ void VMCompiler::Codegen() {
     }
     exec_->lib = tvm::build(build_funcs, target_host_);
   } else {
-    // There is no function handled by TVM. We create a virtual master module
+    // There is no function handled by TVM. We create a virtual main module
     // to make sure a DSO module will be also available.
     exec_->lib = codegen::CSourceModuleCreate(";", "");
   }

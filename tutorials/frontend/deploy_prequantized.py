@@ -59,7 +59,7 @@ def get_transform():
 
 
 def get_real_image(im_height, im_width):
-    img_url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
+    img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
     img_path = download_testdata(img_url, "cat.png", module="data")
     return Image.open(img_path).resize((im_height, im_width))
 

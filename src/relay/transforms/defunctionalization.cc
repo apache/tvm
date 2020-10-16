@@ -68,7 +68,7 @@
 #include <tvm/te/operation.h>
 
 #include "../analysis/type_solver.h"
-#include "../transforms/pass_util.h"
+#include "../transforms/pass_utils.h"
 namespace tvm {
 namespace relay {
 

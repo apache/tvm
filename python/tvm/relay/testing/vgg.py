@@ -26,7 +26,7 @@ from . import layers as wrapper
 
 
 def get_feature(internal_layer, layers, filters, batch_norm=False):
-    """Get VGG feature body as stacks of convoltions."""
+    """Get VGG feature body as stacks of convolutions."""
     for i, num in enumerate(layers):
         for j in range(num):
             internal_layer = wrapper.conv2d(

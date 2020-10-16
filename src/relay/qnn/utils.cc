@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file src/relay/qnn/util.cc
+ * \file src/relay/qnn/utils.cc
  * \brief Utility functions for QNN.
  */
 
-#include "util.h"
+#include "utils.h"
 
-#include "../transforms/pattern_util.h"
+#include "../transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relay {

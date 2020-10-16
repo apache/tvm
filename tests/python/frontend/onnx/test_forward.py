@@ -992,10 +992,9 @@ def test_matmul():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_batch_matmul(a_shape, b_shape, target, ctx):
+def verify_batch_matmul(a_shape, b_shape, out_shape, target, ctx):
     a_array = np.random.uniform(size=a_shape).astype("float32")
     b_array = np.random.uniform(size=b_shape).astype("float32")
-    out_np = np.matmul(a_array, b_array)
 
     mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
 
@@ -1006,21 +1005,26 @@ def verify_batch_matmul(a_shape, b_shape, target, ctx):
             helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
             helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
         ],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_np.shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)],
     )
 
     model = helper.make_model(graph, producer_name="matmul_test")
+    onnx_out = get_onnxruntime_output(model, [a_array, b_array], "float32")[0]
 
     tvm_out = get_tvm_output_with_vm(model, [a_array, b_array], target, ctx)
-    tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 # TODO(mbrookhart): enable cuda once VM supports heterogenous execution
 @tvm.testing.parametrize_targets("llvm")
 def test_batch_matmul(target, ctx):
-    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
-    verify_batch_matmul((2, 4, 3), (3, 4), target, ctx)
-    verify_batch_matmul((2, 3, 4, 3), (3, 4), target, ctx)
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4), target, ctx)
+    verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((2, 3, 4, 3), (3, 4), (2, 3, 4, 4), target, ctx)
+    # Test implicit broadcasting.
+    verify_batch_matmul((4, 3), (2, 3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((2, 4, 3), (1, 3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4), target, ctx)
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):

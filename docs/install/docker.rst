@@ -67,7 +67,7 @@ with ``localhost`` when pasting it into browser.
 
 Docker Source
 -------------
-Check out `The docker source <https://github.com/apache/incubator-tvm/tree/master/docker>`_ if you are interested in
+Check out `The docker source <https://github.com/apache/incubator-tvm/tree/main/docker>`_ if you are interested in
 building your own docker images.
 
 

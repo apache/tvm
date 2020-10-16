@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/relay/qnn/util.h
+ * \file src/relay/qnn/utils.h
  * \brief Utility methods needs for quantized ops that can be shared
  */
 
-#ifndef TVM_RELAY_QNN_UTIL_H_
-#define TVM_RELAY_QNN_UTIL_H_
+#ifndef TVM_RELAY_QNN_UTILS_H_
+#define TVM_RELAY_QNN_UTILS_H_
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/attrs.h>
@@ -216,4 +216,4 @@ static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_QNN_UTIL_H_
+#endif  // TVM_RELAY_QNN_UTILS_H_

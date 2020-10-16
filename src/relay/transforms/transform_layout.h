@@ -34,8 +34,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "infer_layout_util.h"
-#include "pattern_util.h"
+#include "infer_layout_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -264,6 +264,18 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     } else {
       Expr tmp = push_back_one_arg(new_arg);
       normal_new_args.push_back(tmp);
+    }
+  }
+
+  // If there is no FInferCorrectLayout for the type, then we just assume the layout is correct.
+  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
+  if (Op::HasAttrMap("FTVMAlterOpLayout")) {
+    static auto falter_layout = Op::GetAttrMap<FTVMAlterOpLayout>("FTVMAlterOpLayout");
+    if (ref_call->op.as<OpNode>()) {
+      Op op = Downcast<Op>(ref_call->op);
+      if (falter_layout.count(op) && !finfer_layout.count(op)) {
+        return memorizer.CallWithNewLayouts(ref_call, normal_new_args);
+      }
     }
   }
 

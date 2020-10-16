@@ -32,11 +32,12 @@ import tvm.relay
 from tvm.micro.contrib import zephyr
 from tvm.contrib import util
 
-BUILD = False
+BUILD = True
 DEBUG = False
 
 
-TARGET = tvm.target.target.micro("stm32f746xx")
+#TARGET = tvm.target.target.micro("stm32f746xx")
+TARGET = tvm.target.target.micro("host")
 
 
 def _make_sess_from_op(op_name, sched, arg_bufs):
@@ -60,7 +61,8 @@ def _make_session(mod):
     project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
     compiler = zephyr.ZephyrCompiler(
         project_dir=project_dir,
-        board="nucleo_f746zg",
+        board="qemu_x86",
+#        board="nucleo_f746zg",
         zephyr_toolchain_variant="zephyr",
     )
 

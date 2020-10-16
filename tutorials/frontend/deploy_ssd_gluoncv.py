@@ -73,7 +73,7 @@ dshape = (1, 3, 512, 512)
 # Download and pre-process demo image
 
 im_fname = download_testdata(
-    "https://github.com/dmlc/web-data/blob/master/" + "gluoncv/detection/street_small.jpg?raw=true",
+    "https://github.com/dmlc/web-data/blob/main/" + "gluoncv/detection/street_small.jpg?raw=true",
     "street_small.jpg",
     module="data",
 )

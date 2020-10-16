@@ -31,8 +31,8 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/data_layout.h>
 
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {

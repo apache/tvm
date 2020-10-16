@@ -43,7 +43,7 @@
 
 #include "./combine_parallel_op_batch.h"
 #include "./expr_subst.h"
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

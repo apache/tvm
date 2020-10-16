@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file ir_util.h
+ * \file ir_utils.h
  * \brief Helper functions to construct and compose IR nodes.
  */
-#ifndef TVM_TIR_TRANSFORMS_IR_UTIL_H_
-#define TVM_TIR_TRANSFORMS_IR_UTIL_H_
+#ifndef TVM_TIR_TRANSFORMS_IR_UTILS_H_
+#define TVM_TIR_TRANSFORMS_IR_UTILS_H_
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
@@ -170,4 +170,4 @@ Stmt ConvertSSA(Stmt stmt);
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_IR_UTIL_H_
+#endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_

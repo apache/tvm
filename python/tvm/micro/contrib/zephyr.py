@@ -570,8 +570,6 @@ class ZephyrQemuTransport(Transport):
             self.fd_transport = None
 
         if self.proc is not None:
-            #            self.proc.wait()
-            #            self.proc.terminate()
             self.proc = None
 
         if self.pipe_dir is not None:

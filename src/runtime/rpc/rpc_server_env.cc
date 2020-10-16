@@ -23,7 +23,7 @@
  */
 #include <tvm/runtime/registry.h>
 
-#include "../file_util.h"
+#include "../file_utils.h"
 
 namespace tvm {
 namespace runtime {

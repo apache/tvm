@@ -40,9 +40,9 @@
 
 #include <vector>
 
-#include "../../transforms/infer_layout_util.h"
-#include "../../transforms/pass_util.h"
-#include "../../transforms/pattern_util.h"
+#include "../../transforms/infer_layout_utils.h"
+#include "../../transforms/pass_utils.h"
+#include "../../transforms/pattern_utils.h"
 #include "../make_op.h"
 #include "../op_common.h"
 

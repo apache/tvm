@@ -19,7 +19,7 @@
 import ast
 import sys
 from .runtime import HYBRID_GLOBALS
-from .util import _internal_assert
+from .utils import _internal_assert
 
 
 class PyVariableUsage(ast.NodeVisitor):

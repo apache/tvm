@@ -60,7 +60,7 @@ MODEL_NAME = "yolov3"
 # Download cfg and weights file if first time.
 CFG_NAME = MODEL_NAME + ".cfg"
 WEIGHTS_NAME = MODEL_NAME + ".weights"
-REPO_URL = "https://github.com/dmlc/web-data/blob/master/darknet/"
+REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
 CFG_URL = REPO_URL + "cfg/" + CFG_NAME + "?raw=true"
 WEIGHTS_URL = "https://pjreddie.com/media/files/" + WEIGHTS_NAME
 

@@ -55,14 +55,7 @@ def main(args):
         silent=args.silent,
         microtvm_debugger=args.microtvm_debugger,
     )
-    if args.microtvm_debugger:
-        old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
-        try:
-            server.proc.join()
-        finally:
-            signal.signal(signal.SIGINT, old_sigint_handler)
-    else:
-        server.proc.join()
+    server.proc.join()
 
 
 if __name__ == "__main__":
@@ -91,9 +84,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--custom-addr", type=str, help="Custom IP Address to Report to RPC Tracker"
     )
-    parser.add_argument(
-        "--microtvm-debugger", action='store_true',
-        help="When specified, configure the server for microTVM debugging")
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

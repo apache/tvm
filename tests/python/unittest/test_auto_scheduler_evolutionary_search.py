@@ -69,7 +69,6 @@ def test_mutate_tile_size():
     assert found
 
 
-@pytest.mark.skip(reason="flaky")
 def test_mutate_parallel():
     """
     The test case initializes evo search with a batch of "bad" states and check whether
@@ -95,20 +94,18 @@ def test_mutate_parallel():
                 scores.append(1 if self.is_good_state(state) else 0)
             return scores
 
-    workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (1024, 1024, 1024))
-    dag = auto_scheduler.ComputeDAG(workload_key)
-    task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.Target("llvm"))
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (1024, 1024, 1024), "llvm")
     policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
-    states = policy.sample_initial_population(100)
-
-    bad_states = []
-    for state in states:
-        if not MockCostModel.is_good_state(state):
-            bad_states.append(state)
 
     found = False
     retry_ct = 0
-    while retry_ct < 5 and not found:
+    while retry_ct < 10 and not found:
+        states = policy.sample_initial_population(100)
+        bad_states = []
+        for state in states:
+            if not MockCostModel.is_good_state(state):
+                bad_states.append(state)
+
         new_states = policy.evolutionary_search(bad_states, 50)
         for state in new_states:
             if MockCostModel.is_good_state(state):

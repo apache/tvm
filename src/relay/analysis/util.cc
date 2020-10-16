@@ -31,7 +31,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/pattern_functor.h>
 
-#include "../transforms/pass_util.h"
+#include "../transforms/pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -71,7 +71,7 @@ class TypeVarTVisitor : public TypeVisitor {
   InsertionSet<TypeVar>* bound_type_vars_;
 };
 
-class TypeVarEVisitor : private ExprVisitor {
+class TypeVarEVisitor : private MixedModeVisitor {
  public:
   explicit TypeVarEVisitor(const IRModule& mod) : mod_(mod) {}
 
@@ -131,6 +131,8 @@ class TypeVarEVisitor : private ExprVisitor {
     return CollectAll();
   }
 
+  using MixedModeVisitor::VisitExpr_;
+
   void VisitExpr_(const FunctionNode* f) final {
     for (const auto& tp : f->type_params) {
       type_vars_.Insert(tp);
@@ -159,7 +161,7 @@ class TypeVarEVisitor : private ExprVisitor {
   const IRModule& mod_;
 };
 
-class VarVisitor : protected ExprVisitor, protected PatternVisitor {
+class VarVisitor : protected MixedModeVisitor, protected PatternVisitor {
  public:
   Array<Var> Free(const Expr& expr) {
     this->VisitExpr(expr);
@@ -203,6 +205,8 @@ class VarVisitor : protected ExprVisitor, protected PatternVisitor {
     bound_vars_.Insert(v);
     vars_.Insert(v);
   }
+
+  using MixedModeVisitor::VisitExpr_;
 
   void VisitExpr_(const VarNode* var) final { vars_.Insert(GetRef<Var>(var)); }
 
