@@ -47,3 +47,27 @@ pub mod runtime;
 pub mod transform;
 
 pub use runtime::version;
+
+#[macro_export]
+macro_rules! export {
+    ($($fn_names:expr),*) => {
+        pub fn tvm_export(ns: &str) -> Result<(), tvm::Error> {
+            $(
+                register_override($fn_name, concat!($ns, stringfy!($fn_name)), true)?;
+            )*
+            Ok(())
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! export_mod {
+    ($ns:expr, $($mod_name:expr),*) => {
+        pub fn tvm_mod_export() -> Result<(), tvm::Error> {
+            $(
+                $mod_names::tvm_export($ns)?;
+            )*
+            Ok(())
+        }
+    }
+}

@@ -135,6 +135,7 @@ pub struct DiagnosticRendererNode {
     pub base: Object,
     // TODO(@jroesch): we can't easily exposed packed functions due to
     // memory layout
+    // missing field here
 }
 
 //     def render(self, ctx):
@@ -283,11 +284,10 @@ pub mod codespan {
     pub fn init() -> Result<()> {
         let mut files: SimpleFiles<String, String> = SimpleFiles::new();
         let render_fn = move |diag_ctx: DiagnosticContext| {
-            // let source_map = diag_ctx.module.source_map;
-            // for diagnostic in diag_ctx.diagnostics {
-
-            // }
-            panic!("render_fn");
+            let source_map = diag_ctx.module.source_map.clone();
+            for diagnostic in diag_ctx.diagnostics.clone() {
+                println!("Diagnostic: {}", diagnostic.message);
+            }
         };
 
         override_renderer(Some(render_fn))?;

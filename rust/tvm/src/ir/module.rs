@@ -25,6 +25,7 @@ use crate::runtime::{external, Object, ObjectRef};
 
 use super::expr::GlobalVar;
 use super::function::BaseFunc;
+use super::source_map::SourceMap;
 
 use std::io::Result as IOResult;
 use std::path::Path;
@@ -43,6 +44,8 @@ pub struct IRModuleNode {
     pub base: Object,
     pub functions: Map<GlobalVar, BaseFunc>,
     pub type_definitions: Map<GlobalTypeVar, TypeData>,
+    pub source_map: SourceMap,
+    // TODO(@jroesch): this is missing some fields
 }
 
 external! {

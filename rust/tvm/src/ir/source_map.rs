@@ -12,7 +12,7 @@
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * KIND, either exprss or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -20,23 +20,27 @@
 use crate::runtime::map::Map;
 use crate::runtime::object::Object;
 
+use super::span::{SourceName, Span};
+
+use tvm_macros::Object;
+
 /// A program source in any language.
 ///
 /// Could represent the source from an ML framework or a source of an IRModule.
 #[repr(C)]
 #[derive(Object)]
 #[type_key = "Source"]
-#[ref_key = "Source"]
-struct SourceNode {
+#[ref_name = "Source"]
+pub struct SourceNode {
     pub base: Object,
-    /*! \brief The source name. */
-   SourceName source_name;
+    /// The source name. */
+    pub source_name: SourceName,
 
-   /*! \brief The raw source. */
-   String source;
+    /// The raw source. */
+    source: String,
 
-   /*! \brief A mapping of line breaks into the raw source. */
-   std::vector<std::pair<int, int>> line_map;
+   // A mapping of line breaks into the raw source.
+   // std::vector<std::pair<int, int>> line_map;
 }
 
 
@@ -53,8 +57,8 @@ struct SourceNode {
 #[repr(C)]
 #[derive(Object)]
 #[type_key = "SourceMap"]
-#[ref_key = "SourceMap"]
-struct SourceMapNode {
+#[ref_name = "SourceMap"]
+pub struct SourceMapNode {
     pub base: Object,
    /// The source mapping.
    pub source_map: Map<SourceName, Source>,

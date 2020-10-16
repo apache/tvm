@@ -22,14 +22,22 @@ use tvm;
 use tvm::runtime::function::register_override;
 
 fn test_fn() -> Result<(), tvm::Error> {
-    println!("Hello from Rust!");
+    println!("Hello Greg from Rust!");
     Ok(())
 }
+
+fn test_fn2(message: tvm::runtime::string::String) -> Result<(), tvm::Error> {
+    println!("The message: {}", message);
+    Ok(())
+}
+
+tvm::export!(test_fn, test_fn2);
 
 #[no_mangle]
 fn compiler_ext_initialize() -> i32 {
     let _ = env_logger::try_init();
-    register_override(test_fn, "rust_ext.test_fn", true).expect("failed to initialize simplifier");
+    tvm_export("rust_ext")
+        .expect("failed to initialize Rust compiler_ext");
     log::debug!("done!");
     return 0;
 }
