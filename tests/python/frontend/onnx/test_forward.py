@@ -3671,59 +3671,16 @@ def verify_loop():
     x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
     y = np.array([-2]).astype(np.float32)
 
-    x_const_node = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['x'],
-        value=helper.make_tensor(
-            name='const_tensor_x',
-            data_type=TensorProto.FLOAT,
-            dims=x.shape,
-            vals=x.flatten().astype(float),
-        )
-    )
-
-    one_const_node = helper.make_node(
-        'Constant',
-        inputs=[],
-        outputs=['one'],
-        value=helper.make_tensor(
-            name='const_tensor_one',
-            data_type=TensorProto.INT64,
-            dims=(),
-            vals=[1]
-        )
-    )
-
-    i_add_node = helper.make_node(
-        'Add',
-        inputs=['iter_count', 'one'],
-        outputs=['end']
-    )
-
-    start_unsqueeze_node = helper.make_node(
-        'Unsqueeze',
+    iter_cast_node = helper.make_node(
+        'Cast',
         inputs=['iter_count'],
-        outputs=['slice_start'],
-        axes=[0]
-    )
-
-    end_unsqueeze_node = helper.make_node(
-        'Unsqueeze',
-        inputs=['end'],
-        outputs=['slice_end'],
-        axes=[0]
-    )
-
-    slice_node = helper.make_node(
-        'Slice',
-        inputs=['x', 'slice_start', 'slice_end'],
-        outputs=['slice_out']
+        outputs=['iter_cast'],
+        to=onnx.TensorProto.FLOAT
     )
 
     y_add_node = helper.make_node(
         'Add',
-        inputs=['y_in', 'slice_out'],
+        inputs=['y_in', 'iter_cast'],
         outputs=['y_out']
     )
 
@@ -3733,25 +3690,17 @@ def verify_loop():
         outputs=['cond_out']
     )
 
-    scan_identity_node = helper.make_node(
-        'Identity',
-        inputs=['y_out'],
-        outputs=['scan_out']
-    )
-
     loop_body = helper.make_graph(
-        [identity_node, x_const_node, one_const_node, i_add_node,
-        start_unsqueeze_node, end_unsqueeze_node, slice_node, y_add_node,
-        scan_identity_node],
+        [identity_node, iter_cast_node, y_add_node],
         'loop_body',
         [iter_count, cond_in, y_in],
-        [cond_out, y_out, scan_out]
+        [cond_out, y_out]
     )
 
     loop_node = helper.make_node(
         'Loop',
         inputs=['trip_count', 'cond', 'y'],
-        outputs=['res_y', 'res_scan'],
+        outputs=['res_y'],
         body=loop_body
     )
 
@@ -3764,8 +3713,7 @@ def verify_loop():
         inputs=[onnx.helper.make_tensor_value_info('trip_count', onnx.TensorProto.INT64, []),
                 onnx.helper.make_tensor_value_info('cond', onnx.TensorProto.BOOL, []),
                 onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [1])],
-        outputs=[onnx.helper.make_tensor_value_info('res_y', onnx.TensorProto.FLOAT, [1]),
-                onnx.helper.make_tensor_value_info('res_scan', onnx.TensorProto.FLOAT, [5, 1])]
+        outputs=[onnx.helper.make_tensor_value_info('res_y', onnx.TensorProto.FLOAT, [1])]
     )
     loop_model = onnx.helper.make_model(loop_graph)
 

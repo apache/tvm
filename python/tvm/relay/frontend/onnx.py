@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from collections import OrderedDict
+import warnings
 import numpy as np
 import tvm
 import onnx
@@ -2050,7 +2051,7 @@ class Loop(OnnxOpConverter):
                 out_loop = _op.less(i, max_count)
 
             if is_condition_for_loop:
-                return _op.logical_or(out_while, out_loop)
+                return _op.logical_and(out_while, out_loop)
             elif is_for_loop:
                 return out_loop
             return out_while
@@ -2086,7 +2087,8 @@ class Loop(OnnxOpConverter):
         loop_var_names = [v.name_hint for v in loop_vars]
 
         num_scan_outputs = len(body.output) - (1 + num_deps)
-        scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i], scan=True) for i in range(num_scan_outputs)]
+        if num_scan_outputs != 0:
+            warnings.warn("Loop conversion does not currently support scan outputs. They will be ignored.")
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2103,7 +2105,6 @@ class Loop(OnnxOpConverter):
             max_count = loop_inputs[1]
             cond = loop_inputs[2]
             current_vars = list(loop_inputs[3:(3 + num_deps)])
-            scan_outputs = loop_inputs[(3 + num_deps):]
 
             # Prepare body inputs by adding them to node dictionary.
             new_inputs = [loop_count, max_count, cond] + current_vars
@@ -2116,30 +2117,35 @@ class Loop(OnnxOpConverter):
             # Unpack the body outputs and prepare variables for next iteration.
             new_cond = loop_outputs[0]
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
-            new_scan_outputs = [loop_outputs[i] for i in range(1 + num_deps, len(loop_outputs))]
 
             # Increment counter.
             if max_loop_count is not None:
                 incr = _expr.const(1, dtype=iter_dtype)
                 loop_count = loop_count + incr
 
-            # Add new scan outputs to tracking
-            combined_scan_outputs = []
-            for i, scan in enumerate(scan_outputs):
-                new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
-                combined_scan = _op.concatenate([scan, new_scan], axis=0)
-                combined_scan_outputs.append(combined_scan)
-
             # Pack loop outputs for next iteration
             # [iter_count, cond, loop_deps, loop_scans]
-            return [loop_count, max_count, new_cond] + new_loop_vars + combined_scan_outputs
+            return [loop_count, max_count, new_cond] + new_loop_vars
 
-        loop = _loops.while_loop(cond_fn, loop_vars + scan_output_vars, body_fn)
+        # Create the loop function.
+        loop = _loops.while_loop(cond_fn, loop_vars, body_fn)
+
         # Now need to run initial values through the graph.
-        # make empty constant with zero rank.
         init_count = _expr.const(0, dtype=iter_dtype)
-        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, _op.reshape(_expr.const([], dtype='float32'), [0, 1]))
-        outputs = _expr.TupleWrapper(_expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)]), num_deps + num_scan_outputs)
+        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps)
+
+        # Extract final iteration outputs.
+        if num_deps == 1:
+            outputs = _expr.TupleGetItem(loop_vals, 3)
+        else:
+            outputs = [_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps)]
+
+        # Wrap outputs in a tuple if needed and add 0s for each scan output.
+        # TODO (jwfromm) Add support for scan outputs once type unification is fixed.
+        if num_scan_outputs != 0 or isinstance(outputs, list):
+            if not isinstance(outputs, list):
+                outputs = [outputs]
+            outputs = _expr.TupleWrapper(_expr.Tuple(outputs + [_expr.const(0) for i in range(num_scan_outputs)]), num_deps + num_scan_outputs)
 
         # Update outer graph with constants found in the subgraph.
         free_vars = analysis.free_vars(loop)
@@ -2343,7 +2349,8 @@ class GraphProto:
     def freeze(self, func, params):
         bind_map = {}
         for name in params.keys():
-            bind_map[self._nodes[name]] = _expr.const(params[name])
+            if name in self._nodes.keys():
+                bind_map[self._nodes[name]] = _expr.const(params[name])
         body = _expr.bind(func.body, bind_map)
         fn = _function.Function(analysis.free_vars(body), body)
         return fn, {}
@@ -2639,8 +2646,6 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             try:
                 onnx.checker.check_model(model)
             except onnx.onnx_cpp2py_export.checker.ValidationError as e:
-                import warnings
-
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:
