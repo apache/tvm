@@ -31,7 +31,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
-#include <tvm/support/diagnostic.h>
+#include <tvm/support/logging.h>
 
 #include <fstream>
 #include <string>

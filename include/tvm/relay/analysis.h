@@ -29,7 +29,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/type.h>
-#include <tvm/support/diagnostic.h>
+#include <tvm/support/logging.h>
 
 #include <string>
 #include <unordered_map>

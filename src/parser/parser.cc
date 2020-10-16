@@ -30,7 +30,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/diagnostic.h>
+#include <tvm/support/logging.h>
 
 #include <fstream>
 

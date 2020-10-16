@@ -18,24 +18,17 @@
  */
 
 /*!
- * \file src/ir/transform.cc
- * \brief Infrastructure for transformation passes.
+ * \file src/ir/diagnostic_context.cc
+ * \brief Implementation of DiagnosticContext and friends.
  */
+#include <tvm/ir/diagnostic_context.h>
 #include <tvm/parser/source_map.h>
-#include <tvm/support/diagnostic_context.h>
 
 #include <rang.hpp>
 
 namespace tvm {
 
 using tvm::parser::Source;
-
-const char* kTVM_INTERNAL_ERROR_MESSAGE =
-    "\n---------------------------------------------------------------\n"
-    "An internal invariant was violated during the execution of TVM.\n"
-    "Please read TVM's error reporting guidelines.\n"
-    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
-    "---------------------------------------------------------------\n";
 
 // failed to check to argument arg0.dims[0] != 0
 

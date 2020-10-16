@@ -18,13 +18,9 @@
  */
 
 /*!
- * \file diagnostic.h
+ * \file diagnostic_context.h
  * \brief A new diagnostic interface for TVM error reporting.
  *
- * A prototype of the new diagnostic reporting interface for TVM.
- *
- * Eventually we hope to promote this file to the top-level and
- * replace the existing errors.h.
  */
 
 #ifndef TVM_IR_DIAGNOSTIC_CONTEXT_H_
