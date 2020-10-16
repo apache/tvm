@@ -40,7 +40,6 @@ int mkdir(const char* path, int /* ignored */) { return _mkdir(path); }
 #include <string>
 #include <vector>
 
-#include "../../src/runtime/file_utils.h"
 #include "../../src/support/utils.h"
 #include "rpc_env.h"
 
@@ -115,7 +114,15 @@ RPCEnv::RPCEnv() {
         std::string file_name = this->GetPath(args[0]);
         file_name = BuildSharedLibrary(file_name);
         std::string bin;
-        LoadBinaryFromFile(file_name, &bin);
+
+        std::ifstream fs(file_name, std::ios::in | std::ios::binary);
+        CHECK(!fs.fail()) << "Cannot open " << file_name;
+        fs.seekg(0, std::ios::end);
+        size_t size = static_cast<size_t>(fs.tellg());
+        fs.seekg(0, std::ios::beg);
+        bin.resize(size);
+        fs.read(dmlc::BeginPtr(bin), size);
+
         TVMByteArray binarr;
         binarr.data = bin.data();
         binarr.size = bin.length();
