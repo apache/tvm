@@ -24,7 +24,10 @@ if [[ ! "$1" =~ ^[0-9].[0-9].[0-9]$ ]]; then
     exit 2
 fi
 
-ALL_PROVIDERS=( virtualbox )
+ALL_PROVIDERS=( \
+#    virtualbox \
+    parallels \
+)
 for provider in "${ALL_PROVIDERS[@]}"; do
     set -x
     packer build -var-file=api-token "${SKIP_ADD[@]}" -var "provider=${provider}" -var "version=$1" packer.hcl

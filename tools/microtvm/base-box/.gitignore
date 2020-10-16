@@ -1,4 +1,4 @@
 /api-token
 *.box
 .vagrant
-/output-vagrant
+/output-vagrant-*

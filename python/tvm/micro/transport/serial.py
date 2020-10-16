@@ -86,14 +86,18 @@ class SerialTransport(Transport):
         to_return = bytearray()
         while True:
             timeout_remaining = end_time - time.monotonic()
-            if timeout_remaining < 0:
+            if timeout_sec != 0 and timeout_remaining < 0:
                 break
 
             # Read until *something* can be returned. If nothing is sent within 10 chars' time, stop.
             # 10 is an arbitrary number.
-            self._port.timeout_sec = min(timeout_remaining, 1 / self._port.baudrate * 5)
+            self._port.timeout = 1 / self._port.baudrate * 5
             try:
-                to_return.extend(self._port.read(n))
+                data = self._port.read(n if timeout_sec != 0 else 1)
+                if not data and to_return:
+                    break
+
+                to_return.extend(data)
             except serial.SerialTimeoutException:
                 if to_return:
                     break
@@ -103,16 +107,8 @@ class SerialTransport(Transport):
         else:
             return to_return
 
-        while True:
-            this_round = self._port.read(n - len(to_return))
-            if not this_round:
-                break
-            to_return.extend(this_round)
-
-        return to_return
-
     def write(self, data, timeout_sec):
-        self._port.write_timeout_sec = timeout_sec
+        self._port.write_timeout = timeout_sec
         try:
             to_return = self._port.write(data)
             self._port.flush()

@@ -165,21 +165,24 @@ class GdbDebugger(Debugger):
         t.start()
 
     def stop(self):
-        assert self._is_running
+        if not self._is_running:
+            return
+
         signal.signal(signal.SIGINT, self.old_sigint_handler)
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_termios)
 
-        children = psutil.Process(self.popen.pid).children(recursive=True)
-        for c in children:
-            c.terminate()
-        _, alive = psutil.wait_procs(
-            children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
-        for a in alive:
-            a.kill()
-
-        self.__class__._STARTED_INSTANCE = None
-        self._is_running = False
-        self._run_on_terminate_callbacks()
+        try:
+            children = psutil.Process(self.popen.pid).children(recursive=True)
+            for c in children:
+                c.terminate()
+            _, alive = psutil.wait_procs(
+                children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
+            for a in alive:
+                a.kill()
+        finally:
+            self.__class__._STARTED_INSTANCE = None
+            self._is_running = False
+            self._run_on_terminate_callbacks()
 
 
 atexit.register(GdbDebugger._stop_all)

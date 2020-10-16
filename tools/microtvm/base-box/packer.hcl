@@ -8,9 +8,10 @@
     "builders": [
         {
             "type": "vagrant",
+            "output_dir": "output-vagrant-{{user `provider`}}",
             "communicator": "ssh",
             "source_path": "generic/ubuntu2004",
-            "provider": "virtualbox",
+            "provider": "{{user `provider`}}",
             "template": "Vagrantfile.packer-template",
             "skip_add": "{{user `skip_add`}}"
         }

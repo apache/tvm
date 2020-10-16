@@ -76,9 +76,10 @@ def get_lib_list():
         else:
             assert False, f"sys.platform {sys.platform} is not supported"
         LIB_LIST = [
-            "../build/libtvm_runtime.{so_ext}",
-            "../build/libtvm.{so_ext}",
+            f"{CURRENT_DIR}/../build-microtvm/libtvm_runtime.{so_ext}",
+            f"{CURRENT_DIR}/../build-microtvm/libtvm.{so_ext}",
         ]
+        print('COMPUTED LIB LIST', LIB_LIST)
         # read_libinfo()
         # lib_path = LIBINFO["find_lib_path"]()
         # LIB_LIST = [lib_path[0]]

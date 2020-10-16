@@ -33,7 +33,7 @@ from tvm.micro.contrib import zephyr
 from tvm.contrib import util
 
 BUILD = False
-DEBUG = True
+DEBUG = False
 
 
 TARGET = tvm.target.target.micro("stm32f746xx")
