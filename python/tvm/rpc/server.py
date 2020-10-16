@@ -377,10 +377,6 @@ class Server(object):
 
     silent: bool, optional
         Whether run this server in silent mode.
-
-    microtvm_debugger: bool, optional
-        If True, configure the RPC server to debug microTVM binaries. Specifically, disables
-        SIGINT while the debugger is running.
     """
 
     def __init__(
@@ -395,7 +391,6 @@ class Server(object):
         load_library=None,
         custom_addr=None,
         silent=False,
-        microtvm_debugger=False,
     ):
         try:
             if _ffi_api.ServerLoop is None:
@@ -407,10 +402,6 @@ class Server(object):
         self.libs = []
         self.custom_addr = custom_addr
         self.use_popen = use_popen
-        self.microtvm_debugger = microtvm_debugger
-
-        if microtvm_debugger:
-            from ..micro import debugger as _
 
         if silent:
             logger.setLevel(logging.ERROR)
@@ -433,10 +424,6 @@ class Server(object):
                 cmd += ["--custom-addr", custom_addr]
             if silent:
                 cmd += ["--silent"]
-            if utvm_dev_id is not None:
-                assert utvm_dev_config_args is not None
-                cmd += [f"--utvm-dev-id={utvm_dev_id}"]
-                cmd += [f"--utvm-dev-config-args={utvm_dev_config_args}"]
 
             # prexec_fn is not thread safe and may result in deadlock.
             # python 3.2 introduced the start_new_session parameter as
@@ -471,8 +458,7 @@ class Server(object):
             self.sock = sock
             self.proc = multiprocessing.Process(
                 target=_listen_loop,
-                args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr,
-                      self.microtvm_debugger),
+                args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr),
             )
             self.proc.start()
         else:

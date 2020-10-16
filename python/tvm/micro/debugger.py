@@ -128,9 +128,12 @@ class GdbDebugger(Debugger):
         if cls._STARTED_INSTANCE is not None:
             with cls._STARTED_INSTANCE._child_alive_lock:
                 exists = cls._STARTED_INSTANCE._is_child_alive
+            print('exists?', exists)
             if exists:
                 try:
+                    print('kill')
                     ret = os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
+                    print('kill-done')
                     return
                 except ProcessLookupError as e:
                     pass
@@ -174,7 +177,7 @@ class GdbDebugger(Debugger):
         for a in alive:
             a.kill()
 
-        self._STARTED_INSTANCE = None
+        self.__class__._STARTED_INSTANCE = None
         self._is_running = False
         self._run_on_terminate_callbacks()
 

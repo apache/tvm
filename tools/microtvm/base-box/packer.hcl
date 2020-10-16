@@ -3,7 +3,7 @@
         "provider": null,
         "version": null,
         "access_token": null,
-        "skip_add": false
+        "skip_add": "false"
     },
     "builders": [
         {

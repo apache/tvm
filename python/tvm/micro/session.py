@@ -132,6 +132,7 @@ class Session:
             if timeouts is None:
                 timeouts = self.transport.timeouts()
 
+            print('start timeout', timeouts.session_start_timeout_sec)
             self._rpc = RPCSession(
                 _rpc_connect(
                     self.session_name,

@@ -159,7 +159,8 @@ class MicroTransportChannel : public RPCChannel {
                                               end_time - ::std::chrono::steady_clock::now()));
 
       if (!ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, time_remaining)) {
-        if (end_time >= session_start_end_time) {
+        if (session_start_timeout_ != ::std::chrono::microseconds::zero() &&
+            end_time >= session_start_end_time) {
           break;
         }
         end_time += session_start_retry_timeout_;

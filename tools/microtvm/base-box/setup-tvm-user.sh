@@ -5,7 +5,7 @@ pip3 install --user -U west
 echo 'export PATH=$HOME/.local/bin:"$PATH"' >> ~/.profile
 source ~/.profile
 echo PATH=$PATH
-west init --mr v2.3.0 ~/zephyr
+west init --mr v2.4.0 ~/zephyr
 cd ~/zephyr
 west update
 west zephyr-export

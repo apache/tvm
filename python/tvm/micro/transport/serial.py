@@ -74,6 +74,9 @@ class SerialTransport(Transport):
         self._OPEN_PORTS.append(self._port)
 
     def close(self):
+        if self._port is None:
+            return
+
         self._port.close()
         self._OPEN_PORTS.remove(self._port)
         self._port = None

@@ -19,8 +19,14 @@ if [ ! -e api-token ]; then
     exit 2
 fi
 
+if [[ ! "$1" =~ ^[0-9].[0-9].[0-9]$ ]]; then
+    echo "version: must be x.y.z; got $1"
+    exit 2
+fi
+
 ALL_PROVIDERS=( virtualbox )
 for provider in "${ALL_PROVIDERS[@]}"; do
     set -x
     packer build -var-file=api-token "${SKIP_ADD[@]}" -var "provider=${provider}" -var "version=$1" packer.hcl
+    set +x
 done
