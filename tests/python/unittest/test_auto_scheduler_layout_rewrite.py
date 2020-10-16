@@ -131,7 +131,6 @@ def test_correctness_layout_rewrite_with_pre_transpose():
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
-        print(">>>")
         s, bufs = dag.apply_steps_from_state(inp.state,
             layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPreTranspose"])
         print(bufs)
@@ -163,4 +162,4 @@ def test_correctness_layout_rewrite_with_pre_transpose():
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
     # test_correctness_layout_rewrite_with_placeholder()
-    # test_correctness_layout_rewrite_with_pre_transpose()
+    test_correctness_layout_rewrite_with_pre_transpose()

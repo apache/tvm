@@ -929,21 +929,20 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
           new_stride.Set(i, temp);
           temp *= new_shape[i];
         }
-        Array<PrimExpr> access_indices;
-        for (size_t indice_index = 0; indice_index < origin_shape.size(); indice_index++) {
-          PrimExpr temp = Integer(0);
-          for (size_t i = 0; i < new_shape.size(); i++) {
-            if (origin_axes[indice_index].compare(new_axes[i]) == 0) {
-              temp += new_shape[i] * new_stride[i];
-            }
-          }
-          access_indices.push_back(temp);
-        }
-
         // Add extra layout transpose stage
         const auto& layout_transform_tensor = te::compute(new_shape,
-            [&new_stride, &placeholder_op, &access_indices]
-              (const tvm::runtime::Array<tvm::tir::Var>& i) -> tvm::PrimExpr {
+            [&new_stride, &placeholder_op, &origin_shape, &new_shape, &origin_axes, &new_axes]
+              (const tvm::runtime::Array<tvm::tir::Var>& indices) -> tvm::PrimExpr {
+              Array<PrimExpr> access_indices;
+              for (size_t indice_index = 0; indice_index < origin_shape.size(); indice_index++) {
+                PrimExpr temp = Integer(0);
+                for (size_t i = 0; i < new_shape.size(); i++) {
+                  if (origin_axes[indice_index].compare(new_axes[i]) == 0) {
+                    temp += indices[i] * new_stride[i];
+                  }
+                }
+                access_indices.push_back(temp);
+              }
               return placeholder_op.output(0)(access_indices);
             }, "auto_schedule_layout_transpose");
         new_op_to_update = layout_transform_tensor->op;
