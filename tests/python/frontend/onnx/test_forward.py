@@ -3668,7 +3668,6 @@ def verify_loop():
     cond_out = helper.make_tensor_value_info('cond_out', TensorProto.BOOL, [])
     iter_count = helper.make_tensor_value_info('iter_count', TensorProto.INT64, [])
 
-    x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
     y = np.array([-2]).astype(np.float32)
 
     iter_cast_node = helper.make_node(
@@ -3690,17 +3689,23 @@ def verify_loop():
         outputs=['cond_out']
     )
 
+    scan_identity_node = helper.make_node(
+        'Identity',
+        inputs=['y_out'],
+        outputs=['scan_out']
+    )
+
     loop_body = helper.make_graph(
-        [identity_node, iter_cast_node, y_add_node],
+        [identity_node, iter_cast_node, y_add_node, scan_identity_node],
         'loop_body',
         [iter_count, cond_in, y_in],
-        [cond_out, y_out]
+        [cond_out, y_out, scan_out]
     )
 
     loop_node = helper.make_node(
         'Loop',
         inputs=['trip_count', 'cond', 'y'],
-        outputs=['res_y'],
+        outputs=['res_y', 'res_scan'],
         body=loop_body
     )
 
@@ -3713,7 +3718,8 @@ def verify_loop():
         inputs=[onnx.helper.make_tensor_value_info('trip_count', onnx.TensorProto.INT64, []),
                 onnx.helper.make_tensor_value_info('cond', onnx.TensorProto.BOOL, []),
                 onnx.helper.make_tensor_value_info('y', onnx.TensorProto.FLOAT, [1])],
-        outputs=[onnx.helper.make_tensor_value_info('res_y', onnx.TensorProto.FLOAT, [1])]
+        outputs=[onnx.helper.make_tensor_value_info('res_y', onnx.TensorProto.FLOAT, [1]),
+                 onnx.helper.make_tensor_value_info('res_scan', onnx.TensorProto.FLOAT, [5, 1])]
     )
     loop_model = onnx.helper.make_model(loop_graph)
 
@@ -3724,8 +3730,9 @@ def verify_loop():
 
     for target, ctx in [('llvm', tvm.cpu())]:
         tvm_out = get_tvm_output_with_vm(loop_model, input_vals, target, ctx, freeze_params=True)
-        tvm.testing.assert_allclose(
-            onnx_out[0], tvm_out, rtol=1e-05, atol=1e-05)
+        for i in range(len(tvm_out)):
+            tvm.testing.assert_allclose(
+                onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
 
 if __name__ == "__main__":

@@ -2087,8 +2087,7 @@ class Loop(OnnxOpConverter):
         loop_var_names = [v.name_hint for v in loop_vars]
 
         num_scan_outputs = len(body.output) - (1 + num_deps)
-        if num_scan_outputs != 0:
-            warnings.warn("Loop conversion does not currently support scan outputs. They will be ignored.")
+        scan_output_vars = [get_var(body.input[i + 2].name + "_scan", loop_deps[i], scan=True) for i in range(num_scan_outputs)]
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2096,15 +2095,15 @@ class Loop(OnnxOpConverter):
         while len(body.input) != 0:
             body.input.pop(0)
 
-        # New strategy: populate g._nodes with the values needed
-        # by the next iteration. Then run node conversion on the updated
-        # inputs to build a progressively larger expression as needed.
+        # Define the loop body, in this function we need to unpack loop inputs,
+        # convert the loop subgraph, and pack outputs for the next iteration.
         def body_fn(*loop_inputs):
             # Unpack inputs
             loop_count = loop_inputs[0]
             max_count = loop_inputs[1]
             cond = loop_inputs[2]
             current_vars = list(loop_inputs[3:(3 + num_deps)])
+            scan_outputs = loop_inputs[(3 + num_deps):]
 
             # Prepare body inputs by adding them to node dictionary.
             new_inputs = [loop_count, max_count, cond] + current_vars
@@ -2117,35 +2116,36 @@ class Loop(OnnxOpConverter):
             # Unpack the body outputs and prepare variables for next iteration.
             new_cond = loop_outputs[0]
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
+            new_scan_outputs = [loop_outputs[i] for i in range(1 + num_deps, len(loop_outputs))]
 
             # Increment counter.
             if max_loop_count is not None:
                 incr = _expr.const(1, dtype=iter_dtype)
                 loop_count = loop_count + incr
 
+            # Add new scan outputs to tracking
+            combined_scan_outputs = []
+            for i, scan in enumerate(scan_outputs):
+                new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
+                combined_scan = _op.concatenate([scan, new_scan], axis=0)
+                combined_scan_outputs.append(combined_scan)
+
             # Pack loop outputs for next iteration
             # [iter_count, cond, loop_deps, loop_scans]
-            return [loop_count, max_count, new_cond] + new_loop_vars
+            return [loop_count, max_count, new_cond] + new_loop_vars + combined_scan_outputs
 
         # Create the loop function.
-        loop = _loops.while_loop(cond_fn, loop_vars, body_fn)
+        loop = _loops.while_loop(cond_fn, loop_vars + scan_output_vars, body_fn)
 
         # Now need to run initial values through the graph.
         init_count = _expr.const(0, dtype=iter_dtype)
-        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps)
+        loop_vals = loop(init_count, max_loop_count, cond, *(loop_deps + [_op.reshape(_expr.const([], dtype='float32'), [0, 1]) for i in range(num_scan_outputs)]))
 
         # Extract final iteration outputs.
-        if num_deps == 1:
+        if num_deps + num_scan_outputs == 1:
             outputs = _expr.TupleGetItem(loop_vals, 3)
         else:
-            outputs = [_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps)]
-
-        # Wrap outputs in a tuple if needed and add 0s for each scan output.
-        # TODO (jwfromm) Add support for scan outputs once type unification is fixed.
-        if num_scan_outputs != 0 or isinstance(outputs, list):
-            if not isinstance(outputs, list):
-                outputs = [outputs]
-            outputs = _expr.TupleWrapper(_expr.Tuple(outputs + [_expr.const(0) for i in range(num_scan_outputs)]), num_deps + num_scan_outputs)
+            outputs = _expr.TupleWrapper(_expr.Tuple([_expr.TupleGetItem(loop_vals, i + 3) for i in range(num_deps + num_scan_outputs)]), num_deps + num_scan_outputs)
 
         # Update outer graph with constants found in the subgraph.
         free_vars = analysis.free_vars(loop)
