@@ -148,4 +148,3 @@ def imagenet_cat(tmpdir_factory):
     np.savez(cat_file_full_path, input=image_data)
 
     return cat_file_full_path
-    
