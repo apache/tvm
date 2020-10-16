@@ -17,11 +17,10 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
-from collections import OrderedDict
 import warnings
 import numpy as np
-import tvm
 import onnx
+import tvm
 from tvm.ir import IRModule
 from tvm.topi.util import get_const_tuple
 
@@ -2035,7 +2034,6 @@ class Loop(OnnxOpConverter):
         # Determine what condition mode we're in.
         assert cond is not None or max_loop_count is not None
         is_for_loop = max_loop_count is not None and cond is None
-        is_while_loop = cond is not None and max_loop_count is None
         is_condition_for_loop = cond is not None and max_loop_count is not None
 
         # Loop inputs will be packed as
@@ -2052,7 +2050,7 @@ class Loop(OnnxOpConverter):
 
             if is_condition_for_loop:
                 return _op.logical_and(out_while, out_loop)
-            elif is_for_loop:
+            if is_for_loop:
                 return out_loop
             return out_while
 
@@ -2076,8 +2074,8 @@ class Loop(OnnxOpConverter):
                     actual_shape.append(dim)
             if scan:
                 return _expr.var(name, shape=[_ty.Any()] + actual_shape, dtype=checked_type.dtype)
-            else:
-                return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+
+            return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
 
         loop_vars = [
             _expr.var(body.input[0].name, shape=(), dtype=iter_dtype),  # iteration count
@@ -2091,7 +2089,10 @@ class Loop(OnnxOpConverter):
         # TODO (jwfromm) Test with strided slice once type unifier for this case is fixed.
         if num_scan_outputs != 0 and "Slice" in [n.op_type for n in body.node]:
             warnings.warn(
-                "Using scan outputs in a loop with strided slice currently may cause errors during compilation."
+                """
+                Using scan outputs in a loop with strided slice
+                currently may cause errors during compilation.
+                """
             )
 
         # Construct variables and intial empty tensors for any scan outputs.
@@ -2662,8 +2663,6 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
         The parameter dict to be used by relay
     """
     try:
-        import onnx
-
         if hasattr(onnx.checker, "check_model"):
             # try use onnx's own model checker before converting any model
             try:
