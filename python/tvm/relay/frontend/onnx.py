@@ -101,25 +101,6 @@ def get_numpy(tensor_proto):
     return to_array(tensor_proto)
 
 
-def get_type(elem_type):
-    """Converts onnx integer datatype to numpy datatype"""
-    return onnx.TensorProto.DataType.Name(elem_type).lower()
-
-
-def get_info(info_proto):
-    """Extract the shape from a ValueInfoProto."""
-    shape = []
-    for dim in info_proto.type.tensor_type.shape.dim:
-        value = dim.dim_value
-        if value is None:
-            value = _ty.Any
-        shape.append(value)
-
-    name = info_proto.name
-    dtype = get_type(info_proto.type.tensor_type.elem_type)
-    return name, {name: shape}, {name: dtype}
-
-
 def dimension_picker(prefix, suffix=""):
     """Check that dimensions are supported."""
 
