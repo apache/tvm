@@ -75,7 +75,7 @@ TVM_REGISTER_GLOBAL("relay.analysis.check_constant").set_body_typed(ConstantChec
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
 // or make a more powerful partial evaluator.
-class ConstantFolder : public ExprMutator {
+class ConstantFolder : public MixedModeMutator {
  public:
   explicit ConstantFolder(IRModule module)
       : module_(module),
@@ -88,6 +88,8 @@ class ConstantFolder : public ExprMutator {
         alloc_storage_op_(Op::Get("memory.alloc_storage")),
         cast_op_(Op::Get("cast")),
         ndarray_size_op_(Op::Get("ndarray_size")) {}
+
+  using MixedModeMutator::VisitExpr_;
 
   Expr VisitExpr_(const LetNode* op) final {
     Expr value = this->Mutate(op->value);
@@ -118,7 +120,7 @@ class ConstantFolder : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
     if (inside_primitive) {
       return GetRef<Expr>(call);
     }
@@ -127,26 +129,25 @@ class ConstantFolder : public ExprMutator {
     std::unordered_set<std::string> skip_list{"zeros_like", "ones_like", "full_like", "full"};
 
     auto origin_args = call->args;
-    Expr res = ExprMutator::VisitExpr_(call);
-    call = res.as<CallNode>();
+    call = post.as<CallNode>();
     // We don't constant fold function with zero arguments.
     // This is a heuristic that is useful.
     // For example it is harmful to fold ones(shape=(4, 5)).
-    if (call->args.size() == 0) return res;
+    if (call->args.size() == 0) return post;
     const OpNode* op = call->op.as<OpNode>();
-    if (op == nullptr) return res;
+    if (op == nullptr) return post;
     if (skip_list.count(op->name)) {
-      return res;
+      return post;
     }
     // skip stateful ops.
-    if (op_stateful.get(GetRef<Op>(op), false)) return res;
+    if (op_stateful.get(GetRef<Op>(op), false)) return post;
     // Try to evaluate shape_of op
     if (call->op == shape_of_op_ || call->op == vm_shape_of_op_) {
-      return EvaluateShapeOf(res, origin_args, call->attrs);
+      return EvaluateShapeOf(post, origin_args, call->attrs);
     }
 
     if (call->op == ndarray_size_op_) {
-      return EvaluateNdarraySize(res, origin_args, call->attrs);
+      return EvaluateNdarraySize(post, origin_args, call->attrs);
     }
 
     // We should think about potentially constant evaluation over these ops too.
@@ -162,19 +163,18 @@ class ConstantFolder : public ExprMutator {
       }
     }
     if (all_const_args) {
-      return ConstEvaluate(res);
+      return ConstEvaluate(post);
     } else {
-      return res;
+      return post;
     }
   }
 
-  Expr VisitExpr_(const TupleGetItemNode* op) final {
-    Expr res = ExprMutator::VisitExpr_(op);
-    op = res.as<TupleGetItemNode>();
+  Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) final {
+    op = post.as<TupleGetItemNode>();
     if (const auto* tuple = op->tuple.as<TupleNode>()) {
       return tuple->fields[op->index];
     } else {
-      return res;
+      return post;
     }
   }
 
