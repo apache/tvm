@@ -101,6 +101,25 @@ def get_numpy(tensor_proto):
     return to_array(tensor_proto)
 
 
+def get_type(elem_type):
+    """Converts onnx integer datatype to numpy datatype"""
+    return onnx.TensorProto.DataType.Name(elem_type).lower()
+
+
+def get_info(info_proto):
+    """Extract the shape from a ValueInfoProto."""
+    shape = []
+    for dim in info_proto.type.tensor_type.shape.dim:
+        value = dim.dim_value
+        if value is None:
+            value = _ty.Any
+        shape.append(value)
+
+    name = info_proto.name
+    dtype = get_type(info_proto.type.tensor_type.elem_type)
+    return name, shape, dtype
+
+
 def dimension_picker(prefix, suffix=""):
     """Check that dimensions are supported."""
 
@@ -2074,15 +2093,14 @@ class Loop(OnnxOpConverter):
             warnings.warn(
                 "Using scan outputs in a loop with strided slice currently may cause errors during compilation."
             )
-        scan_output_vars = [
-            get_var(body.input[i + 2].name + "_scan", loop_deps[i], scan=True)
-            for i in range(num_scan_outputs)
-        ]
-        # Create initial empty output scan tensors.
-        loop_scans = [
-            _op.reshape(_expr.const([]), [0] + list(loop_vars[i + 3].type_annotation.shape))
-            for i in range(num_scan_outputs)
-        ]
+
+        # Construct variables and intial empty tensors for any scan outputs.
+        scan_output_vars = []
+        scan_output_init = []
+        for i in range(num_scan_outputs):
+            name, shape, dtype = get_info(body.output[i + 1 + num_deps])
+            scan_output_vars.append(_expr.var(name, shape=([_ty.Any()] + shape), dtype=dtype))
+            scan_output_init.append(_op.reshape(_expr.const([]), [0] + shape))
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2134,7 +2152,7 @@ class Loop(OnnxOpConverter):
 
         # Now need to run initial values through the graph.
         init_count = _expr.const(0, dtype=iter_dtype)
-        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, *loop_scans)
+        loop_vals = loop(init_count, max_loop_count, cond, *loop_deps, *scan_output_init)
 
         # Extract final iteration outputs.
         if num_deps + num_scan_outputs == 1:
