@@ -16,6 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+use std::io::Result as IOResult;
+use std::path::Path;
+
+use thiserror::Error;
+use tvm_macros::Object;
 
 use crate::runtime::array::Array;
 use crate::runtime::function::Result;
@@ -27,14 +32,18 @@ use super::expr::GlobalVar;
 use super::function::BaseFunc;
 use super::source_map::SourceMap;
 
-use std::io::Result as IOResult;
-use std::path::Path;
-
-use tvm_macros::Object;
 
 // TODO(@jroesch): define type
 type TypeData = ObjectRef;
 type GlobalTypeVar = ObjectRef;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("{0}")]
+    IO(#[from] std::io::Error),
+    #[error("{0}")]
+    TVM(#[from] crate::runtime::Error),
+}
 
 #[repr(C)]
 #[derive(Object)]
@@ -116,19 +125,19 @@ external! {
 //     });
 
 impl IRModule {
-    pub fn parse<N, S>(file_name: N, source: S) -> IRModule
+    pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
     where
         N: Into<TVMString>,
         S: Into<TVMString>,
     {
-        parse_module(file_name.into(), source.into()).expect("failed to call parser")
+        parse_module(file_name.into(), source.into())
     }
 
-    pub fn parse_file<P: 'static + AsRef<Path>>(file_path: P) -> IOResult<IRModule> {
+    pub fn parse_file<P: 'static + AsRef<Path>>(file_path: P) -> std::result::Result<IRModule, Error> {
         let file_path = file_path.as_ref();
         let file_path_as_str = file_path.to_str().unwrap().to_string();
         let source = std::fs::read_to_string(file_path)?;
-        let module = IRModule::parse(file_path_as_str, source);
+        let module = IRModule::parse(file_path_as_str, source)?;
         Ok(module)
     }
 
