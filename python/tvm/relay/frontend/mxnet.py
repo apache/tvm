@@ -2345,25 +2345,77 @@ def _mx_npx_reshape(inputs, attrs):
     reverse = attrs.get_bool("reverse", False)
     shape_list = list(shape)
     new_shape_list = []
-    for num in shape_list:
-        if num > 0 or num == -1:
-            new_shape_list.append(num)
-        elif num == -2:
-            new_shape_list.append(0)
-        elif num == -3:
-            continue
-        elif num == -4:
-            new_shape_list.append(-2)
-        elif num == -5:
-            new_shape_list.append(-3)
-        elif num == -6:
-            new_shape_list.append(-4)
-        else:
-            raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % num)
-    shape = tuple(new_shape_list)
-    if reverse:
-        return _op.reverse_reshape(inputs[0], newshape=shape)
-    return _op.reshape(inputs[0], newshape=shape)
+    if -3 not in shape_list:
+        for num in shape_list:
+            if num > 0 or num == -1:
+                new_shape_list.append(num)
+            elif num == -2:
+                new_shape_list.append(0)
+            elif num == -4:
+                new_shape_list.append(-2)
+            elif num == -5:
+                new_shape_list.append(-3)
+            elif num == -6:
+                new_shape_list.append(-4)
+            else:
+                raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % num)
+        shape = tuple(new_shape_list)
+        if reverse:
+            return _op.reverse_reshape(inputs[0], newshape=shape)
+        return _op.reshape(inputs[0], newshape=shape)
+    else:
+        old_shape = get_tuple_shape(_infer_type(inputs[0]).checked_type.shape)
+        new_shape = []
+        if reverse:
+            old_shape = old_shape[::-1]
+            shape_list = shape_list[::-1]
+        ptr = 0
+        unknown_axis = None
+        src_ptr = 0
+        while src_ptr < len(shape_list):
+            ele = shape_list[src_ptr]
+            src_ptr += 1
+            if ele > 0:
+                new_shape.append(ele)
+                ptr += 1
+            elif ele == -1:
+                new_shape.append(-1)
+                assert unknown_axis is None, 'Can only have one unknown axis.'
+                unknown_axis = len(new_shape)
+                ptr += 1
+            elif ele == -2:
+                new_shape.append(old_shape[ptr])
+                ptr += 1
+            elif ele == -3:
+                assert old_shape[ptr] == 1
+                ptr += 1
+            elif ele == -4:
+                new_shape += old_shape[ptr:]
+                break
+            elif ele == -5:
+                new_shape.append(old_shape[ptr] * old_shape[ptr + 1])
+                ptr += 2
+                src_ptr += 1
+            elif ele == -6:
+                # Split axis
+                lhs = shape_list[src_ptr + 1]
+                rhs = shape_list[src_ptr + 2]
+                src_ptr += 2
+                assert not (lhs == -1 and rhs == -1)
+                if lhs == -1:
+                    assert old_shape[ptr] % rhs == 0
+                    lhs = old_shape[ptr] // rhs
+                if rhs == -1:
+                    assert old_shape[ptr] % lhs == 0
+                    rhs = old_shape[ptr] // lhs
+                new_shape.append(lhs)
+                new_shape.append(rhs)
+                ptr += 1
+            else:
+                raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % ele)
+        if reverse:
+            new_shape = new_shape[::-1]
+        return _op.reshape(inputs[0], newshape=new_shape)
 
 
 def _mx_split_v2(inputs, attrs):
