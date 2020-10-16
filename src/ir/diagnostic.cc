@@ -113,6 +113,7 @@ TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRendererRender")
     });
 
 DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer) {
+  CHECK(renderer.defined()) << "can not initialize a diagnostic renderer with a null function";
   auto n = make_object<DiagnosticContextNode>();
   n->module = module;
   n->renderer = renderer;

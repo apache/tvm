@@ -18,7 +18,7 @@
  */
 
 use super::module::IRModule;
-use super::span::Span;
+use super::span::*;
 use crate::runtime::function::Result;
 use crate::runtime::object::{Object, ObjectPtr, ObjectRef};
 use crate::runtime::{
@@ -32,7 +32,7 @@ use crate::runtime::{
 /// and the DiagnosticRenderer.
 use tvm_macros::{external, Object};
 
-type SourceName = ObjectRef;
+pub mod codespan;
 
 // Get the the diagnostic renderer.
 external! {
@@ -227,70 +227,5 @@ where
 
             Ok(())
         }
-    }
-}
-
-pub mod codespan {
-    use super::*;
-
-    use codespan_reporting::diagnostic::{Diagnostic as CDiagnostic, Label, Severity};
-    use codespan_reporting::files::SimpleFiles;
-    use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
-
-    enum StartOrEnd {
-        Start,
-        End,
-    }
-
-    // struct SpanToBytes {
-    //     inner: HashMap<std::String, HashMap<usize, (StartOrEnd,
-    // }
-
-    struct ByteRange<FileId> {
-        file_id: FileId,
-        start_pos: usize,
-        end_pos: usize,
-    }
-
-    // impl SpanToBytes {
-    //     fn to_byte_pos(&self, span: tvm::ir::Span) -> ByteRange<FileId> {
-
-    //     }
-    // }
-
-    pub fn to_diagnostic(diag: super::Diagnostic) -> CDiagnostic<String> {
-        let severity = match diag.level {
-            DiagnosticLevel::Error => Severity::Error,
-            DiagnosticLevel::Warning => Severity::Warning,
-            DiagnosticLevel::Note => Severity::Note,
-            DiagnosticLevel::Help => Severity::Help,
-            DiagnosticLevel::Bug => Severity::Bug,
-        };
-
-        let file_id = "foo".into(); // diag.span.source_name;
-
-        let message: String = diag.message.as_str().unwrap().into();
-        let inner_message: String = "expected `String`, found `Nat`".into();
-        let diagnostic = CDiagnostic::new(severity)
-            .with_message(message)
-            .with_code("EXXX")
-            .with_labels(vec![
-                Label::primary(file_id, 328..331).with_message(inner_message)
-            ]);
-
-        diagnostic
-    }
-
-    pub fn init() -> Result<()> {
-        let mut files: SimpleFiles<String, String> = SimpleFiles::new();
-        let render_fn = move |diag_ctx: DiagnosticContext| {
-            let source_map = diag_ctx.module.source_map.clone();
-            for diagnostic in diag_ctx.diagnostics.clone() {
-                println!("Diagnostic: {}", diagnostic.message);
-            }
-        };
-
-        override_renderer(Some(render_fn))?;
-        Ok(())
     }
 }

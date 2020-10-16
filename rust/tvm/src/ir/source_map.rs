@@ -19,6 +19,7 @@
 
 use crate::runtime::map::Map;
 use crate::runtime::object::Object;
+use crate::runtime::string::{String as TString};
 
 use super::span::{SourceName, Span};
 
@@ -37,7 +38,7 @@ pub struct SourceNode {
     pub source_name: SourceName,
 
     /// The raw source. */
-    source: String,
+    pub source: TString,
 
    // A mapping of line breaks into the raw source.
    // std::vector<std::pair<int, int>> line_map;
