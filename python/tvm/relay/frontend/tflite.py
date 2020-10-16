@@ -2601,7 +2601,7 @@ class OperatorConverter(object):
         cropped = reshaped_permuted
         for axis in range(1, M + 1):
             crop = crops[axis - 1]
-            if (crop != [0, 0]).all():
+            if (crop != [0, 0]).any():
                 indices = _op.arange(
                     _expr.const(crop[0]),
                     _expr.const(reshaped_permuted_shape[axis] - crop[1]),

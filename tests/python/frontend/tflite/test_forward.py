@@ -706,6 +706,8 @@ def test_forward_batch_to_space_nd():
 
     _test_batch_to_space_nd(input_shape=[4, 2, 2, 1], block_shape=[2, 2], crops=[[0, 0], [0, 0]])
 
+    _test_batch_to_space_nd(input_shape=[4, 3, 3, 1], block_shape=[2, 2], crops=[[0, 1], [0, 1]])
+
 
 ######################################################################
 # SpaceToBatchND
