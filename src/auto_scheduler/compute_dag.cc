@@ -863,7 +863,6 @@ std::string GetNewLayout(const State& state, const int stage_id,
 
 ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
                                      LayoutRewriteOption layout_rewrite) const {
-  LOG(INFO) << "rewrite layout in";
   ComputeDAG new_dag = *this;
   ComputeDAGNode* p_dag = new_dag.CopyOnWrite();
 
@@ -950,17 +949,15 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
         new_op_to_update = layout_transform_tensor->op;
 
         // Update the transform steps
-        LOG(INFO) << stage_id;
         for (size_t i = 0; i < transform_steps->size(); i++) {
           Step step = (*transform_steps)[i];
           if (step->stage_id >= static_cast<int>(stage_id)) {
-            step->stage_id++;
-            // step.CopyOnWrite()->stage_id++;
+            step.CopyOnWrite()->stage_id++;
           }
           if (step->IsInstance<ComputeAtStepNode>()) {
             auto compute_at_step = tvm::Downcast<ComputeAtStep>(step);
             if (compute_at_step->target_stage_id >= static_cast<int>(stage_id)) {
-              compute_at_step->target_stage_id++;
+              dynamic_cast<ComputeAtStepNode*>(step.CopyOnWrite())->target_stage_id++;
             }
             transform_steps->Set(i, std::move(compute_at_step));
           } else {
@@ -1085,18 +1082,16 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
   p_dag->flop_ct = FlopEstimator().EstimateFlop(p_dag->ops);
   p_dag->init_state = State(p_dag->ops);
 
-  LOG(INFO) << "rewrite layout out";
-
   return new_dag;
 }
 
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
     LayoutRewriteOption layout_rewrite) const {
-  LOG(INFO) << this << " " << int(layout_rewrite);
   if (layout_rewrite != LayoutRewriteOption::NoRewrite && !transform_steps.empty()) {
     Array<Step> steps = transform_steps;
     const auto& dag = RewriteLayout(&steps, layout_rewrite);
+    LOG(INFO) << dag;
     return dag.ApplySteps(steps, stages, stage_to_axes, LayoutRewriteOption::NoRewrite);
   }
 
@@ -1204,7 +1199,6 @@ State ComputeDAG::InferBound(const State& state) const {
   te::Schedule sch;
   Array<te::Tensor> tensors;
   // Replay steps to tvm::Schedule
-  LOG(INFO) << "infer bound";
   std::tie(sch, tensors) = ApplySteps(pstate->transform_steps, &stages, &stage_to_axes);
   sch = sch.normalize();
   // Get bound information from TVM schedule
@@ -1380,10 +1374,6 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state, int layout_rewrite) {
       te::Schedule sch;
       Array<te::Tensor> return_tensors;
-      LOG(INFO) << state->transform_steps;
-      for (auto i : state->transform_steps) {
-        LOG(INFO) << i->stage_id;
-      }
       std::tie(sch, return_tensors) =
           dag.ApplySteps(state->transform_steps, nullptr, nullptr,
                          static_cast<LayoutRewriteOption>(layout_rewrite));

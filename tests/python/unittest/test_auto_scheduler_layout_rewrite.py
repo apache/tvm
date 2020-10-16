@@ -29,12 +29,10 @@ from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_t
 def test_apply_steps_with_layout_rewrite():
     dag, s = get_tiled_matmul()
     _, bufs = dag.apply_steps_from_state(s)
-    print("=======")
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
     _, bufs = dag.apply_steps_from_state(s,
         layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPlaceholder"])
-    print("=======")
     assert bufs[1].shape[0] == 4
     assert bufs[1].shape[1] == 8
     assert bufs[1].shape[2] == 4
@@ -42,10 +40,8 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[4] == 512
     _, bufs = dag.apply_steps_from_state(s,
         layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPreTranspose"])
-    print("=======")
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
-    _, bufs = dag.apply_steps_from_state(s)
 
 
 def test_correctness_layout_rewrite_with_placeholder():
@@ -135,8 +131,14 @@ def test_correctness_layout_rewrite_with_pre_transpose():
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
+        print(">>>")
         s, bufs = dag.apply_steps_from_state(inp.state,
             layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPreTranspose"])
+        print(bufs)
+        print("<<<")
+        print(tvm.lower(s, bufs, simple_mode=True))
+        exit(0)
+
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
         np_args_ref = [np.array(x) for x in np_args]
