@@ -295,7 +295,7 @@ runtime::Module CCompiler(const ObjectRef& ref) {
  */
 struct CCompilerConstantUpdater : public ExprVisitor {
  public:
-  explicit CCompilerConstantUpdater(const std::string& symbol) : symbol_(symbol) {};
+  explicit CCompilerConstantUpdater(const std::string& symbol) : symbol_(symbol) {}
 
   Map<String, runtime::NDArray> GetConstants(const Expr& expr) {
     VisitExpr(expr);
