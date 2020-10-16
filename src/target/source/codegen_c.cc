@@ -82,20 +82,18 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
-  this->PrintFuncPrefix();
-  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
-
+  std::stringstream arg_stream;
   for (size_t i = 0; i < f->params.size(); ++i) {
     tir::Var v = f->params[i];
     std::string vid = AllocVarID(v.get());
-    if (i != 0) stream << ", ";
+    if (i != 0) arg_stream << ", ";
     if (v.dtype().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
       if (it != alloc_storage_scope_.end()) {
-        PrintStorageScope(it->second, stream);
+        PrintStorageScope(it->second, arg_stream);
       }
 
-      PrintType(GetType(v), stream);
+      PrintType(GetType(v), arg_stream);
       // Register handle data type
       // TODO(tvm-team): consider simply keep type info in the
       // type annotation(via a normalizing rewriting).
@@ -106,14 +104,32 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
       }
 
       if (no_alias && restrict_keyword_.length() != 0) {
-        stream << ' ' << restrict_keyword_;
+        arg_stream << ' ' << restrict_keyword_;
       }
     } else {
-      PrintType(GetType(v), stream);
+      PrintType(GetType(v), arg_stream);
     }
-    stream << ' ' << vid;
+    arg_stream << ' ' << vid;
   }
+
+  stream << "#ifdef _WIN32\n";
+  stream << "#undef TVM_DLL\n";
+  stream << "#define TVM_DLL __declspec(dllexport)\n";
+  stream << "#endif\n";
+  this->PrintFuncPrefix();
+  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
+  stream << arg_stream.str();
+  stream << ");\n";
+  stream << "#ifdef _WIN32\n";
+  stream << "#undef TVM_DLL\n";
+  stream << "#define TVM_DLL\n";
+  stream << "#endif\n";
+
+  this->PrintFuncPrefix();
+  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
+  stream << arg_stream.str();
   stream << ") {\n";
+
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);

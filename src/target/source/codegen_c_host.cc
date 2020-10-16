@@ -61,6 +61,13 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
 }
 
 void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
+  stream << "#define   TVM_EXPORTS\n";
+  PrintFuncPrefix();
+  stream << " " << tvm::runtime::symbol::tvm_lookup_linked_param
+         << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
+         << "int* out_ret_tcode, void* resource_handle);\n";
+
+  stream << "#undef TVM_EXPORTS\n";
   PrintFuncPrefix();
   stream << " " << tvm::runtime::symbol::tvm_lookup_linked_param
          << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "

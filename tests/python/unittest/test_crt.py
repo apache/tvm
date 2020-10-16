@@ -19,7 +19,8 @@ import contextlib
 import copy
 import glob
 import os
-import pty
+import pytest
+pytest.importorskip('pty')
 import sys
 import subprocess
 import textwrap
