@@ -58,11 +58,6 @@ __all__ = ["from_mxnet"]
 _activation_map = {"sigmoid": _op.sigmoid, "tanh": _op.tanh, "relu": _op.nn.relu}
 
 
-def get_tuple_shape(shape_expr):
-    """Get the tuple shape from a shape expression"""
-    return tuple([ele.value for ele in shape_expr])
-
-
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx  # pylint: disable=import-outside-toplevel
 
@@ -634,9 +629,9 @@ def _mx_expand_dims(inputs, attrs):
 
 def _mx_where(inputs, attrs):
     cond, lhs, rhs = inputs
-    cond_shape = get_tuple_shape(_infer_type(cond).checked_type.shape)
-    lhs_shape = get_tuple_shape(_infer_type(lhs).checked_type.shape)
-    rhs_shape = get_tuple_shape(_infer_type(rhs).checked_type.shape)
+    cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
+    lhs_shape = get_const_tuple(_infer_type(lhs).checked_type.shape)
+    rhs_shape = get_const_tuple(_infer_type(rhs).checked_type.shape)
     out_shape = np.broadcast(np.empty(cond_shape), np.empty(lhs_shape), np.empty(rhs_shape)).shape
     if out_shape != cond_shape:
         cond = _op.broadcast_to(cond, out_shape)
@@ -2345,76 +2340,68 @@ def _mx_npx_reshape(inputs, attrs):
     reverse = attrs.get_bool("reverse", False)
     shape_list = list(shape)
     new_shape_list = []
-    if -3 not in shape_list:
-        for num in shape_list:
-            if num > 0 or num == -1:
-                new_shape_list.append(num)
-            elif num == -2:
-                new_shape_list.append(0)
-            elif num == -4:
-                new_shape_list.append(-2)
-            elif num == -5:
-                new_shape_list.append(-3)
-            elif num == -6:
-                new_shape_list.append(-4)
-            else:
-                raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % num)
-        shape = tuple(new_shape_list)
-        if reverse:
-            return _op.reverse_reshape(inputs[0], newshape=shape)
-        return _op.reshape(inputs[0], newshape=shape)
-    else:
-        old_shape = get_tuple_shape(_infer_type(inputs[0]).checked_type.shape)
-        new_shape = []
-        if reverse:
-            old_shape = old_shape[::-1]
-            shape_list = shape_list[::-1]
-        ptr = 0
-        unknown_axis = None
-        src_ptr = 0
-        while src_ptr < len(shape_list):
-            ele = shape_list[src_ptr]
-            src_ptr += 1
-            if ele > 0:
-                new_shape.append(ele)
-                ptr += 1
-            elif ele == -1:
-                new_shape.append(-1)
-                assert unknown_axis is None, "Can only have one unknown axis."
-                unknown_axis = len(new_shape)
-                ptr += 1
-            elif ele == -2:
-                new_shape.append(old_shape[ptr])
-                ptr += 1
-            elif ele == -3:
-                assert old_shape[ptr] == 1
-                ptr += 1
-            elif ele == -4:
-                new_shape += old_shape[ptr:]
-                break
-            elif ele == -5:
-                new_shape.append(old_shape[ptr] * old_shape[ptr + 1])
-                ptr += 2
-            elif ele == -6:
-                # Split axis
-                lhs = shape_list[src_ptr]
-                rhs = shape_list[src_ptr + 1]
-                src_ptr += 2
-                assert not (lhs == -1 and rhs == -1)
-                if lhs == -1:
-                    assert old_shape[ptr] % rhs == 0
-                    lhs = old_shape[ptr] // rhs
-                if rhs == -1:
-                    assert old_shape[ptr] % lhs == 0
-                    rhs = old_shape[ptr] // lhs
-                new_shape.append(lhs)
-                new_shape.append(rhs)
-                ptr += 1
-            else:
-                raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % ele)
-        if reverse:
-            new_shape = new_shape[::-1]
-        return _op.reshape(inputs[0], newshape=new_shape)
+    old_shape = get_const_tuple(_infer_type(inputs[0]).checked_type.shape)
+    new_shape = []
+    if reverse:
+        old_shape = old_shape[::-1]
+        shape_list = shape_list[::-1]
+    ptr = 0
+    unknown_axis = None
+    src_ptr = 0
+    while src_ptr < len(shape_list):
+        ele = shape_list[src_ptr]
+        src_ptr += 1
+        if ele > 0:
+            new_shape.append(ele)
+            ptr += 1
+        elif ele == -1:
+            new_shape.append(-1)
+            if unknown_axis is not None:
+                raise tvm.error.OpAttributeInvalid("Can only have one -1 in the input shape.")
+            unknown_axis = len(new_shape)
+            ptr += 1
+        elif ele == -2:
+            new_shape.append(old_shape[ptr])
+            ptr += 1
+        elif ele == -3:
+            if old_shape[ptr] != 1:
+                raise tvm.error.OpAttributeInvalid("Dimension of the original shape "
+                                                   "that corresponds to -3 must be 1. Received"
+                                                   " {}".format(old_shape[ptr]))
+            ptr += 1
+        elif ele == -4:
+            new_shape += old_shape[ptr:]
+            break
+        elif ele == -5:
+            new_shape.append(old_shape[ptr] * old_shape[ptr + 1])
+            ptr += 2
+        elif ele == -6:
+            # Split axis
+            lhs = shape_list[src_ptr]
+            rhs = shape_list[src_ptr + 1]
+            src_ptr += 2
+            if lhs == -1 and rhs == -1:
+                raise tvm.error.OpAttributeInvalid("The lhs and rhs can not both be -1.")
+            if lhs == -1:
+                if old_shape[ptr] % rhs != 0:
+                    raise tvm.error.OpAttributeInvalid("When splitting the axis, "
+                                                       "the dimension of the split axis must "
+                                                       "be divisible by the splitted values.")
+                lhs = old_shape[ptr] // rhs
+            if rhs == -1:
+                if old_shape[ptr] % lhs != 0:
+                    raise tvm.error.OpAttributeInvalid("When splitting the axis, "
+                                                       "the dimension of the split axis must "
+                                                       "be divisible by the splitted values.")
+                rhs = old_shape[ptr] // lhs
+            new_shape.append(lhs)
+            new_shape.append(rhs)
+            ptr += 1
+        else:
+            raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % ele)
+    if reverse:
+        new_shape = new_shape[::-1]
+    return _op.reshape(inputs[0], newshape=new_shape)
 
 
 def _mx_split_v2(inputs, attrs):

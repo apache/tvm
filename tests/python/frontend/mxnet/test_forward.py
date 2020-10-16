@@ -2105,12 +2105,7 @@ def test_forward_npi_tanh(data_shape, dtype, target, ctx, kind):
 @pytest.mark.skipif(not hasattr(mx.np, "where"), reason="mx.np.where hasn't been publish yet")
 @pytest.mark.parametrize(
     "data_shape,cond_shape",
-    [
-        [(2, 2, 2), (2, 2, 2)],
-        [(2, 7, 2), (7, 2)],
-        [(2, 2), (1, 2)],
-        [(1, 3), (3, 3)]
-    ]
+    [[(2, 2, 2), (2, 2, 2)], [(2, 7, 2), (7, 2)], [(2, 2), (1, 2)], [(1, 3), (3, 3)]],
 )
 @pytest.mark.parametrize("data_dtype", ["float64", "float32", "int64", "int32", "bool"])
 @pytest.mark.parametrize("cond_dtype", ["float64", "float32", "int64", "int32", "bool"])
@@ -2118,7 +2113,7 @@ def test_forward_npi_tanh(data_shape, dtype, target, ctx, kind):
 @tvm.testing.parametrize_targets
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
 def test_forward_npi_where_rscalar(
-        data_shape, cond_shape, data_dtype, cond_dtype, scalar, target, ctx, kind
+    data_shape, cond_shape, data_dtype, cond_dtype, scalar, target, ctx, kind
 ):
     if data_dtype == "bool":
         scalar = scalar == 0.0
