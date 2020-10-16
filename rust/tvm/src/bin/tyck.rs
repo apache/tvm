@@ -4,7 +4,8 @@ use anyhow::Result;
 use structopt::StructOpt;
 
 use tvm::ir::diagnostics::codespan;
-use tvm::ir::IRModule;
+use tvm::ir::{self, IRModule};
+use tvm::runtime::Error;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "tyck", about = "Parse and type check a Relay program.")]
@@ -18,11 +19,11 @@ fn main() -> Result<()> {
     codespan::init().expect("Rust based diagnostics");
     let opt = Opt::from_args();
     println!("{:?}", &opt);
-    let module = IRModule::parse_file(opt.input);
-
-    // for (k, v) in module.functions {
-    //     println!("Function name: {:?}", v);
-    // }
+    let _module = match IRModule::parse_file(opt.input) {
+        Err(ir::module::Error::TVM(Error::DiagnosticError(_))) => { return Ok(()) },
+        Err(e) => { return Err(e.into()); },
+        Ok(module) => module
+    };
 
     Ok(())
 }

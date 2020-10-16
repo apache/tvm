@@ -133,7 +133,12 @@ impl Function {
         };
 
         if ret_code != 0 {
-            return Err(Error::CallFailed(crate::get_last_error().into()));
+            let raw_error = crate::get_last_error();
+            let error = match Error::from_raw_tvm(raw_error) {
+                Error::Raw(string) => Error::CallFailed(string),
+                e => e,
+            };
+            return Err(error);
         }
 
         let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
