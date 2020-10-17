@@ -235,7 +235,9 @@ def micro(model="unknown", options=None):
         "host": ["-mcpu=native"],
         "stm32f746xx": ["-mcpu=cortex-m7", "-mfpu=fpuv5-sp-d16"],
     }
-    opts = _merge_opts(trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"], options)
+    opts = _merge_opts(
+        trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"], options
+    )
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.

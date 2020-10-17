@@ -19,19 +19,15 @@
 
 import atexit
 import abc
-import errno
 import logging
 import os
 import signal
 import subprocess
 import sys
-import time
 import termios
 import threading
 
 import psutil
-
-import traceback
 
 from .._ffi import register_func
 from . import class_factory
@@ -61,11 +57,11 @@ class Debugger(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     def _run_on_terminate_callbacks(self):
-        for cb in self.on_terminate_callbacks:
+        for callback in self.on_terminate_callbacks:
             try:
-                cb()
-            except Exception as e:
-                _LOG.warn('on_terminate_callback raised exception', exc_info=True)
+                callback()
+            except Exception:  # pylint: disable=broad-except
+                _LOG.warning("on_terminate_callback raised exception", exc_info=True)
 
 
 class GdbDebugger(Debugger):
@@ -93,49 +89,21 @@ class GdbDebugger(Debugger):
     def popen_kwargs(self):
         raise NotImplementedError()
 
-    @classmethod
-    def find_all_children(cls, pgid):
-        proc_by_pid = {}
-        to_inspect = []
-        my_uid = os.getuid()
-        for p in psutil.process_iter(['pid', 'ppid', 'pgid', 'uid']):
-            if p.info['uid'] != my_uid:
-                continue
-
-            proc_by_pid[p.info['pid']] = p
-            if p.info['pgid'] == pgid:
-                to_inspect.append(p.info['pid'])
-
-        children = set()
-        while to_inspect:
-            i = to_inspect.pop()
-            children.add(i)
-            to_inspect.extend(
-                proc for proc in pid_by_ppid.values() if proc.info['ppid'] == i.info['pid'])
-
-        return children
-
     def _wait_for_child(self):
         self.popen.wait()
         with self._child_alive_lock:
             self._is_child_alive = True
 
-    import traceback
-
     @classmethod
-    def _sigint_handler(cls, signum, stack_frame):
-        print('sigint', threading.get_ident())
+    def _sigint_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
         if cls._STARTED_INSTANCE is not None:
             with cls._STARTED_INSTANCE._child_alive_lock:
                 exists = cls._STARTED_INSTANCE._is_child_alive
-            print('exists?', exists)
             if exists:
                 try:
-                    print('kill')
-                    ret = os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
-                    print('kill-done')
+                    os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
                     return
-                except ProcessLookupError as e:
+                except ProcessLookupError:
                     pass
 
         raise Exception()
@@ -145,8 +113,7 @@ class GdbDebugger(Debugger):
         assert not self._STARTED_INSTANCE
 
         kwargs = self.popen_kwargs()
-        self.did_start_new_session = (
-            kwargs.setdefault('start_new_session', True))
+        self.did_start_new_session = kwargs.setdefault("start_new_session", True)
 
         self.old_termios = termios.tcgetattr(sys.stdin.fileno())
         self.popen = subprocess.Popen(**kwargs)
@@ -154,7 +121,7 @@ class GdbDebugger(Debugger):
         self.__class__._STARTED_INSTANCE = self
         try:
             self.child_pgid = os.getpgid(self.popen.pid)
-        except Exception as e:
+        except Exception:
             self.stop()
             raise
         with self._child_alive_lock:
@@ -175,8 +142,7 @@ class GdbDebugger(Debugger):
             children = psutil.Process(self.popen.pid).children(recursive=True)
             for c in children:
                 c.terminate()
-            _, alive = psutil.wait_procs(
-                children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
+            _, alive = psutil.wait_procs(children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
             for a in alive:
                 a.kill()
         finally:
@@ -318,40 +284,41 @@ GLOBAL_DEBUGGER = None
 
 class DebuggerFactory(class_factory.ClassFactory):
 
-  SUPERCLASS = Debugger
+    SUPERCLASS = Debugger
 
 
 def launch_debugger(debugger_factory, *args, **kw):
-  global GLOBAL_DEBUGGER
-  if GLOBAL_DEBUGGER is not None:
-    stop_debugger()
+    global GLOBAL_DEBUGGER
+    if GLOBAL_DEBUGGER is not None:
+        stop_debugger()
 
-  GLOBAL_DEBUGGER = debugger_factory.instantiate()
-  GLOBAL_DEBUGGER.start()
+    GLOBAL_DEBUGGER = debugger_factory.instantiate(*args, **kw)
+    GLOBAL_DEBUGGER.start()
 
 
 @register_func("tvm.micro.debugger.launch_debugger")
 def _launch_debugger(debugger_factory_json):
-  launch_debugger(DebuggerFactory.from_json(debugger_factory_json))
+    launch_debugger(DebuggerFactory.from_json(debugger_factory_json))
 
 
 @register_func("tvm.micro.debugger.stop_debugger")
 def stop_debugger():
-  global GLOBAL_DEBUGGER
-  if GLOBAL_DEBUGGER is not None:
-    try:
-      GLOBAL_DEBUGGER.stop()
-    finally:
-      GLOBAL_DEBUGGER = None
+    global GLOBAL_DEBUGGER
+    if GLOBAL_DEBUGGER is not None:
+        try:
+            GLOBAL_DEBUGGER.stop()
+        finally:
+            GLOBAL_DEBUGGER = None
 
 
 class RpcDebugger(Debugger):
+    """A Debugger instance that launches the actual debugger on a remote TVM RPC server."""
 
     def __init__(self, rpc_session, factory, wrapping_context_manager=None):
         super(RpcDebugger, self).__init__()
         self._factory = factory
-        self.launch_debugger = rpc_session.get_function('tvm.micro.debugger.launch_debugger')
-        self.stop_debugger = rpc_session.get_function('tvm.micro.debugger.stop_debugger')
+        self.launch_debugger = rpc_session.get_function("tvm.micro.debugger.launch_debugger")
+        self.stop_debugger = rpc_session.get_function("tvm.micro.debugger.stop_debugger")
         self.wrapping_context_manager = wrapping_context_manager
 
     def start(self):
@@ -360,23 +327,23 @@ class RpcDebugger(Debugger):
 
         try:
             self.launch_debugger(self._factory.to_json)
-        except Exception as e:
+        except Exception:
             if self.wrapping_context_manager is not None:
                 self.wrapping_context_manager.__exit__(None, None, None)
             raise
 
         try:
-            input('Press [Enter] when debugger is set')
-        except Exception as e:
+            input("Press [Enter] when debugger is set")
+        except Exception:
             self.stop()
             raise
 
         self._is_running = True
 
     def stop(self):
-      try:
-        self.stop_debugger()
-        self._run_on_terminate_callbacks()
-      finally:
-        if self.wrapping_context_manager is not None:
-          self.wrapping_context_manager.__exit__(None, None, None)
+        try:
+            self.stop_debugger()
+            self._run_on_terminate_callbacks()
+        finally:
+            if self.wrapping_context_manager is not None:
+                self.wrapping_context_manager.__exit__(None, None, None)

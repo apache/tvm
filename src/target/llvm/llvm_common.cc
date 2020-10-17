@@ -30,6 +30,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 namespace tvm {
 namespace codegen {

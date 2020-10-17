@@ -27,21 +27,28 @@ from .base import IoTimeoutError, Transport, TransportTimeouts
 _DEFAULT_SERIAL_TIMEOUTS = TransportTimeouts(
     session_start_retry_timeout_sec=5,
     session_start_timeout_sec=10.0,
-    session_established_timeout_sec=30.0)
+    session_established_timeout_sec=30.0,
+)
 
 
 class SerialTransport(Transport):
+    """A Transport implementation using pySerial."""
 
     _OPEN_PORTS = []
 
     @classmethod
     def close_atexit(cls):
+        """Close all serial ports before exit.
+
+        Some USB-UART kernel drivers are particularly sensitive to being left open (i.e. require
+        unplugging and replugging of attached hardware or reboot of machine); try very hard to
+        close all serial ports at exit.
+        """
         for port in cls._OPEN_PORTS:
             try:
                 port.close()
-            except Exception:
-                _LOG.warn('exception closing port', exc_info=True)
-                pass
+            except Exception:  # pylint: disable=broad-except
+                _LOG.warn("exception closing port", exc_info=True)
 
         cls._OPEN_PORTS = []
 
@@ -51,7 +58,7 @@ class SerialTransport(Transport):
         self._timeouts = timeouts if timeouts is not None else _DEFAULT_SERIAL_TIMEOUTS
         self._kw = kw
         if self._port_path is None and self._grep is None:
-            raise SerialPortNotFoundError('Must specify one of grep= or port_path=')
+            raise SerialPortNotFoundError("Must specify one of grep= or port_path=")
 
     def timeouts(self):
         return self._timeouts
@@ -63,7 +70,8 @@ class SerialTransport(Transport):
             ports = list(serial.tools.list_ports.grep(self._grep, include_links=True))
             if len(ports) != 1:
                 raise SerialPortNotFoundError(
-                    f'grep expression should find 1 serial port; found {ports!r}')
+                    f"grep expression should find 1 serial port; found {ports!r}"
+                )
 
             port_path = ports[0].device
 
@@ -89,8 +97,8 @@ class SerialTransport(Transport):
             if timeout_sec != 0 and timeout_remaining < 0:
                 break
 
-            # Read until *something* can be returned. If nothing is sent within 10 chars' time, stop.
-            # 10 is an arbitrary number.
+            # Read until *something* can be returned. If nothing is sent within 5 chars' time, stop.
+            # 5 is an arbitrary number.
             self._port.timeout = 1 / self._port.baudrate * 5
             try:
                 data = self._port.read(n if timeout_sec != 0 else 1)
@@ -104,8 +112,8 @@ class SerialTransport(Transport):
 
         if not to_return:
             raise IoTimeoutError()
-        else:
-            return to_return
+
+        return to_return
 
     def write(self, data, timeout_sec):
         self._port.write_timeout = timeout_sec

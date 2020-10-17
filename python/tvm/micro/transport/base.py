@@ -290,7 +290,11 @@ class TransportLogger(Transport):
             )
         else:
             self.logger.log(
-                self.level, "%s write                <- [%3d B]: %s", self.name, bytes_written, hex_lines[0]
+                self.level,
+                "%s write                <- [%3d B]: %s",
+                self.name,
+                bytes_written,
+                hex_lines[0],
             )
 
         return bytes_written

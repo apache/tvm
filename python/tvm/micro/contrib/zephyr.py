@@ -23,9 +23,7 @@ import multiprocessing
 import os
 import re
 import tempfile
-import termios
 import textwrap
-import signal
 import shlex
 import shutil
 import subprocess
@@ -290,7 +288,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         openocd_serial=None,
         flash_args=None,
         debug_rpc_session=None,
-        serial_timeouts=None
+        serial_timeouts=None,
     ):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
@@ -461,7 +459,8 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
 
         port_kwargs = self._find_serial_port(micro_binary)
         serial_transport = serial.SerialTransport(
-            timeouts=self._serial_timeouts, baudrate=uart_baud, **port_kwargs)
+            timeouts=self._serial_timeouts, baudrate=uart_baud, **port_kwargs
+        )
         if self._debug_rpc_session is None:
             return serial_transport
 
@@ -602,7 +601,8 @@ class ZephyrDebugger(debugger.GdbDebugger):
         env["ZEPHYR_BASE"] = self._zephyr_base
 
         return dict(
-            args=self._west_cmd + [
+            args=self._west_cmd
+            + [
                 "debug",
                 "--skip-rebuild",
                 "--build-dir",
@@ -610,4 +610,5 @@ class ZephyrDebugger(debugger.GdbDebugger):
                 "--elf-file",
                 self._elf_path,
             ],
-            env=env)
+            env=env,
+        )
