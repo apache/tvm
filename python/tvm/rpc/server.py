@@ -235,7 +235,6 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         server_proc = multiprocessing.Process(
             target=_serve_loop, args=(conn, addr, load_library, work_path)
         )
-        server_proc.daemon = True
 
         server_proc.start()
         # close from our side.
@@ -282,7 +281,6 @@ def _connect_proxy_loop(addr, key, load_library):
             opts = _parse_server_opt(remote_key.split()[1:])
             logger.info("connected to %s", str(addr))
             process = multiprocessing.Process(target=_serve_loop, args=(sock, addr, load_library))
-            process.daemon = True
             process.start()
             sock.close()
             process.join(opts.get("timeout", None))
@@ -433,13 +431,11 @@ class Server(object):
                 target=_listen_loop,
                 args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr),
             )
-            self.proc.daemon = True
             self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key, load_library)
             )
-            self.proc.daemon = True
             self.proc.start()
 
     def terminate(self):
