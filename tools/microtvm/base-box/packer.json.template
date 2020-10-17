@@ -14,18 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--microtvm-platforms",
-        default="host",
-        help=(
-            "Specify a comma-separated list of test models (i.e. as passed to tvm.target.micro()) "
-            "for microTVM tests."
-        ),
-    )
-
-
-def pytest_generate_tests(metafunc):
-    if "platform" in metafunc.fixturenames:
-        metafunc.parametrize("platform", metafunc.config.getoption("microtvm_platforms").split(","))
+{
+    "variables": {
+        "provider": null,
+        "version": null,
+        "access_token": null,
+        "skip_add": "false"
+    },
+    "builders": [
+        {
+            "type": "vagrant",
+            "output_dir": "output-vagrant-{{user `provider`}}",
+            "communicator": "ssh",
+            "source_path": "generic/ubuntu2004",
+            "provider": "{{user `provider`}}",
+            "template": "Vagrantfile.packer-template",
+            "skip_add": "{{user `skip_add`}}"
+        }
+    ],
+    "post-processors": [
+        {
+            "type": "vagrant-cloud",
+            "box_tag": "areusch/microtvm-staging",
+            "version": "{{user `version`}}",
+            "access_token": "{{user `access_token`}}"
+        }
+    ]
+}
