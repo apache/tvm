@@ -69,7 +69,11 @@
 #include <llvm/CodeGen/TargetLoweringObjectFileImpl.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
+#if TVM_LLVM_VERSION >= 80
 #include <llvm/Support/ARMTargetParser.h>
+#else
+#include <llvm/Support/TargetParser.h>
+#endif
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Host.h>
