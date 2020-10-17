@@ -132,7 +132,7 @@ ALLOW_SPECIFIC_FILE = {
     "tools/microtvm/base-box/Vagrantfile.packer-template",
     "tools/microtvm/base-box/Vagrantfile.provision",
     "tools/microtvm/base-box/kitware-archive-latest.asc",
-    "tools/microtvm/base-box/packer.hcl",
+    "tools/microtvm/base-box/packer.json.template",
     "tools/microtvm/vm/Vagrantfile",
     "tools/microtvm/vm/kitware-archive-latest.asc",
 }
