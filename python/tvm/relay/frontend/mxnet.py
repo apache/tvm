@@ -627,21 +627,6 @@ def _mx_expand_dims(inputs, attrs):
     return _op.expand_dims(inputs[0], axis=axis)
 
 
-def _mx_where(inputs, _):
-    cond, lhs, rhs = inputs
-    cond_shape = get_const_tuple(_infer_type(cond).checked_type.shape)
-    lhs_shape = get_const_tuple(_infer_type(lhs).checked_type.shape)
-    rhs_shape = get_const_tuple(_infer_type(rhs).checked_type.shape)
-    out_shape = np.broadcast(np.empty(cond_shape), np.empty(lhs_shape), np.empty(rhs_shape)).shape
-    if out_shape != cond_shape:
-        cond = _op.broadcast_to(cond, out_shape)
-    if out_shape != lhs_shape:
-        lhs = _op.broadcast_to(lhs, out_shape)
-    if out_shape != rhs_shape:
-        rhs = _op.broadcast_to(rhs, out_shape)
-    return _op.where(cond, lhs, rhs)
-
-
 def _mx_pad(inputs, attrs):
     pad_mode = attrs.get_str("mode", None)
     if pad_mode is None:
@@ -2465,12 +2450,12 @@ _identity_list = [
     "sinh",
     "tan",
     "tanh",
+    "where"
 ]
 
 _convert_map = {
     "_copy": _rename(_op.copy),
     "relu": _rename(_op.nn.relu),
-    "where": _mx_where,
     "broadcast_add": _rename(_op.add),
     "broadcast_plus": _rename(_op.add),
     "broadcast_sub": _rename(_op.subtract),
