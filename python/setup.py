@@ -37,59 +37,28 @@ else:
 CURRENT_DIR = os.path.dirname(__file__)
 
 
-DID_READ_LIBINFO = False
+def get_lib_path():
+    """Get library path, name and version"""
+    # We can not import `libinfo.py` in setup.py directly since __init__.py
+    # Will be invoked which introduces dependences
+    libinfo_py = os.path.join(CURRENT_DIR, "./tvm/_ffi/libinfo.py")
+    libinfo = {"__file__": libinfo_py}
+    exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
+    version = libinfo["__version__"]
+    if not os.getenv("CONDA_BUILD"):
+        lib_path = libinfo["find_lib_path"]()
+        libs = [lib_path[0]]
+        if libs[0].find("runtime") == -1:
+            for name in lib_path[1:]:
+                if name.find("runtime") != -1:
+                    libs.append(name)
+                    break
+    else:
+        libs = None
+    return libs, version
 
 
-LIBINFO = None
-
-
-def read_libinfo():
-    global DID_READ_LIBINFO
-    global LIBINFO
-    if not DID_READ_LIBINFO:
-        # We can not import `libinfo.py` in setup.py directly since __init__.py
-        # Will be invoked which introduces dependences
-        libinfo_py = os.path.join(CURRENT_DIR, "./tvm/_ffi/libinfo.py")
-        LIBINFO = {"__file__": libinfo_py}
-        exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), LIBINFO, LIBINFO)
-        DID_READ_LIBINFO = True
-
-
-def get_version():
-    read_libinfo()
-    return LIBINFO["__version__"]
-
-
-LIB_LIST = None
-
-
-def get_lib_list():
-    """Get list of paths to DSO libraries that should be included in an installation."""
-    global LIB_LIST
-    if LIB_LIST is None:
-        if sys.platform == "linux":
-            so_ext = "so"
-        elif sys.platform == "darwin":
-            so_ext = "dylib"
-        elif sys.platform in ("win32", "cygwin"):
-            so_ext = "dll"
-        else:
-            assert False, f"sys.platform {sys.platform} is not supported"
-        LIB_LIST = [
-            f"{CURRENT_DIR}/../build-microtvm/libtvm_runtime.{so_ext}",
-            f"{CURRENT_DIR}/../build-microtvm/libtvm.{so_ext}",
-        ]
-        print('COMPUTED LIB LIST', LIB_LIST)
-        # read_libinfo()
-        # lib_path = LIBINFO["find_lib_path"]()
-        # LIB_LIST = [lib_path[0]]
-        # if LIB_LIST[0].find("runtime") == -1:
-        #     for name in lib_path[1:]:
-        #         if name.find("runtime") != -1:
-        #             LIB_LIST.append(name)
-        #             break
-
-    return LIB_LIST
+LIB_LIST, __version__ = get_lib_path()
 
 
 def config_cython():
@@ -150,7 +119,6 @@ class BinaryDistribution(Distribution):
         return False
 
 
-# For bdist_wheel only
 include_libs = False
 wheel_include_libs = False
 if not os.getenv("CONDA_BUILD"):
@@ -160,21 +128,21 @@ if not os.getenv("CONDA_BUILD"):
         include_libs = True
 
 setup_kwargs = {}
+
+# For bdist_wheel only
 if wheel_include_libs:
     with open("MANIFEST.in", "w") as fo:
-        for path in get_lib_list():
+        for path in LIB_LIST:
             shutil.copy(path, os.path.join(CURRENT_DIR, "tvm"))
             _, libname = os.path.split(path)
             fo.write("include tvm/%s\n" % libname)
-    setup_kwargs["include_package_data"] = True
+    setup_kwargs = {"include_package_data": True}
 
 if include_libs:
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    get_lib_list()
     for i, path in enumerate(LIB_LIST):
         LIB_LIST[i] = os.path.relpath(path, curr_path)
-    setup_kwargs["include_package_data"] = True
-    setup_kwargs["data_files"] = [("tvm", LIB_LIST)]
+    setup_kwargs = {"include_package_data": True, "data_files": [("tvm", LIB_LIST)]}
 
 
 def get_package_data_files():
@@ -184,7 +152,7 @@ def get_package_data_files():
 
 setup(
     name="tvm",
-    version=get_version(),
+    version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
     zip_safe=False,
     entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
@@ -220,13 +188,13 @@ setup(
     distclass=BinaryDistribution,
     url="https://github.com/apache/incubator-tvm",
     ext_modules=config_cython(),
-    **setup_kwargs
+    **setup_kwargs,
 )
 
 
 if wheel_include_libs:
     # Wheel cleanup
     os.remove("MANIFEST.in")
-    for path in get_lib_list():
+    for path in LIB_LIST:
         _, libname = os.path.split(path)
         os.remove("tvm/%s" % libname)

@@ -28,7 +28,6 @@ import numpy as np
 
 import tvm
 import tvm.relay
-import tvm.micro
 
 from tvm.topi.util import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python

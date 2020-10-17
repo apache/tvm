@@ -27,7 +27,6 @@
 #include <memory>
 
 #include "../../support/socket.h"
-#include "../syscall_interrupted.h"
 #include "rpc_endpoint.h"
 #include "rpc_local_session.h"
 #include "rpc_session.h"
@@ -48,36 +47,18 @@ class SockChannel final : public RPCChannel {
     }
   }
   size_t Send(const void* data, size_t size) final {
-    for (;;) {
-      ssize_t n = sock_.Send(data, size);
-      if (n == -1) {
-        if (support::Socket::LastErrorIsInterruptedSyscall()) {
-          if (ShouldContinueAfterInterruptedSyscall()) {
-            continue;
-          } else {
-            throw dmlc::Error("SyscallInterruptedError: Syscall interrupted, and frontend halted execution");
-          }
-        }
-        support::Socket::Error("SockChannel::Send");
-      }
-      return static_cast<size_t>(n);
+    ssize_t n = sock_.Send(data, size);
+    if (n == -1) {
+      support::Socket::Error("SockChannel::Send");
     }
+    return static_cast<size_t>(n);
   }
   size_t Recv(void* data, size_t size) final {
-    for (;;) {
-      ssize_t n = sock_.Recv(data, size);
-      if (n == -1) {
-        if (support::Socket::LastErrorIsInterruptedSyscall()) {
-          if (ShouldContinueAfterInterruptedSyscall()) {
-            continue;
-          } else {
-            throw dmlc::Error("SyscallInterruptedError: Syscall interrupted, and frontend halted execution");
-          }
-        }
-        support::Socket::Error("SockChannel::Recv");
-      }
-      return static_cast<size_t>(n);
+    ssize_t n = sock_.Recv(data, size);
+    if (n == -1) {
+      support::Socket::Error("SockChannel::Recv");
     }
+    return static_cast<size_t>(n);
   }
 
  private:

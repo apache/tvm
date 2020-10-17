@@ -29,7 +29,6 @@ import os
 import ctypes
 import socket
 import select
-import signal
 import struct
 import logging
 import multiprocessing
@@ -116,12 +115,7 @@ def _serve_loop(sock, addr, load_library, work_path=None):
     """Server loop"""
     sockfd = sock.fileno()
     temp = _server_env(load_library, work_path)
-    try:
-        _ffi_api.ServerLoop(sockfd)
-
-    except BaseException as e:
-        logging.info("while serving %s: encountered error", addr, exc_info=True)
-
+    _ffi_api.ServerLoop(sockfd)
     if not work_path:
         temp.remove()
     logger.info("Finish serving %s", addr)
@@ -439,11 +433,13 @@ class Server(object):
                 target=_listen_loop,
                 args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr),
             )
+            self.proc.daemon = True
             self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key, load_library)
             )
+            self.proc.daemon = True
             self.proc.start()
 
     def terminate(self):

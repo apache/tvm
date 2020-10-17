@@ -20,11 +20,9 @@ from __future__ import absolute_import
 
 import argparse
 import multiprocessing
-import signal
 import sys
 import logging
 from .. import rpc
-from .. import support
 
 
 def main(args):
@@ -53,7 +51,6 @@ def main(args):
         load_library=args.load_library,
         custom_addr=args.custom_addr,
         silent=args.silent,
-        microtvm_debugger=args.microtvm_debugger,
     )
     server.proc.join()
 

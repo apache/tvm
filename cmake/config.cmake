@@ -218,6 +218,13 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Build ANTLR parser for Relay text format
+# Possible values:
+# - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
+# - OFF: disable ANTLR
+# - /path/to/antlr-*-complete.jar: path to specific ANTLR jar file
+set(USE_ANTLR OFF)
+
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
