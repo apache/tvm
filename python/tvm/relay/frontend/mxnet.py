@@ -2450,7 +2450,7 @@ _identity_list = [
     "sinh",
     "tan",
     "tanh",
-    "where"
+    "where",
 ]
 
 _convert_map = {
