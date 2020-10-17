@@ -1914,7 +1914,10 @@ def test_forward_softmax():
 @pytest.mark.skipif(not hasattr(mx.sym.np, "pad"), reason="mx.sym.np.pad hasn't been publish yet")
 @pytest.mark.parametrize(
     "data_shape, pad_width",
-    [((1, 1, 3, 5), (0, 0, 0, 0, 1, 2, 3, 4)), ((1, 1, 3, 5, 7), (0, 0, 0, 0, 1, 2, 3, 4, 5, 6))],
+    [
+        ((1, 1, 3, 5), ((0, 0), (0, 0), (1, 2), (3, 4))),
+        ((1, 1, 3, 5, 7), ((0, 0), (0, 0), (1, 2), (3, 4), (5, 6)))
+    ],
 )
 @pytest.mark.parametrize("mode", ["constant", "edge", "reflect"])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "int64", "int32"])
@@ -1925,19 +1928,19 @@ def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value, tar
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     data = mx.sym.var("data")
     if mode == "constant":
-        ref_res = mx.ndarray.pad(
-            mx.nd.array(data_np), mode=mode, pad_width=pad_width, constant_value=constant_value
+        ref_res = np.pad(
+            data_np, mode=mode, pad_width=pad_width, constant_values=constant_value
         )
         mx_sym = mx.sym.np.pad(
             data.as_np_ndarray(), mode=mode, pad_width=pad_width, constant_values=constant_value
         )
     else:
-        ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode, pad_width=pad_width)
+        ref_res = np.pad(data_np, mode=mode, pad_width=pad_width)
         mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width)
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
     intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
     op_res = intrp.evaluate()(data_np)
-    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 @pytest.mark.skipif(

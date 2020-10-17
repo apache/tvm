@@ -2297,18 +2297,18 @@ def _mx_npi_pad(inputs, attrs):
         raise tvm.error.OpAttributeRequired('Attribute "mode" not found in operator pad.')
     if pad_mode not in ["constant", "edge", "reflect"]:
         raise tvm.error.OpAttributeInvalid("Value " + mode + ' in attribute "mode" is not valid')
-    pad_width = attrs.get_int_tuple("pad_width", None)
-    if pad_width is None:
+    # Special handling of pad_width
+    if 'pad_width' not in attrs.attrs:
         raise tvm.error.OpAttributeRequired('Attribute "pad_width" not found in operator pad.')
-    if None in pad_width:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "pad_width" of operator Pad is not valid.'
-        )
+    else:
+        # Begin to parse tuple of tuple
+        pad_width = attrs.attrs['pad_width']
+        pad_width = pad_width.replace('(', '[')
+        pad_width = pad_width.replace(')', ']')
+        pad_width = json.loads(pad_width)
     constant_values = attrs.get_float("constant_values", 0.0)
-    padding = tuple(tuple((b, a)) for b, a in zip(pad_width[::2], pad_width[1::2]))
-
     return _op.nn.pad(
-        data=inputs[0], pad_width=padding, pad_value=constant_values, pad_mode=pad_mode
+        data=inputs[0], pad_width=pad_width, pad_value=constant_values, pad_mode=pad_mode
     )
 
 
