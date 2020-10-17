@@ -320,7 +320,6 @@ def test_forward_where(cond_shape, x_shape, y_shape):
     cond = mx.sym.var("cond")
     x = mx.sym.var("x")
     y = mx.sym.var("y")
-    dshape = (2, 2)
     dtype = "float32"
     mx_sym = mx.sym.where(cond, x, y)
     np_cond = np.random.randint(0, 2, cond_shape, dtype=dtype)
