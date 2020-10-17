@@ -329,13 +329,9 @@ def test_forward_where(cond_shape, x_shape, y_shape):
     mx_x = mx.nd.array(np_x)
     mx_y = mx.nd.array(np_y)
     shapes = {"cond": cond_shape, "x": x_shape, "y": y_shape}
-    mod = mx.mod.Module(mx_sym, label_names=None, data_names=["cond", "x", "y"])
-    mod.bind(data_shapes=shapes.items(), for_training=False)
-    mod.init_params()
-    args, auxs = mod.get_params()
     mx_out = mx.nd.where(mx_cond, mx_x, mx_y).asnumpy()
 
-    mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, args, auxs)
+    mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, None, None)
     for target, ctx in tvm.testing.enabled_targets():
         for kind in ["graph", "debug"]:
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
