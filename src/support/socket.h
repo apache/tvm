@@ -26,10 +26,14 @@
 #define TVM_SUPPORT_SOCKET_H_
 
 #if defined(_WIN32)
+
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#undef NOMINMAX
+
 using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
