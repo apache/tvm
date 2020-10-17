@@ -2302,7 +2302,7 @@ def _mx_npi_pad(inputs, attrs):
         raise tvm.error.OpAttributeRequired('Attribute "pad_width" not found in operator pad.')
     if None in pad_width:
         raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "pad_width" of operator Slice is not valid.'
+            'Value None in attribute "pad_width" of operator Pad is not valid.'
         )
     constant_values = attrs.get_float("constant_values", 0.0)
     padding = tuple(tuple((b, a)) for b, a in zip(pad_width[::2], pad_width[1::2]))
