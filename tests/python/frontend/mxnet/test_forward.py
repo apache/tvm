@@ -312,20 +312,24 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
-def test_forward_where():
+@pytest.mark.parametrize(
+    "cond_shape,x_shape,y_shape",
+    [[(2, 2, 2), (2, 2, 2), (2, 2, 2)], [(2, 7, 2), (7, 2), (7, 1)]],
+)
+def test_forward_where(cond_shape, x_shape, y_shape):
     cond = mx.sym.var("cond")
     x = mx.sym.var("x")
     y = mx.sym.var("y")
     dshape = (2, 2)
     dtype = "float32"
     mx_sym = mx.sym.where(cond, x, y)
-    np_cond = np.array([[0, 1], [-1, 0]]).astype(dtype)
-    np_x = np.random.uniform(size=dshape).astype(dtype)
-    np_y = np.random.uniform(size=dshape).astype(dtype)
+    np_cond = np.random.randint(0, 2, cond_shape, dtype=dtype)
+    np_x = np.random.uniform(size=x_shape).astype(dtype)
+    np_y = np.random.uniform(size=y_shape).astype(dtype)
     mx_cond = mx.nd.array(np_cond)
     mx_x = mx.nd.array(np_x)
     mx_y = mx.nd.array(np_y)
-    shapes = {"cond": dshape, "x": dshape, "y": dshape}
+    shapes = {"cond": cond_shape, "x": x_shape, "y": y_shape}
     mod = mx.mod.Module(mx_sym, label_names=None, data_names=["cond", "x", "y"])
     mod.bind(data_shapes=shapes.items(), for_training=False)
     mod.init_params()
