@@ -19,7 +19,6 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 import warnings
 import numpy as np
-import onnx
 import tvm
 from tvm.ir import IRModule
 from tvm.topi.util import get_const_tuple
@@ -102,7 +101,11 @@ def get_numpy(tensor_proto):
 
 def get_type(elem_type):
     """Converts onnx integer datatype to numpy datatype"""
-    return onnx.TensorProto.DataType.Name(elem_type).lower()
+    try:
+        from onnx import TensorProto
+    except ImportError as e:
+        raise ImportError("Unable to import onnx which is required {}".format(e))
+    return TensorProto.DataType.Name(elem_type).lower()
 
 
 def get_info(info_proto):
@@ -2663,6 +2666,8 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
         The parameter dict to be used by relay
     """
     try:
+        import onnx
+
         if hasattr(onnx.checker, "check_model"):
             # try use onnx's own model checker before converting any model
             try:
