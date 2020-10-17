@@ -73,7 +73,7 @@ class FdTransport(base.Transport):
             timeout_sec = max(0, end_time - time.monotonic())
         rlist, wlist, xlist = select.select(rlist, wlist, rlist + wlist, timeout_sec)
         if not rlist and not wlist and not xlist:
-            raise IoTimeoutError()
+            raise base.IoTimeoutError()
 
         return True
 
