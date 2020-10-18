@@ -1762,9 +1762,7 @@ def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=Fal
     for adjoint_a in [False]:
         for adjoint_b in [False]:
             with tf.Graph().as_default():
-                A_sp = tf.sparse.SparseTensor(
-                    indices=[[0, 0], [1, 2]], values=[4.0, 8.0], dense_shape=A_shape
-                )
+                A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
                 B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
 
                 if flip:

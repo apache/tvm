@@ -904,8 +904,8 @@ def _batch_matmul():
 
 
 def _sparse_tensor_dense_matmul():
-    # Sparse utility from Numpy
-    from scipy import sparse
+    # Sparse utility from scipy
+    from scipy.sparse import csr_matrix
 
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
@@ -919,11 +919,11 @@ def _sparse_tensor_dense_matmul():
         rows = [x[0] for x in indices_tensor]
         cols = [x[1] for x in indices_tensor]
 
-        # Create Numpy sparse Tensor(CSR)
-        weight_sp = sparse.csr_matrix(
+        # Create scipy sparse Tensor(CSR)
+        weight_sp = csr_matrix(
             (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
         )
-        weight_sp = sparse.csr_matrix(weight_sp.transpose())
+        weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
         weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
@@ -935,6 +935,8 @@ def _sparse_tensor_dense_matmul():
         # TODO: Support other adjoint option too
         if attr.get("adjoint_a") and attr.get("adjoint_b"):
             ret = _op.transpose(ret)
+        else:
+            raise tvm.error.OpAttributeUnImplemented("Adjoint option is not supported yet.")
 
         return ret
 
