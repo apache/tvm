@@ -2677,6 +2677,7 @@ _convert_map = {
     "_npi_add_scalar": _binop_scalar(_op.add),
     "_npi_where_rscalar": _mx_npi_where_rscalar,
     "_npi_less": _rename(_op.less),
+    "_npi_less_equal": _mx_compare(_op.less_equal, _rename),
     "_npi_tanh": _rename(_op.tanh),
     "_npi_true_divide_scalar": _binop_scalar(_op.divide),
 }
