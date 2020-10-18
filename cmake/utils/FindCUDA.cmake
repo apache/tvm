@@ -87,15 +87,20 @@ macro(find_cuda use_cuda)
         NO_DEFAULT_PATH)
       find_library(CUDA_CUDNN_LIBRARY cudnn
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib
+        NO_DEFAULT_PATH)
+      # search default path if cannot find cudnn in non-default
+      find_library(CUDA_CUDNN_LIBRARY cudnn)
       find_library(CUDA_CUBLAS_LIBRARY cublas
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib
+        NO_DEFAULT_PATH)
       find_library(CUDA_CUBLASLT_LIBRARY
         NAMES cublaslt cublasLt
         PATHS
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib
+        NO_DEFAULT_PATH)
     endif(MSVC)
     message(STATUS "Found CUDA_TOOLKIT_ROOT_DIR=" ${CUDA_TOOLKIT_ROOT_DIR})
     message(STATUS "Found CUDA_CUDA_LIBRARY=" ${CUDA_CUDA_LIBRARY})
