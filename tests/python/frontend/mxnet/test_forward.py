@@ -1916,7 +1916,7 @@ def test_forward_softmax():
     "data_shape, pad_width",
     [
         ((1, 1, 3, 5), ((0, 0), (0, 0), (1, 2), (3, 4))),
-        ((1, 1, 3, 5, 7), ((0, 0), (0, 0), (1, 2), (3, 4), (5, 6)))
+        ((1, 1, 3, 5, 7), ((0, 0), (0, 0), (1, 2), (3, 4), (5, 6))),
     ],
 )
 @pytest.mark.parametrize("mode", ["constant", "edge", "reflect"])
@@ -1928,9 +1928,7 @@ def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value, tar
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     data = mx.sym.var("data")
     if mode == "constant":
-        ref_res = np.pad(
-            data_np, mode=mode, pad_width=pad_width, constant_values=constant_value
-        )
+        ref_res = np.pad(data_np, mode=mode, pad_width=pad_width, constant_values=constant_value)
         mx_sym = mx.sym.np.pad(
             data.as_np_ndarray(), mode=mode, pad_width=pad_width, constant_values=constant_value
         )
