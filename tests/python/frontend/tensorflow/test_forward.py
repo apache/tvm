@@ -3644,7 +3644,7 @@ def test_forward_reduce():
     _test_math_op(tf.math.reduce_max)
     _test_math_op(tf.math.reduce_min)
     _test_math_op(tf.math.reduce_prod)
-    _test_math_op(tf.math.reduce_variance)
+    _test_math_op(tf.math.reduce_variance, dtypes=["float32"])
     _test_math_op(tf.math.reduce_std, dtypes=["float32"])
     _test_math_op(tf.math.reduce_logsumexp, dtypes=["float32"])
     if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
@@ -3855,11 +3855,11 @@ def test_forward_unravel_index():
     _test_forward_unravel_index([x, y])
 
     x = np.array([0, 1, 2, 5])
-    y = np.array([2, 2])
+    y = np.array([2, 3])
     _test_forward_unravel_index([x, y])
 
     x = np.array([0, 1, 2, 5])
-    y = np.array([2])
+    y = np.array([6])
     _test_forward_unravel_index([x, y])
 
     x = np.array([102, 300, 16])
