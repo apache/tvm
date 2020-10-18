@@ -25,13 +25,13 @@
 #ifndef TVM_PARSER_SPAN_CHECK_H_
 #define TVM_PARSER_SPAN_CHECK_H_
 
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
+#include <tvm/support/logging.h>
 
 #include <fstream>
 #include <string>

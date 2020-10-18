@@ -21,67 +21,21 @@
  * \file diagnostic.h
  * \brief A new diagnostic interface for TVM error reporting.
  *
- * A prototype of the new diagnostic reporting interface for TVM.
- *
- * Eventually we hope to promote this file to the top-level and
- * replace the existing errors.h.
  */
 
 #ifndef TVM_IR_DIAGNOSTIC_H_
 #define TVM_IR_DIAGNOSTIC_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/ir/span.h>
 #include <tvm/parser/source_map.h>
-#include <tvm/runtime/container.h>
-#include <tvm/runtime/object.h>
-#include <tvm/support/logging.h>
 
-#include <fstream>
+#include <sstream>
 #include <string>
-#include <utility>
-#include <vector>
 
 namespace tvm {
 
 using tvm::parser::SourceMap;
 using tvm::runtime::TypedPackedFunc;
-
-extern const char* kTVM_INTERNAL_ERROR_MESSAGE;
-
-#define ICHECK_INDENT "  "
-
-#define ICHECK_BINARY_OP(name, op, x, y)                           \
-  if (dmlc::LogCheckError _check_err = dmlc::LogCheck##name(x, y)) \
-  dmlc::LogMessageFatal(__FILE__, __LINE__).stream()               \
-      << kTVM_INTERNAL_ERROR_MESSAGE << std::endl                  \
-      << ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << *(_check_err.str) << ": "
-
-#define ICHECK(x)                                    \
-  if (!(x))                                          \
-  dmlc::LogMessageFatal(__FILE__, __LINE__).stream() \
-      << kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << " == false: "
-
-#define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
-#define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
-#define ICHECK_LE(x, y) ICHECK_BINARY_OP(_LE, <=, x, y)
-#define ICHECK_GE(x, y) ICHECK_BINARY_OP(_GE, >=, x, y)
-#define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
-#define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
-#define ICHECK_NOTNULL(x)                                                                   \
-  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                      \
-                        << kTVM_INTERNAL_ERROR_MESSAGE << __INDENT << "Check not null: " #x \
-                        << ' ',                                                             \
-   (x) : (x))  // NOLINT(*)
-
-/*! \brief The diagnostic level, controls the printing of the message. */
-enum class DiagnosticLevel : int {
-  kBug = 10,
-  kError = 20,
-  kWarning = 30,
-  kNote = 40,
-  kHelp = 50,
-};
 
 class DiagnosticBuilder;
 
