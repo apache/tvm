@@ -1932,7 +1932,10 @@ def test_forward_softmax():
 @pytest.mark.skipif(not hasattr(mx.sym.np, "pad"), reason="mx.sym.np.pad hasn't been publish yet")
 @pytest.mark.parametrize(
     "data_shape, pad_width",
-    [((1, 1, 3, 5), (0, 0, 0, 0, 1, 2, 3, 4)), ((1, 1, 3, 5, 7), (0, 0, 0, 0, 1, 2, 3, 4, 5, 6))],
+    [
+        ((1, 1, 3, 5), ((0, 0), (0, 0), (1, 2), (3, 4))),
+        ((1, 1, 3, 5, 7), ((0, 0), (0, 0), (1, 2), (3, 4), (5, 6))),
+    ],
 )
 @pytest.mark.parametrize("mode", ["constant", "edge", "reflect"])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "int64", "int32"])
@@ -1943,19 +1946,17 @@ def test_forward_npi_pad(data_shape, pad_width, mode, dtype, constant_value, tar
     data_np = np.random.uniform(size=data_shape).astype(dtype)
     data = mx.sym.var("data")
     if mode == "constant":
-        ref_res = mx.ndarray.pad(
-            mx.nd.array(data_np), mode=mode, pad_width=pad_width, constant_value=constant_value
-        )
+        ref_res = np.pad(data_np, mode=mode, pad_width=pad_width, constant_values=constant_value)
         mx_sym = mx.sym.np.pad(
             data.as_np_ndarray(), mode=mode, pad_width=pad_width, constant_values=constant_value
         )
     else:
-        ref_res = mx.ndarray.pad(mx.nd.array(data_np), mode=mode, pad_width=pad_width)
+        ref_res = np.pad(data_np, mode=mode, pad_width=pad_width)
         mx_sym = mx.sym.np.pad(data.as_np_ndarray(), mode=mode, pad_width=pad_width)
     mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape}, dtype=dtype)
     intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
     op_res = intrp.evaluate()(data_np)
-    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 @pytest.mark.skipif(
@@ -2029,8 +2030,12 @@ def test_forward_np_copy(data_shape, dtype, target, ctx, kind):
         ((2, 3, 8), (-2, -2, 2, -1), False),
         ((8, 3, 3, 3, 4, 4), (-6, 2, -1, -4), False),
         ((8, 3, 3, 3, 4, 4), (-5, -4), False),
+        ((1, 8, 3, 3, 3, 4, 4), (-3, -5, -4), False),
+        ((8, 1, 3, 4), (-2, -3, -1), False),
         ((8, 3, 3, 3, 3, 8), (-4, -5), True),
         ((8, 3, 2, 4, 8), (-4, -1, 2, -6), True),
+        ((3, 2, 4, 8, 1, 1), (-4, -1, 2, -6, -5, -3), True),
+        ((2, 4, 1, 8), (-4, -3, -1, 2, -6), True),
     ],
 )
 def test_forward_npx_reshape(data_shape, out_shape, dtype, target, reverse, ctx, kind):
@@ -2117,16 +2122,21 @@ def test_forward_npi_tanh(data_shape, dtype, target, ctx, kind):
 
 
 @pytest.mark.skipif(not hasattr(mx.np, "where"), reason="mx.np.where hasn't been publish yet")
-@pytest.mark.parametrize("data_shape", [(2, 2, 2), (2, 7, 2), (1, 8), (2, 2), (1, 3)])
+@pytest.mark.parametrize(
+    "data_shape,cond_shape",
+    [[(2, 2, 2), (2, 2, 2)], [(2, 7, 2), (7, 2)], [(2, 2), (1, 2)], [(1, 3), (3, 3)]],
+)
 @pytest.mark.parametrize("data_dtype", ["float64", "float32", "int64", "int32", "bool"])
 @pytest.mark.parametrize("cond_dtype", ["float64", "float32", "int64", "int32", "bool"])
 @pytest.mark.parametrize("scalar", [1.0, 2.0])
 @tvm.testing.parametrize_targets
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
-def test_forward_npi_where_rscalar(data_shape, cond_dtype, data_dtype, scalar, target, ctx, kind):
+def test_forward_npi_where_rscalar(
+    data_shape, cond_shape, data_dtype, cond_dtype, scalar, target, ctx, kind
+):
     if data_dtype == "bool":
         scalar = scalar == 0.0
-    cond_np = np.random.uniform(size=data_shape).astype(cond_dtype)
+    cond_np = np.random.uniform(size=cond_shape).astype(cond_dtype)
     data_np = np.random.uniform(size=data_shape).astype(data_dtype)
     cond = mx.sym.var("condition")
     data = mx.sym.var("x")
@@ -2136,7 +2146,7 @@ def test_forward_npi_where_rscalar(data_shape, cond_dtype, data_dtype, scalar, t
     dtypeDic["condition"] = cond_dtype
     dtypeDic["x"] = data_dtype
     mod, _ = relay.frontend.from_mxnet(
-        mx_sym, shape={"condition": data_shape, "x": data_shape}, dtype=dtypeDic
+        mx_sym, shape={"condition": cond_shape, "x": data_shape}, dtype=dtypeDic
     )
     intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
     op_res = intrp.evaluate()(cond_np, data_np)
