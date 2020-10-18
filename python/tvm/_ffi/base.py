@@ -49,6 +49,11 @@ else:
 def _load_lib():
     """Load libary by searching possible path."""
     lib_path = libinfo.find_lib_path()
+    # The dll search path need to be added explicitly in
+    # windows after python 3.8
+    if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
+        for path in libinfo.get_dll_directories():
+            os.add_dll_directory(path)
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
     lib.TVMGetLastError.restype = ctypes.c_char_p
     return lib, os.path.basename(lib_path[0])
