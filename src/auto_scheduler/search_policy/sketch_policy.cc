@@ -379,10 +379,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 
     support::parallel_for(0, out_size - out_states.size(),
                           [this, &temp_states, &sketches, &rand_gens](int index) {
-                            // Random choose a starting sketch
-                            // TODO(jcf94, merrymercy): Maybe choose sketches in different
-                            // possibility for they may have different potential on generating state
-                            // with better performance
+                            // Randomly choose a sketch
                             State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
                             // Derivation rule based enumeration
                             bool valid = true;
@@ -503,6 +500,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
 
     // Compute selection probability
     ComputePrefixSumProb(pop_scores, &pop_selection_probs);
+
+    // TODO(merrymercy, comaniac): add crossover.
 
     // Do mutation
     while (pnext->size() < population) {

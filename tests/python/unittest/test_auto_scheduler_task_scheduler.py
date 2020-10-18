@@ -43,9 +43,7 @@ def test_task_scheduler_round_robin():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.SimpleTaskScheduler(
-            tasks, objective_func, strategy="round-robin"
-        )
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func, strategy="round-robin")
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Check the result of round robin
@@ -58,6 +56,16 @@ def test_task_scheduler_round_robin():
 
         for task in tasks:
             assert counters[task.workload_key] == num_trials_per_task
+
+        # test continuous tuning (restoring the status)
+        task_scheduler = auto_scheduler.TaskScheduler(
+            tasks, objective_func, strategy="round-robin", load_log_file=log_file
+        )
+        tune_option = auto_scheduler.TuningOptions(
+            num_measure_trials=len(tasks),
+            num_measures_per_round=1,
+        )
+        task_scheduler.tune(tune_option, search_policy="sketch.random")
 
 
 def test_task_scheduler_gradient():
@@ -79,7 +87,7 @@ def test_task_scheduler_gradient():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.SimpleTaskScheduler(tasks, objective_func)
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func)
 
         # Forcely rewrite the initial values.
         # This can make this test more stable on the slow CI machines

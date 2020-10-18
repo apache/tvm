@@ -444,7 +444,7 @@ class ProgramMeasurerNode : public Object {
   Optional<Array<MeasureCallback>> callbacks;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
   int verbose;
-  /*! \brief The number of max continuous error. */
+  /*! \brief The number of allowed maximum continuous error before forcely stopping the tuning */
   int max_continuous_error;
 
   /*! \brief Reset book keeping variables */
@@ -490,7 +490,8 @@ class ProgramMeasurer : public ObjectRef {
    * \param callbacks MeasureCallback to be called after each measurement batch.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * measuring.
-   * \param max_continuous_error The number of allowed maximum continuous error.
+   * \param max_continuous_error The number of allowed maximum continuous error before
+   * forcely stopping the tuning.
    */
   ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                   Optional<Array<MeasureCallback>> callbacks, int verbose,

@@ -202,7 +202,7 @@ class ProgramMeasurer(Object):
     verbose : int
         The Verbosity level: 0 for silent, 1 to output information during program
     max_continuous_error : Optional[int]
-        The number of allowed maximum continuous error.
+        The number of allowed maximum continuous error before stop the tuning
     """
 
     def __init__(self, builder, runner, callbacks, verbose, max_continuous_error=None):
