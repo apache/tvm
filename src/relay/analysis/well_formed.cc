@@ -21,10 +21,10 @@
  * \file well_formed.cc
  * \brief check that expression is well formed.
  */
-#include <tvm/ir/diagnostic.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/support/logging.h>
 
 #include <unordered_set>
 

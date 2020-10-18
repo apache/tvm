@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_OP_NN_CONVOLUTION_H_
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
-#include <tvm/ir/diagnostic.h>
+#include <tvm/support/logging.h>
 #include <tvm/tir/analysis.h>
 
 #include <string>
