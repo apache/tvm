@@ -687,7 +687,7 @@ ComputeDAG::ComputeDAG(const te::Schedule& sch) {
     node->ops.push_back(stage->op);
   }
 
-  // Collect output tensors
+  // Collect input and output tensors
   Array<te::Tensor> tensors;
   for (auto stage : sch->stages) {
     if (stage->op->IsInstance<te::PlaceholderOpNode>() || stage->is_output) {
