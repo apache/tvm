@@ -47,22 +47,29 @@ class ComputeDAG(Object):
 
     Parameters
     ----------
-    compute : Union[List[Tensor], str]
+    compute : Union[List[Tensor], str, Schedule]
         Input/output tensors or workload key for a compute declaration.
     """
 
-    def __init__(self, compute):
-        if isinstance(compute, str):
-            compute = workload_key_to_tensors(compute)
-        elif isinstance(compute, list):
-            for item in compute:
+    def __init__(self, compute_or_sche):
+        if isinstance(compute_or_sche, str):
+            compute = workload_key_to_tensors(compute_or_sche)
+            sche = None
+        elif isinstance(compute_or_sche, list):
+            for item in compute_or_sche:
                 if not isinstance(item, tvm.te.Tensor):
                     raise ValueError("The input of ComputeDAG should be a list of Tensor")
+            compute = compute_or_sche
+            sche = None
+        elif isinstance(compute_or_sche, tvm.te.Schedule):
+            compute = None
+            sche = compute_or_sche
         else:
             raise ValueError(
-                "Invalid compute: " + compute + " . ComputeDAG expects a string or list of Tensor"
+                "Invalid compute type: %s. ComputeDAG expects string, list of Tensor, or Schedule"
+                % type(compute)
             )
-        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
+        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute, sche)
 
     def get_init_state(self):
         """Get the init state of this ComputeDAG.

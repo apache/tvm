@@ -21,7 +21,11 @@ import tvm
 from tvm import topi
 from tvm import auto_scheduler, te
 
-from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
+from test_auto_scheduler_common import (
+    get_tiled_matmul,
+    matmul_auto_scheduler_test,
+    parallel_matmul_auto_scheduler_test,
+)
 
 
 def test_apply_steps():
@@ -56,7 +60,54 @@ def test_estimate_flop():
     assert abs(dag.flop_ct - (2 * N ** 3 + 1234)) < 0.5
 
 
+def test_stage_order():
+    N = 512
+    A, B, C, D, E = parallel_matmul_auto_scheduler_test(N)
+    sch = te.create_schedule([D.op, E.op])
+    (D_local,) = sch.cache_write([D], "local")
+    (E_local,) = sch.cache_write([E], "local")
+    sch.cache_read(A, "shared", [D_local])
+    sch.cache_read(B, "shared", [D_local])
+    sch.cache_read(A, "shared", [E_local])
+    sch.cache_read(C, "shared", [E_local])
+
+    dag = auto_scheduler.ComputeDAG(sch)
+    stage_ops_1 = dag.get_init_state().stage_ops
+
+    # 3 placeholder, 4 x.shared, 2 {D,E}.local, 2 {D,E} compute
+    assert len(stage_ops_1) == 11
+
+    # Cache read stage should follow the source stage
+    for idx, op in enumerate(stage_ops_1):
+        if op.name == "A":
+            assert (
+                stage_ops_1[idx + 1].name == "A.d.shared"
+                and stage_ops_1[idx + 2].name == "A.shared"
+            )
+        elif op.name in ["B", "C"]:
+            assert stage_ops_1[idx + 1].name == "%s.shared" % op.name
+
+    # Apply the same schedule to Ansor state and it should have the same stage order
+    dag = auto_scheduler.ComputeDAG([A, B, C, D, E])
+    state = dag.get_init_state()
+
+    D_local = state.cache_write(D, "local")
+    E_local = state.cache_write(E, "local")
+    state.cache_read(A, "shared", [D_local])
+    state.cache_read(B, "shared", [D_local])
+    state.cache_read(A, "shared", [E_local])
+    state.cache_read(C, "shared", [E_local])
+
+    stage_ops_2 = state.stage_ops
+    assert len(stage_ops_1) == len(stage_ops_2)
+
+    # Cache read stage should follow the source stage
+    for op1, op2 in zip(stage_ops_1, stage_ops_2):
+        assert op1.name == op2.name
+
+
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
     test_estimate_flop()
+    test_stage_order()
