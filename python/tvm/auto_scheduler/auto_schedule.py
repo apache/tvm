@@ -16,16 +16,7 @@
 # under the License.
 
 """
-User interface for TVM Auto-scheduler.
-
-The basic schedule search process for TVM Auto-scheduler is designed to be:
-`Program sampling` -> `Performance Tuning`.
-
-In `Program sampling`, we use some predefined precise or heuristic rules to generate several
-initial schedules. Based on these initial starting points, we perform `Performance Tuning` which
-uses cost model based evolutionary search to select schedules with the best performance.
-
-Candidate schedules are measured against the specific hardware target.
+The user interface and tuning options of the TVM auto-scheduler.
 """
 
 import tvm._ffi

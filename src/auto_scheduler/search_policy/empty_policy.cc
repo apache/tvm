@@ -19,7 +19,8 @@
 
 /*!
  * \file auto_scheduler/search_policy/empty_policy.cc
- * \brief This is an brief example of search policy.
+ * \brief A simple example of the search policy which always returns the initial naive schedule
+ * (state).
  */
 
 #include "empty_policy.h"
@@ -28,6 +29,8 @@
 #include <tvm/runtime/registry.h>
 
 #include <utility>
+
+#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -64,19 +67,18 @@ State EmptyPolicyNode::Search(int num_measure_trials, int early_stopping,
     measurer->Reset();
     int ct = 0;
     // In each round, we call SearchOneRound to get several candidate states,
-    // then use ProgramMeasurer to test their performance
+    // then use ProgramMeasurer to measure their performance.
     while (ct < num_measure_trials) {
       const auto& res = SearchOneRound();
       ct += res.size();
       // Build MeasureInputs for measuring
       inputs.clear();
       for (const auto& state : res) {
-        // The class members measured_states_set_ provided by SearchPolicy can be used to filter
-        // out the already measured states
         inputs.push_back(MeasureInput(search_task, state));
       }
+      // Perform measurement.
       // ProgramMeasurer will record the state with best performance during measure process
-      measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs, &results);
+      results = measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs);
     }
 
     // Return a state with best measured performance
@@ -84,18 +86,33 @@ State EmptyPolicyNode::Search(int num_measure_trials, int early_stopping,
   }
 }
 
+std::pair<Array<MeasureInput>, Array<MeasureResult>> EmptyPolicyNode::ContinueSearchOneRound(
+    int num_measure, ProgramMeasurer measurer) {
+  Array<State> best_states;
+  Array<MeasureInput> inputs;
+  Array<MeasureResult> results;
+
+  // Search one round to get promising states
+  PrintTitle("Search", verbose);
+  best_states = SearchOneRound();
+
+  // Measure these states
+  PrintTitle("Measure", verbose);
+  for (const auto& state : best_states) {
+    inputs.push_back(MeasureInput(search_task, state));
+  }
+  results = measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs);
+
+  return std::make_pair(std::move(inputs), std::move(results));
+}
+
 // As an example policy, EmptyPolicy always returns a init state
 Array<State> EmptyPolicyNode::SearchOneRound() {
   Array<State> res;
 
-  // 1. We will process `Program sampling` first to generate several initial schedules
+  // Simply return the initial naive schedule (state).
   res.push_back(search_task->compute_dag->init_state);
 
-  // 2. Then `Performance Tuning`: use cost model and evolutionary search to seek for the schedule
-  // with best performance
-  // Note: This example policy does not include this part
-
-  // 3. The returned candidate schedules will be measured in hardware
   return res;
 }
 

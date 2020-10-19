@@ -19,7 +19,7 @@
 
 /*!
  * \file auto_scheduler/search_policy/empty_policy.h
- * \brief A brief example of the search policy which always returns the initial naive schedule
+ * \brief A simple example of the search policy which always returns the initial naive schedule
  * (state).
  */
 
@@ -27,14 +27,17 @@
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_EMPTY_POLICY_H_
 
 #include <tvm/auto_scheduler/loop_state.h>
+#include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/search_policy.h>
+
+#include <utility>
 
 namespace tvm {
 namespace auto_scheduler {
 
 /*!
- * \brief A brief example of the search policy which always returns the initial naive schedule
- * (state), the formal search policy will continue to follow its design.
+ * \brief A simple example of the search policy which always returns the initial naive schedule
+ * (state).
  * The key implementation for this structure is `Search()`, check `empty_policy.cc` for more
  * details.
  */
@@ -43,13 +46,16 @@ class EmptyPolicyNode : public SearchPolicyNode {
   State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
                ProgramMeasurer measurer) final;
 
+  std::pair<Array<MeasureInput>, Array<MeasureResult>> ContinueSearchOneRound(
+      int num_measure, ProgramMeasurer measurer) final;
+
   static constexpr const char* _type_key = "auto_scheduler.EmptyPolicy";
   TVM_DECLARE_FINAL_OBJECT_INFO(EmptyPolicyNode, SearchPolicyNode);
 
  private:
   /*!
    * \brief Use a sub function to generate several candidate states in each search round.
-   * \returns Several generated states
+   * \returns The generated states
    */
   Array<State> SearchOneRound();
 };

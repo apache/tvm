@@ -22,26 +22,6 @@
  * \brief The base class of search policies, including the abstract definition of search policy and
  * other supporting data structures.
  *
- * The basic schedule search process for the auto-scheduler is design to be:
- * `Program sampling` -> `Performance Tuning`.
- *
- * In `Program sampling`, we use some predefined precise or heuristic rules to generate several
- * initial schedules. Based on these initial starting points, we perform `Performance Tuning` which
- * uses cost model based evolutionary search to select schedules with the best performance.
- *
- * Candidate schedules are measured against the specific hardware target.
- *
- * We intend to introduce different level of automation on the schedule generation process:
- * - Level 0(the default level): For all kinds of ops/subgraphs, the search policy should be able
- *   to generate schedule automatically.
- * - Level 1: For some complicated ops/subgraphs(e.g. conv2d windograd), the default search space
- *   of level 0 may be too large to find a high performance schedule efficiently. We provide some
- *   op attributes to help reduce the total search space, see `SearchPolicyKey` below for more
- *   information.
- * - Level 2: For some further special ops/subgraphs, users may more likely to write their own
- *   template(just like AutoTVM). Search policy should be able to provide a flexible approach as
- *   well.
- *
  * \note How to add a new search policy.
  * In design, there's no need for users to implement their own search policy, our formal search
  * policy(will be brought later) should be enough to cover most use cases. Meanwhile, a custom rule
@@ -62,11 +42,13 @@
 #ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
 #define TVM_AUTO_SCHEDULER_SEARCH_POLICY_H_
 
+#include <tvm/auto_scheduler/measure.h>
 #include <tvm/auto_scheduler/search_task.h>
 #include <tvm/node/node.h>
 
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -170,6 +152,15 @@ class SearchPolicyNode : public Object {
    */
   virtual State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
                        ProgramMeasurer measurer) = 0;
+
+  /*!
+   * \brief Continue the search by doing an additional search round.
+   * \param num_measure The number of measurements
+   * \param measurer The measurer to measure programs
+   * \return The measurement records for measurements in this search round
+   */
+  virtual std::pair<Array<MeasureInput>, Array<MeasureResult>> ContinueSearchOneRound(
+      int num_measure, ProgramMeasurer measurer) = 0;
 
   /*!
    * \brief Preload measured states from a log file to resume the state of the search policy.

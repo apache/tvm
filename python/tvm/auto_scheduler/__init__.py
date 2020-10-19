@@ -24,6 +24,7 @@ from . import measure
 from . import measure_record
 from . import search_policy
 from . import search_task
+from . import task_scheduler
 from . import utils
 from . import workload_registry
 
@@ -42,4 +43,5 @@ from .measure import (
 from .measure_record import RecordToFile, RecordReader, load_best, load_records, save_records
 from .search_task import SearchTask
 from .search_policy import EmptyPolicy, SketchPolicy, PreloadMeasuredStates
+from .task_scheduler import TaskScheduler
 from .workload_registry import register_workload, make_workload_key

@@ -19,7 +19,8 @@
 
 /*!
  * \file auto_scheduler/search_policy/sketch_policy_rules.cc
- * \brief Rules defined to generate the sketches and initial sampled states in SketchPolicy.
+ * \brief Rules for generating the sketches, sampling the initial population, and mutating the
+ * population in SketchPolicy.
  */
 
 #include "sketch_policy_rules.h"
@@ -317,7 +318,7 @@ SketchGenerationRule::ConditionKind RuleCrossThreadReduction::MeetCondition(
     const SketchPolicyNode& policy, const State& state, int stage_id) const {
   CHECK(IsGPUTask(policy.search_task));
 
-  // If it is an intermidiate state created by RuleAddCacheWrite,
+  // If it is an intermediate state created by RuleAddCacheWrite,
   // we just skip it.
   if (HasCacheWriteStage(state, stage_id)) {
     return ConditionKind::kSkip;
@@ -1114,6 +1115,10 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
             std::make_pair(stage_id, max_fusable_iter_id))) {
       break;
     }
+  }
+
+  if (max_fusable_iter_id == 0) {
+    return ResultKind::kInvalid;
   }
 
   // Randomly pick one granularity
