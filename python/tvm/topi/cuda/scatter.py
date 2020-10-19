@@ -120,7 +120,6 @@ def gen_ir_2d(data, indices, updates, axis, out):
         ib.scope_attr(bx, "thread_extent", n)
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(tx, "thread_extent", warp_size)
-        i = bx
         with ib.for_range(0, ceil_div(c, warp_size), name="j") as j_:
             j = j_ * warp_size + tx
             with ib.if_scope(j < c):
