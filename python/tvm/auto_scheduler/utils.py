@@ -25,6 +25,8 @@ import signal
 import threading
 import os
 
+import numpy as np
+
 try:
     import psutil
 except ImportError:
@@ -264,3 +266,48 @@ def check_remote(device_key, host=None, port=None, priority=100, timeout=10):
     t.start()
     t.join(timeout)
     return not t.is_alive()
+
+
+def array_mean(arr):
+    """Compute mean of the elments in a TVM Array<PrimExpr>
+
+    Parameters
+    ----------
+    arr: Array
+        A TVM Array<PrimExpr>
+
+    Returns
+    -------
+    mean: float
+        The mean of the elements in the array
+    """
+    return sum(x.value for x in arr) / len(arr)
+
+
+def to_str_round(x, decimal=6):
+    """Convert an object to str and round float numbers
+
+    Parameters
+    ----------
+    x: Union[str, list, int, float, np.ndarray]
+        The input object
+    decimal: int
+        The precision of decimal fraction
+
+    Returns
+    -------
+    ret: str
+        The string format of these objects
+    """
+    if isinstance(x, str):
+        return x
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return "[" + ", ".join([to_str_round(y, decimal=decimal) for y in x]) + "]"
+    if isinstance(x, dict):
+        return str({k: to_str_round(v) for k, v in x.items()})
+    if isinstance(x, int):
+        return str(x)
+    if isinstance(x, (np.float32, np.float64, float)):
+        format_str = "%%.%df" % decimal
+        return format_str % x
+    raise ValueError("Invalid value: " + str(x) + "\ttype: " + str(type(x)))

@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 #include <sys/types.h>
+#include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,24 +67,17 @@ utvm_rpc_server_t UTvmRpcServerInit(uint8_t* memory, size_t memory_size_bytes,
                                     size_t page_size_bytes_log2,
                                     utvm_rpc_channel_write_t write_func, void* write_func_ctx);
 
-/*! \brief Copy received data into an internal buffer for processing.
- *
- * Currently only handles 1 byte of data. In the future, the goal of this function is to be safe to
- * invoke from an ISR. At that time, this function will just append to an internal buffer.
+/*! \brief Do any tasks suitable for the main thread, and maybe process new incoming data.
  *
  * \param server The TVM RPC Server pointer.
- * \param byte The received byte of data.
- * \return The number of bytes copied to the internal buffer. May be less than data_size_bytes when
- * the internal buffer fills.
+ * \param new_data If not nullptr, a pointer to a buffer pointer, which should point at new input
+ *     data to process. On return, updated to point past data that has been consumed.
+ * \param new_data_size_bytes Points to the number of valid bytes in `new_data`. On return,
+ *     updated to the number of unprocessed bytes remaining in `new_data` (usually 0).
+ * \return An error code indicating the outcome of the server main loop iteration.
  */
-size_t UTvmRpcServerReceiveByte(utvm_rpc_server_t server, uint8_t byte);
-
-/*! \brief Perform normal processing of received data.
- *
- * \param server The TVM RPC Server pointer.
- * \return true while the server is still running. false when it shuts down gracefully.
- */
-bool UTvmRpcServerLoop(utvm_rpc_server_t server);
+tvm_crt_error_t UTvmRpcServerLoop(utvm_rpc_server_t server, uint8_t** new_data,
+                                  size_t* new_data_size_bytes);
 
 #ifdef __cplusplus
 }

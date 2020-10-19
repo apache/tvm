@@ -21,7 +21,6 @@
  * \file parser.cc
  * \brief A parser for TVM IR.
  */
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
 #include <tvm/parser/parser.h>
@@ -31,6 +30,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <fstream>
 

@@ -23,7 +23,7 @@ import signal
 import subprocess
 import threading
 
-from . import transport as _transport
+from . import transport
 
 
 class Debugger(metaclass=abc.ABCMeta):
@@ -116,8 +116,8 @@ class GdbTransportDebugger(GdbDebugger):
         else:
             raise NotImplementedError(f"System {sysname} is not yet supported")
 
-        self.stdin = os.fdopen(stdin_write, "wb", buffering=0)
-        self.stdout = os.fdopen(stdout_read, "rb", buffering=0)
+        self.fd_transport = fd.FdTransport(stdout_read, stdin_write)
+        self.fd_transport.open()
 
         return {
             "args": args,
@@ -126,8 +126,7 @@ class GdbTransportDebugger(GdbDebugger):
 
     def _wait_for_process_death(self):
         self.popen.wait()
-        self.stdin.close()
-        self.stdout.close()
+        self.fd_transport.close()
 
     def start(self):
         to_return = super(GdbTransportDebugger, self).start()
@@ -135,22 +134,24 @@ class GdbTransportDebugger(GdbDebugger):
         return to_return
 
     def stop(self):
-        self.stdin.close()
-        self.stdout.close()
+        self.fd_transport.close()
         super(GdbTransportDebugger, self).stop()
 
-    class _Transport(_transport.Transport):
+    class _Transport(transport.Transport):
         def __init__(self, gdb_transport_debugger):
             self.gdb_transport_debugger = gdb_transport_debugger
+
+        def timeouts(self):
+            return transport.debug_transport_timeouts()
 
         def open(self):
             pass  # Pipes opened by parent class.
 
-        def write(self, data):
-            return self.gdb_transport_debugger.stdin.write(data)
+        def write(self, data, timeout_sec):
+            return self.gdb_transport_debugger.fd_transport.write(data, timeout_sec)
 
-        def read(self, n):
-            return self.gdb_transport_debugger.stdout.read(n)
+        def read(self, n, timeout_sec):
+            return self.gdb_transport_debugger.fd_transport.read(n, timeout_sec)
 
         def close(self):
             pass  # Pipes closed by parent class.

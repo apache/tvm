@@ -19,7 +19,8 @@
 
 /*!
  * \file auto_scheduler/search_policy/sketch_policy_rules.cc
- * \brief Rules defined to generate the sketches and initial sampled states in SketchPolicy.
+ * \brief Rules for generating the sketches, sampling the initial population, and mutating the
+ * population in SketchPolicy.
  */
 
 #include "sketch_policy_rules.h"
@@ -150,9 +151,6 @@ SketchGenerationRule::ConditionKind RuleAddCacheRead::MeetCondition(const Sketch
 
   // Don't cache_read a stage if it has multiple consumers
   const std::set<int>& consumers = GetConsumers(task, state, stage_id);
-  if (consumers.size() != 1) {
-    return ConditionKind::kSkip;
-  }
 
   // Don't cache_read a stage if its consumer does not need multi-level tiling
   int target_stage_id = *consumers.begin();
@@ -178,16 +176,22 @@ std::vector<std::pair<State, int>> RuleAddCacheRead::Apply(const SketchPolicyNod
                                                            const State& state, int stage_id) const {
   const SearchTask& task = policy.search_task;
   const std::set<int>& consumers = GetConsumers(task, state, stage_id);
-  CHECK_EQ(consumers.size(), 1);
-  int target_stage_id = *consumers.begin();
   State tmp_s = state;
 
-  // Cache read add shared memory
-  int added_stage_id = tmp_s.cache_read(stage_id, "shared", {target_stage_id}, task->compute_dag);
-  target_stage_id++;
-  const auto& share_read_pos =
-      GetLastReduceIteratorInOutermostReduceTile(tmp_s->stages[target_stage_id]);
-  tmp_s.compute_at(added_stage_id, target_stage_id, share_read_pos);
+  int target_stage_id_offset = 0;
+  for (int orig_target_stage_id : consumers) {
+    int target_stage_id = orig_target_stage_id + target_stage_id_offset;
+
+    // Cache read add shared memory
+    int added_stage_id = tmp_s.cache_read(stage_id, "shared", {target_stage_id}, task->compute_dag);
+    target_stage_id_offset++;
+    target_stage_id++;
+
+    const auto& share_read_pos =
+        GetLastReduceIteratorInOutermostReduceTile(tmp_s->stages[target_stage_id]);
+    tmp_s.compute_at(added_stage_id, target_stage_id, share_read_pos);
+  }
+
   return {std::make_pair(tmp_s, stage_id)};
 }
 
@@ -317,7 +321,7 @@ SketchGenerationRule::ConditionKind RuleCrossThreadReduction::MeetCondition(
     const SketchPolicyNode& policy, const State& state, int stage_id) const {
   CHECK(IsGPUTask(policy.search_task));
 
-  // If it is an intermidiate state created by RuleAddCacheWrite,
+  // If it is an intermediate state created by RuleAddCacheWrite,
   // we just skip it.
   if (HasCacheWriteStage(state, stage_id)) {
     return ConditionKind::kSkip;
@@ -331,7 +335,11 @@ SketchGenerationRule::ConditionKind RuleCrossThreadReduction::MeetCondition(
         GetCumulativeSpaceAndReductionLength(state->stages[stage_id]);
 
     if (NeedsMultilevelTiling(policy.search_task, state, stage_id)) {
-      // Do rfactor if we do not have enough parallelism on space iters
+      // Avoid rfactor if we have enough parallelism on space iters
+      if (cum_space_len > policy.search_task->hardware_params->max_threads_per_block) {
+        return ConditionKind::kSkip;
+      }
+
       return cum_space_len < cum_reduce_len ? ConditionKind::kApply : ConditionKind::kSkip;
     } else if (cum_reduce_len > 1) {
       // Try rfactor for other reduction operators
@@ -1114,6 +1122,10 @@ PopulationGenerationRule::ResultKind MutateParallel::Apply(SketchPolicyNode* pol
             std::make_pair(stage_id, max_fusable_iter_id))) {
       break;
     }
+  }
+
+  if (max_fusable_iter_id == 0) {
+    return ResultKind::kInvalid;
   }
 
   // Randomly pick one granularity

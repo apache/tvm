@@ -53,6 +53,20 @@ def double_matmul_auto_scheduler_test(N):
     return [A, B, C, E]
 
 
+@auto_scheduler.register_workload
+def parallel_matmul_auto_scheduler_test(N):
+    """Two parallel matmuls with shared A."""
+    A = te.placeholder((N, N), name="A", dtype="float32")
+    B = te.placeholder((N, N), name="B", dtype="float32")
+    C = te.placeholder((N, N), name="C", dtype="float32")
+    k = te.reduce_axis((0, N), name="k")
+    D = te.compute((N, N), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="D")
+    k = te.reduce_axis((0, N), name="k")
+    E = te.compute((N, N), lambda i, j: te.sum(A[i][k] * C[k][j], axis=[k]), name="E")
+
+    return [A, B, C, D, E]
+
+
 # Test for register_workload with different name
 @auto_scheduler.register_workload("matmul_auto_scheduler_test_rename_1")
 def matmul_auto_scheduler_test_rename_0(N, M, K):

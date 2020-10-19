@@ -37,6 +37,9 @@ def batch_matmul(cfg, x, y, out_shape=None):
         3-D with shape [batch, M, K]
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
+    out_shape : tuple or None
+        Shape of the outputs
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -135,7 +138,7 @@ def _default_batch_matmul_config(cfg, M, N, K):
 
 
 @autotvm.register_topi_compute("batch_matmul_cblas.x86")
-def batch_matmul_cblas(cfg, x, y):
+def batch_matmul_cblas(cfg, x, y, out_shape=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -147,6 +150,9 @@ def batch_matmul_cblas(cfg, x, y):
         3-D with shape [batch, M, K]
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
+    out_shape : tuple or None
+        Shape of the output
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -157,6 +163,10 @@ def batch_matmul_cblas(cfg, x, y):
     YB, N, YK = get_const_tuple(y.shape)
     assert XB == YB, "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistant"
+    if out_shape is not None:
+        assert out_shape[0] == XB, "got invalid output shape"
+        assert out_shape[1] == M, "got invalid output shape"
+        assert out_shape[2] == N, "got invalid output shape"
     cfg.add_flop(XB * M * N * XK * 2)
     return cblas.batch_matmul(x, y, False, True)
 
