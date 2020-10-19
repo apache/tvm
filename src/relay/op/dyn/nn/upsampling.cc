@@ -22,7 +22,7 @@
  * \brief upsampling operator
  */
 
-#include "../../nn/upsampling.h"
+#include "upsampling.h"
 
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
@@ -48,7 +48,6 @@ bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (scale_h == nullptr) return false;
   if (scale_w == nullptr) return false;
 
-  CHECK_EQ(data->shape.size(), 4);
   CHECK_EQ(scale_h->shape.size(), 0);
   CHECK_EQ(scale_w->shape.size(), 0);
   static const Layout kNCHW("NCHW");
