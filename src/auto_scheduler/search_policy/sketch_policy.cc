@@ -384,6 +384,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   while (heap.size() < target_size) {
     std::vector<State> temp_states(out_size);
 
+    // Initial a batch of states randomly
     support::parallel_for(0, out_size,
                           [this, &temp_states, &sketches, &rand_gens](int index) {
                             // Randomly choose a sketch
@@ -402,6 +403,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
                             }
                           });
 
+    // Filter out the states that were failed to apply initial rules
     Array<State> cand_states;
     for (auto tmp_s : temp_states) {
       if (tmp_s.defined()) {
@@ -413,15 +415,18 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 
     unchange_cnt++;
     if (!cand_states.empty()) {
+      // Run the cost model to make filter out states that failed to extract features.
+      // This may happen due to illegal schedules or the schedules that uses too much
+      // memory on GPU.
       std::vector<float> pop_scores;
       pop_scores.reserve(cand_states.size());
       cand_states = search_task->compute_dag.InferBound(cand_states);
       program_cost_model->Predict(search_task, cand_states, &pop_scores);
 
       for (size_t i = 0; i < cand_states.size(); i++) {
-        if (cand_states[i].defined() && pop_scores[i] > -10e4) {
+        if (pop_scores[i] > -1e10) {
           heap.Update(std::move(cand_states[i]), pop_scores[i]);
-          unchange_cnt = 0;
+          unchange_cnt = 0; // Reset the counter once we found a valid state
         } else {
           fail_ct++;
         }
@@ -436,7 +441,8 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     }
 
     if (unchange_cnt == 5) {
-      // Reduce the target size to avoid too-long time in this phase
+      // Reduce the target size to avoid too-long time in this phase if no valid state was found
+      // in the past iterations
       target_size = (target_size > 1)? target_size / 2: target_size;
       unchange_cnt = 0;
     }

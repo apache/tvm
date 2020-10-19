@@ -160,8 +160,6 @@ def load_best(filename, workload_key=None, target=None):
     best_res = None
 
     for inp, res in log_reader:
-        if best_inp is None:
-            best_inp, best_res = inp, res
         if res.error_no != MeasureErrorNo.NO_ERROR:
             continue
         if workload_key and inp.task.workload_key != workload_key:

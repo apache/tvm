@@ -745,7 +745,7 @@ public:
 
   StateHeap(size_t heap_size) {
     max_heap_size_ = heap_size;
-    max_score_ = -1e30;
+    max_score_ = -1e10;
   }
 
   /*! \brief Update the heap with a new state and its score. If the heap is full and the score
@@ -804,7 +804,7 @@ public:
 
     heap_.clear();
     in_heap_.clear();
-    max_score_ = -1e30;
+    max_score_ = -1e10;
   }
 
  private:
