@@ -814,9 +814,13 @@ class StateHeap {
     }
   };
 
+  /*! \brief The maximum size in the heap. */
   size_t max_heap_size_;
+  /*! \brief The maximum score of the in-heap states. */
   float max_score_;
+  /*! \brief The maintained heap. */
   std::vector<StateHeapItem> heap_;
+  /*! \brief A set to quickly check if a state is currently in heap or not. */
   std::unordered_set<std::string> in_heap_;
 };
 
