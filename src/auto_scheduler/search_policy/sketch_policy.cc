@@ -42,7 +42,6 @@
 #include <vector>
 
 #include "sketch_policy_rules.h"
-#include "utils.h"
 
 namespace tvm {
 namespace auto_scheduler {
@@ -375,13 +374,10 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  // A heap to keep the best states during sampling
-  StateHeap heap(out_size);
-
   size_t iter = 1;
   size_t target_size = out_size;
   size_t unchange_cnt = 0;
-  while (heap.size() < target_size) {
+  while (out_states.size() < target_size) {
     std::vector<State> temp_states(out_size);
 
     // Initial a batch of states randomly
@@ -425,7 +421,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 
       for (size_t i = 0; i < cand_states.size(); i++) {
         if (pop_scores[i] > -1e10) {
-          heap.Update(std::move(cand_states[i]), pop_scores[i]);
+          out_states.push_back(std::move(cand_states[i]));
           unchange_cnt = 0;  // Reset the counter once we found a valid state
         } else {
           fail_ct++;
@@ -435,7 +431,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
                             std::chrono::high_resolution_clock::now() - tic_begin)
                             .count();
       StdCout(verbose) << "Sample Iter: " << iter << std::fixed << std::setprecision(4)
-                       << "\t#Pop: " << heap.size() << "\t#Target: " << target_size
+                       << "\t#Pop: " << out_states.size() << "\t#Target: " << target_size
                        << "\tfail_ct: " << fail_ct << "\tTime elapsed: " << std::fixed
                        << std::setprecision(2) << duration << std::endl;
     }
@@ -448,8 +444,6 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     }
     iter++;
   }
-
-  heap.GetSortedStates(&out_states);
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)
@@ -477,11 +471,18 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   Array<State>* pnext = &states_buf2;
 
   // A heap to keep the best states during evolution
-  StateHeap heap(out_size);
+  using StateHeapItem = std::pair<State, float>;
+  auto cmp = [](const StateHeapItem& left, const StateHeapItem& right) {
+    return left.second > right.second;
+  };
+  std::vector<StateHeapItem> heap;
+  std::unordered_set<std::string> in_heap(measured_states_set_);
+  heap.reserve(out_size);
 
   // auxiliary global variables
   std::vector<float> pop_scores;
   std::vector<double> pop_selection_probs;
+  float max_score = 0.0;
   pop_scores.reserve(population);
   pop_selection_probs.reserve(population);
   std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -504,15 +505,34 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
     program_cost_model->Predict(search_task, *pnow, &pop_scores);
 
     for (size_t i = 0; i < pnow->size(); ++i) {
-      heap.Update(std::move((*pnow)[i]), pop_scores[i]);
+      const State& state = (*pnow)[i];
+      std::string state_str = state.ToStr();
+
+      if (in_heap.count(state_str) == 0) {
+        if (static_cast<int>(heap.size()) < out_size) {
+          heap.emplace_back((*pnow)[i], pop_scores[i]);
+          std::push_heap(heap.begin(), heap.end(), cmp);
+          in_heap.insert(state_str);
+        } else if (pop_scores[i] > heap.front().second) {
+          std::string old_state_str = heap.front().first.ToStr();
+          in_heap.erase(old_state_str);
+          in_heap.insert(state_str);
+
+          std::pop_heap(heap.begin(), heap.end(), cmp);
+          heap.back() = StateHeapItem(state, pop_scores[i]);
+          std::push_heap(heap.begin(), heap.end(), cmp);
+        }
+        if (pop_scores[i] > max_score) {
+          max_score = pop_scores[i];
+        }
+      }
     }
 
     // Print statistical information
     if (k % 5 == 0 || k == num_iters) {
       StdCout(verbose) << "GA Iter: " << k << std::fixed << std::setprecision(4)
-                       << "\tMax score: " << heap.GetMaxScore()
-                       << "\tMin score: " << heap.GetMinScore() << "\t#Pop: " << pnow->size()
-                       << "\t#M+: " << mutation_success_ct / (k + 1)
+                       << "\tMax score: " << max_score << "\tMin score: " << heap.front().second
+                       << "\t#Pop: " << pnow->size() << "\t#M+: " << mutation_success_ct / (k + 1)
                        << "\t#M-: " << mutation_fail_ct / (k + 1) << std::endl;
     }
     if (k == num_iters) {
@@ -546,7 +566,10 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   }
 
   // Copy best states in the heap to out_states
-  heap.GetSortedStates(&best_states);
+  std::sort(heap.begin(), heap.end(), cmp);
+  for (auto& item : heap) {
+    best_states.push_back(std::move(item.first));
+  }
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)
