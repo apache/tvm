@@ -199,9 +199,6 @@ class ConstantFolder : public MixedModeMutator {
   Expr ObjectToExpr(const ObjectRef& value) {
     if (value->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(value);
-      for (auto dim : nd_array.Shape()) {
-        CHECK_GT(dim, 0) << "invalid dimension after constant eval";
-      }
       return Constant(nd_array);
     } else if (const auto* val = value.as<runtime::ADTObj>()) {
       runtime::ADT adt = GetRef<runtime::ADT>(val);
