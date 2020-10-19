@@ -420,7 +420,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     }
   }
   if (dtype.lanes() != 1) {
-#if TVM_LLVM_VERSION >= 110
+#if TVM_LLVM_VERSION > 110
     return llvm::FixedVectorType::get(etype, dtype.lanes());
 #else
     return llvm::VectorType::get(etype, dtype.lanes());
@@ -560,7 +560,7 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
 }
 
 llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
-#if TVM_LLVM_VERSION >= 110
+#if TVM_LLVM_VERSION > 110
   llvm::Type* type = llvm::FixedVectorType::get(value->getType(), lanes);
 #else
   llvm::Type* type = llvm::VectorType::get(value->getType(), lanes);

@@ -140,7 +140,7 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
         split_args.push_back(v);
       }
     }
-#if TVM_LLVM_VERSION >= 110
+#if TVM_LLVM_VERSION > 110
     llvm::Type* type = llvm::FixedVectorType::get(result_ty->getScalarType(), intrin_lanes);
 #else
     llvm::Type* type = llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes);
