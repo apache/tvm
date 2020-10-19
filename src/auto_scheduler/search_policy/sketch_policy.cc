@@ -426,7 +426,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
       for (size_t i = 0; i < cand_states.size(); i++) {
         if (pop_scores[i] > -1e10) {
           heap.Update(std::move(cand_states[i]), pop_scores[i]);
-          unchange_cnt = 0; // Reset the counter once we found a valid state
+          unchange_cnt = 0;  // Reset the counter once we found a valid state
         } else {
           fail_ct++;
         }
@@ -443,13 +443,13 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     if (unchange_cnt == 5) {
       // Reduce the target size to avoid too-long time in this phase if no valid state was found
       // in the past iterations
-      target_size = (target_size > 1)? target_size / 2: target_size;
+      target_size = (target_size > 1) ? target_size / 2 : target_size;
       unchange_cnt = 0;
     }
     iter++;
   }
 
-  heap.GetSortedStates(out_states);
+  heap.GetSortedStates(&out_states);
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)
@@ -546,7 +546,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   }
 
   // Copy best states in the heap to out_states
-  heap.GetSortedStates(best_states);
+  heap.GetSortedStates(&best_states);
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)

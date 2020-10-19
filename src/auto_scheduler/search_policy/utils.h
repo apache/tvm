@@ -740,10 +740,10 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states);
  * \brief A heap to maintain a set of states with the highest scores.
  */
 class StateHeap {
-public:
+ public:
   using StateHeapItem = std::pair<State, float>;
 
-  StateHeap(size_t heap_size) {
+  explicit StateHeap(size_t heap_size) {
     max_heap_size_ = heap_size;
     max_score_ = -1e10;
   }
@@ -756,7 +756,7 @@ public:
 
     // Do nothing if this state is already in the heap
     if (in_heap_.count(state_str) > 0) {
-      return ;
+      return;
     }
 
     if (static_cast<int>(in_heap_.size()) < max_heap_size_) {
@@ -796,10 +796,10 @@ public:
   /*! \brief Sort the heap by state scores and fill the given state array.
    *  \note The heap will be reset after calling this method.
    */
-  void GetSortedStates(Array<State>& states) {
+  void GetSortedStates(Array<State>* states) {
     std::sort(heap_.begin(), heap_.end(), compare_state());
     for (auto& item : heap_) {
-      states.push_back(std::move(item.first));
+      (*states).push_back(std::move(item.first));
     }
 
     heap_.clear();
@@ -808,9 +808,8 @@ public:
   }
 
  private:
-
   struct compare_state {
-    bool operator()(const StateHeapItem &left, const StateHeapItem &right) {
+    bool operator()(const StateHeapItem& left, const StateHeapItem& right) {
       return left.second > right.second;
     }
   };
