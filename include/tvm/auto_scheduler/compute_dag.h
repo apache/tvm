@@ -200,10 +200,15 @@ class ComputeDAGNode : public Object {
  */
 class ComputeDAG : public ObjectRef {
  public:
-  /*! \brief The constructor.
+  /*! \brief Construct a DAG from a list of output tensors.
    * \param tensors `te::Tensor`s for a compute declaration.
    */
   TVM_DLL explicit ComputeDAG(Array<te::Tensor> tensors);
+
+  /*! \brief Construct a DAG based on a schedule.
+   * \param sch `te::Schedule`s for a compute declaration.
+   */
+  TVM_DLL explicit ComputeDAG(const te::Schedule& sch);
 
   /*!
    * \brief Rewrite the layout of placeholder specified by attr `layout_free_placeholders`
