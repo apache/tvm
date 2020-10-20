@@ -24,11 +24,11 @@ TVM_HOME="$1"
 # NOTE: TVM is presumed to be mounted already by Vagrantfile.
 cd "${TVM_HOME}"
 
-tools/microtvm/vm/rebuild-tvm.sh
+apps/microtvm-vm/vm/rebuild-tvm.sh
 
 # NOTE: until the dependencies make it into a top-level pyproject.toml file in main,
 # use this approach.
-cp tools/microtvm/vm/pyproject.toml .
+cp apps/microtvm-vm/vm/pyproject.toml .
 
 poetry lock
 poetry install
