@@ -101,7 +101,7 @@ class SourceMap : public ObjectRef {
   TVM_DLL SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
       : SourceMap(Map<SourceName, Source>(source_map)) {}
 
-  TVM_DLL SourceMap() : SourceMap({}) {}
+  TVM_DLL SourceMap() : SourceMap(Map<SourceName, Source>()) {}
 
   TVM_DLL static SourceMap Global();
 

@@ -70,7 +70,7 @@ else
     CUDA_ENV=""
 fi
 
-if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
+if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* || "${DOCKER_IMAGE_NAME}" == *"cuda"* ]]; then
     if ! type "nvidia-docker" 1> /dev/null 2> /dev/null
     then
         DOCKER_BINARY="docker"

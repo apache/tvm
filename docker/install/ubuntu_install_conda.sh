@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,48 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.8.dev0" %}
+set -e
+set -u
+set -o pipefail
 
-package:
-  name: tvm
-  version: {{ version }}
-
-source:
-  path: ../..
-
-build:
-  number: 0
-
-requirements:
-  build:
-    - {{ compiler('cxx') }}
-  host:
-    - python {{ python }}
-    - cython
-    - numpy
-    - setuptools
-    - decorator
-    - tvm-libs {{ version }}
-  run:
-    - python {{ python }}
-    - {{ pin_compatible('numpy') }}
-    - decorator
-    - tvm-libs {{ version }}
-    - psutil
-
-test:
-  imports:
-    - tvm
-  requires:
-    - pytest
-    - scipy
-  source_files:
-    - tests/python
-  commands:
-    - python -m pytest -v tests/python/integration
-
-about:
-  home: https://github.com/apache/incubator-tvm
-  license: Apache-2.0
-  license_family: Apache
-  summary: a low level domain specific language for compiling tensor computation pipelines
+cd /tmp && wget -q https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+chmod +x Miniconda3-latest-Linux-x86_64.sh
+/tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda
+rm /tmp/Miniconda3-latest-Linux-x86_64.sh
+/opt/conda/bin/conda upgrade --all
+/opt/conda/bin/conda clean -ya
+/opt/conda/bin/conda install conda-build conda-verify
+chmod -R a+w /opt/conda/
