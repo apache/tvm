@@ -17,8 +17,10 @@
  * under the License.
  */
 
-/// A TVM diagnostics renderer which uses the Rust `codespan`
-/// library to produce error messages.
+/// A TVM diagnostics renderer which uses the Rust `codespan` library
+/// to produce error messages.
+///
+///
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
