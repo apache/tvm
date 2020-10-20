@@ -18,7 +18,7 @@
  */
 
 use anyhow::{Context, Result};
-use std::{io::Write, path::{Path}, process::Command};
+use std::{io::Write, path::Path, process::Command};
 
 fn main() -> Result<()> {
     let out_dir = std::env::var("CARGO_MANIFEST_DIR")?;
@@ -43,10 +43,7 @@ fn main() -> Result<()> {
             .last()
             .unwrap_or("")
     );
-    println!(
-        "cargo:rustc-link-search=native={}",
-        out_dir
-    );
+    println!("cargo:rustc-link-search=native={}", out_dir);
 
     Ok(())
 }
