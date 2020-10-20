@@ -483,7 +483,12 @@ def non_max_suppression(
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
-    if tvm.get_global_func("tvm.contrib.thrust.sort_nms", allow_missing=True):
+    target = tvm.target.Target.current()
+    if (
+        target
+        and target.kind.name == "cuda"
+        and tvm.get_global_func("tvm.contrib.thrust.sort_nms", allow_missing=True)
+    ):
         sort_tensor = argsort_thrust(
             score_tensor, valid_count=None, axis=1, is_ascend=False, dtype=valid_count_dtype
         )
