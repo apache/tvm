@@ -158,7 +158,9 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       const bool is_upward_rounding = (param->rounding == "UPWARD");
 
       if (is_upward_rounding && fixed_point_multiplier == (1 << 30)) {
-        // Power of 2
+        // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of 2,
+        // fixed point multiplier will represent a float value of 0.5. In fixed point, this is
+        // represented by 1 << 30.
         scaled_int32_t = PowerOfTwoMultiply(scaled_int32_t, shift - 1);
       } else {
         // When using upward rounding (i.e., x.5 rounded to x+1), leverage
