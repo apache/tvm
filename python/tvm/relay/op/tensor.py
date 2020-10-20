@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Basic tensor operations."""
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, unused-argument
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
+from tvm.te.hybrid import script
 
 from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import Tuple, Expr
+from . import op as reg
 
 
 # We create a wrapper function for each operator in the
@@ -1136,6 +1138,19 @@ def copy(data):
         The copied result.
     """
     return _make.copy(data)
+
+
+@script
+def _copy_shape_func(data_shape):
+    return data_shape
+
+
+@reg.register_shape_func("copy", False)
+def copy_shape_func(attrs, inputs, _):
+    """
+    Shape function for copy op.
+    """
+    return [_copy_shape_func(inputs[0])]
 
 
 def device_copy(data, src_dev, dst_dev):
