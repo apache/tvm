@@ -17,10 +17,11 @@
  * under the License.
  */
 
-/// A TVM diagnostics renderer which uses the Rust `codespan` library
-/// to produce error messages.
-///
-///
+//! A TVM diagnostics renderer which uses the Rust `codespan` library
+//! to produce error messages.
+//!
+//! This is an example of using the exposed API surface of TVM to
+//! customize the compiler behavior.
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -32,22 +33,29 @@ use codespan_reporting::term::{self, ColorArg};
 use super::*;
 use crate::ir::source_map::*;
 
+/// A representation of a TVM Span as a range of bytes in a file.
 struct ByteRange<FileId> {
+    /// The file in which the range occurs.
     file_id: FileId,
+    /// The range start.
     start_pos: usize,
+    /// The range end.
     end_pos: usize,
 }
 
+/// A mapping from Span to ByteRange for a single file.
 enum FileSpanToByteRange {
     AsciiSource(Vec<usize>),
     Utf8 {
         /// Map character regions which are larger then 1-byte to length.
         lengths: HashMap<isize, isize>,
+        /// The source of the program.
         source: String,
     },
 }
 
 impl FileSpanToByteRange {
+    /// Construct a span to byte range mapping from the program source.
     fn new(source: String) -> FileSpanToByteRange {
         let mut last_index = 0;
         let mut is_ascii = true;
@@ -59,6 +67,7 @@ impl FileSpanToByteRange {
         }
     }
 
+    /// Lookup the corresponding ByteRange for a given Span.
     fn lookup(&self, span: &Span) -> ByteRange<String> {
         use FileSpanToByteRange::*;
 
@@ -85,6 +94,7 @@ impl FileSpanToByteRange {
     }
 }
 
+/// A mapping for all files in a source map to byte ranges.
 struct SpanToByteRange {
     map: HashMap<String, FileSpanToByteRange>,
 }
@@ -96,6 +106,7 @@ impl SpanToByteRange {
         }
     }
 
+    /// Add a source file to the span mapping.
     pub fn add_source(&mut self, source: Source) {
         let source_name: String = source.source_name.name.as_str().expect("foo").into();
 
@@ -108,6 +119,9 @@ impl SpanToByteRange {
         }
     }
 
+    /// Lookup a span to byte range mapping.
+    ///
+    /// First resolves the Span to a file, and then maps the span to a byte range in the file.
     pub fn lookup(&self, span: &Span) -> ByteRange<String> {
         let source_name: String = span.source_name.name.as_str().expect("foo").into();
 
@@ -118,6 +132,7 @@ impl SpanToByteRange {
     }
 }
 
+/// The state of the `codespan` based diagnostics.
 struct DiagnosticState {
     files: SimpleFiles<String, String>,
     span_map: SpanToByteRange,
@@ -186,6 +201,9 @@ fn renderer(state: &mut DiagnosticState, diag_ctx: DiagnosticContext) {
     }
 }
 
+/// Initialize the `codespan` based diagnostics.
+///
+/// Calling this function will globally override the TVM diagnostics renderer.
 pub fn init() -> Result<()> {
     let diag_state = Arc::new(Mutex::new(DiagnosticState::new()));
     let render_fn = move |diag_ctx: DiagnosticContext| {
