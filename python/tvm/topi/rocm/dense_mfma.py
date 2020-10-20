@@ -90,20 +90,11 @@ def _schedule_dense_mfma(cfg, s, C):
     CF = s.cache_write(C, "local")
     CS = s.cache_read(CF, "shared", [C])
 
-    # fallback support
-    # target = tvm.target.Target.current()
-    # if cfg.is_fallback:
-    #     ref_log = autotvm.tophub.load_reference_log(
-    #         target.kind.name, target.model, "dense_mfma.rocm"
-    #     )
-    #     cfg.fallback_with_reference_log(ref_log)
-
-    # Deal with op fusion, such as bias and relu
+    # Support op fusion
     if C.op not in s.outputs:
         s[C].compute_inline()
         C = s.outputs[0].output(0)
 
-    # create tuning space
     cfg.define_knob("block_row_warps", [1, 2, 4])
     cfg.define_knob("block_col_warps", [1, 2, 4])
     cfg.define_knob("warp_row_tiles", [1, 2, 4])
@@ -114,9 +105,9 @@ def _schedule_dense_mfma(cfg, s, C):
     cfg.define_knob("vec", [1, 2, 4, 8])
 
     warp_size = 64
-    wmma_m = 16
-    wmma_n = 16
-    wmma_k = 16
+    mfma_m = 16
+    mfma_n = 16
+    mfma_k = 16
     block_row_warps = cfg["block_row_warps"].val
     block_col_warps = cfg["block_col_warps"].val
     warp_row_tiles = cfg["warp_row_tiles"].val
@@ -126,15 +117,15 @@ def _schedule_dense_mfma(cfg, s, C):
     offsetCS = cfg["offsetCS"].val
     vec = cfg["vec"].val
 
-    # Define the stride of intrin functions
-    AS_align = chunk * wmma_k + offset
-    BS_align = chunk * wmma_k + offset
-    CS_align = warp_col_tiles * block_col_warps * wmma_n + offsetCS
+    # Define the stride for tensorization
+    AS_align = chunk * mfma_k + offset
+    BS_align = chunk * mfma_k + offset
+    CS_align = warp_col_tiles * block_col_warps * mfma_n + offsetCS
     AS_stride = [AS_align, 1]
     BS_stride = [BS_align, 1]
-    AF_stride = [wmma_k, 1]
-    BF_stride = [wmma_k, 1]
-    CF_stride = [warp_col_tiles * wmma_n, 1]
+    AF_stride = [mfma_k, 1]
+    BF_stride = [mfma_k, 1]
+    CF_stride = [warp_col_tiles * mfma_n, 1]
     CS_stride = [CS_align, 1]
 
     block_x = te.thread_axis("blockIdx.x")
@@ -144,8 +135,8 @@ def _schedule_dense_mfma(cfg, s, C):
     thread_z = te.thread_axis("threadIdx.z")
 
     # Schedule for dense computation
-    block_factor_b = wmma_m * warp_row_tiles * block_row_warps
-    block_factor_o = wmma_n * warp_col_tiles * block_col_warps
+    block_factor_b = mfma_m * warp_row_tiles * block_row_warps
+    block_factor_o = mfma_n * warp_col_tiles * block_col_warps
     b, o = C.op.axis
     block_i, bc = s[C].split(b, factor=block_factor_b)
     block_j, oc = s[C].split(o, factor=block_factor_o)
@@ -162,42 +153,45 @@ def _schedule_dense_mfma(cfg, s, C):
     s[C].bind(tx, thread_x)
     s[C].vectorize(vi)
 
-    # Schedule for wmma store
+    # Schedule for fragment store
     s[CS].compute_at(s[C], block_j)
     bb, oo = CS.op.axis
     s[CS].storage_align(bb, CS_align - 1, CS_align)
-    bb, bbi = s[CS].split(bb, factor=wmma_m)
-    oo, ooi = s[CS].split(oo, factor=wmma_n)
+    bb, bbi = s[CS].split(bb, factor=mfma_m)
+    oo, ooi = s[CS].split(oo, factor=mfma_n)
     bb, bbii = s[CS].split(bb, factor=warp_row_tiles)
     oo, ooii = s[CS].split(oo, factor=warp_col_tiles)
     s[CS].reorder(bb, oo, bbii, ooii, bbi, ooi)
 
-    # Schedule for wmma computation
+    # Schedule for gemm computation
     s[CF].compute_at(s[CS], oo)
     warp_i, warp_j = CF.op.axis
-    warp_i, _ii = s[CF].split(warp_i, factor=wmma_m)
-    warp_j, _jj = s[CF].split(warp_j, factor=wmma_n)
+    warp_i, _ii = s[CF].split(warp_i, factor=mfma_m)
+    warp_j, _jj = s[CF].split(warp_j, factor=mfma_n)
     (k,) = CF.op.reduce_axis
-    k, _k = s[CF].split(k, factor=wmma_k)
+    k, _k = s[CF].split(k, factor=mfma_k)
     ko, ki = s[CF].split(k, factor=chunk)
     s[CF].reorder(ko, ki, warp_i, warp_j, _ii, _jj, _k)
 
-    # Schedule for  wmma_matrix_a load
+    # Schedule for tensorized matrix_A load
     s[AF].compute_at(s[CF], ki)
     b, i = AF.op.axis
-    b, b_ii = s[AF].split(b, factor=wmma_m)
-    i, i_jj = s[AF].split(i, factor=wmma_k)
+    b, b_ii = s[AF].split(b, factor=mfma_m)
+    i, i_jj = s[AF].split(i, factor=mfma_k)
     s[AF].reorder(b, i, b_ii, i_jj)
 
-    # Schedule for  wmma_matrix_b load
+    # Schedule for tensorized matrix_B load
     s[BF].compute_at(s[CF], ki)
     o, i = BF.op.axis
-    o, o_ii = s[BF].split(o, factor=wmma_n)
-    i, i_ii = s[BF].split(i, factor=wmma_k)
+    o, o_ii = s[BF].split(o, factor=mfma_n)
+    i, i_ii = s[BF].split(i, factor=mfma_k)
     s[BF].reorder(o, i, o_ii, i_ii)
 
     # Schedule for A's(B's) shared memory load
     def shared_shedule(stage, strides):
+        # New thread axes to avoid LLVM bug,
+        # llvm/lib/Transforms/Utils/LCSSA.cpp:380:
+        # bool llvm::formLCSSA(...): Assertion `L.isLCSSAForm(DT)' failed.`
         thread_x = te.thread_axis("threadIdx.x")
         thread_y = te.thread_axis("threadIdx.y")
         thread_z = te.thread_axis("threadIdx.z")
@@ -217,50 +211,11 @@ def _schedule_dense_mfma(cfg, s, C):
     shared_shedule(AS, AS_align)
     shared_shedule(BS, BS_align)
 
-
-    # shape = (wmma_m, wmma_n, wmma_k)
-    # in_dtype = "float16"
-    # AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=in_dtype)
-    # BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=in_dtype)
-    # k_gemm = te.reduce_axis((0, wmma_k), name="k_gemm")
-    # CL_compute = te.compute(
-    #     (wmma_m, wmma_n),
-    #     lambda ii, jj: te.sum(
-    #         AL_gemm[ii, k_gemm].astype(out_dtype) * BL_gemm[jj, k_gemm].astype(out_dtype),
-    #         axis=k_gemm,
-    #     ),
-    #     name="CL_compute",
-    # )
-
-    # lower the computation loops down to MFMA hardware intrinsics
-    # by mapping the dense MFMA to tensor intrinsics
-    s[AF].tensorize(b_ii, intrin_mfma_load_matrix((wmma_m, wmma_n, wmma_k), "A", strides_src=AS_stride, strides_dst=AF_stride))
-    s[BF].tensorize(o_ii, intrin_mfma_load_matrix((wmma_m, wmma_n, wmma_k), "A", strides_src=BS_stride, strides_dst=BF_stride))
-    s[CF].tensorize(_ii, intrin_mfma_gemm(shape=(wmma_m, wmma_n, wmma_k), dtype="float16", input_scope="local", strides_A=AF_stride, strides_B=BF_stride, strides_C=CF_stride))
-    s[CS].tensorize(bbi, intrin_mfma_store_matrix(shape=(wmma_m, wmma_n, wmma_k), strides_src=CF_stride, strides_dst=CS_stride))
-
-
-    # s[AF].tensorize(
-    #     b_ii,
-    #     intrin_wmma_load_matrix_A(
-    #         AF_stride, AS_stride, shape, "row_major", (wmma_m, wmma_k), (wmma_m, wmma_k), "float16"
-    #     ),
-    # )
-    # s[BF].tensorize(
-    #     o_ii,
-    #     intrin_wmma_load_matrix_W(
-    #         BF_stride, BS_stride, shape, "col_major", (wmma_n, wmma_k), (wmma_n, wmma_k), "float16"
-    #     ),
-    # )
-    # s[CF].tensorize(
-    #     _ii, intrin_wmma_gemm(AL_gemm, BL_gemm, CL_compute, AF_stride, BF_stride, CF_stride, shape)
-    # )
-    # s[CS].tensorize(
-    #     bbi,
-    #     intrin_wmma_store_matrix(
-    #         CS_stride, CF_stride, shape, out_dtype, (wmma_m, wmma_n), (wmma_m, wmma_n)
-    #     ),
-    # )
+    # Lower the inner loop nest down to MFMA hardware intrinsics
+    s[AF].tensorize(b_ii, intrin_mfma_load_matrix((mfma_m, mfma_n, mfma_k), "A", strides_src=AS_stride, strides_dst=AF_stride))
+    s[BF].tensorize(o_ii, intrin_mfma_load_matrix((mfma_m, mfma_n, mfma_k), "A", strides_src=BS_stride, strides_dst=BF_stride))
+    s[CF].tensorize(_ii, intrin_mfma_gemm(shape=(mfma_m, mfma_n, mfma_k), dtype="float16", input_scope="local", strides_A=AF_stride, strides_B=BF_stride, strides_C=CF_stride))
+    s[CS].tensorize(bbi, intrin_mfma_store_matrix(shape=(mfma_m, mfma_n, mfma_k), strides_src=CF_stride, strides_dst=CS_stride))
 
 def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, strides_dst=None):
     M, N, K = shape
@@ -377,14 +332,13 @@ def intrin_mfma_gemm(shape, dtype, input_scope, strides_A=None, strides_B=None, 
             return ib.get()
 
         def update():
-            # Each thread is responsible for 4 values along the reduction axis for a single (m, n) pixel
             ib = tvm.tir.ir_builder.create()
             a_vec = Ab.vload([0, 0], "float16x4")
             b_vec = Bb.vload([0, 0], "float16x4")
             c_vec = Cb.vload([0, 0], "float32x4")
             args_6 = tvm.tir.const(6, "uint32")
-            # Transpose inputs (equivalent to switching the order in this packed layout)
-            # in order to ensure row-major order on the output with coalesced vector writes.
+            # Transpose inputs in order to ensure row-major order on the output for
+            # coalesced vector writes.
             gemm = tvm.tir.call_llvm_pure_intrin(
                 "float32x4",
                 mfma_instr_name,
