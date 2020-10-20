@@ -133,9 +133,14 @@ class ConstantFolder : public ExprMutator {
     }
 
     // We should think about potentially constant evaluation over these ops too.
-    if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
-        call->op == alloc_storage_op_) {
-      return GetRef<Call>(call);
+    //if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
+    //    call->op == alloc_storage_op_) {
+    static auto nonComputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+    if (auto call_node = call->op.as<OpNode>()) {
+      Op op = GetRef<Op>(call_node);
+      if (nonComputational[op]) {
+        return GetRef<Call>(call);
+      }
     }
 
     bool all_const_args = true;

@@ -207,6 +207,7 @@ RELAY_REGISTER_OP("qnn.concatenate")
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("QnnConcatenate", QnnConcatenateRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConcatenateLayout);
 

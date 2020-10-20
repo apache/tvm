@@ -215,6 +215,7 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
       .add_argument("output_scale", "Tensor", "The scale of the output tensor.")                   \
       .add_argument("output_zero_point", "Tensor", "The zero_point of the output tensor.")         \
       .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                               \
+      .set_attr<TNonComputational>("TNonComputational", true)                                      \
       .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
 
 }  // namespace qnn
