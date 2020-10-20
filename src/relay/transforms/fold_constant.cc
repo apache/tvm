@@ -154,8 +154,10 @@ class ConstantFolder : public MixedModeMutator {
     static auto nonComputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
     if (auto call_node = call->op.as<OpNode>()) {
       Op op = GetRef<Op>(call_node);
-      if (nonComputational[op]) {
-        return GetRef<Call>(call);
+      if (nonComputational.count(op)) {
+        if (nonComputational[op]) {
+          return GetRef<Call>(call);
+        }
       }
     }
 
