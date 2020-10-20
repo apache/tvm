@@ -16,6 +16,7 @@
 # under the License.
 """Definition of ROCm operator strategy."""
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
+import tvm
 from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
@@ -24,6 +25,7 @@ from tvm.contrib.thrust import can_use_rocthrust
 from .generic import *
 from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
+from tvm.contrib import rocm
 
 
 @schedule_lrn.register("rocm")
@@ -192,6 +194,17 @@ def dense_strategy_rocm(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.rocm.schedule_dense),
         name="dense.rocm",
     )
+    if rocm.support_mfma(tvm.rocm(0)):
+        data, weights = inputs
+        b, i = get_const_tuple(data.shape)
+        o, _ = get_const_tuple(weights.shape)
+        if (b % 16 == 0 and o % 16 == 0 and i % 16 == 0):
+            strategy.add_implementation(
+                wrap_compute_dense(topi.rocm.dense_mfma),
+                wrap_topi_schedule(topi.rocm.schedule_dense_mfma),
+                name="dense_mfma.rocm",
+                plevel=20,
+            )
     if target.kind.name == "rocm" and "rocblas" in target.libs:
         assert out_type.dtype == inputs[0].dtype, "Mixed precision not supported."
         strategy.add_implementation(
