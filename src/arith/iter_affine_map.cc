@@ -27,7 +27,7 @@
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
 
-#include "../support/util.h"
+#include "../support/utils.h"
 #include "const_fold.h"
 
 namespace tvm {

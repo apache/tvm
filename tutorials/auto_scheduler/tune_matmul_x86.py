@@ -22,10 +22,9 @@ Auto-scheduling matrix multiplication for CPU
 
 Different from the existing :ref:`autotvm <tutorials-autotvm-sec>` which relies on 
 manual templates to define the search space, the auto-scheduler does not require any templates.
-The auto-scheduler is template-free, so users only need to write the computation declaration without
-any schedule commands or templates.
-The auto-scheduler can automatically generate a large
-search space and find a good schedule in the space.
+Users only need to write the computation declaration without any schedule commands or templates.
+The auto-scheduler can automatically generate a large search space and
+find a good schedule in the space.
 
 We use matrix multiplication as an example in this tutorial.
 """

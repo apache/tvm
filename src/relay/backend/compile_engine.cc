@@ -45,7 +45,7 @@
 #include <utility>
 #include <vector>
 
-#include "../transforms/pass_util.h"
+#include "../transforms/pass_utils.h"
 #include "utils.h"
 
 namespace tvm {

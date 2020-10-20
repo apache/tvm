@@ -69,4 +69,5 @@ target device without relying on RPC. see the following resources on how to do s
    integrate
    hls
    arm_compute_lib
+   tensorrt
    vitis_ai

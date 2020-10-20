@@ -38,6 +38,7 @@ TVM_REGISTER_NODE_TYPE(MeasureResultNode);
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramRunnerNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramBuilderNode);
+TVM_REGISTER_OBJECT_TYPE(ProgramMeasurerNode);
 TVM_REGISTER_OBJECT_TYPE(LocalBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(LocalRunnerNode);
 TVM_REGISTER_OBJECT_TYPE(RPCRunnerNode);
@@ -204,11 +205,12 @@ void ProgramMeasurerNode::Reset() {
   best_state.clear();
 }
 
-void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& policy,
-                                  const Array<MeasureInput>& inputs, Array<MeasureResult>* results,
-                                  int batch_size) {
-  results->clear();
-  results->reserve(inputs.size());
+Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
+                                                  const SearchPolicy& policy,
+                                                  const Array<MeasureInput>& inputs,
+                                                  int batch_size) {
+  Array<MeasureResult> results;
+  results.reserve(inputs.size());
 
   if (batch_size == -1) {
     // set default batch size
@@ -261,13 +263,15 @@ void ProgramMeasurerNode::Measure(const SearchTask& task, const SearchPolicy& po
 
     // Store result batch
     for (auto& res : result_batch) {
-      results->push_back(res);
+      results.push_back(res);
     }
 
     if (error_ct > max_continuous_error) {
       LOG(FATAL) << "Too many errors happened during tuning";
     }
   }
+
+  return results;
 }
 
 void ProgramMeasurerNode::SilentMeasure(const SearchTask& task, const Array<MeasureInput>& inputs,
@@ -341,6 +345,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.MeasureResult")
     .set_body_typed([](Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
                        double timestamp) {
       return MeasureResult(costs, error_no, error_msg, all_cost, timestamp);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.ProgramMeasurer")
+    .set_body_typed([](ProgramBuilder builder, ProgramRunner runner,
+                       Array<MeasureCallback> callbacks, int verbose, int max_continuous_error) {
+      return ProgramMeasurer(builder, runner, callbacks, verbose, max_continuous_error);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ProgramBuilderBuild")

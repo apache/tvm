@@ -30,7 +30,7 @@
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "ir_util.h"
+#include "ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {

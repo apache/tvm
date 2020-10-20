@@ -233,6 +233,14 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
 #else
   global->setAlignment(1);
 #endif
+  // comdat is needed for windows select any linking to work
+  // set comdat to Any(weak linking)
+  if (target_machine_->getTargetTriple().isOSWindows()) {
+    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_module_main);
+    comdat->setSelectionKind(llvm::Comdat::Any);
+    global->setComdat(comdat);
+  }
+
   global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
   global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
 }
@@ -358,6 +366,13 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string
 #endif
   gv->setInitializer(llvm::Constant::getNullValue(p_type));
   gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+  // comdat is needed for windows select any linking to work
+  // set comdat to Any(weak linking)
+  if (target_machine_->getTargetTriple().isOSWindows()) {
+    llvm::Comdat* comdat = module_->getOrInsertComdat(name);
+    comdat->setSelectionKind(llvm::Comdat::Any);
+    gv->setComdat(comdat);
+  }
   return gv;
 }
 

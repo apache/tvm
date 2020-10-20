@@ -24,7 +24,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/topi/reduction.h>
-#include <tvm/topi/util.h>
+#include <tvm/topi/utils.h>
 
 namespace tvm {
 namespace topi {

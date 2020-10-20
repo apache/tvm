@@ -37,16 +37,16 @@ from tvm.te.tensor import Tensor, Operation
 from tvm.tir import all as _all
 from tvm.tir import any as _any
 
-from .util import _internal_assert
+from .utils import _internal_assert
 from . import calls
-from . import util
+from . import utils
 from .preprocessor import determine_variable_usage
 
 
 def concat_list_to_block(lst):
     """Concatenate a list of Python IR nodes to HalideIR Block"""
     if not lst:
-        return util.make_nop()
+        return utils.make_nop()
     n = len(lst)
     if n == 1:
         return lst[0]
@@ -55,10 +55,10 @@ def concat_list_to_block(lst):
 
 def visit_list_to_block(visit, lst):
     """Visit and concatenate a list of Python IR nodes to HalideIR Block"""
-    lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
-    lst = [stmt for stmt in lst if not tvm.ir.structural_equal(stmt, util.make_nop())]
+    lst = [visit(stmt) for stmt in lst if not utils.is_docstring(stmt)]
+    lst = [stmt for stmt in lst if not tvm.ir.structural_equal(stmt, utils.make_nop())]
     if not lst:
-        return util.make_nop()
+        return utils.make_nop()
     return concat_list_to_block(lst)
 
 
@@ -314,7 +314,7 @@ class HybridParser(ast.NodeVisitor):
                 )
                 self.add_symbol(node.targets[i].id, Symbol.GlobalBuffer, rhs.output(i))
                 rmap[rhs.outputs[i].op] = rhs.output(i)
-            return util.replace_io(rhs.body, rmap)
+            return utils.replace_io(rhs.body, rmap)
 
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
         lhs = node.targets[0]
@@ -339,8 +339,8 @@ class HybridParser(ast.NodeVisitor):
                     self.add_symbol(lhs, getattr(Symbol, scope.title() + "Buffer"), ph)
                     if scope == "output":
                         self.outputs.append(lhs)
-                    return util.make_nop()
-                if isinstance(rhs, util.halide_imm_types) and ast.Store not in rw:
+                    return utils.make_nop()
+                if isinstance(rhs, utils.halide_imm_types) and ast.Store not in rw:
                     self.add_symbol(lhs, Symbol.ConstVar, rhs)
                 else:
                     _internal_assert(
@@ -355,7 +355,7 @@ class HybridParser(ast.NodeVisitor):
             if lhs is not None:
                 buf, args = lhs
                 return tvm.tir.ProducerStore(buf, rhs, args)
-            return util.make_nop()
+            return utils.make_nop()
 
         lhs, args = self.visit(lhs)
         _internal_assert(
@@ -412,7 +412,7 @@ class HybridParser(ast.NodeVisitor):
                 return visit_list_to_block(self.visit, node.body)
             if node.orelse:
                 return visit_list_to_block(self.visit, node.orelse)
-            return util.make_nop()
+            return utils.make_nop()
 
         if_body = visit_list_to_block(self.visit, node.body)
 
@@ -559,7 +559,7 @@ class HybridParser(ast.NodeVisitor):
             logging.log(logging.CRITICAL, "[Warning] Not all the output buffers returned!")
         self.outputs = [self.symbols[i][1] for i in ids]
         self.returned = True
-        return util.make_nop()
+        return utils.make_nop()
 
     def visit_Tuple(self, node):
         return tuple(self.visit(i) for i in node.elts)
@@ -570,7 +570,7 @@ class HybridParser(ast.NodeVisitor):
     def visit_Assert(self, node):
         test = self.visit(node.test)
         mesg = tvm.runtime.convert(self.visit(node.msg))
-        return tvm.tir.AssertStmt(test, mesg, util.make_nop())
+        return tvm.tir.AssertStmt(test, mesg, utils.make_nop())
 
 
 def parse_python(src, args, symbols, closure_vars):

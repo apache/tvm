@@ -28,7 +28,7 @@
 
 #include <unordered_set>
 
-#include "op_util.h"
+#include "op_utils.h"
 
 namespace tvm {
 namespace te {

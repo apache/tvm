@@ -27,7 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/feature.h>
 
-#include "../transforms/pass_util.h"
+#include "../transforms/pass_utils.h"
 
 namespace tvm {
 namespace relay {

@@ -37,7 +37,7 @@
 #include <string>
 #include <vector>
 
-#include "../../transforms/infer_layout_util.h"
+#include "../../transforms/infer_layout_utils.h"
 #include "../make_op.h"
 #include "../op_common.h"
 #include "../type_relations.h"
@@ -859,7 +859,11 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       is_dyn = true;
       oshape.push_back(Any());
     } else {
-      oshape.push_back(x->shape[i]);
+      if (i == 0) {
+        oshape.push_back(max(x->shape[i], y->shape[i]));
+      } else {
+        oshape.push_back(x->shape[i]);
+      }
     }
   }
   if (!is_dyn) {

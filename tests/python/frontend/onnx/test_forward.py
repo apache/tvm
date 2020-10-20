@@ -992,10 +992,9 @@ def test_matmul():
         tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_batch_matmul(a_shape, b_shape, target, ctx):
+def verify_batch_matmul(a_shape, b_shape, out_shape, target, ctx):
     a_array = np.random.uniform(size=a_shape).astype("float32")
     b_array = np.random.uniform(size=b_shape).astype("float32")
-    out_np = np.matmul(a_array, b_array)
 
     mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
 
@@ -1006,21 +1005,26 @@ def verify_batch_matmul(a_shape, b_shape, target, ctx):
             helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
             helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
         ],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_np.shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)],
     )
 
     model = helper.make_model(graph, producer_name="matmul_test")
+    onnx_out = get_onnxruntime_output(model, [a_array, b_array], "float32")[0]
 
     tvm_out = get_tvm_output_with_vm(model, [a_array, b_array], target, ctx)
-    tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 # TODO(mbrookhart): enable cuda once VM supports heterogenous execution
 @tvm.testing.parametrize_targets("llvm")
 def test_batch_matmul(target, ctx):
-    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), target, ctx)
-    verify_batch_matmul((2, 4, 3), (3, 4), target, ctx)
-    verify_batch_matmul((2, 3, 4, 3), (3, 4), target, ctx)
+    verify_batch_matmul((2, 3, 4, 3), (2, 3, 3, 4), (2, 3, 4, 4), target, ctx)
+    verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((2, 3, 4, 3), (3, 4), (2, 3, 4, 4), target, ctx)
+    # Test implicit broadcasting.
+    verify_batch_matmul((4, 3), (2, 3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((2, 4, 3), (1, 3, 4), (2, 4, 4), target, ctx)
+    verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4), target, ctx)
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, ctx):
@@ -3656,6 +3660,157 @@ def test_roi_align():
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
 
 
+def verify_cond_loop():
+    y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
+    y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [1])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [1])
+    cond_in = helper.make_tensor_value_info("cond_in", TensorProto.BOOL, [])
+    cond_out = helper.make_tensor_value_info("cond_out", TensorProto.BOOL, [])
+    iter_count = helper.make_tensor_value_info("iter_count", TensorProto.INT64, [])
+
+    y = np.array([-2]).astype(np.float32)
+
+    five_const_node = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["five"],
+        value=helper.make_tensor(
+            name="const_tensor_five", data_type=TensorProto.FLOAT, dims=(), vals=[5]
+        ),
+    )
+
+    iter_cast_node = helper.make_node(
+        "Cast", inputs=["iter_count"], outputs=["iter_cast"], to=onnx.TensorProto.FLOAT
+    )
+
+    y_add_node = helper.make_node("Add", inputs=["y_in", "iter_cast"], outputs=["y_out"])
+
+    less_node = helper.make_node("Less", inputs=["y_out", "five"], outputs=["cond_less"])
+
+    squeeze_node = helper.make_node("Squeeze", inputs=["cond_less"], outputs=["cond_squeeze"])
+
+    cond_cast_node = helper.make_node(
+        "Cast", inputs=["cond_squeeze"], outputs=["cond_out"], to=onnx.TensorProto.BOOL
+    )
+
+    scan_identity_node = helper.make_node("Identity", inputs=["y_out"], outputs=["scan_out"])
+
+    loop_body = helper.make_graph(
+        [
+            five_const_node,
+            iter_cast_node,
+            y_add_node,
+            less_node,
+            squeeze_node,
+            cond_cast_node,
+            scan_identity_node,
+        ],
+        "loop_body",
+        [iter_count, cond_in, y_in],
+        [cond_out, y_out, scan_out],
+    )
+
+    loop_node = helper.make_node(
+        "Loop", inputs=["trip_count", "cond", "y"], outputs=["res_y", "res_scan"], body=loop_body
+    )
+
+    trip_count = np.array(5).astype(np.int64)
+    res_y = np.array([13]).astype(np.float32)
+    cond = np.array(1).astype(np.bool)
+    loop_graph = onnx.helper.make_graph(
+        [loop_node],
+        "loop_outer",
+        inputs=[
+            onnx.helper.make_tensor_value_info("trip_count", onnx.TensorProto.INT64, []),
+            onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
+            onnx.helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [1]),
+        ],
+        outputs=[
+            onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, [1]),
+            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5, 1]),
+        ],
+    )
+    loop_model = onnx.helper.make_model(loop_graph)
+
+    # Set a high trip count so that condition trips first.
+    trip_count = np.array(40).astype(np.int64)
+    cond = np.array(1).astype(np.bool)
+    input_vals = [trip_count, cond, y]
+    onnx_out = get_onnxruntime_output(loop_model, input_vals)
+
+    for target, ctx in [("llvm", tvm.cpu())]:
+        tvm_out = get_tvm_output_with_vm(loop_model, input_vals, target, ctx, freeze_params=True)
+        for i in range(len(tvm_out)):
+            tvm.testing.assert_allclose(onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+
+
+def verify_count_loop():
+    y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
+    y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [1])
+    scan_out = helper.make_tensor_value_info("scan_out", TensorProto.FLOAT, [1])
+    cond_in = helper.make_tensor_value_info("cond_in", TensorProto.BOOL, [])
+    cond_out = helper.make_tensor_value_info("cond_out", TensorProto.BOOL, [])
+    iter_count = helper.make_tensor_value_info("iter_count", TensorProto.INT64, [])
+
+    y = np.array([-2]).astype(np.float32)
+
+    iter_cast_node = helper.make_node(
+        "Cast", inputs=["iter_count"], outputs=["iter_cast"], to=onnx.TensorProto.FLOAT
+    )
+
+    y_add_node = helper.make_node("Add", inputs=["y_in", "iter_cast"], outputs=["y_out"])
+
+    identity_node = helper.make_node("Identity", inputs=["cond_in"], outputs=["cond_out"])
+
+    scan_identity_node = helper.make_node("Identity", inputs=["y_out"], outputs=["scan_out"])
+
+    loop_body = helper.make_graph(
+        [identity_node, iter_cast_node, y_add_node, scan_identity_node],
+        "loop_body",
+        [iter_count, cond_in, y_in],
+        [cond_out, y_out, scan_out],
+    )
+
+    loop_node = helper.make_node(
+        "Loop", inputs=["trip_count", "cond", "y"], outputs=["res_y", "res_scan"], body=loop_body
+    )
+
+    trip_count = np.array(5).astype(np.int64)
+    res_y = np.array([13]).astype(np.float32)
+    cond = np.array(1).astype(np.bool)
+    loop_graph = onnx.helper.make_graph(
+        [loop_node],
+        "loop_outer",
+        inputs=[
+            onnx.helper.make_tensor_value_info("trip_count", onnx.TensorProto.INT64, []),
+            onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
+            onnx.helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [1]),
+        ],
+        outputs=[
+            onnx.helper.make_tensor_value_info("res_y", onnx.TensorProto.FLOAT, [1]),
+            onnx.helper.make_tensor_value_info("res_scan", onnx.TensorProto.FLOAT, [5, 1]),
+        ],
+    )
+    loop_model = onnx.helper.make_model(loop_graph)
+
+    trip_count = np.array(5).astype(np.int64)
+    cond = np.array(1).astype(np.bool)
+    input_vals = [trip_count, cond, y]
+    onnx_out = get_onnxruntime_output(loop_model, input_vals)
+
+    for target, ctx in [("llvm", tvm.cpu())]:
+        tvm_out = get_tvm_output_with_vm(loop_model, input_vals, target, ctx, freeze_params=True)
+        for i in range(len(tvm_out)):
+            tvm.testing.assert_allclose(onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+
+
+def test_loop():
+    # Test a loop that exits once a condition is met.
+    verify_cond_loop()
+    # Test a loop that exits after a fixed number of iterations.
+    verify_count_loop()
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -3730,3 +3885,5 @@ if __name__ == "__main__":
     test_xor()
     test_max_roi_pool()
     test_roi_align()
+    test_range()
+    test_loop()

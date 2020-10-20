@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install sphinx sphinx-gallery==0.4.0 autodocsumm sphinx_rtd_theme sphinx_autodoc_annotation matplotlib Image commonmark>=0.7.3 docutils>=0.11
+pip3 install sphinx sphinx-gallery==0.4.0 autodocsumm sphinx_rtd_theme sphinx_autodoc_annotation matplotlib Image "commonmark>=0.7.3" "docutils>=0.11"

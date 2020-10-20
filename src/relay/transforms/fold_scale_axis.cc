@@ -30,8 +30,8 @@
 #include <tvm/tir/data_layout.h>
 
 #include "../op/tensor/transform.h"
-#include "pass_util.h"
-#include "pattern_util.h"
+#include "pass_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

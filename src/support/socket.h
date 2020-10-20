@@ -26,10 +26,14 @@
 #define TVM_SUPPORT_SOCKET_H_
 
 #if defined(_WIN32)
+
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#undef NOMINMAX
+
 using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
@@ -52,7 +56,7 @@ using ssize_t = int;
 #include <unordered_map>
 #include <vector>
 
-#include "../support/util.h"
+#include "../support/utils.h"
 
 #if defined(_WIN32)
 static inline int poll(struct pollfd* pfd, int nfds, int timeout) {

@@ -24,8 +24,8 @@ To enable this feature, you need to build with -DUSE_HYBRID_DUMP=ON.
 import ast
 
 from tvm.contrib import util
-from .util import _internal_assert
-from .util import _is_tvm_arg_types
+from .utils import _internal_assert
+from .utils import _is_tvm_arg_types
 from .parser import source_to_op
 
 

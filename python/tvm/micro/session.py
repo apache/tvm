@@ -18,17 +18,23 @@
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
 import logging
-import time
 
+from ..error import register_error
 from .._ffi import get_global_func
 from ..contrib import graph_runtime
 from ..rpc import RPCSession
+from .transport import IoTimeoutError
 from .transport import TransportLogger
 
 try:
     from .base import _rpc_connect
 except ImportError:
     raise ImportError("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
+
+
+@register_error
+class SessionTerminatedError(Exception):
+    """Raised when a transport read operationd discovers that the remote session is terminated."""
 
 
 class Session:
@@ -51,7 +57,12 @@ class Session:
     """
 
     def __init__(
-        self, binary=None, flasher=None, transport_context_manager=None, session_name="micro-rpc"
+        self,
+        binary=None,
+        flasher=None,
+        transport_context_manager=None,
+        session_name="micro-rpc",
+        timeout_override=None,
     ):
         """Configure a new session.
 
@@ -68,17 +79,37 @@ class Session:
             should establish a tarnsport between this TVM instance and the device.
         session_name : str
             Name of the session, used for debugging.
+        timeout_override : TransportTimeouts
+            If given, TransportTimeouts that govern the way Receive() behaves. If not given, this is
+            determined by calling has_flow_control() on the transport.
         """
         self.binary = binary
         self.flasher = flasher
         self.transport_context_manager = transport_context_manager
         self.session_name = session_name
+        self.timeout_override = timeout_override
 
         self._rpc = None
         self._graph_runtime = None
 
     def get_system_lib(self):
         return self._rpc.get_function("runtime.SystemLib")()
+
+    def _wrap_transport_read(self, n, timeout_microsec):
+        try:
+            return self.transport.read(
+                n, float(timeout_microsec) / 1e6 if timeout_microsec is not None else 0
+            )
+        except IoTimeoutError:
+            return bytes([])
+
+    def _wrap_transport_write(self, data, timeout_microsec):
+        try:
+            return self.transport.write(
+                data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else 0
+            )
+        except IoTimeoutError:
+            return 0
 
     def __enter__(self):
         """Initialize this session and establish an RPC session with the on-device RPC server.
@@ -90,13 +121,24 @@ class Session:
         """
         if self.flasher is not None:
             self.transport_context_manager = self.flasher.flash(self.binary)
-            time.sleep(3.0)
 
         self.transport = TransportLogger(
             self.session_name, self.transport_context_manager, level=logging.INFO
         ).__enter__()
+
+        timeouts = self.timeout_override
+        if timeouts is None:
+            timeouts = self.transport.timeouts()
+
         self._rpc = RPCSession(
-            _rpc_connect(self.session_name, self.transport.write, self.transport.read)
+            _rpc_connect(
+                self.session_name,
+                self._wrap_transport_write,
+                self._wrap_transport_read,
+                int(timeouts.session_start_retry_timeout_sec * 1e6),
+                int(timeouts.session_start_timeout_sec * 1e6),
+                int(timeouts.session_established_timeout_sec * 1e6),
+            )
         )
         self.context = self._rpc.cpu(0)
         return self

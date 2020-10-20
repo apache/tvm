@@ -57,12 +57,6 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   int pad_width_rank = pad_width->shape.size();
   CHECK_EQ(pad_width_rank, 2) << "Pad width must be 2D";
 
-  auto pad_width_dim1 = pad_width->shape[0].as<IntImmNode>();
-  auto pad_width_dim2 = pad_width->shape[1].as<IntImmNode>();
-
-  CHECK(pad_width_dim1->value == data_rank && pad_width_dim2->value == 2)
-      << "Pad width must have shape (N, 2), where N is the rank of input data";
-
   const PadAttrs* param = attrs.as<PadAttrs>();
   CHECK(param != nullptr);
 

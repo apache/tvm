@@ -163,6 +163,8 @@ def _strided_slice_shape_func_input_shape(data_shape, begin, end, strides, slice
         else:
             if end[i] > data_shape[i]:
                 cend = int64(data_shape[i])
+            elif end[i] < -data_shape[i]:
+                cend = int64(-1)
             else:
                 cend = int64(end[i])
                 if cend < 0:

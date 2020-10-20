@@ -157,6 +157,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
     int ct = 0;
     int empty_retry_count = GetIntParam(params, SketchParamKey::empty_retry_count);
+    Array<State> best_states, random_states;
     Array<MeasureInput> inputs;
     Array<MeasureResult> results;
     while (ct < n_trials) {
@@ -168,8 +169,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
       // Search one round to get promising states
       PrintTitle("Search", verbose);
-      Array<State> random_states;
-      Array<State> best_states = SearchOneRound(num_random, &random_states);
+      best_states = SearchOneRound(num_random * 3, &random_states);
 
       // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
       best_states = search_task->compute_dag.InferBound(best_states);
@@ -196,7 +196,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
       // Measure candidate states
       PrintTitle("Measure", verbose);
-      measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs, &results);
+      results = measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs);
       ct += inputs.size();
 
       // Check if reach the early stopping condition
@@ -218,15 +218,45 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
   }
 }
 
-Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
-  // Temporal object to be used if the input pointer is nullptr
-  Array<State> temp_random_states;
-  if (random_states == nullptr) {
-    random_states = &temp_random_states;
-  } else {
-    random_states->clear();
+std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueSearchOneRound(
+    int num_measure, ProgramMeasurer measurer) {
+  num_measure_per_iter_ = num_measure;
+
+  Array<State> best_states, random_states;
+  Array<MeasureInput> inputs;
+  Array<MeasureResult> results;
+  int num_random = static_cast<int>(GetDoubleParam(params, "eps_greedy") * num_measure);
+
+  // Search one round to get promising states
+  PrintTitle("Search", verbose);
+  best_states = SearchOneRound(num_random * 3, &random_states);
+
+  // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
+  best_states = search_task->compute_dag.InferBound(best_states);
+  random_states = search_task->compute_dag.InferBound(random_states);
+
+  // Pick `num_measure_per_iter` states to measure, check hash to remove already measured state
+  // Also pick some random states to do eps-greedy
+  inputs = PickStatesWithEpsGreedy(best_states, random_states, num_measure);
+
+  // Measure candidate states
+  PrintTitle("Measure", verbose);
+  results = measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs);
+
+  // Update measured states throughputs. These states will join the EvolutionarySearch in later
+  // search rounds.
+  for (const auto& res : results) {
+    measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
   }
 
+  // Update the cost model
+  PrintTitle("Train cost model", verbose);
+  program_cost_model->Update(inputs, results);
+
+  return std::make_pair(std::move(inputs), std::move(results));
+}
+
+Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Get parameters
   int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
   int num_use_measured =
@@ -245,8 +275,8 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
   Array<State> init_population = SampleInitPopulation(
       sketch_cache_, is_cost_model_reasonable ? population - num_use_measured : population);
 
-  // 3. If the cost model is useless (i.e. RandomCostModel), just random pick some generated
-  // states, else perform evolutionary search
+  // 3. Perform evolutionary search if a cost model is utilized. Otherwise,
+  // just return some random states.
   if (is_cost_model_reasonable) {
     // Also insert already measured good states to the initial population
     std::vector<int> indices = Argsort(measured_states_throughputs_);
@@ -254,11 +284,13 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
       init_population.push_back(measured_states_vector_[indices[i]]);
     }
     // Sample some random states for eps-greedy
-    *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states * 3);
+    if (num_random_states > 0 && random_states != nullptr) {
+      *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states);
+    }
     return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
   } else {
     PruneInvalidState(search_task, &init_population);
-    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 3);
+    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 2);
   }
 }
 
@@ -347,10 +379,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 
     support::parallel_for(0, out_size - out_states.size(),
                           [this, &temp_states, &sketches, &rand_gens](int index) {
-                            // Random choose a starting sketch
-                            // TODO(jcf94, merrymercy): Maybe choose sketches in different
-                            // possibility for they may have different potential on generating state
-                            // with better performance
+                            // Randomly choose a sketch
                             State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
                             // Derivation rule based enumeration
                             bool valid = true;
@@ -471,6 +500,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
 
     // Compute selection probability
     ComputePrefixSumProb(pop_scores, &pop_selection_probs);
+
+    // TODO(merrymercy, comaniac): add crossover.
 
     // Do mutation
     while (pnext->size() < population) {

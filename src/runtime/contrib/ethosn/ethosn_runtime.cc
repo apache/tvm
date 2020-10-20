@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../file_util.h"
+#include "../../file_utils.h"
 #include "ethosn_device.h"
 #include "ethosn_driver_library/Inference.hpp"
 #include "ethosn_driver_library/Network.hpp"

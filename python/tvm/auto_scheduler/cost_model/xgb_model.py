@@ -20,6 +20,7 @@
 import multiprocessing
 import logging
 from collections import defaultdict
+import time
 
 import numpy as np
 import xgboost as xgb
@@ -76,7 +77,7 @@ dmatrix_context = XGBDMatrixContext()
 class XGBModel(PythonBasedModel):
     """Train a XGBoost model to predict the normalized throughputs of programs.
     Let the normalized throughput be the score of a program (higher is better). We predict
-    the (approximiate) score of a program = the sum of the scores of all stages in this program.
+    the (approximate) score of a program = the sum of the scores of all stages in this program.
     i.e. score(P) = score_s0 + score_s1 + ... + score_sn,
     where score_si is the score of Stage i in Program P.
     We extract feature for each stage and let the xgboost predict the score for each stage.
@@ -128,6 +129,7 @@ class XGBModel(PythonBasedModel):
         if len(inputs) <= 0:
             return
         assert len(inputs) == len(results)
+        tic = time.time()
 
         self.inputs.extend(inputs)
         self.results.extend(results)
@@ -166,6 +168,8 @@ class XGBModel(PythonBasedModel):
                 )
             ],
         )
+
+        logger.info("XGBModel Training time: %.2f s", time.time() - tic)
 
     def predict(self, task, states):
         """Predict the scores of states
