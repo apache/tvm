@@ -26,7 +26,8 @@ useradd \
     tvm
 
 # Zephyr
-apt-key add ~vagrant/kitware-archive-latest.asc
+wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
+apt-key add kitware-archive-latest.asc
 apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
 apt update
 apt install -y --no-install-recommends git cmake ninja-build gperf \
