@@ -293,6 +293,7 @@ def test_annotate():
         gv0 = relay.GlobalVar("vitis_ai_0")
         mod = tvm.IRModule()
         mod[gv0] = func0
+        mod = relay.transform.InferType()(mod)
 
         # main function
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
@@ -303,6 +304,7 @@ def test_annotate():
         bn_mvar = relay.var("bn_var", relay.TensorType((16,), "float32"))
         call0 = gv0(data, weight, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         mod["main"] = relay.Function([data, weight, bn_gamma, bn_beta, bn_mmean, bn_mvar], call0)
+        mod = relay.transform.InferType()(mod)
         return mod
 
     partitioned_dpuczdx8g_zcu104 = partition("DPUCZDX8G-zcu104")
