@@ -19,6 +19,7 @@
 import multiprocessing
 from collections import namedtuple
 
+
 class MeasureInput(namedtuple("MeasureInput", ["target", "task", "config"])):
     """
     Stores all the necessary inputs for a measurement.
@@ -54,15 +55,16 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
 
 class MeasureErrorNo(object):
     """Error type for MeasureResult"""
-    NO_ERROR = 0              # no error
-    INSTANTIATION_ERROR = 1   # actively detected error in instantiating a template with a config
-    COMPILE_HOST = 2          # error when compiling code on host (e.g. tvm.build)
-    COMPILE_DEVICE = 3        # error when compiling code on device (e.g. OpenCL JIT on the device)
-    RUNTIME_DEVICE = 4        # error when run program on device
-    WRONG_ANSWER = 5          # answer is wrong when compared to a golden output
-    BUILD_TIMEOUT = 6         # timeout during compilation
-    RUN_TIMEOUT = 7           # timeout during run
-    UNKNOWN_ERROR = 8         # unknown error
+
+    NO_ERROR = 0  # no error
+    INSTANTIATION_ERROR = 1  # actively detected error in instantiating a template with a config
+    COMPILE_HOST = 2  # error when compiling code on host (e.g. tvm.build)
+    COMPILE_DEVICE = 3  # error when compiling code on device (e.g. OpenCL JIT on the device)
+    RUNTIME_DEVICE = 4  # error when run program on device
+    WRONG_ANSWER = 5  # answer is wrong when compared to a golden output
+    BUILD_TIMEOUT = 6  # timeout during compilation
+    RUN_TIMEOUT = 7  # timeout during run
+    UNKNOWN_ERROR = 8  # unknown error
 
 
 class Builder(object):
@@ -76,6 +78,7 @@ class Builder(object):
         The number of tasks submitted in parallel
         By default it will use all cpu cores
     """
+
     def __init__(self, timeout=10, n_parallel=None):
         self.timeout = timeout
         self.n_parallel = n_parallel or multiprocessing.cpu_count()
@@ -123,6 +126,7 @@ class Runner(object):
         The number of tasks submitted in parallel
         By default it will use all cpu cores
     """
+
     def __init__(self, timeout=5, n_parallel=None):
         self.timeout = timeout
         self.n_parallel = n_parallel or multiprocessing.cpu_count()
@@ -212,20 +216,20 @@ def measure_option(builder, runner):
     from .measure_methods import LocalBuilder, LocalRunner
 
     if isinstance(builder, str):
-        if builder == 'local':
+        if builder == "local":
             builder = LocalBuilder()
         else:
             raise ValueError("Invalid builder: " + builder)
 
     if isinstance(runner, str):
-        if runner == 'local':
+        if runner == "local":
             runner = LocalRunner()
         else:
             raise ValueError("Invalid runner: " + runner)
 
     opt = {
-        'builder': builder,
-        'runner': runner,
+        "builder": builder,
+        "runner": runner,
     }
 
     return opt
@@ -247,8 +251,8 @@ def create_measure_batch(task, option):
     measure_batch: callable
         a callback function to measure a batch of configs
     """
-    builder = option['builder']
-    runner = option['runner']
+    builder = option["builder"]
+    runner = option["runner"]
 
     attach_objects = runner.set_task(task)
 

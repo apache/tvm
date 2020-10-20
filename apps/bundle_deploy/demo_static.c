@@ -24,9 +24,13 @@
 #include <sys/time.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-#include "build/graph_c.json.c"
-#include "build/params_c.bin.c"
 #include "bundle.h"
+
+extern const char build_graph_c_json[];
+extern unsigned int build_graph_c_json_len;
+
+extern const char build_params_c_bin[];
+extern unsigned int build_params_c_bin_len;
 
 #define OUTPUT_LEN 1000
 

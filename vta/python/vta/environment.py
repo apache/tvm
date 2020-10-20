@@ -25,12 +25,14 @@ import tvm
 from tvm import te
 from . import intrin
 
+
 def get_vta_hw_path():
     """Get the VTA HW path."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../../3rdparty/vta-hw"))
-    VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
+    VTA_HW_PATH = os.getenv("VTA_HW_PATH", vta_hw_default)
     return os.path.abspath(VTA_HW_PATH)
+
 
 def pkg_config(cfg):
     """Returns PkgConfig pkg config object."""
@@ -39,6 +41,7 @@ def pkg_config(cfg):
     exec(compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg)
     PkgConfig = libpkg["PkgConfig"]
     return PkgConfig(cfg)
+
 
 class DevContext(object):
     """Internal development context
@@ -56,6 +59,7 @@ class DevContext(object):
     This class is introduced so we have a clear separation
     of developer related, and user facing attributes.
     """
+
     # Memory id for DMA
     MEM_ID_UOP = 0
     MEM_ID_WGT = 1
@@ -78,8 +82,7 @@ class DevContext(object):
         self.vta_axis = te.thread_axis("vta")
         self.vta_push_uop = tvm.tir.StringImm("VTAPushGEMMOp")
         ctx = tvm.tir.call_intrin("handle", "tir.vta.command_handle")
-        self.command_handle = tvm.tir.Call(
-            "handle", "tir.tvm_thread_context", [ctx])
+        self.command_handle = tvm.tir.Call("handle", "tir.tvm_thread_context", [ctx])
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
@@ -111,14 +114,15 @@ class Environment(object):
           # env works on the new environment
           env = vta.get_env()
     """
+
     current = None
     # constants
     MAX_XFER = 1 << 22
     # debug flags
-    DEBUG_DUMP_INSN = (1 << 1)
-    DEBUG_DUMP_UOP = (1 << 2)
-    DEBUG_SKIP_READ_BARRIER = (1 << 3)
-    DEBUG_SKIP_WRITE_BARRIER = (1 << 4)
+    DEBUG_DUMP_INSN = 1 << 1
+    DEBUG_DUMP_UOP = 1 << 2
+    DEBUG_SKIP_READ_BARRIER = 1 << 3
+    DEBUG_SKIP_WRITE_BARRIER = 1 << 4
     # memory scopes
     inp_scope = "local.inp_buffer"
     wgt_scope = "local.wgt_buffer"
@@ -145,18 +149,10 @@ class Environment(object):
         self.ACC_BUFF_SIZE = 1 << self.LOG_ACC_BUFF_SIZE
         self.OUT_BUFF_SIZE = 1 << self.LOG_OUT_BUFF_SIZE
         # bytes per buffer
-        self.INP_ELEM_BITS = (self.BATCH *
-                              self.BLOCK_IN *
-                              self.INP_WIDTH)
-        self.WGT_ELEM_BITS = (self.BLOCK_OUT *
-                              self.BLOCK_IN *
-                              self.WGT_WIDTH)
-        self.ACC_ELEM_BITS = (self.BATCH *
-                              self.BLOCK_OUT *
-                              self.ACC_WIDTH)
-        self.OUT_ELEM_BITS = (self.BATCH *
-                              self.BLOCK_OUT *
-                              self.OUT_WIDTH)
+        self.INP_ELEM_BITS = self.BATCH * self.BLOCK_IN * self.INP_WIDTH
+        self.WGT_ELEM_BITS = self.BLOCK_OUT * self.BLOCK_IN * self.WGT_WIDTH
+        self.ACC_ELEM_BITS = self.BATCH * self.BLOCK_OUT * self.ACC_WIDTH
+        self.OUT_ELEM_BITS = self.BATCH * self.BLOCK_OUT * self.OUT_WIDTH
         self.INP_ELEM_BYTES = self.INP_ELEM_BITS // 8
         self.WGT_ELEM_BYTES = self.WGT_ELEM_BITS // 8
         self.ACC_ELEM_BYTES = self.ACC_ELEM_BITS // 8
@@ -213,16 +209,12 @@ class Environment(object):
     @property
     def dma_copy(self):
         """DMA copy pragma"""
-        return ("dma_copy"
-                if not self.mock_mode
-                else "skip_dma_copy")
+        return "dma_copy" if not self.mock_mode else "skip_dma_copy"
 
     @property
     def alu(self):
         """ALU pragma"""
-        return ("alu"
-                if not self.mock_mode
-                else "skip_alu")
+        return "alu" if not self.mock_mode else "skip_alu"
 
     @property
     def gemm(self):
@@ -248,6 +240,7 @@ class Environment(object):
     def target_vta_cpu(self):
         return tvm.target.arm_cpu(model=self.TARGET)
 
+
 def get_env():
     """Get the current VTA Environment.
 
@@ -263,55 +256,63 @@ def get_env():
 @tvm.register_func("tvm.info.mem.%s" % Environment.inp_scope)
 def mem_info_inp_buffer():
     spec = get_env()
-    return tvm.ir.make_node("MemoryInfo",
-                            unit_bits=spec.INP_ELEM_BITS,
-                            max_simd_bits=spec.INP_ELEM_BITS,
-                            max_num_bits=spec.INP_BUFF_SIZE * 8,
-                            head_address=None)
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=spec.INP_ELEM_BITS,
+        max_simd_bits=spec.INP_ELEM_BITS,
+        max_num_bits=spec.INP_BUFF_SIZE * 8,
+        head_address=None,
+    )
+
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.wgt_scope)
 def mem_info_wgt_buffer():
     spec = get_env()
-    return tvm.ir.make_node("MemoryInfo",
-                            unit_bits=spec.WGT_ELEM_BITS,
-                            max_simd_bits=spec.WGT_ELEM_BITS,
-                            max_num_bits=spec.WGT_BUFF_SIZE * 8,
-                            head_address=None)
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=spec.WGT_ELEM_BITS,
+        max_simd_bits=spec.WGT_ELEM_BITS,
+        max_num_bits=spec.WGT_BUFF_SIZE * 8,
+        head_address=None,
+    )
+
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
 def mem_info_acc_buffer():
     spec = get_env()
-    return tvm.ir.make_node("MemoryInfo",
-                            unit_bits=spec.ACC_ELEM_BITS,
-                            max_simd_bits=spec.ACC_ELEM_BITS,
-                            max_num_bits=spec.ACC_BUFF_SIZE * 8,
-                            head_address=None)
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=spec.ACC_ELEM_BITS,
+        max_simd_bits=spec.ACC_ELEM_BITS,
+        max_num_bits=spec.ACC_BUFF_SIZE * 8,
+        head_address=None,
+    )
+
 
 # TVM related registration
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")
 def coproc_sync(op):
     _ = op
     return tvm.tir.call_extern(
-        "int32", "VTASynchronize",
+        "int32",
+        "VTASynchronize",
         get_env().dev.command_handle,
-        tvm.runtime.const(1<<31, dtype="uint32"))
-
+        tvm.runtime.const(1 << 31, dtype="uint32"),
+    )
 
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
 def coproc_dep_push(op):
     return tvm.tir.call_extern(
-        "int32", "VTADepPush",
-        get_env().dev.command_handle,
-        op.args[0], op.args[1])
+        "int32", "VTADepPush", get_env().dev.command_handle, op.args[0], op.args[1]
+    )
 
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_pop")
 def coproc_dep_pop(op):
     return tvm.tir.call_extern(
-        "int32", "VTADepPop",
-        get_env().dev.command_handle,
-        op.args[0], op.args[1])
+        "int32", "VTADepPop", get_env().dev.command_handle, op.args[0], op.args[1]
+    )
 
 
 def _init_env():
@@ -321,5 +322,6 @@ def _init_env():
         raise RuntimeError("Cannot find config in %s" % str(config_path))
     cfg = json.load(open(config_path))
     return Environment(cfg)
+
 
 Environment.current = _init_env()

@@ -34,13 +34,18 @@ def upsample_nearest(arr, scale):
             out[y, x] = arr[in_y, in_x]
     return out
 
-def upsampling_python(data, scale, layout='NCHW'):
+
+def upsampling_python(data, scale, layout="NCHW"):
     """ Python version of scaling using nearest neighbour """
 
     ishape = data.shape
-    if layout == 'NCHW':
-        oshape = (ishape[0], ishape[1], int(round(ishape[2]*scale[0])),
-                  int(round(ishape[3]*scale[1])))
+    if layout == "NCHW":
+        oshape = (
+            ishape[0],
+            ishape[1],
+            int(round(ishape[2] * scale[0])),
+            int(round(ishape[3] * scale[1])),
+        )
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for c in range(oshape[1]):
@@ -48,25 +53,38 @@ def upsampling_python(data, scale, layout='NCHW'):
         return output_np
     # NCHWinic
     if nchw_pack_layout(layout):
-        oshape = (ishape[0], ishape[1], int(round(ishape[2]*scale[0])),
-                  int(round(ishape[3]*scale[1])), ishape[4], ishape[5])
+        oshape = (
+            ishape[0],
+            ishape[1],
+            int(round(ishape[2] * scale[0])),
+            int(round(ishape[3] * scale[1])),
+            ishape[4],
+            ishape[5],
+        )
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for ib in range(oshape[4]):
                 for c in range(oshape[1]):
                     for ic in range(oshape[5]):
-                        output_np[b, c, :, :, ib, ic] = upsample_nearest(data[b, c, :, :, ib, ic], scale)
+                        output_np[b, c, :, :, ib, ic] = upsample_nearest(
+                            data[b, c, :, :, ib, ic], scale
+                        )
         return output_np
 
-    if layout == 'NHWC':
-        oshape = (ishape[0], int(round(ishape[1]*scale[0])),
-                  int(round(ishape[2]*scale[1])), ishape[3])
+    if layout == "NHWC":
+        oshape = (
+            ishape[0],
+            int(round(ishape[1] * scale[0])),
+            int(round(ishape[2] * scale[1])),
+            ishape[3],
+        )
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for c in range(oshape[3]):
                 output_np[b, :, :, c] = upsample_nearest(data[b, :, :, c], scale)
         return output_np
     raise ValueError("not support this layout {} yet".format(layout))
+
 
 def upsample3d_nearest(arr, scale):
     """ Populate the array by scale factor"""
@@ -84,25 +102,32 @@ def upsample3d_nearest(arr, scale):
                 out[z, y, x] = arr[in_z, in_y, in_x]
     return out
 
-def upsampling3d_python(data, scale, layout='NCDHW'):
+
+def upsampling3d_python(data, scale, layout="NCDHW"):
     """ Python version of 3D scaling using nearest neighbour """
 
     ishape = data.shape
-    if layout == 'NCDHW':
-        oshape = (ishape[0], ishape[1],
-                  int(round(ishape[2]*scale[0])),
-                  int(round(ishape[3]*scale[1])),
-                  int(round(ishape[4]*scale[2])))
+    if layout == "NCDHW":
+        oshape = (
+            ishape[0],
+            ishape[1],
+            int(round(ishape[2] * scale[0])),
+            int(round(ishape[3] * scale[1])),
+            int(round(ishape[4] * scale[2])),
+        )
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for c in range(oshape[1]):
                 output_np[b, c, :, :, :] = upsample3d_nearest(data[b, c, :, :, :], scale)
         return output_np
-    if layout == 'NDHWC':
-        oshape = (ishape[0],
-                  int(round(ishape[1]*scale[0])),
-                  int(round(ishape[2]*scale[1])),
-                  int(round(ishape[3]*scale[2])), ishape[4])
+    if layout == "NDHWC":
+        oshape = (
+            ishape[0],
+            int(round(ishape[1] * scale[0])),
+            int(round(ishape[2] * scale[1])),
+            int(round(ishape[3] * scale[2])),
+            ishape[4],
+        )
         output_np = np.zeros(oshape, dtype=data.dtype)
         for b in range(oshape[0]):
             for c in range(oshape[4]):

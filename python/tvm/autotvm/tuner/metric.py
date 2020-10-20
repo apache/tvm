@@ -21,8 +21,9 @@ import numpy as np
 
 from ..util import get_rank
 
+
 def max_curve(trial_scores):
-    """ f(n) = max([s[i] fo i < n])
+    """f(n) = max([s[i] fo i < n])
 
     Parameters
     ----------
@@ -41,8 +42,9 @@ def max_curve(trial_scores):
         ret[i] = keep
     return ret
 
+
 def mean_curve(trial_scores):
-    """ f(n) = mean([s[i] fo i < n])
+    """f(n) = mean([s[i] fo i < n])
 
     Parameters
     ----------
@@ -58,8 +60,9 @@ def mean_curve(trial_scores):
     keep = 0
     for i, score in enumerate(trial_scores):
         keep += score
-        ret[i] = keep / (i+1)
+        ret[i] = keep / (i + 1)
     return ret
+
 
 def recall_curve(trial_ranks, top=None):
     """
@@ -84,11 +87,12 @@ def recall_curve(trial_ranks, top=None):
     ret = np.zeros(len(trial_ranks))
     if top is None:
         for i in range(len(trial_ranks)):
-            ret[i] = np.sum(trial_ranks[:i] <= i) / (i+1)
+            ret[i] = np.sum(trial_ranks[:i] <= i) / (i + 1)
     else:
         for i in range(len(trial_ranks)):
             ret[i] = 1.0 * np.sum(trial_ranks[:i] < top) / top
     return ret
+
 
 def cover_curve(trial_ranks):
     """
@@ -109,10 +113,11 @@ def cover_curve(trial_ranks):
     cover = set()
     for i, rank in enumerate(trial_ranks):
         cover.add(rank)
-        while keep+1 in cover:
+        while keep + 1 in cover:
             keep += 1
         ret[i] = keep + 1
     return ret / len(trial_ranks)
+
 
 def average_recall(preds, labels, N):
     """evaluate average recall-n for predictions and labels"""

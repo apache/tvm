@@ -134,7 +134,13 @@ In order to generate the VS solution file using cmake, make sure you have a rece
   cd build
   cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
 
-This will generate the VS project using the MSVC 14 64 bit generator.
+Starting with Visual Studio 2019 the architecture is specified differently so use this command
+
+.. code:: bash
+
+  cmake -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
+
+This will generate the VS project using the MSVC 64 bit generator.
 Open the .sln file in the build directory and build with Visual Studio.
 In order to build with LLVM in windows, you will need to build LLVM from source.
 
@@ -167,8 +173,8 @@ Method 1
    This method is **recommended for developers** who may change the codes.
 
    Set the environment variable `PYTHONPATH` to tell python where to find
-   the library. For example, assume we cloned `tvm` on the home directory
-   `~`. then we can added the following line in `~/.bashrc`.
+   the library. For example, assume we cloned `tvm` on the directory
+   `/path/to/tvm` then we can add the following line in `~/.bashrc`.
    The changes will be immediately reflected once you pull the code and rebuild the project (no need to call ``setup`` again)
 
    .. code:: bash
@@ -236,7 +242,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd build
        cmake ..
        make
-       make install
+       sudo make install
 
 
 After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.

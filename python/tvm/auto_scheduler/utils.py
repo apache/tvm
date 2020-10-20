@@ -25,6 +25,8 @@ import signal
 import threading
 import os
 
+import numpy as np
+
 try:
     import psutil
 except ImportError:
@@ -50,7 +52,7 @@ def get_func_name(func):
     name: str
         The function name.
     """
-    return func.func_name if hasattr(func, 'func_name') else func.__qualname__
+    return func.func_name if hasattr(func, "func_name") else func.__qualname__
 
 
 def get_const_int(exp):
@@ -92,7 +94,6 @@ def get_const_tuple(in_tuple):
     return tuple(get_const_int(x) for x in in_tuple)
 
 
-
 def list_to_tuple(x):
     """ Convert a list to a tuple recursively. """
     assert isinstance(x, list)
@@ -107,7 +108,7 @@ def serialize_args(args):
     ret = []
     for t in args:
         if isinstance(t, Tensor):
-            t = ('TENSOR', get_const_tuple(t.shape), t.dtype)
+            t = ("TENSOR", get_const_tuple(t.shape), t.dtype)
         elif isinstance(t, list):
             t = list_to_tuple(t)
 
@@ -121,7 +122,7 @@ def deserialize_args(args):
     """The inverse function of :code:`serialize_args`"""
     ret = []
     for t in args:
-        if isinstance(t, (tuple, list)) and t[0] == 'TENSOR':
+        if isinstance(t, (tuple, list)) and t[0] == "TENSOR":
             ret.append(placeholder(shape=t[1], dtype=t[2]))
         else:
             ret.append(t)
@@ -144,10 +145,10 @@ class NoDaemonContext(type(multiprocessing.get_context())):
 
 class NoDaemonPool(multiprocessing.pool.Pool):
     """A no daemon pool version of multiprocessing.Pool.
-    This allows us to start new processings inside the worker function"""
+    This allows us to start new processes inside the worker function"""
 
     def __init__(self, *args, **kwargs):
-        kwargs['context'] = NoDaemonContext()
+        kwargs["context"] = NoDaemonContext()
         super().__init__(*args, **kwargs)
 
     def __reduce__(self):
@@ -170,6 +171,7 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 def call_func_with_timeout(timeout, func, args=(), kwargs=None):
     """Call a function with timeout"""
+
     def func_wrapper(que):
         if kwargs:
             que.put(func(*args, **kwargs))
@@ -199,7 +201,7 @@ def call_func_with_timeout(timeout, func, args=(), kwargs=None):
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
-    """ Request a remote session.
+    """Request a remote session.
 
     Parameters
     ----------
@@ -222,12 +224,11 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
         The connected remote RPCSession.
     """
     # connect to the tracker
-    host = host or os.environ['TVM_TRACKER_HOST']
-    port = port or int(os.environ['TVM_TRACKER_PORT'])
+    host = host or os.environ["TVM_TRACKER_HOST"]
+    port = port or int(os.environ["TVM_TRACKER_PORT"])
 
     tracker = rpc.connect_tracker(host, port)
-    remote = tracker.request(device_key, priority=priority,
-                             session_timeout=timeout)
+    remote = tracker.request(device_key, priority=priority, session_timeout=timeout)
     return remote
 
 
@@ -259,7 +260,54 @@ def check_remote(device_key, host=None, port=None, priority=100, timeout=10):
     def _check():
         request_remote(device_key, host, port, priority)
 
-    t = threading.Thread(target=_check, )
+    t = threading.Thread(
+        target=_check,
+    )
     t.start()
     t.join(timeout)
     return not t.is_alive()
+
+
+def array_mean(arr):
+    """Compute mean of the elments in a TVM Array<PrimExpr>
+
+    Parameters
+    ----------
+    arr: Array
+        A TVM Array<PrimExpr>
+
+    Returns
+    -------
+    mean: float
+        The mean of the elements in the array
+    """
+    return sum(x.value for x in arr) / len(arr)
+
+
+def to_str_round(x, decimal=6):
+    """Convert an object to str and round float numbers
+
+    Parameters
+    ----------
+    x: Union[str, list, int, float, np.ndarray]
+        The input object
+    decimal: int
+        The precision of decimal fraction
+
+    Returns
+    -------
+    ret: str
+        The string format of these objects
+    """
+    if isinstance(x, str):
+        return x
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return "[" + ", ".join([to_str_round(y, decimal=decimal) for y in x]) + "]"
+    if isinstance(x, dict):
+        return str({k: to_str_round(v) for k, v in x.items()})
+    if isinstance(x, int):
+        return str(x)
+    if isinstance(x, (np.float32, np.float64, float)):
+        format_str = "%%.%df" % decimal
+        return format_str % x
+    raise ValueError("Invalid value: " + str(x) + "\ttype: " + str(type(x)))

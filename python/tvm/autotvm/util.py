@@ -26,10 +26,12 @@ import numpy as np
 import tvm.arith
 from tvm.tir import expr
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
+
 
 class EmptyContext(object):
     """An empty context"""
+
     def __enter__(self):
         pass
 
@@ -114,15 +116,15 @@ def pool_map(func, args, batch_size, verbose=False, pool=None):
         logger.info("mapping begin")
     for i in range(0, len(args), batch_size):
         if verbose:
-            logger.info("mapping %d/%d elapsed %.2f", i, len(args),
-                        time.time() - tic)
-        tmp = np.array(local_pool.map(func, args[i:i+batch_size]))
+            logger.info("mapping %d/%d elapsed %.2f", i, len(args), time.time() - tic)
+        tmp = np.array(local_pool.map(func, args[i : i + batch_size]))
         ret = tmp if ret is None else np.concatenate((ret, tmp))
     if verbose:
         logger.info("mapping done")
     if not pool:
         local_pool.close()
     return ret
+
 
 def get_func_name(func):
     """Get name of a function
@@ -137,7 +139,7 @@ def get_func_name(func):
         The name
     """
 
-    return func.func_name if hasattr(func, 'func_name') else func.__name__
+    return func.func_name if hasattr(func, "func_name") else func.__name__
 
 
 def get_const_int(exp):
@@ -190,7 +192,7 @@ def get_const_tuple(in_tuple):
     return tuple(ret)
 
 
-SI_PREFIXES = 'yzafpn\xb5m kMGTPEZY'
+SI_PREFIXES = "yzafpn\xb5m kMGTPEZY"
 YOCTO_EXP10 = -24
 
 

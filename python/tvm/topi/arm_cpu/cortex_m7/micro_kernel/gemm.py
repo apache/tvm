@@ -38,7 +38,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     # instantiation and include it only once, eliminating the need for unique
     # IDs
     UNIQ_ID_LEN = 8
-    uniq_id = ''.join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
+    uniq_id = "".join(random.choices(string.ascii_uppercase, k=UNIQ_ID_LEN))
 
     if isinstance(M, tvm.tir.IntImm):
         M = M.value
@@ -48,63 +48,74 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
         N = N.value
     assert K % 4 == 0
     # TODO(weberlo, areusch): support more dtypes?
-    assert in_dtype == 'int8'
-    assert out_dtype == 'int32'
-    A = te.placeholder((M, K), name='a', dtype=in_dtype)
-    B = te.placeholder((N, K), name='b', dtype=in_dtype)
-    k = te.reduce_axis((0, K), name='k')
+    assert in_dtype == "int8"
+    assert out_dtype == "int32"
+    A = te.placeholder((M, K), name="a", dtype=in_dtype)
+    B = te.placeholder((N, K), name="b", dtype=in_dtype)
+    k = te.reduce_axis((0, K), name="k")
     C = te.compute(
         (M, N),
         lambda i, j: te.sum(A[i, k].astype(out_dtype) * B[j, k].astype(out_dtype), axis=k),
-        name='c')
+        name="c",
+    )
     A_buf = tvm.tir.decl_buffer(
-        A.shape, A.dtype,
-        name="A",
-        offset_factor=1,
-        strides=[te.var("A_s"), 1])
+        A.shape, A.dtype, name="A", offset_factor=1, strides=[te.var("A_s"), 1]
+    )
     B_buf = tvm.tir.decl_buffer(
-        B.shape, B.dtype,
-        name="B",
-        offset_factor=1,
-        strides=[te.var("B_s"), 1])
+        B.shape, B.dtype, name="B", offset_factor=1, strides=[te.var("B_s"), 1]
+    )
     C_buf = tvm.tir.decl_buffer(
-        C.shape, C.dtype,
-        name="C",
-        offset_factor=1,
-        strides=[te.var("C_s"), 1])
+        C.shape, C.dtype, name="C", offset_factor=1, strides=[te.var("C_s"), 1]
+    )
+
     def intrin_func(ins, outs):
         aa, bb = ins
         cc = outs[0]
+
         def _reduce_update():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_extern("int32", f"gemm_{M}x{K}x{N}_update_{uniq_id}",
-                                        aa.access_ptr("r"),
-                                        bb.access_ptr("r"),
-                                        cc.access_ptr("w"),
-                                        aa.strides[0],
-                                        bb.strides[0],
-                                        cc.strides[0]))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    f"gemm_{M}x{K}x{N}_update_{uniq_id}",
+                    aa.access_ptr("r"),
+                    bb.access_ptr("r"),
+                    cc.access_ptr("w"),
+                    aa.strides[0],
+                    bb.strides[0],
+                    cc.strides[0],
+                )
+            )
             return ib.get()
+
         def _reduce_reset():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_extern("int32", f"gemm_{M}x{K}x{N}_reset_{uniq_id}",
-                                        cc.access_ptr("w"),
-                                        cc.strides[0]))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32", f"gemm_{M}x{K}x{N}_reset_{uniq_id}", cc.access_ptr("w"), cc.strides[0]
+                )
+            )
             return ib.get()
+
         def _body():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_extern("int32", f"gemm_{M}x{K}x{N}_body_{uniq_id}",
-                                        aa.access_ptr("r"),
-                                        bb.access_ptr("r"),
-                                        cc.access_ptr("w"),
-                                        aa.strides[0],
-                                        bb.strides[0],
-                                        cc.strides[0]))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    f"gemm_{M}x{K}x{N}_body_{uniq_id}",
+                    aa.access_ptr("r"),
+                    bb.access_ptr("r"),
+                    cc.access_ptr("w"),
+                    aa.strides[0],
+                    bb.strides[0],
+                    cc.strides[0],
+                )
+            )
             return ib.get()
+
         return _body(), _reduce_reset(), _reduce_update()
 
-    intrin_decl = te.decl_tensor_intrin(
-        C.op, intrin_func, binds={A: A_buf, B: B_buf, C: C_buf})
+    intrin_decl = te.decl_tensor_intrin(C.op, intrin_func, binds={A: A_buf, B: B_buf, C: C_buf})
     return intrin_decl, uniq_id
 
 

@@ -25,6 +25,7 @@ from tvm import topi
 
 from ..environment import get_env
 
+
 def is_packed_layout(layout):
     """Check if layout is packed layout"""
     if layout == "NCHW":
@@ -32,6 +33,7 @@ def is_packed_layout(layout):
     if "n" in layout and "c" in layout:
         return True
     return False
+
 
 @autotvm.register_topi_compute("dense_packed.vta")
 def dense_packed(cfg, data, weight, bias=None, out_dtype=None):
@@ -49,20 +51,23 @@ def dense_packed(cfg, data, weight, bias=None, out_dtype=None):
     # Reduction axes (input channel)
     assert ishape[1] == wshape[1]
     assert ishape[3] == wshape[3]
-    k_o = te.reduce_axis((0, ishape[1]), name='k_o')
-    k_i = te.reduce_axis((0, ishape[3]), name='k_i')
+    k_o = te.reduce_axis((0, ishape[1]), name="k_o")
+    k_i = te.reduce_axis((0, ishape[3]), name="k_i")
     res = te.compute(
         oshape,
         lambda b_o, c_o, b_i, c_i: te.sum(
-            data[b_o, k_o, b_i, k_i].astype(out_dtype) *
-            weight[c_o, k_o, c_i, k_i].astype(out_dtype),
-            axis=[k_o, k_i]),
-        name="res", tag="dense_pack")
+            data[b_o, k_o, b_i, k_i].astype(out_dtype)
+            * weight[c_o, k_o, c_i, k_i].astype(out_dtype),
+            axis=[k_o, k_i],
+        ),
+        name="res",
+        tag="dense_pack",
+    )
 
-    cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
-                 ishape[1] * ishape[3])
+    cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) * ishape[1] * ishape[3])
 
     return res
+
 
 @autotvm.register_topi_schedule("dense_packed.vta")
 def schedule_dense_packed(cfg, outs):
@@ -100,10 +105,10 @@ def schedule_dense_packed(cfg, outs):
     ##### space definition begin #####
     b, c_o, _, _ = s[dense_stage].op.axis
     c_i, _ = s[dense_stage].op.reduce_axis
-    cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_ci', c_i, num_outputs=2)
-    cfg.define_split('tile_co', c_o, num_outputs=2)
-    cfg.define_knob('oc_nthread', [1, 2])
+    cfg.define_split("tile_b", b, num_outputs=2)
+    cfg.define_split("tile_ci", c_i, num_outputs=2)
+    cfg.define_split("tile_co", c_o, num_outputs=2)
+    cfg.define_knob("oc_nthread", [1, 2])
     ###### space definition end ######
 
     data, weight = dense_stage.op.input_tensors
@@ -117,8 +122,7 @@ def schedule_dense_packed(cfg, outs):
     # cache read input
     cache_read_ewise = []
     for consumer, tensor in ewise_inputs:
-        cache_read_ewise.append(
-            s.cache_read(tensor, env.acc_scope, [consumer]))
+        cache_read_ewise.append(s.cache_read(tensor, env.acc_scope, [consumer]))
 
     # set ewise scope
     for op in ewise_ops:
@@ -130,8 +134,8 @@ def schedule_dense_packed(cfg, outs):
 
     # apply tiling for SRAM reuse
     x_b, x_c, _, _ = s[output].op.axis
-    x_bo, x_bi = cfg['tile_b'].apply(s, output, x_b)
-    x_co, x_ci = cfg['tile_co'].apply(s, output, x_c)
+    x_bo, x_bi = cfg["tile_b"].apply(s, output, x_b)
+    x_co, x_ci = cfg["tile_co"].apply(s, output, x_c)
     s[output].reorder(x_bo, x_co, x_bi, x_ci)
     store_pt = x_co
 
@@ -145,8 +149,8 @@ def schedule_dense_packed(cfg, outs):
         s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
 
     # virtual threading along output channel axes
-    if cfg['oc_nthread'].val > 1:
-        _, v_t = s[output].split(x_co, factor=cfg['oc_nthread'].val)
+    if cfg["oc_nthread"].val > 1:
+        _, v_t = s[output].split(x_co, factor=cfg["oc_nthread"].val)
         s[output].reorder(v_t, x_bo)
         s[output].bind(v_t, te.thread_axis("cthread"))
 
@@ -154,7 +158,7 @@ def schedule_dense_packed(cfg, outs):
     k_o, _ = s[dense_stage].op.reduce_axis
     s[dense_stage].reorder(x_bo, k_o, x_co)
 
-    k_o, _ = cfg['tile_ci'].apply(s, dense_stage, k_o)
+    k_o, _ = cfg["tile_ci"].apply(s, dense_stage, k_o)
     s[cdata].compute_at(s[dense_stage], k_o)
     s[cweight].compute_at(s[dense_stage], k_o)
 

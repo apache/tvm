@@ -24,6 +24,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/support/logging.h>
 
 #include <unordered_set>
 
@@ -31,8 +32,23 @@ namespace tvm {
 namespace relay {
 
 //! brief make sure each Var is bound at most once in a scope.
-class WellFormedChecker : private ExprVisitor, PatternVisitor {
+class WellFormedChecker : private MixedModeVisitor, PatternVisitor {
+ public:
+  Optional<DiagnosticContext> diag_ctx;
+  Span occurs_in;
+
+  explicit WellFormedChecker(const Optional<DiagnosticContext>& ctx) : diag_ctx(ctx) {}
+
   bool well_formed = true;
+
+  void Illformed(Diagnostic diag) {
+    well_formed = false;
+    if (diag_ctx) {
+      diag_ctx.value().Emit(diag);
+    } else {
+      LOG(INFO) << "The IR is not well formed with: " << diag->message;
+    }
+  }
 
   std::vector<std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>> scope;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> current_bound;
@@ -54,7 +70,8 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
 
   void Bound(const Var& v) {
     if (current_bound.count(v) != 0 || total_bound.count(v) != 0 || free.count(v) != 0) {
-      well_formed = false;
+      Illformed(Diagnostic::Error(v->span) << "the variable " << v->name_hint()
+                                           << "is bound more then once, this is not valid IR");
     }
     CHECK_GE(scope.size(), 0);
     scope.back().insert(v);
@@ -62,11 +79,14 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
     total_bound.insert(v);
   }
 
+  using MixedModeVisitor::VisitExpr_;
+
   void VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
     if (current_bound.count(v) == 0) {
       if (total_bound.count(v) != 0) {
-        well_formed = false;
+        Illformed(Diagnostic::Error(v->span) << "the variable " << v->name_hint()
+                                             << "is bound more then once, this is not valid IR");
       } else {
         free.insert(v);
       }
@@ -99,6 +119,18 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
     CheckWellFormed(f->body);
   }
 
+  void VisitExpr_(const CallNode* call) final {
+    CHECK(call->op.defined());
+
+    for (auto arg : call->args) {
+      CHECK(arg.defined());
+    }
+
+    // CHECK(call->attrs.defined());
+    CHECK(call->type_args.defined());
+    MixedModeVisitor::VisitExpr_(call);
+  }
+
   void VisitClause(const Clause& c) final {
     Scope s(this);
     VisitPattern(c->lhs);
@@ -109,24 +141,25 @@ class WellFormedChecker : private ExprVisitor, PatternVisitor {
 
   void VisitVar(const Var& v) final { Bound(v); }
 
-  void VisitExpr(const Expr& e) final {
+ public:
+  bool CheckWellFormed(const Expr& e) {
     if (auto v = e.as<VarNode>()) {
       VisitExpr_(v);
     } else {
-      ExprVisitor::VisitExpr(e);
+      // this->occurs_in = e->span;
+      VisitExpr(e);
     }
-  }
-
- public:
-  bool CheckWellFormed(const Expr& e) {
-    this->VisitExpr(e);
     return well_formed;
   }
 };
 
-bool WellFormed(const Expr& e) { return WellFormedChecker().CheckWellFormed(e); }
+bool WellFormed(const Expr& e, Optional<DiagnosticContext> diag_ctx) {
+  return WellFormedChecker(diag_ctx).CheckWellFormed(e);
+}
 
-TVM_REGISTER_GLOBAL("relay.analysis.well_formed").set_body_typed(WellFormed);
+TVM_REGISTER_GLOBAL("relay.analysis.well_formed").set_body_typed([](Expr e) {
+  return WellFormed(e);
+});
 
 }  // namespace relay
 }  // namespace tvm

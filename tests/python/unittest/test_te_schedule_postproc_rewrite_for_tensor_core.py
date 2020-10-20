@@ -18,13 +18,16 @@ import tvm
 from tvm import te
 from tvm import topi
 import numpy as np
-from tvm.contrib import nvcc
+import tvm.testing
+
 
 def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
-    A = te.placeholder((n, l), name='A', dtype='float16')
-    B = te.placeholder((l, m), name='B', dtype='float16')
-    k = te.reduce_axis((0, l), name='k')
-    C = te.compute((n, m), lambda i, j: te.sum(A[i, k].astype('float32') * B[k, j].astype('float32'), axis=k))
+    A = te.placeholder((n, l), name="A", dtype="float16")
+    B = te.placeholder((l, m), name="B", dtype="float16")
+    k = te.reduce_axis((0, l), name="k")
+    C = te.compute(
+        (n, m), lambda i, j: te.sum(A[i, k].astype("float32") * B[k, j].astype("float32"), axis=k)
+    )
     s = te.create_schedule(C.op)
     y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
@@ -47,7 +50,7 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     tile_k = 16
     vthread = 1
 
-    yo, ty = s[C].split(y, tile_y*vthread)
+    yo, ty = s[C].split(y, tile_y * vthread)
     vy, ty = s[C].split(ty, tile_y)
     ty, yi = s[C].split(ty, TY)
 
@@ -69,8 +72,8 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     s[CL].reorder(ko, kl, ki, yo, xo)
 
     s[AA].compute_at(s[CL], ko)
-    xo, xi = s[AA].split(s[AA].op.axis[1], factor=bx*v)
-    tz, tx = s[AA].split(xi, factor=(WX//TX)*v)
+    xo, xi = s[AA].split(s[AA].op.axis[1], factor=bx * v)
+    tz, tx = s[AA].split(xi, factor=(WX // TX) * v)
     tx, vec = s[AA].split(tx, factor=v)
     fused = s[AA].fuse(s[AA].op.axis[0], xo)
     _, ty = s[AA].split(fused, factor=by)
@@ -80,8 +83,8 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     s[AA].vectorize(vec)
 
     s[BB].compute_at(s[CL], ko)
-    xo, xi = s[BB].split(s[BB].op.axis[1], factor=bx*v)
-    tz, tx = s[BB].split(xi, factor=(WX//TX)*v)
+    xo, xi = s[BB].split(s[BB].op.axis[1], factor=bx * v)
+    tz, tx = s[BB].split(xi, factor=(WX // TX) * v)
     tx, vec = s[BB].split(tx, factor=v)
     fused = s[BB].fuse(s[BB].op.axis[0], xo)
     _, ty = s[BB].split(fused, factor=by)
@@ -93,9 +96,9 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     s[AL].compute_at(s[CL], kl)
     s[BL].compute_at(s[CL], kl)
 
-    s[CL].pragma(ko, 'tensor_core')
+    s[CL].pragma(ko, "tensor_core")
 
-    func = tvm.build(s, [A, B, C], 'cuda')
+    func = tvm.build(s, [A, B, C], "cuda")
 
     ctx = tvm.gpu(0)
     a_np = np.random.uniform(size=(n, l)).astype(A.dtype)
@@ -106,16 +109,19 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
     func(a, b, c)
     evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
-    print('gemm m=%d n=%d k=%d: %f ms' % (m, n, l, evaluator(a, b, c).mean * 1e3))
+    print("gemm m=%d n=%d k=%d: %f ms" % (m, n, l, evaluator(a, b, c).mean * 1e3))
 
     c_np = np.dot(a_np, b_np)
     np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
 
+
 def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
-    A = te.placeholder((batch, n, l), name='A', dtype='float16')
-    B = te.placeholder((batch, l, m), name='B', dtype='float16')
-    k = te.reduce_axis((0, l), name='k')
-    C = te.compute((batch, n, m), lambda b, i, j: te.sum((A[b, i, k] * B[b, k, j]).astype('float32'), axis=k))
+    A = te.placeholder((batch, n, l), name="A", dtype="float16")
+    B = te.placeholder((batch, l, m), name="B", dtype="float16")
+    k = te.reduce_axis((0, l), name="k")
+    C = te.compute(
+        (batch, n, m), lambda b, i, j: te.sum((A[b, i, k] * B[b, k, j]).astype("float32"), axis=k)
+    )
     s = te.create_schedule(C.op)
     z, y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
@@ -138,7 +144,7 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     tile_k = 16
     vthread = 1
 
-    yo, ty = s[C].split(y, tile_y*vthread)
+    yo, ty = s[C].split(y, tile_y * vthread)
     vy, ty = s[C].split(ty, tile_y)
     ty, yi = s[C].split(ty, TY)
 
@@ -161,8 +167,8 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     s[CL].reorder(ko, kl, ki, zo, yo, xo)
 
     s[AA].compute_at(s[CL], ko)
-    xo, xi = s[AA].split(s[AA].op.axis[2], factor=bx*v)
-    tz, tx = s[AA].split(xi, factor=(WX//TX)*v)
+    xo, xi = s[AA].split(s[AA].op.axis[2], factor=bx * v)
+    tz, tx = s[AA].split(xi, factor=(WX // TX) * v)
     tx, vec = s[AA].split(tx, factor=v)
     fused = s[AA].fuse(s[AA].op.axis[1], xo)
     _, ty = s[AA].split(fused, factor=by)
@@ -172,8 +178,8 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     s[AA].vectorize(vec)
 
     s[BB].compute_at(s[CL], ko)
-    xo, xi = s[BB].split(s[BB].op.axis[2], factor=bx*v)
-    tz, tx = s[BB].split(xi, factor=(WX//TX)*v)
+    xo, xi = s[BB].split(s[BB].op.axis[2], factor=bx * v)
+    tz, tx = s[BB].split(xi, factor=(WX // TX) * v)
     tx, vec = s[BB].split(tx, factor=v)
     fused = s[BB].fuse(s[BB].op.axis[1], xo)
     _, ty = s[BB].split(fused, factor=by)
@@ -185,9 +191,9 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     s[AL].compute_at(s[CL], kl)
     s[BL].compute_at(s[CL], kl)
 
-    s[CL].pragma(ko, 'tensor_core')
+    s[CL].pragma(ko, "tensor_core")
 
-    func = tvm.build(s, [A, B, C], 'cuda')
+    func = tvm.build(s, [A, B, C], "cuda")
 
     ctx = tvm.gpu(0)
     a_np = np.random.uniform(size=(batch, n, l)).astype(A.dtype)
@@ -198,34 +204,28 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     c = tvm.nd.array(np.zeros((batch, n, m), dtype=C.dtype), ctx)
     func(a, b, c)
     evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
-    print('batch gemm m=%d n=%d k=%d batch=%d: %f ms' % (m, n, l, batch, evaluator(a, b, c).mean * 1e3))
+    print(
+        "batch gemm m=%d n=%d k=%d batch=%d: %f ms"
+        % (m, n, l, batch, evaluator(a, b, c).mean * 1e3)
+    )
 
     for bs in range(batch):
-      c_np[bs, :, :] = np.dot(a_np[bs, :, :], b_np[bs, :, :])
+        c_np[bs, :, :] = np.dot(a_np[bs, :, :], b_np[bs, :, :])
     np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
 
+
+@tvm.testing.requires_tensorcore
 def test_tensor_core_matmul():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
+    tensor_core_matmul(16)  # test with warp_tile 16x16x16
+    tensor_core_matmul(8)  # test with warp_tile 8x32x16
+    tensor_core_matmul(32)  # test with warp_tile 32x8x16
 
-    tensor_core_matmul(16) #test with warp_tile 16x16x16
-    tensor_core_matmul(8) #test with warp_tile 8x32x16
-    tensor_core_matmul(32) #test with warp_tile 32x8x16
 
+@tvm.testing.requires_tensorcore
 def test_tensor_core_batch_matmul():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     tensor_core_batch_matmul()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_tensor_core_matmul()
     test_tensor_core_batch_matmul()

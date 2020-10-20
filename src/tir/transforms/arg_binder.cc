@@ -28,7 +28,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {

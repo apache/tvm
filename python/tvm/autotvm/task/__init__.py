@@ -22,13 +22,30 @@ This module defines the task data structure, as well as a collection(zoo)
 of typical tasks of interest.
 """
 
-from .task import Task, create, get_config, args_to_workload, template, \
-    serialize_args, deserialize_args
+from .task import (
+    Task,
+    create,
+    get_config,
+    args_to_workload,
+    template,
+    serialize_args,
+    deserialize_args,
+)
 from .space import ConfigSpace, ConfigEntity
 from .code_hash import attach_code_hash, attach_code_hash_to_arg
-from .dispatcher import DispatchContext, ApplyConfig, ApplyHistoryBest, \
-    FallbackContext, clear_fallback_cache, ApplyGraphBest
+from .dispatcher import (
+    DispatchContext,
+    ApplyConfig,
+    ApplyHistoryBest,
+    FallbackContext,
+    clear_fallback_cache,
+    ApplyGraphBest,
+)
 
-from .topi_integration import register_topi_compute, register_topi_schedule, \
-    TaskExtractEnv, get_workload
+from .topi_integration import (
+    register_topi_compute,
+    register_topi_schedule,
+    TaskExtractEnv,
+    get_workload,
+)
 from .relay_integration import extract_from_program, extract_from_multiple_program

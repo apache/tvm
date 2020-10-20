@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import tvm
 from ..util import get_const_int
 
+
 def infer_pad(data, data_pad):
     """Infer the padding from stages in reverse.
 
@@ -46,6 +47,7 @@ def infer_pad(data, data_pad):
     hpad = (TH - IH) // 2
     wpad = (TW - IW) // 2
     return get_const_int(hpad), get_const_int(wpad)
+
 
 def infer_pad3d(data, data_pad, layout):
     """Infer the padding from stages in reverse.
@@ -78,10 +80,11 @@ def infer_pad3d(data, data_pad, layout):
         _, _, TD, TH, TW = data_pad.shape
     else:
         raise ValueError("Layout {} is not supported".format(layout))
-    dpad = (TD - ID)
-    hpad = (TH - IH)
-    wpad = (TW - IW)
+    dpad = TD - ID
+    hpad = TH - IH
+    wpad = TW - IW
     return get_const_int(dpad), get_const_int(hpad), get_const_int(wpad)
+
 
 def infer_stride(data, kernel, out):
     """Infer the stride from stages in reverse.
@@ -199,8 +202,7 @@ def get_pad_tuple3d(padding, kernel):
             pad_h = padding[1] * 2
             pad_w = padding[2] * 2
         elif len(padding) == 6:
-            return padding[0], padding[1], padding[2], padding[3], \
-                padding[4], padding[5]
+            return padding[0], padding[1], padding[2], padding[3], padding[4], padding[5]
         else:
             raise ValueError("Size of padding can only be 3 or 6")
     elif isinstance(padding, int):
@@ -245,7 +247,7 @@ def get_pad_tuple1d(padding, kernel):
         if len(padding) == 1:
             pad_w = padding[0] * 2
         elif len(padding) == 2:
-            return  padding[0], padding[1]
+            return padding[0], padding[1]
         else:
             raise ValueError("Size of padding can only be 2 or 4")
     elif isinstance(padding, int):

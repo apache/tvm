@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name, unused-argument, len-as-condition
+# pylint: disable=invalid-name, unused-argument, len-as-condition
 """Backend compiler related feature registration for dynamic ops"""
 
 from tvm import topi
@@ -30,13 +30,16 @@ def ones_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
+
 register_broadcast_schedule("dyn.ones")
 register_pattern("dyn.ones", OpPattern.ELEMWISE)
+
 
 @register_compute("dyn.zeros")
 def zeros_compute(attrs, inputs, output_type):
     assert len(inputs) == 1
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
+
 
 register_broadcast_schedule("dyn.zeros")
 register_pattern("dyn.zeros", OpPattern.ELEMWISE)

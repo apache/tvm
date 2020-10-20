@@ -41,6 +41,8 @@ pub use tvm_rt::module;
 pub use tvm_rt::ndarray;
 pub use tvm_rt::value;
 pub mod ir;
+#[cfg(feature = "python")]
+pub mod python;
 pub mod runtime;
 pub mod transform;
 

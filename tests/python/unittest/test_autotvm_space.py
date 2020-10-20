@@ -20,48 +20,50 @@ import tvm
 from tvm import te
 from tvm.autotvm.task.space import ConfigSpace, FallbackConfigEntity
 
-def gemm_func(cfg, N):
-    A = te.placeholder((N, N), name='A')
-    B = te.placeholder((N, N), name='B')
 
-    k = te.reduce_axis((0, N), name='k')
-    C = te.compute((N, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=[k]), name='C')
+def gemm_func(cfg, N):
+    A = te.placeholder((N, N), name="A")
+    B = te.placeholder((N, N), name="B")
+
+    k = te.reduce_axis((0, N), name="k")
+    C = te.compute((N, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=[k]), name="C")
 
     s = te.create_schedule([C.op])
 
     y, x = s[C].op.axis
 
-    cfg.define_split('tile_y', cfg.axis(y), num_outputs=2)
-    cfg.define_split('tile_x', cfg.axis(x), num_outputs=2)
+    cfg.define_split("tile_y", cfg.axis(y), num_outputs=2)
+    cfg.define_split("tile_x", cfg.axis(x), num_outputs=2)
 
     return s, [A, B, C]
+
 
 def test_split():
     cfg = ConfigSpace()
 
     gemm_func(cfg, 128)
     assert len(cfg) == 64
-    assert len(cfg.space_map['tile_y']) == 8
+    assert len(cfg.space_map["tile_y"]) == 8
 
     # test policy
     cfg = ConfigSpace()
-    cfg.define_split('tile_x', cfg.axis(256), policy='factors', num_outputs=3)
-    assert len(cfg.space_map['tile_x']) == 45
+    cfg.define_split("tile_x", cfg.axis(256), policy="factors", num_outputs=3)
+    assert len(cfg.space_map["tile_x"]) == 45
 
-    cfg.define_split('tile_y', cfg.axis(256), policy='power2', num_outputs=3)
-    assert len(cfg.space_map['tile_y']) == 45
+    cfg.define_split("tile_y", cfg.axis(256), policy="power2", num_outputs=3)
+    assert len(cfg.space_map["tile_y"]) == 45
 
-    cfg.define_split('tile_z', cfg.axis(256), policy='verbose', num_outputs=3)
-    assert len(cfg.space_map['tile_z']) == 45
+    cfg.define_split("tile_z", cfg.axis(256), policy="verbose", num_outputs=3)
+    assert len(cfg.space_map["tile_z"]) == 45
 
-    cfg.define_split('tile_a', cfg.axis(224), policy='factors', num_outputs=3)
-    assert len(cfg.space_map['tile_a']) == 63
+    cfg.define_split("tile_a", cfg.axis(224), policy="factors", num_outputs=3)
+    assert len(cfg.space_map["tile_a"]) == 63
 
-    cfg.define_split('tile_b', cfg.axis(224), policy='power2', num_outputs=3)
-    assert len(cfg.space_map['tile_b']) == 36
+    cfg.define_split("tile_b", cfg.axis(224), policy="power2", num_outputs=3)
+    assert len(cfg.space_map["tile_b"]) == 36
 
-    cfg.define_split('tile_c', cfg.axis(224), policy='verbose', num_outputs=3)
-    assert len(cfg.space_map['tile_c']) == 84
+    cfg.define_split("tile_c", cfg.axis(224), policy="verbose", num_outputs=3)
+    assert len(cfg.space_map["tile_c"]) == 84
 
     # Count the number of non-negative integer solutions of a + b + c + d = n
     def count4(n):
@@ -74,29 +76,29 @@ def test_split():
     # test overflow
     n = 25
     cfg = ConfigSpace()
-    cfg.define_split('x', cfg.axis(2**n), policy='factors', num_outputs=4)
+    cfg.define_split("x", cfg.axis(2 ** n), policy="factors", num_outputs=4)
     # count4(25) is 3276.
-    assert len(cfg.space_map['x']) == count4(n)
+    assert len(cfg.space_map["x"]) == count4(n)
 
     # test fallback
     cfg = FallbackConfigEntity()
-    cfg.define_split('tile_n', cfg.axis(128), num_outputs=3)
-    cfg.fallback_split('tile_n', [-1, 8, 4])
-    assert cfg['tile_n'].size == [4, 8, 4]
+    cfg.define_split("tile_n", cfg.axis(128), num_outputs=3)
+    cfg.fallback_split("tile_n", [-1, 8, 4])
+    assert cfg["tile_n"].size == [4, 8, 4]
 
     cfg = FallbackConfigEntity()
-    cfg.define_split('tile_n', cfg.axis(49), num_outputs=3)
-    cfg.fallback_split('tile_n', [-1, 8, 4])
-    assert cfg['tile_n'].size == [7, 7, 1]
+    cfg.define_split("tile_n", cfg.axis(49), num_outputs=3)
+    cfg.fallback_split("tile_n", [-1, 8, 4])
+    assert cfg["tile_n"].size == [7, 7, 1]
 
     cfg = FallbackConfigEntity()
-    cfg.define_split('tile_n', cfg.axis(49), num_outputs=3)
+    cfg.define_split("tile_n", cfg.axis(49), num_outputs=3)
     try:
-        cfg.fallback_split('tile_n', [-1, 1, 0])
+        cfg.fallback_split("tile_n", [-1, 1, 0])
         assert False
     except RuntimeError:
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_split()

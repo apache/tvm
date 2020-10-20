@@ -21,9 +21,11 @@ Caffe testcases
 This article is a test script to test Caffe operator with Relay.
 """
 import os
-os.environ['GLOG_minloglevel'] = '2'
+
+os.environ["GLOG_minloglevel"] = "2"
 import sys
 import logging
+
 logging.basicConfig(level=logging.ERROR)
 
 import numpy as np
@@ -37,7 +39,7 @@ from tvm import relay
 from tvm.contrib import util, graph_runtime
 from tvm.contrib.download import download_testdata
 
-CURRENT_DIR = os.path.join(os.path.expanduser('~'), '.tvm_test_data', 'caffe_test')
+CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_test")
 
 #######################################################################
 # Generic functions for TVM & Caffe
@@ -54,7 +56,7 @@ def _list_to_str(ll):
     """ Convert list or tuple to str, separated by underline. """
     if isinstance(ll, (tuple, list)):
         tmp = [str(i) for i in ll]
-        return '_'.join(tmp)
+        return "_".join(tmp)
 
 
 def _gen_filename_str(op_name, data_shape, *args, **kwargs):
@@ -66,14 +68,14 @@ def _gen_filename_str(op_name, data_shape, *args, **kwargs):
     res += shape_str
     for arg in args:
         if isinstance(arg, (tuple, list)):
-            res += ("_" + _list_to_str(arg))
+            res += "_" + _list_to_str(arg)
         elif isinstance(arg, (int, float, str)):
-            res += ("_" + str(arg))
+            res += "_" + str(arg)
     for _, v in kwargs.items():
         if isinstance(v, (tuple, list)):
-            res += ("_" + _list_to_str(v))
+            res += "_" + _list_to_str(v)
         elif isinstance(v, (int, float, str)):
-            res += ("_" + str(v))
+            res += "_" + str(v)
     res = res.replace(".", "_")
     res = res.replace("-", "_")
     proto_file = os.path.join(file_dir, res + ".prototxt")
@@ -86,7 +88,7 @@ def _gen_filename_str(op_name, data_shape, *args, **kwargs):
 def _save_prototxt(n_netspec, f_path):
     """ Generate .prototxt file according to caffe.NetSpec"""
     s = n_netspec.to_proto()
-    with open(f_path, 'w') as f:
+    with open(f_path, "w") as f:
         f.write(str(s))
 
 
@@ -106,7 +108,7 @@ def _save_solver(solver_file, proto_file, blob_file):
     s.snapshot = 100000
     s.snapshot_prefix = blob_file_prefix
 
-    with open(solver_file, 'w') as f:
+    with open(solver_file, "w") as f:
         f.write(str(s))
 
 
@@ -125,7 +127,7 @@ def _gen_model_files(n_netspec, proto_file, blob_file, solver_file):
 def _siso_op(data, func, *args, **kwargs):
     """ Create single input and single output Caffe op """
     n = caffe.NetSpec()
-    n.data = L.Input(input_param={'shape': {'dim': list(data.shape)}})
+    n.data = L.Input(input_param={"shape": {"dim": list(data.shape)}})
     n.output = func(n.data, *args, **kwargs)
     return n
 
@@ -134,15 +136,11 @@ def _miso_op(data_list, func, *args, **kwargs):
     """ Create multi input and single output Caffe op """
     n = caffe.NetSpec()
     if not isinstance(data_list, (tuple, list)):
-        raise TypeError("Need tuple or list but get {}".format(
-            type(data_list)))
+        raise TypeError("Need tuple or list but get {}".format(type(data_list)))
     input_list = list()
     for idx, data in enumerate(data_list):
-        n['data' +
-          str(idx)] = L.Input(input_param={'shape': {
-              'dim': list(data.shape)
-          }})
-        input_list.append(n['data' + str(idx)])
+        n["data" + str(idx)] = L.Input(input_param={"shape": {"dim": list(data.shape)}})
+        input_list.append(n["data" + str(idx)])
     n.output = func(*input_list, *args, **kwargs)
     return n
 
@@ -150,10 +148,10 @@ def _miso_op(data_list, func, *args, **kwargs):
 def _simo_op(data, func, *args, **kwargs):
     """ Create single input and multi output Caffe op """
     n = caffe.NetSpec()
-    n.data = L.Input(input_param={'shape': {'dim': list(data.shape)}})
+    n.data = L.Input(input_param={"shape": {"dim": list(data.shape)}})
     output_list = func(n.data, *args, **kwargs)
     for idx, out in enumerate(output_list):
-        n['output' + str(idx)] = out
+        n["output" + str(idx)] = out
     return n
 
 
@@ -162,17 +160,17 @@ def _run_caffe(data, proto_file, blob_file):
     net = caffe.Net(proto_file, blob_file, caffe.TEST)
     if isinstance(data, (list, tuple)):
         for idx, d in enumerate(data):
-            net.blobs['data' + str(idx)].data[...] = d
+            net.blobs["data" + str(idx)].data[...] = d
     else:
-        net.blobs['data'].data[...] = data
+        net.blobs["data"].data[...] = data
     out = net.forward()
 
     caffe_output = list()
     for i in range(len(out.keys())):
-        if 'output'+str(i) not in out.keys():
+        if "output" + str(i) not in out.keys():
             caffe_output.clear()
             return list(out.values())
-        caffe_output.append(out['output'+str(i)])
+        caffe_output.append(out["output" + str(i)])
     return caffe_output
 
 
@@ -182,41 +180,37 @@ def _run_tvm(data, proto_file, blob_file):
     predict_net = pb.NetParameter()
 
     # load model
-    with open(proto_file, 'r') as f:
+    with open(proto_file, "r") as f:
         text_format.Merge(f.read(), predict_net)
     # load blob
-    with open(blob_file, 'rb') as f:
+    with open(blob_file, "rb") as f:
         init_net.ParseFromString(f.read())
 
     shape_dict = dict()
     dtype_dict = dict()
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
-            shape_dict['data' + str(idx)] = d.shape
-            dtype_dict['data' + str(idx)] = 'float32'
+            shape_dict["data" + str(idx)] = d.shape
+            dtype_dict["data" + str(idx)] = "float32"
     else:
-        shape_dict = {'data': data.shape}
-        dtype_dict = {'data': 'float32'}
+        shape_dict = {"data": data.shape}
+        dtype_dict = {"data": "float32"}
 
-    mod, params = relay.frontend.from_caffe(
-        init_net, predict_net, shape_dict, dtype_dict)
+    mod, params = relay.frontend.from_caffe(init_net, predict_net, shape_dict, dtype_dict)
 
-    target = 'llvm'
-    target_host = 'llvm'
+    target = "llvm"
+    target_host = "llvm"
 
     ctx = tvm.cpu(0)
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod,
-                          target=target,
-                          target_host=target_host,
-                          params=params)
-    dtype = 'float32'
-    m = graph_runtime.GraphModule(lib['default'](ctx))
+        lib = relay.build(mod, target=target, target_host=target_host, params=params)
+    dtype = "float32"
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     if isinstance(data, (tuple, list)):
         for idx, d in enumerate(data):
-            m.set_input('data' + str(idx), tvm.nd.array(d.astype(dtype)))
+            m.set_input("data" + str(idx), tvm.nd.array(d.astype(dtype)))
     else:
-        m.set_input('data', tvm.nd.array(data.astype(dtype)))
+        m.set_input("data", tvm.nd.array(data.astype(dtype)))
     # execute
     m.run()
     tvm_output = list()
@@ -230,10 +224,7 @@ def _compare_caffe_tvm(caffe_out, tvm_out, is_network=False):
     for i in range(len(caffe_out)):
         if is_network:
             caffe_out[i] = caffe_out[i][:1]
-        tvm.testing.assert_allclose(caffe_out[i],
-                                    tvm_out[i],
-                                    rtol=1e-5,
-                                    atol=1e-5)
+        tvm.testing.assert_allclose(caffe_out[i], tvm_out[i], rtol=1e-5, atol=1e-5)
 
 
 def _test_op(data, func_op, op_name, **kwargs):
@@ -245,8 +236,8 @@ def _test_op(data, func_op, op_name, **kwargs):
             shape_list.extend(list(d.shape))
     else:
         output_num = 1
-        if 'ntop' in kwargs.keys():
-            output_num = kwargs['ntop']
+        if "ntop" in kwargs.keys():
+            output_num = kwargs["ntop"]
         if output_num == 1:
             n = _siso_op(data, func_op, **kwargs)
         else:
@@ -254,8 +245,7 @@ def _test_op(data, func_op, op_name, **kwargs):
         shape_list = list(data.shape)
 
     # obtain the .caffemodel file and .prototxt file
-    (proto_file, blob_file,
-     solver_file) = _gen_filename_str(op_name, shape_list, **kwargs)
+    (proto_file, blob_file, solver_file) = _gen_filename_str(op_name, shape_list, **kwargs)
     _gen_model_files(n, proto_file, blob_file, solver_file)
     # run model in Caffe
     caffe_out = _run_caffe(data, proto_file, blob_file)
@@ -279,11 +269,9 @@ def _test_network(data, proto_file, blob_file):
 
 def _test_batchnorm(data, moving_average_fraction=0.999, eps=1e-5):
     """ One iteration of BatchNorm """
-    _test_op(data,
-             L.BatchNorm,
-             "BatchNorm",
-             moving_average_fraction=moving_average_fraction,
-             eps=eps)
+    _test_op(
+        data, L.BatchNorm, "BatchNorm", moving_average_fraction=moving_average_fraction, eps=eps
+    )
 
 
 def test_forward_BatchNorm():
@@ -305,12 +293,8 @@ def _test_concat(data_list, axis=1):
 
 def test_forward_Concat():
     """ Concat """
-    _test_concat([np.random.rand(1, 3, 10, 10),
-                  np.random.rand(1, 2, 10, 10)],
-                 axis=1)
-    _test_concat([np.random.rand(3, 10, 10),
-                  np.random.rand(2, 10, 10)],
-                 axis=0)
+    _test_concat([np.random.rand(1, 3, 10, 10), np.random.rand(1, 2, 10, 10)], axis=1)
+    _test_concat([np.random.rand(3, 10, 10), np.random.rand(2, 10, 10)], axis=0)
     _test_concat([np.random.rand(3, 10), np.random.rand(2, 10)], axis=0)
 
 
@@ -327,55 +311,65 @@ def _test_convolution(data, **kwargs):
 def test_forward_Convolution():
     """ Convolution """
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
-    _test_convolution(data,
-                      num_output=20,
-                      bias_term=True,
-                      pad=0,
-                      kernel_size=3,
-                      stride=2,
-                      dilation=1,
-                      weight_filler=dict(type="xavier"),
-                      bias_filler=dict(type="xavier"))
-    _test_convolution(data,
-                      num_output=20,
-                      bias_term=False,
-                      pad=[1, 2],
-                      kernel_size=3,
-                      stride=2,
-                      dilation=1,
-                      weight_filler=dict(type="xavier"),
-                      bias_filler=dict(type="xavier"))
-    _test_convolution(data,
-                      num_output=20,
-                      bias_term=True,
-                      pad=[1, 2],
-                      kernel_size=[3, 5],
-                      stride=[2, 1],
-                      dilation=[1, 2],
-                      weight_filler=dict(type="xavier"),
-                      bias_filler=dict(type="xavier"))
-    _test_convolution(np.random.rand(1, 2, 10, 10).astype(np.float32),
-                      num_output=20,
-                      bias_term=True,
-                      pad=[1, 2],
-                      kernel_size=[3, 5],
-                      stride=[2, 1],
-                      dilation=[1, 2],
-                      weight_filler=dict(type="xavier"),
-                      bias_filler=dict(type="xavier"),
-                      group=2)
-    _test_convolution(data,
-                      num_output=20,
-                      bias_term=True,
-                      pad_h=1,
-                      pad_w=2,
-                      kernel_h=3,
-                      kernel_w=5,
-                      stride_h=2,
-                      stride_w=1,
-                      dilation=[1, 2],
-                      weight_filler=dict(type="xavier"),
-                      bias_filler=dict(type="xavier"))
+    _test_convolution(
+        data,
+        num_output=20,
+        bias_term=True,
+        pad=0,
+        kernel_size=3,
+        stride=2,
+        dilation=1,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_convolution(
+        data,
+        num_output=20,
+        bias_term=False,
+        pad=[1, 2],
+        kernel_size=3,
+        stride=2,
+        dilation=1,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_convolution(
+        data,
+        num_output=20,
+        bias_term=True,
+        pad=[1, 2],
+        kernel_size=[3, 5],
+        stride=[2, 1],
+        dilation=[1, 2],
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_convolution(
+        np.random.rand(1, 2, 10, 10).astype(np.float32),
+        num_output=20,
+        bias_term=True,
+        pad=[1, 2],
+        kernel_size=[3, 5],
+        stride=[2, 1],
+        dilation=[1, 2],
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+        group=2,
+    )
+    _test_convolution(
+        data,
+        num_output=20,
+        bias_term=True,
+        pad_h=1,
+        pad_w=2,
+        kernel_h=3,
+        kernel_w=5,
+        stride_h=2,
+        stride_w=1,
+        dilation=[1, 2],
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
 
 
 #######################################################################
@@ -390,36 +384,17 @@ def _test_crop(data, **kwargs):
 
 def test_forward_Crop():
     """ Crop """
+    _test_crop([np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)])
+    _test_crop([np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)], axis=1)
+    _test_crop([np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)], axis=1, offset=2)
     _test_crop(
-        [np.random.rand(10, 10, 120, 120),
-         np.random.rand(10, 5, 50, 60)])
+        [np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)], axis=1, offset=[1, 2, 4]
+    )
     _test_crop(
-        [np.random.rand(10, 10, 120, 120),
-         np.random.rand(10, 5, 50, 60)],
-        axis=1)
-    _test_crop(
-        [np.random.rand(10, 10, 120, 120),
-         np.random.rand(10, 5, 50, 60)],
-        axis=1,
-        offset=2)
-    _test_crop(
-        [np.random.rand(10, 10, 120, 120),
-         np.random.rand(10, 5, 50, 60)],
-        axis=1,
-        offset=[1, 2, 4])
-    _test_crop(
-        [np.random.rand(10, 10, 120, 120),
-         np.random.rand(10, 5, 50, 60)],
-        axis=2,
-        offset=[2, 4])
-    _test_crop([np.random.rand(10, 120, 120),
-                np.random.rand(5, 50, 60)],
-               axis=1,
-               offset=[2, 4])
-    _test_crop([np.random.rand(120, 120),
-                np.random.rand(50, 60)],
-               axis=0,
-               offset=[2, 4])
+        [np.random.rand(10, 10, 120, 120), np.random.rand(10, 5, 50, 60)], axis=2, offset=[2, 4]
+    )
+    _test_crop([np.random.rand(10, 120, 120), np.random.rand(5, 50, 60)], axis=1, offset=[2, 4])
+    _test_crop([np.random.rand(120, 120), np.random.rand(50, 60)], axis=0, offset=[2, 4])
 
 
 #######################################################################
@@ -435,39 +410,48 @@ def _test_deconvolution(data, **kwargs):
 def test_forward_Deconvolution():
     """ Deconvolution """
     data = np.random.rand(1, 16, 32, 32).astype(np.float32)
-    _test_deconvolution(data,
-                        convolution_param=dict(
-                            num_output=20,
-                            bias_term=True,
-                            pad=0,
-                            kernel_size=3,
-                            stride=2,
-                            dilation=1,
-                            weight_filler=dict(type="xavier"),
-                            bias_filler=dict(type="xavier")))
-    _test_deconvolution(data,
-                        convolution_param=dict(
-                            num_output=20,
-                            bias_term=False,
-                            pad=[1, 2],
-                            kernel_size=3,
-                            stride=2,
-                            dilation=1,
-                            weight_filler=dict(type="xavier"),
-                            bias_filler=dict(type="xavier")))
-    _test_deconvolution(data,
-                        convolution_param=dict(
-                            num_output=20,
-                            bias_term=True,
-                            pad_h=1,
-                            pad_w=2,
-                            kernel_h=3,
-                            kernel_w=5,
-                            stride_h=2,
-                            stride_w=1,
-                            dilation=1,
-                            weight_filler=dict(type="xavier"),
-                            bias_filler=dict(type="xavier")))
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=20,
+            bias_term=True,
+            pad=0,
+            kernel_size=3,
+            stride=2,
+            dilation=1,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=20,
+            bias_term=False,
+            pad=[1, 2],
+            kernel_size=3,
+            stride=2,
+            dilation=1,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=20,
+            bias_term=True,
+            pad_h=1,
+            pad_w=2,
+            kernel_h=3,
+            kernel_w=5,
+            stride_h=2,
+            stride_w=1,
+            dilation=1,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
 
 
 #######################################################################
@@ -499,27 +483,35 @@ def _test_eltwise(data_list, **kwargs):
 
 def test_forward_Eltwise():
     """ Eltwise """
-    _test_eltwise([
-        np.random.rand(1, 3, 10, 11).astype(np.float32),
-        np.random.rand(1, 3, 10, 11).astype(np.float32)
-    ],
-                  operation=0)
-    _test_eltwise([
-        np.random.rand(1, 3, 10, 11).astype(np.float32),
-        np.random.rand(1, 3, 10, 11).astype(np.float32)
-    ],
-                  operation=1)
-    _test_eltwise([
-        np.random.rand(1, 3, 10, 11).astype(np.float32),
-        np.random.rand(1, 3, 10, 11).astype(np.float32)
-    ],
-                  operation=2)
-    _test_eltwise([
-        np.random.rand(1, 3, 10, 11).astype(np.float32),
-        np.random.rand(1, 3, 10, 11).astype(np.float32)
-    ],
-                  operation=1,
-                  coeff=[0.5, 1])
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=0,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=1,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=2,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=1,
+        coeff=[0.5, 1],
+    )
 
 
 #######################################################################
@@ -529,7 +521,7 @@ def test_forward_Eltwise():
 
 def _test_flatten(data, axis=1):
     """ One iteration of Flatten """
-    _test_op(data, L.Flatten, 'Flatten', axis=axis)
+    _test_op(data, L.Flatten, "Flatten", axis=axis)
 
 
 def test_forward_Flatten():
@@ -552,20 +544,21 @@ def _test_inner_product(data, **kwargs):
 def test_forward_InnerProduct():
     """ InnerProduct """
     data = np.random.rand(1, 3, 10, 10)
-    _test_inner_product(data,
-                        num_output=20,
-                        bias_term=False,
-                        weight_filler=dict(type='xavier'))
-    _test_inner_product(data,
-                        num_output=20,
-                        bias_term=True,
-                        weight_filler=dict(type='xavier'),
-                        bias_filler=dict(type='xavier'))
-    _test_inner_product(np.random.rand(20, 10).astype(np.float32),
-                        num_output=30,
-                        bias_term=True,
-                        weight_filler=dict(type='xavier'),
-                        bias_filler=dict(type='xavier'))
+    _test_inner_product(data, num_output=20, bias_term=False, weight_filler=dict(type="xavier"))
+    _test_inner_product(
+        data,
+        num_output=20,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_inner_product(
+        np.random.rand(20, 10).astype(np.float32),
+        num_output=30,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
 
 
 #######################################################################
@@ -573,15 +566,9 @@ def test_forward_InnerProduct():
 # -----------
 
 
-def _test_lrn(data, local_size=5, alpha=1., beta=0.75, k=1.):
+def _test_lrn(data, local_size=5, alpha=1.0, beta=0.75, k=1.0):
     """ One iteration of LRN """
-    _test_op(data,
-             L.LRN,
-             'LRN',
-             local_size=local_size,
-             alpha=alpha,
-             beta=beta,
-             k=k)
+    _test_op(data, L.LRN, "LRN", local_size=local_size, alpha=alpha, beta=beta, k=k)
 
 
 def test_forward_LRN():
@@ -589,14 +576,14 @@ def test_forward_LRN():
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_lrn(data)
     _test_lrn(data, local_size=3)
-    _test_lrn(data, local_size=3, alpha=2.)
+    _test_lrn(data, local_size=3, alpha=2.0)
     _test_lrn(
         data,
         local_size=3,
-        alpha=2.,
+        alpha=2.0,
         beta=0.5,
     )
-    _test_lrn(data, local_size=3, alpha=2., beta=0.5, k=2.)
+    _test_lrn(data, local_size=3, alpha=2.0, beta=0.5, k=2.0)
 
 
 #######################################################################
@@ -614,26 +601,16 @@ def test_forward_Pooling():
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     # MAX Pooling
     _test_pooling(data, kernel_size=2, stride=2, pad=0, pool=P.Pooling.MAX)
-    _test_pooling(data,
-                  kernel_h=2,
-                  kernel_w=3,
-                  stride_h=2,
-                  stride_w=1,
-                  pad_h=1,
-                  pad_w=2,
-                  pool=P.Pooling.MAX)
+    _test_pooling(
+        data, kernel_h=2, kernel_w=3, stride_h=2, stride_w=1, pad_h=1, pad_w=2, pool=P.Pooling.MAX
+    )
     _test_pooling(data, pool=P.Pooling.MAX, global_pooling=True)
 
     # AVE Pooing
     _test_pooling(data, kernel_size=2, stride=2, pad=0, pool=P.Pooling.AVE)
-    _test_pooling(data,
-                  kernel_h=2,
-                  kernel_w=3,
-                  stride_h=2,
-                  stride_w=1,
-                  pad_h=1,
-                  pad_w=2,
-                  pool=P.Pooling.AVE)
+    _test_pooling(
+        data, kernel_h=2, kernel_w=3, stride_h=2, stride_w=1, pad_h=1, pad_w=2, pool=P.Pooling.AVE
+    )
     _test_pooling(data, pool=P.Pooling.AVE, global_pooling=True)
 
 
@@ -650,7 +627,7 @@ def _test_prelu(data, **kwargs):
 def test_forward_PReLU():
     """ PReLU """
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
-    _test_prelu(data, filler=dict(type='constant', value=0.5))
+    _test_prelu(data, filler=dict(type="constant", value=0.5))
     _test_prelu(data)
     _test_prelu(np.random.rand(10, 20).astype(np.float32))
 
@@ -685,37 +662,17 @@ def _test_reshape(data, **kwargs):
 def test_forward_Reshape():
     """ Reshape """
     data = np.random.rand(1, 8, 6).astype(np.float32)
-    _test_reshape(data, reshape_param={'shape': {'dim': [4, 3, 4]}})
-    _test_reshape(data, reshape_param={'shape': {'dim': [2, 0, 3]}})
-    _test_reshape(data, reshape_param={'shape': {'dim': [2, 0, -1]}})
-    _test_reshape(data, reshape_param={'shape': {'dim': [0, -1]}})
+    _test_reshape(data, reshape_param={"shape": {"dim": [4, 3, 4]}})
+    _test_reshape(data, reshape_param={"shape": {"dim": [2, 0, 3]}})
+    _test_reshape(data, reshape_param={"shape": {"dim": [2, 0, -1]}})
+    _test_reshape(data, reshape_param={"shape": {"dim": [0, -1]}})
 
-    _test_reshape(data, reshape_param={'shape': {'dim': [2, 3]}, 'axis': 2})
-    _test_reshape(data, reshape_param={'shape': {'dim': [4, 3, 4]}, 'axis': 1})
-    _test_reshape(data,
-                  reshape_param={
-                      'shape': {
-                          'dim': [4, 3, 4]
-                      },
-                      'axis': -3
-                  })
+    _test_reshape(data, reshape_param={"shape": {"dim": [2, 3]}, "axis": 2})
+    _test_reshape(data, reshape_param={"shape": {"dim": [4, 3, 4]}, "axis": 1})
+    _test_reshape(data, reshape_param={"shape": {"dim": [4, 3, 4]}, "axis": -3})
 
-    _test_reshape(data,
-                  reshape_param={
-                      'shape': {
-                          'dim': [2, 4]
-                      },
-                      'axis': 1,
-                      'num_axes': 1
-                  })
-    _test_reshape(data,
-                  reshape_param={
-                      'shape': {
-                          'dim': [3, 16]
-                      },
-                      'axis': 1,
-                      'num_axes': 2
-                  })
+    _test_reshape(data, reshape_param={"shape": {"dim": [2, 4]}, "axis": 1, "num_axes": 1})
+    _test_reshape(data, reshape_param={"shape": {"dim": [3, 16]}, "axis": 1, "num_axes": 2})
 
 
 #######################################################################
@@ -732,10 +689,7 @@ def test_forward_Scale():
     """ Scale """
     data = np.random.rand(1, 3, 10, 10).astype(np.float32)
     _test_scale(data, filler=dict(type="xavier"))
-    _test_scale(data,
-                filler=dict(type="xavier"),
-                bias_term=True,
-                bias_filler=dict(type="xavier"))
+    _test_scale(data, filler=dict(type="xavier"), bias_term=True, bias_filler=dict(type="xavier"))
 
 
 #######################################################################
@@ -823,14 +777,14 @@ def _test_mobilenetv2(data):
     data_process = data_process / 58.8
     data_process = data_process.astype(np.float32)
 
-    proto_file_url = ("https://github.com/shicai/MobileNet-Caffe/raw/"
-                        "master/mobilenet_v2_deploy.prototxt")
-    blob_file_url = ("https://github.com/shicai/MobileNet-Caffe/blob/"
-                        "master/mobilenet_v2.caffemodel?raw=true")
-    proto_file = download_testdata(proto_file_url, 'mobilenetv2.prototxt',
-                                     module='model')
-    blob_file = download_testdata(blob_file_url, 'mobilenetv2.caffemodel',
-                                     module='model')
+    proto_file_url = (
+        "https://github.com/shicai/MobileNet-Caffe/raw/" "master/mobilenet_v2_deploy.prototxt"
+    )
+    blob_file_url = (
+        "https://github.com/shicai/MobileNet-Caffe/blob/" "master/mobilenet_v2.caffemodel?raw=true"
+    )
+    proto_file = download_testdata(proto_file_url, "mobilenetv2.prototxt", module="model")
+    blob_file = download_testdata(blob_file_url, "mobilenetv2.caffemodel", module="model")
     _test_network(data_process, proto_file, blob_file)
 
 
@@ -853,13 +807,12 @@ def _test_alexnet(data):
     data_process = data - mean_val
     data_process = data_process.astype(np.float32)
 
-    proto_file_url = ("https://github.com/BVLC/caffe/raw/master/models/"
-                        "bvlc_alexnet/deploy.prototxt")
-    blob_file_url = 'http://dl.caffe.berkeleyvision.org/bvlc_alexnet.caffemodel'
-    proto_file = download_testdata(proto_file_url, 'alexnet.prototxt',
-                                    module="model")
-    blob_file = download_testdata(blob_file_url, 'alexnet.caffemodel',
-                                    module='model')
+    proto_file_url = (
+        "https://github.com/BVLC/caffe/raw/master/models/" "bvlc_alexnet/deploy.prototxt"
+    )
+    blob_file_url = "http://dl.caffe.berkeleyvision.org/bvlc_alexnet.caffemodel"
+    proto_file = download_testdata(proto_file_url, "alexnet.prototxt", module="model")
+    blob_file = download_testdata(blob_file_url, "alexnet.caffemodel", module="model")
     _test_network(data_process, proto_file, blob_file)
 
 
@@ -881,16 +834,16 @@ def _test_resnet50(data):
     mean_val = np.tile(mean_val, (1, 1, 224, 224))
     data_process = data - mean_val
     data_process = data_process.astype(np.float32)
-    
-    proto_file_url = ("https://github.com/fernchen/CaffeModels/raw/"
-                        "master/resnet/ResNet-50-deploy.prototxt")
-    blob_file_url = ("https://github.com/fernchen/CaffeModels/raw/"
-                       "master/resnet/ResNet-50-model.caffemodel")
 
-    proto_file = download_testdata(proto_file_url, 'resnet50.prototxt',
-                                    module="model")
-    blob_file = download_testdata(blob_file_url, 'resnet50.caffemodel',
-                                    module='model')
+    proto_file_url = (
+        "https://github.com/fernchen/CaffeModels/raw/" "master/resnet/ResNet-50-deploy.prototxt"
+    )
+    blob_file_url = (
+        "https://github.com/fernchen/CaffeModels/raw/" "master/resnet/ResNet-50-model.caffemodel"
+    )
+
+    proto_file = download_testdata(proto_file_url, "resnet50.prototxt", module="model")
+    blob_file = download_testdata(blob_file_url, "resnet50.caffemodel", module="model")
 
     _test_network(data_process, proto_file, blob_file)
 
@@ -915,13 +868,12 @@ def _test_inceptionv1(data):
     data_process = data_process / 58.8
     data_process = data_process.astype(np.float32)
 
-    proto_file_url = ("https://github.com/BVLC/caffe/raw/master/models"
-                        "/bvlc_googlenet/deploy.prototxt")
-    blob_file_url = 'http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel'
-    proto_file = download_testdata(proto_file_url, 'inceptionv1.prototxt',
-                                    module="model")
-    blob_file = download_testdata(blob_file_url, 'inceptionv1.caffemodel',
-                                    module='model')
+    proto_file_url = (
+        "https://github.com/BVLC/caffe/raw/master/models" "/bvlc_googlenet/deploy.prototxt"
+    )
+    blob_file_url = "http://dl.caffe.berkeleyvision.org/bvlc_googlenet.caffemodel"
+    proto_file = download_testdata(proto_file_url, "inceptionv1.prototxt", module="model")
+    blob_file = download_testdata(blob_file_url, "inceptionv1.caffemodel", module="model")
     _test_network(data_process, proto_file, blob_file)
 
 

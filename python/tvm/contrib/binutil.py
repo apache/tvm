@@ -72,6 +72,7 @@ SECTIONS
 }}
 """
 
+
 def run_cmd(cmd):
     """Runs `cmd` in a subprocess and awaits its completion.
 
@@ -85,15 +86,12 @@ def run_cmd(cmd):
     output : str
         resulting stdout capture from the subprocess
     """
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (output, _) = proc.communicate()
     output = output.decode("utf-8")
     if proc.returncode != 0:
         cmd_str = " ".join(cmd)
-        msg = f"error while running command \"{cmd_str}\":\n{output}"
+        msg = f'error while running command "{cmd_str}":\n{output}'
         raise RuntimeError(msg)
     return output
 
@@ -161,14 +159,15 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
 
 @tvm._ffi.register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
-        binary_path,
-        word_size,
-        text_start,
-        rodata_start,
-        data_start,
-        bss_start,
-        stack_end,
-        toolchain_prefix):
+    binary_path,
+    word_size,
+    text_start,
+    rodata_start,
+    data_start,
+    bss_start,
+    stack_end,
+    toolchain_prefix,
+):
     """Relocates sections in the binary to new addresses
 
     Parameters
@@ -215,18 +214,17 @@ def tvm_callback_relocate_binary(
         rodata_start=rodata_start,
         data_start=data_start,
         bss_start=bss_start,
-        stack_pointer_init=stack_pointer_init)
+        stack_pointer_init=stack_pointer_init,
+    )
 
     tmp_dir = util.tempdir()
     rel_obj_path = tmp_dir.relpath("relocated.obj")
     rel_ld_script_path = tmp_dir.relpath("relocate.lds")
     with open(rel_ld_script_path, "w") as f:
         f.write(ld_script_contents)
-    run_cmd([
-        "{}ld".format(toolchain_prefix),
-        binary_path,
-        "-T", rel_ld_script_path,
-        "-o", rel_obj_path])
+    run_cmd(
+        ["{}ld".format(toolchain_prefix), binary_path, "-T", rel_ld_script_path, "-o", rel_obj_path]
+    )
 
     with open(rel_obj_path, "rb") as f:
         rel_bin = bytearray(f.read())
@@ -272,11 +270,14 @@ def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     tmp_section = tmp_dir.relpath("tmp_section.bin")
     with open(tmp_bin, "wb") as out_file:
         out_file.write(bytes(binary))
-    run_cmd([
-        "{}objcopy".format(toolchain_prefix),
-        "--dump-section",
-        ".{}={}".format(section, tmp_section),
-        tmp_bin])
+    run_cmd(
+        [
+            "{}objcopy".format(toolchain_prefix),
+            "--dump-section",
+            ".{}={}".format(section, tmp_section),
+            tmp_bin,
+        ]
+    )
     if os.path.isfile(tmp_section):
         # Get section content if it exists.
         with open(tmp_section, "rb") as f:
@@ -309,11 +310,7 @@ def tvm_callback_get_symbol_map(binary, toolchain_prefix):
     tmp_obj = tmp_dir.relpath("tmp_obj.bin")
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))
-    nm_output = run_cmd([
-        "{}nm".format(toolchain_prefix),
-        "-C",
-        "--defined-only",
-        tmp_obj])
+    nm_output = run_cmd(["{}nm".format(toolchain_prefix), "-C", "--defined-only", tmp_obj])
     nm_output = nm_output.splitlines()
     map_str = ""
     for line in nm_output:

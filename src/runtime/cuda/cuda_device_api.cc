@@ -217,7 +217,7 @@ class CUDADeviceAPI final : public DeviceAPI {
  private:
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
-    if (stream != 0) {
+    if (stream != nullptr) {
       CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
     } else {
       CUDA_CALL(cudaMemcpy(to, from, size, kind));

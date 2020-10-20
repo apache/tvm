@@ -23,17 +23,20 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
-from common import get_all_backend
+import tvm.testing
 
 _conv1d_transpose_ncw_implement = {
     "generic": (topi.nn.conv1d_transpose_ncw, topi.generic.schedule_conv1d_transpose_ncw),
-    "gpu": (topi.cuda.conv1d_transpose_ncw, topi.cuda.schedule_conv1d_transpose_ncw)
+    "gpu": (topi.cuda.conv1d_transpose_ncw, topi.cuda.schedule_conv1d_transpose_ncw),
 }
 
-def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, stride, padding, output_padding):
+
+def verify_conv1d_transpose_ncw(
+    batch, in_channel, in_size, num_filter, kernel, stride, padding, output_padding
+):
     in_width = in_size
-    A = te.placeholder((batch, in_channel, in_width), name='A')
-    W = te.placeholder((in_channel, num_filter, kernel), name='W')
+    A = te.placeholder((batch, in_channel, in_width), name="A")
+    W = te.placeholder((in_channel, num_filter, kernel), name="W")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -43,18 +46,17 @@ def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, 
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = tvm.topi.testing.conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding)
+        b_np = tvm.topi.testing.conv1d_transpose_ncw_python(
+            a_np, w_np, stride, padding, output_padding
+        )
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
+    def check_device(device, ctx):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv1d_transpose_ncw_implement)
             B = fcompute(A, W, stride, padding, A.dtype, output_padding)
             C = topi.nn.relu(B)
@@ -72,10 +74,11 @@ def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_conv1d_transpose_ncw():
     verify_conv1d_transpose_ncw(1, 3, 224, 32, 5, 1, 0, (0,))
     verify_conv1d_transpose_ncw(1, 3, 224, 32, 7, 1, 2, (0,))
@@ -88,9 +91,10 @@ def test_conv1d_transpose_ncw():
     verify_conv1d_transpose_ncw(1, 1, 1024, 1, 512, 2, 256, (0,))
     verify_conv1d_transpose_ncw(1, 1, 1024, 1, 512, 5, 256, (0,))
     verify_conv1d_transpose_ncw(1, 1, 1024, 1, 512, 5, 256, (3,))
-    verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (0,3), (0,))
-    verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (1,3), (0,))
-    verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (2,3), (0,))
+    verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (0, 3), (0,))
+    verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (1, 3), (0,))
+    verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (2, 3), (0,))
+
 
 if __name__ == "__main__":
     test_conv1d_transpose_ncw()

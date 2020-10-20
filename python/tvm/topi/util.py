@@ -24,16 +24,20 @@ from tvm import te
 from tvm.tir import layout, bijective_layout
 from . import tag, cpp
 
+
 class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
 
+
 def nchw_pack_layout(layout_info):
     """Check whether the layout type is NCHWinic"""
-    return layout_info[:4] == 'NCHW' and 'c' in layout_info and 'n' in layout_info
+    return layout_info[:4] == "NCHW" and "c" in layout_info and "n" in layout_info
+
 
 def nchw_xc_layout(layout_info):
     """Check whether the layout type is NCHWxc"""
-    return layout_info[:4] == 'NCHW' and 'c' in layout_info and layout_info[4:-1].isnumeric()
+    return layout_info[:4] == "NCHW" and "c" in layout_info and layout_info[4:-1].isnumeric()
+
 
 def traverse_inline(s, final_op, callback):
     """Traverse computation graph and do auto inline
@@ -290,9 +294,11 @@ def const_matrix(matrix, name="const_matrix"):
         now = tvm.tir.const(0.0, dtype)
         for ii in range(row):
             for jj in range(col):
-                now = tvm.tir.Select(tvm.tir.all(idxm(i, row) == ii, idxm(j, col) == jj),
-                                     tvm.tir.const(matrix[ii][jj], dtype),
-                                     now)
+                now = tvm.tir.Select(
+                    tvm.tir.all(idxm(i, row) == ii, idxm(j, col) == jj),
+                    tvm.tir.const(matrix[ii][jj], dtype),
+                    now,
+                )
         return now
 
     return te.compute(matrix.shape, select_array, name=name)
@@ -352,12 +358,13 @@ def get_shape(src_shape, src_layout, dst_layout):
     if isinstance(dst_layout, str):
         dst_layout = layout(dst_layout)
 
-    assert len(src_layout) == len(dst_layout), \
-        "Incompatible layout %s vs %s" % (src_layout, dst_layout)
+    assert len(src_layout) == len(dst_layout), "Incompatible layout %s vs %s" % (
+        src_layout,
+        dst_layout,
+    )
 
     layout_mapping = bijective_layout(src_layout, dst_layout)
-    dst_indices = layout_mapping.forward_index(
-        tvm.runtime.convert(list(range(len(src_layout)))))
+    dst_indices = layout_mapping.forward_index(tvm.runtime.convert(list(range(len(src_layout)))))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
 
@@ -387,9 +394,7 @@ def within_index(b, e, s, i):
     """
     bc = tvm.tir.Select(s < 0, i <= e, i < b)
     ec = tvm.tir.Select(s < 0, i > b, i >= e)
-    ss = te.if_then_else(s < 0,
-                         ((i - e) + (e % te.abs(s)) + 1) % te.abs(s),
-                         (i - b) % s)
+    ss = te.if_then_else(s < 0, ((i - e) + (e % te.abs(s)) + 1) % te.abs(s), (i - b) % s)
     return tvm.tir.Select(tvm.tir.Or(bc, ec), tvm.tir.const(False), ss.equal(0))
 
 
@@ -428,9 +433,7 @@ def make_idx(b, e, s, z, i):
     # Clamp to array size
     b = tvm.tir.Select(z < b, z - 1, b)
 
-    ss = tvm.tir.if_then_else(s < 0,
-                              (b - i) // te.abs(s),
-                              (i - b) // s)
+    ss = tvm.tir.if_then_else(s < 0, (b - i) // te.abs(s), (i - b) // s)
     return tvm.tir.if_then_else(tvm.tir.Or(bc, ec), 88, ss)
 
 

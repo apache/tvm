@@ -458,7 +458,7 @@ namespace std {
 
 /*!
  * \brief The equal_to function for auto_scheduler::State.
- * This function checkes the equality by looking at the lowered string format of states.
+ * This function checks the equality by looking at the lowered string format of states.
  * If two states with different transform history have the same lowered string format,
  * they will be considered being equal.
  */

@@ -46,6 +46,7 @@
 #include "../../../../runtime/contrib/ethosn/ethosn_runtime.h"
 #include "../codegen_c/codegen_c.h"
 #include "ethosn_api.h"
+#include "ethosn_api_version.h"
 #include "ethosn_support_library/Support.hpp"
 #include "ethosn_support_library/SupportQueries.hpp"
 
@@ -197,8 +198,17 @@ class ConstructNetworkVisitor : public MixedModeVisitor, private ErrorReportingP
   void VisitLeaf(const Expr& expr) final;
 
   // Make a support library operand from a Call
+  EthosnError MakeConvolutionLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeFullyConnectedLayer(const Call&, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeMaxPool2DLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeAvgPool2DLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeReshapeLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeAdditionLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeSigmoidLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeConcatenateLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
   EthosnError MakeSplitLayer(const Call& call, sl::TensorsAndId* outs);
+  EthosnError MakeDepthToSpaceLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
+  EthosnError MakeReluLayer(const Call& call, sl::TensorAndId<sl::Operand>* out);
 
   /*! \brief A look-up table from Expr to layers. */
   std::map<Expr, std::vector<std::shared_ptr<sl::Operand>>> operand_table_;
@@ -233,7 +243,11 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   bool disable_winograd;
   bool dump_debug_files;
   String debug_dir;
+#if _ETHOSN_API_VERSION_ == 2008
+  String compiler_algorithm;
+#else
   bool enable_cascading;
+#endif
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
     TVM_ATTR_FIELD(variant)
@@ -255,7 +269,11 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
     TVM_ATTR_FIELD(disable_winograd).set_default(false);
     TVM_ATTR_FIELD(dump_debug_files).set_default(false);
     TVM_ATTR_FIELD(debug_dir).set_default(".");
+#if _ETHOSN_API_VERSION_ == 2008
+    TVM_ATTR_FIELD(compiler_algorithm).set_default("NonCascadingOnly");
+#else
     TVM_ATTR_FIELD(enable_cascading).set_default(false);
+#endif
   }
 };
 

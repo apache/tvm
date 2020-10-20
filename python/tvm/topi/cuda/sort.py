@@ -24,9 +24,11 @@ from ..math import identity
 from ..transform import strided_slice, transpose
 from .. import tag
 
+
 def swap(arr, axis):
     """ swap arr[axis] and arr[-1] """
-    return arr[:axis] + [arr[-1]] + arr[axis+1:-1] + [arr[axis]]
+    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+
 
 def _schedule_sort(outs):
     """Schedule for argsort operator.
@@ -53,9 +55,11 @@ def _schedule_sort(outs):
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                 traverse(tensor.op)
         scheduled_ops.append(op)
+
     for out in outs:
         traverse(out.op)
     return s
+
 
 def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
@@ -113,10 +117,10 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
             with ib.if_scope(tid < shape[axis]):
                 values_out[base_idx + tid * axis_mul_after] = data[base_idx + tid * axis_mul_after]
                 if indices_out is not None:
-                    indices_out[base_idx + tid * axis_mul_after] = \
-                        tvm.tir.generic.cast(tid, indices_out.dtype)
-    ib.emit(tvm.tir.Call(None, 'tir.tvm_storage_sync',
-                         tvm.runtime.convert(['shared'])))
+                    indices_out[base_idx + tid * axis_mul_after] = tvm.tir.generic.cast(
+                        tid, indices_out.dtype
+                    )
+    ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
 
@@ -129,11 +133,15 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                 with ib.if_scope(tid < idxd(current_sort_num + 1, 2)):
                     offset = base_idx + (2 * tid + idxm(k, 2)) * axis_mul_after
                     if is_ascend:
-                        cond = tvm.tir.all(2 * tid + idxm(k, 2) + 1 < current_sort_num,
-                                           values_out[offset] > values_out[offset + axis_mul_after])
+                        cond = tvm.tir.all(
+                            2 * tid + idxm(k, 2) + 1 < current_sort_num,
+                            values_out[offset] > values_out[offset + axis_mul_after],
+                        )
                     else:
-                        cond = tvm.tir.all(2 * tid + idxm(k, 2) + 1 < current_sort_num,
-                                           values_out[offset] < values_out[offset + axis_mul_after])
+                        cond = tvm.tir.all(
+                            2 * tid + idxm(k, 2) + 1 < current_sort_num,
+                            values_out[offset] < values_out[offset + axis_mul_after],
+                        )
                     with ib.if_scope(cond):
                         temp_data[0] = values_out[offset]
                         values_out[offset] = values_out[offset + axis_mul_after]
@@ -142,8 +150,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                             temp_index[0] = indices_out[offset]
                             indices_out[offset] = indices_out[offset + axis_mul_after]
                             indices_out[offset + axis_mul_after] = temp_index[0]
-                ib.emit(tvm.tir.Call(None, 'tir.tvm_storage_sync',
-                                     tvm.runtime.convert(['shared'])))
+                ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
 
     return ib.get()
 
@@ -215,28 +222,36 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
             with ib.for_range(0, current_sort_num) as k:
                 with ib.if_scope(tid < idxd(current_sort_num + 1, 2)):
                     offset = base_idx + (2 * tid + idxm(k, 2)) * axis_mul_after
-                    with ib.if_scope(tvm.tir.all(is_ascend == 1, \
-                                                 2 * tid + idxm(k, 2) + 1 < current_sort_num, \
-                                                 data[offset] > data[offset + axis_mul_after])):
+                    with ib.if_scope(
+                        tvm.tir.all(
+                            is_ascend == 1,
+                            2 * tid + idxm(k, 2) + 1 < current_sort_num,
+                            data[offset] > data[offset + axis_mul_after],
+                        )
+                    ):
                         temp_data[0] = data[offset]
                         data[offset] = data[offset + axis_mul_after]
                         data[offset + axis_mul_after] = temp_data[0]
                         temp_index[0] = output[offset]
                         output[offset] = output[offset + axis_mul_after]
                         output[offset + axis_mul_after] = temp_index[0]
-                    with ib.if_scope(tvm.tir.all(is_ascend == 0, \
-                                                 2 * tid + idxm(k, 2) + 1 < current_sort_num, \
-                                                 data[offset] < data[offset + axis_mul_after])):
+                    with ib.if_scope(
+                        tvm.tir.all(
+                            is_ascend == 0,
+                            2 * tid + idxm(k, 2) + 1 < current_sort_num,
+                            data[offset] < data[offset + axis_mul_after],
+                        )
+                    ):
                         temp_data[0] = data[offset]
                         data[offset] = data[offset + axis_mul_after]
                         data[offset + axis_mul_after] = temp_data[0]
                         temp_index[0] = output[offset]
                         output[offset] = output[offset + axis_mul_after]
                         output[offset + axis_mul_after] = temp_index[0]
-                ib.emit(tvm.tir.Call(None, 'tir.tvm_storage_sync',
-                                     tvm.runtime.convert(['shared'])))
+                ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
 
     return ib.get()
+
 
 def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
@@ -272,29 +287,33 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf",
-                                   data_alignment=8)
-    valid_count_buf = tvm.tir.decl_buffer(valid_count.shape, valid_count.dtype,
-                                          "valid_count_buf", data_alignment=4)
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    valid_count_buf = tvm.tir.decl_buffer(
+        valid_count.shape, valid_count.dtype, "valid_count_buf", data_alignment=4
+    )
     out_bufs = [
         tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
-        tvm.tir.decl_buffer(data.shape, "int32", "indices_buf", data_alignment=8)
+        tvm.tir.decl_buffer(data.shape, "int32", "indices_buf", data_alignment=8),
     ]
-    out = te.extern([data.shape, data.shape],
-                    [data, valid_count],
-                    lambda ins, outs: tvm.tir.call_packed(
-                        "tvm.contrib.thrust.sort_nms", ins[0], ins[1], outs[0], outs[1], is_ascend),
-                    in_buffers=[data_buf, valid_count_buf],
-                    out_buffers=out_bufs,
-                    dtype=[data.dtype, "int32"],
-                    name="nms_argsort_gpu",
-                    tag="nms_argsort_gpu")
+    out = te.extern(
+        [data.shape, data.shape],
+        [data, valid_count],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.thrust.sort_nms", ins[0], ins[1], outs[0], outs[1], is_ascend
+        ),
+        in_buffers=[data_buf, valid_count_buf],
+        out_buffers=out_bufs,
+        dtype=[data.dtype, "int32"],
+        name="nms_argsort_gpu",
+        tag="nms_argsort_gpu",
+    )
 
     if axis != ndim - 1:
         axes = swap(list(range(ndim)), axis)
         out = [transpose(o, axes) for o in out]
 
     return out[1]
+
 
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
@@ -324,31 +343,36 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """
     if valid_count is not None:
         sorted_data = identity(data)
-        sorted_data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "sorted_data_buf",
-                                              data_alignment=8)
-        valid_count_buf = tvm.tir.decl_buffer(valid_count.shape, valid_count.dtype,
-                                              "valid_count_buf", data_alignment=4)
+        sorted_data_buf = tvm.tir.decl_buffer(
+            data.shape, data.dtype, "sorted_data_buf", data_alignment=8
+        )
+        valid_count_buf = tvm.tir.decl_buffer(
+            valid_count.shape, valid_count.dtype, "valid_count_buf", data_alignment=4
+        )
         out_buf = tvm.tir.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
-        out = te.extern([data.shape],
-                        [sorted_data, valid_count],
-                        lambda ins, outs: sort_nms_ir(
-                            ins[0], ins[1], outs[0], axis, is_ascend),
-                        dtype="int32",
-                        in_buffers=[sorted_data_buf, valid_count_buf],
-                        out_buffers=[out_buf],
-                        name="argsort_nms_gpu",
-                        tag="argsort_nms_gpu")
+        out = te.extern(
+            [data.shape],
+            [sorted_data, valid_count],
+            lambda ins, outs: sort_nms_ir(ins[0], ins[1], outs[0], axis, is_ascend),
+            dtype="int32",
+            in_buffers=[sorted_data_buf, valid_count_buf],
+            out_buffers=[out_buf],
+            name="argsort_nms_gpu",
+            tag="argsort_nms_gpu",
+        )
     else:
         value_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
         indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
-        out = te.extern([data.shape, data.shape],
-                        [data],
-                        lambda ins, outs: sort_ir(
-                            ins[0], outs[0], axis, is_ascend, indices_out=outs[1]),
-                        out_buffers=[value_buf, indices_buf],
-                        name="argsort_gpu",
-                        tag="argsort_gpu")[1]
+        out = te.extern(
+            [data.shape, data.shape],
+            [data],
+            lambda ins, outs: sort_ir(ins[0], outs[0], axis, is_ascend, indices_out=outs[1]),
+            out_buffers=[value_buf, indices_buf],
+            name="argsort_gpu",
+            tag="argsort_gpu",
+        )[1]
     return out
+
 
 def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
@@ -399,6 +423,7 @@ def schedule_argsort(outs):
     """
     return _schedule_sort(outs)
 
+
 def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     """Get the top k elements in an input tensor along the given axis.
 
@@ -437,21 +462,23 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     values_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "values_buf", data_alignment=8)
     indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8)
     if ret_type == "values":
-        output = te.extern([data.shape],
-                           [data],
-                           lambda ins, outs: sort_ir(
-                               ins[0], outs[0], axis, is_ascend),
-                           out_buffers=[values_buf],
-                           name="topk_gpu",
-                           tag="topk_gpu")
+        output = te.extern(
+            [data.shape],
+            [data],
+            lambda ins, outs: sort_ir(ins[0], outs[0], axis, is_ascend),
+            out_buffers=[values_buf],
+            name="topk_gpu",
+            tag="topk_gpu",
+        )
     else:
-        output = te.extern([data.shape, data.shape],
-                           [data],
-                           lambda ins, outs: sort_ir(
-                               ins[0], outs[0], axis, is_ascend, indices_out=outs[1]),
-                           out_buffers=[values_buf, indices_buf],
-                           name="topk_gpu",
-                           tag="topk_gpu")
+        output = te.extern(
+            [data.shape, data.shape],
+            [data],
+            lambda ins, outs: sort_ir(ins[0], outs[0], axis, is_ascend, indices_out=outs[1]),
+            out_buffers=[values_buf, indices_buf],
+            name="topk_gpu",
+            tag="topk_gpu",
+        )
     if k < 1:
         if ret_type == "indices":
             return output[1]
@@ -470,7 +497,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         output = [values_out, indices_out]
     elif ret_type == "values":
         output = [strided_slice(output, beg, end)]
-    else: # ret_type == "indices"
+    else:  # ret_type == "indices"
         indices_out = output[1]
         output = [strided_slice(indices_out, beg, end)]
     return output
@@ -519,17 +546,20 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     out_bufs = [
         tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
-        tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8)
+        tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8),
     ]
 
-    out = te.extern([data.shape, data.shape],
-                    [data],
-                    lambda ins, outs: tvm.tir.call_packed(
-                        "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend),
-                    in_buffers=[data_buf],
-                    out_buffers=out_bufs,
-                    name="topk_gpu",
-                    tag="topk_gpu")
+    out = te.extern(
+        [data.shape, data.shape],
+        [data],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend
+        ),
+        in_buffers=[data_buf],
+        out_buffers=out_bufs,
+        name="topk_gpu",
+        tag="topk_gpu",
+    )
 
     if k > 0:
         beg = [0] * ndim

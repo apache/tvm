@@ -36,7 +36,7 @@ C++ Code Styles
 
 We use `clang-format` to enforce the code style. Because different version
 of clang-format might change by its version, it is recommended to use the same
-version of the clang-format as the master.
+version of the clang-format as the main one.
 You can also use the following command via docker.
 
 .. code:: bash
@@ -81,6 +81,20 @@ Python Code Styles
 - Check your code style using ``make pylint``
 - Stick to language features as in ``python 3.5``
 
+
+Writing Python Tests
+--------------------
+We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python testing. ``tests/python`` contains all the tests.
+
+If you want your test to run over a variety of targets, use the :py:func:`tvm.testing.parametrize_targets` decorator. For example:
+
+.. code:: python
+
+  @tvm.testing.parametrize_targets
+  def test_mytest(target, ctx):
+    ...
+
+will run ``test_mytest`` with ``target="llvm"``, ``target="cuda"``, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use ``@tvm.testing.parametrize_targets("target_1", "target_2")``. If you want to test on a single target, use the associated decorator from :py:func:`tvm.testing`. For example, CUDA tests use the ``@tvm.testing.requires_cuda`` decorator.
 
 Handle Integer Constant Expression
 ----------------------------------

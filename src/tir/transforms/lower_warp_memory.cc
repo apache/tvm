@@ -129,7 +129,11 @@ class WarpStoreCoeffFinder : private StmtVisitor {
 
   void UpdatePattern(const PrimExpr& index) {
     Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
-    CHECK_EQ(m.size(), 2U) << "LowerWarpMemory failed due to store index=" << index;
+    CHECK_EQ(m.size(), 2U)
+        << "LowerWarpMemory failed. Could not simplify the store index `" << index
+        << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
+           "thread local registers and shuffling values between these registers. Currently only "
+           "linear equation indices are supported.";
     PrimExpr mcoeff = analyzer_->canonical_simplify(m[0]);
     const auto* mcoeff_as_int = mcoeff.as<IntImmNode>();
     CHECK(mcoeff_as_int && mcoeff_as_int->value > 0)

@@ -18,10 +18,12 @@
 import warnings
 from tvm._ffi.base import decorate
 
+
 class TagScope(object):
     """Tag scope object to set tag for operators, working as context
     manager and decorator both. See also tag_scope.
     """
+
     _current = None
 
     @classmethod
@@ -52,6 +54,7 @@ class TagScope(object):
         def tagged_fdecl(func, *args, **kwargs):
             with self:
                 return func(*args, **kwargs)
+
         return decorate(fdecl, tagged_fdecl)
 
 

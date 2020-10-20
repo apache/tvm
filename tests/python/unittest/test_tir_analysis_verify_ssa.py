@@ -17,25 +17,24 @@
 import tvm
 from tvm import te
 
+
 def test_verify_ssa():
-    x = te.var('x')
+    x = te.var("x")
     y = te.var()
     z = tvm.tir.Evaluate(x + y)
-    assert(tvm.tir.analysis.verify_ssa(
-        tvm.tir.PrimFunc([x, y],z)))
+    assert tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([x, y], z))
 
-    assert(not tvm.tir.analysis.verify_ssa(
-        tvm.tir.PrimFunc([x, y], tvm.tir.LetStmt(x, 1, z))))
+    assert not tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([x, y], tvm.tir.LetStmt(x, 1, z)))
+
 
 def test_verify_weak_let_ssa():
-    x = te.var('x')
+    x = te.var("x")
     z1 = tvm.tir.Let(x, 1, x + 1)
     z2 = tvm.tir.Let(x, 2, x + 2)
 
-    assert(tvm.tir.analysis.verify_ssa(
-        tvm.tir.PrimFunc([], tvm.tir.Evaluate(z1 + z1))))
-    assert(not tvm.tir.analysis.verify_ssa(
-        tvm.tir.PrimFunc([], tvm.tir.Evaluate(z1 * z2))))
+    assert tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([], tvm.tir.Evaluate(z1 + z1)))
+    assert not tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([], tvm.tir.Evaluate(z1 * z2)))
+
 
 if __name__ == "__main__":
     test_verify_ssa()

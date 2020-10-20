@@ -17,17 +17,19 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
 
+@tvm.testing.requires_gpu
 def test_reduce_prims():
     def test_prim(reducer, np_reducer):
         # graph
-        n = tvm.te.size_var('n')
-        m = tvm.te.size_var('m')
-        A = te.placeholder((n, m), name='A')
-        R = te.compute((n, ), lambda i: tvm.tir.Select((i > 1), 1, 0), name='R')
+        n = tvm.te.size_var("n")
+        m = tvm.te.size_var("m")
+        A = te.placeholder((n, m), name="A")
+        R = te.compute((n,), lambda i: tvm.tir.Select((i > 1), 1, 0), name="R")
         k = te.reduce_axis((0, m))
-        B = te.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i]==1)), name='B')
+        B = te.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i] == 1)), name="B")
         # schedule
         s = te.create_schedule(B.op)
         # create iter var and assign them tags.
@@ -40,15 +42,10 @@ def test_reduce_prims():
         # one line to build the function.
         def check_device(device, host="llvm"):
             ctx = tvm.context(device, 0)
-            if not tvm.runtime.enabled(host):
-                return
-            if not ctx.exist:
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled.." % device)
                 return
-            freduce = tvm.build(s,
-                             args=[A, B],
-                             target=device, target_host=host,
-                             name="myreduce")
+            freduce = tvm.build(s, args=[A, B], target=device, target_host=host, name="myreduce")
             # launch the kernel.
             n = 1028
             m = 129
@@ -66,15 +63,17 @@ def test_reduce_prims():
         check_device("cuda")
         check_device("opencl")
         check_device("rocm")
+
     test_prim(te.sum, np.sum)
     test_prim(tvm.te.min, np.amin)
     test_prim(tvm.te.max, np.amax)
 
+
 def test_init_imm():
     n = tvm.runtime.convert(1027)
-    A = te.placeholder((n,), name='A')
+    A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k, init=10.0), name='B')
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k, init=10.0), name="B")
     # schedule
     s = te.create_schedule(B.op)
     # one line to build the function.
@@ -83,27 +82,25 @@ def test_init_imm():
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
-        fsum = tvm.build(fapi,
-                         target=target,
-                         name="mysum")
+        fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = 10.0 + np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target()
 
+
 def test_init():
     n = tvm.runtime.convert(1027)
-    A = te.placeholder((n,n), name='A')
-    C = te.placeholder((n,n), name='C')
-    I = te.placeholder((n,n), name='I')
+    A = te.placeholder((n, n), name="A")
+    C = te.placeholder((n, n), name="C")
+    I = te.placeholder((n, n), name="I")
     k = te.reduce_axis((0, n))
-    B = te.compute((n,n), lambda i,j: te.sum(A[i,k]*C[k,j], axis=k, init=I[i,j]), name='B')
+    B = te.compute((n, n), lambda i, j: te.sum(A[i, k] * C[k, j], axis=k, init=I[i, j]), name="B")
 
     # schedule
     s = te.create_schedule(B.op)
@@ -117,22 +114,22 @@ def test_init():
         mmult = tvm.build(fapi, target=target, name="mmult")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,n)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=(n,n)).astype(C.dtype), ctx)
-        ii = tvm.nd.array(np.random.uniform(size=(n,n)).astype(B.dtype), ctx)
-        b  = tvm.nd.array(np.zeros((n,n), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), ctx)
+        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), ctx)
+        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), ctx)
         mmult(a, c, ii, b)
-        res = ii.asnumpy() + np.matmul(a.asnumpy(),c.asnumpy())
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target()
 
+
 def test_rfactor():
     n = tvm.runtime.convert(1027)
-    A = te.placeholder((n,), name='A')
+    A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name='B')
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name="B")
     # schedule
     s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
@@ -140,31 +137,29 @@ def test_rfactor():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
-        fsum = tvm.build(fapi,
-                         target=target,
-                         name="mysum")
+        fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target()
 
+
 def test_rfactor_init():
     n = tvm.runtime.convert(1027)
-    A = te.placeholder((n,n), name='A')
-    C = te.placeholder((n,n), name='C')
-    I = te.placeholder((n,n), name='I')
+    A = te.placeholder((n, n), name="A")
+    C = te.placeholder((n, n), name="C")
+    I = te.placeholder((n, n), name="I")
     k = te.reduce_axis((0, n))
-    B = te.compute((n,n), lambda i,j: te.sum(A[i,k]*C[k,j], axis=k, init=I[i,j]), name='B')
+    B = te.compute((n, n), lambda i, j: te.sum(A[i, k] * C[k, j], axis=k, init=I[i, j]), name="B")
 
     # schedule
     s = te.create_schedule(B.op)
@@ -181,22 +176,22 @@ def test_rfactor_init():
         mmult = tvm.build(fapi, target=target, name="mmult")
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=(n,n)).astype(A.dtype), ctx)
-        c = tvm.nd.array(np.random.uniform(size=(n,n)).astype(C.dtype), ctx)
-        ii = tvm.nd.array(np.random.uniform(size=(n,n)).astype(B.dtype), ctx)
-        b  = tvm.nd.array(np.zeros((n,n), dtype=B.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=(n, n)).astype(A.dtype), ctx)
+        c = tvm.nd.array(np.random.uniform(size=(n, n)).astype(C.dtype), ctx)
+        ii = tvm.nd.array(np.random.uniform(size=(n, n)).astype(B.dtype), ctx)
+        b = tvm.nd.array(np.zeros((n, n), dtype=B.dtype), ctx)
         mmult(a, c, ii, b)
-        res = ii.asnumpy() + np.matmul(a.asnumpy(),c.asnumpy())
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        res = ii.asnumpy() + np.matmul(a.asnumpy(), c.asnumpy())
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target()
 
+
 def test_rfactor_factor_axis():
     n = tvm.runtime.convert(1027)
-    A = te.placeholder((n,), name='A')
+    A = te.placeholder((n,), name="A")
     k = te.reduce_axis((0, n))
-    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name='B')
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name="B")
     # schedule
     s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
@@ -204,34 +199,32 @@ def test_rfactor_factor_axis():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
-        fsum = tvm.build(fapi,
-                         target=target,
-                         name="mysum")
+        fsum = tvm.build(fapi, target=target, name="mysum")
         # launch the kernel.
         n = 1027
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-        b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target()
 
 
+@tvm.testing.requires_gpu
 def test_rfactor_threads():
     nn = 1027
     mm = 10
     n = tvm.runtime.convert(nn)
     m = tvm.runtime.convert(mm)
-    A = te.placeholder((m, n), name='A')
+    A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n))
     nthread = 16
-    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=k, where=(i>1)), name='B')
+    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=k, where=(i > 1)), name="B")
     # schedule
     s = te.create_schedule(B.op)
     ko, kf = s[B].split(k, factor=nthread)
@@ -248,24 +241,21 @@ def test_rfactor_threads():
     # one line to build the function.
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
         fapi = tvm.lower(s, args=[A, B])
-        fsum = tvm.build(fapi,
-                         target=device,
-                         name="mysum")
+        fsum = tvm.build(fapi, target=device, name="mysum")
         # launch the kernel.
         n = nn
         m = mm
         a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
-        b  = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1)
         res[:2] = 0
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target("vulkan")
     check_target("cuda")
@@ -273,15 +263,17 @@ def test_rfactor_threads():
     check_target("opencl")
     check_target("rocm")
 
+
+@tvm.testing.requires_gpu
 def test_rfactor_elemwise_threads():
     n = 1025
     m = 10
-    A = te.placeholder((m, n), name='A')
+    A = te.placeholder((m, n), name="A")
     k = te.reduce_axis((0, n))
     nthread = 16
-    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=k), name='B')
-    BB = te.compute((m,), lambda i: B[i] + 1, name='BB')
-    C = te.compute((m,), lambda i: BB[i] + 1, name='C')
+    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=k), name="B")
+    BB = te.compute((m,), lambda i: B[i] + 1, name="BB")
+    C = te.compute((m,), lambda i: BB[i] + 1, name="C")
     # schedule
     s = te.create_schedule(C.op)
     s[BB].compute_inline()
@@ -303,26 +295,24 @@ def test_rfactor_elemwise_threads():
     # one line to build the function.
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fapi = tvm.lower(s, args=[A, C])
-        fsum = tvm.build(fapi,
-                         target=device,
-                         name="mysum")
+        fsum = tvm.build(fapi, target=device, name="mysum")
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=(m, n)).astype(A.dtype), ctx)
-        b  = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
+        b = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1) + 2
-        tvm.testing.assert_allclose(
-            b.asnumpy(), res, rtol=1e-4)
+        tvm.testing.assert_allclose(b.asnumpy(), res, rtol=1e-4)
 
     check_target("vulkan")
     check_target("cuda")
     check_target("metal")
     check_target("opencl")
     check_target("rocm")
+
 
 def test_argmax():
     def fcombine(x, y):
@@ -333,44 +323,41 @@ def test_argmax():
     def fidentity(t0, t1):
         return tvm.tir.const(-1, t0), tvm.te.min_value(t1)
 
-    argmax = te.comm_reducer(fcombine,
-                              fidentity,
-                              name='argmax')
-    m = te.size_var('m')
-    n = te.size_var('n')
-    idx = te.placeholder((m, n), name='idx', dtype='int32')
-    val = te.placeholder((m, n), name='val', dtype='float32')
-    k = te.reduce_axis((0, n), 'k')
-    T0, T1 = te.compute((m,), lambda i: argmax((idx[i,k], val[i,k]), axis=k), name='T')
+    argmax = te.comm_reducer(fcombine, fidentity, name="argmax")
+    m = te.size_var("m")
+    n = te.size_var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="float32")
+    k = te.reduce_axis((0, n), "k")
+    T0, T1 = te.compute((m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="T")
     s = te.create_schedule(T0.op)
 
     def check_target():
-        device = 'cpu'
-        if not tvm.runtime.enabled(device):
+        device = "cpu"
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         ctx = tvm.context(device, 0)
         fapi = tvm.lower(s, args=[idx, val, T0, T1])
-        fargmax = tvm.build(fapi,
-                            target='llvm',
-                            name="argmax")
+        fargmax = tvm.build(fapi, target="llvm", name="argmax")
 
         mm = 12
         nn = 16
-        np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
-        np_val = np.random.uniform(size=(mm, nn)).astype('float32')
+        np_idx = np.repeat(np.arange(nn, dtype="int32").reshape(1, nn), mm, axis=0)
+        np_val = np.random.uniform(size=(mm, nn)).astype("float32")
         np_res = np.argmax(np_val, axis=1)
 
-        nd_idx  = tvm.nd.array(np_idx, ctx)
-        nd_val  = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
+        nd_idx = tvm.nd.array(np_idx, ctx)
+        nd_val = tvm.nd.array(np_val, ctx)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), ctx)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
         tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
     check_target()
 
 
+@tvm.testing.requires_gpu
 def test_rfactor_argmax():
     def fcombine(x, y):
         lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
@@ -380,18 +367,16 @@ def test_rfactor_argmax():
     def fidentity(t0, t1):
         return tvm.tir.const(-1, t0), tvm.te.min_value(t1)
 
-    argmax = te.comm_reducer(fcombine,
-                              fidentity,
-                              name='argmax')
+    argmax = te.comm_reducer(fcombine, fidentity, name="argmax")
 
     nn = 1027
     mm = 10
     n = tvm.runtime.convert(nn)
     m = tvm.runtime.convert(mm)
-    A0 = te.placeholder((m, n), name='A0', dtype='int32')
-    A1 = te.placeholder((m, n), name='A1', dtype='float32')
+    A0 = te.placeholder((m, n), name="A0", dtype="int32")
+    A1 = te.placeholder((m, n), name="A1", dtype="float32")
     k = te.reduce_axis((0, n))
-    B0, B1 = te.compute((m,), lambda i: argmax((A0[i, k], A1[i, k]), axis=k), name='B')
+    B0, B1 = te.compute((m,), lambda i: argmax((A0[i, k], A1[i, k]), axis=k), name="B")
 
     # schedule
     s = te.create_schedule(B0.op)
@@ -409,22 +394,20 @@ def test_rfactor_argmax():
 
     def check_target(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         fapi = tvm.lower(s, args=[A0, A1, B0, B1])
-        fargmax = tvm.build(fapi,
-                            target=device,
-                            name="argmax")
+        fargmax = tvm.build(fapi, target=device, name="argmax")
 
-        np_idx = np.repeat(np.arange(nn, dtype='int32').reshape(1, nn), mm, axis=0)
-        np_val = np.random.uniform(size=(mm, nn)).astype('float32')
+        np_idx = np.repeat(np.arange(nn, dtype="int32").reshape(1, nn), mm, axis=0)
+        np_val = np.random.uniform(size=(mm, nn)).astype("float32")
         np_res = np.argmax(np_val, axis=1)
 
-        nd_idx  = tvm.nd.array(np_idx, ctx)
-        nd_val  = tvm.nd.array(np_val, ctx)
-        nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
-        nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
+        nd_idx = tvm.nd.array(np_idx, ctx)
+        nd_val = tvm.nd.array(np_val, ctx)
+        nd_res0 = tvm.nd.array(np.zeros(mm, dtype="int32"), ctx)
+        nd_res1 = tvm.nd.array(np.zeros(mm, dtype="float32"), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
         tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
@@ -432,6 +415,8 @@ def test_rfactor_argmax():
     check_target("vulkan")
     check_target("rocm")
 
+
+@tvm.testing.requires_gpu
 def test_warp_reduction1():
     nthx = 32
     nthy = 4
@@ -441,14 +426,14 @@ def test_warp_reduction1():
 
     def check_target(device, m, n):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
         # compute
-        A = te.placeholder((m, n), name='A')
+        A = te.placeholder((m, n), name="A")
         k = te.reduce_axis((0, n))
-        B = te.compute((m,), lambda i: te.max(A[i][k], axis=k), name='B')
+        B = te.compute((m,), lambda i: te.max(A[i][k], axis=k), name="B")
         s = te.create_schedule(B.op)
 
         # schedule
@@ -463,7 +448,7 @@ def test_warp_reduction1():
 
         # validation
         func = tvm.build(s, [A, B], device, name="warp_reduction")
-        a_np = np.random.uniform(size=(m,n)).astype(A.dtype)
+        a_np = np.random.uniform(size=(m, n)).astype(A.dtype)
         b_np = np.zeros((m,), dtype=A.dtype)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
@@ -478,6 +463,8 @@ def test_warp_reduction1():
     # This is a bug in normal reduction.
     # check_target("cuda", m=10, n=37)
 
+
+@tvm.testing.requires_gpu
 def test_warp_reduction2():
     def fcombine(x, y):
         return x[0] + y[0], x[1] * y[1]
@@ -485,16 +472,15 @@ def test_warp_reduction2():
     def fidentity(t0, t1):
         return tvm.tir.const(0, t0), tvm.tir.const(1, t1)
 
-    add_mul_reducer = te.comm_reducer(fcombine, fidentity, name='add_mul_reducer')
+    add_mul_reducer = te.comm_reducer(fcombine, fidentity, name="add_mul_reducer")
 
     # compute
     m = 16
     n = 256
-    A0 = te.placeholder((m, n), name='A0', dtype='float32')
-    A1 = te.placeholder((m, n), name='Al', dtype='float32')
-    k = te.reduce_axis((0, n), 'k')
-    T0, T1 = te.compute((m, ), lambda i: \
-        add_mul_reducer((A0[i, k], A1[i, k]), axis=k), name='T')
+    A0 = te.placeholder((m, n), name="A0", dtype="float32")
+    A1 = te.placeholder((m, n), name="Al", dtype="float32")
+    k = te.reduce_axis((0, n), "k")
+    T0, T1 = te.compute((m,), lambda i: add_mul_reducer((A0[i, k], A1[i, k]), axis=k), name="T")
 
     nthdx, nthdy = 32, 2
     block_x = te.thread_axis("blockIdx.x")
@@ -503,7 +489,7 @@ def test_warp_reduction2():
 
     def check_target(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
@@ -517,8 +503,8 @@ def test_warp_reduction2():
 
         # validation
         ctx = tvm.context(device, 0)
-        a0_np = np.random.uniform(size=(m,n)).astype(A0.dtype)
-        a1_np = np.random.uniform(size=(m,n)).astype(A1.dtype)
+        a0_np = np.random.uniform(size=(m, n)).astype(A0.dtype)
+        a1_np = np.random.uniform(size=(m, n)).astype(A1.dtype)
         t0_np = np.zeros((m,), dtype=A0.dtype)
         t1_np = np.zeros((m,), dtype=A1.dtype)
         a0 = tvm.nd.array(a0_np, ctx)
@@ -534,6 +520,7 @@ def test_warp_reduction2():
 
     check_target("cuda")
     check_target("rocm")
+
 
 if __name__ == "__main__":
     test_rfactor_elemwise_threads()

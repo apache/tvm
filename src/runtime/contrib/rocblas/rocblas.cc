@@ -70,18 +70,61 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul").set_body([](TVMArgs args, TVMR
   CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));
   float alpha = 1.0;
   float beta = 0.0;
-  float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
-  float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+  float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+  float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
   float* C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
 
-  CHECK_ROCBLAS_ERROR(
-      rocblas_sgemm(handle, transb ? rocblas_operation_transpose : rocblas_operation_none,
-                    transa ? rocblas_operation_transpose : rocblas_operation_none,
-                    transb ? B->shape[0] : B->shape[1], transa ? A->shape[1] : A->shape[0],
-                    transb ? B->shape[1] : B->shape[0], &alpha, A_ptr, B->shape[1], B_ptr,
-                    A->shape[1], &beta, C_ptr, C->shape[1]));
+  rocblas_operation roc_trans_A = transa ? rocblas_operation_transpose : rocblas_operation_none;
+  rocblas_operation roc_trans_B = transb ? rocblas_operation_transpose : rocblas_operation_none;
+  size_t N = transb ? B->shape[0] : B->shape[1];
+  size_t M = transa ? A->shape[1] : A->shape[0];
+  size_t K = transb ? B->shape[1] : B->shape[0];
+  size_t lda = transa ? M : K;
+  size_t ldb = transb ? K : N;
+  size_t ldc = N;
+
+  CHECK_ROCBLAS_ERROR(rocblas_sgemm(handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb,
+                                    A_ptr, lda, &beta, C_ptr, ldc));
 
   CHECK_ROCBLAS_ERROR(rocblas_destroy_handle(handle));
 });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* A = args[0];
+      DLTensor* B = args[1];
+      DLTensor* C = args[2];
+      bool transa = args[3];
+      bool transb = args[4];
+      // call gemm for simple compact code.
+      CHECK_EQ(A->ndim, 3);
+      CHECK_EQ(B->ndim, 3);
+      CHECK_EQ(C->ndim, 3);
+      CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+      CHECK(TypeMatch(B->dtype, kDLFloat, 32));
+      CHECK(TypeMatch(C->dtype, kDLFloat, 32));
+
+      rocblas_handle handle;
+      CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));
+      float alpha = 1.0;
+      float beta = 0.0;
+      float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+      float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
+      float* C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
+
+      rocblas_operation roc_trans_A = transa ? rocblas_operation_transpose : rocblas_operation_none;
+      rocblas_operation roc_trans_B = transb ? rocblas_operation_transpose : rocblas_operation_none;
+      size_t batch_size = C->shape[0];
+      size_t N = transb ? B->shape[1] : B->shape[2];
+      size_t M = transa ? A->shape[2] : A->shape[1];
+      size_t K = transb ? B->shape[2] : B->shape[1];
+      size_t lda = transa ? M : K;
+      size_t ldb = transb ? K : N;
+      size_t ldc = N;
+
+      CHECK_ROCBLAS_ERROR(rocblas_sgemm_strided_batched(
+          handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb, K * N, A_ptr, lda, M * K,
+          &beta, C_ptr, ldc, M * N, batch_size));
+    });
 }  // namespace contrib
 }  // namespace tvm

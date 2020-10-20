@@ -28,6 +28,21 @@ from . import _ffi_api
 from .feature import Feature
 
 
+def context_analysis(mod, default_context):
+    """Analyze the device context information of each IR node in a Relay
+    program.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module.
+
+    default_context : tvm.runtime.TVMContext
+        The default context allocated to an IR node.
+    """
+    return _ffi_api.ContextAnalysis(mod, default_context)
+
+
 def post_order_visit(expr, fvisit):
     """Recursively visit the ir in post DFS order node,
     apply fvisit. Each node is guaranteed to be visited
@@ -105,6 +120,7 @@ def check_constant(expr):
         Whether the expression is constant.
     """
     return _ffi_api.check_constant(expr)
+
 
 def check_basic_block_normal_form(expr):
     """Check whether an expression is in the basic block form
@@ -425,8 +441,10 @@ def get_calibration_data(mod, data):
         offset = int(indices[0])
         in_len = int(indices[1])
         out_len = int(indices[2])
-        value = {"inputs": ref_res[offset:offset + in_len],
-                 "outputs": ref_res[offset + in_len:offset + in_len + out_len]}
+        value = {
+            "inputs": ref_res[offset : offset + in_len],
+            "outputs": ref_res[offset + in_len : offset + in_len + out_len],
+        }
         calib_data[gvar] = value
 
     return calib_data

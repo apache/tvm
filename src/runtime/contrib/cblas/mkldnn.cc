@@ -34,15 +34,14 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
-
-inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+inline char MKLDNNBooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
 
 struct MKLDNNSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
-    dnnl_sgemm(BooleanToTransposeChar(tb), BooleanToTransposeChar(ta), N, M, K, alpha, B, ldb, A,
-               lda, beta, C, ldc);
+    dnnl_sgemm(MKLDNNBooleanToTransposeChar(tb), MKLDNNBooleanToTransposeChar(ta), N, M, K, alpha,
+               B, ldb, A, lda, beta, C, ldc);
   }
 };
 

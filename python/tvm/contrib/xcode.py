@@ -25,6 +25,7 @@ import json
 from .._ffi.base import py_str
 from . import util
 
+
 def xcrun(cmd):
     """Run xcrun and return the output.
 
@@ -39,9 +40,7 @@ def xcrun(cmd):
         The output string.
     """
     cmd = ["xcrun"] + cmd
-    proc = subprocess.Popen(cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     return out.strip()
 
@@ -57,14 +56,11 @@ def codesign(lib):
     lib : The path to the library.
     """
     if "TVM_IOS_CODESIGN" not in os.environ:
-        raise RuntimeError("Require environment variable TVM_IOS_CODESIGN "
-                           " to be the signature")
+        raise RuntimeError("Require environment variable TVM_IOS_CODESIGN " " to be the signature")
     signature = os.environ["TVM_IOS_CODESIGN"]
     cmd = ["codesign", "--force", "--sign", signature]
     cmd += [lib]
-    proc = subprocess.Popen(cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Codesign error:\n"
@@ -104,9 +100,7 @@ def create_dylib(output, objects, arch, sdk="macosx"):
     else:
         cmd += objects
 
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
@@ -117,6 +111,7 @@ def create_dylib(output, objects, arch, sdk="macosx"):
 
 # assign so as default output format
 create_dylib.output_format = "dylib"
+
 
 def compile_metal(code, path_target=None, sdk="macosx"):
     """Compile metal with CLI tool from env.
@@ -156,10 +151,11 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     cmd2 = ["xcrun", "-sdk", sdk, "metallib"]
     cmd2 += [temp_ir, "-o", file_target]
     proc = subprocess.Popen(
-        ' '.join(cmd1) + ";" + ' '.join(cmd2),
+        " ".join(cmd1) + ";" + " ".join(cmd2),
         shell=True,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+        stderr=subprocess.STDOUT,
+    )
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         sys.stderr.write("Compilation error:\n")
@@ -172,14 +168,10 @@ def compile_metal(code, path_target=None, sdk="macosx"):
 
 
 def compile_coreml(model, model_name="main", out_dir="."):
-    """Compile coreml model and return the compiled model path.
-    """
+    """Compile coreml model and return the compiled model path."""
     mlmodel_path = os.path.join(out_dir, model_name + ".mlmodel")
     mlmodelc_path = os.path.join(out_dir, model_name + ".mlmodelc")
-    metadata = {
-        "inputs": list(model.input_description),
-        "outputs": list(model.output_description)
-    }
+    metadata = {"inputs": list(model.input_description), "outputs": list(model.output_description)}
     # Use the description field to send info to CoreML runtime
     model.short_description = json.dumps(metadata)
     model.save(mlmodel_path)
@@ -202,23 +194,18 @@ class XCodeRPCServer(object):
     lock: FileLock
        Lock on the path
     """
+
     def __init__(self, cmd, lock):
         self.proc = subprocess.Popen(cmd)
         self.lock = lock
 
     def join(self):
-        """Wait server to finish and release its resource
-        """
+        """Wait server to finish and release its resource"""
         self.proc.wait()
         self.lock.release()
 
 
-def popen_test_rpc(host,
-                   port,
-                   key,
-                   destination,
-                   libs=None,
-                   options=None):
+def popen_test_rpc(host, port, key, destination, libs=None, options=None):
     """Launch rpc server via xcodebuild test through another process.
 
     Parameters
@@ -255,8 +242,10 @@ def popen_test_rpc(host,
         rpc_root = os.path.join(curr_path, "../../../apps/ios_rpc")
     proj_path = os.path.realpath(os.path.join(rpc_root, "tvmrpc.xcodeproj"))
     if not os.path.exists(proj_path):
-        raise RuntimeError("Cannot find tvmrpc.xcodeproj in %s," +
-                           (" please set env TVM_IOS_RPC_ROOT correctly" % rpc_root))
+        raise RuntimeError(
+            "Cannot find tvmrpc.xcodeproj in %s,"
+            + (" please set env TVM_IOS_RPC_ROOT correctly" % rpc_root)
+        )
 
     # Lock the path so only one file can run
     lock = util.filelock(os.path.join(rpc_root, "ios_rpc.lock"))
@@ -267,10 +256,16 @@ def popen_test_rpc(host,
         for file_name in libs:
             fo.write("%s\n" % file_name)
 
-    cmd = ["xcrun", "xcodebuild",
-           "-scheme", "tvmrpc",
-           "-project", proj_path,
-           "-destination", destination]
+    cmd = [
+        "xcrun",
+        "xcodebuild",
+        "-scheme",
+        "tvmrpc",
+        "-project",
+        proj_path,
+        "-destination",
+        destination,
+    ]
     if options:
         cmd += options
     cmd += ["test"]

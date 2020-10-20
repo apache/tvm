@@ -31,8 +31,8 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/data_layout.h>
 
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {
@@ -62,13 +62,13 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {
-    size_t axis = param->kernel_layout.find('O');
+    size_t axis = param->kernel_layout.operator std::string().find('O');
     CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
     AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
   } else {
     // Here, total number of output channels depend on depth multiplier.
-    size_t o_axis = param->kernel_layout.find('O');
-    size_t i_axis = param->kernel_layout.find('I');
+    size_t o_axis = param->kernel_layout.operator std::string().find('O');
+    size_t i_axis = param->kernel_layout.operator std::string().find('I');
     CHECK(o_axis != std::string::npos || i_axis != std::string::npos)
         << "Kernel layout attribute is not defined";
     AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
@@ -258,7 +258,7 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
   // We can reduce the H and W axis by using avg_pool2d. However, avg_pool2d averages the sum.
   // Since, this is integer division (floor), we can first multiply the data by the pool_size and
   // then perform avg_pool2d. Reversing this causes inaccuracy due to floor division. If the
-  // pool_size is 1x1, we don't need avg_pool2d.
+  // pool_size and strides are 1x1, we don't need avg_pool2d.
   auto reduced_t2 = casted_t2;
   if (kernel_h * kernel_w != 1) {
     auto scaled_hw_t2 =
@@ -268,6 +268,16 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
         AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, padding, param->data_layout,
                   false,   // ceil_mode
                   false);  // count_include_pad
+  } else {
+    int stride1 = get_const_int(param->strides[0]);
+    int stride2 = get_const_int(param->strides[1]);
+    if (stride1 * stride2 != 1) {
+      Array<IndexExpr> padding({0, 0});
+      reduced_t2 =
+          AvgPool2D(reduced_t2, param->kernel_size, param->strides, padding, param->data_layout,
+                    false,   // ceil_mode
+                    false);  // count_include_pad
+    }
   }
 
   auto multiplied_t2 = reduced_t2;
@@ -414,7 +424,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
   // Keep dims true to retain 4D tensor
   auto reduced_c_t2 = Sum(casted_t2, axes_t2, true, false);
 
-  // If the pool_size is 1x1, we don't need avg_pool2d.
+  // If the pool_size and strides are 1x1, we don't need avg_pool2d.
   auto reduced_t2 = reduced_c_t2;
   if (kernel_h * kernel_w != 1) {
     reduced_c_t2 =
@@ -423,6 +433,15 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
         AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
                   false,   // ceil_mode
                   false);  // count_include_pad
+  } else {
+    int stride1 = get_const_int(param->strides[0]);
+    int stride2 = get_const_int(param->strides[1]);
+    if (stride1 * stride2 != 1) {
+      reduced_t2 =
+          AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
+                    false,   // ceil_mode
+                    false);  // count_include_pad
+    }
   }
 
   auto multiplied_t2 = reduced_t2;

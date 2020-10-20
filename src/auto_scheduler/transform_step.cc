@@ -309,7 +309,7 @@ Iterator AnnotationStepNode::ApplyToState(State* state) const {
   Iterator it = stage->iters[iter_id];
 
   CHECK(it->annotation == IteratorAnnotation::kNone);
-  Iterator new_it = Iterator(it->name, it->range, it->iter_kind, annotation);
+  Iterator new_it = Iterator(it->name, it->range, it->iter_kind, annotation, &it->orig_iters);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters.Set(iter_id, new_it);
   state->CopyOnWrite()->stages.Set(stage_id, std::move(new_stage));
@@ -356,8 +356,9 @@ String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
   const auto& iter = (*stage_to_axes)[stage][iter_id];
+  const auto& op_name = CleanName(stage->op->name);
 
-  ss << "s[" << CleanName(stage->op->name) << "].";
+  ss << "s[" << op_name << "].";
   switch (annotation) {
     case IteratorAnnotation::kUnroll:
       ss << "unroll(";
@@ -383,7 +384,7 @@ String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
       LOG(FATAL) << "Invalid annotation " << static_cast<int>(annotation);
       break;
   }
-  ss << CleanName(iter->var->name_hint);
+  ss << CleanName(iter->var->name_hint, op_name);
   switch (annotation) {
     case IteratorAnnotation::kVThread:
     case IteratorAnnotation::kBlockX:
@@ -392,7 +393,7 @@ String AnnotationStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
     case IteratorAnnotation::kThreadX:
     case IteratorAnnotation::kThreadY:
     case IteratorAnnotation::kThreadZ:
-      ss << ", tvm.thread_axis(\"" << IteratorAnnotationString[static_cast<int>(annotation)]
+      ss << ", te.thread_axis(\"" << IteratorAnnotationString[static_cast<int>(annotation)]
          << "\")";
       break;
     default:
@@ -441,6 +442,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
   String new_name;
   PrimExpr new_extent = 1;
   IteratorKind new_iter_kind = IteratorKind::kSpecial;
+  std::vector<Iterator> orig_iters;
 
   for (size_t i = 0; i < fused_ids.size(); ++i) {
     if (i > 0) {
@@ -458,6 +460,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
     }
 
     const Iterator& it = stage->iters[fused_ids[i]];
+    orig_iters.push_back(it);
     new_name = new_name + it->name + "@";
 
     if (it->range.defined() && new_extent.defined()) {
@@ -479,7 +482,8 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
   if (new_extent.defined()) {
     range = Range::FromMinExtent(0, new_extent);
   }
-  Iterator new_it = Iterator(new_name, range, new_iter_kind, IteratorAnnotation::kNone);
+  Iterator new_it =
+      Iterator(new_name, range, new_iter_kind, IteratorAnnotation::kNone, &orig_iters);
   Array<Iterator> new_iters;
   new_iters.insert(new_iters.end(), stage->iters.begin(), stage->iters.begin() + fused_ids.front());
   new_iters.push_back(new_it);
@@ -538,10 +542,11 @@ IterVar FuseStepNode::ApplyToSchedule(Array<te::Stage>* stages,
 String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const {
   const auto& stage = (*stages)[stage_id];
+  const auto& op_name = CleanName(stage->op->name);
   std::stringstream to_fuse;
 
   for (size_t i = 0; i < fused_ids.size(); ++i) {
-    to_fuse << CleanName(stage_to_axes->at(stage)[fused_ids[i]]->var->name_hint);
+    to_fuse << CleanName(stage_to_axes->at(stage)[fused_ids[i]]->var->name_hint, op_name);
     if (i != fused_ids.size() - 1) {
       to_fuse << ", ";
     }
@@ -550,7 +555,7 @@ String FuseStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   std::stringstream ss;
   const auto& fused = ApplyToSchedule(stages, stage_to_axes);
 
-  ss << CleanName(fused->var->name_hint) << " = s[" << CleanName(stage->op->name) << "].fuse("
+  ss << CleanName(fused->var->name_hint, op_name) << " = s[" << op_name << "].fuse("
      << to_fuse.str() << ")\n";
 
   return ss.str();
@@ -637,6 +642,7 @@ String PragmaStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                         StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
+  const auto& op_name = CleanName(stage->op->name);
 
   if (StrStartsWith(pragma_type, "auto_unroll_max_step")) {
     size_t pos = 0;
@@ -647,16 +653,16 @@ String PragmaStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
     }
     CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
     int value = atoi(pragma_type.c_str() + pos + 1);
-    ss << "s[" << CleanName(stage->op->name) << "].pragma("
-       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint)
+    ss << "s[" << op_name << "].pragma("
+       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint, op_name)
        << ", \"auto_unroll_max_step\", " << value << ")\n";
-    ss << "s[" << CleanName(stage->op->name) << "].pragma("
-       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint)
+    ss << "s[" << op_name << "].pragma("
+       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint, op_name)
        << ", \"unroll_explicit\", True)\n";
   } else {
-    ss << "s[" << CleanName(stage->op->name) << "].pragma("
-       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", \"" << pragma_type
-       << "\")\n";
+    ss << "s[" << op_name << "].pragma("
+       << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint, op_name) << ", \""
+       << pragma_type << "\")\n";
   }
 
   ApplyToSchedule(stages, stage_to_axes);
@@ -723,11 +729,12 @@ void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
 String ReorderStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                          StageToAxesMap* stage_to_axes) const {
   const auto& stage = (*stages)[stage_id];
+  const auto& op_name = CleanName(stage->op->name);
   std::stringstream ss;
 
-  ss << "s[" << CleanName(stage->op->name) << "].reorder(";
+  ss << "s[" << op_name << "].reorder(";
   for (size_t i = 0; i < after_ids.size(); ++i) {
-    ss << CleanName((*stage_to_axes)[stage][after_ids[i]]->var->name_hint);
+    ss << CleanName((*stage_to_axes)[stage][after_ids[i]]->var->name_hint, op_name);
     if (i != after_ids.size() - 1) {
       ss << ", ";
     }
@@ -777,7 +784,9 @@ Array<Iterator> ApplySplitToState(State* state, int stage_id, int iter_id,
       res = Iterator(name, Range(), it->iter_kind, IteratorAnnotation::kNone);
       tosplit_min = NullOpt;
       tosplit_extent = NullOpt;
-      concrete = false;
+      if (!l.defined()) {
+        concrete = false;
+      }
     }
     outs.push_back(std::move(res));
   }
@@ -876,16 +885,17 @@ String PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_
   int size = static_cast<int>(lengths.size());
   if (inner_to_outer) {
     for (int i = size - 1; i >= 0; i--) {
-      ss << CleanName(outs[size - i]->var->name_hint) << ", "
-         << CleanName(outs[size - i - 1]->var->name_hint) << " = s[" << func_name << "].split("
-         << CleanName(to_split->var->name_hint) << ", factor=" << lengths[i] << ")\n";
+      ss << CleanName(outs[size - i]->var->name_hint, func_name) << ", "
+         << CleanName(outs[size - i - 1]->var->name_hint, func_name) << " = s[" << func_name
+         << "].split(" << CleanName(to_split->var->name_hint, func_name)
+         << ", factor=" << lengths[i] << ")\n";
       to_split = outs[size - i];
     }
   } else {
     for (int i = 0; i < size; i++) {
-      ss << CleanName(outs[i]->var->name_hint) << ", " << CleanName(outs[i + 1]->var->name_hint)
-         << " = s[" << func_name << "].split(" << CleanName(to_split->var->name_hint)
-         << ", nparts=" << lengths[i] << ")\n";
+      ss << CleanName(outs[i]->var->name_hint, func_name) << ", "
+         << CleanName(outs[i + 1]->var->name_hint, func_name) << " = s[" << func_name << "].split("
+         << CleanName(to_split->var->name_hint, func_name) << ", nparts=" << lengths[i] << ")\n";
       to_split = outs[i + 1];
     }
   }
@@ -897,7 +907,7 @@ SplitStep::SplitStep(int stage_id, int iter_id, Optional<PrimExpr> extent,
                      const Array<Optional<Integer>>& lengths, bool inner_to_outer) {
   auto node = make_object<SplitStepNode>();
   node->stage_id = stage_id;
-  // Extent can be a unreducible expression in some special cases
+  // Extent can be a irreducible expression in some special cases
   if (extent && extent.value()->IsInstance<IntImmNode>()) {
     node->extent = tvm::Downcast<Integer>(extent.value());
   }
@@ -1190,9 +1200,10 @@ String StorageAlignStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
                                               StageToAxesMap* stage_to_axes) const {
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
-  ss << "s[" << CleanName(stage->op->name) << "].storage_align("
-     << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint) << ", " << factor << ", "
-     << offset << ")\n";
+  const auto& op_name = CleanName(stage->op->name);
+  ss << "s[" << op_name << "].storage_align("
+     << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint, op_name) << ", " << factor
+     << ", " << offset << ")\n";
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
@@ -1238,7 +1249,8 @@ void ComputeAtStepNode::ApplyToState(State* state) const {
   // compute at
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
+    new_iters.push_back(
+        Iterator(it->name, Range(), it->iter_kind, it->annotation, &it->orig_iters));
   }
 
   StateNode* pstate = state->CopyOnWrite();
@@ -1263,8 +1275,11 @@ String ComputeAtStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
   const auto& target_stage = (*stages)[target_stage_id];
-  ss << "s[" << CleanName(stage->op->name) << "].compute_at(s[" << CleanName(target_stage->op->name)
-     << "], " << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint) << ")\n";
+  const auto& op_name = CleanName(stage->op->name);
+  const auto& target_op_name = CleanName(target_stage->op->name);
+  ss << "s[" << op_name << "].compute_at(s[" << target_op_name << "], "
+     << CleanName((*stage_to_axes)[target_stage][target_iter_id]->var->name_hint, target_op_name)
+     << ")\n";
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
 }
@@ -1354,7 +1369,8 @@ void ComputeRootStepNode::ApplyToState(State* state) const {
   // compute root
   Array<Iterator> new_iters;
   for (const Iterator& it : stage->iters) {
-    new_iters.push_back(Iterator(it->name, Range(), it->iter_kind, it->annotation));
+    new_iters.push_back(
+        Iterator(it->name, Range(), it->iter_kind, it->annotation, &it->orig_iters));
   }
 
   StateNode* pstate = state->CopyOnWrite();
@@ -1509,7 +1525,8 @@ String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxes
   }
   auto out = ApplyToSchedule(stages, stage_to_axes, schedule);
 
-  ss << CleanName(out->op->name) << " = "
+  const auto& op_name = CleanName(out->op->name);
+  ss << op_name << " = "
      << "s.cache_read(" << CleanName(stage->op->name) << ", \"" << scope_name << "\", ["
      << CleanName(reader_stages[0]->op->name);
   for (size_t i = 1; i < reader_stage_ids.size(); ++i) {
@@ -1520,13 +1537,13 @@ String CacheReadStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxes
   // Print the iterators of the new added stage
   const auto& iters = out->op->root_iter_vars();
   for (size_t i = 0; i < iters.size(); ++i) {
-    ss << CleanName(iters[i]->var->name_hint);
+    ss << CleanName(iters[i]->var->name_hint, op_name);
     if (i != iters.size() - 1) {
       ss << ", ";
     }
   }
   ss << " = "
-     << "tuple(" << CleanName(out->op->name) << ".op.axis)\n";
+     << "tuple(" << op_name << ".op.axis)\n";
 
   return ss.str();
 }
@@ -1645,16 +1662,17 @@ String CacheWriteStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxe
   // Print the iterators of the new added stage
   for (const auto& out : outs) {
     const auto& iters = out->op->root_iter_vars();
+    const auto& op_name = CleanName(out->op->name);
     for (size_t i = 0; i < iters.size(); ++i) {
-      ss << CleanName(iters[i]->var->name_hint);
+      ss << CleanName(iters[i]->var->name_hint, op_name);
       if (i != iters.size() - 1) {
         ss << ", ";
       }
     }
     ss << " = "
-       << "tuple(" << CleanName(out->op->name) << ".op.axis)"
+       << "tuple(" << op_name << ".op.axis)"
        << " + "
-       << "tuple(" << CleanName(out->op->name) << ".op.reduce_axis)\n";
+       << "tuple(" << op_name << ".op.reduce_axis)\n";
   }
 
   return ss.str();
@@ -1757,30 +1775,32 @@ String RfactorStepNode::PrintAsPythonAPI(Array<te::Stage>* stages, StageToAxesMa
 
   for (const auto& out : outs) {
     const auto& iters = out->op->root_iter_vars();
+    const auto& op_name = CleanName(out->op->name);
     for (size_t i = 0; i < iters.size(); ++i) {
-      ss << CleanName(iters[i]->var->name_hint);
+      ss << CleanName(iters[i]->var->name_hint, op_name);
       if (i != iters.size() - 1) {
         ss << ", ";
       }
     }
     ss << " = "
-       << "tuple(" << CleanName(out->op->name) << ".op.axis)"
+       << "tuple(" << op_name << ".op.axis)"
        << " + "
-       << "tuple(" << CleanName(out->op->name) << ".op.reduce_axis)\n";
+       << "tuple(" << op_name << ".op.reduce_axis)\n";
   }
 
   const auto& output = (*stages)[stage_id + 1]->op.output(0);
   const auto& iters = output->op->root_iter_vars();
+  const auto& op_name = CleanName(output->op->name);
   for (size_t i = 0; i < iters.size(); ++i) {
-    ss << CleanName(iters[i]->var->name_hint);
+    ss << CleanName(iters[i]->var->name_hint, op_name);
     if (i != iters.size() - 1) {
       ss << ", ";
     }
   }
   ss << " = "
-     << "tuple(s[" << CleanName(output->op->name) << "].op.axis)"
+     << "tuple(s[" << op_name << "].op.axis)"
      << " + "
-     << "tuple(s[" << CleanName(output->op->name) << "].op.reduce_axis)\n";
+     << "tuple(s[" << op_name << "].op.reduce_axis)\n";
 
   return ss.str();
 }

@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument, not-context-manager
+# pylint: disable=unused-argument, not-context-manager
 """Automatic convert model from dense to block sparse"""
 
 from tvm import relay
 from tvm.relay.analysis.sparse_dense import process_params
 
 from .utils import _run_opt_pass
+
 
 def convert(func, params, blocksize, sparsity_threshold):
     """Convert a dense func and according parameters to block sparse
@@ -48,10 +49,6 @@ def convert(func, params, blocksize, sparsity_threshold):
     """
     weight_info = process_params(func, params, blocksize, sparsity_threshold)
     new_func = _run_opt_pass(
-        func,
-        relay.transform.DenseToSparse(
-            weight_info.weight_name,
-            weight_info.weight_shape
-        )
+        func, relay.transform.DenseToSparse(weight_info.weight_name, weight_info.weight_shape)
     )
     return new_func, params

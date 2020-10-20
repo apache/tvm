@@ -28,11 +28,13 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
 
-def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
+def verify_conv2d_1x1_nhwc_pack_int8(
+    batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1
+):
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='uint8')
-    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W', dtype='int8')
+    A = te.placeholder((batch, in_height, in_width, in_channel), name="A", dtype="uint8")
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W", dtype="int8")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -51,13 +53,13 @@ def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, ker
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
-        with tvm.target.create(device):
-            B = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NHWC', out_dtype="int32")
+        with tvm.target.Target(device):
+            B = topi.nn.conv2d(A, W, stride, padding, dilation, layout="NHWC", out_dtype="int32")
             s = topi.x86.schedule_conv2d_nhwc_pack_int8([B])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
@@ -67,7 +69,7 @@ def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, ker
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     # for device in ['llvm -mcpu=skylake-avx512']:
-    for device in ['llvm']:
+    for device in ["llvm"]:
         check_device(device)
 
 

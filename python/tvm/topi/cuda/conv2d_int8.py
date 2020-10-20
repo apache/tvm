@@ -29,17 +29,19 @@ from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 
 
-def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype='int32'):
+def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype="int32"):
     """Compute conv2d internally using conv2d_nchwc layout for int8 dtype"""
-    assert data.dtype in ('int8', 'uint8')
-    assert kernel.dtype in ('int8', 'uint8')
+    assert data.dtype in ("int8", "uint8")
+    assert kernel.dtype in ("int8", "uint8")
     assert data.dtype == kernel.dtype
     packed_out = conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, "NCHW", out_dtype)
     return unpack_NCHWc_to_nchw(packed_out, out_dtype)
 
+
 def schedule_conv2d_nchw_int8(outs):
     """Create schedule for tensors"""
     return schedule_conv2d_NCHWc_int8(outs)
+
 
 @autotvm.register_topi_compute("conv2d_NCHWc_int8.cuda")
 def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_dtype):
@@ -86,35 +88,42 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
     pre_computed = len(kernel.shape) == 6
     if not pre_computed:
         batch, channels, height, width = get_const_tuple(data.shape)
-        assert channels % ic_block_factor == 0, \
-            "Number of input channels should be multiple of {}".format(
-                ic_block_factor)
-        packed_data = te.compute((batch, channels // ic_block_factor, height, width,
-                                  ic_block_factor),
-                                 lambda n, c, h, w, vc: data[n, c*ic_block_factor + vc, h, w],
-                                 name="packed_data")
+        assert (
+            channels % ic_block_factor == 0
+        ), "Number of input channels should be multiple of {}".format(ic_block_factor)
+        packed_data = te.compute(
+            (batch, channels // ic_block_factor, height, width, ic_block_factor),
+            lambda n, c, h, w, vc: data[n, c * ic_block_factor + vc, h, w],
+            name="packed_data",
+        )
 
-        out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(
-            kernel.shape)
-        assert out_channels % 4 == 0, \
-            "Number of output channels should be multiple of {}".format(
-                oc_block_factor)
+        out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
+        assert out_channels % 4 == 0, "Number of output channels should be multiple of {}".format(
+            oc_block_factor
+        )
         packed_kernel = te.compute(
-            (out_channels // oc_block_factor, in_channels // ic_block_factor, kernel_h, kernel_w,
-             oc_block_factor, ic_block_factor),
-            lambda oc_chunk, ic_chunk, kh, kw, oc_block, ic_block:
-            kernel[oc_chunk * oc_block_factor + oc_block,
-                   ic_chunk * ic_block_factor + ic_block, kh, kw],
-            name="packed_kernel")
+            (
+                out_channels // oc_block_factor,
+                in_channels // ic_block_factor,
+                kernel_h,
+                kernel_w,
+                oc_block_factor,
+                ic_block_factor,
+            ),
+            lambda oc_chunk, ic_chunk, kh, kw, oc_block, ic_block: kernel[
+                oc_chunk * oc_block_factor + oc_block, ic_chunk * ic_block_factor + ic_block, kh, kw
+            ],
+            name="packed_kernel",
+        )
 
     else:
         packed_data = data
         packed_kernel = kernel
 
-    batch, ic_chunk, in_height, in_width, ic_block = get_const_tuple(
-        packed_data.shape)
+    batch, ic_chunk, in_height, in_width, ic_block = get_const_tuple(packed_data.shape)
     oc_chunk, ic_chunk, kernel_h, kernel_w, oc_block, ic_block = get_const_tuple(
-        packed_kernel.shape)
+        packed_kernel.shape
+    )
 
     if isinstance(stride, int):
         stride_h = stride_w = stride
@@ -126,8 +135,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
     else:
         dilation_h, dilation_w = dilation
 
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (kernel_h, kernel_w))
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
     # compute graph
     pad_before = [0, 0, pad_top, pad_left, 0]
     pad_after = [0, 0, pad_down, pad_right, 0]
@@ -139,33 +147,47 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
 
     oshape = (batch, oc_chunk, out_height, out_width, oc_block)
 
-    icc = te.reduce_axis((0, ic_chunk), name='ic_chunk')
-    icb = te.reduce_axis((0, ic_block), name='ic_block')
-    kh = te.reduce_axis((0, kernel_h), name='kh')
-    kw = te.reduce_axis((0, kernel_w), name='kw')
+    icc = te.reduce_axis((0, ic_chunk), name="ic_chunk")
+    icb = te.reduce_axis((0, ic_block), name="ic_block")
+    kh = te.reduce_axis((0, kernel_h), name="kh")
+    kw = te.reduce_axis((0, kernel_w), name="kw")
 
-    conv = te.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                      te.sum(pad_data[n, icc, oh*stride_h+kh*dilation_h, \
-                                      ow*stride_w+kw*dilation_w, icb]
-                             .astype('int32') *
-                             packed_kernel[oc_chunk, icc,
-                                           kh, kw, oc_block, icb]
-                             .astype('int32'),
-                             axis=[icc, kh, kw, icb]))
+    conv = te.compute(
+        oshape,
+        lambda n, oc_chunk, oh, ow, oc_block: te.sum(
+            pad_data[
+                n, icc, oh * stride_h + kh * dilation_h, ow * stride_w + kw * dilation_w, icb
+            ].astype("int32")
+            * packed_kernel[oc_chunk, icc, kh, kw, oc_block, icb].astype("int32"),
+            axis=[icc, kh, kw, icb],
+        ),
+    )
 
-    output = te.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                        conv[n, oc_chunk, oh, ow, oc_block].astype(out_dtype),
-                        tag="conv2d_NCHWc_int8")
+    output = te.compute(
+        oshape,
+        lambda n, oc_chunk, oh, ow, oc_block: conv[n, oc_chunk, oh, ow, oc_block].astype(out_dtype),
+        tag="conv2d_NCHWc_int8",
+    )
 
     # num flop
-    num_flop = batch * oc_chunk * oc_block * out_height * out_width * \
-        ic_chunk * ic_block * kernel_h * kernel_w * 2
+    num_flop = (
+        batch
+        * oc_chunk
+        * oc_block
+        * out_height
+        * out_width
+        * ic_chunk
+        * ic_block
+        * kernel_h
+        * kernel_w
+        * 2
+    )
     cfg.add_flop(num_flop)
 
     return output
 
 
-_dp4a = dp4a('shared', 'shared', 'local')
+_dp4a = dp4a("shared", "shared", "local")
 
 
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.cuda")
@@ -175,7 +197,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == 'conv2d_NCHWc_int8':
+        if op.tag == "conv2d_NCHWc_int8":
             _schedule_conv2d_NCHWc_int8(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
@@ -198,8 +220,7 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
         s[packed_data].pragma(s[packed_data].op.axis[0], "debug_skip_region")
         s[packed_kernel].pragma(s[packed_kernel].op.axis[0], "debug_skip_region")
     else:
-        if isinstance(packed_kernel.op, tvm.te.ComputeOp) and\
-                packed_kernel.name == 'packed_kernel':
+        if isinstance(packed_kernel.op, tvm.te.ComputeOp) and packed_kernel.name == "packed_kernel":
             # data and kernel are not pre-computed, schedule layout transform here
             schedule_injective_from_existing(s, packed_data)
             schedule_injective_from_existing(s, packed_kernel)
@@ -208,10 +229,10 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
         s[pad_data].compute_inline()
 
     # create cache stage
-    AA = s.cache_read(pad_data, 'shared', [conv])
-    WW = s.cache_read(packed_kernel, 'shared', [conv])
+    AA = s.cache_read(pad_data, "shared", [conv])
+    WW = s.cache_read(packed_kernel, "shared", [conv])
 
-    s[conv].set_scope('local')
+    s[conv].set_scope("local")
 
     # handle bias
     if output.op not in s.outputs:
@@ -248,7 +269,7 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
     s[output].bind(vy, te.thread_axis("vthread"))
     s[output].bind(vx, te.thread_axis("vthread"))
 
-    cfg.define_knob("fuse_yx", [0, 1]) # fuse ty,tx or tn,tf
+    cfg.define_knob("fuse_yx", [0, 1])  # fuse ty,tx or tn,tf
     if cfg["fuse_yx"].val:
         s[output].bind(tn, te.thread_axis("threadIdx.z"))
         s[output].bind(tf, te.thread_axis("threadIdx.y"))
@@ -278,9 +299,9 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
     cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=2)
     cfg.define_split("tile_ry", cfg.axis(ry), num_outputs=2)
     cfg.define_split("tile_rx", cfg.axis(rx), num_outputs=2)
-    rco, rci = cfg['tile_rc'].apply(s, conv, rc)
-    ryo, ryi = cfg['tile_ry'].apply(s, conv, ry)
-    rxo, rxi = cfg['tile_rx'].apply(s, conv, rx)
+    rco, rci = cfg["tile_rc"].apply(s, conv, rc)
+    ryo, ryi = cfg["tile_ry"].apply(s, conv, ry)
+    rxo, rxi = cfg["tile_rx"].apply(s, conv, rx)
 
     s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x, c, rc_block)
 
@@ -311,17 +332,16 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
         s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # double buffer
-    cfg.define_knob('AA_double_buffer', [0, 1])
-    cfg.define_knob('WW_double_buffer', [0, 1])
-    if cfg['AA_double_buffer'].val:
+    cfg.define_knob("AA_double_buffer", [0, 1])
+    cfg.define_knob("WW_double_buffer", [0, 1])
+    if cfg["AA_double_buffer"].val:
         s[AA].double_buffer()
-    if cfg['WW_double_buffer'].val:
+    if cfg["WW_double_buffer"].val:
         s[WW].double_buffer()
 
     # unroll
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
-    s[output].pragma(kernel_scope, 'auto_unroll_max_step',
-                     cfg['auto_unroll_max_step'].val)
-    s[output].pragma(kernel_scope, 'unroll_explicit', False)
+    s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+    s[output].pragma(kernel_scope, "unroll_explicit", False)
 
     return s

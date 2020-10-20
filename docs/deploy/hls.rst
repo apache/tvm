@@ -45,7 +45,7 @@ We use two python scripts for this tutorial.
       s = te.create_schedule(C.op)
       px, x = s[C].split(C.op.axis[0], nparts=1)
 
-      s[C].bind(px, tvm.thread_axis("pipeline"))
+      s[C].bind(px, tvm.te.thread_axis("pipeline"))
 
       fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 

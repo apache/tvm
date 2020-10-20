@@ -17,46 +17,48 @@
 import json
 import os
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util
 from tvm.contrib.debugger import debug_runtime as graph_runtime
 
+
+@tvm.testing.requires_llvm
 def test_graph_simple():
     n = 4
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
-    node1 = {"op": "tvm_op", "name": "add",
-             "inputs": [[0, 0, 0]],
-             "attrs": {"func_name": "myadd",
-                       "flatten_data": "1",
-                       "num_inputs" : "1",
-                    "num_outputs" : "1"}}
+    node1 = {
+        "op": "tvm_op",
+        "name": "add",
+        "inputs": [[0, 0, 0]],
+        "attrs": {"func_name": "myadd", "flatten_data": "1", "num_inputs": "1", "num_outputs": "1"},
+    }
     nodes = [node0, node1]
     arg_nodes = [0]
     node_row_ptr = [0, 1, 2]
     outputs = [[1, 0, 0]]
     shape = (4,)
     attrs = {
-        "shape" : ["list_shape", [shape, shape]],
-        "dltype" : ["list_str", ["float32", "float32"]],
-        "storage_id" : ["list_int", [0, 1]],
+        "shape": ["list_shape", [shape, shape]],
+        "dltype": ["list_str", ["float32", "float32"]],
+        "storage_id": ["list_int", [0, 1]],
     }
-    graph = {"nodes": nodes,
-             "arg_nodes": arg_nodes,
-             "node_row_ptr": node_row_ptr,
-             "heads": outputs,
-             "attrs": attrs}
+    graph = {
+        "nodes": nodes,
+        "arg_nodes": arg_nodes,
+        "node_row_ptr": node_row_ptr,
+        "heads": outputs,
+        "attrs": attrs,
+    }
     graph = json.dumps(graph)
 
     def check_verify():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         try:
             mod = graph_runtime.create(graph, mlib, tvm.cpu(0))
@@ -66,17 +68,17 @@ def test_graph_simple():
         a = np.random.uniform(size=(n,)).astype(A.dtype)
         mod.set_input(x=a)
 
-        #verify dumproot created
+        # verify dumproot created
         directory = mod._dump_path
-        assert(os.path.exists(directory))
+        assert os.path.exists(directory)
 
-        #verify graph is there
-        GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
-        assert(len(os.listdir(directory)) == 1)
+        # verify graph is there
+        GRAPH_DUMP_FILE_NAME = "_tvmdbg_graph_dump.json"
+        assert len(os.listdir(directory)) == 1
 
-        #verify the file name is proper
+        # verify the file name is proper
         graph_dump_path = os.path.join(directory, GRAPH_DUMP_FILE_NAME)
-        assert(os.path.exists(graph_dump_path))
+        assert os.path.exists(graph_dump_path)
 
         # verify the graph contains some expected keys
         with open(graph_dump_path) as graph_f:
@@ -87,37 +89,34 @@ def test_graph_simple():
             assert k in dumped_graph, f"key {k} not in dumped graph {graph!r}"
 
         mod.run()
-        #Verify the tensors are dumped
-        assert(len(os.listdir(directory)) > 1)
+        # Verify the tensors are dumped
+        assert len(os.listdir(directory)) > 1
 
-        CHROME_TRACE_FILE_NAME = '_tvmdbg_execution_trace.json'
-        assert(os.path.exists(os.path.join(directory, CHROME_TRACE_FILE_NAME)))
+        CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
+        assert os.path.exists(os.path.join(directory, CHROME_TRACE_FILE_NAME))
 
         with open(os.path.join(directory, CHROME_TRACE_FILE_NAME)) as f:
             trace = json.load(f)
         assert trace["displayTimeUnit"] == "ns"
         events = trace["traceEvents"]
         assert len(events) == 4
-        assert all(event["ph"] in ('B', 'E') for event in events)
+        assert all(event["ph"] in ("B", "E") for event in events)
         assert all(event["pid"] == 1 for event in events)
         assert all(event["tid"] == 1 for event in events)
-        assert all(event["name"] == 'x' for event in events[:2])
-        assert all(event["name"] == 'add' for event in events[2:])
+        assert all(event["name"] == "x" for event in events[:2])
+        assert all(event["name"] == "add" for event in events[2:])
         assert events[0]["ts"] == 0
-        assert events[0]["ph"] == 'B'
+        assert events[0]["ph"] == "B"
 
-        #verify the output is correct
+        # verify the output is correct
         out = mod.get_output(0, tvm.nd.empty((n,)))
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
         mod.exit()
-        #verify dump root delete after cleanup
-        assert(not os.path.exists(directory))
+        # verify dump root delete after cleanup
+        assert not os.path.exists(directory)
 
     def check_remote():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled")
-            return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
@@ -140,6 +139,7 @@ def test_graph_simple():
 
     check_verify()
     check_remote()
+
 
 if __name__ == "__main__":
     test_graph_simple()

@@ -64,7 +64,7 @@ uint32_t GetSpinCount() {
 constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
 
 /*!
- * \brief Thread local master environment.
+ * \brief Thread local main environment.
  */
 class ParallelLauncher {
  public:
@@ -293,12 +293,12 @@ class ThreadPool {
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    // if worker0 is taken by the master, queues_[0] is abandoned
+    // if worker0 is taken by the main, queues_[0] is abandoned
     for (int i = exclude_worker0_; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
-    // use the master thread to run task 0
+    // use the main thread to run task 0
     if (exclude_worker0_) {
       TVMParallelGroupEnv* penv = &(tsk.launcher->env);
       if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
@@ -346,7 +346,7 @@ class ThreadPool {
   int num_workers_;
   // number of workers used (can be restricted with affinity pref)
   int num_workers_used_;
-  // if or not to exclude worker 0 and use master to run task 0
+  // if or not to exclude worker 0 and use main to run task 0
   bool exclude_worker0_{true};
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;

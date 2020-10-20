@@ -146,7 +146,8 @@ def @foldr1[A](%f: fn(A, A) -> A, %xs: List[A]) -> A {
 /*
  * Computes the sum of a list of integer scalars.
  */
-def @sum(%xs: List[Tensor[(), int32]]) {
+ // (@jroesch): if we leave off the return type this doesn't work
+def @sum(%xs: List[Tensor[(), int32]]) -> int32 {
   let %add_f = fn(%x: Tensor[(), int32], %y: Tensor[(), int32]) -> Tensor[(), int32] {
     %x + %y
   };
@@ -193,7 +194,7 @@ def @zip[A, B](%xs: List[A], %ys: List[B]) -> List[(A, B)] {
  * Reverses a list.
  */
 def @rev[A](%xs: List[A]) -> List[A] {
-  @foldl(@flip(Cons), Nil, %xs)
+  @foldl(@flip(fn (%h: A, %t: List[A]) { Cons(%h, %t) }), Nil, %xs)
 }
 
 /*

@@ -25,10 +25,10 @@ import numpy as np
 from .. import record
 from ..util import format_si_prefix
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
 
 
-def log_to_file(file_out, protocol='json'):
+def log_to_file(file_out, protocol="json"):
     """Log the tuning records into file.
     The rows of the log are stored in the format of autotvm.record.encode.
 
@@ -44,6 +44,7 @@ def log_to_file(file_out, protocol='json'):
     callback : callable
         Callback function to do the logging.
     """
+
     def _callback(_, inputs, results):
         """Callback implementation"""
         if isinstance(file_out, str):
@@ -56,6 +57,7 @@ def log_to_file(file_out, protocol='json'):
 
     # pylint: disable=import-outside-toplevel
     from pathlib import Path
+
     if isinstance(file_out, Path):
         file_out = str(file_out)
 
@@ -70,15 +72,18 @@ def log_to_database(db):
     db: Database
         The database
     """
+
     def _callback(_, inputs, results):
         """Callback implementation"""
         for inp, result in zip(inputs, results):
             db.save(inp, result)
+
     return _callback
 
 
 class Monitor(object):
     """A monitor to collect statistic during tuning"""
+
     def __init__(self):
         self.scores = []
         self.timestamps = []
@@ -106,7 +111,7 @@ class Monitor(object):
         return np.array(self.timestamps)
 
 
-def progress_bar(total, prefix='', si_prefix='G'):
+def progress_bar(total, prefix="", si_prefix="G"):
     """Display progress bar for tuning
 
     Parameters
@@ -118,8 +123,10 @@ def progress_bar(total, prefix='', si_prefix='G'):
     si_prefix: str
         SI prefix for flops
     """
+
     class _Context(object):
         """Context to store local variables"""
+
         def __init__(self):
             self.best_flops = 0
             self.cur_flops = 0
@@ -128,7 +135,7 @@ def progress_bar(total, prefix='', si_prefix='G'):
 
         def __del__(self):
             if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
-                sys.stdout.write(' Done.\n')
+                sys.stdout.write(" Done.\n")
 
     ctx = _Context()
     tic = time.time()
@@ -137,8 +144,10 @@ def progress_bar(total, prefix='', si_prefix='G'):
     format_si_prefix(0, si_prefix)
 
     if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
-        sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
-                         '| %.2f s' % (prefix, 0, 0, 0, total, time.time() - tic))
+        sys.stdout.write(
+            "\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) "
+            "| %.2f s" % (prefix, 0, 0, 0, total, time.time() - tic)
+        )
         sys.stdout.flush()
 
     def _callback(tuner, inputs, results):
@@ -153,11 +162,19 @@ def progress_bar(total, prefix='', si_prefix='G'):
             ctx.cur_flops = flops
             ctx.best_flops = tuner.best_flops
 
-            sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f %sFLOPS | Progress: (%d/%d) '
-                             '| %.2f s' %
-                             (prefix, format_si_prefix(ctx.cur_flops, si_prefix),
-                              format_si_prefix(ctx.best_flops, si_prefix), si_prefix,
-                              ctx.ct, ctx.total, time.time() - tic))
+            sys.stdout.write(
+                "\r%s Current/Best: %7.2f/%7.2f %sFLOPS | Progress: (%d/%d) "
+                "| %.2f s"
+                % (
+                    prefix,
+                    format_si_prefix(ctx.cur_flops, si_prefix),
+                    format_si_prefix(ctx.best_flops, si_prefix),
+                    si_prefix,
+                    ctx.ct,
+                    ctx.total,
+                    time.time() - tic,
+                )
+            )
             sys.stdout.flush()
 
     return _callback

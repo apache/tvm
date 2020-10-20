@@ -23,3 +23,6 @@ edition = "2018"
 
 [dependencies]
 tvm-runtime = { path = "../../rust/runtime" }
+
+[build-dependencies]
+anyhow = "^1.0"

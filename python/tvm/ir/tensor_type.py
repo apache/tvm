@@ -36,9 +36,9 @@ class TensorType(Type):
     dtype : Optional[str]
         The content data type.
     """
+
     def __init__(self, shape, dtype="float32"):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TensorType, shape, dtype)
+        self.__init_handle_by_constructor__(_ffi_api.TensorType, shape, dtype)
 
     @property
     def concrete_shape(self):

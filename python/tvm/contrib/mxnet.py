@@ -51,6 +51,7 @@ def to_mxnet_func(func, const_loc=None):
     # only import mxnet when wrap get called.
     # pylint: disable=import-self, import-outside-toplevel
     import mxnet
+
     if isinstance(func, Module):
         func = func.entry_func
 
@@ -58,13 +59,14 @@ def to_mxnet_func(func, const_loc=None):
         """Get MXNet bridge function"""
         if not mxnet.base._LIB.MXTVMBridge:
             raise RuntimeError(
-                "MXTVMBridge not exist in mxnet package,"
-                " please update to latest version")
+                "MXTVMBridge not exist in mxnet package," " please update to latest version"
+            )
 
         fdict = tvm._ffi.registry.extract_ext_funcs(mxnet.base._LIB.MXTVMBridge)
         ret = fdict["WrapAsyncCall"]
         ret.is_global = True
         return ret
+
     global _wrap_async
 
     if _wrap_async is None:
@@ -73,5 +75,4 @@ def to_mxnet_func(func, const_loc=None):
         tvm._ffi.registry.register_extension(mxnet.nd.NDArray)
 
     const_loc = const_loc if const_loc else []
-    return _wrap_async(func, tvm.runtime._ffi_api.TVMSetStream,
-                       len(const_loc), *const_loc)
+    return _wrap_async(func, tvm.runtime._ffi_api.TVMSetStream, len(const_loc), *const_loc)

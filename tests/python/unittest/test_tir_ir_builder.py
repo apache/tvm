@@ -17,6 +17,8 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
+
 
 def test_for():
     ib = tvm.tir.ir_builder.create()
@@ -36,6 +38,7 @@ def test_for():
     body = body.body
     assert isinstance(body, tvm.tir.SeqStmt)
     assert isinstance(body[1], tvm.tir.For)
+
 
 def test_if():
     ib = tvm.tir.ir_builder.create()
@@ -57,6 +60,7 @@ def test_if():
     assert isinstance(body.then_case.index, tvm.tir.Var)
     assert body.else_case.index.value == 0
 
+
 def test_prefetch():
     A = tvm.tir.decl_buffer((10, 20), name="A")
     ib = tvm.tir.ir_builder.create()
@@ -64,17 +68,20 @@ def test_prefetch():
 
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
-            tvm.tir.Prefetch(A,
-                [tvm.ir.Range.from_min_extent(i+1, 2),
-                 tvm.ir.Range.from_min_extent(0, 20)]))
+            tvm.tir.Prefetch(
+                A, [tvm.ir.Range.from_min_extent(i + 1, 2), tvm.ir.Range.from_min_extent(0, 20)]
+            )
+        )
     body = ib.get()
     assert body.body.bounds[0].extent.value == 2
+
 
 def test_cpu():
     n = 1024
     dtype = "float32"
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 8
@@ -86,11 +93,18 @@ def test_cpu():
             Cptr[i] = Aptr[i] + Bptr[i]
         body = ib.get()
         return body
-    C = te.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
-                   name="vector_add", dtype=dtype)
+
+    C = te.extern(
+        A.shape,
+        [A, B],
+        lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+        name="vector_add",
+        dtype=dtype,
+    )
     s = te.create_schedule(C.op)
+
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
@@ -101,13 +115,16 @@ def test_cpu():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
     check_target("llvm")
 
+
+@tvm.testing.requires_gpu
 def test_gpu():
-    n = te.size_var('n')
+    n = te.size_var("n")
     dtype = "float32"
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
     idxd = tvm.tir.indexdiv
 
     def test_device_ir(A, B, C):
@@ -116,24 +133,31 @@ def test_gpu():
         ib = tvm.tir.ir_builder.create()
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))
+        ib.scope_attr(bx, "thread_extent", idxd(n + max_threads - 1, max_threads))
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
         Cptr = ib.buffer_ptr(C)
-        with ib.if_scope(ib.likely(idx<n)):
+        with ib.if_scope(ib.likely(idx < n)):
             Cptr[idx] = Aptr[idx] + Bptr[idx]
         body = ib.get()
         return body
-    C = te.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
-                   name="vector_add", dtype=dtype)
+
+    C = te.extern(
+        A.shape,
+        [A, B],
+        lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+        name="vector_add",
+        dtype=dtype,
+    )
     s = te.create_schedule(C.op)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+
     def check_target(target):
         n = 1024
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
@@ -144,8 +168,10 @@ def test_gpu():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
     check_target("opencl")
     check_target("cuda")
+
 
 if __name__ == "__main__":
     test_prefetch()

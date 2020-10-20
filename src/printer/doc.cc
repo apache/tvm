@@ -129,7 +129,7 @@ Doc Doc::Indent(int indent, Doc doc) {
 }
 
 Doc Doc::StrLiteral(const std::string& value, std::string quote) {
-  // TODO(M.K.): add escape.
+  // TODO(@M.K.): add escape.
   Doc doc;
   return doc << quote << value << quote;
 }

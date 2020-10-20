@@ -22,6 +22,7 @@
 #include <tvm/runtime/crt/memory.h>
 
 #include "crt_config.h"
+#include "platform.cc"
 
 #define ROUND_UP(qty, modulo) (((qty) + ((modulo)-1)) / (modulo) * (modulo))
 
@@ -117,10 +118,6 @@ TEST_F(MemoryManagerTest, Realloc) {
 
   mgr.Free(&mgr, g);
   EXPECT_EQ(vleak_size, 0);
-}
-
-extern "C" {
-void TVMPlatformAbort(int error_code) { FAIL() << "TVMPlatformAbort(" << error_code << ")"; }
 }
 
 int main(int argc, char** argv) {

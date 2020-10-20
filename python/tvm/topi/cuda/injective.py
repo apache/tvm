@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from .. import util
 
+
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -66,6 +67,7 @@ def schedule_injective_from_existing(sch, out):
 
     return sch
 
+
 def schedule_injective(outs):
     """Schedule for injective op.
 
@@ -88,6 +90,7 @@ def schedule_injective(outs):
         if not util.is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)
     return s
+
 
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective

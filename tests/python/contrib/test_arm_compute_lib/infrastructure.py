@@ -67,6 +67,7 @@ class Device:
     cross_compile : str
         Specify path to cross compiler to use when connecting a remote device from a non-arm platform.
     """
+
     connection_type = "local"
     host = "localhost"
     port = 9090
@@ -82,17 +83,15 @@ class Device:
     def _get_remote(cls):
         """Get a remote (or local) device to use for testing."""
         if cls.connection_type == "tracker":
-            device = request_remote(cls.device_key,
-                                    cls.host,
-                                    cls.port,
-                                    timeout=1000)
+            device = request_remote(cls.device_key, cls.host, cls.port, timeout=1000)
         elif cls.connection_type == "remote":
             device = rpc.connect(cls.host, cls.port)
         elif cls.connection_type == "local":
             device = rpc.LocalSession()
         else:
-            raise ValueError("connection_type in test_config.json should be one of: "
-                             "local, tracker, remote.")
+            raise ValueError(
+                "connection_type in test_config.json should be one of: " "local, tracker, remote."
+            )
 
         return device
 
@@ -106,7 +105,9 @@ class Device:
         location = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
         config_file = os.path.join(location, file_name)
         if not os.path.exists(config_file):
-            warnings.warn("Config file doesn't exist, resuming Arm Compute Library tests with default config.")
+            warnings.warn(
+                "Config file doesn't exist, resuming Arm Compute Library tests with default config."
+            )
             return
         with open(config_file, mode="r") as config:
             test_config = json.load(config)
@@ -121,6 +122,7 @@ class Device:
 
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
+
     class Counter(tvm.relay.ExprVisitor):
         def __init__(self):
             super().__init__()
@@ -146,7 +148,10 @@ def skip_runtime_test():
 
     # Remote device is in use or ACL runtime not present
     # Note: Ensure that the device config has been loaded before this check
-    if not Device.connection_type != "local" and not arm_compute_lib.is_arm_compute_runtime_enabled():
+    if (
+        not Device.connection_type != "local"
+        and not arm_compute_lib.is_arm_compute_runtime_enabled()
+    ):
         print("Skip because runtime isn't present or a remote device isn't being used.")
         return True
 
@@ -166,22 +171,35 @@ def build_module(mod, target, params=None, enable_acl=True, tvm_ops=0, acl_parti
         if enable_acl:
             mod = arm_compute_lib.partition_for_arm_compute_lib(mod, params)
             tvm_op_count = get_cpu_op_count(mod)
-            assert tvm_op_count == tvm_ops, \
-                "Got {} TVM operators, expected {}".format(tvm_op_count, tvm_ops)
+            assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
+                tvm_op_count, tvm_ops
+            )
             partition_count = 0
             for global_var in mod.get_global_vars():
                 if "arm_compute_lib" in global_var.name_hint:
                     partition_count += 1
 
-            assert acl_partitions == partition_count, \
-                "Got {} Arm Compute Library partitions, expected {}".format(
-                    partition_count, acl_partitions)
+            assert (
+                acl_partitions == partition_count
+            ), "Got {} Arm Compute Library partitions, expected {}".format(
+                partition_count, acl_partitions
+            )
         relay.backend.compile_engine.get().clear()
         return relay.build(mod, target=target, params=params)
 
 
-def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs=1,
-                  tvm_ops=0, acl_partitions=1, config=None):
+def build_and_run(
+    mod,
+    inputs,
+    outputs,
+    params,
+    device,
+    enable_acl=True,
+    no_runs=1,
+    tvm_ops=0,
+    acl_partitions=1,
+    config=None,
+):
     """Build and run the relay module."""
     if config is None:
         config = {}
@@ -196,7 +214,7 @@ def build_and_run(mod, inputs, outputs, params, device, enable_acl=True, no_runs
         raise Exception(err_msg)
 
     lib = update_lib(lib, device.device, device.cross_compile)
-    gen_module = graph_runtime.GraphModule(lib['default'](device.device.cpu(0)))
+    gen_module = graph_runtime.GraphModule(lib["default"](device.device.cpu(0)))
     gen_module.set_input(**inputs)
     out = []
     for _ in range(no_runs):
@@ -225,18 +243,20 @@ def verify(answers, atol, rtol, verify_saturation=False, config=None):
         config = {}
 
     if len(answers) < 2:
-        raise RuntimeError(
-            f"No results to compare: expected at least two, found {len(answers)}")
+        raise RuntimeError(f"No results to compare: expected at least two, found {len(answers)}")
     for answer in zip_longest(*answers):
         for outs in combinations(answer, 2):
             try:
                 if verify_saturation:
-                    assert np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size, \
-                        "Output is saturated: {}".format(outs[0])
-                    assert np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size, \
-                        "Output is saturated: {}".format(outs[0])
+                    assert (
+                        np.count_nonzero(outs[0].asnumpy() == 255) < 0.25 * outs[0].asnumpy().size
+                    ), "Output is saturated: {}".format(outs[0])
+                    assert (
+                        np.count_nonzero(outs[0].asnumpy() == 0) < 0.25 * outs[0].asnumpy().size
+                    ), "Output is saturated: {}".format(outs[0])
                 tvm.testing.assert_allclose(
-                   outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol)
+                    outs[0].asnumpy(), outs[1].asnumpy(), rtol=rtol, atol=atol
+                )
             except AssertionError as e:
                 err_msg = "Results not within the acceptable tolerance.\n"
                 if config:
@@ -247,19 +267,25 @@ def verify(answers, atol, rtol, verify_saturation=False, config=None):
 
 def extract_acl_modules(module):
     """Get the ACL module(s) from llvm module."""
-    return list(filter(lambda mod: mod.type_key == "arm_compute_lib",
-                       module.get_lib().imported_modules))
+    return list(
+        filter(lambda mod: mod.type_key == "arm_compute_lib", module.get_lib().imported_modules)
+    )
 
 
-def verify_codegen(module, known_good_codegen, num_acl_modules,
-                   target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon"):
+def verify_codegen(
+    module,
+    known_good_codegen,
+    num_acl_modules,
+    target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
+):
     """Check acl codegen against a known good output."""
     module = build_module(module, target)
     acl_modules = extract_acl_modules(module)
 
-    assert len(acl_modules) == num_acl_modules, \
-        f"The number of Arm Compute Library modules produced ({len(acl_modules)}) does not " \
+    assert len(acl_modules) == num_acl_modules, (
+        f"The number of Arm Compute Library modules produced ({len(acl_modules)}) does not "
         f"match the expected value ({num_acl_modules})."
+    )
 
     for mod in acl_modules:
         source = mod.get_source("json")
@@ -271,10 +297,11 @@ def verify_codegen(module, known_good_codegen, num_acl_modules,
         codegen_str = json.dumps(codegen, sort_keys=True, indent=2)
         known_good_codegen_str = json.dumps(known_good_codegen, sort_keys=True, indent=2)
 
-        assert codegen_str == known_good_codegen_str, \
-            f"The JSON produced by codegen does not match the expected result. \n" \
-            f"Actual={codegen_str} \n" \
+        assert codegen_str == known_good_codegen_str, (
+            f"The JSON produced by codegen does not match the expected result. \n"
+            f"Actual={codegen_str} \n"
             f"Expected={known_good_codegen_str}"
+        )
 
 
 def generate_trials(space, r_factor=3):

@@ -51,9 +51,7 @@ def get_net(input_shape=(1, 3, 24, 12), dtype="float32", wtype=None):
     dense = relay.nn.relu(
         relay.nn.dense(
             relay.reshape(data, dense_shape),
-            relay.var(
-                "dense_weight", shape=[input_shape[3], dense_shape[1]], dtype=wtype
-            ),
+            relay.var("dense_weight", shape=[input_shape[3], dense_shape[1]], dtype=wtype),
         )
     )
     dense = relay.reshape_like(dense, data)
@@ -73,9 +71,7 @@ def get_net(input_shape=(1, 3, 24, 12), dtype="float32", wtype=None):
     dense = relay.nn.relu(
         relay.nn.dense(
             relay.reshape(biased, dense_shape),
-            relay.var(
-                "dense2_weight", shape=[input_shape[3], dense_shape[1]], dtype=wtype
-            ),
+            relay.var("dense2_weight", shape=[input_shape[3], dense_shape[1]], dtype=wtype),
         )
     )
     dense = relay.reshape_like(dense, data)

@@ -29,7 +29,7 @@
 
 #include <string>
 
-#include "../transforms/pattern_util.h"
+#include "../transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relay {

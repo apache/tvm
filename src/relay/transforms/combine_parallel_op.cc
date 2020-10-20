@@ -40,7 +40,7 @@
 #include <utility>
 
 #include "expr_subst.h"
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {

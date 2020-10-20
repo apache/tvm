@@ -17,12 +17,8 @@
 """Simple Layer DSL wrapper to ease creation of neural nets."""
 from tvm import relay
 
-def batch_norm_infer(data,
-                     gamma=None,
-                     beta=None,
-                     moving_mean=None,
-                     moving_var=None,
-                     **kwargs):
+
+def batch_norm_infer(data, gamma=None, beta=None, moving_mean=None, moving_var=None, **kwargs):
     """Wrapper of batch_norm.
 
     This function automatically creates weights and return
@@ -63,12 +59,9 @@ def batch_norm_infer(data,
         moving_mean = relay.var(name + "_moving_mean")
     if not moving_var:
         moving_var = relay.var(name + "_moving_var")
-    return relay.nn.batch_norm(data,
-                               gamma=gamma,
-                               beta=beta,
-                               moving_mean=moving_mean,
-                               moving_var=moving_var,
-                               **kwargs)[0]
+    return relay.nn.batch_norm(
+        data, gamma=gamma, beta=beta, moving_mean=moving_mean, moving_var=moving_var, **kwargs
+    )[0]
 
 
 def conv2d(data, weight=None, **kwargs):
@@ -96,6 +89,7 @@ def conv2d(data, weight=None, **kwargs):
         weight = relay.var(name + "_weight")
     return relay.nn.conv2d(data, weight, **kwargs)
 
+
 def conv3d(data, weight=None, **kwargs):
     """Wrapper of conv3d which automatically creates weights if not given.
     Parameters
@@ -116,6 +110,7 @@ def conv3d(data, weight=None, **kwargs):
     if not weight:
         weight = relay.var(name + "_weight")
     return relay.nn.conv3d(data, weight, **kwargs)
+
 
 def conv2d_transpose(data, weight=None, **kwargs):
     """Wrapper of conv2d_transpose which automatically creates weights if not given.
@@ -141,6 +136,7 @@ def conv2d_transpose(data, weight=None, **kwargs):
     if not weight:
         weight = relay.var(name + "_weight")
     return relay.nn.conv2d_transpose(data, weight, **kwargs)
+
 
 def dense_add_bias(data, weight=None, bias=None, units=None, **kwargs):
     """Wrapper of dense which automatically creates weights if not given.
@@ -174,6 +170,7 @@ def dense_add_bias(data, weight=None, bias=None, units=None, **kwargs):
     data = relay.nn.bias_add(data, bias, axis=-1)
     return data
 
+
 def conv_kernel_layout(data_layout, is_depthwise=False):
     """Map the data layout to corresponding kernel layout.
 
@@ -193,12 +190,12 @@ def conv_kernel_layout(data_layout, is_depthwise=False):
         The corresponding kernel layout.
     """
     conv_layout_map = {
-        'NCHW': 'OIHW',
-        'NHWC': 'HWIO',
+        "NCHW": "OIHW",
+        "NHWC": "HWIO",
     }
     depthwise_conv_layout_map = {
-        'NCHW': 'OIHW',
-        'NHWC': 'HWOI',
+        "NCHW": "OIHW",
+        "NHWC": "HWOI",
     }
     mapping = depthwise_conv_layout_map if is_depthwise else conv_layout_map
     assert data_layout in mapping, "Unknown data layout %s" % data_layout

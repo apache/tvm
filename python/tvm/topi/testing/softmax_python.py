@@ -18,6 +18,7 @@
 """Softmax and log_softmax operation in python"""
 import numpy as np
 
+
 def softmax_python(a_np):
     """Softmax operator.
     Parameters
@@ -33,10 +34,11 @@ def softmax_python(a_np):
     assert len(a_np.shape) == 2, "only support 2-dim softmax"
     max_elem = np.amax(a_np, axis=1)
     max_elem = max_elem.reshape(max_elem.shape[0], 1)
-    e = np.exp(a_np-max_elem)
+    e = np.exp(a_np - max_elem)
     expsum = np.sum(e, axis=1)
     out_np = e / expsum[:, None]
     return out_np
+
 
 def log_softmax_python(a_np):
     """Log_softmax operator.
@@ -53,7 +55,7 @@ def log_softmax_python(a_np):
     assert len(a_np.shape) == 2, "only support 2-dim log_softmax"
     max_elem = np.amax(a_np, axis=1)
     max_elem = max_elem.reshape(max_elem.shape[0], 1)
-    e = np.exp(a_np-max_elem)
+    e = np.exp(a_np - max_elem)
     expsum = np.sum(e, axis=1)
     out_np = a_np - max_elem - np.log(expsum[:, None])
     return out_np

@@ -25,9 +25,9 @@ from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @autotvm.register_topi_compute("batch_matmul.x86")
-def batch_matmul(cfg, x, y):
+def batch_matmul(cfg, x, y, out_shape=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch.
+    data in batch. Supports broadcasting in batch dimension.
 
     Parameters
     ----------
@@ -37,27 +37,34 @@ def batch_matmul(cfg, x, y):
         3-D with shape [batch, M, K]
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
+    out_shape : tuple or None
+        Shape of the outputs
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(
-        y.shape) == 3, "only support 3-dim batch_matmul"
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
-    assert XB == YB, "batch dimension doesn't match"
+    assert (XB == YB) or (YB == 1) or (XB == 1), "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistant"
-    B = XB
+    B = max(XB, YB)
     K = XK
+    if out_shape is not None:
+        assert out_shape[0] == B, "got invalid output shape"
+        assert out_shape[1] == M, "got invalid output shape"
+        assert out_shape[2] == N, "got invalid output shape"
     if cfg.is_fallback:
         _default_batch_matmul_config(cfg, M, N, K)
 
-    k = te.reduce_axis((0, K), name='k')
+    k = te.reduce_axis((0, K), name="k")
     C = te.compute(
         (B, M, N),
-        lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k),
-        tag='batch_matmul')
+        lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
+        tag="batch_matmul",
+    )
     return C
 
 
@@ -108,7 +115,7 @@ def schedule_batch_matmul(cfg, outs):
             s[O].parallel(bxyo)
 
             s[CC].compute_at(s[O], bxyo)
-            k, = s[CC].op.reduce_axis
+            (k,) = s[CC].op.reduce_axis
             ko, ki = cfg["tile_k"].apply(s, CC, k)
 
             Crf = s.rfactor(CC, ki)
@@ -116,7 +123,7 @@ def schedule_batch_matmul(cfg, outs):
             _, _, y, x = s[Crf].op.axis
             s[Crf].fuse(y, x)
             s[Crf].vectorize(s[Crf].op.axis[0])
-            s[O].pragma(bxyo, 'auto_unroll_max_step', 16)
+            s[O].pragma(bxyo, "auto_unroll_max_step", 16)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -131,7 +138,7 @@ def _default_batch_matmul_config(cfg, M, N, K):
 
 
 @autotvm.register_topi_compute("batch_matmul_cblas.x86")
-def batch_matmul_cblas(cfg, x, y):
+def batch_matmul_cblas(cfg, x, y, out_shape=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -143,17 +150,23 @@ def batch_matmul_cblas(cfg, x, y):
         3-D with shape [batch, M, K]
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
+    out_shape : tuple or None
+        Shape of the output
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(
-        y.shape) == 3, "only support 3-dim batch_matmul"
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     XB, M, XK = get_const_tuple(x.shape)
     YB, N, YK = get_const_tuple(y.shape)
     assert XB == YB, "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistant"
+    if out_shape is not None:
+        assert out_shape[0] == XB, "got invalid output shape"
+        assert out_shape[1] == M, "got invalid output shape"
+        assert out_shape[2] == N, "got invalid output shape"
     cfg.add_flop(XB * M * N * XK * 2)
     return cblas.batch_matmul(x, y, False, True)
 

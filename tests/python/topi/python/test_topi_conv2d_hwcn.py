@@ -23,6 +23,7 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv2d_hwcn_implement = {
@@ -31,12 +32,13 @@ _conv2d_hwcn_implement = {
     "opencl": (topi.cuda.conv2d_hwcn, topi.cuda.schedule_conv2d_hwcn),
 }
 
+
 def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
-    A = te.placeholder((in_height, in_width, in_channel, batch), name='A')
-    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    B = te.placeholder((1, num_filter, 1), name='bias')
+    A = te.placeholder((in_height, in_width, in_channel, batch), name="A")
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W")
+    B = te.placeholder((1, num_filter, 1), name="bias")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -58,11 +60,11 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_hwcn_implement)
             t_conv = fcompute(A, W, stride, padding, dilation)
             t_bias = topi.add(t_conv, B)
@@ -74,12 +76,9 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(b_np, ctx)
 
-        conv_out = tvm.nd.array(
-            np.zeros(get_const_tuple(t_conv.shape), dtype=t_conv.dtype), ctx)
-        bias_out = tvm.nd.array(
-            np.zeros(get_const_tuple(t_bias.shape), dtype=t_bias.dtype), ctx)
-        relu_out = tvm.nd.array(
-            np.zeros(get_const_tuple(t_relu.shape), dtype=t_relu.dtype), ctx)
+        conv_out = tvm.nd.array(np.zeros(get_const_tuple(t_conv.shape), dtype=t_conv.dtype), ctx)
+        bias_out = tvm.nd.array(np.zeros(get_const_tuple(t_bias.shape), dtype=t_bias.dtype), ctx)
+        relu_out = tvm.nd.array(np.zeros(get_const_tuple(t_relu.shape), dtype=t_relu.dtype), ctx)
         func1 = tvm.build(s1, [A, W, t_conv], device)
         func2 = tvm.build(s2, [A, W, B, t_bias], device)
         func3 = tvm.build(s3, [A, W, B, t_relu], device)
@@ -90,10 +89,11 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         tvm.testing.assert_allclose(bias_out.asnumpy(), c2_np, rtol=1e-5)
         tvm.testing.assert_allclose(relu_out.asnumpy(), c3_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in ["cuda", "opencl", "metal", "rocm", "vulkan", "nvptx"]:
         check_device(device)
 
 
+@tvm.testing.requires_gpu
 def test_conv2d_hwcn():
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")
@@ -105,6 +105,7 @@ def test_conv2d_hwcn():
     verify_conv2d_hwcn(4, 128, 16, 256, 5, 2, "VALID")
     # dilation = 2
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
+
 
 if __name__ == "__main__":
     test_conv2d_hwcn()

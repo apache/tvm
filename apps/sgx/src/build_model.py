@@ -31,26 +31,26 @@ from tvm import te
 
 def main():
     dshape = (1, 28, 28)
-    net, params = relay.testing.mlp.get_workload(batch_size=dshape[0], dtype='float32')
+    net, params = relay.testing.mlp.get_workload(batch_size=dshape[0], dtype="float32")
 
     dshape = (1, 3, 224, 224)
     net, params = relay.testing.resnet.get_workload(
-        layers=18, batch_size=dshape[0], image_shape=dshape[1:])
+        layers=18, batch_size=dshape[0], image_shape=dshape[1:]
+    )
 
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(
-            net, 'llvm --system-lib', params=params)
+        graph, lib, params = relay.build(net, "llvm --system-lib", params=params)
 
     build_dir = osp.abspath(sys.argv[1])
     if not osp.isdir(build_dir):
         os.makedirs(build_dir, exist_ok=True)
 
-    lib.save(osp.join(build_dir, 'model.o'))
-    with open(osp.join(build_dir, 'graph.json'), 'w') as f_graph_json:
+    lib.save(osp.join(build_dir, "model.o"))
+    with open(osp.join(build_dir, "graph.json"), "w") as f_graph_json:
         f_graph_json.write(graph)
-        with open(osp.join(build_dir, 'params.bin'), 'wb') as f_params:
+        with open(osp.join(build_dir, "params.bin"), "wb") as f_params:
             f_params.write(relay.save_param_dict(params))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -21,8 +21,9 @@ from .pad import pad
 from ..util import get_const_tuple
 
 
-def correlation_nchw(data1, data2, kernel_size, max_displacement, stride1, stride2, padding,
-                     is_multiply):
+def correlation_nchw(
+    data1, data2, kernel_size, max_displacement, stride1, stride2, padding, is_multiply
+):
     """Correlation operator in NCHW layout.
 
     Parameters
@@ -92,9 +93,9 @@ def correlation_nchw(data1, data2, kernel_size, max_displacement, stride1, strid
     out_height = (padded_height - 2 * border_size + stride1 - 1) // stride1
     out_width = (padded_width - 2 * border_size + stride1 - 1) // stride1
 
-    rc = te.reduce_axis((0, channel), name='rc')
-    ry = te.reduce_axis((0, kernel_size), name='ry')
-    rx = te.reduce_axis((0, kernel_size), name='rx')
+    rc = te.reduce_axis((0, channel), name="rc")
+    ry = te.reduce_axis((0, kernel_size), name="ry")
+    rx = te.reduce_axis((0, kernel_size), name="rx")
 
     if is_multiply:
         corr_func = lambda x, y: x * y
@@ -108,9 +109,14 @@ def correlation_nchw(data1, data2, kernel_size, max_displacement, stride1, strid
         # location in data2
         y2 = y1 + (te.indexdiv(q, displacement_size) - displacement_radius) * stride2
         x2 = x1 + (te.indexmod(q, displacement_size) - displacement_radius) * stride2
-        return te.sum(corr_func(padded_data1[n, rc, y1 + ry, x1 + rx],
-                                padded_data2[n, rc, y2 + ry, x2 + rx]), axis=[rc, ry, rx])
+        return te.sum(
+            corr_func(padded_data1[n, rc, y1 + ry, x1 + rx], padded_data2[n, rc, y2 + ry, x2 + rx]),
+            axis=[rc, ry, rx],
+        )
 
-    correlation = te.compute((batch, out_channel, out_height, out_width), lambda n, q, i, j:
-                             _compute_correlation(n, q, i, j), tag="correlation_nchw")
+    correlation = te.compute(
+        (batch, out_channel, out_height, out_width),
+        lambda n, q, i, j: _compute_correlation(n, q, i, j),
+        tag="correlation_nchw",
+    )
     return correlation / (kernel_size * kernel_size * channel)

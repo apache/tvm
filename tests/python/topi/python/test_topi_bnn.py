@@ -17,6 +17,7 @@
 """Test code for binary neural network operators."""
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import topi
 from tvm.topi.util import get_const_tuple
@@ -24,8 +25,8 @@ from tvm.contrib.pickle_memoize import memoize
 
 
 def verify_binary_dense(batch, in_dim, out_dim):
-    A = te.placeholder((batch, in_dim), name='A')
-    B = te.placeholder((out_dim, in_dim), name='B')
+    A = te.placeholder((batch, in_dim), name="A")
+    B = te.placeholder((out_dim, in_dim), name="B")
     bnn_A = topi.nn.binarize_pack(A)
     bnn_B = topi.nn.binarize_pack(B)
     # binary dense
@@ -33,12 +34,13 @@ def verify_binary_dense(batch, in_dim, out_dim):
     bnn_B1 = te.placeholder(bnn_B.shape, dtype=bnn_B.dtype)
     bnn_C = topi.nn.binary_dense(bnn_A1, bnn_B1)
     # schedule
-    with tvm.target.create('llvm'):
+    with tvm.target.Target("llvm"):
         s1 = topi.x86.schedule_binarize_pack(bnn_A)
         s2 = topi.x86.schedule_binarize_pack(bnn_B)
         s3 = topi.x86.schedule_binary_dense(bnn_C)
 
     dtype = A.dtype
+
     @memoize("topi.tests.test_topi_binary_dense")
     def get_ref_data():
         # generate random matrix of +1 or -1 value
@@ -55,13 +57,14 @@ def verify_binary_dense(batch, in_dim, out_dim):
     bnn_a = tvm.nd.array(np.zeros(get_const_tuple(bnn_A.shape), dtype=bnn_A.dtype), ctx)
     bnn_b = tvm.nd.array(np.zeros(get_const_tuple(bnn_B.shape), dtype=bnn_B.dtype), ctx)
     bnn_c = tvm.nd.array(np.zeros(get_const_tuple(bnn_C.shape), dtype=bnn_C.dtype), ctx)
-    f1 = tvm.build(s1, [A, bnn_A], 'llvm')
-    f2 = tvm.build(s2, [B, bnn_B], 'llvm')
-    f3 = tvm.build(s3, [bnn_A1, bnn_B1, bnn_C], 'llvm')
+    f1 = tvm.build(s1, [A, bnn_A], "llvm")
+    f2 = tvm.build(s2, [B, bnn_B], "llvm")
+    f3 = tvm.build(s3, [bnn_A1, bnn_B1, bnn_C], "llvm")
     f1(a, bnn_a)
     f2(b, bnn_b)
     f3(bnn_a, bnn_b, bnn_c)
     tvm.testing.assert_allclose(bnn_c.asnumpy(), c_np, rtol=1e-5)
+
 
 def test_binary_dense():
     verify_binary_dense(1, 4096, 1024)

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -39,7 +39,8 @@ from .tensor import (
     zeros_like,
     equal,
     shape_of,
-    log)
+    log,
+)
 from .transform import (
     broadcast_to_like,
     collapse_sum_like,
@@ -53,7 +54,7 @@ from .transform import (
     where,
     repeat,
     expand_dims,
-    full_like
+    full_like,
 )
 
 
@@ -204,31 +205,27 @@ def relu_grad(orig, grad):
 @register_gradient("add")
 def add_grad(orig, grad):
     """Returns [grad, grad]"""
-    return [collapse_sum_like(grad, orig.args[0]),
-            collapse_sum_like(grad, orig.args[1])]
+    return [collapse_sum_like(grad, orig.args[0]), collapse_sum_like(grad, orig.args[1])]
 
 
 @register_gradient("subtract")
 def subtract_grad(orig, grad):
     """Returns [grad, -grad]"""
-    return [collapse_sum_like(grad, orig.args[0]),
-            collapse_sum_like(negative(grad), orig.args[1])]
+    return [collapse_sum_like(grad, orig.args[0]), collapse_sum_like(negative(grad), orig.args[1])]
 
 
 @register_gradient("multiply")
 def multiply_grad(orig, grad):
     """Returns [grad * y, grad * x]"""
     x, y = orig.args
-    return [collapse_sum_like(grad * y, x),
-            collapse_sum_like(grad * x, y)]
+    return [collapse_sum_like(grad * y, x), collapse_sum_like(grad * x, y)]
 
 
 @register_gradient("divide")
 def divide_grad(orig, grad):
     """Returns [grad / y,  - grad * (x / y) / y]"""
     x, y = orig.args
-    return [collapse_sum_like(grad / y, x),
-            collapse_sum_like(- (grad * orig / y), y)]
+    return [collapse_sum_like(grad / y, x), collapse_sum_like(-(grad * orig / y), y)]
 
 
 @register_gradient("zeros")
@@ -281,9 +278,9 @@ def abs_grad(orig, grad):
 @register_gradient("erf")
 def erf_grad(orig, grad):
     # c_2_div_sqrt_pi = 2.0 / math.sqrt(math.pi)
-    inp, = orig.args
+    (inp,) = orig.args
     c_2_div_sqrt_pi = const(1.1283791670955126, dtype=inp.checked_type.dtype)
-    return [c_2_div_sqrt_pi * exp(- inp * inp) * grad]
+    return [c_2_div_sqrt_pi * exp(-inp * inp) * grad]
 
 
 @register_gradient("clip")
@@ -303,9 +300,15 @@ def clip_grad(orig, grad):
 def max_pool2d_grad(orig, grad):
     """Returns the gradient of max_pool2d."""
     attrs = orig.attrs
-    pool_grad = _nn.max_pool2d_grad(grad, orig.args[0], pool_size=attrs.pool_size,
-                                    strides=attrs.strides, padding=attrs.padding,
-                                    layout=attrs.layout, ceil_mode=attrs.ceil_mode)
+    pool_grad = _nn.max_pool2d_grad(
+        grad,
+        orig.args[0],
+        pool_size=attrs.pool_size,
+        strides=attrs.strides,
+        padding=attrs.padding,
+        layout=attrs.layout,
+        ceil_mode=attrs.ceil_mode,
+    )
     return [pool_grad]
 
 
@@ -313,10 +316,16 @@ def max_pool2d_grad(orig, grad):
 def avg_pool2d_grad(orig, grad):
     """Returns the gradient of avg_pool2d."""
     attrs = orig.attrs
-    pool_grad = _nn.avg_pool2d_grad(grad, orig.args[0], pool_size=attrs.pool_size,
-                                    strides=attrs.strides, padding=attrs.padding,
-                                    layout=attrs.layout, ceil_mode=attrs.ceil_mode,
-                                    count_include_pad=attrs.count_include_pad)
+    pool_grad = _nn.avg_pool2d_grad(
+        grad,
+        orig.args[0],
+        pool_size=attrs.pool_size,
+        strides=attrs.strides,
+        padding=attrs.padding,
+        layout=attrs.layout,
+        ceil_mode=attrs.ceil_mode,
+        count_include_pad=attrs.count_include_pad,
+    )
     return [pool_grad]
 
 
@@ -334,9 +343,9 @@ def global_avg_pool2d_grad(orig, grad):
     elif layout == "NHWC":
         pool_size = shape[1], shape[2]
 
-    pool_grad = _nn.avg_pool2d_grad(grad, data, pool_size=pool_size,
-                                    strides=(1, 1), padding=(0, 0),
-                                    layout=layout)
+    pool_grad = _nn.avg_pool2d_grad(
+        grad, data, pool_size=pool_size, strides=(1, 1), padding=(0, 0), layout=layout
+    )
     return [pool_grad]
 
 
@@ -364,52 +373,68 @@ def conv2d_grad(orig, grad):
     out_channel, _, filter_h, filter_w = weight_shape
 
     # infer output_padding
-    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(get_const_tuple(attrs.padding),
-                                                                 (filter_h, filter_w))
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(
+        get_const_tuple(attrs.padding), (filter_h, filter_w)
+    )
     stride_h, stride_w = get_const_tuple(attrs.strides)
     dilation_h, dilation_w = get_const_tuple(attrs.dilation)
     out_h = (grad_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
     out_w = (grad_w - 1) * stride_w - fpad_left - fpad_right + filter_w
     output_padding = (in_h - out_h, in_w - out_w)
 
-    assert attrs.data_layout == 'NCHW', 'only support NCHW data layout'
-    assert attrs.kernel_layout == 'OIHW', 'only support OIHW kernel layout'
-    assert attrs.out_layout in ['', 'NCHW'], 'only support NCHW output layout'
+    assert attrs.data_layout == "NCHW", "only support NCHW data layout"
+    assert attrs.kernel_layout == "OIHW", "only support OIHW kernel layout"
+    assert attrs.out_layout in ["", "NCHW"], "only support NCHW output layout"
 
-
-    backward_data = _nn.conv2d_transpose(grad, weight,
-                                         strides=attrs.strides,
-                                         padding=attrs.padding,
-                                         dilation=attrs.dilation,
-                                         groups=attrs.groups,
-                                         output_padding=output_padding)
+    backward_data = _nn.conv2d_transpose(
+        grad,
+        weight,
+        strides=attrs.strides,
+        padding=attrs.padding,
+        dilation=attrs.dilation,
+        groups=attrs.groups,
+        output_padding=output_padding,
+    )
     grad = tile(grad, [1, in_channel // attrs.groups, 1, 1])
     grad = reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
     data = reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
 
-    backward_weight = _nn.conv2d(data, grad,
-                                 strides=attrs.dilation,
-                                 padding=attrs.padding,
-                                 dilation=attrs.strides,
-                                 groups=in_channel * batch)
+    backward_weight = _nn.conv2d(
+        data,
+        grad,
+        strides=attrs.dilation,
+        padding=attrs.padding,
+        dilation=attrs.strides,
+        groups=in_channel * batch,
+    )
     # infer shape of backward_weight
-    padded_weight_grad_h = (in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom) \
-                           // dilation_h + 1
-    padded_weight_grad_w = (in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right) \
-                           // dilation_w + 1
-    backward_weight = reshape(backward_weight,
-                              [batch, in_channel // attrs.groups, out_channel,
-                               padded_weight_grad_h, padded_weight_grad_w])
+    padded_weight_grad_h = (
+        in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom
+    ) // dilation_h + 1
+    padded_weight_grad_w = (
+        in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right
+    ) // dilation_w + 1
+    backward_weight = reshape(
+        backward_weight,
+        [
+            batch,
+            in_channel // attrs.groups,
+            out_channel,
+            padded_weight_grad_h,
+            padded_weight_grad_w,
+        ],
+    )
     backward_weight = _sum(backward_weight, axis=0)
     backward_weight = transpose(backward_weight, [1, 0, 2, 3])
 
     assert padded_weight_grad_h >= filter_h
     assert padded_weight_grad_w >= filter_w
     if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
-        backward_weight = strided_slice(backward_weight,
-                                        begin=const([0, 0, 0, 0], dtype="int64"),
-                                        end=const([out_channel, in_channel // attrs.groups,
-                                                   filter_h, filter_w], dtype="int64"))
+        backward_weight = strided_slice(
+            backward_weight,
+            begin=[0, 0, 0, 0],
+            end=[out_channel, in_channel // attrs.groups, filter_h, filter_w],
+        )
 
     return [backward_data, backward_weight]
 
@@ -482,30 +507,39 @@ def log_softmax_grad(orig, grad):
 def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
     data = orig.args[0]
-    return [collapse_sum_like(grad, data),
-            _sum(grad, orig.attrs.axis, keepdims=False, exclude=True)]
+    return [
+        collapse_sum_like(grad, data),
+        _sum(grad, orig.attrs.axis, keepdims=False, exclude=True),
+    ]
 
 
 @register_gradient("nn.dense")
 def dense_grad(orig, grad):
     """Returns [grad' @ weight, data @ grad']"""
     data, weight = orig.args
-    return [collapse_sum_like(_nn.dense(grad, transpose(weight),
-                                        units=weight.checked_type.shape[1]), data),
-            collapse_sum_like(_nn.dense(transpose(grad), transpose(data),
-                                        units=data.checked_type.shape[1]), weight)]
+    return [
+        collapse_sum_like(
+            _nn.dense(grad, transpose(weight), units=weight.checked_type.shape[1]), data
+        ),
+        collapse_sum_like(
+            _nn.dense(transpose(grad), transpose(data), units=data.checked_type.shape[1]), weight
+        ),
+    ]
 
 
 @register_gradient("nn.batch_matmul")
 def batch_matmul_grad(orig, grad):
     """gradient for nn.batch_matmul: in einsum LHS_bik,RHS_bjk->RES_bij
-       grads: GRAD_OUT_bij,RHS_bjk->GRAD_IN_LHS_bik
-              GRAD_OUT_bij,LHS_bik->GRAD_IN_RHS_bjk
+    grads: GRAD_OUT_bij,RHS_bjk->GRAD_IN_LHS_bik
+           GRAD_OUT_bij,LHS_bik->GRAD_IN_RHS_bjk
     """
     lhs, rhs = orig.args
-    return [collapse_sum_like(_nn.batch_matmul(grad, transpose(rhs, [0, 2, 1])), lhs),
-            collapse_sum_like(_nn.batch_matmul(transpose(grad, [0, 2, 1]),
-                                               transpose(lhs, [0, 2, 1])), rhs)]
+    return [
+        collapse_sum_like(_nn.batch_matmul(grad, transpose(rhs, [0, 2, 1])), lhs),
+        collapse_sum_like(
+            _nn.batch_matmul(transpose(grad, [0, 2, 1]), transpose(lhs, [0, 2, 1])), rhs
+        ),
+    ]
 
 
 @register_gradient("reshape")
@@ -604,8 +638,10 @@ def variance_grad(orig, grad):
         mult2 = mult2 * count / (count - 1)
         count -= 1
     mult1 /= count
-    return [(grad * const(mult1, dtype=data.checked_type.dtype)) * data,
-            const(mult2, dtype=data.checked_type.dtype) * grad * data_mean]
+    return [
+        (grad * const(mult1, dtype=data.checked_type.dtype)) * data,
+        const(mult2, dtype=data.checked_type.dtype) * grad * data_mean,
+    ]
 
 
 @register_gradient("copy")
@@ -617,7 +653,7 @@ def copy_grad(orig, grad):
 def cross_entropy_grad(orig, grad):
     x, y = orig.args
     shape = shape_of(x)
-    batch_size = take(shape, const(0, dtype='int32'), axis=0)
+    batch_size = take(shape, const(0, dtype="int32"), axis=0)
     grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y / x, -grad * log(x)]
 
@@ -626,6 +662,6 @@ def cross_entropy_grad(orig, grad):
 def cross_entropy_with_logits_grad(orig, grad):
     x, y = orig.args
     shape = shape_of(x)
-    batch_size = take(shape, const(0, dtype='int32'), axis=0)
+    batch_size = take(shape, const(0, dtype="int32"), axis=0)
     grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y, -grad * x]

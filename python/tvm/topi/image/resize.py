@@ -22,13 +22,14 @@ from tvm import te
 from tvm.topi.util import nchw_pack_layout, nchw_xc_layout
 from .. import tag
 
-def get_2d_indices(indices, layout='NCHW'):
+
+def get_2d_indices(indices, layout="NCHW"):
     """ Get 2d indices """
     (cc, inum, ic) = (0, 0, 0)
-    if layout == 'NHWC':
+    if layout == "NHWC":
         n, y, x, c = indices
         cc = None
-    elif layout == 'NCHW':
+    elif layout == "NCHW":
         n, c, y, x = indices
         cc = None
     elif nchw_pack_layout(layout):
@@ -40,27 +41,38 @@ def get_2d_indices(indices, layout='NCHW'):
 
     return n, c, y, x, cc, inum, ic
 
+
 def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc, ib, ic):
     """ Get 2d pixel """
     if boxes is None:
         y = tvm.te.max(tvm.te.min(y, image_height - 1), 0)
         x = tvm.te.max(tvm.te.min(x, image_width - 1), 0)
-    if layout == 'NHWC':
-        return data(n, y, x, c).astype('float')
-    if layout == 'NCHW':
-        return data(n, c, y, x).astype('float')
+    if layout == "NHWC":
+        return data(n, y, x, c).astype("float")
+    if layout == "NCHW":
+        return data(n, c, y, x).astype("float")
     if nchw_pack_layout(layout):
-        return data(n, c, y, x, ib, ic).astype('float')
+        return data(n, c, y, x, ib, ic).astype("float")
 
     # else must be NCHWxc
     assert nchw_xc_layout(layout)
-    return data(n, c, y, x, cc).astype('float')
+    return data(n, c, y, x, cc).astype("float")
 
-def resize_nearest_neighbor(indices, data, image_height, image_width,
-                            target_height, target_width, boxes=None,
-                            box_indices=None, extrapolation_value=None, layout='NCHW',
-                            coordinate_transformation_mode="align_corners",
-                            out_dtype=None):
+
+def resize_nearest_neighbor(
+    indices,
+    data,
+    image_height,
+    image_width,
+    target_height,
+    target_width,
+    boxes=None,
+    box_indices=None,
+    extrapolation_value=None,
+    layout="NCHW",
+    coordinate_transformation_mode="align_corners",
+    out_dtype=None,
+):
 
     """Perform resize operation with nearest neighbor method on the data.
     For details about Nearest-neighbor interpolation please refer to
@@ -132,21 +144,24 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype('float') / (target_height - 1)
-        w_scale = in_w.astype('float') / (target_width - 1)
+        h_scale = in_h.astype("float") / (target_height - 1)
+        w_scale = in_w.astype("float") / (target_width - 1)
 
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
         if coordinate_transformation_mode == "align_corners":
-            h_scale = (image_height - 1).astype('float') / (target_height - 1)
-            w_scale = (image_width - 1).astype('float') / (target_width - 1)
+            h_scale = (image_height - 1).astype("float") / (target_height - 1)
+            w_scale = (image_width - 1).astype("float") / (target_width - 1)
         elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-            h_scale = image_height.astype('float') / target_height
-            w_scale = image_width.astype('float') / target_width
+            h_scale = image_height.astype("float") / target_height
+            w_scale = image_width.astype("float") / target_width
         else:
-            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-                coordinate_transformation_mode))
+            raise ValueError(
+                "Unsupported coordinate_transformation_mode: {}".format(
+                    coordinate_transformation_mode
+                )
+            )
         in_y = h_scale * y
         in_x = w_scale * x
 
@@ -156,32 +171,53 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
     else:
         # Add epsilon to floor to prevent gpu rounding errors.
         epsilon = 1e-5
-        closest_y_index = te.floor(in_y + epsilon).astype('int32')
-        closest_x_index = te.floor(in_x + epsilon).astype('int32')
+        closest_y_index = te.floor(in_y + epsilon).astype("int32")
+        closest_x_index = te.floor(in_x + epsilon).astype("int32")
 
-    value = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                         box_idx, c, closest_y_index, closest_x_index, cc, inum, ic)
+    value = get_2d_pixel(
+        data,
+        layout,
+        boxes,
+        image_height,
+        image_width,
+        box_idx,
+        c,
+        closest_y_index,
+        closest_x_index,
+        cc,
+        inum,
+        ic,
+    )
 
     if extrapolation_value is not None:
-        out = tvm.tir.if_then_else(in_y < 0,
-                                   extrapolation_value,
-                                   tvm.tir.if_then_else(in_y > image_height - 1,
-                                                        extrapolation_value,
-                                                        value))
+        out = tvm.tir.if_then_else(
+            in_y < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_y > image_height - 1, extrapolation_value, value),
+        )
         # use extrapolation_value if in_x is out of boundary
-        value = tvm.tir.if_then_else(in_x < 0,
-                                     extrapolation_value,
-                                     tvm.tir.if_then_else(in_x > image_width - 1,
-                                                          extrapolation_value,
-                                                          out))
+        value = tvm.tir.if_then_else(
+            in_x < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
+        )
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
-def resize_bilinear(indices, data, image_height, image_width,
-                    target_height, target_width, boxes=None,
-                    box_indices=None, extrapolation_value=None, layout='NCHW',
-                    coordinate_transformation_mode="align_corners",
-                    out_dtype=None):
+def resize_bilinear(
+    indices,
+    data,
+    image_height,
+    image_width,
+    target_height,
+    target_width,
+    boxes=None,
+    box_indices=None,
+    extrapolation_value=None,
+    layout="NCHW",
+    coordinate_transformation_mode="align_corners",
+    out_dtype=None,
+):
 
     """Perform resize operation with bilinear method on the data.
     For details about Bilinear interpolation please refer to
@@ -257,21 +293,24 @@ def resize_bilinear(indices, data, image_height, image_width,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype('float') / (target_height - 1)
-        w_scale = in_w.astype('float') / (target_width - 1)
+        h_scale = in_h.astype("float") / (target_height - 1)
+        w_scale = in_w.astype("float") / (target_width - 1)
 
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
         if coordinate_transformation_mode == "align_corners":
-            h_scale = (image_height - 1).astype('float') / (target_height - 1)
-            w_scale = (image_width - 1).astype('float') / (target_width - 1)
+            h_scale = (image_height - 1).astype("float") / (target_height - 1)
+            w_scale = (image_width - 1).astype("float") / (target_width - 1)
         elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-            h_scale = image_height.astype('float') / target_height
-            w_scale = image_width.astype('float') / target_width
+            h_scale = image_height.astype("float") / target_height
+            w_scale = image_width.astype("float") / target_width
         else:
-            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-                coordinate_transformation_mode))
+            raise ValueError(
+                "Unsupported coordinate_transformation_mode: {}".format(
+                    coordinate_transformation_mode
+                )
+            )
 
         if coordinate_transformation_mode == "half_pixel":
             in_y = h_scale * (y + 0.5) - 0.5
@@ -280,22 +319,70 @@ def resize_bilinear(indices, data, image_height, image_width,
             in_y = h_scale * y
             in_x = w_scale * x
 
-    top_y_index = te.floor(in_y).astype('int32')
-    bottom_y_index = te.ceil(in_y).astype('int32')
+    top_y_index = te.floor(in_y).astype("int32")
+    bottom_y_index = te.ceil(in_y).astype("int32")
     y_lerp = in_y - top_y_index
 
-    left_x_index = te.floor(in_x).astype('int32')
-    right_x_index = te.ceil(in_x).astype('int32')
+    left_x_index = te.floor(in_x).astype("int32")
+    right_x_index = te.ceil(in_x).astype("int32")
     x_lerp = in_x - left_x_index
 
-    top_left = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                            box_idx, c, top_y_index, left_x_index, cc, inum, ic)
-    top_right = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                             box_idx, c, top_y_index, right_x_index, cc, inum, ic)
-    bottom_left = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                               box_idx, c, bottom_y_index, left_x_index, cc, inum, ic)
-    bottom_right = get_2d_pixel(data, layout, boxes, image_height, image_width,
-                                box_idx, c, bottom_y_index, right_x_index, cc, inum, ic)
+    top_left = get_2d_pixel(
+        data,
+        layout,
+        boxes,
+        image_height,
+        image_width,
+        box_idx,
+        c,
+        top_y_index,
+        left_x_index,
+        cc,
+        inum,
+        ic,
+    )
+    top_right = get_2d_pixel(
+        data,
+        layout,
+        boxes,
+        image_height,
+        image_width,
+        box_idx,
+        c,
+        top_y_index,
+        right_x_index,
+        cc,
+        inum,
+        ic,
+    )
+    bottom_left = get_2d_pixel(
+        data,
+        layout,
+        boxes,
+        image_height,
+        image_width,
+        box_idx,
+        c,
+        bottom_y_index,
+        left_x_index,
+        cc,
+        inum,
+        ic,
+    )
+    bottom_right = get_2d_pixel(
+        data,
+        layout,
+        boxes,
+        image_height,
+        image_width,
+        box_idx,
+        c,
+        bottom_y_index,
+        right_x_index,
+        cc,
+        inum,
+        ic,
+    )
 
     top = _lerp(top_left, top_right, x_lerp)
     bottom = _lerp(bottom_left, bottom_right, x_lerp)
@@ -303,24 +390,33 @@ def resize_bilinear(indices, data, image_height, image_width,
 
     # use extrapolation_value if in_y/in_x is out of boundary
     if extrapolation_value is not None:
-        out = tvm.tir.if_then_else(in_y < 0,
-                                   extrapolation_value,
-                                   tvm.tir.if_then_else(in_y > image_height - 1,
-                                                        extrapolation_value,
-                                                        value))
-        value = tvm.tir.if_then_else(in_x < 0,
-                                     extrapolation_value,
-                                     tvm.tir.if_then_else(in_x > image_width - 1,
-                                                          extrapolation_value,
-                                                          out))
+        out = tvm.tir.if_then_else(
+            in_y < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_y > image_height - 1, extrapolation_value, value),
+        )
+        value = tvm.tir.if_then_else(
+            in_x < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
+        )
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
-def resize_bicubic(indices, data, image_height, image_width,
-                   target_height, target_width, boxes=None,
-                   box_indices=None, extrapolation_value=None, layout='NCHW',
-                   coordinate_transformation_mode="align_corners",
-                   out_dtype=None):
+def resize_bicubic(
+    indices,
+    data,
+    image_height,
+    image_width,
+    target_height,
+    target_width,
+    boxes=None,
+    box_indices=None,
+    extrapolation_value=None,
+    layout="NCHW",
+    coordinate_transformation_mode="align_corners",
+    out_dtype=None,
+):
     """Perform resize operation with bicubic method on the data.
     More details about Bicubic interpolation please refer to
     https://en.wikipedia.org/wiki/Bicubic_interpolation.
@@ -399,21 +495,24 @@ def resize_bicubic(indices, data, image_height, image_width,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype('float') / (target_height - 1)
-        w_scale = in_w.astype('float') / (target_width - 1)
+        h_scale = in_h.astype("float") / (target_height - 1)
+        w_scale = in_w.astype("float") / (target_width - 1)
 
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
         if coordinate_transformation_mode == "align_corners":
-            h_scale = (image_height - 1).astype('float') / (target_height - 1)
-            w_scale = (image_width - 1).astype('float') / (target_width - 1)
+            h_scale = (image_height - 1).astype("float") / (target_height - 1)
+            w_scale = (image_width - 1).astype("float") / (target_width - 1)
         elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-            h_scale = image_height.astype('float') / target_height
-            w_scale = image_width.astype('float') / target_width
+            h_scale = image_height.astype("float") / target_height
+            w_scale = image_width.astype("float") / target_width
         else:
-            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-                coordinate_transformation_mode))
+            raise ValueError(
+                "Unsupported coordinate_transformation_mode: {}".format(
+                    coordinate_transformation_mode
+                )
+            )
 
         if coordinate_transformation_mode == "half_pixel":
             in_y = h_scale * (y + 0.5) - 0.5
@@ -422,51 +521,67 @@ def resize_bicubic(indices, data, image_height, image_width,
             in_y = h_scale * y
             in_x = w_scale * x
 
-    xint = te.floor(in_x).astype('int32')
+    xint = te.floor(in_x).astype("int32")
     xfract = in_x - te.floor(in_x)
 
-    yint = te.floor(in_y).astype('int32')
+    yint = te.floor(in_y).astype("int32")
     yfract = in_y - te.floor(in_y)
 
     # 1st row
-    p00 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint - 1, cc, inum, ic)
-    p10 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint + 0, cc, inum, ic)
-    p20 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint + 1, cc, inum, ic)
-    p30 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint - 1, xint + 2, cc, inum, ic)
+    p00 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint - 1, cc, inum, ic
+    )
+    p10 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 0, cc, inum, ic
+    )
+    p20 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 1, cc, inum, ic
+    )
+    p30 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 2, cc, inum, ic
+    )
 
     # 2nd row
-    p01 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint - 1, cc, inum, ic)
-    p11 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint + 0, cc, inum, ic)
-    p21 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint + 1, cc, inum, ic)
-    p31 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 0, xint + 2, cc, inum, ic)
+    p01 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint - 1, cc, inum, ic
+    )
+    p11 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 0, cc, inum, ic
+    )
+    p21 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 1, cc, inum, ic
+    )
+    p31 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 2, cc, inum, ic
+    )
 
     # 3rd row
-    p02 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint - 1, cc, inum, ic)
-    p12 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint + 0, cc, inum, ic)
-    p22 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint + 1, cc, inum, ic)
-    p32 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 1, xint + 2, cc, inum, ic)
+    p02 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint - 1, cc, inum, ic
+    )
+    p12 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 0, cc, inum, ic
+    )
+    p22 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 1, cc, inum, ic
+    )
+    p32 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 2, cc, inum, ic
+    )
 
     # 4th row
-    p03 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint - 1, cc, inum, ic)
-    p13 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint + 0, cc, inum, ic)
-    p23 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint + 1, cc, inum, ic)
-    p33 = _get_pixel(data, layout, boxes, image_height, image_width,
-                     box_idx, c, yint + 2, xint + 2, cc, inum, ic)
+    p03 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint - 1, cc, inum, ic
+    )
+    p13 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 0, cc, inum, ic
+    )
+    p23 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 1, cc, inum, ic
+    )
+    p33 = _get_pixel(
+        data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 2, cc, inum, ic
+    )
 
     # Interpolate bicubically
     col0 = _cubic_kernel(p00, p10, p20, p30, xfract)
@@ -477,21 +592,28 @@ def resize_bicubic(indices, data, image_height, image_width,
 
     # use extrapolation_value if in_y/in_x is out of boundary
     if extrapolation_value is not None:
-        out = tvm.tir.if_then_else(in_y < 0,
-                                   extrapolation_value,
-                                   tvm.tir.if_then_else(in_y > image_height - 1,
-                                                        extrapolation_value,
-                                                        value))
-        value = tvm.tir.if_then_else(in_x < 0,
-                                     extrapolation_value,
-                                     tvm.tir.if_then_else(in_x > image_width - 1,
-                                                          extrapolation_value,
-                                                          out))
+        out = tvm.tir.if_then_else(
+            in_y < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_y > image_height - 1, extrapolation_value, value),
+        )
+        value = tvm.tir.if_then_else(
+            in_x < 0,
+            extrapolation_value,
+            tvm.tir.if_then_else(in_x > image_width - 1, extrapolation_value, out),
+        )
     return _cast_output(value, data.dtype, out_dtype=out_dtype)
 
 
-def resize(data, size, layout="NCHW", method="bilinear",
-           coordinate_transformation_mode="half_pixel", out_dtype=None, output_shape=None):
+def resize(
+    data,
+    size,
+    layout="NCHW",
+    method="bilinear",
+    coordinate_transformation_mode="half_pixel",
+    out_dtype=None,
+    output_shape=None,
+):
     """Perform resize operation on the data.
 
     Parameters
@@ -519,8 +641,9 @@ def resize(data, size, layout="NCHW", method="bilinear",
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
-    output_shape: optional
+    output_shape: tvm.tir.container.Array, optional
         Shape to return. If left None will be inferred
+        (If shape is determined dynamically, pass out_dtype.shape as output_shape)
 
     Returns
     -------
@@ -531,49 +654,67 @@ def resize(data, size, layout="NCHW", method="bilinear",
     """
     method = method.lower()
     if method == "nearest_neighbor" and coordinate_transformation_mode != "asymmetric":
-        raise ValueError('Topi Resize does not support the combination of method %s ' \
-                         'and coordinate_transformation_mode %s' %
-                         (method, coordinate_transformation_mode))
-    if layout == 'NHWC':
+        raise ValueError(
+            "Topi Resize does not support the combination of method %s "
+            "and coordinate_transformation_mode %s" % (method, coordinate_transformation_mode)
+        )
+    if layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
         if output_shape is None:
             output_shape = [in_n, size[0], size[1], in_c]
-    elif layout == 'NCHW':
+    elif layout == "NCHW":
         in_n, in_c, in_h, in_w = data.shape
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], size[1]]
-    elif nchw_pack_layout(layout):# for NCHWinic
+    elif nchw_pack_layout(layout):  # for NCHWinic
         in_n, in_c, in_h, in_w, in_inum, in_ic = data.shape
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], size[1], in_inum, in_ic]
-    elif nchw_xc_layout(layout):# for NCHWxc
+    elif nchw_xc_layout(layout):  # for NCHWxc
         in_n, in_c, in_h, in_w, in_cc = data.shape
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], size[1], in_cc]
     else:
-        raise ValueError('%s layout is not supported.' % layout)
-
+        raise ValueError("%s layout is not supported." % layout)
 
     def _nearest_neighbor(*indices):
-        return resize_nearest_neighbor(indices, data, in_h, in_w,
-                                       size[0], size[1], layout=layout,
-                                       coordinate_transformation_mode= \
-                                       coordinate_transformation_mode,
-                                       out_dtype=out_dtype)
+        return resize_nearest_neighbor(
+            indices,
+            data,
+            in_h,
+            in_w,
+            size[0],
+            size[1],
+            layout=layout,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            out_dtype=out_dtype,
+        )
 
     def _bilinear(*indices):
-        return resize_bilinear(indices, data, in_h, in_w,
-                               size[0], size[1], layout=layout,
-                               coordinate_transformation_mode= \
-                               coordinate_transformation_mode,
-                               out_dtype=out_dtype)
+        return resize_bilinear(
+            indices,
+            data,
+            in_h,
+            in_w,
+            size[0],
+            size[1],
+            layout=layout,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            out_dtype=out_dtype,
+        )
 
     def _bicubic(*indices):
-        return resize_bicubic(indices, data, in_h, in_w,
-                              size[0], size[1], layout,
-                              coordinate_transformation_mode= \
-                              coordinate_transformation_mode,
-                              out_dtype=out_dtype)
+        return resize_bicubic(
+            indices,
+            data,
+            in_h,
+            in_w,
+            size[0],
+            size[1],
+            layout,
+            coordinate_transformation_mode=coordinate_transformation_mode,
+            out_dtype=out_dtype,
+        )
 
     # Determine which interpolation method to use then run it.
     if method == "nearest_neighbor":
@@ -583,13 +724,21 @@ def resize(data, size, layout="NCHW", method="bilinear",
     elif method == "bicubic":
         compute_func = _bicubic
     else:
-        raise ValueError('%s method is not supported.' % method)
+        raise ValueError("%s method is not supported." % method)
 
-    return te.compute(output_shape, compute_func, name='resize', tag=tag.INJECTIVE)
+    return te.compute(output_shape, compute_func, name="resize", tag=tag.INJECTIVE)
 
 
-def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
-                    method="bilinear", extrapolation_value=0, out_dtype=None):
+def crop_and_resize(
+    data,
+    boxes,
+    box_indices,
+    crop_size,
+    layout="NCHW",
+    method="bilinear",
+    extrapolation_value=0,
+    out_dtype=None,
+):
     """Perform crop and resize operation on the data.
 
     Parameters
@@ -632,31 +781,56 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
     target_h = crop_size[0]
     target_w = crop_size[1]
 
-    if layout == 'NHWC':
+    if layout == "NHWC":
         output_shape = [box_indices.shape[0], crop_size[0], crop_size[1], data.shape[3]]
         image_h = data.shape[1].astype("int32")
         image_w = data.shape[2].astype("int32")
-    elif layout == 'NCHW':
+    elif layout == "NCHW":
         output_shape = [box_indices.shape[0], data.shape[1], crop_size[0], crop_size[1]]
         image_h = data.shape[2].astype("int32")
         image_w = data.shape[3].astype("int32")
-    elif layout.startswith("NCHW"):# for NCHWxc
-        output_shape = [box_indices.shape[0], data.shape[1],
-                        crop_size[0], crop_size[1], data.shape[4]]
+    elif layout.startswith("NCHW"):  # for NCHWxc
+        output_shape = [
+            box_indices.shape[0],
+            data.shape[1],
+            crop_size[0],
+            crop_size[1],
+            data.shape[4],
+        ]
         image_h = data.shape[2].astype("int32")
         image_w = data.shape[3].astype("int32")
     else:
-        raise ValueError('%s layout is not supported.' % layout)
+        raise ValueError("%s layout is not supported." % layout)
 
     def _bilinear(*indices):
-        return resize_bilinear(indices, data, image_h, image_w, target_h,
-                               target_w, boxes, box_indices, extrapolation_value,
-                               layout, out_dtype=out_dtype)
+        return resize_bilinear(
+            indices,
+            data,
+            image_h,
+            image_w,
+            target_h,
+            target_w,
+            boxes,
+            box_indices,
+            extrapolation_value,
+            layout,
+            out_dtype=out_dtype,
+        )
 
     def _nearest_neighbor(*indices):
-        return resize_nearest_neighbor(indices, data, image_h, image_w, target_h,
-                                       target_w, boxes, box_indices, extrapolation_value,
-                                       layout, out_dtype=out_dtype)
+        return resize_nearest_neighbor(
+            indices,
+            data,
+            image_h,
+            image_w,
+            target_h,
+            target_w,
+            boxes,
+            box_indices,
+            extrapolation_value,
+            layout,
+            out_dtype=out_dtype,
+        )
 
     # Determine which interpolation method to use then run it.
     if method == "nearest_neighbor":
@@ -664,14 +838,19 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
     elif method == "bilinear":
         compute_func = _bilinear
     else:
-        raise ValueError('%s method is not supported.' % method)
+        raise ValueError("%s method is not supported." % method)
 
-    return te.compute(output_shape, compute_func, name='crop_and_resize', tag=tag.INJECTIVE)
+    return te.compute(output_shape, compute_func, name="crop_and_resize", tag=tag.INJECTIVE)
 
 
-
-def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
-             coordinate_transformation_mode="align_corners", out_dtype=None):
+def resize3d(
+    data,
+    size,
+    layout="NCDHW",
+    method="nearest_neighbor",
+    coordinate_transformation_mode="align_corners",
+    out_dtype=None,
+):
     """Perform resize operation on the data.
 
     Parameters
@@ -680,17 +859,22 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
+
     size: Tuple
         Output resolution scale to
+
     layout: string, optional
         "NCDHW", "NDHWC", or "NCDHWc".
+
     coordinate_transformation_mode: string, optional
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         Refer to the ONNX Resize operator specification for details.
+
         Available options are "half_pixel", "align_corners" and "asymmetric".
     method: {"trilinear", "nearest_neighbor"}
         Method to be used for resizing.
+
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
 
@@ -704,10 +888,10 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
     """
     method = method.lower()
 
-    if layout == 'NDHWC':
+    if layout == "NDHWC":
         in_n, in_d, in_h, in_w, in_c = data.shape
         output_shape = [in_n, size[0], size[1], size[2], in_c]
-    elif layout == 'NCDHW':
+    elif layout == "NCDHW":
         in_n, in_c, in_d, in_h, in_w = data.shape
         output_shape = [in_n, in_c, size[0], size[1], size[2]]
     # Otherwise layout must be NCHWxc
@@ -716,33 +900,34 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         output_shape = [in_n, in_c, size[0], size[1], size[2], in_cc]
 
     if coordinate_transformation_mode == "align_corners":
-        z_ratio = (in_d - 1).astype('float') / (size[0] - 1)
-        y_ratio = (in_h - 1).astype('float') / (size[1] - 1)
-        x_ratio = (in_w - 1).astype('float') / (size[2] - 1)
+        z_ratio = (in_d - 1).astype("float") / (size[0] - 1)
+        y_ratio = (in_h - 1).astype("float") / (size[1] - 1)
+        x_ratio = (in_w - 1).astype("float") / (size[2] - 1)
     elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-        z_ratio = (in_d).astype('float') / (size[0])
-        y_ratio = (in_h).astype('float') / (size[1])
-        x_ratio = (in_w).astype('float') / (size[2])
+        z_ratio = (in_d).astype("float") / (size[0])
+        y_ratio = (in_h).astype("float") / (size[1])
+        x_ratio = (in_w).astype("float") / (size[2])
     else:
-        raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-            coordinate_transformation_mode))
+        raise ValueError(
+            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+        )
 
     def _get_pixel(n, c, z, y, x, cc):
         z = tvm.te.max(tvm.te.min(z, in_d - 1), 0)
         y = tvm.te.max(tvm.te.min(y, in_h - 1), 0)
         x = tvm.te.max(tvm.te.min(x, in_w - 1), 0)
-        if layout == 'NDHWC':
-            return data(n, z, y, x, c).astype('float')
-        if layout == 'NCDHW':
-            return data(n, c, z, y, x).astype('float')
+        if layout == "NDHWC":
+            return data(n, z, y, x, c).astype("float")
+        if layout == "NCDHW":
+            return data(n, c, z, y, x).astype("float")
         # else must be NCDHWxc
-        return data(n, c, z, y, x, cc).astype('float')
+        return data(n, c, z, y, x, cc).astype("float")
 
     def _get_indices(*indices):
-        if layout == 'NDHWC':
+        if layout == "NDHWC":
             n, z, y, x, c = indices
             cc = None
-        elif layout == 'NCDHW':
+        elif layout == "NCDHW":
             n, c, z, y, x = indices
             cc = None
         else:
@@ -766,18 +951,21 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
         in_x = x_ratio * x
 
         if coordinate_transformation_mode == "align_corners":
-            zint = te.round(in_z).astype('int32')
-            yint = te.round(in_y).astype('int32')
-            xint = te.round(in_x).astype('int32')
+            zint = te.round(in_z).astype("int32")
+            yint = te.round(in_y).astype("int32")
+            xint = te.round(in_x).astype("int32")
         elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
             # Add epsilon to floor to prevent gpu rounding errors.
             epsilon = 1e-5
-            zint = te.floor(in_z + epsilon).astype('int32')
-            yint = te.floor(in_y + epsilon).astype('int32')
-            xint = te.floor(in_x + epsilon).astype('int32')
+            zint = te.floor(in_z + epsilon).astype("int32")
+            yint = te.floor(in_y + epsilon).astype("int32")
+            xint = te.floor(in_x + epsilon).astype("int32")
         else:
-            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-                coordinate_transformation_mode))
+            raise ValueError(
+                "Unsupported coordinate_transformation_mode: {}".format(
+                    coordinate_transformation_mode
+                )
+            )
 
         return _cast_output(_get_pixel(n, c, zint, yint, xint, cc))
 
@@ -797,13 +985,13 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
             in_y = y_ratio * y
             in_x = x_ratio * x
 
-        zint = te.floor(in_z).astype('int32')
+        zint = te.floor(in_z).astype("int32")
         zfract = in_z - te.floor(in_z)
 
-        xint = te.floor(in_x).astype('int32')
+        xint = te.floor(in_x).astype("int32")
         xfract = in_x - te.floor(in_x)
 
-        yint = te.floor(in_y).astype('int32')
+        yint = te.floor(in_y).astype("int32")
         yfract = in_y - te.floor(in_y)
 
         p000 = _get_pixel(n, c, zint, yint, xint, cc)
@@ -830,6 +1018,6 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
     elif method == "trilinear":
         compute_func = _trilinear
     else:
-        raise ValueError('%s method is not supported.' % method)
+        raise ValueError("%s method is not supported." % method)
 
-    return te.compute(output_shape, compute_func, name='resize3d', tag=tag.INJECTIVE)
+    return te.compute(output_shape, compute_func, name="resize3d", tag=tag.INJECTIVE)

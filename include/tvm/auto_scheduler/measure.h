@@ -71,7 +71,7 @@ enum class MeasureErrorNO : int {
   /*! \brief Timeout during run. */
   kRunTimeoutError = 7,
   /*! \brief Unknown error. */
-  kUnknonwError = 8,
+  kUnknownError = 8,
 };
 
 // Inputs and results of one measurement
@@ -104,7 +104,7 @@ class MeasureInput : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param task The SearchTeask of this measure.
+   * \param task The SearchTask of this measure.
    * \param state The State to be measured.
    */
   MeasureInput(SearchTask task, State state);
@@ -276,6 +276,8 @@ class ProgramRunnerNode : public Object {
   int min_repeat_ms;
   /*! \brief The cool down interval between two measurements. */
   double cooldown_interval;
+  /*! \brief Whether to flush cache on CPU between repeated measurements. */
+  bool enable_cpu_cache_flush;
 
   /*!
    * \brief Run measurement and return results.
@@ -351,15 +353,17 @@ class LocalRunner : public ProgramRunner {
  public:
   /*!
    * \brief The constructor. See the corresponding class in python/tvm/auto_scheduler/measure.py
-   * for more detailed parameter explaination.
+   * for more detailed parameter explanation.
    * \param timeout The timeout limit (in second) for each run.
    * This is used in a wrapper of the multiprocessing.Process.join().
    * \param number The number of times to run the generated code for taking average.
    * \param repeat The number of times to repeat the measurement.
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
+   * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
    */
-  LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
+  LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
+              bool enable_cpu_cache_flush);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, ProgramRunner, LocalRunnerNode);
 };
@@ -397,7 +401,7 @@ class RPCRunner : public ProgramRunner {
  public:
   /*!
    * \brief The constructor. See the corresponding class in python/tvm/auto_scheduler/measure.py
-   * for more detailed parameter explaination.
+   * for more detailed parameter explanation.
    * \param key The key of the device registered in the RPC tracker.
    * \param host The host address of the RPC Tracker.
    * \param port The port of RPC Tracker.
@@ -408,16 +412,18 @@ class RPCRunner : public ProgramRunner {
    * \param repeat The number of times to repeat the measurement.
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
+   * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
    */
   RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
-            int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval);
+            int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
+            bool enable_cpu_cache_flush);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
 };
 
 /*!
  * \brief Measurer that measures the time costs of tvm programs
- * This class combines ProgramBuilder and ProgramRunner and provides a simpler API */
+ * This class combines ProgramBuilder and ProgramRunner, and provides a simpler API */
 class ProgramMeasurerNode : public Object {
  public:
   /*! \brief Measured programs counter. */
@@ -438,8 +444,8 @@ class ProgramMeasurerNode : public Object {
   Optional<Array<MeasureCallback>> callbacks;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during program measuring. */
   int verbose;
-  /*! \brief The number of max continuous error. */
-  int max_continous_error;
+  /*! \brief The number of allowed maximum continuous error before forcely stopping the tuning */
+  int max_continuous_error;
 
   /*! \brief Reset book keeping variables */
   void Reset();
@@ -448,13 +454,12 @@ class ProgramMeasurerNode : public Object {
    * \brief Do measurement.
    * \param task The current SearchTask.
    * \param policy The current SearchPolicy.
-   * \param inputs The MeasureInputs.
-   * \param results A pointer to a MeasureResult Array, this is used as output.
+   * \param inputs The inputs of measurement.
    * \param batch_size Number of programs to be measured in one batch.
+   * \return results The results of measurement.
    */
-  void Measure(const SearchTask& task, const SearchPolicy& policy,
-               const Array<MeasureInput>& inputs, Array<MeasureResult>* results,
-               int batch_size = -1);
+  Array<MeasureResult> Measure(const SearchTask& task, const SearchPolicy& policy,
+                               const Array<MeasureInput>& inputs, int batch_size = -1);
   /*!
    * \brief Do measurement silently.
    * This API will not print the measure results to screen.
@@ -466,7 +471,7 @@ class ProgramMeasurerNode : public Object {
                      Array<MeasureResult>* results);
 
   /*! \brief The default max continuous error setting. */
-  static const int DEFAULT_MAX_CONTINOUS_ERROR = 150;
+  static const int DEFAULT_MAX_CONTINUOUS_ERROR = 150;
 
   static constexpr const char* _type_key = "auto_scheduler.ProgramMeasurer";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProgramMeasurerNode, Object);
@@ -480,16 +485,17 @@ class ProgramMeasurer : public ObjectRef {
  public:
   /*!
    * \brief The constructor.
-   * \param builder The ProgramBuilder to build each program.
-   * \param runner The ProgramRunner to measure each program.
-   * \param callbacks MeasureCallback to be called after each measure batch.
+   * \param builder The ProgramBuilder to build programs.
+   * \param runner The ProgramRunner to measure programs.
+   * \param callbacks MeasureCallback to be called after each measurement batch.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during program
    * measuring.
-   * \param max_continous_error The number of allowed maximum continuous error.
+   * \param max_continuous_error The number of allowed maximum continuous error before
+   * forcely stopping the tuning.
    */
   ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                   Optional<Array<MeasureCallback>> callbacks, int verbose,
-                  int max_continous_error = -1);
+                  int max_continuous_error = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ProgramMeasurer, ObjectRef, ProgramMeasurerNode);
 };

@@ -25,17 +25,19 @@ import tvm
 from tvm import te
 from tvm.contrib import cc
 
+
 def main():
-    n = te.var('n')
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     s = tvm.te.create_schedule(C.op)
     s[C].parallel(s[C].op.axis[0])
     print(tvm.lower(s, [A, B, C], simple_mode=True))
-    obj_file = osp.join(sys.argv[1], 'test.o')
-    tvm.build(s, [A, B, C], 'llvm').save(obj_file)
-    cc.create_shared(osp.join(sys.argv[1], 'test.so'), [obj_file])
+    obj_file = osp.join(sys.argv[1], "test.o")
+    tvm.build(s, [A, B, C], "llvm").save(obj_file)
+    cc.create_shared(osp.join(sys.argv[1], "test.so"), [obj_file])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

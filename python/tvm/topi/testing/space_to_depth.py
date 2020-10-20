@@ -41,8 +41,7 @@ def space_to_depth_python(data, block_size):
     new_w = int(in_h / block_size)
     new_c = int(in_c * (block_size * block_size))
 
-    expanded = np.reshape(
-        data, newshape=[in_n, in_c, new_h, block_size, new_w, block_size])
+    expanded = np.reshape(data, newshape=[in_n, in_c, new_h, block_size, new_w, block_size])
     transposed = np.transpose(expanded, axes=[0, 3, 5, 1, 2, 4])
     newshape = [in_n, new_c, new_h, new_w]
     d2s_out = np.reshape(transposed, newshape=newshape)

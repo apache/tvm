@@ -32,7 +32,7 @@
 #include <vector>
 
 #include "../../tir/transforms/arg_binder.h"
-#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "../schedule/message_passing.h"
 
 namespace tvm {

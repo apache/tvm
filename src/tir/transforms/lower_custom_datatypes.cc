@@ -23,6 +23,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -50,7 +51,6 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<CastNode>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
       CHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
@@ -97,7 +97,23 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE__(OP, NodeName)                                              \
+  inline PrimExpr VisitExpr_(const CallNode* call) final {
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(call->dtype.code());
+    PrimExpr expr = StmtExprMutator::VisitExpr_(call);
+    call = expr.as<CallNode>();
+    if (toBeLowered) {
+      auto op = call->op.as<OpNode>();
+      CHECK(op != nullptr) << "Lowering non-intrinsic Calls not implemented";
+      auto lower = datatype::GetIntrinLowerFunc(target_, op->name, call->dtype.code());
+      CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
+                   << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
+                   << " not found";
+      return (*lower)(expr);
+    }
+    return expr;
+  }
+
+#define DEFINE_MUTATE(OP, NodeName)                                                \
   inline PrimExpr VisitExpr_(const NodeName* op) final {                           \
     auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
@@ -112,19 +128,19 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;                                                                   \
   }
 
-  DEFINE_MUTATE__(Add, AddNode);
-  DEFINE_MUTATE__(Sub, SubNode);
-  DEFINE_MUTATE__(Mul, MulNode);
-  DEFINE_MUTATE__(Div, DivNode);
-  DEFINE_MUTATE__(Mod, ModNode);
-  DEFINE_MUTATE__(Min, MinNode);
-  DEFINE_MUTATE__(Max, MaxNode);
-  DEFINE_MUTATE__(EQ, EQNode);
-  DEFINE_MUTATE__(NE, NENode);
-  DEFINE_MUTATE__(LT, LTNode);
-  DEFINE_MUTATE__(LE, LENode);
-  DEFINE_MUTATE__(GT, GTNode);
-  DEFINE_MUTATE__(GE, GENode);
+  DEFINE_MUTATE(Add, AddNode);
+  DEFINE_MUTATE(Sub, SubNode);
+  DEFINE_MUTATE(Mul, MulNode);
+  DEFINE_MUTATE(Div, DivNode);
+  DEFINE_MUTATE(Mod, ModNode);
+  DEFINE_MUTATE(Min, MinNode);
+  DEFINE_MUTATE(Max, MaxNode);
+  DEFINE_MUTATE(EQ, EQNode);
+  DEFINE_MUTATE(NE, NENode);
+  DEFINE_MUTATE(LT, LTNode);
+  DEFINE_MUTATE(LE, LENode);
+  DEFINE_MUTATE(GT, GTNode);
+  DEFINE_MUTATE(GE, GENode);
   // Later changes may need to add more mutate functions as we support workloads with more ops.
 
  private:

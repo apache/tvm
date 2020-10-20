@@ -35,7 +35,7 @@ from tvm._ffi.base import decorate
 
 from .module import HybridModule
 from .parser import source_to_op
-from .util import _pruned_source
+from .utils import _pruned_source
 
 
 def script(pyfunc):
@@ -51,7 +51,8 @@ def script(pyfunc):
     """
     # pylint: disable=import-outside-toplevel, missing-docstring
     def wrapped_func(func, *args, **kwargs):
-        from .util import _is_tvm_arg_types
+        from .utils import _is_tvm_arg_types
+
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)
             closure_vars = inspect.getclosurevars(func).nonlocals
@@ -59,6 +60,7 @@ def script(pyfunc):
             return source_to_op(src, args, func.__globals__, closure_vars)
 
         from .runtime import _enter_hybrid_runtime, _restore_runtime
+
         intersect = _enter_hybrid_runtime(func)
         value = func(*args, **kwargs)
         _restore_runtime(func, intersect)
@@ -68,7 +70,7 @@ def script(pyfunc):
 
 
 def build(sch, inputs, outputs, name="hybrid_func"):
-    """Dump the corrent schedule to hybrid module
+    """Dump the current schedule to hybrid module
 
     Parameters
     ----------

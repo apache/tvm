@@ -34,21 +34,26 @@ def _create_tflite_model():
     try:
         import tensorflow as tf
     except ImportError:
-        print('skip because tensorflow not installed...')
+        print("skip because tensorflow not installed...")
         return
 
     root = tf.Module()
-    root.const = tf.constant([1., 2.], tf.float32)
+    root.const = tf.constant([1.0, 2.0], tf.float32)
     root.f = tf.function(lambda x: root.const * x)
 
-    input_signature = tf.TensorSpec(shape=[2,  ], dtype=tf.float32)
+    input_signature = tf.TensorSpec(
+        shape=[
+            2,
+        ],
+        dtype=tf.float32,
+    )
     concrete_func = root.f.get_concrete_function(input_signature)
     converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
     tflite_model = converter.convert()
     return tflite_model
 
 
-@pytest.mark.skip('skip because accessing output tensor is flakey')
+@pytest.mark.skip("skip because accessing output tensor is flakey")
 def test_local():
     if not tvm.runtime.enabled("tflite"):
         print("skip because tflite runtime is not enabled...")
@@ -60,14 +65,14 @@ def test_local():
     try:
         import tensorflow as tf
     except ImportError:
-        print('skip because tensorflow not installed...')
+        print("skip because tensorflow not installed...")
         return
 
     tflite_fname = "model.tflite"
     tflite_model = _create_tflite_model()
     temp = util.tempdir()
     tflite_model_path = temp.relpath(tflite_fname)
-    open(tflite_model_path, 'wb').write(tflite_model)
+    open(tflite_model_path, "wb").write(tflite_model)
 
     # inference via tflite interpreter python apis
     interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
@@ -75,14 +80,14 @@ def test_local():
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    input_shape = input_details[0]['shape']
+    input_shape = input_details[0]["shape"]
     tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.float32)
-    interpreter.set_tensor(input_details[0]['index'], tflite_input)
+    interpreter.set_tensor(input_details[0]["index"], tflite_input)
     interpreter.invoke()
-    tflite_output = interpreter.get_tensor(output_details[0]['index'])
+    tflite_output = interpreter.get_tensor(output_details[0]["index"])
 
     # inference via tvm tflite runtime
-    with open(tflite_model_path, 'rb') as model_fin:
+    with open(tflite_model_path, "rb") as model_fin:
         runtime = tflite_runtime.create(model_fin.read(), tvm.cpu(0))
         runtime.set_input(0, tvm.nd.array(tflite_input))
         runtime.invoke()
@@ -101,14 +106,14 @@ def test_remote():
     try:
         import tensorflow as tf
     except ImportError:
-        print('skip because tensorflow not installed...')
+        print("skip because tensorflow not installed...")
         return
 
     tflite_fname = "model.tflite"
     tflite_model = _create_tflite_model()
     temp = util.tempdir()
     tflite_model_path = temp.relpath(tflite_fname)
-    open(tflite_model_path, 'wb').write(tflite_model)
+    open(tflite_model_path, "wb").write(tflite_model)
 
     # inference via tflite interpreter python apis
     interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
@@ -116,11 +121,11 @@ def test_remote():
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
 
-    input_shape = input_details[0]['shape']
+    input_shape = input_details[0]["shape"]
     tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.float32)
-    interpreter.set_tensor(input_details[0]['index'], tflite_input)
+    interpreter.set_tensor(input_details[0]["index"], tflite_input)
     interpreter.invoke()
-    tflite_output = interpreter.get_tensor(output_details[0]['index'])
+    tflite_output = interpreter.get_tensor(output_details[0]["index"])
 
     # inference via remote tvm tflite runtime
     server = rpc.Server("localhost")
@@ -128,7 +133,7 @@ def test_remote():
     ctx = remote.cpu(0)
     a = remote.upload(tflite_model_path)
 
-    with open(tflite_model_path, 'rb') as model_fin:
+    with open(tflite_model_path, "rb") as model_fin:
         runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
         runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
         runtime.invoke()

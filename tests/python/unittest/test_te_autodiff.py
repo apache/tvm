@@ -17,7 +17,7 @@
 
 import tvm
 from tvm import te
-from tvm.testing import check_numerical_grads, assert_allclose
+from tvm.testing import assert_allclose
 from tvm import topi
 from tvm.topi.util import get_const_tuple
 import pytest
@@ -25,15 +25,14 @@ import pytest
 import numpy as np
 
 
-def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, assert_no_jacobian=True):
+def check_grad(
+    out, inputs, args=[], data_range=(-10, 10), desired_grads=None, assert_no_jacobian=True
+):
     inputs = inputs if isinstance(inputs, list) else [inputs]
 
     def check_device(device, host="llvm"):
         ctx = tvm.context(device, 0)
-        if not tvm.runtime.enabled(host):
-            return
-        if not ctx.exist:
-            print("skip because %s is not enabled.." % device)
+        if not tvm.testing.device_enabled(host):
             return
 
         sout = te.create_schedule(out.op)
@@ -41,12 +40,16 @@ def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, a
         out_shape = get_const_tuple(out.shape)
 
         l, h = data_range
-        input_data = [tvm.nd.array(
-            np.random.uniform(l, h, size=get_const_tuple(input.shape)).astype(input.dtype))
-            for input in inputs]
-        arg_vals = [tvm.nd.array(
-            np.random.uniform(l, h, size=get_const_tuple(arg.shape)).astype(arg.dtype))
-            for arg in args]
+        input_data = [
+            tvm.nd.array(
+                np.random.uniform(l, h, size=get_const_tuple(input.shape)).astype(input.dtype)
+            )
+            for input in inputs
+        ]
+        arg_vals = [
+            tvm.nd.array(np.random.uniform(l, h, size=get_const_tuple(arg.shape)).astype(arg.dtype))
+            for arg in args
+        ]
 
         ones = topi.full_like(out, 1.0)
         # we provide head to sum and reduce the output dimension,
@@ -59,8 +62,7 @@ def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, a
             lowered_ir = str(tvm.lower(grad_sched, list(grads) + inputs + args, simple_mode=True))
             assert "jacobian" not in lowered_ir, lowered_ir
 
-        grad_data = [tvm.nd.empty(get_const_tuple(i.shape), g.dtype)
-                     for i, g in zip(inputs, grads)]
+        grad_data = [tvm.nd.empty(get_const_tuple(i.shape), g.dtype) for i, g in zip(inputs, grads)]
 
         mgrad(*grad_data, *input_data, *arg_vals)
         g_res = [g.asnumpy() for g in grad_data]
@@ -70,11 +72,15 @@ def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, a
             for actual, desired in zip(g_res, desired_grads):
                 assert_allclose(actual, desired, rtol=0.1, atol=1e-2)
         else:
+
             def forward(*in_data):
                 out_data = tvm.nd.empty(out_shape, out.dtype)
                 mout(out_data, *[tvm.nd.array(d) for d in list(in_data)])
                 return out_data.asnumpy().sum()
-            check_numerical_grads(forward, [d.asnumpy() for d in input_data + arg_vals], g_res)
+
+            tvm.testing.check_numerical_grads(
+                forward, [d.asnumpy() for d in input_data + arg_vals], g_res
+            )
 
     check_device("cpu")
 
@@ -82,83 +88,83 @@ def check_grad(out, inputs, args=[], data_range=(-10, 10), desired_grads=None, a
 def test_basic_operation():
     np.random.seed(0)
     shape = (10, 10)
-    x = te.var("x", dtype='float32')
+    x = te.var("x", dtype="float32")
     k = te.reduce_axis((0, 10), name="k")
     l = te.reduce_axis((0, 10), name="l")
-    A0 = te.placeholder(shape, name='A0')
-    A1 = te.placeholder(shape, name='A1')
+    A0 = te.placeholder(shape, name="A0")
+    A1 = te.placeholder(shape, name="A1")
     zeros = np.zeros(shape)
 
-    B = te.compute(shape, lambda i, j: A0[i, j], name='B')
+    B = te.compute(shape, lambda i, j: A0[i, j], name="B")
     check_grad(B, [A0])
 
-    B = te.compute(shape, lambda i, j: A0[i, j] + A1[i, j], name='B')
+    B = te.compute(shape, lambda i, j: A0[i, j] + A1[i, j], name="B")
     check_grad(B, [A0, A1])
 
-    B = te.compute(shape, lambda i, j: A0[i, j] + A0[j, i], name='B')
+    B = te.compute(shape, lambda i, j: A0[i, j] + A0[j, i], name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.floor(A0[i, j]), name='B')
+    B = te.compute(shape, lambda i, j: te.floor(A0[i, j]), name="B")
     check_grad(B, A0, desired_grads=[zeros])
 
-    B = te.compute(shape, lambda i, j: te.ceil(A0[i, j]), name='B')
+    B = te.compute(shape, lambda i, j: te.ceil(A0[i, j]), name="B")
     check_grad(B, A0, desired_grads=[zeros])
 
-    B = te.compute(shape, lambda i, j: te.trunc(A0[i, j]), name='B')
+    B = te.compute(shape, lambda i, j: te.trunc(A0[i, j]), name="B")
     check_grad(B, A0, desired_grads=[zeros])
 
-    B = te.compute(shape, lambda i, j: te.round(A0[i, j]), name='B')
+    B = te.compute(shape, lambda i, j: te.round(A0[i, j]), name="B")
     check_grad(B, A0, desired_grads=[zeros])
 
-    B = te.compute(shape, lambda i, j: A0[i, j] + te.exp(A0[j, i]), name='B')
+    B = te.compute(shape, lambda i, j: A0[i, j] + te.exp(A0[j, i]), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.log(0.1 + te.abs(A0[i, j] + te.exp(A0[j, i]))), name='B')
+    B = te.compute(shape, lambda i, j: te.log(0.1 + te.abs(A0[i, j] + te.exp(A0[j, i]))), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.sigmoid(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
+    B = te.compute(shape, lambda i, j: te.sigmoid(A0[i, j] * A0[i, j] * A0[j, i]), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.tanh(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
+    B = te.compute(shape, lambda i, j: te.tanh(A0[i, j] * A0[i, j] * A0[j, i]), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.sqrt(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
+    B = te.compute(shape, lambda i, j: te.sqrt(A0[i, j] * A0[i, j] * A0[j, i]), name="B")
     check_grad(B, A0, data_range=(0.1, 10))
 
-    B = te.compute(shape, lambda i, j: te.power(te.abs(A0[i, j]), A0[j, i]), name='B')
+    B = te.compute(shape, lambda i, j: te.power(te.abs(A0[i, j]), A0[j, i]), name="B")
     check_grad(B, A0, data_range=(-4, 4))
 
-    B = te.compute(shape, lambda i, j: A0[i, j] * A0[j, i], name='B')
+    B = te.compute(shape, lambda i, j: A0[i, j] * A0[j, i], name="B")
     check_grad(B, A0)
 
-    B = te.compute((10,), lambda i: te.sum(A0[i, k]*A0[k, i], axis=k), name='B')
+    B = te.compute((10,), lambda i: te.sum(A0[i, k] * A0[k, i], axis=k), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.sum(A0[i, k]*A0[k, i] + 5, axis=k), name='B')
+    B = te.compute(shape, lambda i, j: te.sum(A0[i, k] * A0[k, i] + 5, axis=k), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: te.max(A0[i, k]*A0[k, j] + 5, axis=k), name='B')
+    B = te.compute(shape, lambda i, j: te.max(A0[i, k] * A0[k, j] + 5, axis=k), name="B")
     check_grad(B, A0)
 
-    B = te.compute(shape, lambda i, j: A0[i, j] * (A1[j, i] + A0[j, i]), name='B')
+    B = te.compute(shape, lambda i, j: A0[i, j] * (A1[j, i] + A0[j, i]), name="B")
     check_grad(B, [A0, A1])
 
-    B = te.compute(shape, lambda i, j: te.sum(A0[k, k] -
-                                              A0[te.min(j + k, 9), j]*A0[i, k],
-                                              axis=k), name='B')
+    B = te.compute(
+        shape, lambda i, j: te.sum(A0[k, k] - A0[te.min(j + k, 9), j] * A0[i, k], axis=k), name="B"
+    )
     check_grad(B, A0)
 
     def fcombine(x, y):
-        return x*y
+        return x * y
 
     def fidentity(t0):
         return tvm.tir.const(1, t0)
 
-    prod = te.comm_reducer(fcombine, fidentity, name='prod')
-    B = te.compute((10, 10), lambda i, j: prod(A0[i, k] + A0[k, i], axis=k), name='B')
+    prod = te.comm_reducer(fcombine, fidentity, name="prod")
+    B = te.compute((10, 10), lambda i, j: prod(A0[i, k] + A0[k, i], axis=k), name="B")
     check_grad(B, A0)
 
-    X = te.placeholder((10,), name='X')
+    X = te.placeholder((10,), name="X")
     A = te.compute((10,), lambda i: X[i] + X[9 - i])
     B = te.compute((10,), lambda i: X[i] * X[9 - i])
     Y = topi.tensordot(A, B, 1)
@@ -166,10 +172,10 @@ def test_basic_operation():
 
 
 def test_topi():
-    X = te.placeholder((1, 2, 4, 4), name='X')
-    W = te.placeholder((5, 2, 3, 3), name='W')
-    W1 = te.placeholder((2, 5, 3, 3), name='W1')
-    W2 = te.placeholder((1,), name='W2')
+    X = te.placeholder((1, 2, 4, 4), name="X")
+    W = te.placeholder((5, 2, 3, 3), name="W")
+    W1 = te.placeholder((2, 5, 3, 3), name="W1")
+    W2 = te.placeholder((1,), name="W2")
 
     R = topi.nn.conv2d(X, W, 1, 1, 1)
     check_grad(R, [X, W])
@@ -183,18 +189,18 @@ def test_topi():
     R = topi.nn.conv2d(X, topi.broadcast_to(W2, (5, 2, 3, 3)), 1, 1, 1)
     check_grad(R, [X, W2])
 
-    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'avg')
+    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], "avg")
     check_grad(R, X)
 
-    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'max')
+    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], "max")
     check_grad(R, X)
 
-    X = te.placeholder((1, 2, 5, 5), name='X')
+    X = te.placeholder((1, 2, 5, 5), name="X")
     R = topi.reshape(X, (1, 32))
     check_grad(R, [X])
 
-    X = te.placeholder((1, 2, 5, 5), name='X')
-    W = te.placeholder((2, 2, 3, 3), name='W')
+    X = te.placeholder((1, 2, 5, 5), name="X")
+    W = te.placeholder((2, 2, 3, 3), name="W")
 
     S = topi.reshape(X, (1, 50))
     check_grad(S, [X])
@@ -215,12 +221,12 @@ def test_topi():
     check_grad(S, [X, W])
     check_grad(S, [W], [X])
 
-    X = te.placeholder((1, 2, 3, 5), name='X')
-    Y = te.placeholder((1, 2, 7, 5), name='Y')
+    X = te.placeholder((1, 2, 3, 5), name="X")
+    Y = te.placeholder((1, 2, 7, 5), name="Y")
     S = topi.concatenate((X, Y), 2)
     check_grad(S, [X, Y])
 
-    X = te.placeholder((1, 2, 6, 5), name='X')
+    X = te.placeholder((1, 2, 6, 5), name="X")
     (S, R) = topi.split(X, 2, 2)
     check_grad(S, [X])
     check_grad(R, [X])
@@ -229,21 +235,21 @@ def test_topi():
     R2 = topi.concatenate((R, S), 2)
     check_grad(R2, [X])
 
-    X = te.placeholder((4, 5), name='X')
-    I = te.placeholder((100,), name='I', dtype='int32')
+    X = te.placeholder((4, 5), name="X")
+    I = te.placeholder((100,), name="I", dtype="int32")
     R = topi.take(X, topi.abs(I))
     check_grad(R, [X], [I])
 
-    W = te.placeholder((5, 5), name='W')
+    W = te.placeholder((5, 5), name="W")
     exps = topi.exp(topi.nn.dense(X, W))
     sumexps = topi.sum(exps, axis=-1, keepdims=True)
-    R = exps/sumexps
+    R = exps / sumexps
     check_grad(R, [X, W], data_range=(-1, 1))
 
 
 def test_stride_dilation():
-    X = te.placeholder((1, 2, 10, 10), name='X')
-    W = te.placeholder((2, 2, 1, 1), name='W')
+    X = te.placeholder((1, 2, 10, 10), name="X")
+    W = te.placeholder((2, 2, 1, 1), name="W")
 
     Y = topi.nn.conv2d(X, W, 1, 0, 1)
     check_grad(Y, [X, W])
@@ -264,7 +270,7 @@ def test_stride_dilation():
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
     check_grad(Y, [X, W])
 
-    W = te.placeholder((2, 2, 2, 2), name='W')
+    W = te.placeholder((2, 2, 2, 2), name="W")
 
     Y = topi.nn.conv2d(X, W, 1, 0, 1)
     check_grad(Y, [X, W])
@@ -285,7 +291,7 @@ def test_stride_dilation():
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
     check_grad(Y, [X, W])
 
-    W = te.placeholder((2, 2, 3, 3), name='W')
+    W = te.placeholder((2, 2, 3, 3), name="W")
 
     Y = topi.nn.conv2d(X, W, 1, 0, 1)
     check_grad(Y, [X, W])
@@ -306,34 +312,36 @@ def test_stride_dilation():
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
     check_grad(Y, [X, W])
 
-    Y = topi.nn.pool(X, [1, 1], [1, 1], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [1, 1], [1, 1], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [1, 1], [2, 2], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [1, 1], [2, 2], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [1, 1], [3, 3], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [1, 1], [3, 3], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [2, 2], [1, 1], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [2, 2], [1, 1], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [2, 2], [3, 3], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [2, 2], [3, 3], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [3, 3], [1, 1], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [3, 3], [1, 1], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [3, 3], [2, 2], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [3, 3], [2, 2], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
-    Y = topi.nn.pool(X, [3, 3], [3, 3], [0, 0, 0, 0], 'max')
+    Y = topi.nn.pool(X, [3, 3], [3, 3], [0, 0, 0, 0], "max")
     check_grad(Y, [X])
+
 
 @pytest.mark.xfail
 def test_reduction_init():
     np.random.seed(0)
     shape = (10, 10)
     k = te.reduce_axis((0, 10), name="k")
-    A0 = te.placeholder(shape, name='A0')
+    A0 = te.placeholder(shape, name="A0")
 
-    B = te.compute((10,), lambda i: te.sum(A0[i, k]*A0[k, i], axis=k, init=0.0), name='B')
+    B = te.compute((10,), lambda i: te.sum(A0[i, k] * A0[k, i], axis=k, init=0.0), name="B")
     check_grad(B, A0)
+
 
 if __name__ == "__main__":
     test_basic_operation()

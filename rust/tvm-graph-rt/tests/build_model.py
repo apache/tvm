@@ -28,9 +28,10 @@ from tvm.relay import testing
 
 CWD = osp.dirname(osp.abspath(osp.expanduser(__file__)))
 
+
 def _get_model(dshape):
-    data = relay.var('data', shape=dshape)
-    fc = relay.nn.dense(data, relay.var("dense_weight"), units=dshape[-1]*2)
+    data = relay.var("data", shape=dshape)
+    fc = relay.nn.dense(data, relay.var("dense_weight"), units=dshape[-1] * 2)
     fc = relay.nn.bias_add(fc, relay.var("dense_bias"))
     left, right = relay.split(fc, indices_or_sections=2, axis=1)
     one = relay.const(1, dtype="float32")
@@ -41,13 +42,13 @@ def main():
     dshape = (32, 16)
     net = _get_model(dshape)
     mod, params = testing.create_workload(net)
-    graph, lib, params = relay.build(
-        mod, 'llvm', params=params)
+    graph, lib, params = relay.build(mod, "llvm", params=params)
 
-    with open(osp.join(CWD, 'graph.json'), 'w') as f_resnet:
+    with open(osp.join(CWD, "graph.json"), "w") as f_resnet:
         f_resnet.write(graph)
-    with open(osp.join(CWD, 'graph.params'), 'wb') as f_params:
+    with open(osp.join(CWD, "graph.params"), "wb") as f_params:
         f_params.write(relay.save_param_dict(params))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

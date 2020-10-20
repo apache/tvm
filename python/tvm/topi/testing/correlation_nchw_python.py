@@ -19,7 +19,9 @@
 import numpy as np
 
 
-def correlation_nchw_python(data1, data2, kernel_size, max_displacement, stride1, stride2, padding, is_multiply):
+def correlation_nchw_python(
+    data1, data2, kernel_size, max_displacement, stride1, stride2, padding, is_multiply
+):
     """Correlationn operator in NCHW layout.
 
     Parameters
@@ -65,15 +67,15 @@ def correlation_nchw_python(data1, data2, kernel_size, max_displacement, stride1
     out_channel = neighborhood_grid_width * neighborhood_grid_width
 
     out = np.zeros((data1.shape[0], out_channel, out_height, out_width))
-    pad_data1 = np.zeros((data1.shape[0], data1.shape[1],
-                          pad_data_height, pad_data_width))
-    pad_data2 = np.zeros((data1.shape[0], data1.shape[1],
-                          pad_data_height, pad_data_width))
+    pad_data1 = np.zeros((data1.shape[0], data1.shape[1], pad_data_height, pad_data_width))
+    pad_data2 = np.zeros((data1.shape[0], data1.shape[1], pad_data_height, pad_data_width))
 
-    pad_data1[:, :, padding:padding + data1.shape[2],
-              padding:padding + data1.shape[3]] = data1[:, :, :, :]
-    pad_data2[:, :, padding:padding + data2.shape[2],
-              padding:padding + data2.shape[3]] = data2[:, :, :, :]
+    pad_data1[:, :, padding : padding + data1.shape[2], padding : padding + data1.shape[3]] = data1[
+        :, :, :, :
+    ]
+    pad_data2[:, :, padding : padding + data2.shape[2], padding : padding + data2.shape[3]] = data2[
+        :, :, :, :
+    ]
 
     if is_multiply:
         corr_func = lambda x, y: x * y
@@ -96,8 +98,10 @@ def correlation_nchw_python(data1, data2, kernel_size, max_displacement, stride1
                     for h in range(kernel_size):
                         for w in range(kernel_size):
                             for channel in range(data1.shape[1]):
-                                out[nbatch, q, i, j] += corr_func(pad_data1[nbatch, channel, y1 + h, x1 + w],
-                                                                  pad_data2[nbatch, channel, y2 + h, x2 + w])
+                                out[nbatch, q, i, j] += corr_func(
+                                    pad_data1[nbatch, channel, y1 + h, x1 + w],
+                                    pad_data2[nbatch, channel, y2 + h, x2 + w],
+                                )
 
-    out /= float(kernel_size** 2 *data1.shape[1])
+    out /= float(kernel_size ** 2 * data1.shape[1])
     return out

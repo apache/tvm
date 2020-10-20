@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name
+# pylint: disable=invalid-name
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
 import collections
@@ -25,6 +25,7 @@ from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
 from tvm.relay import Prelude
+from tvm.testing import enabled_targets
 
 from . import mlp
 from . import resnet
@@ -41,9 +42,8 @@ from . import yolo_detection
 from . import temp_op_attr
 from . import synthetic
 
-from .config import ctx_list
 from .init import create_workload
-from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
+from .nat import count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
 
@@ -53,6 +53,7 @@ def run_opt_pass(expr, opt_pass, import_prelude=False):
     mod = tvm.IRModule.from_expr(expr)
     if import_prelude:
         Prelude(mod)
+    mod = relay.transform.InferType()(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -66,14 +67,9 @@ def _np_randn_from_type(t, scale=1, mean=0):
     return (mean + (scale * np.random.randn(*(int(d) for d in t.shape)))).astype(t.dtype)
 
 
-def check_grad(func,
-               inputs=None,
-               test_inputs=None,
-               eps=1e-6,
-               atol=1e-5,
-               rtol=1e-3,
-               scale=None,
-               mean=0):
+def check_grad(
+    func, inputs=None, test_inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, mean=0
+):
     """Perform numerical gradient checking given a relay function.
 
     Compare analytical gradients to numerical gradients derived from two-sided approximation. Note
@@ -125,7 +121,7 @@ def check_grad(func,
     if test_inputs is None:
         test_inputs = inputs
 
-    for target, ctx in ctx_list():
+    for target, ctx in enabled_targets():
         intrp = relay.create_executor(ctx=ctx, target=target)
 
         # Get analytic gradients.
@@ -167,10 +163,12 @@ def rand(dtype, *shape):
 
 def count_ops(expr):
     """count number of times a given op is called in the graph"""
+
     class OpCounter(tvm.relay.ExprVisitor):
         """OpCounter"""
+
         def visit_call(self, call):
-            if hasattr(call, 'op'):
+            if hasattr(call, "op"):
                 self.node_counter[call.op.name] += 1
             return super().visit_call(call)
 

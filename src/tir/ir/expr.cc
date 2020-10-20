@@ -908,7 +908,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Any
-Any::Any() { data_ = make_object<AnyNode>(); }
+Any::Any() {
+  auto n = make_object<AnyNode>();
+  n->dtype = DataType::Int(32);
+  data_ = std::move(n);
+}
 
 TVM_REGISTER_GLOBAL("tir.Any").set_body_typed([]() { return Any(); });
 

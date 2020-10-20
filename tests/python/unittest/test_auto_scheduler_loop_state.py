@@ -23,7 +23,10 @@ import tvm
 from tvm import auto_scheduler, te
 from tvm import topi
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test, conv2d_nchw_bn_relu_auto_scheduler_test
+from test_auto_scheduler_common import (
+    matmul_auto_scheduler_test,
+    conv2d_nchw_bn_relu_auto_scheduler_test,
+)
 
 
 def test_split_fuse_reorder_annotation():
@@ -85,10 +88,13 @@ def test_split_fuse_reorder_annotation():
     assert res == s1[C].iters[5]
     assert res.annotation == auto_scheduler.loop_state.State.ANNOTATION_TRANS_TABLE["vectorize"]
 
+
 def test_compute_at_root_inline():
-    dag = auto_scheduler.ComputeDAG(conv2d_nchw_bn_relu_auto_scheduler_test(N=1, H=224, W=224, CI=3,
-                                                                            CO=64, kernel_size=7, strides=2,
-                                                                            padding=3))
+    dag = auto_scheduler.ComputeDAG(
+        conv2d_nchw_bn_relu_auto_scheduler_test(
+            N=1, H=224, W=224, CI=3, CO=64, kernel_size=7, strides=2, padding=3
+        )
+    )
     s0 = dag.get_init_state()
 
     # data, padding, kernel = 0, 1, 2
@@ -142,18 +148,18 @@ def test_compute_at_root_inline():
     assert s0[conv].iters[5].range.extent == 7
     assert s0[conv].iters[6].range.extent == 7
 
-def test_cache_read_write():
-    N, H, W, CO, CI, KH, KW, strides, padding = 4, 7, 7, 512, 512, 3, 3, (
-        1, 1), (1, 1)
 
-    data = te.placeholder((N, CI, H, W), name='Data')
-    kernel_data = te.placeholder((CO, CI, KH, KW), name='Kernel_data')
-    k0, k1 = te.compute(kernel_data.shape,
-                        lambda *i: (kernel_data(*i)+1, kernel_data(*i)/2),
-                        name='Kernel_split')
-    kernel = te.compute(kernel_data.shape,
-                        lambda *i: k0(*i) + k1(*i),
-                        name='Kernel')
+def test_cache_read_write():
+    N, H, W, CO, CI, KH, KW, strides, padding = 4, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
+
+    data = te.placeholder((N, CI, H, W), name="Data")
+    kernel_data = te.placeholder((CO, CI, KH, KW), name="Kernel_data")
+    k0, k1 = te.compute(
+        kernel_data.shape,
+        lambda *i: (kernel_data(*i) + 1, kernel_data(*i) / 2),
+        name="Kernel_split",
+    )
+    kernel = te.compute(kernel_data.shape, lambda *i: k0(*i) + k1(*i), name="Kernel")
     conv = topi.nn.conv2d_nchw(data, kernel, strides, padding, dilation=1)
     relu = topi.nn.relu(conv)
     add = topi.add(data, relu)
@@ -416,6 +422,7 @@ def test_cache_read_write():
     for it0, it1 in zip(s0[kernel_split].iters, s0[kernel_split_global].iters):
         assert it0.range == it1.range
 
+
 def test_follow_split_follow_fused_split():
     A, B, C = matmul_auto_scheduler_test(512, 512, 512)
     dag = auto_scheduler.ComputeDAG([A, B, C])
@@ -428,8 +435,7 @@ def test_follow_split_follow_fused_split():
         tmp = s0.copy()
         tmp.follow_split(C_global, tmp[C_global].iters[0], split_step0, level)
         for i in range(0, level):
-            assert tmp[C].iters[i].range.extent == \
-                   tmp[C_global].iters[i].range.extent
+            assert tmp[C].iters[i].range.extent == tmp[C_global].iters[i].range.extent
 
     its1 = s0.split(C, s0[C].iters[5], [2, 2, 4, 8])
     split_step1 = len(s0.transform_steps) - 1
@@ -443,17 +449,17 @@ def test_follow_split_follow_fused_split():
 
     for level in range(0, 4):
         tmp = s0.copy()
-        tmp.follow_fused_split(C_global, tmp[C_global].iters[0],
-                               [split_step0, split_step1], level, False)
-        assert tmp[C].iters[level + 1].range.extent == \
-               tmp[C_global].iters[0].range.extent
+        tmp.follow_fused_split(
+            C_global, tmp[C_global].iters[0], [split_step0, split_step1], level, False
+        )
+        assert tmp[C].iters[level + 1].range.extent == tmp[C_global].iters[0].range.extent
 
     for level in range(0, 4):
         tmp = s0.copy()
-        tmp.follow_fused_split(C_global, tmp[C_global].iters[0],
-                               [split_step0, split_step1], level, True)
-        assert tmp[C].iters[level + 1].range.extent == \
-               tmp[C_global].iters[1].range.extent
+        tmp.follow_fused_split(
+            C_global, tmp[C_global].iters[0], [split_step0, split_step1], level, True
+        )
+        assert tmp[C].iters[level + 1].range.extent == tmp[C_global].iters[1].range.extent
 
 
 def test_rfactor():

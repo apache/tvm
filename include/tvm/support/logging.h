@@ -24,6 +24,8 @@
 #ifndef TVM_SUPPORT_LOGGING_H_
 #define TVM_SUPPORT_LOGGING_H_
 
+#include <dmlc/logging.h>
+
 // a technique that enables overriding macro names on the number of parameters. This is used
 // to define other macros below
 #define GET_MACRO(_1, _2, _3, _4, _5, NAME, ...) NAME
@@ -109,4 +111,48 @@
 #define COND_CHECK_2(quit_on_assert, x) COND_CHECK_3(quit_on_assert, x, return false)
 #define COND_LOG_2(quit_on_assert, x) COND_LOG_3(quit_on_assert, x, return false)
 
+namespace tvm {
+
+constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
+    "\n---------------------------------------------------------------\n"
+    "An internal invariant was violated during the execution of TVM.\n"
+    "Please read TVM's error reporting guidelines.\n"
+    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
+    "---------------------------------------------------------------\n";
+
+#define ICHECK_INDENT "  "
+
+#define ICHECK_BINARY_OP(name, op, x, y)                           \
+  if (dmlc::LogCheckError _check_err = dmlc::LogCheck##name(x, y)) \
+  dmlc::LogMessageFatal(__FILE__, __LINE__).stream()               \
+      << kTVM_INTERNAL_ERROR_MESSAGE << std::endl                  \
+      << ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << *(_check_err.str) << ": "
+
+#define ICHECK(x)                                    \
+  if (!(x))                                          \
+  dmlc::LogMessageFatal(__FILE__, __LINE__).stream() \
+      << kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << " == false: "
+
+#define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
+#define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
+#define ICHECK_LE(x, y) ICHECK_BINARY_OP(_LE, <=, x, y)
+#define ICHECK_GE(x, y) ICHECK_BINARY_OP(_GE, >=, x, y)
+#define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
+#define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
+#define ICHECK_NOTNULL(x)                                                                   \
+  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                      \
+                        << kTVM_INTERNAL_ERROR_MESSAGE << __INDENT << "Check not null: " #x \
+                        << ' ',                                                             \
+   (x) : (x))  // NOLINT(*)
+
+/*! \brief The diagnostic level, controls the printing of the message. */
+enum class DiagnosticLevel : int {
+  kBug = 10,
+  kError = 20,
+  kWarning = 30,
+  kNote = 40,
+  kHelp = 50,
+};
+
+}  // namespace tvm
 #endif  // TVM_SUPPORT_LOGGING_H_

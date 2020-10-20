@@ -136,8 +136,12 @@ tvm_crt_error_t TVMMutableFuncRegistry_Set(TVMMutableFuncRegistry* reg, const ch
     idx++;
   }
 
+  if (reg_name_ptr > ((const char*)reg->registry.funcs)) {
+    return kTvmErrorFunctionRegistryFull;
+  }
+
   size_t name_len = strlen(name);
-  ssize_t names_bytes_remaining = ((const char*)reg->registry.funcs) - reg_name_ptr;
+  size_t names_bytes_remaining = ((const char*)reg->registry.funcs) - reg_name_ptr;
   if (idx >= reg->max_functions || name_len + 1 > names_bytes_remaining) {
     return kTvmErrorFunctionRegistryFull;
   }

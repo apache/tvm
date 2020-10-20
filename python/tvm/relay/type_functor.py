@@ -15,9 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """The type functor of Relay."""
-from .ty import (TypeVar, IncompleteType, TensorType, FuncType,
-                 TupleType, TypeRelation, RefType, GlobalTypeVar, TypeCall)
+from .ty import (
+    TypeVar,
+    IncompleteType,
+    TensorType,
+    FuncType,
+    TupleType,
+    TypeRelation,
+    RefType,
+    GlobalTypeVar,
+    TypeCall,
+)
 from .adt import TypeData
+
 
 class TypeFunctor:
     """
@@ -25,6 +35,7 @@ class TypeFunctor:
 
     Defines the default dispatch over types.
     """
+
     def __init__(self):
         # TODO(weberlo): make type vars hashable, so we can memoize
         pass
@@ -53,7 +64,7 @@ class TypeFunctor:
         elif isinstance(typ, TypeData):
             return self.visit_type_data(typ)
         else:
-            raise Exception('unhandled case: {0}'.format(type(typ)))
+            raise Exception("unhandled case: {0}".format(type(typ)))
 
     def visit_type_var(self, _):
         raise NotImplementedError()
@@ -92,6 +103,7 @@ class TypeVisitor(TypeFunctor):
 
     The default behavior recursively traverses the AST.
     """
+
     def visit_type_var(self, tv):
         pass
 
@@ -105,9 +117,9 @@ class TypeVisitor(TypeFunctor):
         for arg_type in ft.arg_types:
             self.visit(arg_type)
         self.visit(ft.ret_type)
-        for type_param in getattr(ft, 'type_params', []):
+        for type_param in getattr(ft, "type_params", []):
             self.visit(type_param)
-        for type_constraint in getattr(ft, 'type_constraints', []):
+        for type_constraint in getattr(ft, "type_constraints", []):
             self.visit(type_constraint)
 
     def visit_tuple_type(self, tt):
@@ -142,6 +154,7 @@ class TypeMutator(TypeFunctor):
     The default behavior recursively traverses the AST
     and reconstructs the AST.
     """
+
     def visit_type_var(self, tv):
         return TypeVar(tv.name_hint, tv.kind)
 
@@ -154,27 +167,17 @@ class TypeMutator(TypeFunctor):
     def visit_func_type(self, ft):
         new_arg_types = [self.visit(arg_type) for arg_type in ft.arg_types]
         new_ret_type = self.visit(ft.ret_type)
-        new_type_params = [
-            self.visit(type_param)
-            for type_param in getattr(ft, 'type_params', [])]
+        new_type_params = [self.visit(type_param) for type_param in getattr(ft, "type_params", [])]
         new_type_constraints = [
-            self.visit(type_constraint)
-            for type_constraint in getattr(ft, 'type_constraints', [])]
-        return FuncType(
-            new_arg_types,
-            new_ret_type,
-            new_type_params,
-            new_type_constraints)
+            self.visit(type_constraint) for type_constraint in getattr(ft, "type_constraints", [])
+        ]
+        return FuncType(new_arg_types, new_ret_type, new_type_params, new_type_constraints)
 
     def visit_tuple_type(self, tt):
         return TupleType([self.visit(field) for field in tt.fields])
 
     def visit_type_relation(self, tr):
-        return TypeRelation(
-            tr.func,
-            [self.visit(arg) for arg in tr.args],
-            tr.num_inputs,
-            tr.attrs)
+        return TypeRelation(tr.func, [self.visit(arg) for arg in tr.args], tr.num_inputs, tr.attrs)
 
     def visit_ref_type(self, rt):
         return RefType(self.visit(rt.value))
@@ -183,12 +186,11 @@ class TypeMutator(TypeFunctor):
         return GlobalTypeVar(gtv.name_hint, gtv.kind)
 
     def visit_type_call(self, tc):
-        return TypeCall(
-            self.visit(tc.func),
-            [self.visit(arg) for arg in tc.args])
+        return TypeCall(self.visit(tc.func), [self.visit(arg) for arg in tc.args])
 
     def visit_type_data(self, td):
         return TypeData(
             self.visit(td.header),
             [self.visit(type_var) for type_var in td.type_vars],
-            td.constructors)
+            td.constructors,
+        )

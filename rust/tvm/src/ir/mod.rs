@@ -17,34 +17,16 @@
  * under the License.
  */
 
-use crate::runtime::String as TString;
-use crate::runtime::{self, external, IsObjectRef, Object, ObjectRef};
-use crate::DataType;
-
+pub mod arith;
+pub mod attrs;
+pub mod expr;
+pub mod function;
+pub mod module;
+pub mod op;
 pub mod relay;
+pub mod span;
+pub mod tir;
+pub mod ty;
 
-// TODO: figure out how to type the last argument runtime::TypedPackedFunc<String(ObjectRef)> annotate)
-external! {
-    #[name("ir.AsText")]
-    fn _as_text(object: ObjectRef, show_meta_data: i32, annotate: runtime::Function) -> TString;
-}
-
-pub fn as_text<T: IsObjectRef>(object: T) -> String {
-    let no_func = unsafe { runtime::Function::null() };
-    _as_text(object.to_object_ref(), 0, no_func)
-        .unwrap()
-        .to_string()
-        .unwrap()
-}
-
-#[repr(C)]
-pub struct PrimExprNode {
-    pub base: Object,
-    pub dtype: DataType,
-}
-
-#[repr(C)]
-pub struct IntImmNode {
-    pub base: PrimExprNode,
-    pub value: i64,
-}
+pub use expr::*;
+pub use module::IRModule;

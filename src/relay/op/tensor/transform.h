@@ -180,6 +180,15 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
   return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
+/*!
+ * \brief Infer output shape for reshape.
+ *
+ * \param data_shape The input data shape.
+ * \param attrs The attributes.
+ * \return Output shape.
+ */
+Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_TENSOR_TRANSFORM_H_

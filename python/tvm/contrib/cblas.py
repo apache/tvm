@@ -48,7 +48,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
             "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
-        **kwargs
+        **kwargs,
     )
 
 
@@ -89,5 +89,5 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs
             transb,
         ),
         name="C",
-        **kwargs
+        **kwargs,
     )

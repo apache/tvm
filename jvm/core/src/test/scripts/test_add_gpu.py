@@ -20,13 +20,14 @@ import tvm
 from tvm import te
 from tvm.contrib import cc, util
 
+
 def test_add(target_dir):
     if not tvm.runtime.enabled("cuda"):
         print("skip %s because cuda is not enabled..." % __file__)
         return
     n = te.var("n")
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
     s = te.create_schedule(C.op)
@@ -38,11 +39,14 @@ def test_add(target_dir):
 
     fadd_cuda.save(os.path.join(target_dir, "add_gpu.o"))
     fadd_cuda.imported_modules[0].save(os.path.join(target_dir, "add_gpu.ptx"))
-    cc.create_shared(os.path.join(target_dir, "add_gpu.so"),
-            [os.path.join(target_dir, "add_gpu.o")])
+    cc.create_shared(
+        os.path.join(target_dir, "add_gpu.so"), [os.path.join(target_dir, "add_gpu.o")]
+    )
+
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) != 2:
         sys.exit(-1)
     test_add(sys.argv[1])

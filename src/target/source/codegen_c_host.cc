@@ -42,6 +42,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
   declared_globals_.clear();
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  decl_stream << "#include <math.h>\n";
   decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }
@@ -298,12 +299,11 @@ void CodeGenCHost::GenerateCrtSystemLib() {
          << "}\n";
 }
 
-runtime::Module BuildCHost(IRModule mod, const std::string& target_str) {
+runtime::Module BuildCHost(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
   CodeGenCHost cg;
-  auto target = Target::Create(target_str);
   cg.Init(output_ssa, emit_asserts);
 
   for (auto kv : mod->functions) {
@@ -323,8 +323,6 @@ runtime::Module BuildCHost(IRModule mod, const std::string& target_str) {
   return CSourceModuleCreate(code, "c");
 }
 
-TVM_REGISTER_GLOBAL("target.build.c").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = BuildCHost(args[0], args[1]);
-});
+TVM_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);
 }  // namespace codegen
 }  // namespace tvm

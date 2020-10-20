@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
+import tvm.testing
 
 
 _deformable_conv2d_implement = {
@@ -31,15 +31,42 @@ _deformable_conv2d_implement = {
     "cuda": (topi.cuda.deformable_conv2d_nchw, topi.cuda.schedule_deformable_conv2d_nchw),
 }
 
-def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, deformable_groups=1, groups=1):
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size,
-            num_filter, kernel, stride, padding, dilation, deformable_groups, groups))
 
-    A = te.placeholder((batch, in_channel, in_size, in_size), name='A')
+def verify_deformable_conv2d_nchw(
+    batch,
+    in_channel,
+    in_size,
+    num_filter,
+    kernel,
+    stride,
+    padding,
+    dilation=1,
+    deformable_groups=1,
+    groups=1,
+):
+    print(
+        "Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d, %d)"
+        % (
+            batch,
+            in_channel,
+            in_size,
+            num_filter,
+            kernel,
+            stride,
+            padding,
+            dilation,
+            deformable_groups,
+            groups,
+        )
+    )
+
+    A = te.placeholder((batch, in_channel, in_size, in_size), name="A")
     out_size = (in_size - (kernel - 1) * dilation - 1 + 2 * padding) // stride + 1
-    Offset = te.placeholder((batch, deformable_groups * kernel * kernel * 2, out_size, out_size), name='offset')
-    W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-    bias = te.placeholder((num_filter, 1, 1), name='bias')
+    Offset = te.placeholder(
+        (batch, deformable_groups * kernel * kernel * 2, out_size, out_size), name="offset"
+    )
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W")
+    bias = te.placeholder((num_filter, 1, 1), name="bias")
 
     a_shape = get_const_tuple(A.shape)
     offset_shape = get_const_tuple(Offset.shape)
@@ -53,8 +80,9 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
         offset_np = np.random.randn(*offset_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
         b_np = np.random.uniform(size=bias_shape).astype(dtype)
-        c_np = tvm.topi.testing.deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding,
-                                                          dilation, deformable_groups, groups)
+        c_np = tvm.topi.testing.deformable_conv2d_nchw_python(
+            a_np, offset_np, w_np, stride, padding, dilation, deformable_groups, groups
+        )
 
         return a_np, offset_np, w_np, c_np
 
@@ -62,14 +90,13 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _deformable_conv2d_implement)
-        with tvm.target.create(device):
-            C = fcompute(A, Offset, W, stride, padding, dilation,
-                         deformable_groups, groups, dtype)
+        with tvm.target.Target(device):
+            C = fcompute(A, Offset, W, stride, padding, dilation, deformable_groups, groups, dtype)
             s = fschedule([C])
 
             a = tvm.nd.array(a_np, ctx)
@@ -81,10 +108,11 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
             func(a, offset, w, c)
             tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda']:
+    for device in ["llvm", "cuda"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_deformable_conv2d_nchw():
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 1, 1, 0, deformable_groups=4)
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 3, 1, 1, dilation=2, deformable_groups=4)

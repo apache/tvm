@@ -21,31 +21,42 @@ from tvm.relay.testing import check_grad
 
 
 def test_cross_entropy_grad():
-    for dtype in ('float32', 'float64'):
+    for dtype in ("float32", "float64"):
         x = relay.var("x", shape=(2, 5), dtype=dtype)
         y = relay.var("y", shape=(2, 5), dtype=dtype)
-        check_grad(relay.Function([x, y], relay.op.nn.cross_entropy(x, y)), eps=0.01, scale=0.1, mean=1)
+        check_grad(
+            relay.Function([x, y], relay.op.nn.cross_entropy(x, y)), eps=0.01, scale=0.1, mean=1
+        )
 
 
 def test_cross_entropy_with_logits_grad():
-    for dtype in ('float32', 'float64'):
+    for dtype in ("float32", "float64"):
         x = relay.var("x", shape=(2, 5), dtype=dtype)
         y = relay.var("y", shape=(2, 5), dtype=dtype)
-        check_grad(relay.Function([x, y], relay.op.nn.cross_entropy_with_logits(x, y)), eps=0.01, scale=0.1, mean=1)
+        check_grad(
+            relay.Function([x, y], relay.op.nn.cross_entropy_with_logits(x, y)),
+            eps=0.01,
+            scale=0.1,
+            mean=1,
+        )
 
 
 def test_checkpoint():
     inputs = [relay.var("x{}".format(i), shape=(1,)) for i in range(4)]
-    output = relay.multiply(relay.add(inputs[0], inputs[1]),
-                            relay.add(inputs[2], inputs[3]))
+    output = relay.multiply(relay.add(inputs[0], inputs[1]), relay.add(inputs[2], inputs[3]))
     check_grad(relay.Function(inputs, relay.annotation.checkpoint(output)))
 
     scope = relay.ScopeBuilder()
-    out_tuple = scope.let("out_tuple",
-                          relay.Tuple([relay.add(inputs[0], inputs[1]),
-                                       relay.multiply(inputs[2], inputs[3])]))
-    scope.ret(relay.subtract(relay.annotation.checkpoint(relay.TupleGetItem(out_tuple, 0)),
-                                relay.TupleGetItem(out_tuple, 1)))
+    out_tuple = scope.let(
+        "out_tuple",
+        relay.Tuple([relay.add(inputs[0], inputs[1]), relay.multiply(inputs[2], inputs[3])]),
+    )
+    scope.ret(
+        relay.subtract(
+            relay.annotation.checkpoint(relay.TupleGetItem(out_tuple, 0)),
+            relay.TupleGetItem(out_tuple, 1),
+        )
+    )
     out_single = scope.get()
     check_grad(relay.Function(inputs, out_single))
 

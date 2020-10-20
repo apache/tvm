@@ -43,7 +43,7 @@
 #include <vector>
 
 #include "../analysis/annotated_region_set.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {

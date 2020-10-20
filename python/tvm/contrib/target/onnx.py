@@ -58,271 +58,268 @@ def call_node_infer_type(node):
     elif isinstance(out_type, TupleType):
         types = list(out_type.fields)
     else:
-        raise RuntimeError("Unsupported output type %s in operator %s"
-                           % (type(out_type), node.op.nae))
+        raise RuntimeError(
+            "Unsupported output type %s in operator %s" % (type(out_type), node.op.nae)
+        )
 
     return types
 
 
-def add_input(data, name, model_container):
+def add_input(data, name, prefix, model_container):
+    input_name = "{}_{}".format(prefix, name)
     dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[data.dtype]
-    tensor_value_info = onnx.helper.make_tensor_value_info(name, dtype, shape=data.shape)
+    tensor_value_info = onnx.helper.make_tensor_value_info(input_name, dtype, shape=data.shape)
     model_container.add_inputs([tensor_value_info])
-    data_tensor = numpy_helper.from_array(data, name)
+    data_tensor = numpy_helper.from_array(data, input_name)
     model_container.add_initializers([data_tensor])
+    return input_name
 
 
 class OpConverter(object):
-    """ Operator converter Base Class.
-    """
+    """Operator converter Base Class."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         """convert Relay attributes to ONNX attributes.
-           The derived classes should implement this method
-           if attributes are required by the operator
-           otherwise by default no attributes are passed
+        The derived classes should implement this method
+        if attributes are required by the operator
+        otherwise by default no attributes are passed
         """
         return {}
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
-        onnx_node = onnx.helper.make_node(cls.__name__,
-                                          node_entry['input_names'],
-                                          node_entry['output_names'],
-                                          **attrs)
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+        onnx_node = onnx.helper.make_node(
+            cls.__name__, node_entry["input_names"], node_entry["output_names"], **attrs
+        )
         model_container.add_nodes([onnx_node])
 
 
 def rename(op_name):
-    """ This method creates dynamic operator of name op_name with empty attributes
-    """
+    """This method creates dynamic operator of name op_name with empty attributes"""
     return type(op_name, (OpConverter,), {})
 
 
 class Reshape(object):
-    """ Operator converter for Reshape.
-    """
+    """Operator converter for Reshape."""
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
         """Converts Relay operator Reshape to ONNX operator.
-           Relay operator accepts shape as attribute but ONNX operator
-           accepts it as a input.
+        Relay operator accepts shape as attribute but ONNX operator
+        accepts it as a input.
         """
+        name = node_entry["name"]
+        shape = numpy.asarray(
+            [a.value for a in node_entry["relay_node"].attrs.newshape], dtype=numpy.int64
+        )
 
-        shape = numpy.asarray([a.value for a in node_entry['relay_node'].attrs.newshape],
-                              dtype=numpy.int64)
-        input_name = 'shape{}'.format(node_entry['name'])
-        node = onnx.helper.make_node(cls.__name__, [node_entry['input_names'][0], input_name],
-                                     node_entry['output_names'])
+        input_names = [
+            node_entry["input_names"][0],
+            add_input(shape, name, "shape", model_container),
+        ]
+
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
         model_container.add_nodes([node])
-        add_input(shape, input_name, model_container)
 
 
 class Conv(OpConverter):
-    """ Operator converter for Conv.
-    """
+    """Operator converter for Conv."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'group': attrs.get_int("groups"),
-            'pads': attrs.get_int_tuple("padding"),
-            'strides': attrs.get_int_tuple("strides"),
-            'dilations': attrs.get_int_tuple("dilation"),
-            'kernel_shape': attrs.get_int_tuple("kernel_size"),
+            "group": attrs.get_int("groups"),
+            "pads": attrs.get_int_tuple("padding"),
+            "strides": attrs.get_int_tuple("strides"),
+            "dilations": attrs.get_int_tuple("dilation"),
+            "kernel_shape": attrs.get_int_tuple("kernel_size"),
         }
 
 
 class MaxPool(OpConverter):
-    """ Operator converter for MaxPool.
-    """
+    """Operator converter for MaxPool."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'pads': attrs.get_int_tuple("padding"),
-            'strides': attrs.get_int_tuple("strides"),
-            'kernel_shape': attrs.get_int_tuple("pool_size"),
+            "pads": attrs.get_int_tuple("padding"),
+            "strides": attrs.get_int_tuple("strides"),
+            "kernel_shape": attrs.get_int_tuple("pool_size"),
         }
 
 
 class Transpose(OpConverter):
-    """ Operator converter for Transpose.
-    """
+    """Operator converter for Transpose."""
 
     @classmethod
     def convert_attributes(cls, attrs):
-        return {'perm': attrs.get_int_tuple("axes")} if attrs["axes"] else {}
+        return {"perm": attrs.get_int_tuple("axes")} if attrs["axes"] else {}
 
 
 class MatMul(OpConverter):
-    """ Operator converter for MatMul.
-    """
+    """Operator converter for MatMul."""
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        inter_output_name = 'inter{}'.format(node_entry['name'])
-        transpose_node = onnx.helper.make_node(Transpose.__name__,
-                                               [node_entry['input_names'][1]],
-                                               [inter_output_name],
-                                               perm=(1, 0))
+        inter_output_name = "inter{}".format(node_entry["name"])
+        transpose_node = onnx.helper.make_node(
+            Transpose.__name__, [node_entry["input_names"][1]], [inter_output_name], perm=(1, 0)
+        )
         model_container.add_nodes([transpose_node])
 
-        inputs = [node_entry['input_names'][0], inter_output_name]
-        matmul_node = onnx.helper.make_node(cls.__name__, inputs, node_entry['output_names'])
+        inputs = [node_entry["input_names"][0], inter_output_name]
+        matmul_node = onnx.helper.make_node(cls.__name__, inputs, node_entry["output_names"])
         model_container.add_nodes([matmul_node])
 
 
 class Flatten(OpConverter):
-    """ Operator converter for Flatten.
-    """
+    """Operator converter for Flatten."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'axis': 1,
+            "axis": 1,
         }
 
 
 class BatchNormalization(OpConverter):
-    """ Operator converter for BatchNormalization.
-    """
+    """Operator converter for BatchNormalization."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'epsilon': float(attrs.get_str('epsilon')),
-            'axis': float(attrs.get_int('axis')),
+            "epsilon": float(attrs.get_str("epsilon")),
+            "axis": float(attrs.get_int("axis")),
         }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
         """Converts Relay operator batch_norm to ONNX operator.
-           Relay operator has property axis to handle data in NHWC format.
+        Relay operator has property axis to handle data in NHWC format.
         """
-        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
-        transpose_out_name = node_entry['input_names'][0]
-        inter_output_names = [node_entry['output_names'][0]]
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+        transpose_out_name = node_entry["input_names"][0]
+        inter_output_names = [node_entry["output_names"][0]]
         # axis==3 means channel is specified along the 3rd axis
-        if attrs['axis'] == 3:
-            transpose_out_name = 'transpose_{}'.format(node_entry['name'])
-            node_transposed = onnx.helper.make_node(Transpose.__name__,
-                                                    [node_entry['input_names'][0]],
-                                                    [transpose_out_name],
-                                                    perm=[0, 3, 1, 2])
+        if attrs["axis"] == 3:
+            transpose_out_name = "transpose_{}".format(node_entry["name"])
+            node_transposed = onnx.helper.make_node(
+                Transpose.__name__,
+                [node_entry["input_names"][0]],
+                [transpose_out_name],
+                perm=[0, 3, 1, 2],
+            )
             model_container.add_nodes([node_transposed])
-            inter_output_names = ['batch_norm_{}'.format(node_entry['name'])]
+            inter_output_names = ["batch_norm_{}".format(node_entry["name"])]
 
-        input_names = [transpose_out_name] + node_entry['input_names'][1:]
-        batch_norm_node = onnx.helper.make_node(cls.__name__,
-                                                input_names,
-                                                inter_output_names,
-                                                epsilon=attrs['epsilon'])
+        input_names = [transpose_out_name] + node_entry["input_names"][1:]
+        batch_norm_node = onnx.helper.make_node(
+            cls.__name__, input_names, inter_output_names, epsilon=attrs["epsilon"]
+        )
         model_container.add_nodes([batch_norm_node])
 
-        if attrs['axis'] == 3:
-            node_transposed = onnx.helper.make_node(Transpose.__name__,
-                                                    inter_output_names,
-                                                    [node_entry['output_names'][0]],
-                                                    perm=[0, 2, 3, 1])
+        if attrs["axis"] == 3:
+            node_transposed = onnx.helper.make_node(
+                Transpose.__name__,
+                inter_output_names,
+                [node_entry["output_names"][0]],
+                perm=[0, 2, 3, 1],
+            )
             model_container.add_nodes([node_transposed])
 
 
 class Dropout(OpConverter):
-    """ Operator converter for Dropout.
-    """
+    """Operator converter for Dropout."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'ratio': float(attrs.get_str('rate')),
+            "ratio": float(attrs.get_str("rate")),
         }
 
 
 class AveragePool(MaxPool):
-    """ Operator converter for AveragePool.
-    """
+    """Operator converter for AveragePool."""
 
 
 class Concat(OpConverter):
-    """ Operator converter for Concat.
-    """
+    """Operator converter for Concat."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'axis': attrs.get_int("axis"),
+            "axis": attrs.get_int("axis"),
         }
 
 
 class BiasAdd(OpConverter):
-    """ Operator converter for BiasAdd.
-    """
+    """Operator converter for BiasAdd."""
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        input_node = node_dict[node_entry['inputs'][0]]
+        input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node_entry can not be a Tuple"
         input_node = input_node[0]
-        data_ndim = len(input_node['types'][0].shape)
-        axis = node_entry['relay_node'].attrs.get_int("axis")
+        data_ndim = len(input_node["types"][0].shape)
+        axis = node_entry["relay_node"].attrs.get_int("axis")
         if axis < 0:
             axis = axis + data_ndim
         new_axes = data_ndim - axis - 1
         if new_axes:
-            inter_output_name = 'inter{}'.format(node_entry['name'])
-            unsqueeze_node = onnx.helper.make_node('Unsqueeze',
-                                                   [node_entry['input_names'][1]],
-                                                   [inter_output_name],
-                                                   axes=tuple(range(1, new_axes + 1)))
+            inter_output_name = "inter{}".format(node_entry["name"])
+            unsqueeze_node = onnx.helper.make_node(
+                "Unsqueeze",
+                [node_entry["input_names"][1]],
+                [inter_output_name],
+                axes=tuple(range(1, new_axes + 1)),
+            )
             model_container.add_nodes([unsqueeze_node])
         else:
-            inter_output_name = node_entry['input_names'][1]
+            inter_output_name = node_entry["input_names"][1]
 
-        inputs = [node_entry['input_names'][0], inter_output_name]
-        matmul_node = onnx.helper.make_node('Add', inputs, node_entry['output_names'])
+        inputs = [node_entry["input_names"][0], inter_output_name]
+        matmul_node = onnx.helper.make_node("Add", inputs, node_entry["output_names"])
         model_container.add_nodes([matmul_node])
 
 
 class ReduceMean(OpConverter):
-    """ Operator converter for ReduceMean.
-    """
+    """Operator converter for ReduceMean."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'axes': attrs.axis,
-            'keepdims': 0 if bool(attrs.get_int("keepdims", 0)) is False else 1
+            "axes": attrs.axis,
+            "keepdims": 0 if bool(attrs.get_int("keepdims", 0)) is False else 1,
         }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        input_node = node_dict[node_entry['inputs'][0]]
+        input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        shape = input_node['types'][0].shape
-        axis = node_entry['relay_node'].attrs.axis
+        shape = input_node["types"][0].shape
+        axis = node_entry["relay_node"].attrs.axis
         axis = list(range(shape.size())) if not axis else tvm_array_to_list(axis)
-        exclude = 0 if not bool(node_entry['relay_node'].attrs.exclude) else 1
-        keepdims = 0 if not bool(node_entry['relay_node'].attrs.keepdims) else 1
+        exclude = 0 if not bool(node_entry["relay_node"].attrs.exclude) else 1
+        keepdims = 0 if not bool(node_entry["relay_node"].attrs.keepdims) else 1
         if exclude:
             all_axis = list(range(len(shape)))
             axis = set(all_axis) - set(axis)
 
-        node = onnx.helper.make_node(cls.__name__,
-                                     node_entry['input_names'],
-                                     node_entry['output_names'],
-                                     axes=axis,
-                                     keepdims=keepdims)
+        node = onnx.helper.make_node(
+            cls.__name__,
+            node_entry["input_names"],
+            node_entry["output_names"],
+            axes=axis,
+            keepdims=keepdims,
+        )
         model_container.add_nodes([node])
 
 
 class Pad(OpConverter):
-    """ Operator converter for Pad.
-    """
+    """Operator converter for Pad."""
 
     @classmethod
     def convert_attributes(cls, attrs):
@@ -333,159 +330,149 @@ class Pad(OpConverter):
             after.append(axis_pads[1])
         pads = before + after
         pads = numpy.asarray(pads, dtype=pads[0].dtype)
-        return {
-            'pads': pads,
-            'mode': attrs.get_str('pad_mode'),
-            'constant_value': attrs.pad_value
-        }
+        return {"pads": pads, "mode": attrs.get_str("pad_mode"), "constant_value": attrs.pad_value}
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
         """Converts Relay operator Pad to ONNX operator.
-           Relay operator accepts pads as attribute but ONNX operator
-           accepts it as a input.
+        Relay operator accepts pads as attribute but ONNX operator
+        accepts it as a input.
         """
-        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
-        name = node_entry['name']
-        data = numpy.asarray(attrs['pads'], dtype=attrs['pads'][0].dtype).astype(numpy.int64)
-        input_name = 'pads_{}'.format(name)
-        value = numpy.dtype(node_entry['types'][0].dtype).type(attrs['constant_value'])
-        input_value_name = 'value_{}'.format(name)
-        add_input(data, input_name, model_container)
-        add_input(value, input_value_name, model_container)
+        name = node_entry["name"]
+        data = numpy.asarray(attrs["pads"], dtype=attrs["pads"][0].dtype).astype(numpy.int64)
+        value = numpy.dtype(node_entry["types"][0].dtype).type(attrs["constant_value"])
 
-        input_names = [node_entry['input_names'][0], input_name, input_value_name]
-        node = onnx.helper.make_node(cls.__name__, input_names, node_entry['output_names'])
+        input_names = [
+            node_entry["input_names"][0],
+            add_input(data, name, "pads", model_container),
+            add_input(value, name, "value", model_container),
+        ]
+
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
         model_container.add_nodes([node])
 
 
 class Softmax(OpConverter):
-    """ Operator converter for SoftMax.
-    """
+    """Operator converter for SoftMax."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'axis': attrs.axis,
+            "axis": attrs.axis,
         }
 
 
 class Squeeze(OpConverter):
-    """ Operator converter for Squeeze.
-    """
+    """Operator converter for Squeeze."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'axes': attrs.axis,
+            "axes": attrs.axis,
         }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        input_node = node_dict[node_entry['inputs'][0]]
+        input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        shape = input_node['types'][0].shape
-        axis = node_entry['relay_node'].attrs.get_int("axis")
+        shape = input_node["types"][0].shape
+        axis = node_entry["relay_node"].attrs.get_int("axis")
         if not axis:
             axis = []
             for axis_idx, val in enumerate(shape):
                 if val.value == 1:
                     axis.append(axis_idx)
         else:
-            axis = node_entry['relay_node'].attrs.get_int_tuple("axis")
+            axis = node_entry["relay_node"].attrs.get_int_tuple("axis")
 
-        node = onnx.helper.make_node(cls.__name__,
-                                     node_entry['input_names'],
-                                     node_entry['output_names'],
-                                     axes=axis)
+        node = onnx.helper.make_node(
+            cls.__name__, node_entry["input_names"], node_entry["output_names"], axes=axis
+        )
         model_container.add_nodes([node])
 
 
 class Slice(OpConverter):
-    """ Operator converter for Slice.
-    """
+    """Operator converter for Slice."""
 
     @classmethod
     def convert_attributes(cls, attrs):
         return {
-            'starts': attrs.get_int_tuple('begin'),
-            'ends': attrs.get_int_tuple('end'),
-            'steps': attrs.get_int_tuple('strides'),
-            'slice_mode': attrs.get_str('slice_mode')
+            "starts": attrs.get_int_tuple("begin"),
+            "ends": attrs.get_int_tuple("end"),
+            "steps": attrs.get_int_tuple("strides"),
+            "slice_mode": attrs.get_str("slice_mode"),
         }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
-        name = node_entry['name']
-        input_node = node_dict[node_entry['inputs'][0]]
+        name = node_entry["name"]
+        input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        shape = input_node['types'][0].shape
+        shape = input_node["types"][0].shape
 
-        starts = list(attrs['starts'])
-        ends = list(attrs['ends'])
-        steps = list(attrs['steps'])
+        starts = list(attrs["starts"])
+        ends = list(attrs["ends"])
+        steps = list(attrs["steps"])
         starts += [0] * (len(shape) - len(starts))
         ends += [shape[i] + 1 for i in range(len(ends), len(shape))]
         axes = list(range(len(shape)))
 
-        if attrs['slice_mode'] == 'size':
-            ends = [starts[i] + (shape[i] + 1 if ends[i] < 0 else ends[i])
-                    for i in range(len(shape))]
+        if attrs["slice_mode"] == "size":
+            ends = [
+                starts[i] + (shape[i] + 1 if ends[i] < 0 else ends[i]) for i in range(len(shape))
+            ]
             steps = [1] * len(shape)
         else:
             steps += [1] * (len(shape) - len(steps))
 
-        def _add_input(val, input_name):
-            val_arr = numpy.asarray(val).astype(numpy.int64)
-            input_name = '{}_{}'.format(name, input_name)
-            add_input(val_arr, input_name, model_container)
-            return input_name
+        starts = numpy.asarray(starts).astype(numpy.int64)
+        ends = numpy.asarray(ends).astype(numpy.int64)
+        axes = numpy.asarray(axes).astype(numpy.int64)
+        steps = numpy.asarray(steps).astype(numpy.int64)
 
         input_names = []
-        input_names.append(_add_input(starts, 'starts'))
-        input_names.append(_add_input(ends, 'ends'))
-        input_names.append(_add_input(axes, 'axes'))
-        input_names.append(_add_input(steps, 'steps'))
+        input_names.append(add_input(starts, name, "starts", model_container))
+        input_names.append(add_input(ends, name, "ends", model_container))
+        input_names.append(add_input(axes, name, "axes", model_container))
+        input_names.append(add_input(steps, name, "steps", model_container))
 
-        input_names = [node_entry['input_names'][0]] + input_names
+        input_names = [node_entry["input_names"][0]] + input_names
 
-        slice_node = onnx.helper.make_node(cls.__name__,
-                                           input_names,
-                                           node_entry['output_names'])
+        slice_node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
         model_container.add_nodes([slice_node])
 
 
 class Split(OpConverter):
-    """ Operator converter for Split.
-    """
+    """Operator converter for Split."""
 
     @classmethod
     def convert_attributes(cls, attrs):
-        indices_or_sections = attrs['indices_or_sections']
+        indices_or_sections = attrs["indices_or_sections"]
 
         if isinstance(indices_or_sections, (list, tvm.ir.container.Array)):
-            indices_or_sections = attrs.get_int_tuple('indices_or_sections')
+            indices_or_sections = attrs.get_int_tuple("indices_or_sections")
         if isinstance(indices_or_sections, tvm.ir.PrimExpr):
             indices_or_sections = indices_or_sections.value
 
         return {
-            'indices_or_section': indices_or_sections,
-            'axis': attrs.get_int('axis'),
+            "indices_or_section": indices_or_sections,
+            "axis": attrs.get_int("axis"),
         }
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
 
-        input_node = node_dict[node_entry['inputs'][0]]
+        input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        shape = input_node['types'][0].concrete_shape
+        shape = input_node["types"][0].concrete_shape
 
         indices_or_sect = attrs["indices_or_section"]
         axis = attrs["axis"]
@@ -503,94 +490,171 @@ class Split(OpConverter):
                 else:
                     split.append(indices_or_sect[i] - indices_or_sect[i - 1])
 
-        slice_node = onnx.helper.make_node(cls.__name__,
-                                           node_entry['input_names'],
-                                           node_entry['output_names'],
-                                           split=split,
-                                           axis=axis)
+        slice_node = onnx.helper.make_node(
+            cls.__name__,
+            node_entry["input_names"],
+            node_entry["output_names"],
+            split=split,
+            axis=axis,
+        )
         model_container.add_nodes([slice_node])
 
 
-class ConstantOfShapeZeros(OpConverter):
-    """ Operator converter for ConstantOfShape.
-    """
+class LayoutTransform(OpConverter):
+    """Operator converter for Layouttransform"""
 
     @classmethod
     def convert_attributes(cls, attrs):
-        return {
-            'value': 0
-        }
+        src_layout = attrs.get_str("src_layout")
+        dst_layout = attrs.get_str("dst_layout")
+
+        perm = [src_layout.index(c) for c in dst_layout]
+        return {"perm": tuple(perm)}
 
     @classmethod
     def convert(cls, node_entry, model_container, node_dict):
-        attrs = cls.convert_attributes(node_entry['relay_node'].attrs)
-        input_node = node_dict[node_entry['inputs'][0]]
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+        onnx_node = onnx.helper.make_node(
+            "Transpose", node_entry["input_names"], node_entry["output_names"], **attrs
+        )
+        model_container.add_nodes([onnx_node])
+
+
+class Clip(OpConverter):
+    """Operator converter for Clip."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {"min": attrs.a_min, "max": attrs.a_max}
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+
+        name = node_entry["name"]
+
+        min_val = numpy.asarray(attrs["min"]).astype(numpy.float32)
+        max_val = numpy.asarray(attrs["max"]).astype(numpy.float32)
+
+        input_names = []
+        input_names.append(add_input(min_val, name, "min", model_container))
+        input_names.append(add_input(max_val, name, "max", model_container))
+
+        input_names = [node_entry["input_names"][0]] + input_names
+
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
+        model_container.add_nodes([node])
+
+
+class Expand(OpConverter):
+    """Operator converter for Expand_dims."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {"axis": attrs.axis, "num_newaxis": attrs.num_newaxis}
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+
+        name = node_entry["name"]
+
+        input_node = node_dict[node_entry["inputs"][0]]
+        assert len(input_node) == 1, "input node_entry can not be a Tuple"
+        input_node = input_node[0]
+        data_shape = input_node["types"][0].shape
+        new_shape = list(data_shape)
+
+        for _ in range(attrs["num_newaxis"]):
+            new_shape.insert(attrs["axis"], 1)
+
+        new_shape = numpy.asarray(new_shape).astype(numpy.int64)
+        input_names = []
+        input_names.append(add_input(new_shape, name, "shape", model_container))
+
+        input_names = [node_entry["input_names"][0]] + input_names
+
+        node = onnx.helper.make_node(cls.__name__, input_names, node_entry["output_names"])
+        model_container.add_nodes([node])
+
+
+class ConstantOfShapeZeros(OpConverter):
+    """Operator converter for ConstantOfShape."""
+
+    @classmethod
+    def convert_attributes(cls, attrs):
+        return {"value": 0}
+
+    @classmethod
+    def convert(cls, node_entry, model_container, node_dict):
+        attrs = cls.convert_attributes(node_entry["relay_node"].attrs)
+        input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        dtype = input_node['types'][0].dtype
-        input_shape_name = 'shape_{}'.format(node_entry['name'])
-        shape = [val.value for val in input_node['types'][0].shape]
+        dtype = input_node["types"][0].dtype
+
+        name = node_entry["name"]
+        shape = [val.value for val in input_node["types"][0].shape]
         shape = numpy.asarray(shape).astype(numpy.int64)
-        add_input(shape, input_shape_name, model_container)
+
+        input_names = []
+        input_names.append(add_input(shape, name, "shape", model_container))
 
         dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(dtype)]
-        tensor_value = onnx.helper.make_tensor("value", dtype,
-                                               [1], [attrs['value']])
+        tensor_value = onnx.helper.make_tensor("value", dtype, [1], [attrs["value"]])
 
-        node = onnx.helper.make_node('ConstantOfShape',
-                                     [input_shape_name],
-                                     node_entry['output_names'],
-                                     value=tensor_value)
+        node = onnx.helper.make_node(
+            "ConstantOfShape", input_names, node_entry["output_names"], value=tensor_value
+        )
         model_container.add_nodes([node])
 
 
 class ConstantOfShapeOnes(ConstantOfShapeZeros):
-    """ Operator converter for ConstantOfShape.
-    """
+    """Operator converter for ConstantOfShape."""
 
     @classmethod
     def convert_attributes(cls, attrs):
-        return {
-            'value': 1
-        }
+        return {"value": 1}
 
 
 relay_to_onnx_op_mapping = {
-    'reshape': Reshape,
-    'nn.conv2d': Conv,
-    'add': rename('Add'),
-    'nn.relu': rename('Relu'),
-    'transpose': Transpose,
-    'nn.dense': MatMul,
-    'nn.max_pool2d': MaxPool,
-    'nn.batch_flatten': Flatten,
-    'multiply': rename('Mul'),
-    'nn.bias_add': BiasAdd,
-    'nn.batch_norm': BatchNormalization,
-    'nn.global_avg_pool2d': rename('GlobalAveragePool'),
-    'concatenate': Concat,
-    'nn.dropout': Dropout,
-    'nn.avg_pool2d': AveragePool,
-    'divide': rename('Div'),
-    'mean': ReduceMean,
-    'nn.pad': Pad,
-    'nn.softmax': Softmax,
-    'squeeze': Squeeze,
-    'strided_slice': Slice,
-    'greater': rename('Greater'),
-    'less': rename('Less'),
-    'equal': rename('Equal'),
-    'zeros_like': ConstantOfShapeZeros,
-    'ones_like': ConstantOfShapeOnes,
-    'subtract': rename('Sub'),
-    'split': Split,
-    'exp': rename('Exp')
+    "reshape": Reshape,
+    "nn.conv2d": Conv,
+    "add": rename("Add"),
+    "nn.relu": rename("Relu"),
+    "transpose": Transpose,
+    "nn.dense": MatMul,
+    "nn.max_pool2d": MaxPool,
+    "nn.batch_flatten": Flatten,
+    "multiply": rename("Mul"),
+    "nn.bias_add": BiasAdd,
+    "nn.batch_norm": BatchNormalization,
+    "nn.global_avg_pool2d": rename("GlobalAveragePool"),
+    "concatenate": Concat,
+    "nn.dropout": Dropout,
+    "nn.avg_pool2d": AveragePool,
+    "divide": rename("Div"),
+    "mean": ReduceMean,
+    "nn.pad": Pad,
+    "nn.softmax": Softmax,
+    "squeeze": Squeeze,
+    "strided_slice": Slice,
+    "greater": rename("Greater"),
+    "less": rename("Less"),
+    "equal": rename("Equal"),
+    "zeros_like": ConstantOfShapeZeros,
+    "ones_like": ConstantOfShapeOnes,
+    "subtract": rename("Sub"),
+    "split": Split,
+    "exp": rename("Exp"),
+    "layout_transform": LayoutTransform,
+    "clip": Clip,
+    "expand_dims": Expand,
 }
 
 
 class ModelContainer(object):
-    """ A container class to hold  different attributes of ONNX model graph
-    """
+    """A container class to hold  different attributes of ONNX model graph"""
 
     def __init__(self, name, opset_version):
         self._name = name
@@ -622,15 +686,11 @@ class ModelContainer(object):
     def make_model(self):
         """ Creates the onnx model from the graph """
         onnx_graph = onnx.helper.make_graph(
-            self._nodes,
-            self._name,
-            self._inputs,
-            self._outputs,
-            self._initializers
+            self._nodes, self._name, self._inputs, self._outputs, self._initializers
         )
         kwargs = {}
         kwargs["opset_imports"] = self._get_opsets()
-        kwargs["producer_name"] = 'TVM Relay'
+        kwargs["producer_name"] = "TVM Relay"
         kwargs["producer_version"] = tvm.__version__
 
         return onnx.helper.make_model(onnx_graph, **kwargs)
@@ -663,14 +723,15 @@ class RelayToONNXConverter(ExprVisitor):
 
     @classmethod
     def _get_node_entry(cls, relay_node, name):
-        return {"relay_node": relay_node,
-                "inputs": [relay_node],  # inputs in the form of relay nodes
-                "types": [],  # output types in case of call nodes else self type
-                "name": name,  # name of the node
-                "input_names": [name],  # input names in case of call nodes else self name
-                "output_names": [name],  # output names in case of call nodes else self name
-                "op": None,  # op name in case of call node else None
-                }
+        return {
+            "relay_node": relay_node,
+            "inputs": [relay_node],  # inputs in the form of relay nodes
+            "types": [],  # output types in case of call nodes else self type
+            "name": name,  # name of the node
+            "input_names": [name],  # input names in case of call nodes else self name
+            "output_names": [name],  # output names in case of call nodes else self name
+            "op": None,  # op name in case of call node else None
+        }
 
     def convert_to_onnx(self, func):
         """ Traverse Relay graph and generate a ONNX model"""
@@ -740,9 +801,9 @@ class RelayToONNXConverter(ExprVisitor):
             node_entry["input_names"].extend(input_names)
             node_entry["inputs"].extend([input_arg])
 
-        node_entry['types'] = call_node_infer_type(call)
+        node_entry["types"] = call_node_infer_type(call)
         node_entry["output_names"] = []
-        for i in range(len(node_entry['types'])):
+        for i in range(len(node_entry["types"])):
             node_entry["output_names"].append(name + str(i))
         self.last_node = call
         self._add_node(node_entry, node_index)
@@ -750,58 +811,58 @@ class RelayToONNXConverter(ExprVisitor):
 
     def _add_node(self, node_entry, idx):
         """Convert Relay operator node to ONNX operator and add it to container nodes list"""
-        if node_entry['op'].name not in relay_to_onnx_op_mapping:
-            raise NotImplementedError("Currently the operator '{0}' is "
-                                      "not supported.".format(node_entry['op'].name))
-        converter = relay_to_onnx_op_mapping[node_entry['op'].name]()
+        if node_entry["op"].name not in relay_to_onnx_op_mapping:
+            raise NotImplementedError(
+                "Currently the operator '{0}' is " "not supported.".format(node_entry["op"].name)
+            )
+        converter = relay_to_onnx_op_mapping[node_entry["op"].name]()
 
         return converter.convert(node_entry, self._mc, self._node_dict)
 
     def _add_params(self, node_entry, idx):
         """Add param value to initializer and name to inputs"""
-        param_name = node_entry['name']
-        assert param_name in self._params, "The parameter {0} is not present" \
-                                           "in params dict provided.".format(param_name)
+        param_name = node_entry["name"]
+        assert (
+            param_name in self._params
+        ), "The parameter {0} is not present" "in params dict provided.".format(param_name)
         value = self._params[param_name]
         numpy_array = value.asnumpy()
         tensor = numpy_helper.from_array(numpy_array, param_name)
         self._mc.add_initializers([tensor])
         dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy_array.dtype]
-        input = onnx.helper.make_tensor_value_info(param_name,
-                                                   dtype,
-                                                   shape=numpy_array.shape)
+        input = onnx.helper.make_tensor_value_info(param_name, dtype, shape=numpy_array.shape)
         self._mc.add_inputs([input])
 
     def _add_constant_input(self, node_entry, idx):
         """Create named input for constant and add it to container inputs.
         If input is a parameter then add to param
         """
-        node = node_entry['relay_node']
-        param_name = node_entry['name']
+        node = node_entry["relay_node"]
+        param_name = node_entry["name"]
         self._params[param_name] = node.data
         self._add_params(node_entry, idx)
 
     def _add_input(self, node_entry, idx):
         """Add input node to container inputs. If input is a parameter then add to param"""
-        if node_entry['name'] in self._params:
+        if node_entry["name"] in self._params:
             self._add_params(node_entry, idx)
         else:
-            node_type = node_entry['types'][0]
+            node_type = node_entry["types"][0]
             dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
-            input = onnx.helper.make_tensor_value_info(node_entry['name'],
-                                                       dtype,
-                                                       shape=node_type.concrete_shape)
+            input = onnx.helper.make_tensor_value_info(
+                node_entry["name"], dtype, shape=node_type.concrete_shape
+            )
             self._mc.add_inputs([input])
 
     def _add_output(self, node_entries):
         """Add output node to container outputs."""
 
         for node_entry in node_entries:
-            for node_type, output_name in zip(node_entry['types'], node_entry['output_names']):
+            for node_type, output_name in zip(node_entry["types"], node_entry["output_names"]):
                 dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
-                output = onnx.helper.make_tensor_value_info(output_name,
-                                                            dtype,
-                                                            shape=node_type.concrete_shape)
+                output = onnx.helper.make_tensor_value_info(
+                    output_name, dtype, shape=node_type.concrete_shape
+                )
                 self._mc.add_outputs([output])
 
 
@@ -836,9 +897,12 @@ def to_onnx(relay_ir, params, name, opset_version=11, path=None):
         raise NotImplementedError("Currently only opset version 11 is supported.")
 
     if opset_version > defs.onnx_opset_version():
-        raise Exception("The ONNX package installed of version {} does not support the opset "
-                        "version {}. Upgrade the ONNX package to latest version.".format(
-                            get_onnx_version(), opset_version))
+        raise Exception(
+            "The ONNX package installed of version {} does not support the opset "
+            "version {}. Upgrade the ONNX package to latest version.".format(
+                get_onnx_version(), opset_version
+            )
+        )
 
     func = relay_ir["main"] if isinstance(relay_ir, tvm.ir.IRModule) else relay_ir
     converter = RelayToONNXConverter(name, params, opset_version)
@@ -861,11 +925,11 @@ def onnx_compiler(func):
     name = str(func.attrs.global_symbol)
     model = to_onnx(func, {}, name)
     const_vars = [const.name for const in model.graph.initializer]
-    name_bytes = bytes(name, 'utf-8')
-    name_size = struct.pack('I', len(name_bytes))
+    name_bytes = bytes(name, "utf-8")
+    name_size = struct.pack("I", len(name_bytes))
     model_serialized = model.SerializeToString()
-    model_size = struct.pack('I', model.ByteSize())
-    data = b'' + name_size + name_bytes + model_size + model_serialized
+    model_size = struct.pack("I", model.ByteSize())
+    data = b"" + name_size + name_bytes + model_size + model_serialized
 
     runtime_func = "runtime.ONNXModuleCreate"
     fcreate = tvm._ffi.get_global_func(runtime_func)
@@ -874,7 +938,7 @@ def onnx_compiler(func):
 
 @tvm._ffi.register_func("relay.ext.onnx.save_to_file")
 def save_to_file(hex_str, path=None, fmt="onnx"):
-    """ Store the ONNX subgraphs in the path folder
+    """Store the ONNX subgraphs in the path folder
 
     :param hex_str: Subgrah names and corresponding serialized onnx hex string
     :param path: path to which ONNX files to be stored
@@ -886,12 +950,12 @@ def save_to_file(hex_str, path=None, fmt="onnx"):
     offset = 0
     while offset < len(onnx_ir):
         stop = offset + 4
-        (name_size,) = struct.unpack('I', onnx_ir[offset:stop])
-        name = onnx_ir[stop:stop + name_size].decode("utf-8")
+        (name_size,) = struct.unpack("I", onnx_ir[offset:stop])
+        name = onnx_ir[stop : stop + name_size].decode("utf-8")
         stop = stop + name_size
-        (model_size,) = struct.unpack('I', onnx_ir[stop:stop + 4])
+        (model_size,) = struct.unpack("I", onnx_ir[stop : stop + 4])
         stop = stop + 4
-        model_serialized = onnx_ir[stop:stop + model_size]
+        model_serialized = onnx_ir[stop : stop + model_size]
         offset = stop + model_size
 
         model_onnx = onnx.load_model_from_string(model_serialized)

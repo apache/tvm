@@ -23,6 +23,7 @@ from tvm.tir.expr import *
 from tvm.relay import op
 import numpy as np
 
+
 def check_json_roundtrip(node):
     json_str = tvm.ir.save_json(node)
     back = tvm.ir.load_json(json_str)
@@ -71,7 +72,7 @@ def test_tuple():
 
 
 def test_local_var():
-    name_hint = 's'
+    name_hint = "s"
     lv = relay.Var(name_hint)
     assert lv.name_hint == name_hint
     assert lv.type_annotation is None
@@ -86,15 +87,16 @@ def test_local_var():
 
 
 def test_global_var():
-    name_hint = 'g'
+    name_hint = "g"
     gv = relay.GlobalVar(name_hint)
     gv.name_hint == name_hint
     # assert lv.span == None todo(@jroesch): what do we do about spans
     str(gv)
     check_json_roundtrip(gv)
 
+
 def test_function():
-    param_names = ['a', 'b', 'c', 'd']
+    param_names = ["a", "b", "c", "d"]
     params = tvm.runtime.convert([relay.Var(n) for n in param_names])
     ret_type = relay.TupleType(tvm.runtime.convert([]))
     body = relay.Tuple(tvm.runtime.convert([]))
@@ -113,7 +115,7 @@ def test_function():
 
 
 def test_function_attrs():
-    param_names = ['a', 'b', 'c', 'd']
+    param_names = ["a", "b", "c", "d"]
     params = tvm.runtime.convert([relay.var(n, shape=(5, 2)) for n in param_names])
     ret_type = relay.TupleType(tvm.runtime.convert([]))
     body = relay.Tuple(tvm.runtime.convert([]))
@@ -143,9 +145,10 @@ def test_function_attrs():
         p2 = model_params_after[key2]
         np.testing.assert_allclose(p1.data.asnumpy(), p2.data.asnumpy())
 
+
 def test_call():
-    op = relay.Var('f')
-    arg_names = ['a', 'b', 'c', 'd']
+    op = relay.Var("f")
+    arg_names = ["a", "b", "c", "d"]
     args = tvm.runtime.convert([relay.Var(n) for n in arg_names])
     call = relay.Call(op, args, None, None)
     assert call.op == op
@@ -156,7 +159,7 @@ def test_call():
 
 
 def test_let():
-    lv = relay.Var('x')
+    lv = relay.Var("x")
     ty = None
     arr = tvm.nd.array(10)
     value = relay.Constant(arr)
@@ -172,9 +175,9 @@ def test_let():
 
 
 def test_if():
-    cond = relay.Var('cond')
-    left = relay.Var('left')
-    right = relay.Var('right')
+    cond = relay.Var("cond")
+    left = relay.Var("left")
+    right = relay.Var("right")
     ife = relay.If(cond, left, right)
     assert ife.cond == cond
     assert ife.true_branch == left
@@ -199,15 +202,9 @@ def test_op():
 
 
 def test_conv2d_attrs():
-    data = relay.var('data', shape=(1, 3, 224, 224))
-    param = relay.var('param', shape=(64, 3, 7, 7))
-    out = op.nn.conv2d(
-        data,
-        param,
-        strides=(2, 2),
-        padding=(3, 3),
-        channels=64,
-        kernel_size=(7, 7))
+    data = relay.var("data", shape=(1, 3, 224, 224))
+    param = relay.var("param", shape=(64, 3, 7, 7))
+    out = op.nn.conv2d(data, param, strides=(2, 2), padding=(3, 3), channels=64, kernel_size=(7, 7))
     check_json_roundtrip(out)
 
 

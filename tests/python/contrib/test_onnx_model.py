@@ -17,8 +17,9 @@
 
 """Relay to ONNX target test cases"""
 import pytest
-pytest.importorskip('onnx')
-pytest.importorskip('onnxruntime')
+
+pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
 
 from collections import OrderedDict
 import numpy as np
@@ -48,7 +49,7 @@ def run_onnx(mod, params, name, input_data):
     return res[0]
 
 
-def get_data(in_data_shapes, dtype='float32'):
+def get_data(in_data_shapes, dtype="float32"):
     in_data = OrderedDict()
     for name, shape in in_data_shapes.items():
         in_data[name] = np.random.uniform(size=shape).astype(dtype)
@@ -56,8 +57,8 @@ def get_data(in_data_shapes, dtype='float32'):
 
 
 def run_relay(mod, params, in_data):
-    target = 'llvm'
-    ctx = tvm.context('llvm', 0)
+    target = "llvm"
+    ctx = tvm.context("llvm", 0)
     intrp = relay.create_executor("graph", mod, ctx=ctx, target=target)
     in_data = [tvm.nd.array(value) for value in in_data.values()]
     return intrp.evaluate()(*in_data, **params).asnumpy()
@@ -65,7 +66,7 @@ def run_relay(mod, params, in_data):
 
 def _verify_results(mod, params, in_data):
     a = run_relay(mod, params, in_data)
-    b = run_onnx(mod, params, 'test_resent', in_data.values())
+    b = run_onnx(mod, params, "test_resent", in_data.values())
     np.testing.assert_allclose(a, b, rtol=1e-7, atol=1e-7)
 
 
@@ -74,31 +75,30 @@ def test_resnet():
     in_data_shapes = OrderedDict({"data": (1, 3, 224, 224)})
     in_data = get_data(in_data_shapes, dtype="float32")
     for n in [18, 34, 50, 101]:
-        mod, params = tvm.relay.testing.resnet.get_workload(
-            1, num_class, num_layers=n)
+        mod, params = tvm.relay.testing.resnet.get_workload(1, num_class, num_layers=n)
         _verify_results(mod, params, in_data)
 
 
 def test_squeezenet():
     in_data_shapes = OrderedDict({"data": (1, 3, 224, 224)})
     in_data = get_data(in_data_shapes, dtype="float32")
-    for version in ['1.0', '1.1']:
+    for version in ["1.0", "1.1"]:
         mod, params = tvm.relay.testing.squeezenet.get_workload(1, version=version)
         _verify_results(mod, params, in_data)
 
 
 @pytest.mark.skip("USE_TARGET_ONNX should be ON")
 def test_partition():
-    in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
-    in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
-    in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
-    in_4 = relay.var('in_4', shape=(10, 10), dtype='float32')
-    in_5 = relay.var('in_5', shape=(10, 10), dtype='float32')
-    in_6 = relay.var('in_6', shape=(10, 10), dtype='float32')
-    in_7 = relay.var('in_7', shape=(10, 10), dtype='float32')
-    in_8 = relay.var('in_8', shape=(10, 10), dtype='float32')
-    in_9 = relay.var('in_9', shape=(10, 10), dtype='float32')
-    in_10 = relay.var('in_10', shape=(10, 10), dtype='float32')
+    in_1 = relay.var("in_1", shape=(10, 10), dtype="float32")
+    in_2 = relay.var("in_2", shape=(10, 10), dtype="float32")
+    in_3 = relay.var("in_3", shape=(10, 10), dtype="float32")
+    in_4 = relay.var("in_4", shape=(10, 10), dtype="float32")
+    in_5 = relay.var("in_5", shape=(10, 10), dtype="float32")
+    in_6 = relay.var("in_6", shape=(10, 10), dtype="float32")
+    in_7 = relay.var("in_7", shape=(10, 10), dtype="float32")
+    in_8 = relay.var("in_8", shape=(10, 10), dtype="float32")
+    in_9 = relay.var("in_9", shape=(10, 10), dtype="float32")
+    in_10 = relay.var("in_10", shape=(10, 10), dtype="float32")
 
     begin0 = compiler_begin(in_1, "onnx")
     begin1 = compiler_begin(in_2, "onnx")
@@ -147,11 +147,11 @@ def test_partition():
 
     func = relay.Function([in_1, in_2, in_3, in_4, in_5, in_6, in_7, in_8, in_9, in_10], end7)
 
-    target = 'llvm'
+    target = "llvm"
     mod = IRModule.from_expr(func)
     mod = transform.PartitionGraph()(mod)
 
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=['FuseOps']):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["FuseOps"]):
         graph_json, mod1, params = relay.build(mod, target)
 
     assert mod1.type_key == "metadata"
@@ -161,9 +161,8 @@ def test_partition():
     assert mod1.imported_modules[1].get_source()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_resnet()
     test_squeezenet()
     # test_partition needs USE_TARGET_ONNX to be ON
     test_partition()
-

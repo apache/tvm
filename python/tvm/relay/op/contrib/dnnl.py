@@ -51,6 +51,7 @@ def _register_external_op_helper(op_name, supported=True):
     f : callable
         A function that returns if the operator is supported by DNNL.
     """
+
     @tvm.ir.register_op_attr(op_name, "target.dnnl")
     def _func_wrapper(attrs, args):
         return supported
@@ -71,12 +72,12 @@ def make_pattern(with_bias=True):
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
-    conv = is_op('nn.conv2d')(data, weight)
+    conv = is_op("nn.conv2d")(data, weight)
     if with_bias:
-        conv_out = is_op('add')(conv, bias)
+        conv_out = is_op("add")(conv, bias)
     else:
         conv_out = conv
-    return is_op('nn.relu')(conv_out)
+    return is_op("nn.relu")(conv_out)
 
 
 @register_pattern_table("dnnl")

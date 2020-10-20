@@ -51,9 +51,9 @@ class LetStmt(Stmt):
     body : Stmt
         The body statement.
     """
+
     def __init__(self, var, value, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.LetStmt, var, value, body)
+        self.__init_handle_by_constructor__(_ffi_api.LetStmt, var, value, body)
 
 
 @tvm._ffi.register_object("tir.AssertStmt")
@@ -71,9 +71,9 @@ class AssertStmt(Stmt):
     body : Stmt
         The body statement.
     """
+
     def __init__(self, condition, message, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.AssertStmt, condition, message, body)
+        self.__init_handle_by_constructor__(_ffi_api.AssertStmt, condition, message, body)
 
 
 @tvm._ffi.register_object("tir.For")
@@ -100,20 +100,16 @@ class For(Stmt):
     body : Stmt
         The body statement.
     """
+
     Serial = 0
     Parallel = 1
     Vectorized = 2
     Unrolled = 3
-    def __init__(self,
-                 loop_var,
-                 min_val,
-                 extent,
-                 for_type,
-                 device_api,
-                 body):
+
+    def __init__(self, loop_var, min_val, extent, for_type, device_api, body):
         self.__init_handle_by_constructor__(
-            _ffi_api.For, loop_var, min_val, extent,
-            for_type, device_api, body)
+            _ffi_api.For, loop_var, min_val, extent, for_type, device_api, body
+        )
 
 
 @tvm._ffi.register_object("tir.Store")
@@ -134,10 +130,10 @@ class Store(Stmt):
     predicate : PrimExpr
         The store predicate.
     """
+
     def __init__(self, buffer_var, value, index, predicate=None):
         args = [] if predicate is None else [predicate]
-        self.__init_handle_by_constructor__(
-            _ffi_api.Store, buffer_var, value, index, *args)
+        self.__init_handle_by_constructor__(_ffi_api.Store, buffer_var, value, index, *args)
 
 
 @tvm._ffi.register_object("tir.BufferStore")
@@ -155,9 +151,9 @@ class BufferStore(Stmt):
     indices : List[PrimExpr]
         The indices location to be stored.
     """
+
     def __init__(self, buffer, value, indices):
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferStore, buffer, value, indices)
+        self.__init_handle_by_constructor__(_ffi_api.BufferStore, buffer, value, indices)
 
 
 @tvm._ffi.register_object("tir.BufferRealize")
@@ -178,9 +174,9 @@ class BufferRealize(Stmt):
     body : Stmt
         The body of the statement.
     """
+
     def __init__(self, buffer, bounds, condition, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferRealize, buffer, bounds, condition, body)
+        self.__init_handle_by_constructor__(_ffi_api.BufferRealize, buffer, bounds, condition, body)
 
 
 @tvm._ffi.register_object("tir.ProducerStore")
@@ -198,9 +194,9 @@ class ProducerStore(Stmt):
     indices : list of Expr
         The index arguments of the store.
     """
+
     def __init__(self, producer, value, indices):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerStore, producer, value, indices)
+        self.__init_handle_by_constructor__(_ffi_api.ProducerStore, producer, value, indices)
 
 
 @tvm._ffi.register_object("tir.Allocate")
@@ -224,15 +220,11 @@ class Allocate(Stmt):
     body : Stmt
         The body statement.
     """
-    def __init__(self,
-                 buffer_var,
-                 dtype,
-                 extents,
-                 condition,
-                 body):
+
+    def __init__(self, buffer_var, dtype, extents, condition, body):
         self.__init_handle_by_constructor__(
-            _ffi_api.Allocate, buffer_var, dtype,
-            extents, condition, body)
+            _ffi_api.Allocate, buffer_var, dtype, extents, condition, body
+        )
 
 
 @tvm._ffi.register_object("tir.AttrStmt")
@@ -253,9 +245,9 @@ class AttrStmt(Stmt):
     body : Stmt
         The body statement.
     """
+
     def __init__(self, node, attr_key, value, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.AttrStmt, node, attr_key, value, body)
+        self.__init_handle_by_constructor__(_ffi_api.AttrStmt, node, attr_key, value, body)
 
 
 @tvm._ffi.register_object("tir.ProducerRealize")
@@ -276,13 +268,11 @@ class ProducerRealize(Stmt):
     body : Stmt
         The realize body
     """
-    def __init__(self,
-                 producer,
-                 bounds,
-                 condition,
-                 body):
+
+    def __init__(self, producer, bounds, condition, body):
         self.__init_handle_by_constructor__(
-            _ffi_api.ProducerRealize, producer, bounds, condition, body)
+            _ffi_api.ProducerRealize, producer, bounds, condition, body
+        )
 
 
 @tvm._ffi.register_object("tir.SeqStmt")
@@ -294,9 +284,9 @@ class SeqStmt(Stmt):
     seq : List[Stmt]
         The statements
     """
+
     def __init__(self, seq):
-        self.__init_handle_by_constructor__(
-            _ffi_api.SeqStmt, seq)
+        self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq)
 
     def __getitem__(self, i):
         return self.seq[i]
@@ -320,9 +310,9 @@ class IfThenElse(Stmt):
     else_case : Stmt
         The statement to execute if condition is false.
     """
+
     def __init__(self, condition, then_case, else_case):
-        self.__init_handle_by_constructor__(
-            _ffi_api.IfThenElse, condition, then_case, else_case)
+        self.__init_handle_by_constructor__(_ffi_api.IfThenElse, condition, then_case, else_case)
 
 
 @tvm._ffi.register_object("tir.Evaluate")
@@ -334,9 +324,9 @@ class Evaluate(Stmt):
     value : PrimExpr
         The expression to be evalued.
     """
+
     def __init__(self, value):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Evaluate, value)
+        self.__init_handle_by_constructor__(_ffi_api.Evaluate, value)
 
 
 @tvm._ffi.register_object("tir.Prefetch")
@@ -351,9 +341,9 @@ class Prefetch(Stmt):
     bounds : list of Range
         The bounds to be prefetched.
     """
+
     def __init__(self, buffer, bounds):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Prefetch, buffer, bounds)
+        self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds)
 
 
 def stmt_seq(*args):

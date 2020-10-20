@@ -106,7 +106,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(op->dtype), constant_size);
       // Allocate shared memory in global, address_space = 3
       llvm::GlobalVariable* global = new llvm::GlobalVariable(
-          *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared", nullptr,
+          *module_, type, false, llvm::GlobalValue::PrivateLinkage, nullptr, ".shared", nullptr,
           llvm::GlobalValue::NotThreadLocal, shared_address_space);
       if (global->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
@@ -191,60 +191,14 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-inline int DetectROCMComputeVersion(const std::string& target) {
-  size_t pos = target.find("=gfx");
-  if (pos != std::string::npos) {
-    int value;
-    std::stringstream is(target.substr(pos + 4));
-    if (is >> value) return value;
-  }
-  TVMContext tvm_ctx;
-  tvm_ctx.device_type = kDLROCM;
-  tvm_ctx.device_id = 0;
-  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
-  if (api != nullptr) {
-    TVMRetValue val;
-    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
-    if (val.operator int() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kGcnArch, &val);
-      return val.operator int();
-    }
-  }
-  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx900";
-  return 900;
-}
-
-inline int DetectROCMApiVersion() {
-  TVMContext tvm_ctx;
-  tvm_ctx.device_type = kDLROCM;
-  tvm_ctx.device_id = 0;
-  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
-  if (api != nullptr) {
-    TVMRetValue val;
-    api->GetAttr(tvm_ctx, tvm::runtime::kApiVersion, &val);
-    return val.operator int();
-  }
-  LOG(WARNING) << "Cannot detect ROCm version, assume >= 3.5";
-  return 305;
-}
-
-runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
+runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
   InitializeLLVM();
-  CHECK(target.length() >= 4 && target.substr(0, 4) == "rocm");
-  std::ostringstream config;
-  config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx" << DetectROCMComputeVersion(target);
-  if (DetectROCMApiVersion() < 305) {
-    // before ROCm 3.5 we needed code object v2, starting
-    // with 3.5 we need v3 (this argument disables v3)
-    config << " -mattr=-code-object-v3 ";
-  }
-  config << target.substr(4, target.length() - 4);
-  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(target);
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   // careful: cg will hold a naked pointer reference to ctx, so it should
   // have a shorter lifetime than the ctx.

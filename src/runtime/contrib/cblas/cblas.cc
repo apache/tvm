@@ -34,17 +34,18 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
+inline CBLAS_TRANSPOSE CBLASBooleanToTranspose(bool trans) {
+  return trans ? CblasTrans : CblasNoTrans;
+}
 
-inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) { return trans ? CblasTrans : CblasNoTrans; }
-
-inline char BooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
+inline char CBLASBooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
 
 struct CblasSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
-    cblas_sgemm(CblasColMajor, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, alpha, A,
-                lda, B, ldb, beta, C, ldc);
+    cblas_sgemm(CblasColMajor, CBLASBooleanToTranspose(ta), CBLASBooleanToTranspose(tb), M, N, K,
+                alpha, A, lda, B, ldb, beta, C, ldc);
   }
 };
 
@@ -52,8 +53,8 @@ struct CblasDgemmOp {
   typedef double TDatatype;
   void operator()(bool ta, bool tb, int M, int N, int K, double alpha, double* A, int lda,
                   double* B, int ldb, double beta, double* C, int ldc) {
-    cblas_dgemm(CblasColMajor, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, alpha, A,
-                lda, B, ldb, beta, C, ldc);
+    cblas_dgemm(CblasColMajor, CBLASBooleanToTranspose(ta), CBLASBooleanToTranspose(tb), M, N, K,
+                alpha, A, lda, B, ldb, beta, C, ldc);
   }
 };
 
@@ -62,8 +63,8 @@ struct CblasSgemmBatchOp {
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, float alpha, float* A,
                   int a_stride, int lda, float* B, int b_stride, int ldb, float beta, float* C,
                   int c_stride, int ldc) {
-    CBLAS_TRANSPOSE trans_a = BooleanToTranspose(ta);
-    CBLAS_TRANSPOSE trans_b = BooleanToTranspose(tb);
+    CBLAS_TRANSPOSE trans_a = CBLASBooleanToTranspose(ta);
+    CBLAS_TRANSPOSE trans_b = CBLASBooleanToTranspose(tb);
     for (int i = 0; i < batch_size; ++i) {
       cblas_sgemm(CblasColMajor, trans_a, trans_b, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
       A += a_stride;
@@ -78,8 +79,8 @@ struct CblasSgemmBatchIterativeOp {
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, float alpha, float* A,
                   int a_stride, int lda, float* B, int b_stride, int ldb, float beta, float* C,
                   int c_stride, int ldc) {
-    CBLAS_TRANSPOSE trans_a = BooleanToTranspose(ta);
-    CBLAS_TRANSPOSE trans_b = BooleanToTranspose(tb);
+    CBLAS_TRANSPOSE trans_a = CBLASBooleanToTranspose(ta);
+    CBLAS_TRANSPOSE trans_b = CBLASBooleanToTranspose(tb);
     for (int i = 0; i < batch_size; ++i) {
       cblas_sgemm(CblasColMajor, trans_a, trans_b, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
       A += a_stride;
@@ -94,8 +95,8 @@ struct CblasDgemmBatchOp {
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, double alpha, double* A,
                   int a_stride, int lda, double* B, int b_stride, int ldb, double beta, double* C,
                   int c_stride, int ldc) {
-    CBLAS_TRANSPOSE trans_a = BooleanToTranspose(ta);
-    CBLAS_TRANSPOSE trans_b = BooleanToTranspose(tb);
+    CBLAS_TRANSPOSE trans_a = CBLASBooleanToTranspose(ta);
+    CBLAS_TRANSPOSE trans_b = CBLASBooleanToTranspose(tb);
     for (int i = 0; i < batch_size; ++i) {
       cblas_dgemm(CblasColMajor, trans_a, trans_b, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
       A += a_stride;
@@ -110,8 +111,8 @@ struct CblasDgemmBatchIterativeOp {
   void operator()(int batch_size, bool ta, bool tb, int M, int N, int K, double alpha, double* A,
                   int a_stride, int lda, double* B, int b_stride, int ldb, double beta, double* C,
                   int c_stride, int ldc) {
-    CBLAS_TRANSPOSE trans_a = BooleanToTranspose(ta);
-    CBLAS_TRANSPOSE trans_b = BooleanToTranspose(tb);
+    CBLAS_TRANSPOSE trans_a = CBLASBooleanToTranspose(ta);
+    CBLAS_TRANSPOSE trans_b = CBLASBooleanToTranspose(tb);
     for (int i = 0; i < batch_size; ++i) {
       cblas_dgemm(CblasColMajor, trans_a, trans_b, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc);
       A += a_stride;

@@ -21,16 +21,17 @@ from tvm import te
 from ..util import traverse_inline, get_const_int
 from .util import get_fp32_len
 
+
 def schedule_sparse_dense(outs):
     """Create schedule for sparse dense"""
     s = te.create_schedule([x.op for x in outs])
+
     def _callback(op):
         simd_width = get_fp32_len()
         if op.tag == "sparse_dense_csrmm" and op != outs[0].op:
             (_, v_i) = s[op].op.axis
             s[op].vectorize(v_i)
-            (y_o, y_i) = s[outs[0].op].split(
-                s[outs[0].op].op.axis[1], 2 * simd_width)
+            (y_o, y_i) = s[outs[0].op].split(s[outs[0].op].op.axis[1], 2 * simd_width)
             s[op].compute_at(s[outs[0]], y_o)
             s[outs[0].op].vectorize(y_i)
         if op.tag == "sparse_dense_bsrmm":
@@ -47,8 +48,7 @@ def schedule_sparse_dense(outs):
             s[y_bsrmm].compute_at(s[y_reshape], noi)
             s[y_reshape].vectorize(noi)
             if op != s[outs[0]].op:
-                (y_o, y_i) = s[outs[0].op].split(
-                    s[outs[0].op].op.axis[1], 2 * simd_width)
+                (y_o, y_i) = s[outs[0].op].split(s[outs[0].op].op.axis[1], 2 * simd_width)
                 s[y_reshape].compute_at(s[outs[0]], y_o)
                 s[outs[0].op].parallel(y_o)
                 s[outs[0].op].vectorize(y_i)

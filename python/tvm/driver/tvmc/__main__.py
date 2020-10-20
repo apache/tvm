@@ -18,7 +18,7 @@
 TVMC - TVM driver command-line interface
 """
 
-from .main import main
+from tvm.driver import tvmc
 
 if __name__ == "__main__":
-    main()
+    tvmc.main.main()

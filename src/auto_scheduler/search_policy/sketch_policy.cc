@@ -27,10 +27,13 @@
 #include "sketch_policy.h"
 
 #include <tvm/runtime/registry.h>
+#include <tvm/support/parallel_for.h>
 
 #include <algorithm>
 #include <iomanip>
 #include <limits>
+#include <memory>
+#include <queue>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -44,7 +47,6 @@ namespace tvm {
 namespace auto_scheduler {
 
 /********** Sketch generation rules **********/
-
 static RuleSkipStage rule_skip_stage;
 static RuleAlwaysInline rule_always_inline;
 static RuleMultiLevelTiling rule_multi_level_tiling;
@@ -57,7 +59,6 @@ static RuleSimplifyComputeWithConstTensor rule_simplify_compute_with_const_tenso
 static RuleSpecialComputeLocationGPU rule_special_compute_location_gpu;
 
 /********** Init population rules **********/
-
 static InitFillTileSize init_fill_tile_size;
 static InitChangeComputeLocation init_change_compute_location;
 static InitParallel init_parallel;
@@ -66,15 +67,14 @@ static InitVectorization init_vectorization;
 static InitThreadBind init_thread_bind;
 
 /********** Sketch policy **********/
-
 TVM_REGISTER_NODE_TYPE(SketchPolicyNode);
 
-SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
+SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
                            Map<String, ObjectRef> params, int seed, int verbose,
                            Optional<Array<SearchCallback>> init_search_callbacks) {
   auto node = make_object<SketchPolicyNode>();
   node->search_task = std::move(task);
-  node->schedule_cost_model = std::move(schedule_cost_model);
+  node->program_cost_model = std::move(program_cost_model);
   node->rand_gen = std::mt19937(seed);
   node->params = std::move(params);
   node->verbose = verbose;
@@ -89,18 +89,32 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->RunCallbacks(init_search_callbacks.value());
   }
 
-  // Notice: Some rules require us to skip all the rest rules after they are applied.
-  // So the rules below should be ordered carefully.
+  // NOTE: There are strong dependency among the rules below,
+  // so the order to push them into the vector should be considered carefully.
   if (IsCPUTask(node->search_task)) {
-    // The default sketch rules for CPU policy
+    // Sketch Generation Rules
     node->sketch_rules.push_back(&rule_always_inline);
     node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
     node->sketch_rules.push_back(&rule_add_rfactor);
     node->sketch_rules.push_back(&rule_add_cache_write_stage);
     node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
     node->sketch_rules.push_back(&rule_multi_level_tiling);
-  } else if (IsCUDATask(node->search_task)) {
-    // The default sketch rules for CUDA policy
+    node->sketch_rules.push_back(&rule_skip_stage);
+
+    // Initial Population Generation Rules
+    node->init_rules.push_back(&init_fill_tile_size);
+    node->init_rules.push_back(&init_change_compute_location);
+    node->init_rules.push_back(&init_parallel);
+    node->init_rules.push_back(&init_unroll);
+    node->init_rules.push_back(&init_vectorization);
+
+    // Mutation Rules for Evolutionary Search
+    node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
+    node->mutation_rules.push_back(std::make_shared<MutateAutoUnroll>(0.04));
+    node->mutation_rules.push_back(std::make_shared<MutateComputeLocation>(0.05));
+    node->mutation_rules.push_back(std::make_shared<MutateParallel>(0.01));
+  } else if (IsGPUTask(node->search_task)) {
+    // Sketch Generation Rules
     node->sketch_rules.push_back(&rule_add_cache_read_stage);
     node->sketch_rules.push_back(&rule_always_inline);
     node->sketch_rules.push_back(&rule_special_compute_location_gpu);
@@ -109,24 +123,18 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel schedule_cost_model,
     node->sketch_rules.push_back(&rule_add_cache_write_stage);
     node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
     node->sketch_rules.push_back(&rule_multi_level_tiling);
-  } else {
-    LOG(FATAL) << "No default sketch rules for target: " << task->target;
-  }
-  node->sketch_rules.push_back(&rule_skip_stage);  // This should always be the last rule
+    node->sketch_rules.push_back(&rule_skip_stage);
 
-  node->init_rules.push_back(&init_fill_tile_size);  // This should always be the first rule
-  if (IsCPUTask(node->search_task)) {
-    // The default init population rules for CPU policy
-    node->init_rules.push_back(&init_change_compute_location);
-    node->init_rules.push_back(&init_parallel);
-    node->init_rules.push_back(&init_unroll);
-    node->init_rules.push_back(&init_vectorization);
-  } else if (IsCUDATask(node->search_task)) {
-    // The default init population rules for CUDA policy
+    // Initial Population Generation Rules
+    node->init_rules.push_back(&init_fill_tile_size);
     node->init_rules.push_back(&init_thread_bind);
     node->init_rules.push_back(&init_unroll);
+
+    // Mutation Rules for Evolutionary Search
+    node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
+    node->mutation_rules.push_back(std::make_shared<MutateAutoUnroll>(0.10));
   } else {
-    LOG(FATAL) << "No default init rules for target: " << task->target;
+    LOG(FATAL) << "No default sketch rules for target: " << task->target;
   }
 
   data_ = std::move(node);
@@ -149,19 +157,19 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
     int ct = 0;
     int empty_retry_count = GetIntParam(params, SketchParamKey::empty_retry_count);
+    Array<State> best_states, random_states;
     Array<MeasureInput> inputs;
     Array<MeasureResult> results;
     while (ct < n_trials) {
       if (!inputs.empty()) {
         // Retrain cost models before the next search round
         PrintTitle("Train cost model", verbose);
-        schedule_cost_model->Update(inputs, results);
+        program_cost_model->Update(inputs, results);
       }
 
       // Search one round to get promising states
       PrintTitle("Search", verbose);
-      Array<State> random_states;
-      Array<State> best_states = SearchOneRound(num_random, &random_states);
+      best_states = SearchOneRound(num_random * 3, &random_states);
 
       // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
       best_states = search_task->compute_dag.InferBound(best_states);
@@ -188,7 +196,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
 
       // Measure candidate states
       PrintTitle("Measure", verbose);
-      measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs, &results);
+      results = measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs);
       ct += inputs.size();
 
       // Check if reach the early stopping condition
@@ -210,15 +218,45 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
   }
 }
 
-Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
-  // Temporal object to be used if the input pointer is nullptr
-  Array<State> temp_random_states;
-  if (random_states == nullptr) {
-    random_states = &temp_random_states;
-  } else {
-    random_states->clear();
+std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueSearchOneRound(
+    int num_measure, ProgramMeasurer measurer) {
+  num_measure_per_iter_ = num_measure;
+
+  Array<State> best_states, random_states;
+  Array<MeasureInput> inputs;
+  Array<MeasureResult> results;
+  int num_random = static_cast<int>(GetDoubleParam(params, "eps_greedy") * num_measure);
+
+  // Search one round to get promising states
+  PrintTitle("Search", verbose);
+  best_states = SearchOneRound(num_random * 3, &random_states);
+
+  // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
+  best_states = search_task->compute_dag.InferBound(best_states);
+  random_states = search_task->compute_dag.InferBound(random_states);
+
+  // Pick `num_measure_per_iter` states to measure, check hash to remove already measured state
+  // Also pick some random states to do eps-greedy
+  inputs = PickStatesWithEpsGreedy(best_states, random_states, num_measure);
+
+  // Measure candidate states
+  PrintTitle("Measure", verbose);
+  results = measurer->Measure(search_task, GetRef<SearchPolicy>(this), inputs);
+
+  // Update measured states throughputs. These states will join the EvolutionarySearch in later
+  // search rounds.
+  for (const auto& res : results) {
+    measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
   }
 
+  // Update the cost model
+  PrintTitle("Train cost model", verbose);
+  program_cost_model->Update(inputs, results);
+
+  return std::make_pair(std::move(inputs), std::move(results));
+}
+
+Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Get parameters
   int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
   int num_use_measured =
@@ -226,17 +264,19 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
                static_cast<int>(
                    GetDoubleParam(params, SketchParamKey::EvolutionarySearch::use_measured_ratio) *
                    population));
-  bool is_cost_model_reasonable = !schedule_cost_model->IsInstance<RandomModelNode>();
+  bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
 
   // 1. Generate sketches
-  const Array<State>& sketches = GenerateSketches();
+  if (sketch_cache_.empty()) {
+    sketch_cache_ = GenerateSketches();
+  }
 
   // 2. Sample the init population
   Array<State> init_population = SampleInitPopulation(
-      sketches, is_cost_model_reasonable ? population - num_use_measured : population);
+      sketch_cache_, is_cost_model_reasonable ? population - num_use_measured : population);
 
-  // 3. If the cost model is useless (i.e. RandomCostModel), just random pick some generated
-  // states, else perform evolutionary search
+  // 3. Perform evolutionary search if a cost model is utilized. Otherwise,
+  // just return some random states.
   if (is_cost_model_reasonable) {
     // Also insert already measured good states to the initial population
     std::vector<int> indices = Argsort(measured_states_throughputs_);
@@ -244,10 +284,13 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
       init_population.push_back(measured_states_vector_[indices[i]]);
     }
     // Sample some random states for eps-greedy
-    *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states * 10);
+    if (num_random_states > 0 && random_states != nullptr) {
+      *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states);
+    }
     return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
   } else {
-    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 3);
+    PruneInvalidState(search_task, &init_population);
+    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 2);
   }
 }
 
@@ -261,7 +304,7 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 
   // A map that maps state to its current working position (stage_id)
   std::unordered_map<State, int, ObjectHash, ObjectEqual> cur_stage_id_map;
-  cur_stage_id_map[init_state] = static_cast<int>(init_state->stages.size() - 1);
+  cur_stage_id_map[init_state] = static_cast<int>(init_state->stages.size()) - 1;
 
   // Derivation rule based enumeration
   Array<State> out_states;
@@ -324,28 +367,40 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
   int fail_ct = 0;
   Array<State> out_states;
+  std::vector<std::mt19937> rand_gens;
+  rand_gens.reserve(out_size);
+  for (int i = 0; i < out_size; i++) {
+    rand_gens.push_back(std::mt19937(rand_gen()));
+  }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  // TODO(jcf94, merrymercy): Use parallel_for to run this loop in parallel
-  while (static_cast<int>(out_states.size()) < out_size && fail_ct < static_cast<int>(out_size)) {
-    // Random choose a starting sketch
-    // TODO(jcf94, merrymercy): Maybe choose sketches in different possibility for they may have
-    // different potential on generating state with better performance
-    State tmp_s = sketches[(rand_gen)() % sketches.size()];
+  while (static_cast<int>(out_states.size()) < out_size && fail_ct < out_size) {
+    std::vector<State> temp_states(out_size);
 
-    // Derivation rule based enumeration
-    bool valid = true;
-    for (const auto& rule : init_rules) {
-      if (rule->Apply(this, &tmp_s) == InitPopulationRule::ResultKind::kInvalid) {
-        valid = false;
-        break;
+    support::parallel_for(0, out_size - out_states.size(),
+                          [this, &temp_states, &sketches, &rand_gens](int index) {
+                            // Randomly choose a sketch
+                            State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
+                            // Derivation rule based enumeration
+                            bool valid = true;
+                            for (const auto& rule : init_rules) {
+                              if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
+                                  PopulationGenerationRule::ResultKind::kInvalid) {
+                                valid = false;
+                                break;
+                              }
+                            }
+                            if (valid) {
+                              temp_states[index] = std::move(tmp_s);
+                            }
+                          });
+
+    for (int i = 0; i < out_size; i++) {
+      if (temp_states[i].defined()) {
+        out_states.push_back(std::move(temp_states[i]));
+      } else {
+        fail_ct++;
       }
-    }
-
-    if (valid) {
-      out_states.push_back(std::move(tmp_s));
-    } else {
-      fail_ct++;
     }
   }
 
@@ -363,8 +418,117 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   Array<State> best_states;
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  // TODO(comaniac, merrymercy, jcf94): Since we haven't finished porting the cost model part
-  // yet, currently delete the implementation of EvolutionarySearch. To be added later.
+  size_t population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
+  int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
+  double mutation_prob = GetDoubleParam(params, SketchParamKey::EvolutionarySearch::mutation_prob);
+
+  // Two ping pong buffers to avoid copy.
+  Array<State> states_buf1{init_population}, states_buf2;
+  states_buf1.reserve(population);
+  states_buf2.reserve(population);
+  Array<State>* pnow = &states_buf1;
+  Array<State>* pnext = &states_buf2;
+
+  // A heap to keep the best states during evolution
+  using StateHeapItem = std::pair<State, float>;
+  auto cmp = [](const StateHeapItem& left, const StateHeapItem& right) {
+    return left.second > right.second;
+  };
+  std::vector<StateHeapItem> heap;
+  std::unordered_set<std::string> in_heap(measured_states_set_);
+  heap.reserve(out_size);
+
+  // auxiliary global variables
+  std::vector<float> pop_scores;
+  std::vector<double> pop_selection_probs;
+  float max_score = 0.0;
+  pop_scores.reserve(population);
+  pop_selection_probs.reserve(population);
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+
+  // mutation rules
+  int mutation_success_ct, mutation_fail_ct;
+  mutation_success_ct = mutation_fail_ct = 0;
+  std::vector<float> rule_weights;
+  std::vector<double> rule_selection_probs;
+  for (const auto& rule : mutation_rules) {
+    rule_weights.push_back(rule->weight);
+  }
+  ComputePrefixSumProb(rule_weights, &rule_selection_probs);
+
+  // Genetic Algorithm
+  for (int k = 0; k < num_iters + 1; ++k) {
+    // Maintain the heap
+    *pnow = search_task->compute_dag.InferBound(*pnow);
+    PruneInvalidState(search_task, pnow);
+    program_cost_model->Predict(search_task, *pnow, &pop_scores);
+
+    for (size_t i = 0; i < pnow->size(); ++i) {
+      const State& state = (*pnow)[i];
+      std::string state_str = state.ToStr();
+
+      if (in_heap.count(state_str) == 0) {
+        if (static_cast<int>(heap.size()) < out_size) {
+          heap.emplace_back((*pnow)[i], pop_scores[i]);
+          std::push_heap(heap.begin(), heap.end(), cmp);
+          in_heap.insert(state_str);
+        } else if (pop_scores[i] > heap.front().second) {
+          std::string old_state_str = heap.front().first.ToStr();
+          in_heap.erase(old_state_str);
+          in_heap.insert(state_str);
+
+          std::pop_heap(heap.begin(), heap.end(), cmp);
+          heap.back() = StateHeapItem(state, pop_scores[i]);
+          std::push_heap(heap.begin(), heap.end(), cmp);
+        }
+        if (pop_scores[i] > max_score) {
+          max_score = pop_scores[i];
+        }
+      }
+    }
+
+    // Print statistical information
+    if (k % 5 == 0 || k == num_iters) {
+      StdCout(verbose) << "GA Iter: " << k << std::fixed << std::setprecision(4)
+                       << "\tMax score: " << max_score << "\tMin score: " << heap.front().second
+                       << "\t#Pop: " << pnow->size() << "\t#M+: " << mutation_success_ct / (k + 1)
+                       << "\t#M-: " << mutation_fail_ct / (k + 1) << std::endl;
+    }
+    if (k == num_iters) {
+      break;
+    }
+
+    // Compute selection probability
+    ComputePrefixSumProb(pop_scores, &pop_selection_probs);
+
+    // TODO(merrymercy, comaniac): add crossover.
+
+    // Do mutation
+    while (pnext->size() < population) {
+      State tmp_s = (*pnow)[RandomChoose(pop_selection_probs, &rand_gen)];
+
+      if (dis(rand_gen) < mutation_prob) {
+        const auto& rule = mutation_rules[RandomChoose(rule_selection_probs, &rand_gen)];
+        if (rule->Apply(this, &tmp_s, &rand_gen) == PopulationGenerationRule::ResultKind::kValid) {
+          pnext->push_back(std::move(tmp_s));
+          mutation_success_ct++;
+        } else {
+          mutation_fail_ct++;
+        }
+      } else {
+        pnext->push_back(std::move(tmp_s));
+      }
+    }
+
+    std::swap(pnext, pnow);
+    pnext->clear();
+  }
+
+  // Copy best states in the heap to out_states
+  std::sort(heap.begin(), heap.end(), cmp);
+  for (auto& item : heap) {
+    best_states.push_back(std::move(item.first));
+  }
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                         std::chrono::high_resolution_clock::now() - tic_begin)
@@ -424,10 +588,10 @@ Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
-    .set_body_typed([](SearchTask task, CostModel schedule_cost_model,
-                       Map<String, ObjectRef> params, int seed, int verbose,
+    .set_body_typed([](SearchTask task, CostModel program_cost_model, Map<String, ObjectRef> params,
+                       int seed, int verbose,
                        Optional<Array<SearchCallback>> init_search_callbacks) {
-      return SketchPolicy(task, schedule_cost_model, params, seed, verbose, init_search_callbacks);
+      return SketchPolicy(task, program_cost_model, params, seed, verbose, init_search_callbacks);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")
@@ -439,6 +603,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicySampleInitialPopulation")
 
       Array<State> init_population = policy->SampleInitPopulation(sketches, pop_size);
       return init_population;
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyEvolutionarySearch")
+    .set_body_typed([](SketchPolicy policy, Array<State> init_population, int out_size) {
+      Array<State> states = policy->EvolutionarySearch(init_population, out_size);
+      return states;
     });
 
 }  // namespace auto_scheduler

@@ -20,22 +20,25 @@ import tvm
 from tvm import relay
 from tvm.relay.analysis import check_basic_block_normal_form
 
+
 def test_one_block():
-    x = relay.var('x')
+    x = relay.var("x")
     y = relay.add(x, x)
     z = relay.add(x, y)
     check_basic_block_normal_form(z)
 
+
 def test_let():
-    x = relay.var('x')
-    y = relay.var('y')
+    x = relay.var("x")
+    y = relay.var("y")
     body = relay.Let(y, x, y)
     check_basic_block_normal_form(body)
 
+
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_invalid_if():
-    cond = relay.var('cond', dtype='bool', shape=())
-    shared = relay.var('shared')
+    cond = relay.var("cond", dtype="bool", shape=())
+    shared = relay.var("shared")
     true_branch = shared
     false_branch = relay.add(shared, shared)
     body = relay.If(cond, true_branch, false_branch)
@@ -53,13 +56,14 @@ def test_invalid_if():
     """
     check_basic_block_normal_form(body)
 
+
 def test_valid_if():
-    cond = relay.var('cond', dtype='bool', shape=())
-    shared = relay.var('shared')
+    cond = relay.var("cond", dtype="bool", shape=())
+    shared = relay.var("shared")
     true_branch = shared
     false_branch = relay.add(shared, shared)
     body = relay.If(cond, true_branch, false_branch)
-    shared_bound = relay.var('shared_bound', shape=(1,), dtype='float32')
+    shared_bound = relay.var("shared_bound", shape=(1,), dtype="float32")
     body = relay.Let(shared, shared_bound, body)
     """
     The program below uses let binding to control the scope of %shared, which
@@ -76,6 +80,7 @@ def test_valid_if():
     """
     check_basic_block_normal_form(body)
 
+
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_invalid_if2():
     """
@@ -89,9 +94,9 @@ def test_invalid_if2():
       }
     }
     """
-    x = relay.var('x', shape=(), dtype='float32')
-    one = relay.const(1, dtype='float32')
-    two = relay.const(2, dtype='float32')
+    x = relay.var("x", shape=(), dtype="float32")
+    one = relay.const(1, dtype="float32")
+    two = relay.const(2, dtype="float32")
     v1 = relay.add(x, one)
     v2 = relay.equal(x, two)
     true_branch = relay.multiply(v1, two)
@@ -99,6 +104,7 @@ def test_invalid_if2():
     body = relay.If(v2, true_branch, false_branch)
     func = relay.Function([x], body)
     check_basic_block_normal_form(func)
+
 
 def test_valid_if2():
     """
@@ -112,10 +118,10 @@ def test_valid_if2():
       }
     }
     """
-    x = relay.var('x', shape=(), dtype='float32')
-    one = relay.const(1, dtype='float32')
-    two = relay.const(2, dtype='float32')
-    v1 = relay.var('v1')
+    x = relay.var("x", shape=(), dtype="float32")
+    one = relay.const(1, dtype="float32")
+    two = relay.const(2, dtype="float32")
+    v1 = relay.var("v1")
     v2 = relay.equal(x, two)
     true_branch = relay.multiply(v1, two)
     false_branch = relay.multiply(v1, one)
@@ -124,14 +130,15 @@ def test_valid_if2():
     func = relay.Function([x], body)
     check_basic_block_normal_form(func)
 
+
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_func():
-    x = relay.var('x', shape=(1,), dtype='float32')#, a)
-    y = relay.var('y', shape=(1,), dtype='float32')#, a)
-    z = relay.var('z', shape=(1,), dtype='float32')#, a)
+    x = relay.var("x", shape=(1,), dtype="float32")  # , a)
+    y = relay.var("y", shape=(1,), dtype="float32")  # , a)
+    z = relay.var("z", shape=(1,), dtype="float32")  # , a)
     x2 = relay.add(x, x)
-    func_a = relay.Function([y], relay.add(x2, y)) #, a, [a])
-    func_b = relay.Function([z], relay.add(x2, z)) #, a, [a])
+    func_a = relay.Function([y], relay.add(x2, y))  # , a, [a])
+    func_b = relay.Function([z], relay.add(x2, z))  # , a, [a])
     body = relay.Tuple([func_a, func_b])
     body = relay.Function([x], body)
     """
@@ -148,14 +155,15 @@ def test_func():
     """
     check_basic_block_normal_form(body)
 
+
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_higher_order_return():
-    x = relay.var('x', shape=(1,), dtype='float32')#, a)
-    y = relay.var('y', shape=(1,), dtype='float32')#, a)
-    z = relay.var('z', shape=(1,), dtype='float32')#, a)
+    x = relay.var("x", shape=(1,), dtype="float32")  # , a)
+    y = relay.var("y", shape=(1,), dtype="float32")  # , a)
+    z = relay.var("z", shape=(1,), dtype="float32")  # , a)
     x2 = relay.add(x, x)
-    func_a = relay.Function([y], relay.add(x2, y)) #, a, [a])
-    func_b = relay.Function([z], relay.add(x2, z)) #, a, [a])
+    func_a = relay.Function([y], relay.add(x2, y))  # , a, [a])
+    func_b = relay.Function([z], relay.add(x2, z))  # , a, [a])
     body = relay.Tuple([func_a, func_b])
     body = relay.Function([x], body)
     """
@@ -175,13 +183,13 @@ def test_higher_order_return():
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_higher_order_nested():
-    x = relay.var('x', dtype='float32', shape=(1,))
-    s = relay.var('s', dtype='float32', shape=(1,))
+    x = relay.var("x", dtype="float32", shape=(1,))
+    s = relay.var("s", dtype="float32", shape=(1,))
     shared = relay.add(s, s)
     func_true = relay.Function([x], relay.add(x, shared))
-    choice_t = relay.FuncType([], relay.scalar_type('bool'))
-    f = relay.Var('f', choice_t)
-    z = relay.Var('z')
+    choice_t = relay.FuncType([], relay.scalar_type("bool"))
+    f = relay.Var("f", choice_t)
+    z = relay.Var("z")
     body = relay.If(f(), func_true, relay.Function([z], relay.add(z, shared)))
     top = relay.Function([f, s], body)
     """
@@ -202,5 +210,5 @@ def test_higher_order_nested():
     check_basic_block_normal_form(top)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

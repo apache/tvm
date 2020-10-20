@@ -49,7 +49,7 @@
 // Always inline macro only use in template
 // expansion cases where we know inline is important.
 #ifdef _MSC_VER
-#define TVM_ALWAYS_INLINE __forceinline inline
+#define TVM_ALWAYS_INLINE __forceinline
 #else
 #define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
 #endif
@@ -488,9 +488,11 @@ class TVMArgValue : public TVMPODValue_ {
     } else if (type_code_ == kTVMBytes) {
       TVMByteArray* arr = static_cast<TVMByteArray*>(value_.v_handle);
       return std::string(arr->data, arr->size);
-    } else {
-      TVM_CHECK_TYPE_CODE(type_code_, kTVMStr);
+    } else if (type_code_ == kTVMStr) {
       return std::string(value_.v_str);
+    } else {
+      CHECK(IsObjectRef<tvm::runtime::String>());
+      return AsObjectRef<tvm::runtime::String>().operator std::string();
     }
   }
   operator PackedFunc() const {

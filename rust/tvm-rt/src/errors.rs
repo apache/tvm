@@ -33,8 +33,6 @@ pub struct TypeMismatchError {
 
 #[derive(Debug, Error)]
 pub enum NDArrayError {
-    #[error("Missing NDArray shape.")]
-    MissingShape,
     #[error("Cannot convert from an empty array.")]
     EmptyArray,
     #[error("Invalid datatype when attempting to convert ndarray.")]

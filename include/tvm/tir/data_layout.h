@@ -125,6 +125,9 @@ class Layout : public ObjectRef {
   explicit Layout(const Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
+  Layout(const tvm::String& name) : Layout(name.operator std::string()) {}  // NOLINT(*)
+
+  /*! \brief construct from a string */
   Layout(const char* name) : Layout(std::string(name)) {}  // NOLINT(*)
 
   /*!
@@ -312,10 +315,11 @@ class BijectiveLayoutNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
 };
 
-/*! \brief Bijective function mapping for data layout transformation.
+/*!
+ * \brief Bijective function mapping for data layout transformation.
  *   Given two Layout, BijectiveLayout build and store the mapping rules,
- *   provides API to transform N-dimention tensor from the source indices (i0, i1, …, im)
- *   to the destination indices (j0, j1, … jm).
+ *   provides API to transform N-dimention tensor from the source indices (i0, i1, .., im)
+ *   to the destination indices (j0, j1, .., jm).
  */
 class BijectiveLayout : public ObjectRef {
  public:

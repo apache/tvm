@@ -26,7 +26,7 @@
 #include <tvm/tir/expr.h>
 
 #include "../schedule/graph.h"
-#include "op_util.h"
+#include "op_utils.h"
 
 namespace tvm {
 namespace te {

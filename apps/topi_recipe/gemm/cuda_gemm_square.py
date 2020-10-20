@@ -22,17 +22,20 @@ from tvm.contrib import nvcc
 from tvm.contrib import spirv
 import numpy as np
 
-TASK="gemm"
+TASK = "gemm"
 USE_MANUAL_CODE = False
+
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx =  nvcc.compile_cuda(code, target="ptx")
+    ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
+
 
 def write_code(code, fname):
     with open(fname, "w") as f:
         f.write(code)
+
 
 @tvm.register_func
 def tvm_callback_cuda_postproc(code):
@@ -47,16 +50,13 @@ def tvm_callback_cuda_postproc(code):
 def test_gemm():
     # graph
     nn = 2048
-    n = te.var('n')
+    n = te.var("n")
     n = tvm.runtime.convert(nn)
     m, l = n, n
-    A = te.placeholder((l, n), name='A')
-    B = te.placeholder((l, m), name='B')
-    k = te.reduce_axis((0, l), name='k')
-    C = te.compute(
-        (m, n),
-        lambda ii, jj: te.sum(A[k, jj] * B[k, ii], axis=k),
-        name='C')
+    A = te.placeholder((l, n), name="A")
+    B = te.placeholder((l, m), name="B")
+    k = te.reduce_axis((0, l), name="k")
+    C = te.compute((m, n), lambda ii, jj: te.sum(A[k, jj] * B[k, ii], axis=k), name="C")
 
     # schedule
     s = te.create_schedule(C.op)
@@ -135,8 +135,7 @@ def test_gemm():
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
         for i in range(2):
             f(a, b, c)
-        tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(b_np.T, a_np), rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), np.dot(b_np.T, a_np), rtol=1e-5)
 
         num_flops = 2 * nn * nn * nn
         num_runs = 10
@@ -146,11 +145,11 @@ def test_gemm():
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
 
     for device in ["cuda", "opencl", "rocm", "nvptx", "vulkan"]:
-        with tvm.transform.PassContext(config={"tir.UnrollLoop": {
-            "auto_max_step": 128,
-            "explicit_unroll": device != "cuda"
-        }}):
+        with tvm.transform.PassContext(
+            config={"tir.UnrollLoop": {"auto_max_step": 128, "explicit_unroll": device != "cuda"}}
+        ):
             check_device(device)
+
 
 if __name__ == "__main__":
     test_gemm()

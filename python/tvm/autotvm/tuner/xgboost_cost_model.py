@@ -22,6 +22,7 @@ import logging
 import time
 
 import numpy as np
+
 try:
     import xgboost as xgb
 except ImportError:
@@ -32,7 +33,8 @@ from ..util import get_rank
 from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
+
 
 class XGBoostCostModel(CostModel):
     """XGBoost as cost model
@@ -69,14 +71,18 @@ class XGBoostCostModel(CostModel):
     upper_model: XGBoostCostModel, optional
         The upper model used in transfer learning
     """
-    def __init__(self, task, feature_type, loss_type, num_threads=None, log_interval=25,
-                 upper_model=None):
+
+    def __init__(
+        self, task, feature_type, loss_type, num_threads=None, log_interval=25, upper_model=None
+    ):
         super(XGBoostCostModel, self).__init__()
 
         if xgb is None:
-            raise RuntimeError("XGBoost is required for XGBoostCostModel. "
-                               "Please install its python package first. "
-                               "Help: (https://xgboost.readthedocs.io/en/latest/) ")
+            raise RuntimeError(
+                "XGBoost is required for XGBoostCostModel. "
+                "Please install its python package first. "
+                "Help: (https://xgboost.readthedocs.io/en/latest/) "
+            )
 
         self.task = task
         self.target = task.target
@@ -87,47 +93,41 @@ class XGBoostCostModel(CostModel):
         self.num_threads = num_threads
         self.log_interval = log_interval
 
-        if loss_type == 'reg':
+        if loss_type == "reg":
             self.xgb_params = {
-                'max_depth': 3,
-                'gamma': 0.0001,
-                'min_child_weight': 1,
-
-                'subsample': 1.0,
-
-                'eta': 0.3,
-                'lambda': 1.00,
-                'alpha': 0,
-
-                'objective': 'reg:linear',
+                "max_depth": 3,
+                "gamma": 0.0001,
+                "min_child_weight": 1,
+                "subsample": 1.0,
+                "eta": 0.3,
+                "lambda": 1.00,
+                "alpha": 0,
+                "objective": "reg:linear",
             }
-        elif loss_type == 'rank':
+        elif loss_type == "rank":
             self.xgb_params = {
-                'max_depth': 3,
-                'gamma': 0.0001,
-                'min_child_weight': 1,
-
-                'subsample': 1.0,
-
-                'eta': 0.3,
-                'lambda': 1.00,
-                'alpha': 0,
-
-                'objective': 'rank:pairwise',
+                "max_depth": 3,
+                "gamma": 0.0001,
+                "min_child_weight": 1,
+                "subsample": 1.0,
+                "eta": 0.3,
+                "lambda": 1.00,
+                "alpha": 0,
+                "objective": "rank:pairwise",
             }
         else:
             raise RuntimeError("Invalid loss type: " + loss_type)
 
-        self.xgb_params['verbosity'] = 0
+        self.xgb_params["verbosity"] = 0
         if num_threads:
-            self.xgb_params['nthread'] = num_threads
+            self.xgb_params["nthread"] = num_threads
         self.bst = None
 
-        if feature_type == 'itervar':
+        if feature_type == "itervar":
             self.feature_extract_func = _extract_itervar_feature_index
-        elif feature_type == 'knob':
+        elif feature_type == "knob":
             self.feature_extract_func = _extract_knob_feature_index
-        elif feature_type == 'curve':
+        elif feature_type == "curve":
             self.feature_extract_func = _extract_curve_feature_index
         else:
             raise RuntimeError("Invalid feature type " + feature_type)
@@ -196,22 +196,31 @@ class XGBoostCostModel(CostModel):
             else:
                 dtrain.set_base_margin(discount * self.base_model.predict(xs, output_margin=True))
 
-        self.bst = xgb.train(self.xgb_params, dtrain,
-                             num_boost_round=8000,
-                             callbacks=[custom_callback(
-                                 stopping_rounds=20,
-                                 metric='tr-a-recall@%d' % plan_size,
-                                 evals=[(dtrain, 'tr')],
-                                 maximize=True,
-                                 fevals=[
-                                     xgb_average_recalln_curve_score(plan_size),
-                                 ],
-                                 verbose_eval=self.log_interval)])
+        self.bst = xgb.train(
+            self.xgb_params,
+            dtrain,
+            num_boost_round=8000,
+            callbacks=[
+                custom_callback(
+                    stopping_rounds=20,
+                    metric="tr-a-recall@%d" % plan_size,
+                    evals=[(dtrain, "tr")],
+                    maximize=True,
+                    fevals=[
+                        xgb_average_recalln_curve_score(plan_size),
+                    ],
+                    verbose_eval=self.log_interval,
+                )
+            ],
+        )
 
-        logger.debug("XGB train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
-                     time.time() - tic, len(xs),
-                     len(xs) - np.sum(valid_index),
-                     self.feature_cache.size(self.fea_type))
+        logger.debug(
+            "XGB train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
+            time.time() - tic,
+            len(xs),
+            len(xs) - np.sum(valid_index),
+            self.feature_cache.size(self.fea_type),
+        )
 
     def fit_log(self, records, plan_size):
         tic = time.time()
@@ -227,11 +236,11 @@ class XGBoostCostModel(CostModel):
         # extract feature
         self._reset_pool(self.space, self.target, self.task)
         pool = self._get_pool()
-        if self.fea_type == 'itervar':
+        if self.fea_type == "itervar":
             feature_extract_func = _extract_itervar_feature_log
-        elif self.fea_type == 'knob':
+        elif self.fea_type == "knob":
             feature_extract_func = _extract_knob_feature_log
-        elif self.fea_type == 'curve':
+        elif self.fea_type == "curve":
             feature_extract_func = _extract_curve_feature_log
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
@@ -259,17 +268,23 @@ class XGBoostCostModel(CostModel):
         dtrain = xgb.DMatrix(x_train[index], y_train[index])
 
         plan_size *= 2
-        self.bst = xgb.train(self.xgb_params, dtrain,
-                             num_boost_round=400,
-                             callbacks=[custom_callback(
-                                 stopping_rounds=100,
-                                 metric='tr-a-recall@%d' % plan_size,
-                                 evals=[(dtrain, 'tr')],
-                                 maximize=True,
-                                 fevals=[
-                                     xgb_average_recalln_curve_score(plan_size),
-                                 ],
-                                 verbose_eval=self.log_interval)])
+        self.bst = xgb.train(
+            self.xgb_params,
+            dtrain,
+            num_boost_round=400,
+            callbacks=[
+                custom_callback(
+                    stopping_rounds=100,
+                    metric="tr-a-recall@%d" % plan_size,
+                    evals=[(dtrain, "tr")],
+                    maximize=True,
+                    fevals=[
+                        xgb_average_recalln_curve_score(plan_size),
+                    ],
+                    verbose_eval=self.log_interval,
+                )
+            ],
+        )
 
         logger.debug("XGB train: %.2f\tobs: %d", time.time() - tic, len(xs))
 
@@ -280,8 +295,9 @@ class XGBoostCostModel(CostModel):
         dtest = xgb.DMatrix(feas)
 
         if self.base_model:
-            dtest.set_base_margin(self._base_model_discount() *
-                                  self.base_model.predict(xs, output_margin=True))
+            dtest.set_base_margin(
+                self._base_model_discount() * self.base_model.predict(xs, output_margin=True)
+            )
 
         return self.bst.predict(dtest, output_margin=output_margin)
 
@@ -291,8 +307,9 @@ class XGBoostCostModel(CostModel):
         self.base_model.upper_model = self
 
     def spawn_base_model(self):
-        return XGBoostCostModel(self.task, self.fea_type, self.loss_type,
-                                self.num_threads, self.log_interval, self)
+        return XGBoostCostModel(
+            self.task, self.fea_type, self.loss_type, self.num_threads, self.log_interval, self
+        )
 
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
@@ -331,6 +348,7 @@ _extract_space = None
 _extract_target = None
 _extract_task = None
 
+
 def _extract_itervar_feature_index(index):
     """extract iteration var feature for an index in extract_space"""
     try:
@@ -342,6 +360,7 @@ def _extract_itervar_feature_index(index):
         return fea
     except Exception:  # pylint: disable=broad-except
         return None
+
 
 def _extract_itervar_feature_log(arg):
     """extract iteration var feature for log items"""
@@ -361,6 +380,7 @@ def _extract_itervar_feature_log(arg):
     except Exception:  # pylint: disable=broad-except
         return None
 
+
 def _extract_knob_feature_index(index):
     """extract knob feature for an index in extract_space"""
     try:
@@ -368,6 +388,7 @@ def _extract_knob_feature_index(index):
         return config.get_flatten_feature()
     except Exception:  # pylint: disable=broad-except
         return None
+
 
 def _extract_knob_feature_log(arg):
     """extract knob feature for log items"""
@@ -386,6 +407,7 @@ def _extract_knob_feature_log(arg):
     except Exception:  # pylint: disable=broad-except
         return None
 
+
 def _extract_curve_feature_index(index):
     """extract sampled curve feature for an index in extract_space"""
     try:
@@ -397,6 +419,7 @@ def _extract_curve_feature_index(index):
         return np.array(fea)
     except Exception:  # pylint: disable=broad-except
         return None
+
 
 def _extract_curve_feature_log(arg):
     """extract sampled curve feature for log items"""
@@ -416,8 +439,10 @@ def _extract_curve_feature_log(arg):
     except Exception:  # pylint: disable=broad-except
         return None
 
-def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
-                    maximize=False, verbose_eval=True):
+
+def custom_callback(
+    stopping_rounds, metric, fevals, evals=(), log_file=None, maximize=False, verbose_eval=True
+):
     """callback function for xgboost to support multiple custom evaluation functions"""
     # pylint: disable=import-outside-toplevel
     from xgboost.core import EarlyStopException
@@ -431,21 +456,21 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
         """internal function"""
         bst = env.model
 
-        state['maximize_score'] = maximize
-        state['best_iteration'] = 0
+        state["maximize_score"] = maximize
+        state["best_iteration"] = 0
         if maximize:
-            state['best_score'] = float('-inf')
+            state["best_score"] = float("-inf")
         else:
-            state['best_score'] = float('inf')
+            state["best_score"] = float("inf")
 
         if bst is not None:
-            if bst.attr('best_score') is not None:
-                state['best_score'] = float(bst.attr('best_score'))
-                state['best_iteration'] = int(bst.attr('best_iteration'))
-                state['best_msg'] = bst.attr('best_msg')
+            if bst.attr("best_score") is not None:
+                state["best_score"] = float(bst.attr("best_score"))
+                state["best_iteration"] = int(bst.attr("best_iteration"))
+                state["best_msg"] = bst.attr("best_msg")
             else:
-                bst.set_attr(best_iteration=str(state['best_iteration']))
-                bst.set_attr(best_score=str(state['best_score']))
+                bst.set_attr(best_iteration=str(state["best_iteration"]))
+                bst.set_attr(best_score=str(state["best_score"]))
         else:
             assert env.cvfolds is not None
 
@@ -469,7 +494,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
         else:
             for feval in fevals:
                 bst_eval = bst.eval_set(evals, i, feval)
-                res = [x.split(':') for x in bst_eval.split()]
+                res = [x.split(":") for x in bst_eval.split()]
                 for kv in res[1:]:
                     res_dict[kv[0]] = [float(kv[1])]
 
@@ -483,7 +508,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
         ##### print eval result #####
         infos = ["XGB iter: %3d" % i]
         for item in eval_res:
-            if 'null' in item[0]:
+            if "null" in item[0]:
                 continue
             infos.append("%s: %.6f" % (item[0], item[1]))
 
@@ -491,7 +516,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
             logger.debug("\t".join(infos))
         if log_file:
             with open(log_file, "a") as fout:
-                fout.write("\t".join(infos) + '\n')
+                fout.write("\t".join(infos) + "\n")
 
         ##### choose score and do early stopping #####
         score = None
@@ -501,24 +526,23 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                 break
         assert score is not None
 
-        best_score = state['best_score']
-        best_iteration = state['best_iteration']
-        maximize_score = state['maximize_score']
-        if (maximize_score and score > best_score) or \
-                (not maximize_score and score < best_score):
-            msg = '[%d] %s' % (
-                env.iteration,
-                '\t'.join([_fmt_metric(x) for x in eval_res]))
-            state['best_msg'] = msg
-            state['best_score'] = score
-            state['best_iteration'] = env.iteration
+        best_score = state["best_score"]
+        best_iteration = state["best_iteration"]
+        maximize_score = state["maximize_score"]
+        if (maximize_score and score > best_score) or (not maximize_score and score < best_score):
+            msg = "[%d] %s" % (env.iteration, "\t".join([_fmt_metric(x) for x in eval_res]))
+            state["best_msg"] = msg
+            state["best_score"] = score
+            state["best_iteration"] = env.iteration
             # save the property to attributes, so they will occur in checkpoint.
             if env.model is not None:
-                env.model.set_attr(best_score=str(state['best_score']),
-                                   best_iteration=str(state['best_iteration']),
-                                   best_msg=state['best_msg'])
+                env.model.set_attr(
+                    best_score=str(state["best_score"]),
+                    best_iteration=str(state["best_iteration"]),
+                    best_msg=state["best_msg"],
+                )
         elif env.iteration - best_iteration >= stopping_rounds:
-            best_msg = state['best_msg']
+            best_msg = state["best_msg"]
             if verbose_eval and env.rank == 0:
                 logger.debug("XGB stopped. Best iteration: %s ", best_msg)
             raise EarlyStopException(best_iteration)
@@ -529,56 +553,73 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
 # feval wrapper for xgboost
 def xgb_max_curve_score(N):
     """evaluate max curve score for xgb"""
+
     def feval(preds, labels):
         labels = labels.get_label()
         trials = np.argsort(preds)[::-1]
         scores = labels[trials]
         curve = max_curve(scores)
         return "Smax@%d" % N, curve[N] / np.max(labels)
+
     return feval
+
 
 def xgb_recalln_curve_score(N):
     """evaluate recall-n curve score for xgb"""
+
     def feval(preds, labels):
         labels = labels.get_label()
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = recall_curve(ranks)
         return "recall@%d" % N, curve[N]
+
     return feval
+
 
 def xgb_average_recalln_curve_score(N):
     """evaluate average recall-n curve score for xgb"""
+
     def feval(preds, labels):
         labels = labels.get_label()
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = recall_curve(ranks)
         return "a-recall@%d" % N, np.sum(curve[:N]) / N
+
     return feval
+
 
 def xgb_recallk_curve_score(N, topk):
     """evaluate recall-k curve score for xgb"""
+
     def feval(preds, labels):
         labels = labels.get_label()
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = recall_curve(ranks, topk)
         return "recall@%d" % topk, curve[N]
+
     return feval
+
 
 def xgb_cover_curve_score(N):
     """evaluate cover curve score for xgb"""
+
     def feval(preds, labels):
         labels = labels.get_label()
         trials = np.argsort(preds)[::-1]
         ranks = get_rank(labels[trials])
         curve = cover_curve(ranks)
         return "cover@%d" % N, curve[N]
+
     return feval
+
 
 def xgb_null_score(_):
     """empty score function for xgb"""
+
     def feval(__, ___):
         return "null", 0
+
     return feval

@@ -19,7 +19,6 @@ from tvm import te
 import numpy as np
 
 
-
 def test_const():
     x = tvm.tir.const(1, "int32")
     print(x.dtype)
@@ -28,19 +27,43 @@ def test_const():
 
 
 def test_scalar_dtype_inference():
-    for data in [True, np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
-                 np.int8(1), np.int16(1), np.int32(1), np.int64(1),
-                 np.float16(1), np.float32(1), np.float64(1)]:
+    for data in [
+        True,
+        np.bool(1),
+        np.uint8(1),
+        np.uint16(1),
+        np.uint32(1),
+        np.uint64(1),
+        np.int8(1),
+        np.int16(1),
+        np.int32(1),
+        np.int64(1),
+        np.float16(1),
+        np.float32(1),
+        np.float64(1),
+    ]:
         assert tvm.tir.const(data).dtype == str(np.array(data).dtype)
-    assert tvm.tir.const(1).dtype == 'int32'
-    assert tvm.tir.const(1.0).dtype == 'float32'
+    assert tvm.tir.const(1).dtype == "int32"
+    assert tvm.tir.const(1.0).dtype == "float32"
 
-    for data in [True, np.bool(1), np.uint8(1), np.uint16(1), np.uint32(1), np.uint64(1),
-                 np.int8(1), np.int16(1), np.int32(1), np.int64(1),
-                 np.float16(1), np.float32(1), np.float64(1)]:
+    for data in [
+        True,
+        np.bool(1),
+        np.uint8(1),
+        np.uint16(1),
+        np.uint32(1),
+        np.uint64(1),
+        np.int8(1),
+        np.int16(1),
+        np.int32(1),
+        np.int64(1),
+        np.float16(1),
+        np.float32(1),
+        np.float64(1),
+    ]:
         assert tvm.runtime.convert(data).dtype == str(np.array(data).dtype)
-    assert tvm.runtime.convert(1).dtype == 'int32'
-    assert tvm.runtime.convert(1.0).dtype == 'float32'
+    assert tvm.runtime.convert(1).dtype == "int32"
+    assert tvm.runtime.convert(1.0).dtype == "float32"
 
 
 def test_make():
@@ -53,7 +76,7 @@ def test_make():
 
 def test_ir():
     x = tvm.tir.const(1, "int32")
-    y = tvm.tir.IntImm('int32', 1)
+    y = tvm.tir.IntImm("int32", 1)
     z = x + y
     stmt = tvm.tir.Evaluate(z)
     assert isinstance(stmt, tvm.tir.Evaluate)
@@ -64,18 +87,17 @@ def test_ir2():
     a = te.var("array", "handle")
     st = tvm.tir.Store(a, x + 1, 1)
     assert isinstance(st, tvm.tir.Store)
-    assert(st.buffer_var == a)
+    assert st.buffer_var == a
 
 
 def test_let():
-    x = te.var('x')
-    y = te.var('y')
-    stmt = tvm.tir.LetStmt(
-        x, 10, tvm.tir.Evaluate(x + 1));
+    x = te.var("x")
+    y = te.var("y")
+    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
 
 
 def test_cast():
-    x = te.var('x', dtype="float32")
+    x = te.var("x", dtype="float32")
     y = x.astype("int32")
     z = x.astype("float32x4")
     assert isinstance(y, tvm.tir.Cast)
@@ -84,10 +106,9 @@ def test_cast():
 
 
 def test_attr():
-    x = te.var('x')
-    y = te.var('y')
-    stmt = tvm.tir.AttrStmt(
-        y, "stride", 10, tvm.tir.Evaluate(x + 1));
+    x = te.var("x")
+    y = te.var("y")
+    stmt = tvm.tir.AttrStmt(y, "stride", 10, tvm.tir.Evaluate(x + 1))
     assert stmt.node == y
 
     a = tvm.runtime.convert(1)
@@ -100,34 +121,33 @@ def test_attr():
 
 
 def test_basic():
-    a = te.var('a')
-    b = te.var('b')
-    c =  a + b
-    assert str(c) == '(%s: int32 + %s: int32)' % (a.name, b.name)
+    a = te.var("a")
+    b = te.var("b")
+    c = a + b
+    assert str(c) == "(%s: int32 + %s: int32)" % (a.name, b.name)
 
 
 def test_stmt():
     x = tvm.tir.Evaluate(0)
-    tvm.tir.For(te.var('i'), 0, 1,
-                 tvm.tir.For.Serial, 0,
-                 x)
+    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.For.Serial, 0, x)
+
 
 def test_dir():
-    x = te.var('x')
+    x = te.var("x")
     dir(x)
 
 
 def test_dtype():
-    x = te.var('x')
-    assert x.dtype == 'int32'
-    y = te.var('y')
-    assert (x > y).dtype == 'bool'
+    x = te.var("x")
+    assert x.dtype == "int32"
+    y = te.var("y")
+    assert (x > y).dtype == "bool"
 
 
 def test_any():
-    x = te.var('x')
-    y = te.var('y')
-    z = te.var('z')
+    x = te.var("x")
+    y = te.var("y")
+    z = te.var("z")
     try:
         t = x or x
         assert False
@@ -138,18 +158,29 @@ def test_any():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tir.any(x < y)) == '(%s: int32 < %s: int32)' % (x.name, y.name)
-    assert str(tvm.tir.any(x < y, x > z)) == '((%s: int32 < %s: int32) || (%s > %s: int32))' % (
-        x.name, y.name, x.name, z.name)
-    assert str(tvm.tir.any(x < y, y > z + 1, x < z * 2)) == \
-        '(((%s: int32 < %s: int32) || (%s > (%s: int32 + 1))) || (%s < (%s*2)))' % (
-            x.name, y.name, y.name, z.name, x.name, z.name)
+    assert str(tvm.tir.any(x < y)) == "(%s: int32 < %s: int32)" % (x.name, y.name)
+    assert str(tvm.tir.any(x < y, x > z)) == "((%s: int32 < %s: int32) || (%s > %s: int32))" % (
+        x.name,
+        y.name,
+        x.name,
+        z.name,
+    )
+    assert str(
+        tvm.tir.any(x < y, y > z + 1, x < z * 2)
+    ) == "(((%s: int32 < %s: int32) || (%s > (%s: int32 + 1))) || (%s < (%s*2)))" % (
+        x.name,
+        y.name,
+        y.name,
+        z.name,
+        x.name,
+        z.name,
+    )
 
 
 def test_all():
-    x = te.var('x')
-    y = te.var('y')
-    z = te.var('z')
+    x = te.var("x")
+    y = te.var("y")
+    z = te.var("z")
     try:
         t = x and x
         assert False
@@ -160,44 +191,57 @@ def test_all():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tir.all(x < y)) == '(%s: int32 < %s: int32)' % (x.name, y.name)
-    assert str(tvm.tir.all(x < y, x > z)) == '((%s: int32 < %s: int32) && (%s > %s: int32))' % (
-        x.name, y.name, x.name, z.name)
-    assert str(tvm.tir.all(x < y, y > z + 1, x < z * 2)) == \
-        '(((%s: int32 < %s: int32) && (%s > (%s: int32 + 1))) && (%s < (%s*2)))' % (
-            x.name, y.name, y.name, z.name, x.name, z.name)
+    assert str(tvm.tir.all(x < y)) == "(%s: int32 < %s: int32)" % (x.name, y.name)
+    assert str(tvm.tir.all(x < y, x > z)) == "((%s: int32 < %s: int32) && (%s > %s: int32))" % (
+        x.name,
+        y.name,
+        x.name,
+        z.name,
+    )
+    assert str(
+        tvm.tir.all(x < y, y > z + 1, x < z * 2)
+    ) == "(((%s: int32 < %s: int32) && (%s > (%s: int32 + 1))) && (%s < (%s*2)))" % (
+        x.name,
+        y.name,
+        y.name,
+        z.name,
+        x.name,
+        z.name,
+    )
 
 
 def test_bitwise():
-    x = te.var('x')
-    y = te.var('y')
-    assert str(x << y) == '@tir.shift_left(x: int32, y: int32, dtype=int32)'
-    assert str(x >> y) == '@tir.shift_right(x: int32, y: int32, dtype=int32)'
-    assert str(x & y) == '@tir.bitwise_and(x: int32, y: int32, dtype=int32)'
-    assert str(x | y) == '@tir.bitwise_or(x: int32, y: int32, dtype=int32)'
-    assert str(x ^ y) == '@tir.bitwise_xor(x: int32, y: int32, dtype=int32)'
-    assert str(10 & x) == '@tir.bitwise_and(10, x: int32, dtype=int32)'
-    assert str(10 | x) == '@tir.bitwise_or(10, x: int32, dtype=int32)'
-    assert str(10 ^ x) == '@tir.bitwise_xor(10, x: int32, dtype=int32)'
-    assert str(10 >> x) == '@tir.shift_right(10, x: int32, dtype=int32)'
-    assert str(10 << x) == '@tir.shift_left(10, x: int32, dtype=int32)'
-    assert str(10 % x) == 'floormod(10, x: int32)'
+    x = te.var("x")
+    y = te.var("y")
+    assert str(x << y) == "@tir.shift_left(x: int32, y: int32, dtype=int32)"
+    assert str(x >> y) == "@tir.shift_right(x: int32, y: int32, dtype=int32)"
+    assert str(x & y) == "@tir.bitwise_and(x: int32, y: int32, dtype=int32)"
+    assert str(x | y) == "@tir.bitwise_or(x: int32, y: int32, dtype=int32)"
+    assert str(x ^ y) == "@tir.bitwise_xor(x: int32, y: int32, dtype=int32)"
+    assert str(10 & x) == "@tir.bitwise_and(10, x: int32, dtype=int32)"
+    assert str(10 | x) == "@tir.bitwise_or(10, x: int32, dtype=int32)"
+    assert str(10 ^ x) == "@tir.bitwise_xor(10, x: int32, dtype=int32)"
+    assert str(10 >> x) == "@tir.shift_right(10, x: int32, dtype=int32)"
+    assert str(10 << x) == "@tir.shift_left(10, x: int32, dtype=int32)"
+    assert str(10 % x) == "floormod(10, x: int32)"
 
-    assert str(~x) == '@tir.bitwise_not(x: int32, dtype=int32)'
-    assert(tvm.tir.const(1, "int8x2") >> 1).dtype == "int8x2"
-    assert(x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
-    assert(te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
+    assert str(~x) == "@tir.bitwise_not(x: int32, dtype=int32)"
+    assert (tvm.tir.const(1, "int8x2") >> 1).dtype == "int8x2"
+    assert (x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
+    assert (te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
 
 
 def test_float_bitwise():
-    t = tvm.tir.const(1.5,dtype='float32')
-    for test in [lambda lhs, rhs : lhs << rhs,
-                    lambda lhs, rhs : lhs >> rhs,
-                    lambda lhs, rhs : lhs | rhs,
-                    lambda lhs, rhs : lhs ^ rhs,
-                    lambda lhs, rhs : lhs & rhs]:
+    t = tvm.tir.const(1.5, dtype="float32")
+    for test in [
+        lambda lhs, rhs: lhs << rhs,
+        lambda lhs, rhs: lhs >> rhs,
+        lambda lhs, rhs: lhs | rhs,
+        lambda lhs, rhs: lhs ^ rhs,
+        lambda lhs, rhs: lhs & rhs,
+    ]:
         try:
-            test(t,10.0)
+            test(t, 10.0)
             assert False
         except tvm.TVMError:
             pass
@@ -209,71 +253,71 @@ def test_float_bitwise():
 
 
 def test_shift_bounds():
-    x = te.var('x')
-    for test in [lambda lhs, rhs : lhs << rhs,
-                    lambda lhs, rhs : lhs >> rhs]:
-        #negative case
-        for testcase in [(x,-1), (x,32)]:
+    x = te.var("x")
+    for test in [lambda lhs, rhs: lhs << rhs, lambda lhs, rhs: lhs >> rhs]:
+        # negative case
+        for testcase in [(x, -1), (x, 32)]:
             try:
                 test(*testcase)
                 assert False
             except tvm.TVMError:
                 pass
 
-        #positive case
-        for testcase in [(x,0), (x,16), (x,31)]:
+        # positive case
+        for testcase in [(x, 0), (x, 16), (x, 31)]:
             test(*testcase)
 
 
 def test_divide_by_zero():
-    for test in [lambda lhs, rhs : tvm.tir.floormod(lhs,rhs),
-                    lambda lhs, rhs : tvm.tir.floordiv(lhs,rhs),
-                    lambda lhs, rhs : tvm.tir.truncmod(lhs,rhs),
-                    lambda lhs, rhs : tvm.tir.truncdiv(lhs,rhs),
-                    lambda lhs, rhs : tvm.tir.div(lhs,rhs)]:
+    for test in [
+        lambda lhs, rhs: tvm.tir.floormod(lhs, rhs),
+        lambda lhs, rhs: tvm.tir.floordiv(lhs, rhs),
+        lambda lhs, rhs: tvm.tir.truncmod(lhs, rhs),
+        lambda lhs, rhs: tvm.tir.truncdiv(lhs, rhs),
+        lambda lhs, rhs: tvm.tir.div(lhs, rhs),
+    ]:
         try:
-            test(tvm.tir.const(5,'int32'), tvm.tir.const(0,'int32'))
+            test(tvm.tir.const(5, "int32"), tvm.tir.const(0, "int32"))
             assert False
         except tvm.TVMError:
             pass
 
 
 def test_isnan():
-    x = te.var('x', 'float32')
-    assert str(tvm.tir.isnan(x)) == '@tir.isnan(x: float32, dtype=bool)'
-    assert str(tvm.tir.isnan(x).dtype) == 'bool'
-    y = te.var('y', 'float16')
-    assert str(tvm.tir.isnan(y)) == '@tir.isnan(cast(float32, y: float16), dtype=bool)'
-    z = te.var('z', 'int32')
-    assert str(tvm.tir.isnan(z)) == 'False'
-    k = te.var('k', 'int8x2')
-    assert str(tvm.tir.isnan(k).dtype) == 'uint1x2'
+    x = te.var("x", "float32")
+    assert str(tvm.tir.isnan(x)) == "@tir.isnan(x: float32, dtype=bool)"
+    assert str(tvm.tir.isnan(x).dtype) == "bool"
+    y = te.var("y", "float16")
+    assert str(tvm.tir.isnan(y)) == "@tir.isnan(cast(float32, y: float16), dtype=bool)"
+    z = te.var("z", "int32")
+    assert str(tvm.tir.isnan(z)) == "False"
+    k = te.var("k", "int8x2")
+    assert str(tvm.tir.isnan(k).dtype) == "uint1x2"
 
 
 def test_equality():
-    a = te.var('a')
-    b = te.var('b')
-    c = (a == b)
+    a = te.var("a")
+    b = te.var("b")
+    c = a == b
     assert not c
-    d = (c != c)
+    d = c != c
     assert not d
 
 
 def test_equality_string_imm():
-    x = 'a'
+    x = "a"
     y = tvm.tir.StringImm(x)
     x == y.value
     x == y
 
-def test_prim_func():
-    x = te.var('x')
-    y = te.var('y')
-    b = tvm.tir.decl_buffer((x,), "float32")
-    stmt = tvm.tir.LetStmt(
-        x, 10, tvm.tir.Evaluate(x + 1));
 
-    func = tvm.tir.PrimFunc(
-        [x, y, b], stmt)
+def test_prim_func():
+    x = te.var("x")
+    y = te.var("y")
+    b = tvm.tir.decl_buffer((x,), "float32")
+    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
+
+    func = tvm.tir.PrimFunc([x, y, b], stmt)
     # make sure we can print
     func.astext()
     assert func.buffer_map[func.params[2]].same_as(b)
@@ -303,8 +347,7 @@ def test_buffer_load_store():
     s = tvm.tir.BufferStore(b, 0.1, [0])
     assert isinstance(s, tvm.tir.BufferStore)
 
-    s = tvm.tir.BufferRealize(b, [tvm.ir.Range(0, 1)],
-                              True, tvm.tir.Evaluate(0))
+    s = tvm.tir.BufferRealize(b, [tvm.ir.Range(0, 1)], True, tvm.tir.Evaluate(0))
     assert isinstance(s, tvm.tir.BufferRealize)
 
 

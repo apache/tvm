@@ -26,34 +26,39 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
+import tvm.testing
+
+
 @autotvm.template("testing/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     """An example template for testing"""
     assert N == 1, "Only consider batch_size = 1 in this template"
 
-    data = te.placeholder((N, CI, H, W), name='data')
-    kernel = te.placeholder((CO, CI, KH, KW), name='kernel')
+    data = te.placeholder((N, CI, H, W), name="data")
+    kernel = te.placeholder((CO, CI, KH, KW), name="kernel")
 
-    rc = te.reduce_axis((0, CI), name='rc')
-    ry = te.reduce_axis((0, KH), name='ry')
-    rx = te.reduce_axis((0, KW), name='rx')
+    rc = te.reduce_axis((0, CI), name="rc")
+    ry = te.reduce_axis((0, KH), name="ry")
+    rx = te.reduce_axis((0, KW), name="rx")
 
     conv = te.compute(
         (N, CO, H - KH + 1, W - KW + 1),
         lambda nn, ff, yy, xx: te.sum(
-            data[nn, rc, yy + ry, xx + rx] * kernel[ff, rc, ry, rx],
-            axis=[rc, ry, rx]), tag="conv2d_nchw")
+            data[nn, rc, yy + ry, xx + rx] * kernel[ff, rc, ry, rx], axis=[rc, ry, rx]
+        ),
+        tag="conv2d_nchw",
+    )
 
     s = te.create_schedule([conv.op])
 
     output = conv
-    OL = s.cache_write(conv, 'local')
+    OL = s.cache_write(conv, "local")
 
     # create cache stage
-    AA = s.cache_read(data, 'shared', [OL])
-    WW = s.cache_read(kernel, 'shared', [OL])
-    AL = s.cache_read(AA, 'local', [OL])
-    WL = s.cache_read(WW, 'local', [OL])
+    AA = s.cache_read(data, "shared", [OL])
+    WW = s.cache_read(kernel, "shared", [OL])
+    AL = s.cache_read(AA, "local", [OL])
+    WL = s.cache_read(WW, "local", [OL])
 
     # tile and bind spatial axes
     n, f, y, x = s[output].op.axis
@@ -84,9 +89,9 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
     cfg.define_split("tile_ry", cfg.axis(ry), num_outputs=3)
     cfg.define_split("tile_rx", cfg.axis(rx), num_outputs=3)
-    rco, rcm, rci = cfg['tile_rc'].apply(s, OL, rc)
-    ryo, rym, ryi = cfg['tile_rx'].apply(s, OL, ry)
-    rxo, rxm, rxi = cfg['tile_ry'].apply(s, OL, rx)
+    rco, rcm, rci = cfg["tile_rc"].apply(s, OL, rc)
+    ryo, rym, ryi = cfg["tile_rx"].apply(s, OL, ry)
+    rxo, rxm, rxi = cfg["tile_ry"].apply(s, OL, rx)
     s[OL].reorder(rco, ryo, rxo, rcm, rym, rxm, rci, ryi, rxi, n, f, y, x)
 
     s[AA].compute_at(s[OL], rxo)
@@ -108,38 +113,34 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     # tune unroll
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
     cfg.define_knob("unroll_explicit", [0, 1])
-    s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-    s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+    s[output].pragma(kernel_scope, "auto_unroll_max_step", cfg["auto_unroll_max_step"].val)
+    s[output].pragma(kernel_scope, "unroll_explicit", cfg["unroll_explicit"].val)
 
     return s, [data, kernel, conv]
 
+
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
     """return a sample task for testing"""
-    task = autotvm.task.create("testing/conv2d_no_batching",
-                               args=(1, 7, 7, 512, 512, 3, 3),
-                               target=target, target_host=target_host)
+    task = autotvm.task.create(
+        "testing/conv2d_no_batching",
+        args=(1, 7, 7, 512, 512, 3, 3),
+        target=target,
+        target_host=target_host,
+    )
     return task, target
 
-def test_tuning():
-    def check(target, target_host):
-        ctx = tvm.context(target, 0)
-        if not ctx.exist:
-            logging.info("Skip test because %s is not available" % target)
-            return
 
-        # init task
-        task, target = get_sample_task(target, target_host)
-        logging.info("%s", task.config_space)
+@tvm.testing.parametrize_targets("cuda", "opencl")
+def test_tuning(target, ctx):
+    # init task
+    task, target = get_sample_task(target, None)
+    logging.info("%s", task.config_space)
 
-        measure_option = autotvm.measure_option(
-            autotvm.LocalBuilder(),
-            autotvm.LocalRunner())
+    measure_option = autotvm.measure_option(autotvm.LocalBuilder(), autotvm.LocalRunner())
 
-        tuner = RandomTuner(task)
-        tuner.tune(n_trial=20, measure_option=measure_option)
+    tuner = RandomTuner(task)
+    tuner.tune(n_trial=20, measure_option=measure_option)
 
-    check("cuda", None)
-    check("opencl", None)
 
 if __name__ == "__main__":
     # only print log when invoked from main

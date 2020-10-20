@@ -14,12 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=wildcard-import, redefined-builtin
+# pylint: disable=wildcard-import, redefined-builtin
 """Relay core operators."""
 # operator defs
-from .op import get, register_compute, register_gradient, \
-    register_pattern, register_alter_op_layout, register_legalize, \
-    OpPattern, OpStrategy, debug, register_external_compiler
+from .op import (
+    get,
+    register_compute,
+    register_gradient,
+    register_pattern,
+    register_alter_op_layout,
+    register_legalize,
+    OpPattern,
+    OpStrategy,
+    debug,
+    register_external_compiler,
+)
 from . import strategy
 
 # Operators
@@ -48,6 +57,8 @@ def _register_op_make():
     # pylint: disable=import-outside-toplevel
     from . import _make
     from .. import expr
+
     expr._op_make = _make
+
 
 _register_op_make()

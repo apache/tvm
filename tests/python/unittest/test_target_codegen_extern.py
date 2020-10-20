@@ -17,18 +17,25 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
+
+@tvm.testing.uses_gpu
 def test_add_pipeline():
     nn = 64
     max_threads = 4
     n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name='A')
+    A = te.placeholder((n,), name="A")
 
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
         ib = tvm.tir.ir_builder.create()
-        with ib.for_range(0, (n+1) // 2) as i:
-            ib.emit(outs[0].vstore(i*2, ins[0].vload(i*2, "float32x2") + tvm.tir.const(1, "float32x2")))
+        with ib.for_range(0, (n + 1) // 2) as i:
+            ib.emit(
+                outs[0].vstore(
+                    i * 2, ins[0].vload(i * 2, "float32x2") + tvm.tir.const(1, "float32x2")
+                )
+            )
         return ib.get()
 
     def extern_generator_gpu(ins, outs):
@@ -36,25 +43,29 @@ def test_add_pipeline():
         ib = tvm.tir.ir_builder.create()
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", (nn+max_threads-1) // max_threads)
+        ib.scope_attr(bx, "thread_extent", (nn + max_threads - 1) // max_threads)
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
         with ib.if_scope(ib.likely(idx < n)):
-            ib.emit(outs[0].vstore(idx*2, ins[0].vload(idx*2, "float32x2") + tvm.tir.const(1, "float32x2")))
+            ib.emit(
+                outs[0].vstore(
+                    idx * 2, ins[0].vload(idx * 2, "float32x2") + tvm.tir.const(1, "float32x2")
+                )
+            )
         return ib.get()
 
-    C_cpu = te.extern(A.shape, [A], extern_generator, name='C')
-    C_gpu = te.extern(A.shape, [A], extern_generator_gpu, name='C')
+    C_cpu = te.extern(A.shape, [A], extern_generator, name="C")
+    C_gpu = te.extern(A.shape, [A], extern_generator_gpu, name="C")
     s_cpu = te.create_schedule(C_cpu.op)
     s_gpu = te.create_schedule(C_gpu.op)
     print(tvm.lower(s_cpu, [A, C_cpu], simple_mode=True))
     print(tvm.lower(s_gpu, [A, C_gpu], simple_mode=True))
 
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
-        s = s_gpu if target in ['opencl', 'cuda'] else s_cpu
-        C = C_gpu if target in ['opencl', 'cuda'] else C_cpu
+        s = s_gpu if target in ["opencl", "cuda"] else s_cpu
+        C = C_gpu if target in ["opencl", "cuda"] else C_cpu
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
         ctx = tvm.context(target, 0)
@@ -69,24 +80,25 @@ def test_add_pipeline():
     check_target("opencl")
     check_target("cuda")
 
+
 def test_pack_buffer_simple():
     nn = 1024
     n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name='A')
+    A = te.placeholder((n,), name="A")
+
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline."""
         return tvm.tir.call_packed("my_extern_array_func1", ins[0], outs[0])
 
-    C = te.extern(A.shape, [A], extern_generator, name='C')
+    C = te.extern(A.shape, [A], extern_generator, name="C")
     s = te.create_schedule(C.op)
 
     @tvm.register_func
     def my_extern_array_func1(aa, bb):
         aa.copyto(bb)
 
-
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
@@ -97,8 +109,8 @@ def test_pack_buffer_simple():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
 
         f(a, c)
-        tvm.testing.assert_allclose(
-            c.asnumpy(), a.asnumpy())
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy())
+
     check_target("stackvm")
     check_target("llvm")
 
@@ -106,17 +118,18 @@ def test_pack_buffer_simple():
 def test_pack_buffer_intermediate():
     nn = 1024
     n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name='A')
+    A = te.placeholder((n,), name="A")
     B = te.compute((n,), lambda i: A[i] + 1, name="B")
+
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline."""
         return tvm.tir.call_packed("my_extern_array_func2", ins[0], outs[0])
 
-    C = te.extern(B.shape, [B], extern_generator, name='C')
+    C = te.extern(B.shape, [B], extern_generator, name="C")
     s = te.create_schedule(C.op)
 
     def check_target(target):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
@@ -129,13 +142,11 @@ def test_pack_buffer_intermediate():
         @tvm.register_func
         def my_extern_array_func2(aa, bb):
             assert aa.shape == a.shape
-            tvm.testing.assert_allclose(
-                aa.asnumpy(), a.asnumpy() + 1)
+            tvm.testing.assert_allclose(aa.asnumpy(), a.asnumpy() + 1)
             aa.copyto(bb)
 
         f(a, c)
-        tvm.testing.assert_allclose(
-            c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
     check_target("llvm")
 

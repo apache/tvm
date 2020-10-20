@@ -25,6 +25,8 @@
 #ifndef TVM_RUNTIME_CRT_PLATFORM_H_
 #define TVM_RUNTIME_CRT_PLATFORM_H_
 
+#include <tvm/runtime/crt/error_codes.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,7 +37,7 @@ extern "C" {
  *
  * \param code An error code.
  */
-void __attribute__((noreturn)) TVMPlatformAbort(int code);
+void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code);
 
 #ifdef __cplusplus
 }  // extern "C"

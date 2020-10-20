@@ -83,6 +83,4 @@ def is_injective(tag):
     """
     if tag in (ELEMWISE, BROADCAST, INJECTIVE):
         return True
-    return (tag.startswith(ELEMWISE) or
-            tag.startswith(BROADCAST) or
-            tag.startswith(INJECTIVE))
+    return tag.startswith(ELEMWISE) or tag.startswith(BROADCAST) or tag.startswith(INJECTIVE)

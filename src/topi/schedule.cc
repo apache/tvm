@@ -21,7 +21,6 @@
  * \brief Registration of TVM schedules
  * \file schedule.cc
  */
-#define TOPI_REDUCE_ATLEAST1D 0
 
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/module.h>
@@ -55,7 +54,7 @@ using namespace tvm;
 using namespace tvm::runtime;
 
 TVM_REGISTER_GLOBAL("topi.TEST_create_target").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = tvm::Target::Create(args[0]);
+  *rv = tvm::Target(args[0].operator String());
 });
 
 /* Generic schedules */

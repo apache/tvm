@@ -56,7 +56,7 @@
 #include <memory>
 #include <utility>
 
-#include "ad_util.h"
+#include "ad_utils.h"
 
 namespace tvm {
 namespace te {
@@ -1172,8 +1172,10 @@ PrimExpr RemoveJacobianAndLiftNonzeroCondImpl(const PrimExpr& expr_orig, const A
 
       new_red = Reduce(red->combiner, source, red->axis, cond, red->value_index, red->init);
       new_red = SimplifyReductionDomain(new_red, combined_vranges);
+      // Update original red pointer for later use.
+      red = new_red.as<ReduceNode>();
       // If the reduction disappears completely then transform the result as a non-reduction
-      if (!new_red.as<ReduceNode>()) {
+      if (!red) {
         return RemoveJacobianAndLiftNonzeroCondImpl(new_red, axis, vranges);
       }
 

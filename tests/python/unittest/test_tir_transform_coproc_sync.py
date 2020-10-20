@@ -33,7 +33,8 @@ def test_coproc_sync():
             unit_bits=8,
             max_simd_bits=32,
             max_num_bits=128,
-            head_address=tvm.tir.call_extern("handle", "global_cache"))
+            head_address=tvm.tir.call_extern("handle", "global_cache"),
+        )
 
     ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
@@ -53,11 +54,11 @@ def test_coproc_sync():
     body = stmt.body.body.body
     blist = tvm.tir.stmt_list(body)
 
-    assert(blist[1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_read_barrier")))
-    assert(blist[1].value.args[3].value == 80)
-    assert(blist[-2].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_sync")))
-    assert(blist[-1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_write_barrier")))
-    assert(blist[-1].value.args[3].value == 10)
+    assert blist[1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_read_barrier"))
+    assert blist[1].value.args[3].value == 80
+    assert blist[-2].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_sync"))
+    assert blist[-1].value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_write_barrier"))
+    assert blist[-1].value.args[3].value == 10
 
 
 def test_coproc_sync2():
@@ -116,10 +117,10 @@ def test_coproc_sync3():
     slist = tvm.tir.stmt_list(slist[-1])
     pop_st = slist[0].body[0]
 
-    assert(push_st.value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_dep_push")))
-    assert(__check_list(push_st.value.args, [2,3]))
-    assert(pop_st.value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_dep_pop")))
-    assert(__check_list(pop_st.value.args, [2,3]))
+    assert push_st.value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_dep_push"))
+    assert __check_list(push_st.value.args, [2, 3])
+    assert pop_st.value.op.same_as(tvm.ir.Op.get("tir.cop.coproc_dep_pop"))
+    assert __check_list(pop_st.value.args, [2, 3])
 
 
 if __name__ == "__main__":

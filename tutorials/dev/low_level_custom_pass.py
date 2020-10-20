@@ -50,12 +50,12 @@ import numpy as np
 #
 
 n = tvm.tir.const(128, "int32")
-a = te.placeholder((n, ), name="a")
-b = te.placeholder((n, ), name="b")
-c = te.compute((n, ), lambda i: a[i] + b[i], name='c')
+a = te.placeholder((n,), name="a")
+b = te.placeholder((n,), name="b")
+c = te.compute((n,), lambda i: a[i] + b[i], name="c")
 
 sch = te.create_schedule(c.op)
-ir  = tvm.lower(sch, [a, b, c])
+ir = tvm.lower(sch, [a, b, c])
 print(ir)
 
 ######################################################################
@@ -83,12 +83,15 @@ print(ir)
 #
 
 loops = []
+
+
 def find_width8(op):
     """ Find all the 'tir.For' nodes whose extent can be divided by 8. """
     if isinstance(op, tvm.tir.For):
         if isinstance(op.extent, tvm.tir.IntImm):
             if op.extent.value % 8 == 0:
                 loops.append(op)
+
 
 #####################################################################
 # IR Transformation
@@ -105,17 +108,19 @@ def find_width8(op):
 #     function will be skipped.
 #
 
+
 def vectorize8(op):
     """ Split can vectorize the loops found in `find_width8`. """
     if op in loops:
         extent = op.extent.value
         name = op.loop_var.name
-        lo, li = te.var(name + '.outer'), te.var(name + '.inner')
+        lo, li = te.var(name + ".outer"), te.var(name + ".inner")
         body = tvm.tir.stmt_functor.substitute(op.body, {op.loop_var: lo * 8 + li})
         body = tvm.tir.For(li, 0, 8, tvm.tir.For.Vectorized, 0, body)
         body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.For.Serial, 0, body)
         return body
     return None
+
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)
 def vectorize(f, mod, ctx):
@@ -128,8 +133,7 @@ def vectorize(f, mod, ctx):
 
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`
-    return f.with_body(
-        tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ['tir.For']))
+    return f.with_body(tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ["tir.For"]))
 
 
 #####################################################################

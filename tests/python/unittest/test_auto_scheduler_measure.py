@@ -21,11 +21,13 @@ import tvm
 from tvm import topi
 from tvm import te, auto_scheduler
 import tempfile
+import tvm.testing
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_matmul
 
+
 def record_common(dag, s):
-    target = tvm.target.create("llvm")
+    target = tvm.target.Target("llvm")
     task = auto_scheduler.SearchTask(dag, "test", target)
 
     inp = auto_scheduler.measure.MeasureInput(task, s)
@@ -46,13 +48,13 @@ def record_common(dag, s):
 
 
 def test_record_split_reorder_fuse_annotation():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -61,8 +63,9 @@ def test_record_split_reorder_fuse_annotation():
     its0 = s.split(C, s[C].iters[0], [4, 8, 8])
     its1 = s.split(C, s[C].iters[4], [8, 4, 4])
     # Reorder
-    s.reorder(C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8],
-                  its1[3]])
+    s.reorder(
+        C, [its0[0], its1[0], its0[1], its1[1], its0[2], its1[2], its0[3], s[C].iters[8], its1[3]]
+    )
     # Fuse
     s.fuse(C, [s[C].iters[0], s[C].iters[1], s[C].iters[2]])
     # Parallel
@@ -80,14 +83,14 @@ def test_record_split_reorder_fuse_annotation():
 
 
 def test_record_compute_at_root_inline_cache_read_write():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
+    A = te.placeholder((512, 512), name="A")
     AA = topi.nn.relu(A)
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(AA[i][k] * B[k][j], axis=[k]), name='C')
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(AA[i][k] * B[k][j], axis=[k]), name="C")
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -108,13 +111,13 @@ def test_record_compute_at_root_inline_cache_read_write():
 
 
 def test_record_follow_split_follow_fused_split():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
     D = topi.nn.relu(C)
     E = topi.nn.relu(D)
 
@@ -142,13 +145,13 @@ def test_record_follow_split_follow_fused_split():
 
 
 def test_record_pragma_storage_align_rfactor():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
-    A = te.placeholder((512, 512), name='A')
-    B = te.placeholder((512, 512), name='B')
-    k = te.reduce_axis((0, 512), name='k')
-    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+    A = te.placeholder((512, 512), name="A")
+    B = te.placeholder((512, 512), name="B")
+    k = te.reduce_axis((0, 512), name="k")
+    C = te.compute((512, 512), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name="C")
 
     dag = auto_scheduler.ComputeDAG([A, B, C])
     s = dag.get_init_state()
@@ -164,41 +167,69 @@ def test_record_pragma_storage_align_rfactor():
     record_common(dag, s)
 
 
+def test_recover_measure_input():
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
+
+    inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
+    res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
+
+    with tempfile.NamedTemporaryFile() as fp:
+        auto_scheduler.save_records(fp.name, [inp], [res])
+
+        log_reader = auto_scheduler.RecordReader(fp.name)
+        inputs, results = log_reader.read_lines()
+        assert len(inputs) == 1
+
+        raw_inp = inputs[0]
+
+        correct_inp = auto_scheduler.measure_record.recover_measure_input(raw_inp)
+        assert str(correct_inp.task.compute_dag) == str(inp.task.compute_dag)
+
+        correct_inp = auto_scheduler.measure_record.recover_measure_input(
+            raw_inp, rebuild_state=True
+        )
+        assert str(correct_inp.state) == str(inp.state)
+
+
 def test_measure_local_builder_runner():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
-    dag, s0 = get_tiled_matmul()
-    tgt = tvm.target.create("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", tgt)
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
-    minp = auto_scheduler.MeasureInput(task, s0)
-    local_builder = auto_scheduler.LocalBuilder()
-    local_runner = auto_scheduler.LocalRunner(timeout=60)
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        local_runner = auto_scheduler.LocalRunner(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
 
-    bress = local_builder.build([minp])
-    assert bress[0].error_no == 0
-    mress = local_runner.run([minp], bress)
-    assert mress[0].error_no == 0
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = local_runner.run([minp], bress)
+        assert mress[0].error_no == 0
 
 
 def test_measure_local_builder_rpc_runner():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         return
 
-    dag, s0 = get_tiled_matmul()
-    tgt = tvm.target.create("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", tgt)
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
 
-    minp = auto_scheduler.MeasureInput(task, s0)
-    local_builder = auto_scheduler.LocalBuilder()
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
-    rpc_runner = measure_ctx.runner
+    for enable_cpu_cache_flush in [True, False]:
+        minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
+        local_builder = auto_scheduler.LocalBuilder()
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(
+            timeout=60, enable_cpu_cache_flush=enable_cpu_cache_flush
+        )
+        rpc_runner = measure_ctx.runner
 
-    bress = local_builder.build([minp])
-    assert bress[0].error_no == 0
-    mress = rpc_runner.run([minp], bress)
-    assert mress[0].error_no == 0
+        bress = local_builder.build([minp])
+        assert bress[0].error_no == 0
+        mress = rpc_runner.run([minp], bress)
+        assert mress[0].error_no == 0
+
+        del measure_ctx
 
 
 if __name__ == "__main__":
@@ -206,5 +237,6 @@ if __name__ == "__main__":
     test_record_compute_at_root_inline_cache_read_write()
     test_record_follow_split_follow_fused_split()
     test_record_pragma_storage_align_rfactor()
+    test_recover_measure_input()
     test_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()

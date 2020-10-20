@@ -449,7 +449,6 @@ RELAY_REGISTER_OP("shape_of")
     // Use kOpaque for shape_of op for now since it won't be performance critic,
     // and it makes things easier for dynamic shape func
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_support_level(10)
     .set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
 
@@ -459,7 +458,11 @@ bool NdarraySizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
                     const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
-  CHECK(tt != nullptr);
+
+  if (tt == nullptr) {
+    return false;
+  }
+
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
   reporter->Assign(types[1], TensorType({}, param->dtype));

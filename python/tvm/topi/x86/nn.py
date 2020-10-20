@@ -18,6 +18,7 @@
 """x86 nn operators"""
 from tvm import te
 
+
 def schedule_softmax(outs):
     """Schedule for softmax
 
@@ -37,19 +38,23 @@ def schedule_softmax(outs):
     s = te.create_schedule([x.op for x in outs])
 
     op_tag = softmax.op.tag
-    if op_tag == 'softmax_output':
+    if op_tag == "softmax_output":
         exp = softmax.op.input_tensors[0]
         expsum = softmax.op.input_tensors[1]
         max_elem = s[exp].op.input_tensors[1]
-        axis = int(softmax.op.attrs['axis'])
-    elif op_tag == 'log_softmax_output':
+        axis = int(softmax.op.attrs["axis"])
+    elif op_tag == "log_softmax_output":
         exp = None
         max_elem = softmax.op.input_tensors[1]
         expsum = softmax.op.input_tensors[2]
         axis = 1
     else:
-        raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}'.format(op_tag))
+        raise ValueError(
+            "Tag is expected to be softmax_output or log_softmax_output. \
+                         Got {0}".format(
+                op_tag
+            )
+        )
 
     # only parallelize outer dimensions up to axis
     outer_axes = [s[softmax].op.axis[i] for i in range(0, axis)]

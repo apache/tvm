@@ -85,7 +85,7 @@ struct ConstIntBoundAnalyzer::Entry {
 class ConstIntBoundAnalyzer::Impl
     : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
-  /*! \brief additional bound info about expr \in bound */
+  /*! \brief additional bound info about expr in bound */
   struct BoundInfo {
     /*! \brief The expr */
     PrimExpr expr;

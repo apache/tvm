@@ -18,6 +18,7 @@ import tvm
 from tvm import te
 import os
 
+
 def test_plugin_module():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     mod = tvm.runtime.load_module(os.path.join(curr_path, "lib", "plugin_module.so"))
@@ -36,7 +37,7 @@ def test_plugin_module():
         assert mod["AddOne"](10) == 11
         assert mod["SubOne"](10) == 9
         # advanced usecase: return a module
-        mymod = mod["CreateMyModule"](10);
+        mymod = mod["CreateMyModule"](10)
         fadd = mymod["add"]
         assert fadd(10) == 20
         assert mymod["mul"](10) == 100

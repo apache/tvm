@@ -95,6 +95,7 @@ pub mod array;
 pub mod context;
 pub mod errors;
 pub mod function;
+pub mod map;
 pub mod module;
 pub mod ndarray;
 mod to_function;

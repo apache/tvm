@@ -63,9 +63,11 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (weight == nullptr) return false;
     Array<tvm::PrimExpr> wshape = weight->shape;
     CHECK(static_cast<int>(weight->shape.size()) == 2);
-    CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
-        << "DenseRel: input dimension doesn't match,"
-        << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+    if (!data->shape.back().as<tir::AnyNode>()) {
+      CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
+          << "DenseRel: input dimension doesn't match,"
+          << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+    }
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 

@@ -19,6 +19,7 @@
 import math
 import numpy as np
 
+
 def roi_pool_nchw_python(a_np, rois_np, pooled_size, spatial_scale):
     """Roi pool in python"""
     _, channel, height, width = a_np.shape
@@ -57,7 +58,7 @@ def roi_pool_nchw_python(a_np, rois_np, pooled_size, spatial_scale):
 
                 for c in range(channel):
                     if is_empty:
-                        b_np[i, c, ph, pw] = 0.
+                        b_np[i, c, ph, pw] = 0.0
                     else:
                         b_np[i, c, ph, pw] = np.max(a_np[batch_index, c, hstart:hend, wstart:wend])
     return b_np

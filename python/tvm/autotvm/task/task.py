@@ -23,7 +23,7 @@ registers the standard task.
 """
 import numpy as np
 
-from tvm import target as _target
+from tvm.target import Target
 from tvm import runtime
 from tvm.ir import container
 from tvm.tir import expr
@@ -34,10 +34,16 @@ from ..util import get_const_int, get_const_tuple
 from .dispatcher import DispatchContext, ApplyConfig
 from .space import ConfigSpace
 
-def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
-    raise RuntimeError("The function of this task is not found. Possibly the function "
-                       "of this task is registered in another python file "
-                       "which is not imported in this run")
+
+def _lookup_task(name):
+    task = TASK_TABLE.get(name)
+    if task is None:
+        raise RuntimeError(
+            f"Could not find a registered function for the task {name}. It is "
+            "possible that the function is registered in a python file which was "
+            "not imported in this run."
+        )
+    return task
 
 
 def serialize_args(args):
@@ -47,12 +53,13 @@ def serialize_args(args):
     ----------
     args: list of hashable or Tensor
     """
+
     def _encode(x):
         if isinstance(x, tensor.Tensor):
-            return ('TENSOR', get_const_tuple(x.shape), x.dtype)
+            return ("TENSOR", get_const_tuple(x.shape), x.dtype)
         if isinstance(x, (tuple, list, container.Array)):
             return tuple([_encode(a) for a in x])
-        if isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
+        if isinstance(x, (str, int, float, np.int, np.float, expr.Var, expr.Any)):
             return x
         if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
             return x.value
@@ -60,8 +67,11 @@ def serialize_args(args):
             return str(x)
         if x is None:
             return None
-        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
-                           'primitive types or tvm.tir.Var only' % type(x))
+        raise RuntimeError(
+            'Do not support type "%s" in argument. Consider to use'
+            "primitive types or tvm.tir.Var only" % type(x)
+        )
+
     ret = []
     for t in args:
         ret.append(_encode(t))
@@ -77,7 +87,7 @@ def deserialize_args(args):
     """
     ret = []
     for t in args:
-        if isinstance(t, tuple) and t[0] == 'TENSOR':
+        if isinstance(t, tuple) and t[0] == "TENSOR":
             ret.append(placeholder(shape=t[1], dtype=t[2]))
         else:
             ret.append(t)
@@ -115,6 +125,7 @@ class Task(object):
     args: Tuple
         Positional argument of func
     """
+
     def __init__(self, name, args):
         self.name = name
         self.args = args
@@ -122,7 +133,7 @@ class Task(object):
 
         # init null config space
         self.config_space = None
-        self.func = TASK_TABLE.get(name, _raise_error)
+        self.func = _lookup_task(name)
 
         # auxiliary info, available after `init_space` is called
         self.flop = None
@@ -169,7 +180,7 @@ class Task(object):
             "config_space": self.config_space,
             "flop": self.flop,
             "target": self.target,
-            "target_host": self.target_host
+            "target_host": self.target_host,
         }
 
     def __setstate__(self, state):
@@ -177,17 +188,22 @@ class Task(object):
         self.args = state["args"]
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
-        self.func = TASK_TABLE.get(state["name"], _raise_error)
+        self.func = _lookup_task(state["name"])
         self.flop = state["flop"]
         self.target = state["target"]
         self.target_host = state["target_host"]
 
     def __repr__(self):
         return "Task(func_name=%s, args=%s, kwargs=%s, workload=%s)" % (
-            self.name, self.args, self.kwargs, self.workload
+            self.name,
+            self.args,
+            self.kwargs,
+            self.workload,
         )
 
+
 TASK_TABLE = {}
+
 
 class TaskTemplate(object):
     """
@@ -201,6 +217,7 @@ class TaskTemplate(object):
     Note that when customized func is registered, compute and schedule function
     will be ignored
     """
+
     def __init__(self):
         self.fcompute = None
         self.fschedule = None
@@ -235,6 +252,7 @@ class TaskTemplate(object):
                 hash_set.update(input_tensors)
         return inputs
 
+
 def _register_task_compute(name, func=None):
     """Register compute function to autotvm task
 
@@ -252,6 +270,7 @@ def _register_task_compute(name, func=None):
     decorator: callable
         A decorator
     """
+
     def _do_reg(f):
         if name not in TASK_TABLE:
             TASK_TABLE[name] = TaskTemplate()
@@ -260,9 +279,11 @@ def _register_task_compute(name, func=None):
             raise ValueError("Compute is already registered in autoTVM task %s" % name)
         tmpl.fcompute = f
         return f
+
     if func:
         return _do_reg(func)
     return _do_reg
+
 
 def _register_task_schedule(name, func=None):
     """Register schedule function to autotvm task
@@ -281,6 +302,7 @@ def _register_task_schedule(name, func=None):
     decorator: callable
         A decorator
     """
+
     def _do_reg(f):
         if name not in TASK_TABLE:
             TASK_TABLE[name] = TaskTemplate()
@@ -289,9 +311,11 @@ def _register_task_schedule(name, func=None):
             raise ValueError("Schedule is already registered in autoTVM task %s" % name)
         tmpl.fschedule = f
         return f
+
     if func:
         return _do_reg(func)
     return _do_reg
+
 
 def _register_customized_task(name, func=None):
     """Register a customized function to AutoTVM task.
@@ -310,6 +334,7 @@ def _register_customized_task(name, func=None):
     decorator: callable
         A decorator
     """
+
     def _do_reg(f):
         if name not in TASK_TABLE:
             TASK_TABLE[name] = TaskTemplate()
@@ -318,6 +343,7 @@ def _register_customized_task(name, func=None):
             raise ValueError("Customized func is already registered in autoTVM task %s" % name)
         tmpl.fcustomized = f
         return f
+
     if func:
         return _do_reg(func)
     return _do_reg
@@ -374,11 +400,12 @@ def template(task_name, func=None):
 
             return s, [A, B, C]
     """
+
     def _decorate(f):
         def wrapper(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             workload = args_to_workload(args, task_name)
-            tgt = _target.Target.current()
+            tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             with ApplyConfig(cfg):
                 return f(*args, **kwargs)
@@ -414,7 +441,7 @@ def create(task_name, args, target, target_host=None):
     ret = Task(task_name, args)
 
     if isinstance(target, str):
-        target = _target.create(target)
+        target = Target(target)
 
     # init config space
     ret.config_space = ConfigSpace()
@@ -423,13 +450,14 @@ def create(task_name, args, target, target_host=None):
     with ctx:
         with target:
             sch, _ = ret.func(*args)
-            ret.config_space.code_hash = getattr(sch, 'code_hash', None)
+            ret.config_space.code_hash = getattr(sch, "code_hash", None)
 
     ret.flop = ret.config_space.flop or compute_flop(sch)
     ret.target = target
     ret.target_host = target_host
 
     return ret
+
 
 def get_config():
     """Get current config object
@@ -439,8 +467,9 @@ def get_config():
     cfg: ConfigSpace or ConfigEntity
         The current config
     """
-    tgt = _target.Target.current(allow_none=True)
+    tgt = Target.current(allow_none=True)
     return DispatchContext.current.query(tgt, None)
+
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
@@ -459,6 +488,7 @@ def compute_flop(sch):
     flop: int
         number of FLOP in this schedule
     """
+
     def _prod_length(axes):
         """compute product of the lengths of a list of axes"""
         try:
@@ -484,12 +514,29 @@ def compute_flop(sch):
             return _count_flop(exp.value)
         if isinstance(exp, expr.Var):
             return 0
-        if isinstance(exp, (expr.Add, expr.Sub, expr.Mul,
-                            expr.Div, expr.Mod,
-                            expr.FloorDiv, expr.FloorMod,
-                            expr.Max, expr.Min,
-                            expr.EQ, expr.NE, expr.LT, expr.LE, expr.GT, expr.GE,
-                            expr.And, expr.Or, expr.Not)):
+        if isinstance(
+            exp,
+            (
+                expr.Add,
+                expr.Sub,
+                expr.Mul,
+                expr.Div,
+                expr.Mod,
+                expr.FloorDiv,
+                expr.FloorMod,
+                expr.Max,
+                expr.Min,
+                expr.EQ,
+                expr.NE,
+                expr.LT,
+                expr.LE,
+                expr.GT,
+                expr.GE,
+                expr.And,
+                expr.Or,
+                expr.Not,
+            ),
+        ):
             base = 1
 
             if isinstance(exp, expr.Not):  # unary
@@ -497,8 +544,9 @@ def compute_flop(sch):
 
             return base + _count_flop(exp.a) + _count_flop(exp.b)
         if isinstance(exp, expr.Select):
-            return _count_flop(exp.condition) + max(_count_flop(exp.true_value),
-                                                    _count_flop(exp.false_value))
+            return _count_flop(exp.condition) + max(
+                _count_flop(exp.true_value), _count_flop(exp.false_value)
+            )
         if isinstance(exp, expr.ProducerLoad):
             # Ignore flops from indexing expressions.
             return 0
@@ -526,19 +574,26 @@ def compute_flop(sch):
             elif isinstance(op, tensor.PlaceholderOp):
                 pass
             else:
-                raise FlopCalculationError("Only support te.compute currently. "
-                                           "Other ops like tvm.te.scan/te.extern is not supported")
+                raise FlopCalculationError(
+                    "Only support te.compute currently. "
+                    "Other ops like tvm.te.scan/te.extern is not supported"
+                )
         return ret
 
     try:
         ret = traverse(sch.outputs)
     except FlopCalculationError as exc:
-        raise RuntimeError("FLOP estimator fails for this operator. Error msg: "
-                           + str(exc) + ". Please use `cfg.add_flop` to manually set "
-                                        "FLOP for this operator")
+        raise RuntimeError(
+            "FLOP estimator fails for this operator. Error msg: "
+            + str(exc)
+            + ". Please use `cfg.add_flop` to manually set "
+            "FLOP for this operator"
+        )
 
     if ret == 0:
-        raise RuntimeError("Cannot find float number operation in this operator. "
-                           "Please use `cfg.add_flop` to manually set "
-                           "FLOP for this operator")
+        raise RuntimeError(
+            "Cannot find float number operation in this operator. "
+            "Please use `cfg.add_flop` to manually set "
+            "FLOP for this operator"
+        )
     return ret

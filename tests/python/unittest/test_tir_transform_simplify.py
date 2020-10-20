@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 
+
 def test_stmt_simplify():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
@@ -27,8 +28,7 @@ def test_stmt_simplify():
             A[i] = C[i]
 
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([A, C, n], body))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
     assert isinstance(body.body, tvm.tir.Store)
 
@@ -46,8 +46,7 @@ def test_thread_extent_simplify():
     with ib.if_scope(tx + ty < 12):
         A[tx] = C[tx + ty]
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([A, C, n], body))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
     assert isinstance(body.body.body.body, tvm.tir.Store)
 
@@ -65,37 +64,38 @@ def test_if_likely():
         with ib.if_scope(ib.likely(tx * 32 + ty < n)):
             A[tx] = C[tx * 32 + ty]
     body = ib.get()
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([A, C, n], body))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
     assert isinstance(body.body.body, tvm.tir.IfThenElse)
     assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)
 
 
 def test_basic_likely_elimination():
-    n = te.size_var('n')
+    n = te.size_var("n")
     X = te.placeholder(shape=(n,), name="x")
     W = te.placeholder(shape=(n + 1,), dtype="int32", name="w")
 
     def f(i):
         start = W[i]
-        extent = W[i+1] - W[i]
+        extent = W[i + 1] - W[i]
         rv = te.reduce_axis((0, extent))
         return te.sum(X[rv + start], axis=rv)
+
     Y = te.compute(X.shape, f, name="y")
     s = te.create_schedule([Y.op])
     stmt = tvm.lower(s, [X, W, Y], simple_mode=True)
-    assert('if' not in str(stmt))
+    assert "if" not in str(stmt)
+
 
 def test_complex_likely_elimination():
     def cumsum(X):
         """
         Y[i] = sum(X[:i])
         """
-        (m, ) = X.shape
-        s_state = te.placeholder((m + 1, ), dtype="int32", name="state")
-        s_init = te.compute((1, ), lambda _: tvm.tir.const(0, "int32"))
-        s_update = te.compute((m + 1, ), lambda l: s_state[l - 1] + X[l - 1])
+        (m,) = X.shape
+        s_state = te.placeholder((m + 1,), dtype="int32", name="state")
+        s_init = te.compute((1,), lambda _: tvm.tir.const(0, "int32"))
+        s_update = te.compute((m + 1,), lambda l: s_state[l - 1] + X[l - 1])
         return tvm.te.scan(s_init, s_update, s_state, inputs=[X], name="cumsum")
 
     def sparse_lengths_sum(data, indices, lengths):
@@ -112,8 +112,13 @@ def test_complex_likely_elimination():
 
         return te.compute(oshape, sls)
 
-    m, n, d, i, l = te.size_var('m'), te.size_var('n'), te.size_var('d'),\
-                    te.size_var('i'), te.size_var('l')
+    m, n, d, i, l = (
+        te.size_var("m"),
+        te.size_var("n"),
+        te.size_var("d"),
+        te.size_var("i"),
+        te.size_var("l"),
+    )
     data_ph = te.placeholder((m, d * 32), name="data")
     indices_ph = te.placeholder((i,), name="indices", dtype="int32")
     lengths_ph = te.placeholder((n,), name="lengths", dtype="int32")
@@ -125,7 +130,8 @@ def test_complex_likely_elimination():
     s[Y].reorder(n, do, gg, di)
     s[Y].vectorize(di)
     stmt = tvm.lower(s, [data_ph, indices_ph, lengths_ph, Y], simple_mode=True)
-    assert('if' not in str(stmt))
+    assert "if" not in str(stmt)
+
 
 if __name__ == "__main__":
     test_stmt_simplify()

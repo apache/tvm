@@ -18,6 +18,7 @@
 
 set -e
 set -u
+set -o pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
@@ -48,7 +49,7 @@ make cython3
 
 cd docs
 PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
-if grep -E "failed to execute" < /tmp/$$.log.txt; then
+if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1
 fi
@@ -67,6 +68,13 @@ npm install
 npm run typedoc
 cd ..
 
+# TODO(@jroesch): add Rust to CI container
+# see: https://github.com/apache/incubator-tvm/issues/6628
+# Rust doc
+# cd rust
+# cargo doc --workspace --no-deps
+# cd ..
+
 # Prepare the doc dir
 rm -rf _docs
 mv docs/_build/html _docs
@@ -74,6 +82,8 @@ rm -f _docs/.buildinfo
 mkdir -p _docs/api
 mv docs/doxygen/html _docs/api/doxygen
 mv jvm/core/target/site/apidocs _docs/api/javadoc
+# See above TODO
+# mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/api/typedoc
 
 echo "Start creating the docs tarball.."

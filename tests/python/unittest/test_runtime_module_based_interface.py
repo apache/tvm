@@ -20,9 +20,12 @@ from tvm.relay import testing
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.contrib.debugger import debug_runtime
+import tvm.testing
+
 
 def input_shape(mod):
     return [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
+
 
 def verify(data):
     if not tvm.runtime.enabled("llvm"):
@@ -41,8 +44,9 @@ def verify(data):
 
     return out
 
+
 def test_legacy_compatibility():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         print("Skip because llvm is not enabled")
         return
     mod, params = relay.testing.synthetic.get_workload()
@@ -57,8 +61,9 @@ def test_legacy_compatibility():
     out = module.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+
 def test_cpu():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         print("Skip because llvm is not enabled")
         return
     mod, params = relay.testing.synthetic.get_workload()
@@ -67,7 +72,7 @@ def test_cpu():
     data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
     # raw api
     ctx = tvm.cpu()
-    gmod = complied_graph_lib['default'](ctx)
+    gmod = complied_graph_lib["default"](ctx)
     set_input = gmod["set_input"]
     run = gmod["run"]
     get_output = gmod["get_output"]
@@ -77,16 +82,16 @@ def test_cpu():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # graph runtime wrapper
-    gmod = graph_runtime.GraphModule(complied_graph_lib['default'](ctx))
+    gmod = graph_runtime.GraphModule(complied_graph_lib["default"](ctx))
     gmod.set_input("data", data)
     gmod.run()
     out = gmod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+
+@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_gpu():
-    if not tvm.runtime.enabled("cuda"):
-        print("Skip because cuda is not enabled")
-        return
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
         complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
@@ -94,7 +99,7 @@ def test_gpu():
     ctx = tvm.gpu()
 
     # raw api
-    gmod = complied_graph_lib['default'](ctx)
+    gmod = complied_graph_lib["default"](ctx)
     set_input = gmod["set_input"]
     run = gmod["run"]
     get_output = gmod["get_output"]
@@ -104,15 +109,17 @@ def test_gpu():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # graph runtime wrapper
-    gmod = graph_runtime.GraphModule(complied_graph_lib['default'](ctx))
+    gmod = graph_runtime.GraphModule(complied_graph_lib["default"](ctx))
     gmod.set_input("data", data)
     gmod.run()
     out = gmod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
+
+@tvm.testing.uses_gpu
 def test_mod_export():
     def verify_cpu_export(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -120,6 +127,7 @@ def test_mod_export():
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -130,7 +138,7 @@ def test_mod_export():
         complied_graph_lib.export_library(path_lib)
         loaded_lib = tvm.runtime.load_module(path_lib)
         ctx = tvm.cpu(0)
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
 
         # raw api
         set_input = gmod["set_input"]
@@ -143,14 +151,14 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         gmod.set_input("data", data)
         gmod.run()
         out = gmod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_export(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -158,6 +166,7 @@ def test_mod_export():
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -171,7 +180,7 @@ def test_mod_export():
         ctx = tvm.gpu()
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -181,14 +190,14 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         gmod.set_input("data", data)
         gmod.run()
         out = gmod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_cpu_export(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -196,6 +205,7 @@ def test_mod_export():
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -206,6 +216,7 @@ def test_mod_export():
         complied_graph_lib.export_library(path_lib)
 
         from tvm import rpc
+
         remote = rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
@@ -213,7 +224,7 @@ def test_mod_export():
         ctx = remote.cpu()
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -223,14 +234,14 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         gmod.set_input("data", data)
         gmod.run()
         out = gmod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_gpu_export(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -238,6 +249,7 @@ def test_mod_export():
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -248,6 +260,7 @@ def test_mod_export():
         complied_graph_lib.export_library(path_lib)
 
         from tvm import rpc
+
         server = rpc.Server("localhost", use_popen=True, port=9094)
         remote = rpc.connect(server.host, server.port)
         remote.upload(path_lib)
@@ -256,7 +269,7 @@ def test_mod_export():
         ctx = remote.gpu()
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -266,7 +279,7 @@ def test_mod_export():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         gmod.set_input("data", data)
         gmod.run()
         out = gmod.get_output(0).asnumpy()
@@ -278,9 +291,11 @@ def test_mod_export():
         verify_rpc_cpu_export(obj_format)
         verify_rpc_gpu_export(obj_format)
 
+
+@tvm.testing.uses_gpu
 def test_remove_package_params():
     def verify_cpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -288,6 +303,7 @@ def test_remove_package_params():
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -304,7 +320,7 @@ def test_remove_package_params():
         ctx = tvm.cpu(0)
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -317,7 +333,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
@@ -326,7 +342,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_gpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -334,6 +350,7 @@ def test_remove_package_params():
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -350,7 +367,7 @@ def test_remove_package_params():
         ctx = tvm.gpu(0)
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -363,7 +380,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
@@ -372,7 +389,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_cpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -380,6 +397,7 @@ def test_remove_package_params():
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -394,6 +412,7 @@ def test_remove_package_params():
             fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
 
         from tvm import rpc
+
         remote = rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
@@ -401,7 +420,7 @@ def test_remove_package_params():
         ctx = remote.cpu()
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -414,7 +433,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         loaded_params = bytearray(open(path_params, "rb").read())
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
@@ -423,7 +442,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     def verify_rpc_gpu_remove_package_params(obj_format):
-        if not tvm.runtime.enabled("cuda"):
+        if not tvm.testing.device_enabled("cuda"):
             print("Skip because cuda is not enabled")
             return
         mod, params = relay.testing.synthetic.get_workload()
@@ -431,6 +450,7 @@ def test_remove_package_params():
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -445,6 +465,7 @@ def test_remove_package_params():
             fo.write(relay.save_param_dict(complied_graph_lib.get_params()))
 
         from tvm import rpc
+
         remote = rpc.LocalSession()
         remote.upload(path_lib)
         loaded_lib = remote.load_module(path_lib)
@@ -452,7 +473,7 @@ def test_remove_package_params():
         ctx = remote.gpu()
 
         # raw api
-        gmod = loaded_lib['default'](ctx)
+        gmod = loaded_lib["default"](ctx)
         set_input = gmod["set_input"]
         run = gmod["run"]
         get_output = gmod["get_output"]
@@ -465,7 +486,7 @@ def test_remove_package_params():
         tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
         # graph runtime wrapper
-        gmod = graph_runtime.GraphModule(loaded_lib['default'](ctx))
+        gmod = graph_runtime.GraphModule(loaded_lib["default"](ctx))
         loaded_params = bytearray(open(path_params, "rb").read())
         gmod.set_input("data", data)
         gmod.load_params(loaded_params)
@@ -479,8 +500,9 @@ def test_remove_package_params():
         verify_rpc_cpu_remove_package_params(obj_format)
         verify_rpc_gpu_remove_package_params(obj_format)
 
+
 def test_debug_graph_runtime():
-    if not tvm.runtime.enabled("llvm"):
+    if not tvm.testing.device_enabled("llvm"):
         print("Skip because llvm is not enabled")
         return
     mod, params = relay.testing.synthetic.get_workload()
@@ -491,7 +513,7 @@ def test_debug_graph_runtime():
     # raw api
     ctx = tvm.cpu()
     try:
-        gmod = complied_graph_lib['debug_create']('default', ctx)
+        gmod = complied_graph_lib["debug_create"]("default", ctx)
     except:
         print("Skip because debug graph_runtime not enabled")
         return
@@ -504,12 +526,17 @@ def test_debug_graph_runtime():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
     # debug graph runtime wrapper
-    debug_g_mod = debug_runtime.GraphModuleDebug(complied_graph_lib['debug_create']('default', ctx), [ctx],
-                                                 complied_graph_lib.get_json(), None)
+    debug_g_mod = debug_runtime.GraphModuleDebug(
+        complied_graph_lib["debug_create"]("default", ctx),
+        [ctx],
+        complied_graph_lib.get_json(),
+        None,
+    )
     debug_g_mod.set_input("data", data)
     debug_g_mod.run()
     out = debug_g_mod.get_output(0).asnumpy()
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
 
 if __name__ == "__main__":
     test_legacy_compatibility()

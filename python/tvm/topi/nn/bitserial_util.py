@@ -22,6 +22,7 @@ from tvm import te
 from tvm.topi.transform import concatenate
 from ..util import get_const_int
 
+
 def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
     """Packs data into format necessary for bitserial computation
 
@@ -34,20 +35,20 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
     """
     ishape = data.shape
     n = len(ishape)
-    if pack_type == 'uint8':
+    if pack_type == "uint8":
         data_width = 8
-    elif pack_type == 'uint16':
+    elif pack_type == "uint16":
         data_width = 16
-    elif pack_type == 'uint32':
+    elif pack_type == "uint32":
         data_width = 32
-    elif pack_type == 'uint64':
+    elif pack_type == "uint64":
         data_width = 64
 
     # Data must be in multiples of the data_width
     assert get_const_int(ishape[pack_axis]) % data_width == 0, "Not a multiple of word size"
 
     shape_vec = list(ishape)
-    shape_vec[pack_axis] = (shape_vec[pack_axis] // data_width)
+    shape_vec[pack_axis] = shape_vec[pack_axis] // data_width
     shape_vec.insert(bit_axis, 1)
     bitserial_oshape = tuple(shape_vec)
     masks = np.array([0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80])
@@ -62,7 +63,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
             # Translate indices for packed data back to original
             idx = [0] * n
             j = 0
-            for i in range(n+1):
+            for i in range(n + 1):
                 if i == bit_axis:
                     continue
                 if i == pack_axis:
@@ -73,9 +74,10 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
 
             element = data(*idx)
             for b in range(bits):
-                extracted_bit = (
-                    (element & tvm.tir.const(masks[b], "int32")) >> b).astype(pack_type)
-                packed_data[b] = (packed_data[b] | extracted_bit)
+                extracted_bit = ((element & tvm.tir.const(masks[b], "int32")) >> b).astype(
+                    pack_type
+                )
+                packed_data[b] = packed_data[b] | extracted_bit
                 if k < data_width - 1:
                     packed_data[b] = packed_data[b] << 1
 
@@ -83,14 +85,15 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
                 return tuple(packed_data)
         return tuple(packed_data)
 
-    output_tuple = te.compute(bitserial_oshape, _bitpack, name=name, tag='bitpack')
+    output_tuple = te.compute(bitserial_oshape, _bitpack, name=name, tag="bitpack")
 
     if bits > 1:
         return concatenate(output_tuple, axis=bit_axis)
     return output_tuple
 
+
 def binary_op_multiplier(pack_dtype):
-    """"Returns number of bits packed into
+    """ "Returns number of bits packed into
     pack_dtype: string
         pack type for the operator (must be a uint)"""
     return int(pack_dtype[4:])

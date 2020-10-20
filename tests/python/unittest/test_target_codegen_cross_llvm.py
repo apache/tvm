@@ -16,6 +16,7 @@
 # under the License.
 """Test cross compilation"""
 import tvm
+import tvm.testing
 from tvm import te
 import os
 import struct
@@ -23,12 +24,14 @@ from tvm import rpc
 from tvm.contrib import util, cc
 import numpy as np
 
+
+@tvm.testing.requires_llvm
 def test_llvm_add_pipeline():
     nn = 1024
     n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     s[C].parallel(xo)
@@ -37,15 +40,12 @@ def test_llvm_add_pipeline():
     def verify_elf(path, e_machine):
         with open(path, "rb") as fi:
             arr = fi.read(20)
-            assert struct.unpack('ccc', arr[1:4]) == (b'E',b'L',b'F')
-            endian = struct.unpack('b', arr[0x5:0x6])[0]
-            endian = '<' if endian == 1 else '>'
-            assert struct.unpack(endian + 'h', arr[0x12:0x14])[0] == e_machine
+            assert struct.unpack("ccc", arr[1:4]) == (b"E", b"L", b"F")
+            endian = struct.unpack("b", arr[0x5:0x6])[0]
+            endian = "<" if endian == 1 else ">"
+            assert struct.unpack(endian + "h", arr[0x12:0x14])[0] == e_machine
 
     def build_i386():
-        if not tvm.runtime.enabled("llvm"):
-            print("Skip because llvm is not enabled..")
-            return
         temp = util.tempdir()
         target = "llvm -mtriple=i386-pc-linux-gnu"
         f = tvm.build(s, [A, B, C], target)
@@ -66,10 +66,10 @@ def test_llvm_add_pipeline():
         asm_path = temp.relpath("myadd.asm")
         f.save(asm_path)
         # Do a RPC verification, launch kernel on Arm Board if available.
-        host = os.environ.get('TVM_RPC_ARM_HOST', None)
+        host = os.environ.get("TVM_RPC_ARM_HOST", None)
         remote = None
         if host:
-            port = int(os.environ['TVM_RPC_ARM_PORT'])
+            port = int(os.environ["TVM_RPC_ARM_PORT"])
             try:
                 remote = rpc.connect(host, port)
             except tvm.error.TVMError as e:
@@ -84,12 +84,12 @@ def test_llvm_add_pipeline():
             b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
             c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
             farm(a, b, c)
-            tvm.testing.assert_allclose(
-                c.asnumpy(), a.asnumpy() + b.asnumpy())
+            tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
             print("Verification finish on remote..")
 
     build_i386()
     build_arm()
+
 
 if __name__ == "__main__":
     test_llvm_add_pipeline()

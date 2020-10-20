@@ -18,16 +18,15 @@
 
 
 ARM_ISA_MAP = {
-    'armv7e-m': ['SMLAD'],
+    "armv7e-m": ["SMLAD"],
 }
 
 
 class IsaAnalyzer(object):
-
     def __init__(self, target):
         self.target = target
         # TODO: actually parse -mcpu
-        arch = 'armv7e-m'
+        arch = "armv7e-m"
         self._isa_map = ARM_ISA_MAP[arch]
 
     def __contains__(self, instruction):

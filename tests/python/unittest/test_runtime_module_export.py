@@ -19,12 +19,15 @@ from tvm.relay import testing
 import tvm
 from tvm import te
 
+import tvm.testing
+
 from tvm.contrib import util
+
 header_file_dir_path = util.tempdir()
 
 
 def gen_engine_header():
-    code = r'''
+    code = r"""
         #ifndef _ENGINE_H_
         #define _ENGINE_H_
         #include <cstdint>
@@ -35,14 +38,14 @@ def gen_engine_header():
         };
 
         #endif
-        '''
+        """
     header_file = header_file_dir_path.relpath("gcc_engine.h")
-    with open(header_file, 'w') as f:
+    with open(header_file, "w") as f:
         f.write(code)
 
 
 def generate_engine_module():
-    code = r'''
+    code = r"""
         #include <tvm/runtime/c_runtime_api.h>
         #include <dlpack/dlpack.h>
         #include "gcc_engine.h"
@@ -51,28 +54,34 @@ def generate_engine_module():
                 float* gcc_input6, float* gcc_input7, float* out) {
             Engine engine;
         }
-        '''
+        """
     import tvm.runtime._ffi_api
+
     gen_engine_header()
-    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", "",
-                                                              None)
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", "", None)
     return csource_module
 
 
+@tvm.testing.uses_gpu
 def test_mod_export():
     def verify_gpu_mod_export(obj_format):
         for device in ["llvm", "cuda"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
         synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         synthetic_llvm_mod, synthetic_llvm_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
-            _, synthetic_gpu_lib, _ = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
-            _, synthetic_llvm_cpu_lib, _ = relay.build_module.build(synthetic_llvm_mod, "llvm", params=synthetic_llvm_params)
+            _, synthetic_gpu_lib, _ = relay.build_module.build(
+                synthetic_mod, "cuda", params=synthetic_params
+            )
+            _, synthetic_llvm_cpu_lib, _ = relay.build_module.build(
+                synthetic_llvm_mod, "llvm", params=synthetic_llvm_params
+            )
 
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -89,19 +98,22 @@ def test_mod_export():
 
     def verify_multi_dso_mod_export(obj_format):
         for device in ["llvm"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
         synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
-            _, synthetic_cpu_lib, _ = relay.build_module.build(synthetic_mod, "llvm", params=synthetic_params)
+            _, synthetic_cpu_lib, _ = relay.build_module.build(
+                synthetic_mod, "llvm", params=synthetic_params
+            )
 
-        A = te.placeholder((1024,), name='A')
-        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+        A = te.placeholder((1024,), name="A")
+        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         from tvm.contrib import util
+
         temp = util.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
@@ -117,37 +129,40 @@ def test_mod_export():
 
     def verify_json_import_dso(obj_format):
         for device in ["llvm"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
         # Get subgraph Json.
-        subgraph_json = ("json_rt_0\n" +
-                         "input 0 10 10\n" +
-                         "input 1 10 10\n" +
-                         "input 2 10 10\n" +
-                         "input 3 10 10\n" +
-                         "add 4 inputs: 0 1 shape: 10 10\n" +
-                         "sub 5 inputs: 4 2 shape: 10 10\n" +
-                         "mul 6 inputs: 5 3 shape: 10 10\n" +
-                         "json_rt_1\n" +
-                         "input 0 10 10\n" +
-                         "input 1 10 10\n" +
-                         "input 2 10 10\n" +
-                         "input 3 10 10\n" +
-                         "add 4 inputs: 0 1 shape: 10 10\n" +
-                         "sub 5 inputs: 4 2 shape: 10 10\n" +
-                         "mul 6 inputs: 5 3 shape: 10 10")
+        subgraph_json = (
+            "json_rt_0\n"
+            + "input 0 10 10\n"
+            + "input 1 10 10\n"
+            + "input 2 10 10\n"
+            + "input 3 10 10\n"
+            + "add 4 inputs: 0 1 shape: 10 10\n"
+            + "sub 5 inputs: 4 2 shape: 10 10\n"
+            + "mul 6 inputs: 5 3 shape: 10 10\n"
+            + "json_rt_1\n"
+            + "input 0 10 10\n"
+            + "input 1 10 10\n"
+            + "input 2 10 10\n"
+            + "input 3 10 10\n"
+            + "add 4 inputs: 0 1 shape: 10 10\n"
+            + "sub 5 inputs: 4 2 shape: 10 10\n"
+            + "mul 6 inputs: 5 3 shape: 10 10"
+        )
 
         from tvm.contrib import util
+
         temp = util.tempdir()
-        subgraph_path = temp.relpath('subgraph.examplejson')
-        with open(subgraph_path, 'w') as f:
+        subgraph_path = temp.relpath("subgraph.examplejson")
+        with open(subgraph_path, "w") as f:
             f.write(subgraph_json)
 
         # Get Json and module.
-        A = te.placeholder((1024,), name='A')
-        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+        A = te.placeholder((1024,), name="A")
+        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         try:
@@ -169,24 +184,28 @@ def test_mod_export():
 
     def verify_multi_c_mod_export():
         from shutil import which
+
         if which("gcc") is None:
             print("Skip test because gcc is not available.")
 
         for device in ["llvm"]:
-            if not tvm.runtime.enabled(device):
+            if not tvm.testing.device_enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
         synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
-            _, synthetic_cpu_lib, _ = relay.build_module.build(synthetic_mod, "llvm", params=synthetic_params)
+            _, synthetic_cpu_lib, _ = relay.build_module.build(
+                synthetic_mod, "llvm", params=synthetic_params
+            )
 
-        A = te.placeholder((1024,), name='A')
-        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+        A = te.placeholder((1024,), name="A")
+        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "c", name="myadd")
         engine_module = generate_engine_module()
         from tvm.contrib import util
+
         temp = util.tempdir()
         file_name = "deploy_lib.so"
         path_lib = temp.relpath(file_name)

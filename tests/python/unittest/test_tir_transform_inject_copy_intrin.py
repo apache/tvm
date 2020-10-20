@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 
+
 def test_copy2d():
-    m = te.var('m')
-    l = te.var('l')
-    A = te.placeholder((m, l), name='A')
-    B = te.compute((m, l), lambda i, j: A[i, j], name='B')
+    m = te.var("m")
+    l = te.var("l")
+    A = te.placeholder((m, l), name="A")
+    B = te.compute((m, l), lambda i, j: A[i, j], name="B")
     s = te.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
     bounds = tvm.te.schedule.InferBound(s)
@@ -41,12 +43,14 @@ def test_copy2d():
 
 
 def test_copy_pad():
-    m = te.var('m')
-    l = te.var('l')
-    A = te.placeholder((m, l), name='A')
-    B = te.compute((m + 2, l), lambda i, j:
-                    tvm.tir.if_then_else(tvm.tir.all(i >= 1, i < m + 1),
-                                     A[i - 1, j], 1.0), name='B')
+    m = te.var("m")
+    l = te.var("l")
+    A = te.placeholder((m, l), name="A")
+    B = te.compute(
+        (m + 2, l),
+        lambda i, j: tvm.tir.if_then_else(tvm.tir.all(i >= 1, i < m + 1), A[i - 1, j], 1.0),
+        name="B",
+    )
     s = te.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
     bounds = tvm.te.schedule.InferBound(s)
@@ -69,9 +73,8 @@ def test_copy_pad():
 
 
 def test_single_point_test():
-    A = te.placeholder((1,), name='A')
-    B = te.compute((1,), lambda i:
-                    A[i], name='B')
+    A = te.placeholder((1,), name="A")
+    B = te.compute((1,), lambda i: A[i], name="B")
     s = te.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
     bounds = tvm.te.schedule.InferBound(s)
@@ -93,10 +96,10 @@ def test_single_point_test():
 
 def test_copy_pad_split():
     m = 4 * 3
-    A = te.placeholder((m, ), name="A")
-    Apad = te.compute((m + 2,), lambda i:
-                       tvm.tir.if_then_else(tvm.tir.all(i >= 1, i <= m),
-                                        A[i - 1], 0.0), "Apad")
+    A = te.placeholder((m,), name="A")
+    Apad = te.compute(
+        (m + 2,), lambda i: tvm.tir.if_then_else(tvm.tir.all(i >= 1, i <= m), A[i - 1], 0.0), "Apad"
+    )
     B = te.compute((m,), lambda i: Apad[i] + Apad[i + 1] + Apad[i + 2])
     s = te.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=4)
@@ -111,7 +114,7 @@ def test_copy_pad_split():
     mod = tvm.tir.transform.Simplify()(mod._move())
 
     def cb(src, dst, pad_before, pad_after, pad_value):
-        assert(dst.elem_offset.value == 0)
+        assert dst.elem_offset.value == 0
         tvm.testing.assert_prim_expr_equal(src.elem_offset, tvm.te.max(xo * 4, 1) - 1)
 
         rpad_before = tvm.te.max(1 - xo * 4, 0)
@@ -122,7 +125,6 @@ def test_copy_pad_split():
         return tvm.tir.Evaluate(0)
 
     stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body
-
 
 
 if __name__ == "__main__":

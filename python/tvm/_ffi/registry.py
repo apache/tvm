@@ -64,12 +64,10 @@ def register_object(type_key=None):
         else:
             tidx = ctypes.c_uint()
             if not _RUNTIME_ONLY:
-                check_call(_LIB.TVMObjectTypeKey2Index(
-                    c_str(object_name), ctypes.byref(tidx)))
+                check_call(_LIB.TVMObjectTypeKey2Index(c_str(object_name), ctypes.byref(tidx)))
             else:
                 # directly skip unknown objects during runtime.
-                ret = _LIB.TVMObjectTypeKey2Index(
-                    c_str(object_name), ctypes.byref(tidx))
+                ret = _LIB.TVMObjectTypeKey2Index(c_str(object_name), ctypes.byref(tidx))
                 if ret != 0:
                     return cls
             tindex = tidx.value
@@ -185,13 +183,14 @@ def register_func(func_name, f=None, override=False):
         raise ValueError("expect string function name")
 
     ioverride = ctypes.c_int(override)
+
     def register(myf):
         """internal register function"""
         if not isinstance(myf, PackedFuncBase):
             myf = convert_to_tvm_func(myf)
-        check_call(_LIB.TVMFuncRegisterGlobal(
-            c_str(func_name), myf.handle, ioverride))
+        check_call(_LIB.TVMFuncRegisterGlobal(c_str(func_name), myf.handle, ioverride))
         return myf
+
     if f:
         return register(f)
     return register
@@ -227,8 +226,7 @@ def list_global_func_names():
     plist = ctypes.POINTER(ctypes.c_char_p)()
     size = ctypes.c_uint()
 
-    check_call(_LIB.TVMFuncListGlobalNames(ctypes.byref(size),
-                                           ctypes.byref(plist)))
+    check_call(_LIB.TVMFuncListGlobalNames(ctypes.byref(size), ctypes.byref(plist)))
     fnames = []
     for i in range(size.value):
         fnames.append(py_str(plist[i]))
@@ -250,8 +248,10 @@ def extract_ext_funcs(finit):
         The extracted functions
     """
     fdict = {}
+
     def _list(name, func):
         fdict[name] = func
+
     myf = convert_to_tvm_func(_list)
     ret = finit(myf.handle)
     _ = myf
@@ -275,8 +275,7 @@ def _init_api(namespace, target_module_name=None):
     target_module_name : str
        The target module name if different from namespace
     """
-    target_module_name = (
-        target_module_name if target_module_name else namespace)
+    target_module_name = target_module_name if target_module_name else namespace
     if namespace.startswith("tvm."):
         _init_api_prefix(target_module_name, namespace[4:])
     else:
@@ -290,7 +289,7 @@ def _init_api_prefix(module_name, prefix):
         if not name.startswith(prefix):
             continue
 
-        fname = name[len(prefix)+1:]
+        fname = name[len(prefix) + 1 :]
         target_module = module
 
         if fname.find(".") != -1:
@@ -298,5 +297,5 @@ def _init_api_prefix(module_name, prefix):
         f = get_global_func(name)
         ff = _get_api(f)
         ff.__name__ = fname
-        ff.__doc__ = ("TVM PackedFunc %s. " % fname)
+        ff.__doc__ = "TVM PackedFunc %s. " % fname
         setattr(target_module, ff.__name__, ff)

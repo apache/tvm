@@ -58,7 +58,7 @@ def schedule_binary_dense(outs):
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule binary_dense
-        elif OP.tag == 'binary_dense':
+        elif OP.tag == "binary_dense":
             output = OP.output(0)
             data = OP.input_tensors[0]
             weight = OP.input_tensors[1]

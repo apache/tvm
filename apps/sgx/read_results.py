@@ -20,9 +20,11 @@ import sys
 
 import numpy as np
 
+
 def float_bytes(l):
     for i in range(0, len(l), 4):
-        yield l[i:i + 4]
+        yield l[i : i + 4]
 
-floats = [struct.unpack('f', f)[0] for f in float_bytes(sys.stdin.buffer.read())]
+
+floats = [struct.unpack("f", f)[0] for f in float_bytes(sys.stdin.buffer.read())]
 print(np.array(floats))

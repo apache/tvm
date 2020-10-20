@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument,inconsistent-return-statements
+# pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
 import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
 from . import _quantize
 from .quantize import _forward_op
+
 
 def register_partition_function(op_name, frewrite=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FQPartitionRewrite", frewrite, level)
@@ -29,8 +30,7 @@ def register_partition_function(op_name, frewrite=None, level=10):
 @tvm._ffi.register_object("relay.QPartitionExpr")
 class QPartitionExpr(_expr.TempExpr):
     def __init__(self, expr):
-        self.__init_handle_by_constructor__(
-            _quantize.make_partition_expr, expr)
+        self.__init_handle_by_constructor__(_quantize.make_partition_expr, expr)
 
 
 def partition_expr_check(expr):
@@ -57,6 +57,7 @@ def identity_partition_function(ref_call, new_args, ctx):
     if cond:
         return QPartitionExpr(_forward_op(ref_call, [expr]))
     return None
+
 
 register_partition_function("clip", identity_partition_function)
 register_partition_function("nn.relu", identity_partition_function)
@@ -121,6 +122,7 @@ def add_partition_generic(ref_call, new_args, ctx):
 
     raise ValueError
 
+
 def mul_partition_generic(ref_call, new_args, ctx):
     """Rewrite function for ewise mul for partition for generic devices"""
     lhs_cond, lhs = partition_expr_check(new_args[0])
@@ -143,8 +145,8 @@ def mul_partition_generic(ref_call, new_args, ctx):
 def add_partition_function(ref_call, new_args, ctx):
     """Rewrite function for ewise add for partition"""
     target = tvm.target.Target.current()
-    if target and 'cuda' in target.keys:
-        #TODO(wuwei/ziheng) cuda specific rules
+    if target and "cuda" in target.keys:
+        # TODO(wuwei/ziheng) cuda specific rules
         return add_partition_generic(ref_call, new_args, ctx)
     return add_partition_generic(ref_call, new_args, ctx)
 

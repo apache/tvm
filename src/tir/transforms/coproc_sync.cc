@@ -29,7 +29,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ir_util.h"
+#include "ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {

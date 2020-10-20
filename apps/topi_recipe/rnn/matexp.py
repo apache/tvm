@@ -32,21 +32,24 @@ from tvm.contrib import nvcc
 import numpy as np
 
 # Quick knobs
-TASK="matexp"
+TASK = "matexp"
 USE_MANUAL_CODE = False
 PERSIST_KERNEL = True
 DETECT_GLOBAL_BARRIER = PERSIST_KERNEL
 SKIP_CHECK = False
 
+
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
     """Use nvcc compiler for better perf."""
-    ptx =  nvcc.compile_cuda(code, target="ptx")
+    ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
+
 
 def write_code(code, fname):
     with open(fname, "w") as f:
         f.write(code)
+
 
 @tvm.register_func
 def tvm_callback_cuda_postproc(code):
@@ -56,6 +59,7 @@ def tvm_callback_cuda_postproc(code):
     if USE_MANUAL_CODE:
         code = open("perf/%s_manual.cu" % TASK).read()
     return code
+
 
 def rnn_matexp():
     n_num_step = 128
@@ -71,14 +75,14 @@ def rnn_matexp():
     num_sm = 24
 
     Whh = te.placeholder((num_hidden, num_hidden), name="Whh")
-    s_init = te.compute((1, batch_size, num_hidden),
-                         lambda _, i, j: 1.0, name="init")
+    s_init = te.compute((1, batch_size, num_hidden), lambda _, i, j: 1.0, name="init")
     s_state = te.placeholder((num_step, batch_size, num_hidden))
     kh = te.reduce_axis((0, num_hidden), name="kh")
     s_update = te.compute(
         (num_step, batch_size, num_hidden),
-        lambda t, i, j: te.sum(s_state[t-1, i, kh] * Whh[kh, j], axis=kh),
-        name="update")
+        lambda t, i, j: te.sum(s_state[t - 1, i, kh] * Whh[kh, j], axis=kh),
+        name="update",
+    )
     s_scan = tvm.te.scan(s_init, s_update, s_state)
     # schedule
     s = te.create_schedule(s_scan.op)
@@ -127,20 +131,21 @@ def rnn_matexp():
     s[SS].bind(tx, thread_x)
 
     def check_device(target):
-        with tvm.transform.PassContext(config={
-            "tir.UnrollLoop": {
-                "auto_max_step": 128,
-            },
-            "tir.detect_global_barrier": detect_global_barrier
-        }):
+        with tvm.transform.PassContext(
+            config={
+                "tir.UnrollLoop": {
+                    "auto_max_step": 128,
+                },
+                "tir.detect_global_barrier": detect_global_barrier,
+            }
+        ):
             f = tvm.build(s, [s_scan, Whh], target)
         ctx = tvm.gpu(0) if target == "cuda" else tvm.cl(0)
         # launch the kernel.
-        res_np = np.zeros(
-            (n_num_step, n_batch_size, n_num_hidden)).astype("float32")
+        res_np = np.zeros((n_num_step, n_batch_size, n_num_hidden)).astype("float32")
         Whh_np = np.zeros((n_num_hidden, n_num_hidden)).astype("float32")
         Whh_np[:] = 2.0 / n_num_hidden
-        Whh_np[:, n_num_hidden//2:] = 0
+        Whh_np[:, n_num_hidden // 2 :] = 0
 
         res_a = tvm.nd.array(res_np, ctx)
         Whh_a = tvm.nd.array(Whh_np, ctx)
@@ -160,12 +165,14 @@ def rnn_matexp():
             Whh_np = Whh_np.astype("float64")
             for t in range(1, n_num_step):
                 res_cmp[t][:] = np.dot(res_cmp[t - 1], Whh_np)
-            for i  in range(n_num_step):
+            for i in range(n_num_step):
                 for j in range(n_num_hidden):
-                    if abs(res_cmp[i,0,j] - res_gpu[i,0,j]) > 1e-5:
-                        print("%d, %d: %g vs %g" % (i,j, res_cmp[i,0,j], res_gpu[i,0,j]))
+                    if abs(res_cmp[i, 0, j] - res_gpu[i, 0, j]) > 1e-5:
+                        print("%d, %d: %g vs %g" % (i, j, res_cmp[i, 0, j], res_gpu[i, 0, j]))
             tvm.testing.assert_allclose(res_gpu, res_cmp, rtol=1e-3)
+
     check_device("cuda")
+
 
 if __name__ == "__main__":
     rnn_matexp()

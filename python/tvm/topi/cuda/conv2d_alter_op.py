@@ -28,7 +28,8 @@ from ..util import get_const_tuple
 from .conv2d_winograd import _infer_tile_size
 from ..nn import conv2d_legalize
 
-logger = logging.getLogger('topi')
+logger = logging.getLogger("topi")
+
 
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
@@ -36,7 +37,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     dispatch_ctx = autotvm.task.DispatchContext.current
 
     _, outs = relay.backend.compile_engine.select_implementation(
-        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target)
+        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
+    )
     workload = autotvm.task.get_workload(outs)
     if workload is None:
         # The best implementation is not an AutoTVM template,
@@ -53,7 +55,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     dilation = attrs.get_int_tuple("dilation")
-    groups = attrs.get_int('groups')
+    groups = attrs.get_int("groups")
     data_layout = attrs["data_layout"]
     kernel_layout = attrs["kernel_layout"]
     data, kernel = tinfos
@@ -64,21 +66,32 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
 
-        new_layout = 'NCHW4c'
+        new_layout = "NCHW4c"
         new_attrs["channels"] = CO
         new_attrs["data_layout"] = new_layout
-        new_attrs['out_layout'] = new_layout
-        new_attrs['kernel_layout'] = 'OIHW4o4i'
+        new_attrs["out_layout"] = new_layout
+        new_attrs["kernel_layout"] = "OIHW4o4i"
         ic_block_factor = oc_block_factor = 4
 
         # Store the same config for the altered operator (workload)
-        new_data = te.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
-                                  dtype=data.dtype)
-        new_kernel = te.placeholder((CO // oc_block_factor, CI // ic_block_factor, KH, KW, \
-                                     oc_block_factor, ic_block_factor), dtype=kernel.dtype)
+        new_data = te.placeholder(
+            (N, CI // ic_block_factor, H, W, ic_block_factor), dtype=data.dtype
+        )
+        new_kernel = te.placeholder(
+            (
+                CO // oc_block_factor,
+                CI // ic_block_factor,
+                KH,
+                KW,
+                oc_block_factor,
+                ic_block_factor,
+            ),
+            dtype=kernel.dtype,
+        )
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_layout, out_dtype],
-            "conv2d_NCHWc_int8.cuda")
+            "conv2d_NCHWc_int8.cuda",
+        )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(*inputs, **new_attrs)
 
@@ -94,24 +107,26 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         # pre-compute weight transformation in winograd
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 
-        weight = relay.nn.contrib_conv2d_winograd_weight_transform(inputs[1],
-                                                                   tile_size=tile_size)
+        weight = relay.nn.contrib_conv2d_winograd_weight_transform(inputs[1], tile_size=tile_size)
         weight = relay.transpose(weight, axes=[0, 1, 3, 2])
-        new_attrs['tile_size'] = tile_size
-        new_attrs['channels'] = CO
+        new_attrs["tile_size"] = tile_size
+        new_attrs["channels"] = CO
 
         # Store the same config for the altered operator (workload)
         new_data = data
-        new_weight = te.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
-                                    dtype=kernel.dtype)
+        new_weight = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, CI, CO), dtype=kernel.dtype
+        )
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_weight, strides, padding, dilation, out_dtype],
-            "conv2d_nchw_winograd_without_weight_transform.cuda")
+            "conv2d_nchw_winograd_without_weight_transform.cuda",
+        )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
-            inputs[0], weight, **new_attrs)
+            inputs[0], weight, **new_attrs
+        )
 
-    if topi_tmpl in ('conv2d_nhwc_winograd_direct.cuda', 'conv2d_nhwc_winograd_tensorcore.cuda'):
+    if topi_tmpl in ("conv2d_nhwc_winograd_direct.cuda", "conv2d_nhwc_winograd_tensorcore.cuda"):
         if dilation != (1, 1):
             logger.warning("Does not support weight pre-transform for dilated convolution.")
             return None
@@ -126,48 +141,63 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         else:
             tile_size = 2
         kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
-        weight = relay.nn.contrib_conv2d_winograd_weight_transform(kernel_transform,
-                                                                   tile_size=tile_size)
+        weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+            kernel_transform, tile_size=tile_size
+        )
         weight = relay.transpose(weight, axes=[0, 1, 3, 2])
-        new_attrs['tile_size'] = tile_size
-        new_attrs['channels'] = CO
+        new_attrs["tile_size"] = tile_size
+        new_attrs["channels"] = CO
         # Store the same config for the altered operator (workload)
         new_data = data
-        new_weight = te.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
-                                    dtype=kernel.dtype)
+        new_weight = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size - 1, CI, CO), dtype=kernel.dtype
+        )
         if topi_tmpl == "conv2d_nhwc_winograd_direct.cuda":
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_weight, strides, padding, dilation, out_dtype],
-                "conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
+                "conv2d_nhwc_winograd_direct_without_weight_transform.cuda",
+            )
         elif topi_tmpl == "conv2d_nhwc_winograd_tensorcore.cuda":
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_weight, strides, padding, dilation, out_dtype],
-                "conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
+                "conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda",
+            )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
-            inputs[0], weight, **new_attrs)
+            inputs[0], weight, **new_attrs
+        )
 
     if topi_tmpl == "group_conv2d_NCHWc_int8.cuda":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
 
-        new_layout = 'NCHW4c'
+        new_layout = "NCHW4c"
         new_attrs["channels"] = CO
         new_attrs["data_layout"] = new_layout
-        new_attrs['out_layout'] = new_layout
-        new_attrs['kernel_layout'] = 'OIHW4o4i'
+        new_attrs["out_layout"] = new_layout
+        new_attrs["kernel_layout"] = "OIHW4o4i"
         ic_block_factor = oc_block_factor = 4
 
         # Store the same config for the altered operator (workload)
-        new_data = te.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
-                                  dtype=data.dtype)
-        new_kernel = te.placeholder((CO // oc_block_factor, CI // ic_block_factor // groups,
-                                     KH, KW, oc_block_factor, ic_block_factor),
-                                    dtype=kernel.dtype)
+        new_data = te.placeholder(
+            (N, CI // ic_block_factor, H, W, ic_block_factor), dtype=data.dtype
+        )
+        new_kernel = te.placeholder(
+            (
+                CO // oc_block_factor,
+                CI // ic_block_factor // groups,
+                KH,
+                KW,
+                oc_block_factor,
+                ic_block_factor,
+            ),
+            dtype=kernel.dtype,
+        )
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, groups, out_dtype],
-            "group_conv2d_NCHWc_int8.cuda")
+            "group_conv2d_NCHWc_int8.cuda",
+        )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(*inputs, **new_attrs)
 
@@ -177,31 +207,46 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         H, W, N, CI = get_const_tuple(data.shape)
         KH, KW, CO, _ = get_const_tuple(kernel.shape)
 
-        if kernel.dtype in ['int4', 'uint4'] and (CI % 32 != 0 or CO % 8 != 0) or \
-            kernel.dtype in ['int8', 'uint8'] and (CI % 16 != 0 or CO % 32 != 0):
+        if (
+            kernel.dtype in ["int4", "uint4"]
+            and (CI % 32 != 0 or CO % 8 != 0)
+            or kernel.dtype in ["int8", "uint8"]
+            and (CI % 16 != 0 or CO % 32 != 0)
+        ):
             return relay.nn.conv2d(*inputs, **new_attrs)
 
         new_attrs["channels"] = CO
-        if kernel.dtype in ['int4', 'uint4']:
-            new_attrs['kernel_layout'] = 'HWOI8o32i'
+        if kernel.dtype in ["int4", "uint4"]:
+            new_attrs["kernel_layout"] = "HWOI8o32i"
             ic_block_factor = 32
             oc_block_factor = 8
         else:
-            new_attrs['kernel_layout'] = 'HWOI32o16i'
+            new_attrs["kernel_layout"] = "HWOI32o16i"
             ic_block_factor = 16
             oc_block_factor = 32
 
-        new_kernel = te.placeholder((KH, KW, CO // oc_block_factor, CI // ic_block_factor,
-                                     oc_block_factor, ic_block_factor), dtype=kernel.dtype)
+        new_kernel = te.placeholder(
+            (
+                KH,
+                KW,
+                CO // oc_block_factor,
+                CI // ic_block_factor,
+                oc_block_factor,
+                ic_block_factor,
+            ),
+            dtype=kernel.dtype,
+        )
 
         new_workload = autotvm.task.args_to_workload(
             [data, new_kernel, strides, padding, dilation, out_dtype],
-            "conv2d_HWNCnc_tensorcore.cuda")
+            "conv2d_HWNCnc_tensorcore.cuda",
+        )
 
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(*inputs, **new_attrs)
 
     return None
+
 
 @conv2d_legalize.register("cuda")
 def _conv2d_legalize(attrs, inputs, arg_types):
@@ -246,12 +291,12 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
     # Get data layout. Return None if not NCHW
-    data_layout = attrs['data_layout']
-    kernel_layout = attrs['kernel_layout']
+    data_layout = attrs["data_layout"]
+    kernel_layout = attrs["kernel_layout"]
 
     # Pad input and output channels to use int8 schedule.
-    if data_dtype in ['int8', 'uint8']:
-        if data_layout == 'NCHW' and kernel_layout == "OIHW":
+    if data_dtype in ["int8", "uint8"]:
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
             oc_modified = False
             in_channel = data_tensor.shape[1].value
             out_channel = kernel_tensor.shape[0].value
@@ -273,11 +318,10 @@ def _conv2d_legalize(attrs, inputs, arg_types):
                 oc_modified = True
 
             if oc_modified:
-                new_attrs['channels'] = new_out_channel
+                new_attrs["channels"] = new_out_channel
                 out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
                 original_out_shape = [x.value for x in output_tensor.shape]
-                out = relay.strided_slice(out, begin=relay.const([0, 0, 0, 0]),
-                                          end=relay.const(original_out_shape))
+                out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
             else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)
             return out

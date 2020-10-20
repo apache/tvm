@@ -22,26 +22,27 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib.nvcc import have_fp16
+import tvm.testing
+
 
 def verify_elemwise_sum(num_args, dtype):
-    shape = (3,5,4)
+    shape = (3, 5, 4)
 
     tvm_placeholders = []
     for i in range(num_args):
-        tvm_placeholders.append(
-            te.placeholder(shape, name="data"+str(i), dtype=dtype))
+        tvm_placeholders.append(te.placeholder(shape, name="data" + str(i), dtype=dtype))
     esum = topi.elemwise_sum(tvm_placeholders)
     s = te.create_schedule([esum.op])
 
     @memoize("topi.tests.test_topi_elemwise_sum")
     def get_ref_data():
-        np_nd = [np.random.uniform(0, 10, size=shape).astype(dtype)
-                 for i in range(num_args)]
+        np_nd = [np.random.uniform(0, 10, size=shape).astype(dtype) for i in range(num_args)]
         return np_nd
+
     np_nd = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
@@ -67,10 +68,11 @@ def verify_full(shape, dtype, fill_value):
     @memoize("topi.tests.test_topi_full")
     def get_ref_data():
         return np.full(shape, fill_value, dtype)
+
     np_nd = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
@@ -87,24 +89,23 @@ def verify_full(shape, dtype, fill_value):
     for device in ["llvm"]:
         check_device(device)
 
+
 def verify_vectorization(n, m, dtype):
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             ctx = tvm.context(device, 0)
-            A = te.placeholder((n, m), name='A', dtype=dtype)
-            B = te.compute((n, m), lambda i, j:
-                             A[i, j] + tvm.tir.const(1, A.dtype), name='B')
+            A = te.placeholder((n, m), name="A", dtype=dtype)
+            B = te.compute((n, m), lambda i, j: A[i, j] + tvm.tir.const(1, A.dtype), name="B")
             S = tvm.topi.testing.get_elemwise_schedule(device)(B)
 
             fun = tvm.build(S, [A, B], device)
-            np_A = tvm.nd.empty((n, m), A.dtype, ctx).copyfrom(
-                                np.random.uniform(size=(n, m)))
+            np_A = tvm.nd.empty((n, m), A.dtype, ctx).copyfrom(np.random.uniform(size=(n, m)))
             np_B = tvm.nd.empty((n, m), B.dtype, ctx)
             fun(np_A, np_B)
             tvm.testing.assert_allclose(np_B.asnumpy(), np_A.asnumpy() + 1, rtol=1e-5)
@@ -112,17 +113,23 @@ def verify_vectorization(n, m, dtype):
     for device in ["cuda"]:
         check_device(device)
 
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_vectorization():
     verify_vectorization(128, 64, "float16")
+
 
 def test_elemwise_sum():
     verify_elemwise_sum(1, "float32")
     verify_elemwise_sum(5, "float32")
     verify_elemwise_sum(4, "int32")
 
+
 def test_full():
-    verify_full((3,4,5), "float32", 3.14)
+    verify_full((3, 4, 5), "float32", 3.14)
     verify_full((10,), "int32", 7)
+
 
 if __name__ == "__main__":
     test_elemwise_sum()

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
+# pylint: disable=unused-argument
 """Internal module for quantization."""
 import tvm._ffi
 

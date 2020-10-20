@@ -25,7 +25,7 @@
  */
 #include <stdio.h>
 #include <string.h>
-#include <tvm/runtime/crt/internal/common/logging.h>
+#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/packed_func.h>
 
 DLDataType String2DLDataType(const char* s) {

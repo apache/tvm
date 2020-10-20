@@ -24,7 +24,7 @@
 use std::convert::TryFrom;
 // use std::ffi::c_void;
 
-use crate::{ArgValue, Module, NDArray, RetValue};
+use crate::{ArgValue, Module, RetValue};
 use tvm_sys::{errors::ValueDowncastError, ffi::TVMModuleHandle, try_downcast};
 
 macro_rules! impl_handle_val {
@@ -71,60 +71,6 @@ macro_rules! impl_handle_val {
 }
 
 impl_handle_val!(Module, ModuleHandle, TVMModuleHandle, Module::new);
-
-impl<'a> From<&'a NDArray> for ArgValue<'a> {
-    fn from(arg: &'a NDArray) -> Self {
-        match arg {
-            &NDArray::Borrowed { handle } => ArgValue::ArrayHandle(handle),
-            &NDArray::Owned { handle } => ArgValue::NDArrayHandle(handle),
-        }
-    }
-}
-
-impl<'a> From<&'a mut NDArray> for ArgValue<'a> {
-    fn from(arg: &'a mut NDArray) -> Self {
-        match arg {
-            &mut NDArray::Borrowed { handle } => ArgValue::ArrayHandle(handle),
-            &mut NDArray::Owned { handle } => ArgValue::NDArrayHandle(handle),
-        }
-    }
-}
-
-impl<'a> TryFrom<ArgValue<'a>> for NDArray {
-    type Error = ValueDowncastError;
-    fn try_from(val: ArgValue<'a>) -> Result<NDArray, Self::Error> {
-        try_downcast!(val -> NDArray,
-            |ArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
-            |ArgValue::ArrayHandle(val)| { NDArray::new(val) })
-    }
-}
-
-impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for NDArray {
-    type Error = ValueDowncastError;
-    fn try_from(val: &'a ArgValue<'v>) -> Result<NDArray, Self::Error> {
-        try_downcast!(val -> NDArray,
-            |ArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(*val) },
-            |ArgValue::ArrayHandle(val)| { NDArray::new(*val) })
-    }
-}
-
-impl From<NDArray> for RetValue {
-    fn from(val: NDArray) -> RetValue {
-        match val {
-            NDArray::Owned { handle } => RetValue::NDArrayHandle(handle),
-            _ => panic!("NYI"),
-        }
-    }
-}
-
-impl TryFrom<RetValue> for NDArray {
-    type Error = ValueDowncastError;
-    fn try_from(val: RetValue) -> Result<NDArray, Self::Error> {
-        try_downcast!(val -> NDArray,
-            |RetValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
-            |RetValue::ArrayHandle(val)| { NDArray::new(val) })
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name
+# pylint: disable=invalid-name
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
@@ -22,14 +22,17 @@ from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.util import get_pad_tuple2d
 from . import _make
 
-def requantize(data,
-               input_scale,
-               input_zero_point,
-               output_scale,
-               output_zero_point,
-               axis=-1,
-               rounding="UPWARD",
-               out_dtype="int8"):
+
+def requantize(
+    data,
+    input_scale,
+    input_zero_point,
+    output_scale,
+    output_zero_point,
+    axis=-1,
+    rounding="UPWARD",
+    out_dtype="int8",
+):
     r"""Requantized operator.
 
     The requantize operator converts one quantized tensor representation to
@@ -71,22 +74,20 @@ def requantize(data,
         The computed result.
     """
 
-    return _make.requantize(data,
-                            input_scale,
-                            input_zero_point,
-                            output_scale,
-                            output_zero_point,
-                            axis,
-                            rounding,
-                            out_dtype)
+    return _make.requantize(
+        data,
+        input_scale,
+        input_zero_point,
+        output_scale,
+        output_zero_point,
+        axis,
+        rounding,
+        out_dtype,
+    )
 
 
-def quantize(data,
-             output_scale,
-             output_zero_point,
-             axis=-1,
-             out_dtype='int8'):
-    r""" Quantize op
+def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
+    r"""Quantize op
     This operator takes float32 as input and produces quantized int8 or unit8 as output.
     The input tensor can be of any shape. The output shape is the same as input shape.
 
@@ -112,18 +113,11 @@ def quantize(data,
         The computed result.
     """
 
-    return _make.quantize(data,
-                          output_scale,
-                          output_zero_point,
-                          axis,
-                          out_dtype)
+    return _make.quantize(data, output_scale, output_zero_point, axis, out_dtype)
 
 
-def dequantize(data,
-               input_scale,
-               input_zero_point,
-               axis=-1):
-    r""" Dequantize op
+def dequantize(data, input_scale, input_zero_point, axis=-1):
+    r"""Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
     tensor can be of any shape.
@@ -144,18 +138,10 @@ def dequantize(data,
         The computed result.
     """
 
-    return _make.dequantize(data,
-                            input_scale,
-                            input_zero_point,
-                            axis)
+    return _make.dequantize(data, input_scale, input_zero_point, axis)
 
 
-def concatenate(data,
-                input_scales,
-                input_zero_points,
-                output_scale,
-                output_zero_point,
-                axis):
+def concatenate(data, input_scales, input_zero_points, output_scale, output_zero_point, axis):
     """Concatenate the quantized input tensors along the given axis.
 
     Parameters
@@ -193,30 +179,29 @@ def concatenate(data,
     input_scales = list(input_scales)
     input_zero_points = list(input_zero_points)
 
-    return _make.concatenate(data,
-                             Tuple(input_scales),
-                             Tuple(input_zero_points),
-                             output_scale,
-                             output_zero_point,
-                             axis)
+    return _make.concatenate(
+        data, Tuple(input_scales), Tuple(input_zero_points), output_scale, output_zero_point, axis
+    )
 
 
-def conv2d(data,
-           kernel,
-           input_zero_point,
-           kernel_zero_point,
-           input_scale,
-           kernel_scale,
-           kernel_size,
-           channels,
-           strides=(1, 1),
-           padding=(0, 0),
-           dilation=(1, 1),
-           groups=1,
-           data_layout="NCHW",
-           kernel_layout="OIHW",
-           out_layout="",
-           out_dtype="int32"):
+def conv2d(
+    data,
+    kernel,
+    input_zero_point,
+    kernel_zero_point,
+    input_scale,
+    kernel_scale,
+    kernel_size,
+    channels,
+    strides=(1, 1),
+    padding=(0, 0),
+    dilation=(1, 1),
+    groups=1,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
+    out_layout="",
+    out_dtype="int32",
+):
     r"""Quantized 2D convolution.
 
     This operator convolves quantized data with quantized kernel. The scale of
@@ -289,22 +274,29 @@ def conv2d(data,
     # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
     # convert 2-way padding to 4-way padding
     padding = get_pad_tuple2d(padding)
-    return _make.conv2d(data, kernel,
-                        input_zero_point, kernel_zero_point,
-                        input_scale, kernel_scale,
-                        strides, padding, dilation,
-                        groups, channels, kernel_size,
-                        data_layout, kernel_layout, out_layout, out_dtype)
+    return _make.conv2d(
+        data,
+        kernel,
+        input_zero_point,
+        kernel_zero_point,
+        input_scale,
+        kernel_scale,
+        strides,
+        padding,
+        dilation,
+        groups,
+        channels,
+        kernel_size,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
 
 
-def add(lhs,
-        rhs,
-        lhs_scale,
-        lhs_zero_point,
-        rhs_scale,
-        rhs_zero_point,
-        output_scale,
-        output_zero_point):
+def add(
+    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+):
     """Quantized addition with numpy-style broadcasting.
 
     Parameters
@@ -339,20 +331,28 @@ def add(lhs,
         The computed result.
 
     """
-    return _make.add(lhs, rhs,
-                     lhs_scale, lhs_zero_point,
-                     rhs_scale, rhs_zero_point,
-                     output_scale, output_zero_point)
+    return _make.add(
+        lhs,
+        rhs,
+        lhs_scale,
+        lhs_zero_point,
+        rhs_scale,
+        rhs_zero_point,
+        output_scale,
+        output_zero_point,
+    )
 
 
-def dense(data,
-          weight,
-          input_zero_point,
-          kernel_zero_point,
-          input_scale,
-          kernel_scale,
-          units,
-          out_dtype="int32"):
+def dense(
+    data,
+    weight,
+    input_zero_point,
+    kernel_zero_point,
+    input_scale,
+    kernel_scale,
+    units,
+    out_dtype="int32",
+):
     """Qnn Dense operator.
     Applies a quantized linear transformation
 
@@ -388,18 +388,21 @@ def dense(data,
         The computed result.
     """
 
-    return _make.dense(data,
-                       weight,
-                       input_zero_point,
-                       kernel_zero_point,
-                       input_scale,
-                       kernel_scale,
-                       units,
-                       out_dtype)
+    return _make.dense(
+        data,
+        weight,
+        input_zero_point,
+        kernel_zero_point,
+        input_scale,
+        kernel_scale,
+        units,
+        out_dtype,
+    )
 
 
-def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
-        output_scale, output_zero_point):
+def mul(
+    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+):
     """Quantized multiplication with numpy-style broadcasting.
 
     Parameters
@@ -434,20 +437,21 @@ def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
         The computed result.
 
     """
-    return _make.mul(lhs, rhs,
-                     lhs_scale, lhs_zero_point,
-                     rhs_scale, rhs_zero_point,
-                     output_scale, output_zero_point)
+    return _make.mul(
+        lhs,
+        rhs,
+        lhs_scale,
+        lhs_zero_point,
+        rhs_scale,
+        rhs_zero_point,
+        output_scale,
+        output_zero_point,
+    )
 
 
-def subtract(lhs,
-             rhs,
-             lhs_scale,
-             lhs_zero_point,
-             rhs_scale,
-             rhs_zero_point,
-             output_scale,
-             output_zero_point):
+def subtract(
+    lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
+):
     """Quantized subtraction with numpy-style broadcasting.
 
     Parameters
@@ -482,7 +486,13 @@ def subtract(lhs,
         The computed result.
 
     """
-    return _make.subtract(lhs, rhs,
-                          lhs_scale, lhs_zero_point,
-                          rhs_scale, rhs_zero_point,
-                          output_scale, output_zero_point)
+    return _make.subtract(
+        lhs,
+        rhs,
+        lhs_scale,
+        lhs_zero_point,
+        rhs_scale,
+        rhs_zero_point,
+        output_scale,
+        output_zero_point,
+    )

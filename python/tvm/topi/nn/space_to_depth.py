@@ -22,7 +22,7 @@ from tvm import te
 from .. import tag
 
 
-def space_to_depth(data, block_size, layout='NCHW'):
+def space_to_depth(data, block_size, layout="NCHW"):
     """Perform space to depth transformation on the data
 
     Parameters
@@ -42,21 +42,29 @@ def space_to_depth(data, block_size, layout='NCHW'):
         Output of shape [N, C * block_size**2, H / block_size, W / block_size]
     """
 
-    if layout == 'NCHW':
+    if layout == "NCHW":
         in_n, in_c, in_h, in_w = data.shape
-        output_shape = [in_n, in_c * block_size * block_size,
-                        tvm.tir.truncdiv(in_h, block_size), tvm.tir.truncdiv(in_w, block_size)]
-    elif layout == 'NHWC':
+        output_shape = [
+            in_n,
+            in_c * block_size * block_size,
+            tvm.tir.truncdiv(in_h, block_size),
+            tvm.tir.truncdiv(in_w, block_size),
+        ]
+    elif layout == "NHWC":
         in_n, in_h, in_w, in_c = data.shape
-        output_shape = [in_n, tvm.tir.truncdiv(in_h, block_size), tvm.tir.truncdiv(
-            in_w, block_size), in_c * block_size * block_size]
+        output_shape = [
+            in_n,
+            tvm.tir.truncdiv(in_h, block_size),
+            tvm.tir.truncdiv(in_w, block_size),
+            in_c * block_size * block_size,
+        ]
     else:
         raise ValueError("Only NCHW and NHWC layouts are currently supported.")
 
     def _get_indices(*indices):
-        if layout == 'NCHW':
+        if layout == "NCHW":
             n, c, y, x = indices
-        elif layout == 'NHWC':
+        elif layout == "NHWC":
             n, y, x, c = indices
         return n, c, y, x
 
@@ -66,16 +74,14 @@ def space_to_depth(data, block_size, layout='NCHW'):
         x_idx = tvm.tir.truncmod(block_offset, block_size)
         y_idx = tvm.tir.truncdiv(block_offset, block_size)
 
-        if layout == 'NCHW':
-            output = data(n, channel_idx, y_idx +
-                          (y * block_size), x_idx + (x * block_size))
+        if layout == "NCHW":
+            output = data(n, channel_idx, y_idx + (y * block_size), x_idx + (x * block_size))
         else:
-            output = data(n, y_idx + (y * block_size), x_idx +
-                          (x * block_size), channel_idx)
+            output = data(n, y_idx + (y * block_size), x_idx + (x * block_size), channel_idx)
         return output
 
     def _compute(*indices):
         n, c, y, x = _get_indices(*indices)
         return _get_pixel(n, c, y, x)
 
-    return te.compute(output_shape, _compute, name='space_to_depth', tag=tag.INJECTIVE)
+    return te.compute(output_shape, _compute, name="space_to_depth", tag=tag.INJECTIVE)

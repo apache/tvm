@@ -19,12 +19,14 @@
 import math
 import numpy as np
 
-def crop_and_resize_python(image, boxes, box_indices, crop_size, layout,
-                           method='bilinear', extrapolation_value=0):
+
+def crop_and_resize_python(
+    image, boxes, box_indices, crop_size, layout, method="bilinear", extrapolation_value=0
+):
     """Crop and resize using python"""
     (target_h, target_w) = crop_size
 
-    if layout == 'NHWC':
+    if layout == "NHWC":
         batch = boxes.shape[0]
         image_height, image_width, channel = image.shape[1], image.shape[2], image.shape[3]
         scaled_image = np.ones((batch, target_h, target_w, channel))
@@ -40,8 +42,8 @@ def crop_and_resize_python(image, boxes, box_indices, crop_size, layout,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = np.float32(in_h)/np.float32(target_h - 1)
-        w_scale = np.float32(in_w)/np.float32(target_w - 1)
+        h_scale = np.float32(in_h) / np.float32(target_h - 1)
+        w_scale = np.float32(in_w) / np.float32(target_w - 1)
 
         for y in range(target_h):
 
@@ -50,13 +52,13 @@ def crop_and_resize_python(image, boxes, box_indices, crop_size, layout,
             if in_y < 0 or in_y > image_height - 1:
                 for x in range(target_w):
                     for d in range(channel):
-                        if layout == 'NHWC':
+                        if layout == "NHWC":
                             scaled_image[n][y][x][d] = extrapolation_value
                         else:
                             scaled_image[n][d][y][x] = extrapolation_value
                 continue
 
-            if method == 'bilinear':
+            if method == "bilinear":
                 top_y_index = math.floor(in_y)
                 bottom_y_index = math.ceil(in_y)
                 y_lerp = in_y - top_y_index
@@ -65,7 +67,7 @@ def crop_and_resize_python(image, boxes, box_indices, crop_size, layout,
                     in_x = x1 * (image_width - 1) + x * w_scale
                     if in_x < 0 or in_x > image_width - 1:
                         for d in range(channel):
-                            if layout == 'NHWC':
+                            if layout == "NHWC":
                                 scaled_image[n][y][x][d] = extrapolation_value
                             else:
                                 scaled_image[n][d][y][x] = extrapolation_value
@@ -93,12 +95,12 @@ def crop_and_resize_python(image, boxes, box_indices, crop_size, layout,
                             bottom = bottom_left + (bottom_right - bottom_left) * x_lerp
                             scaled_image[n][d][y][x] = top + (bottom - top) * y_lerp
 
-            elif method == 'nearest_neighbor':
+            elif method == "nearest_neighbor":
                 for x in range(target_w):
                     in_x = x1 * (image_width - 1) + x * w_scale
                     if in_x < 0 or in_x > image_width - 1:
                         for d in range(channel):
-                            if layout == 'NHWC':
+                            if layout == "NHWC":
                                 scaled_image[n][y][x][d] = extrapolation_value
                             else:
                                 scaled_image[n][d][y][x] = extrapolation_value
@@ -107,8 +109,12 @@ def crop_and_resize_python(image, boxes, box_indices, crop_size, layout,
                     closest_y_index = np.round(in_y).astype("int32")
                     for d in range(channel):
                         if layout == "NHWC":
-                            scaled_image[n][y][x][d] = image[b_in][closest_y_index][closest_x_index][d]
+                            scaled_image[n][y][x][d] = image[b_in][closest_y_index][
+                                closest_x_index
+                            ][d]
                         else:
-                            scaled_image[n][d][y][x] = image[b_in][d][closest_y_index][closest_x_index]
+                            scaled_image[n][d][y][x] = image[b_in][d][closest_y_index][
+                                closest_x_index
+                            ]
 
     return scaled_image

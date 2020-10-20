@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file auto_scheduler/utils.cc
+ * \file auto_scheduler/search_policy/utils.cc
  * \brief Common utilities
  */
 
@@ -46,9 +46,7 @@ Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
 
   Array<Integer> spatial_split_step_ids;
   for (int i = s->transform_steps.size() - 1; i >= 0; --i) {
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -65,6 +63,87 @@ Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
   }
 
   return spatial_split_step_ids;
+}
+
+std::vector<std::pair<int, int>> GetComputeLocationCandidates(const SearchTask& task,
+                                                              const State& state, int stage_id) {
+  int target_stage_id = GetSingleConsumerId(task, state, stage_id);
+  if (target_stage_id < 0) {
+    return {};
+  }
+  const Stage& target_stage = state->stages[target_stage_id];
+
+  std::vector<std::pair<int, int>> candidates;
+  bool target_compute_at_other = target_stage->compute_at == ComputeAtKind::kIter;
+  bool target_is_tiled = IsTiled(target_stage);
+
+  bool visited_reduce = false;
+  // Enumerate compute_at location at target_stage
+  // TODO(merrymercy): More analysis here to make smarter choices
+  for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+    const Iterator& target_iter = target_stage->iters[i];
+    if (target_iter->iter_kind == IteratorKind::kReduction) {
+      visited_reduce = true;
+      if (!target_is_tiled) {  // Do not go into reduce iter
+        break;
+      }
+    } else if (target_iter->iter_kind == IteratorKind::kSpatial) {
+      if (visited_reduce) {  // Do not go into inner tile
+        break;
+      }
+    }
+
+    if (target_iter->annotation == IteratorAnnotation::kUnroll) {
+      // Do not go into the unroll region of const tensor indices
+      break;
+    }
+
+    if (GetExtent(target_iter) == 1) {
+      // Skip iterators with length of 1
+      continue;
+    }
+    if (target_compute_at_other && target_iter->iter_kind == IteratorKind::kSpatial &&
+        StrEndsWith(target_iter->name, ".0")) {
+      // Skip the first level iterators if target stage compute_at another stage
+      // In this case, the lengths of first level iterators are always one
+      continue;
+    }
+    candidates.emplace_back(target_stage_id, i);
+
+    if (state->attach_map->iter_to_attached_stages.count(std::make_pair(target_stage_id, i))) {
+      break;
+    }
+  }
+
+  // if the target_stage is already compute_at another stage X, try also compute_at X
+  // We call stage X as `target_target_stage`
+  if (target_compute_at_other) {
+    int target_target_stage_id;
+    target_target_stage_id = state->attach_map->stage_to_attach_iter.at(target_stage_id).first;
+    const Stage& target_target_stage = state->stages[target_target_stage_id];
+
+    for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
+      const Iterator& target_target_iter = target_target_stage->iters[i];
+      if (target_target_iter->iter_kind == IteratorKind::kReduction ||
+          state->attach_map->iter_to_attached_stages.count(
+              std::make_pair(target_target_stage_id, i))) {
+        break;
+      }
+
+      if (target_target_iter->annotation == IteratorAnnotation::kUnroll) {
+        // Do not go into the unroll region of const tensor indices
+        break;
+      }
+
+      if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
+        continue;
+      }
+
+      candidates.emplace_back(target_target_stage_id, i);
+    }
+  }
+
+  return candidates;
 }
 
 State DoMultiLevelTiling(const State& state, int stage_id, const std::string& format,
@@ -270,32 +349,132 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
   return tmp_s;
 }
 
+// Return whether a state has nested parallel, which is invalid on CPUs
+bool HasNestedParallel(const State& state) {
+  std::function<void(int stage_id, size_t*)> count_parallel_ct;
+
+  count_parallel_ct = [&state, &count_parallel_ct](int stage_id, size_t* parallel_ct) {
+    const Stage& stage = state->stages[stage_id];
+
+    if (stage->compute_at == ComputeAtKind::kInlined) {
+      return;
+    }
+
+    for (size_t i = 0; i < stage->iters.size(); ++i) {
+      if (stage->iters[i]->annotation == IteratorAnnotation::kParallel) {
+        (*parallel_ct)++;
+      }
+
+      IterKey iter_key(stage_id, i);
+      auto pair = state->attach_map->iter_to_attached_stages.find(iter_key);
+      if (pair != state->attach_map->iter_to_attached_stages.end()) {
+        for (const auto& attach_stage_id : pair->second) {
+          count_parallel_ct(attach_stage_id, parallel_ct);
+        }
+      }
+    }
+  };
+
+  for (size_t stage_id = 0; stage_id < state->stages.size(); ++stage_id) {
+    size_t parallel_ct = 0;
+
+    if (state->stages[stage_id]->compute_at == ComputeAtKind::kRoot) {
+      count_parallel_ct(stage_id, &parallel_ct);
+      if (parallel_ct >= 2) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+void PruneInvalidState(const SearchTask& task, Array<State>* states) {
+  size_t pt = 0;
+  for (size_t i = 0; i < states->size(); ++i) {
+    if (!(*states)[i].defined()) {
+      continue;
+    }
+    if (!IsGPUTask(task) && HasNestedParallel((*states)[i])) {
+      continue;
+    }
+
+    if (i != pt) {
+      states->Set(pt, (*states)[i]);
+    }
+    pt++;
+  }
+
+  if (pt == 0) {
+    LOG(FATAL) << "Internal error: All states are invalid.";
+  } else {
+    states->resize(pt);
+  }
+}
+
+/********** SplitFactorizationMemo **********/
+
+void SplitFactorizationMemo::ReadWriteLock::GetRead() {
+  std::unique_lock<std::mutex> lock(cv_mutex_);
+  // Wake up and get the mutex lock if there's no writing thread
+  cv_.wait(lock, [this]() { return !this->is_writing_; });
+  read_count_++;
+}
+
+void SplitFactorizationMemo::ReadWriteLock::GetWrite() {
+  std::unique_lock<std::mutex> lock(cv_mutex_);
+  // Wake up and get the mutex lock if there's no reading or writing threads
+  cv_.wait(lock, [this]() { return this->read_count_ == 0 && !this->is_writing_; });
+  is_writing_ = true;
+}
+
+void SplitFactorizationMemo::ReadWriteLock::UnlockRead() {
+  std::lock_guard<std::mutex> lock(cv_mutex_);
+  read_count_--;
+  // Notify the other blocked threads if this is the last reading thread
+  if (read_count_ == 0) {
+    cv_.notify_one();
+  }
+}
+
+void SplitFactorizationMemo::ReadWriteLock::UnlockWrite() {
+  std::lock_guard<std::mutex> lock(cv_mutex_);
+  is_writing_ = false;
+  // Notify the other blocked threads
+  cv_.notify_one();
+}
+
 const Array<Array<Integer>>& SplitFactorizationMemo::GetFactorizationSchemes(
     int extent, int n_lengths, int max_innermost_factor) {
   QueryKey key = std::make_tuple(extent, n_lengths, max_innermost_factor);
-  auto it = memory_.find(key);
-  if (it != memory_.end()) {
+  const auto& const_memory = memory_;
+  lock_.GetRead();
+  const auto& it = const_memory.find(key);
+  const auto& memory_end = const_memory.end();
+  lock_.UnlockRead();
+  if (it != memory_end) {
     return it->second;
   }
 
+  lock_.GetWrite();
   tmp_stack_ = Array<Integer>(n_lengths, Integer());
   results_ = &memory_[key];
   n_lengths_ = n_lengths;
-
   DfsEnumerate(0, extent, max_innermost_factor);
+  lock_.UnlockWrite();
 
   return *results_;
 }
 
-void SplitFactorizationMemo::DfsEnumerate(int now, int remaining_lenght, int max_innermost_factor) {
+void SplitFactorizationMemo::DfsEnumerate(int now, int remaining_length, int max_innermost_factor) {
   if (now == n_lengths_) {
     if (tmp_stack_.back().as<IntImmNode>()->value <= max_innermost_factor) {
       results_->push_back(tmp_stack_);
     }
   } else {
-    for (const auto& f : GetFactors(remaining_lenght)) {
+    for (const auto& f : GetFactors(remaining_length)) {
       tmp_stack_.Set(now, Integer(f));
-      DfsEnumerate(now + 1, remaining_lenght / f, max_innermost_factor);
+      DfsEnumerate(now + 1, remaining_length / f, max_innermost_factor);
     }
   }
 }
@@ -319,6 +498,8 @@ const std::vector<int>& SplitFactorizationMemo::GetFactors(int n) {
   std::sort(res.begin(), res.end());
   return res;
 }
+
+/********** Utils interface API for ffi **********/
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchPolicyUtilsIsTiled")
     .set_body_typed([](const Stage& stage) { return IsTiled(stage); });

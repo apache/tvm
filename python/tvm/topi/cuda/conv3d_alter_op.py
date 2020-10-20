@@ -27,7 +27,8 @@ from .. import nn
 from ..util import get_const_tuple
 from .conv3d_winograd import _infer_tile_size
 
-logger = logging.getLogger('topi')
+logger = logging.getLogger("topi")
+
 
 @nn.conv3d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
@@ -35,7 +36,8 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
     dispatch_ctx = autotvm.task.DispatchContext.current
 
     _, outs = relay.backend.compile_engine.select_implementation(
-        relay.op.get("nn.conv3d"), attrs, tinfos, out_type, target)
+        relay.op.get("nn.conv3d"), attrs, tinfos, out_type, target
+    )
     workload = autotvm.task.get_workload(outs)
     if workload is None:
         # The best implementation is not an AutoTVM template,
@@ -52,7 +54,7 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     dilation = attrs.get_int_tuple("dilation")
-    groups = attrs.get_int('groups')
+    groups = attrs.get_int("groups")
     data_layout = attrs["data_layout"]
     kernel_layout = attrs["kernel_layout"]
     data, kernel = tinfos
@@ -71,8 +73,8 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 
         weight = relay.nn.contrib_conv3d_winograd_weight_transform(inputs[1], tile_size=tile_size)
-        new_attrs['tile_size'] = tile_size
-        new_attrs['channels'] = CO
+        new_attrs["tile_size"] = tile_size
+        new_attrs["channels"] = CO
 
         # Store the same config for the altered operators (workload)
         new_data = data
@@ -80,16 +82,19 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
         if 2 < KD < 8 and KD == KH:
             new_weight = te.placeholder(
                 (KD + tile_size - 1, KH + tile_size - 1, KW + tile_size - 1, CO, CI),
-                dtype=kernel.dtype)
+                dtype=kernel.dtype,
+            )
         else:
             new_weight = te.placeholder(
-                (KH + tile_size - 1, KW + tile_size - 1, KD, CO, CI),
-                dtype=kernel.dtype)
+                (KH + tile_size - 1, KW + tile_size - 1, KD, CO, CI), dtype=kernel.dtype
+            )
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_weight, strides, padding, dilation, out_dtype],
-            "conv3d_ncdhw_winograd_without_weight_transform.cuda")
+            "conv3d_ncdhw_winograd_without_weight_transform.cuda",
+        )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv3d_winograd_without_weight_transform(
-            inputs[0], weight, **new_attrs)
+            inputs[0], weight, **new_attrs
+        )
 
     return None

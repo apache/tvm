@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 from . import cpp
 
+
 def _get_real_axis(ndim, axis):
     if axis is None:
         real_axis = list(range(ndim))
@@ -33,7 +34,8 @@ def _get_real_axis(ndim, axis):
                 ele += ndim
             if ele >= ndim:
                 raise ValueError(
-                    "{} exceeds the maximum dimension {}. Received axis={}".format(ele, ndim, axis))
+                    "{} exceeds the maximum dimension {}. Received axis={}".format(ele, ndim, axis)
+                )
             real_axis.append(ele)
         real_axis.sort()
         real_axis = list(set(real_axis))  # Remove the duplicates

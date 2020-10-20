@@ -19,6 +19,7 @@
 import math
 import numpy as np
 
+
 def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio):
     """Roi align in python"""
     _, channel, height, width = a_np.shape
@@ -43,10 +44,12 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
 
         ly = y - y_low
         lx = x - x_low
-        return (1 - ly) * (1 - lx) * a_np[b, c, y_low, x_low] + \
-               (1 - ly) * lx * a_np[b, c, y_low, x_high] + \
-            ly * (1 - lx) * a_np[b, c, y_high, x_low] + \
-            ly * lx * a_np[b, c, y_high, x_high]
+        return (
+            (1 - ly) * (1 - lx) * a_np[b, c, y_low, x_low]
+            + (1 - ly) * lx * a_np[b, c, y_low, x_high]
+            + ly * (1 - lx) * a_np[b, c, y_high, x_low]
+            + ly * lx * a_np[b, c, y_high, x_high]
+        )
 
     for i in range(num_roi):
         roi = rois_np[i]
@@ -69,7 +72,7 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         for c in range(channel):
             for ph in range(pooled_size_h):
                 for pw in range(pooled_size_w):
-                    total = 0.
+                    total = 0.0
                     for iy in range(roi_bin_grid_h):
                         for ix in range(roi_bin_grid_w):
                             y = roi_start_h + ph * bin_h + (iy + 0.5) * bin_h / roi_bin_grid_h

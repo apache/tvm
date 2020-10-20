@@ -39,31 +39,40 @@ class ComputeDAG(Object):
     subgraph) to a ComputeDAG. It keeps the input/output tensors, all operations in the DAG, and
     some static analysis results for the DAG (e.g. the total float operation count,
     consumer/producer relations of operations, whether an operation stage should
-    be tiled/compute inlined ...).
+    be tiled/compute inlined).
     These analyses can help the search policy to make decisions during the search.
     ComputeDAG is also responsible for the interaction between auto-scheduler's `LoopState` and
     TVM schedule (e.g. applying the `LoopState` transform steps to a TVM schedule, providing
-    `LoopState` with extra information got from TVM schedule ...).
+    `LoopState` with extra information got from TVM schedule).
 
     Parameters
     ----------
-    compute : Union[List[Tensor], str]
-        `Tensor`s or workload key for a compute declaration.
+    compute : Union[List[Tensor], str, Schedule]
+        Input/output tensors or workload key for a compute declaration.
     """
-    def __init__(self, compute):
-        if isinstance(compute, str):
-            compute = workload_key_to_tensors(compute)
-        elif isinstance(compute, list):
-            for item in compute:
+
+    def __init__(self, compute_or_sche):
+        if isinstance(compute_or_sche, str):
+            compute = workload_key_to_tensors(compute_or_sche)
+            sche = None
+        elif isinstance(compute_or_sche, list):
+            for item in compute_or_sche:
                 if not isinstance(item, tvm.te.Tensor):
                     raise ValueError("The input of ComputeDAG should be a list of Tensor")
+            compute = compute_or_sche
+            sche = None
+        elif isinstance(compute_or_sche, tvm.te.Schedule):
+            compute = None
+            sche = compute_or_sche
         else:
-            raise ValueError("Invalid compute: " + compute +
-                             " . ComputeDAG expects a string or list of Tensor")
-        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute)
+            raise ValueError(
+                "Invalid compute type: %s. ComputeDAG expects string, list of Tensor, or Schedule"
+                % type(compute)
+            )
+        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute, sche)
 
     def get_init_state(self):
-        """ Get the init state of this ComputeDAG.
+        """Get the init state of this ComputeDAG.
 
         Returns
         -------
@@ -72,7 +81,7 @@ class ComputeDAG(Object):
         """
         return State(self.init_state, self)
 
-    def apply_steps_from_state(self, state):
+    def apply_steps_from_state(self, state, layout_rewrite=False):
         """
         Apply the history transform steps from a State to get a TVM schedule.
 
@@ -81,12 +90,16 @@ class ComputeDAG(Object):
         state : Union[State, StateObject]
             The state from which we get transform steps.
 
+        layout_rewrite: Bool
+            Rewrite the layout of placeholders specified by "layout_free_placeholders" attr
+            to make it most friendly for the generated schedule to read from.
+
         Returns
         -------
             A `te.schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
         state_obj = state if isinstance(state, StateObject) else state.state_object
-        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj)
+        return _ffi_api.ComputeDAGApplyStepsFromState(self, state_obj, layout_rewrite)
 
     def print_python_code_from_state(self, state):
         """
@@ -141,19 +154,19 @@ class ComputeDAG(Object):
     def __hash__(self):
         # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
         # of ComputeDAG
-        str_key = ''
+        str_key = ""
         for op in self.ops:
             t = op.output(0)
             if isinstance(op, PlaceholderOp):
-                str_key += 'placeholder,'
-                str_key += str(get_const_tuple(t.shape)) + ','
-                str_key += t.dtype + ';'
+                str_key += "placeholder,"
+                str_key += str(get_const_tuple(t.shape)) + ","
+                str_key += t.dtype + ";"
             elif isinstance(op, ComputeOp):
-                str_key += str(t.op.body) + ','
-                str_key += str(get_const_tuple(t.shape)) + ','
-                str_key += t.dtype + ';'
+                str_key += str(t.op.body) + ","
+                str_key += str(get_const_tuple(t.shape)) + ","
+                str_key += t.dtype + ";"
             else:
                 raise ValueError("Invalid op: " + op)
 
-        str_key = str_key.encode(encoding='utf-8')
+        str_key = str_key.encode(encoding="utf-8")
         return hashlib.md5(str_key).hexdigest()

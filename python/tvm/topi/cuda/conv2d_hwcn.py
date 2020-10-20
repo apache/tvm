@@ -24,8 +24,9 @@ from tvm.autotvm.task.space import SplitEntity
 
 from .. import nn, tag
 
+
 @autotvm.register_topi_compute("conv2d_hwcn.cuda")
-def conv2d_hwcn(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+def conv2d_hwcn(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
     """Compute conv2d with HWCN layout on CUDA"""
     return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
 
@@ -47,6 +48,7 @@ def schedule_conv2d_hwcn(cfg, outs):
     """
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     sch = te.create_schedule([x.op for x in outs])
+
     def schedule(Apad, W, B):
         """Schedule conv2d_hwcn"""
         sch[Apad].compute_inline()
@@ -70,37 +72,37 @@ def schedule_conv2d_hwcn(cfg, outs):
         vthread_cand = [1, 2, 4, 8]
 
         cfg.define_split(
-            'tile_fi',
+            "tile_fi",
             fi,
             num_outputs=4,
-            filter=lambda x:
-            (x.size[1] in vthread_cand and x.size[2] in n_thread_cand))
+            filter=lambda x: (x.size[1] in vthread_cand and x.size[2] in n_thread_cand),
+        )
         cfg.define_split(
-            'tile_ni',
+            "tile_ni",
             ni,
             num_outputs=4,
-            filter=lambda x:
-            (x.size[1] in vthread_cand and x.size[2] in n_thread_cand))
+            filter=lambda x: (x.size[1] in vthread_cand and x.size[2] in n_thread_cand),
+        )
 
         if cfg.is_fallback:
-            cfg['tile_fi'] = SplitEntity([-1, 2, 8, 4])
-            cfg['tile_ni'] = SplitEntity([-1, 2, 8, 4])
+            cfg["tile_fi"] = SplitEntity([-1, 2, 8, 4])
+            cfg["tile_ni"] = SplitEntity([-1, 2, 8, 4])
 
         # Scheduling
         step = 8
 
         bz = sch[Out].fuse(hi, wi)
-        by, tyz, ty, fi = cfg['tile_fi'].apply(sch, Out, fi)
-        bx, txz, tx, ni = cfg['tile_ni'].apply(sch, Out, ni)
+        by, tyz, ty, fi = cfg["tile_fi"].apply(sch, Out, fi)
+        bx, txz, tx, ni = cfg["tile_ni"].apply(sch, Out, ni)
         sch[Out].reorder(bz, by, bx, tyz, txz, ty, tx, fi, ni)
 
-        sch[Out].bind(bz, te.thread_axis('blockIdx.z'))
-        sch[Out].bind(by, te.thread_axis('blockIdx.y'))
-        sch[Out].bind(bx, te.thread_axis('blockIdx.x'))
-        sch[Out].bind(tyz, te.thread_axis('vthread'))
-        sch[Out].bind(txz, te.thread_axis('vthread'))
-        sch[Out].bind(ty, te.thread_axis('threadIdx.y'))
-        sch[Out].bind(tx, te.thread_axis('threadIdx.x'))
+        sch[Out].bind(bz, te.thread_axis("blockIdx.z"))
+        sch[Out].bind(by, te.thread_axis("blockIdx.y"))
+        sch[Out].bind(bx, te.thread_axis("blockIdx.x"))
+        sch[Out].bind(tyz, te.thread_axis("vthread"))
+        sch[Out].bind(txz, te.thread_axis("vthread"))
+        sch[Out].bind(ty, te.thread_axis("threadIdx.y"))
+        sch[Out].bind(tx, te.thread_axis("threadIdx.x"))
 
         # Schedule BL local write
         sch[BL].compute_at(sch[Out], tx)
@@ -118,21 +120,21 @@ def schedule_conv2d_hwcn(cfg, outs):
         sch[WL].compute_at(sch[BL], rci)
         # Schedule for A's shared memory load
         yi, xi, ci, ni = sch[AA].op.axis
-        ty, ci = sch[AA].split(ci, nparts=cfg['tile_fi'].size[2])
-        tx, ni = sch[AA].split(ni, nparts=cfg['tile_ni'].size[2])
+        ty, ci = sch[AA].split(ci, nparts=cfg["tile_fi"].size[2])
+        tx, ni = sch[AA].split(ni, nparts=cfg["tile_ni"].size[2])
         _, ni = sch[AA].split(ni, factor=4)
         sch[AA].reorder(ty, tx, yi, xi, ci, ni)
-        sch[AA].bind(ty, te.thread_axis('threadIdx.y'))
-        sch[AA].bind(tx, te.thread_axis('threadIdx.x'))
+        sch[AA].bind(ty, te.thread_axis("threadIdx.y"))
+        sch[AA].bind(tx, te.thread_axis("threadIdx.x"))
         sch[AA].vectorize(ni)
         # Schedule for W's shared memory load
         yi, xi, ci, fi = sch[WW].op.axis
-        ty, ci = sch[WW].split(ci, nparts=cfg['tile_fi'].size[2])
-        tx, fi = sch[WW].split(fi, nparts=cfg['tile_ni'].size[2])
+        ty, ci = sch[WW].split(ci, nparts=cfg["tile_fi"].size[2])
+        tx, fi = sch[WW].split(fi, nparts=cfg["tile_ni"].size[2])
         _, fi = sch[WW].split(fi, factor=4)
         sch[WW].reorder(ty, tx, yi, xi, ci, fi)
-        sch[WW].bind(ty, te.thread_axis('threadIdx.y'))
-        sch[WW].bind(tx, te.thread_axis('threadIdx.x'))
+        sch[WW].bind(ty, te.thread_axis("threadIdx.y"))
+        sch[WW].bind(tx, te.thread_axis("threadIdx.x"))
         sch[WW].vectorize(fi)
 
     scheduled_ops = []
@@ -145,10 +147,10 @@ def schedule_conv2d_hwcn(cfg, outs):
             for tensor in operator.input_tensors:
                 if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        elif operator.tag == 'conv2d_hwcn':
+        elif operator.tag == "conv2d_hwcn":
             Apad = operator.input_tensors[0]
             W = operator.input_tensors[1]
-            if isinstance(W.op, tvm.te.ComputeOp) and 'dilate' in W.op.tag:
+            if isinstance(W.op, tvm.te.ComputeOp) and "dilate" in W.op.tag:
                 sch[W].compute_inline()
             B = operator.output(0)
             schedule(Apad, W, B)

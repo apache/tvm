@@ -65,11 +65,10 @@ def _conv2d_nchw_python(a_np, w_np, stride, padding):
             for c in range(in_channel):
                 if pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_height + pad_h, in_width + pad_w))
-                    apad[pad_top:pad_top + in_height, pad_left:pad_left + in_width] = a_np[n, c]
+                    apad[pad_top : pad_top + in_height, pad_left : pad_left + in_width] = a_np[n, c]
                 else:
                     apad = a_np[n, c]
-                out = scipy.signal.convolve2d(
-                    apad, np.rot90(np.rot90(w_np[f, c])), mode='valid')
+                out = scipy.signal.convolve2d(apad, np.rot90(np.rot90(w_np[f, c])), mode="valid")
                 b_np[n, f] += out[::stride_h, ::stride_w]
     return b_np
 
@@ -103,7 +102,9 @@ def conv2d_nchw_python(a_np, w_np, stride, padding, groups=1):
     """
     a_slices = np.array_split(a_np, groups, axis=1)
     w_slices = np.array_split(w_np, groups, axis=0)
-    b_slices = [_conv2d_nchw_python(a_slice, w_slice, stride, padding)
-                for a_slice, w_slice in zip(a_slices, w_slices)]
+    b_slices = [
+        _conv2d_nchw_python(a_slice, w_slice, stride, padding)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
     b_np = np.concatenate(b_slices, axis=1)
     return b_np

@@ -23,29 +23,36 @@ from tvm import autotvm
 from tvm import topi
 from tvm.relay.testing import run_infer_type
 from tvm.relay.testing.temp_op_attr import TempOpAttr
+import tvm.testing
 
 
 @autotvm.register_topi_compute("test/conv2d_1")
 def _compute_conv2d_1(cfg, input, filter, strides, padding, dilation, out_dtype):
     return topi.nn.conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
 
+
 @autotvm.register_topi_schedule("test/conv2d_1")
 def _schedule_conv2d_1(cfg, outs):
     return topi.generic.schedule_conv2d_nchw(outs)
+
 
 @autotvm.register_topi_compute("test/conv2d_2")
 def _compute_conv2d_2(cfg, input, filter, strides, padding, dilation, out_dtype):
     return topi.nn.conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
 
+
 @autotvm.register_topi_schedule("test/conv2d_2")
 def _schedule_conv2d_2(cfg, outs):
     return topi.generic.schedule_conv2d_nchw(outs)
 
+
 def _compute_conv2d_3(input, filter, strides, padding, dilation, out_dtype):
     return topi.nn.conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
 
+
 def _schedule_conv2d_3(outs):
     return topi.generic.schedule_conv2d_nchw(outs)
+
 
 @tvm.target.override_native_generic_func("test_conv2d_strategy")
 def _tmp_strategy(attrs, inputs, out_type, target):
@@ -54,24 +61,27 @@ def _tmp_strategy(attrs, inputs, out_type, target):
         relay.op.strategy.wrap_compute_conv2d(_compute_conv2d_1),
         relay.op.strategy.wrap_topi_schedule(_schedule_conv2d_1),
         name="conv2d_1",
-        plevel=10)
+        plevel=10,
+    )
     strategy.add_implementation(
         relay.op.strategy.wrap_compute_conv2d(_compute_conv2d_2),
         relay.op.strategy.wrap_topi_schedule(_schedule_conv2d_2),
         name="conv2d_2",
-        plevel=15)
+        plevel=15,
+    )
     ic = inputs[0].shape[1]
     with tvm.te.SpecializedCondition(ic >= 16):
         strategy.add_implementation(
             relay.op.strategy.wrap_compute_conv2d(_compute_conv2d_3),
             relay.op.strategy.wrap_topi_schedule(_schedule_conv2d_3),
             name="conv2d_3",
-            plevel=20)
+            plevel=20,
+        )
     return strategy
 
+
 def _create_record(task_name, dshape, wshape, target, cost):
-    args = [te.placeholder(dshape), te.placeholder(wshape), (1, 1), (1, 1, 1, 1),
-            (1, 1), 'float32']
+    args = [te.placeholder(dshape), te.placeholder(wshape), (1, 1), (1, 1, 1, 1), (1, 1), "float32"]
     task = autotvm.task.create(task_name, args, target)
     cfg = autotvm.ConfigEntity(0, None, {}, [])
     cfg.cost = cost
@@ -79,8 +89,9 @@ def _create_record(task_name, dshape, wshape, target, cost):
     result = autotvm.MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
     return (inp, result)
 
+
 def test_get_valid_implementations():
-    target = tvm.target.create("llvm")
+    target = tvm.target.Target("llvm")
 
     def _get_impls(dshape, wshape):
         data = relay.var("data", shape=dshape)
@@ -92,7 +103,8 @@ def test_get_valid_implementations():
             out.attrs,
             [te.placeholder(dshape), te.placeholder(wshape)],
             out.checked_type,
-            target)
+            target,
+        )
 
     with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
         impls = _get_impls((1, 8, 7, 7), (32, 8, 3, 3))
@@ -100,8 +112,9 @@ def test_get_valid_implementations():
         impls = _get_impls((1, 16, 7, 7), (32, 16, 3, 3))
         assert len(impls) == 3
 
+
 def test_select_implementation():
-    target = tvm.target.create("llvm")
+    target = tvm.target.Target("llvm")
 
     def _select_impl(dshape, wshape, use_autotvm=False):
         data = relay.var("data", shape=dshape)
@@ -114,7 +127,8 @@ def test_select_implementation():
             [te.placeholder(dshape), te.placeholder(wshape)],
             out.checked_type,
             target,
-            use_autotvm)
+            use_autotvm,
+        )
 
     with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
         impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3))
@@ -146,8 +160,10 @@ def test_select_implementation():
                 impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
                 assert impl.name == "conv2d_1"
 
+
 def test_compile_engine():
     engine = relay.backend.compile_engine.get()
+
     def get_func(shape):
         x = relay.var("x", shape=shape)
         y = relay.add(x, x)
@@ -156,26 +172,27 @@ def test_compile_engine():
         mod = tvm.IRModule.from_expr(f)
         mod = relay.transform.InferType()(mod)
         return mod["main"]
+
     z1 = engine.lower(get_func((10,)), "llvm")
     z2 = engine.lower(get_func((10,)), "llvm")
     z3 = engine.lower(get_func(()), "llvm")
     assert z1.same_as(z2)
     assert not z3.same_as(z1)
-    if tvm.context("cuda").exist:
+    if tvm.testing.device_enabled("cuda"):
         z4 = engine.lower(get_func(()), "cuda")
         assert not z3.same_as(z4)
 
     # Test JIT target
     for target in ["llvm"]:
         ctx = tvm.context(target)
-        if ctx.exist:
+        if tvm.testing.device_enabled(target):
             f = engine.jit(get_func((10,)), target)
             x = tvm.nd.array(np.ones(10).astype("float32"), ctx=ctx)
             y = tvm.nd.empty((10,), ctx=ctx)
             f(x, y)
-            tvm.testing.assert_allclose(
-                y.asnumpy(), x.asnumpy() * 3)
+            tvm.testing.assert_allclose(y.asnumpy(), x.asnumpy() * 3)
     engine.dump()
+
 
 def test_compile_placeholder_bypass():
     engine = relay.backend.compile_engine.get()
@@ -185,7 +202,7 @@ def test_compile_placeholder_bypass():
     result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
     func = relay.Function(relay.analysis.free_vars(result), result)
     with tvm.transform.PassContext(opt_level=0):
-       graph, lib, params = relay.build(tvm.IRModule.from_expr(func), 'llvm')
+        graph, lib, params = relay.build(tvm.IRModule.from_expr(func), "llvm")
 
 
 def test_compile_injective_with_tuple():
@@ -194,7 +211,7 @@ def test_compile_injective_with_tuple():
     x_transpose = relay.transpose(x)
     output = relay.Tuple([x_transpose, y])
     func = relay.Function([x, y], output)
-    relay.build(tvm.IRModule.from_expr(func), 'llvm')
+    relay.build(tvm.IRModule.from_expr(func), "llvm")
 
 
 def test_compile_tuple_dup():
@@ -202,30 +219,38 @@ def test_compile_tuple_dup():
     log = relay.log(x)
     output = relay.Tuple([log, log])
     f = relay.Function([x], output)
-    relay.build(tvm.IRModule.from_expr(f), 'llvm')
+    relay.build(tvm.IRModule.from_expr(f), "llvm")
 
 
 def test_compile_full():
     # Shape calculations can happen in int64. The test checks that full operator
     # can handle when shapes are not int32
-    shape = (tvm.tir.IntImm('int32', 1),
-             tvm.tir.IntImm('int64', 16),
-             tvm.tir.IntImm('int64', 16),
-             tvm.tir.IntImm('int32', 64))
-    output = relay.full(relay.const(0, 'int32'), shape=shape, dtype='int32')
+    shape = (
+        tvm.tir.IntImm("int32", 1),
+        tvm.tir.IntImm("int64", 16),
+        tvm.tir.IntImm("int64", 16),
+        tvm.tir.IntImm("int32", 64),
+    )
+    output = relay.full(relay.const(0, "int32"), shape=shape, dtype="int32")
     f = relay.Function([], output)
     mod = tvm.IRModule.from_expr(f)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
-    relay.build(mod, 'llvm')
+    relay.build(mod, "llvm")
 
 
 def test_compile_nhwc_pack():
     data = relay.var("data", shape=(1, 1, 1, 1024), dtype="uint8")
     weight = relay.var("weight", shape=(1, 1, 1024, 1001), dtype="int8")
     p2 = relay.var("p2", shape=(1, 1, 1, 1), dtype="int32")
-    conv = relay.nn.conv2d(data, weight, kernel_size=(1, 1), data_layout="NHWC",
-                           kernel_layout="HWIO", out_dtype="int32")
-    multiply = relay.multiply(relay.const(-22, dtype='int32'), p2)
+    conv = relay.nn.conv2d(
+        data,
+        weight,
+        kernel_size=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="int32",
+    )
+    multiply = relay.multiply(relay.const(-22, dtype="int32"), p2)
     tile = relay.tile(multiply, reps=(1, 1, 1, 1001))
     subtract = relay.subtract(conv, tile)
 

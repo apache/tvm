@@ -26,6 +26,8 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 from tvm.topi.vision import ssd, non_max_suppression, get_valid_counts
+import pytest
+import tvm.testing
 
 _get_valid_counts_implement = {
     "generic": (topi.vision.get_valid_counts, topi.generic.schedule_get_valid_counts),
@@ -63,6 +65,7 @@ _proposal_implement = {
     "gpu": (topi.cuda.proposal, topi.cuda.schedule_proposal),
 }
 
+
 def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
     dtype = "float32"
     batch_size, num_anchor, elem_length = dshape
@@ -88,11 +91,11 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _get_valid_counts_implement)
             data = te.placeholder(dshape, name="data", dtype=dtype)
             outs = fcompute(data, score_threshold, id_index, score_index)
@@ -114,16 +117,15 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
             tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
             tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
-    """ Skip this test as it is intermittent
-        see https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094
-    for device in ['llvm', 'cuda', 'opencl']:
-        # Disable gpu test for now
-        if device != "llvm":
-            continue
+    for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
-    """
 
 
+@tvm.testing.uses_gpu
+@pytest.mark.skip(
+    "Skip this test as it is intermittent."
+    "See https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094"
+)
 def test_get_valid_counts():
     verify_get_valid_counts((1, 1000, 5), 0.5, -1, 0)
     verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
@@ -132,8 +134,20 @@ def test_get_valid_counts():
     verify_get_valid_counts((16, 500, 5), 0.95, -1, 1)
 
 
-def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result, max_output_size,
-                               iou_threshold, force_suppress, top_k, coord_start, score_index, id_index):
+def verify_non_max_suppression(
+    np_data,
+    np_valid_count,
+    np_indices,
+    np_result,
+    np_indices_result,
+    max_output_size,
+    iou_threshold,
+    force_suppress,
+    top_k,
+    coord_start,
+    score_index,
+    id_index,
+):
     dshape = np_data.shape
     batch, num_anchors, _ = dshape
     indices_dshape = (batch, num_anchors)
@@ -143,18 +157,38 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _nms_implement)
-            out = fcompute(data, valid_count, indices, max_output_size, iou_threshold, force_suppress,
-                           top_k, coord_start=coord_start, score_index=score_index, id_index=id_index,
-                           return_indices=False)
-            indices_out = fcompute(data, valid_count, indices, max_output_size, iou_threshold, force_suppress,
-                                   top_k, coord_start=coord_start, score_index=score_index, id_index=id_index,
-                                   return_indices=True)
+            out = fcompute(
+                data,
+                valid_count,
+                indices,
+                max_output_size,
+                iou_threshold,
+                force_suppress,
+                top_k,
+                coord_start=coord_start,
+                score_index=score_index,
+                id_index=id_index,
+                return_indices=False,
+            )
+            indices_out = fcompute(
+                data,
+                valid_count,
+                indices,
+                max_output_size,
+                iou_threshold,
+                force_suppress,
+                top_k,
+                coord_start=coord_start,
+                score_index=score_index,
+                id_index=id_index,
+                return_indices=True,
+            )
             s = fschedule(out)
             indices_s = fschedule(indices_out)
 
@@ -168,7 +202,7 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
         tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
-        if device == 'llvm':
+        if device == "llvm":
             f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], device)
             f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
         else:
@@ -176,40 +210,99 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
             f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
         tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for device in ['llvm', 'cuda', 'opencl']:
+    for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_non_max_suppression():
-    np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
-                         [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
-                         [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45],
+                [1, 0.7, 30, 60, 50, 80],
+                [0, 0.4, 4, 21, 19, 40],
+                [2, 0.9, 35, 61, 52, 79],
+                [1, 0.5, 100, 60, 70, 110],
+            ]
+        ]
+    ).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
     np_indices = np.array([[0, 1, 2, 3, 4]]).astype("int32")
     max_output_size = -1
-    np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
-                           [-1, -1, -1, -1, -1, -1]]])
+    np_result = np.array(
+        [
+            [
+                [2, 0.9, 35, 61, 52, 79],
+                [0, 0.8, 1, 20, 25, 45],
+                [-1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1],
+            ]
+        ]
+    )
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
 
-    verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result,
-                               max_output_size, 0.7, True, 2, 2, 1, 0)
+    verify_non_max_suppression(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_result,
+        np_indices_result,
+        max_output_size,
+        0.7,
+        True,
+        2,
+        2,
+        1,
+        0,
+    )
 
-    np_data = np.array([[[0.8, 1, 20, 25, 45], [0.7, 30, 60, 50, 80],
-                         [0.4, 4, 21, 19, 40], [0.9, 35, 61, 52, 79],
-                         [0.5, 100, 60, 70, 110]]]).astype("float32")
+    np_data = np.array(
+        [
+            [
+                [0.8, 1, 20, 25, 45],
+                [0.7, 30, 60, 50, 80],
+                [0.4, 4, 21, 19, 40],
+                [0.9, 35, 61, 52, 79],
+                [0.5, 100, 60, 70, 110],
+            ]
+        ]
+    ).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
     np_indices = np.array([[0, 1, 2, 3, 4]]).astype("int32")
     max_output_size = 2
-    np_result = np.array([[[0.9, 35, 61, 52, 79], [0.8, 1, 20, 25, 45],
-                           [-1, -1, -1, -1, -1], [-1, -1, -1, -1, -1],
-                           [-1, -1, -1, -1, -1]]])
+    np_result = np.array(
+        [
+            [
+                [0.9, 35, 61, 52, 79],
+                [0.8, 1, 20, 25, 45],
+                [-1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1],
+            ]
+        ]
+    )
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
-    verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, np_indices_result,
-                               max_output_size, 0.7, False, 2, 1, 0, -1)
+    verify_non_max_suppression(
+        np_data,
+        np_valid_count,
+        np_indices,
+        np_result,
+        np_indices_result,
+        max_output_size,
+        0.7,
+        False,
+        2,
+        1,
+        0,
+        -1,
+    )
 
 
-def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
+def verify_multibox_prior(
+    dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False
+):
     data = te.placeholder(dshape, name="data")
 
     dtype = data.dtype
@@ -233,11 +326,25 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
         for j in range(in_width):
             center_w = (j + offset_w) * steps_w
             for k in range(num_sizes + num_ratios - 1):
-                w = size_ratio_concat[k] * in_height / in_width / 2.0 if k < num_sizes else \
-                    size_ratio_concat[0] * in_height / in_width * math.sqrt(size_ratio_concat[k + 1]) / 2.0
-                h = size_ratio_concat[k] / 2.0 if k < num_sizes else \
-                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0
-                count = i * in_width * (num_sizes + num_ratios - 1) + j * (num_sizes + num_ratios - 1) + k
+                w = (
+                    size_ratio_concat[k] * in_height / in_width / 2.0
+                    if k < num_sizes
+                    else size_ratio_concat[0]
+                    * in_height
+                    / in_width
+                    * math.sqrt(size_ratio_concat[k + 1])
+                    / 2.0
+                )
+                h = (
+                    size_ratio_concat[k] / 2.0
+                    if k < num_sizes
+                    else size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0
+                )
+                count = (
+                    i * in_width * (num_sizes + num_ratios - 1)
+                    + j * (num_sizes + num_ratios - 1)
+                    + k
+                )
                 np_out[0][count][0] = center_w - w
                 np_out[0][count][1] = center_h - h
                 np_out[0][count][2] = center_w + w
@@ -247,13 +354,13 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _multibox_prior_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = fcompute(data, sizes, ratios, steps, offsets, clip)
             s = fschedule(out)
 
@@ -263,16 +370,20 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
         f(tvm_input_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
 
-    for device in ['llvm', 'opencl', 'cuda']:
+    for device in ["llvm", "opencl", "cuda"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_multibox_prior():
     verify_multibox_prior((1, 3, 50, 50))
     verify_multibox_prior((1, 3, 224, 224), sizes=(0.5, 0.25, 0.1), ratios=(1, 2, 0.5))
-    verify_multibox_prior((1, 32, 32, 32), sizes=(0.5, 0.25), ratios=(1, 2), steps=(2, 2), clip=True)
+    verify_multibox_prior(
+        (1, 32, 32, 32), sizes=(0.5, 0.25), ratios=(1, 2), steps=(2, 2), clip=True
+    )
 
 
+@tvm.testing.uses_gpu
 def test_multibox_detection():
     batch_size = 1
     num_anchors = 3
@@ -286,19 +397,25 @@ def test_multibox_detection():
     np_loc_preds = np.array([[0.1, -0.2, 0.3, 0.2, 0.2, 0.4, 0.5, -0.3, 0.7, -0.2, -0.4, -0.8]])
     np_anchors = np.array([[[-0.1, -0.1, 0.1, 0.1], [-0.2, -0.2, 0.2, 0.2], [1.2, 1.2, 1.5, 1.5]]])
 
-    expected_np_out = np.array([[[1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
-                                 [0, 0.44999999, 1, 1, 1, 1],
-                                 [0, 0.30000001, 0, 0, 0.22903419, 0.20435292]]])
+    expected_np_out = np.array(
+        [
+            [
+                [1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
+                [0, 0.44999999, 1, 1, 1, 1],
+                [0, 0.30000001, 0, 0, 0.22903419, 0.20435292],
+            ]
+        ]
+    )
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
         fcompute, fschedule = tvm.topi.testing.dispatch(device, _multibox_detection_implement)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = fcompute(cls_prob, loc_preds, anchors)
             s = fschedule(out)
 
@@ -310,7 +427,7 @@ def test_multibox_detection():
         f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
 
-    for device in ['llvm', 'opencl', 'cuda']:
+    for device in ["llvm", "opencl", "cuda"]:
         check_device(device)
 
 
@@ -323,12 +440,16 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
 
     @memoize("topi.tests.test_topi_vision.verify_roi_align")
     def get_ref_data():
-        a_np = np.random.uniform(size=a_shape).astype('float32')
-        rois_np = np.random.uniform(size=rois_shape).astype('float32') * in_size
-        rois_np[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi)
-        b_np = tvm.topi.testing.roi_align_nchw_python(a_np, rois_np, pooled_size=pooled_size,
-                                                  spatial_scale=spatial_scale,
-                                                  sample_ratio=sample_ratio)
+        a_np = np.random.uniform(size=a_shape).astype("float32")
+        rois_np = np.random.uniform(size=rois_shape).astype("float32") * in_size
+        rois_np[:, 0] = np.random.randint(low=0, high=batch, size=num_roi)
+        b_np = tvm.topi.testing.roi_align_nchw_python(
+            a_np,
+            rois_np,
+            pooled_size=pooled_size,
+            spatial_scale=spatial_scale,
+            sample_ratio=sample_ratio,
+        )
 
         return a_np, rois_np, b_np
 
@@ -336,16 +457,20 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _roi_align_implement)
-            b = fcompute(a, rois, pooled_size=pooled_size,
-                         spatial_scale=spatial_scale,
-                         sample_ratio=sample_ratio)
+            b = fcompute(
+                a,
+                rois,
+                pooled_size=pooled_size,
+                spatial_scale=spatial_scale,
+                sample_ratio=sample_ratio,
+            )
             s = fschedule(b)
 
         tvm_a = tvm.nd.array(a_np, ctx)
@@ -355,10 +480,11 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         f(tvm_a, tvm_rois, tvm_b)
         tvm.testing.assert_allclose(tvm_b.asnumpy(), b_np, rtol=1e-3)
 
-    for device in ['llvm', 'cuda', 'opencl']:
+    for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_roi_align():
     verify_roi_align(1, 16, 32, 64, 7, 1.0, -1)
     verify_roi_align(4, 16, 32, 64, 7, 0.5, 2)
@@ -375,26 +501,28 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
 
     @memoize("topi.tests.test_topi_vision.verify_roi_pool")
     def get_ref_data():
-        a_np = np.random.uniform(size=a_shape).astype('float32')
-        rois_np = np.random.uniform(size=rois_shape).astype('float32') * in_size
-        rois_np[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi).astype('float32')
+        a_np = np.random.uniform(size=a_shape).astype("float32")
+        rois_np = np.random.uniform(size=rois_shape).astype("float32") * in_size
+        rois_np[:, 0] = np.random.randint(low=0, high=batch, size=num_roi).astype("float32")
 
-        b_np = tvm.topi.testing.roi_pool_nchw_python(a_np, rois_np, pooled_size=pooled_size,
-                                                 spatial_scale=spatial_scale)
+        b_np = tvm.topi.testing.roi_pool_nchw_python(
+            a_np, rois_np, pooled_size=pooled_size, spatial_scale=spatial_scale
+        )
         return a_np, rois_np, b_np
 
     a_np, rois_np, b_np = get_ref_data()
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
 
-        with tvm.target.create(device):
-            b = topi.vision.rcnn.roi_pool_nchw(a, rois, pooled_size=pooled_size,
-                                                spatial_scale=spatial_scale)
+        with tvm.target.Target(device):
+            b = topi.vision.rcnn.roi_pool_nchw(
+                a, rois, pooled_size=pooled_size, spatial_scale=spatial_scale
+            )
             s_func = tvm.topi.testing.dispatch(device, _roi_pool_schedule)
             s = s_func(b)
 
@@ -405,10 +533,11 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
         f(tvm_a, tvm_rois, tvm_b)
         tvm.testing.assert_allclose(tvm_b.asnumpy(), b_np, rtol=1e-4)
 
-    for device in ['cuda', 'llvm']:
+    for device in ["cuda", "llvm"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_roi_pool():
     verify_roi_pool(1, 4, 16, 32, 7, 1.0)
     verify_roi_pool(4, 4, 16, 32, 7, 0.5)
@@ -421,11 +550,11 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _proposal_implement)
             out = fcompute(cls_prob, bbox_pred, im_info, **attrs)
             s = fschedule(out)
@@ -437,47 +566,66 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
             f(tvm_cls_prob, tvm_bbox_pred, tvm_im_info, tvm_out)
             tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
 
-    for device in ['llvm', 'cuda']:
+    for device in ["llvm", "cuda"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_proposal():
-    attrs = {'scales': (0.5,),'ratios': (0.5,),
-        'feature_stride': 16,
-        'iou_loss': False,
-        'rpn_min_size': 16,
-        'threshold': 0.7,
-        'rpn_pre_nms_top_n': 200,
-        'rpn_post_nms_top_n': 4,
+    attrs = {
+        "scales": (0.5,),
+        "ratios": (0.5,),
+        "feature_stride": 16,
+        "iou_loss": False,
+        "rpn_min_size": 16,
+        "threshold": 0.7,
+        "rpn_pre_nms_top_n": 200,
+        "rpn_post_nms_top_n": 4,
     }
-    np_cls_prob = np.array([[
-        [[0.3, 0.6, 0.2], [0.4, 0.7, 0.5], [0.1, 0.4, 0.3]],
-        [[0.7, 0.5, 0.3], [0.6, 0.4, 0.8], [0.9, 0.2, 0.5]]
-    ]], dtype='float32')
-    np_bbox_pred = np.array([[
-        [[0.5, 1.0, 0.6], [0.8,  1.2, 2.0], [0.9, 1.0, 0.8]],
-        [[0.5, 1.0, 0.7], [0.8,  1.2, 1.6], [2.1, 1.5, 0.7]],
-        [[1.0, 0.5, 0.7], [1.5,  0.9, 1.6], [1.4, 1.5, 0.8]],
-        [[1.0, 0.5, 0.6], [1.5,  0.9, 2.0], [1.8, 1.0, 0.9]],
-    ]], dtype='float32')
-    np_im_info = np.array([[48., 48., 1.]], dtype='float32')
-    np_out = np.array([
-        [0., 0., 2.8451548,28.38012, 18.154846],
-        [0., 0., 15.354933, 41.96971, 41.245064],
-        [0., 18.019852, 1.0538368, 51.98015, 25.946163],
-        [0., 27.320923, -1.266357, 55., 24.666357]
-    ], dtype='float32')
+    np_cls_prob = np.array(
+        [
+            [
+                [[0.3, 0.6, 0.2], [0.4, 0.7, 0.5], [0.1, 0.4, 0.3]],
+                [[0.7, 0.5, 0.3], [0.6, 0.4, 0.8], [0.9, 0.2, 0.5]],
+            ]
+        ],
+        dtype="float32",
+    )
+    np_bbox_pred = np.array(
+        [
+            [
+                [[0.5, 1.0, 0.6], [0.8, 1.2, 2.0], [0.9, 1.0, 0.8]],
+                [[0.5, 1.0, 0.7], [0.8, 1.2, 1.6], [2.1, 1.5, 0.7]],
+                [[1.0, 0.5, 0.7], [1.5, 0.9, 1.6], [1.4, 1.5, 0.8]],
+                [[1.0, 0.5, 0.6], [1.5, 0.9, 2.0], [1.8, 1.0, 0.9]],
+            ]
+        ],
+        dtype="float32",
+    )
+    np_im_info = np.array([[48.0, 48.0, 1.0]], dtype="float32")
+    np_out = np.array(
+        [
+            [0.0, 0.0, 2.8451548, 28.38012, 18.154846],
+            [0.0, 0.0, 15.354933, 41.96971, 41.245064],
+            [0.0, 18.019852, 1.0538368, 51.98015, 25.946163],
+            [0.0, 27.320923, -1.266357, 55.0, 24.666357],
+        ],
+        dtype="float32",
+    )
 
     verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
 
-    np_out = np.array([
-        [ 0., -5.25, -2.5, 21.75, 19.],
-        [ 0., 11.25, -2., 37.25, 18.5],
-        [ 0., 26.849998, -2.3000002, 53.45, 18.6],
-        [ 0., -4.95, 13.799999, 22.25, 35.5]
-    ], dtype='float32')
+    np_out = np.array(
+        [
+            [0.0, -5.25, -2.5, 21.75, 19.0],
+            [0.0, 11.25, -2.0, 37.25, 18.5],
+            [0.0, 26.849998, -2.3000002, 53.45, 18.6],
+            [0.0, -4.95, 13.799999, 22.25, 35.5],
+        ],
+        dtype="float32",
+    )
 
-    attrs['iou_loss'] = True
+    attrs["iou_loss"] = True
     verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
 
 

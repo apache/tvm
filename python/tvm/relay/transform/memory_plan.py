@@ -49,6 +49,7 @@ class Region:
     The below pass groups sets of allocations into regions,
     then replaces the region with a single allocation.
     """
+
     var: expr.Var
     size: expr.Expr
     alignment: Optional[expr.Expr]
@@ -64,12 +65,15 @@ class Region:
         return Region(region_var, zero, None, None, None, {})
 
     def grow(
-            self, old_storage: expr.Var,
-            size: expr.Expr, alignment: expr.Expr,
-            ctx: TVMContext,
-            dtype: str) -> None:
+        self,
+        old_storage: expr.Var,
+        size: expr.Expr,
+        alignment: expr.Expr,
+        ctx: TVMContext,
+        dtype: str,
+    ) -> None:
         """Grow the region by a given allocation as well as track the old storage
-           for later rewriting the program to use the allocated region.
+        for later rewriting the program to use the allocated region.
         """
         if self.dtype:
             assert self.dtype == dtype, "must have matching dtypes in a region"
@@ -84,14 +88,16 @@ class Region:
             self.alignment = alignment
 
         if self.ctx:
-            assert (self.ctx.device_type == ctx.device_type and
-                    self.ctx.device_id == ctx.device_id), "must have matching context"
+            assert (
+                self.ctx.device_type == ctx.device_type and self.ctx.device_id == ctx.device_id
+            ), "must have matching context"
         else:
             assert ctx
             self.ctx = ctx
 
-        new_size = (size + self.alignment - expr.const(1, "int64")) \
-            / self.alignment * self.alignment
+        new_size = (
+            (size + self.alignment - expr.const(1, "int64")) / self.alignment * self.alignment
+        )
 
         # Record the offset at which we allocate the storage.
         offset_var: expr.RelayExpr = expr.var(f"offset{len(self.offsets)}")
@@ -150,7 +156,6 @@ def iterative_let(let, each_binding, kont):
     return kont(bindings, let)
 
 
-
 def mk_let(bindings, body):
     for var, value in reversed(bindings):
         assert var
@@ -160,10 +165,12 @@ def mk_let(bindings, body):
 
     return body
 
+
 def const_eval(mod, exp):
     mod = IRModule.from_expr(exp, type_defs=mod.type_definitions)
     mod = transform.FoldConstant()(mod)
     return mod["main"]
+
 
 class StorageCoalesce(ExprMutator):
     """
@@ -237,9 +244,9 @@ class StorageCoalesce(ExprMutator):
 
         return expr.If(ite.cond, true_branch, false_branch)
 
-
     def mk_let(self, dynamic_regions):
         """Let bind the dynamic regions"""
+
         def _mk_let(bindings, body):
             for var, value in reversed(bindings):
                 assert var
@@ -255,14 +262,11 @@ class StorageCoalesce(ExprMutator):
 
     def visit_let(self, let):
         dynamic_regions = []
+
         def _each_binding(lhs, rhs):
-            if isinstance(rhs, expr.Call) and rhs.op == op.op.get(
-                    "memory.alloc_storage"
-            ):
+            if isinstance(rhs, expr.Call) and rhs.op == op.op.get("memory.alloc_storage"):
                 return self.process_alloc_storage(dynamic_regions, lhs, rhs)
-            elif isinstance(rhs, expr.Call) and rhs.op == op.op.get(
-                    "memory.alloc_tensor"
-            ):
+            elif isinstance(rhs, expr.Call) and rhs.op == op.op.get("memory.alloc_tensor"):
                 return self.process_alloc_tensor(lhs, rhs)
             else:
                 return lhs, rhs
@@ -280,6 +284,13 @@ class StorageCoalesce(ExprMutator):
         if not isinstance(size, expr.Constant):
             self.enter_scope()
             dynamic_regions.append(lhs)
+        else:
+            # A new scope is created when entering a new region with different
+            # device context.
+            region = self.current_region(dtype)
+            if region.ctx and region.ctx.device_type != ctx.device_type:
+                self.enter_scope()
+                dynamic_regions.append(lhs)
 
         region = self.current_region(dtype)
         region.grow(lhs, size, alignment, ctx, dtype)
@@ -290,16 +301,16 @@ class StorageCoalesce(ExprMutator):
         storage, old_offset, shape = call.args
         region, offset = self.new_region_and_offset(storage)
 
-        assert (
-            old_offset.data.asnumpy().item() == 0
-        ), "no offsets should yet be allocated"
+        assert old_offset.data.asnumpy().item() == 0, "no offsets should yet be allocated"
         return (
             lhs,
             expr.Call(call.op, [region.var, offset, shape], call.attrs),
         )
 
+
 class LiftConst(ExprMutator):
     """An internal pass to lift constants to the top level of function."""
+
     def __init__(self):
         self.i = 0
         self.constants = []
@@ -323,12 +334,7 @@ class LiftConst(ExprMutator):
         body = mk_let(self.constants, body)
         self.constants = outer_constant
 
-        return Function(
-            fn.params,
-            body,
-            fn.ret_type,
-            fn.type_params,
-            fn.attrs)
+        return Function(fn.params, body, fn.ret_type, fn.type_params, fn.attrs)
 
     def visit_let(self, let):
         bindings = []
@@ -341,6 +347,7 @@ class LiftConst(ExprMutator):
         new_body = self.visit(let)
         return mk_let(bindings, new_body)
 
+
 @function_pass(opt_level=0)
 class MemoryPlan:
     """An explicit pass wrapper around StorageCoalesce."""
@@ -351,7 +358,9 @@ class MemoryPlan:
         func = sc.visit(func)
         return func
 
+
 register_func("relay.transform.MemoryPlan", MemoryPlan)
+
 
 @function_pass(opt_level=0)
 class LiftConstants:

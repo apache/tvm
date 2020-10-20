@@ -21,7 +21,7 @@ find_rocm(${USE_ROCM})
 if(ROCM_FOUND)
   # always set the includedir
   # avoid global retrigger of cmake
-  include_directories(${ROCM_INCLUDE_DIRS})
+  include_directories(SYSTEM ${ROCM_INCLUDE_DIRS})
   add_definitions(-D__HIP_PLATFORM_HCC__=1)
 endif(ROCM_FOUND)
 

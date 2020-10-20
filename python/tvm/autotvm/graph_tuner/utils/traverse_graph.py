@@ -29,6 +29,7 @@ from tvm.autotvm.task import TaskExtractEnv
 from .utils import has_multiple_inputs, is_boundary_node, is_skipped_node
 from .._base import OPT_OUT_OP
 
+
 def expr2graph(expr, target_ops, node_dict, node_list):
     """Convert relay expr to graph data structure
     and fetch workloads of target operators.
@@ -62,9 +63,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
         for node_entry in node_list:
             if node_entry["op"] in target_ops:
                 task_name, args = env.task_collection[task_pos]
-                task = autotvm.task.create(task_name, args,
-                                           target="llvm",
-                                           target_host=None)
+                task = autotvm.task.create(task_name, args, target="llvm", target_host=None)
                 node_entry["workloads"] = [task.workload]
                 node_entry["topi_op"] = [task_name]
                 task_pos += 1
@@ -79,14 +78,13 @@ def _infer_type(node):
 
 
 def _expr2graph_impl(expr, target_ops, node_dict, node_list):
-    """Implementation to convert relay expr to graph data structure
-    """
+    """Implementation to convert relay expr to graph data structure"""
+
     def _traverse_expr(node):
         if node in node_dict:
             return
         node_index = len(node_list)
-        node_entry = {"node": node, "inputs": [], "types": [],
-                      "op": None, "name": None}
+        node_entry = {"node": node, "inputs": [], "types": [], "op": None, "name": None}
 
         if isinstance(node, Call):
             op = node.op
@@ -105,8 +103,9 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                 for tupe_type in out_type.fields:
                     node_entry["types"].append(tupe_type)
             else:
-                raise RuntimeError("Unsupported output type %s in operator %s"
-                                   % (type(out_type), op.name))
+                raise RuntimeError(
+                    "Unsupported output type %s in operator %s" % (type(out_type), op.name)
+                )
 
             # Utilize tracing target to fetch workload with topo-order.
             # Since we only need workload, dummy target can be used to
@@ -117,21 +116,21 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                     input_node_entry = node_list[input_idx[0]]
                     input_type = input_node_entry["types"][input_idx[1]]
                     if not isinstance(input_node_entry["node"], (Var, Constant, Call)):
-                        raise RuntimeError("Graph tuner can only tune target "
-                                           "operators with input node of type "
-                                           "relay.expr.Var/Constant/Call. Now "
-                                           "find a target op %s with input type %s"
-                                           % (op, str(type(input_node_entry["node"]))))
+                        raise RuntimeError(
+                            "Graph tuner can only tune target "
+                            "operators with input node of type "
+                            "relay.expr.Var/Constant/Call. Now "
+                            "find a target op %s with input type %s"
+                            % (op, str(type(input_node_entry["node"])))
+                        )
                     free_var = relay.Var("var_%d" % i, input_type)
                     params.append(free_var)
                 call = relay.Call(node.op, params, node.attrs)
                 mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
-                build_thread = threading.Thread(target=relay.build,
-                                                args=(mod,
-                                                      "llvm -device=tracing",
-                                                      None,
-                                                      None))
+                build_thread = threading.Thread(
+                    target=relay.build, args=(mod, "llvm -device=tracing", None, None)
+                )
                 build_thread.start()
                 build_thread.join()
         elif isinstance(node, Var):
@@ -160,8 +159,9 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
         elif isinstance(node, tvm.ir.Op):
             return
         else:
-            raise RuntimeError("Not supported relay node type in graph tuning: %s"
-                               % str(type(node)))
+            raise RuntimeError(
+                "Not supported relay node type in graph tuning: %s" % str(type(node))
+            )
         node_dict[node] = node_index
         node_list.append(node_entry)
 
@@ -205,13 +205,11 @@ def get_direct_ancestor(node_list, visited_dict, target_ops, node_idx, input_nam
     node_direct_ancestor = []
     for item_idx in node["inputs"]:
         item = node_list[item_idx[0]]
-        is_multiple_inputs = has_multiple_inputs(node_list, item_idx[0], \
-                input_names, OPT_OUT_OP)
+        is_multiple_inputs = has_multiple_inputs(node_list, item_idx[0], input_names, OPT_OUT_OP)
         if item["op"] in target_ops or is_multiple_inputs:
             node_direct_ancestor.append(item_idx[0])
         else:
-            tmp = get_direct_ancestor(node_list, visited_dict, target_ops,
-                                      item_idx[0], input_names)
+            tmp = get_direct_ancestor(node_list, visited_dict, target_ops, item_idx[0], input_names)
             for tmp_item in tmp:
                 node_direct_ancestor.append(tmp_item)
     visited_dict[node_idx] = node_direct_ancestor
@@ -247,8 +245,7 @@ def get_in_nodes(node_list, target_ops, input_names):
         get_direct_ancestor(node_list, visited_dict, target_ops, i, input_names)
     for key, val in visited_dict.items():
         node = node_list[key]
-        is_multiple_inputs = has_multiple_inputs(node_list, key, \
-                input_names, OPT_OUT_OP)
+        is_multiple_inputs = has_multiple_inputs(node_list, key, input_names, OPT_OUT_OP)
         if node["op"] in target_ops or is_multiple_inputs:
             in_node_dict[key] = val
 
@@ -264,8 +261,7 @@ def get_in_nodes(node_list, target_ops, input_names):
             if node["op"] not in target_ops:
                 for input_idx in val:
                     in_node = node_list[input_idx]
-                    if not is_boundary_node(in_node, input_names) and \
-                            input_idx in in_node_dict:
+                    if not is_boundary_node(in_node, input_names) and input_idx in in_node_dict:
                         is_boundary = False
                     else:
                         val.remove(input_idx)
@@ -277,7 +273,6 @@ def get_in_nodes(node_list, target_ops, input_names):
                     del in_node_dict[idx]
         else:
             has_reduced_node = False
-
 
     # Remove empty nodes to ignore pre-computed sub-graph
     has_empty_node = True

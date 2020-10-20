@@ -18,7 +18,7 @@
 from . import _make
 
 
-def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1, layout='NCHW'):
+def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1, layout="NCHW"):
     """ROI align operator.
 
     Parameters
@@ -48,7 +48,7 @@ def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1, layout='N
     return _make.roi_align(data, rois, pooled_size, spatial_scale, sample_ratio, layout)
 
 
-def roi_pool(data, rois, pooled_size, spatial_scale, layout='NCHW'):
+def roi_pool(data, rois, pooled_size, spatial_scale, layout="NCHW"):
     """ROI pool operator.
 
     Parameters
@@ -75,17 +75,19 @@ def roi_pool(data, rois, pooled_size, spatial_scale, layout='NCHW'):
     return _make.roi_pool(data, rois, pooled_size, spatial_scale, layout)
 
 
-def proposal(cls_prob,
-             bbox_pred,
-             im_info,
-             scales,
-             ratios,
-             feature_stride,
-             threshold,
-             rpn_pre_nms_top_n,
-             rpn_post_nms_top_n,
-             rpn_min_size,
-             iou_loss):
+def proposal(
+    cls_prob,
+    bbox_pred,
+    im_info,
+    scales,
+    ratios,
+    feature_stride,
+    threshold,
+    rpn_pre_nms_top_n,
+    rpn_post_nms_top_n,
+    rpn_min_size,
+    iou_loss,
+):
     """Proposal operator.
 
     Parameters
@@ -131,5 +133,16 @@ def proposal(cls_prob,
         2-D tensor with shape [batch * rpn_post_nms_top_n, 5]. The last dimension is in format of
         [batch_index, w_start, h_start, w_end, h_end].
     """
-    return _make.proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, threshold,
-                          rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_min_size, iou_loss)
+    return _make.proposal(
+        cls_prob,
+        bbox_pred,
+        im_info,
+        scales,
+        ratios,
+        feature_stride,
+        threshold,
+        rpn_pre_nms_top_n,
+        rpn_post_nms_top_n,
+        rpn_min_size,
+        iou_loss,
+    )

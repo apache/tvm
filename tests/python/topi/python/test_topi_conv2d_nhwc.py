@@ -23,24 +23,26 @@ from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
-
+import tvm.testing
 
 
 _conv2d_nhwc_implement = {
     "llvm": (topi.nn.conv2d_nhwc, topi.generic.schedule_conv2d_nhwc),
     "cuda": (topi.cuda.conv2d_nhwc, topi.cuda.schedule_conv2d_nhwc),
     "cpu": (topi.nn.conv2d_nhwc, topi.x86.schedule_conv2d_nhwc),
-    "arm_cpu": (topi.arm_cpu.conv2d_nhwc_spatial_pack,
-                topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
-    "hls": (topi.nn.conv2d_nhwc, topi.hls.schedule_conv2d_nhwc)
+    "arm_cpu": (
+        topi.arm_cpu.conv2d_nhwc_spatial_pack,
+        topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack,
+    ),
+    "hls": (topi.nn.conv2d_nhwc, topi.hls.schedule_conv2d_nhwc),
 }
 
 
 def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_height, in_width, in_channel), name='A')
-    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
+    A = te.placeholder((batch, in_height, in_width, in_channel), name="A")
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -53,14 +55,15 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
         dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
         b_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
         return a_np, w_np, b_np
+
     a_np, w_np, b_np = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_nhwc_implement)
             B = fcompute(A, W, stride, padding, dilation, dtype)
             s = fschedule([B])
@@ -72,10 +75,11 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
         func(a, w, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda']:
+    for device in ["llvm", "cuda"]:
         check_device(device)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_nhwc():
     verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "SAME")
     verify_conv2d_nhwc(4, 128, 16, 128, 5, 2, "SAME")

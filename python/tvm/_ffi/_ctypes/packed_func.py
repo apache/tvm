@@ -37,10 +37,12 @@ ModuleHandle = ctypes.c_void_p
 ObjectHandle = ctypes.c_void_p
 TVMRetValueHandle = ctypes.c_void_p
 
+
 def _ctypes_free_resource(rhandle):
     """callback to free resources when it it not needed."""
     pyobj = ctypes.cast(rhandle, ctypes.py_object)
     ctypes.pythonapi.Py_DecRef(pyobj)
+
 
 # Global callback that is always alive
 TVM_FREE_PYOBJ = TVMCFuncFinalizer(_ctypes_free_resource)
@@ -69,6 +71,7 @@ def convert_to_tvm_func(pyfunc):
         The converted tvm function.
     """
     local_pyfunc = pyfunc
+
     def cfun(args, type_codes, num_args, ret, _):
         """ ctypes function """
         num_args = num_args.value if isinstance(num_args, ctypes.c_int) else num_args
@@ -101,8 +104,7 @@ def convert_to_tvm_func(pyfunc):
     # TVM_FREE_PYOBJ will be called after it is no longer needed.
     pyobj = ctypes.py_object(f)
     ctypes.pythonapi.Py_IncRef(pyobj)
-    if _LIB.TVMFuncCreateFromCFunc(
-            f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)) != 0:
+    if _LIB.TVMFuncCreateFromCFunc(f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)) != 0:
         raise get_last_ffi_error()
     return _make_packed_func(handle, False)
 
@@ -121,8 +123,9 @@ def _make_tvm_args(args, temp_args):
             type_codes[i] = ArgTypeCode.NULL
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
-            type_codes[i] = (ArgTypeCode.NDARRAY_HANDLE
-                             if not arg.is_view else ArgTypeCode.DLTENSOR_HANDLE)
+            type_codes[i] = (
+                ArgTypeCode.NDARRAY_HANDLE if not arg.is_view else ArgTypeCode.DLTENSOR_HANDLE
+            )
         elif isinstance(arg, PyNativeObject):
             values[i].v_handle = arg.__tvm_object__.handle
             type_codes[i] = ArgTypeCode.OBJECT_HANDLE
@@ -150,8 +153,8 @@ def _make_tvm_args(args, temp_args):
 
             arr = TVMByteArray()
             arr.data = ctypes.cast(
-                (ctypes.c_byte * len(arg)).from_buffer(arg),
-                ctypes.POINTER(ctypes.c_byte))
+                (ctypes.c_byte * len(arg)).from_buffer(arg), ctypes.POINTER(ctypes.c_byte)
+            )
             arr.size = len(arg)
             values[i].v_handle = ctypes.c_void_p(ctypes.addressof(arr))
             temp_args.append(arr)
@@ -188,6 +191,7 @@ def _make_tvm_args(args, temp_args):
 
 class PackedFuncBase(object):
     """Function base."""
+
     __slots__ = ["handle", "is_global"]
     # pylint: disable=no-member
     def __init__(self, handle, is_global):
@@ -219,9 +223,17 @@ class PackedFuncBase(object):
         values, tcodes, num_args = _make_tvm_args(args, temp_args)
         ret_val = TVMValue()
         ret_tcode = ctypes.c_int()
-        if _LIB.TVMFuncCall(
-                self.handle, values, tcodes, ctypes.c_int(num_args),
-                ctypes.byref(ret_val), ctypes.byref(ret_tcode)) != 0:
+        if (
+            _LIB.TVMFuncCall(
+                self.handle,
+                values,
+                tcodes,
+                ctypes.c_int(num_args),
+                ctypes.byref(ret_val),
+                ctypes.byref(ret_tcode),
+            )
+            != 0
+        ):
             raise get_last_ffi_error()
         _ = temp_args
         _ = args
@@ -234,9 +246,17 @@ def __init_handle_by_constructor__(fconstructor, args):
     values, tcodes, num_args = _make_tvm_args(args, temp_args)
     ret_val = TVMValue()
     ret_tcode = ctypes.c_int()
-    if _LIB.TVMFuncCall(
-            fconstructor.handle, values, tcodes, ctypes.c_int(num_args),
-            ctypes.byref(ret_val), ctypes.byref(ret_tcode)) != 0:
+    if (
+        _LIB.TVMFuncCall(
+            fconstructor.handle,
+            values,
+            tcodes,
+            ctypes.c_int(num_args),
+            ctypes.byref(ret_val),
+            ctypes.byref(ret_tcode),
+        )
+        != 0
+    ):
         raise get_last_ffi_error()
     _ = temp_args
     _ = args
@@ -273,15 +293,18 @@ def _get_global_func(name, allow_missing=False):
 
     raise ValueError("Cannot find global function %s" % name)
 
+
 # setup return handle for function type
 _object.__init_by_constructor__ = __init_handle_by_constructor__
 RETURN_SWITCH[ArgTypeCode.PACKED_FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[ArgTypeCode.MODULE_HANDLE] = _return_module
 RETURN_SWITCH[ArgTypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
 C_TO_PY_ARG_SWITCH[ArgTypeCode.PACKED_FUNC_HANDLE] = _wrap_arg_func(
-    _handle_return_func, ArgTypeCode.PACKED_FUNC_HANDLE)
+    _handle_return_func, ArgTypeCode.PACKED_FUNC_HANDLE
+)
 C_TO_PY_ARG_SWITCH[ArgTypeCode.MODULE_HANDLE] = _wrap_arg_func(
-    _return_module, ArgTypeCode.MODULE_HANDLE)
+    _return_module, ArgTypeCode.MODULE_HANDLE
+)
 C_TO_PY_ARG_SWITCH[ArgTypeCode.DLTENSOR_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
 C_TO_PY_ARG_SWITCH[ArgTypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
 
@@ -296,9 +319,11 @@ def _set_class_module(module_class):
     global _CLASS_MODULE
     _CLASS_MODULE = module_class
 
+
 def _set_class_packed_func(packed_func_class):
     global _CLASS_PACKED_FUNC
     _CLASS_PACKED_FUNC = packed_func_class
+
 
 def _set_class_object_generic(object_generic_class, func_convert_to_object):
     global _CLASS_OBJECT_GENERIC

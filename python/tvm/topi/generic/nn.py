@@ -293,6 +293,7 @@ def schedule_conv3d_ncdhw(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_conv3d_ndhwc(outs):
     """Schedule for conv3d_ndhwc
 
@@ -417,6 +418,23 @@ def schedule_group_conv2d_nchw(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_group_conv2d_nhwc(outs):
+    """Schedule for group_conv2d_nhwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of group_conv2d_nhwc
           in the format of an array of tensors.
 
     Returns

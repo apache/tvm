@@ -280,7 +280,7 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   }
 }
 
-runtime::Module BuildOpenCL(IRModule mod, std::string target) {
+runtime::Module BuildOpenCL(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenOpenCL cg;

@@ -24,34 +24,38 @@ from scipy import signal
 from tvm.topi.util import get_const_tuple
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_weight_nhwc
+import tvm.testing
 
 
-def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multiplier, filter_h, stride_h, padding_h):
+def verify_depthwise_conv2d_back_weight(
+    batch, in_channel, in_h, channel_multiplier, filter_h, stride_h, padding_h
+):
     in_w = in_h
     filter_channel = in_channel
     filter_w = filter_h
     stride_w = stride_h
     padding_w = padding_h
 
-    out_h = np.int((in_h+2*padding_h-filter_h)/stride_h+1)
-    out_w = np.int((in_w+2*padding_w-filter_w)/stride_w+1)
+    out_h = np.int((in_h + 2 * padding_h - filter_h) / stride_h + 1)
+    out_w = np.int((in_w + 2 * padding_w - filter_w) / stride_w + 1)
     out_channel = in_channel * channel_multiplier
 
     oshape = [batch, out_h, out_w, out_channel]
     fshape = [filter_h, filter_w, in_channel, channel_multiplier]
 
     # placeholder
-    Out_grad = te.placeholder(oshape, name='Out_grad')
-    Input = te.placeholder((batch, in_h, in_w, in_channel), name='In_grad')
+    Out_grad = te.placeholder(oshape, name="Out_grad")
+    Input = te.placeholder((batch, in_h, in_w, in_channel), name="In_grad")
     # declare
-    Weight_grad = topi.nn.depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape,
-        stride=[stride_h, stride_w], padding=[padding_h, padding_w])
+    Weight_grad = topi.nn.depthwise_conv2d_backward_weight_nhwc(
+        Input, Out_grad, oshape, fshape, stride=[stride_h, stride_w], padding=[padding_h, padding_w]
+    )
     # schedule
     schedule = schedule_depthwise_conv2d_backward_weight_nhwc(Weight_grad)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -67,19 +71,32 @@ def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multipl
         def get_ref_data():
             out_grad_np = np.random.uniform(size=out_grad_shape).astype(dtype)
             input_np = np.random.uniform(size=in_shape).astype(dtype)
-            dilated_out_grad_np = tvm.topi.testing.dilate_python(out_grad_np, [1, stride_h, stride_w, 1])
+            dilated_out_grad_np = tvm.topi.testing.dilate_python(
+                out_grad_np, [1, stride_h, stride_w, 1]
+            )
 
-            pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple([padding_h, padding_w], (filter_h, filter_w))
-            padded_input_np = np.zeros((batch, in_h+pad_top+pad_bottom, in_w+pad_left+pad_right, in_channel))
-            padded_input_np[:, pad_top:in_h+pad_top, pad_left:in_w+pad_left, :] = input_np
+            pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(
+                [padding_h, padding_w], (filter_h, filter_w)
+            )
+            padded_input_np = np.zeros(
+                (batch, in_h + pad_top + pad_bottom, in_w + pad_left + pad_right, in_channel)
+            )
+            padded_input_np[:, pad_top : in_h + pad_top, pad_left : in_w + pad_left, :] = input_np
 
             weight_grad_np = np.zeros((filter_h, filter_w, in_channel, channel_multiplier))
             for c in range(in_channel):
                 for m in range(channel_multiplier):
                     for b in range(batch):
-                        weight_grad_np[:, :, c, m] += signal.convolve2d(padded_input_np[b, :, :, c], \
-                            np.rot90(dilated_out_grad_np[b, :, :, c*channel_multiplier+m%channel_multiplier], 2), \
-                            mode='valid')[0:filter_h, 0:filter_w]
+                        weight_grad_np[:, :, c, m] += signal.convolve2d(
+                            padded_input_np[b, :, :, c],
+                            np.rot90(
+                                dilated_out_grad_np[
+                                    b, :, :, c * channel_multiplier + m % channel_multiplier
+                                ],
+                                2,
+                            ),
+                            mode="valid",
+                        )[0:filter_h, 0:filter_w]
             return (out_grad_np, input_np, weight_grad_np)
 
         (out_grad_np, input_np, weight_grad_np) = get_ref_data()
@@ -99,6 +116,8 @@ def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multipl
     check_device("vulkan")
     check_device("nvptx")
 
+
+@tvm.testing.requires_gpu
 def test_topi_depthwise_conv2d_backward_weight_nhwc():
     verify_depthwise_conv2d_back_weight(16, 256, 56, 1, 3, 1, 1)
     verify_depthwise_conv2d_back_weight(16, 256, 56, 2, 3, 1, 1)
@@ -117,6 +136,7 @@ def test_topi_depthwise_conv2d_backward_weight_nhwc():
     verify_depthwise_conv2d_back_weight(16, 256, 56, 2, 3, 2, 0)
     verify_depthwise_conv2d_back_weight(16, 256, 56, 1, 5, 2, 0)
     verify_depthwise_conv2d_back_weight(15, 256, 56, 2, 5, 2, 0)
+
 
 if __name__ == "__main__":
     test_topi_depthwise_conv2d_backward_weight_nhwc()

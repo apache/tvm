@@ -14,14 +14,30 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """The under development unified IR parsing infrastructure."""
+from .. import _ffi, Object
 from . import _ffi_api
+
+
+@_ffi.register_object("SourceMap")
+class SourceMap(Object):
+    def add(self, name, content):
+        return _ffi.get_global_func("SourceMapAdd")(self, name, content)
+
 
 def parse(source, source_name="from_string"):
     return _ffi_api.ParseModule(source_name, source)
 
+
 def parse_expr(source):
     return _ffi_api.ParseExpr("string", source)
 
+
 def fromtext(source, source_name="from_string"):
     return parse(source, source_name)
+
+
+def SpanCheck():
+    """A debugging utility for reporting missing span information."""
+    return _ffi_api.SpanCheck()

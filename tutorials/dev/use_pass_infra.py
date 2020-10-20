@@ -52,11 +52,12 @@ import tvm.relay as relay
 # will be used by various optimizations of the examples in this tutorial.
 # Similarly, users can write a tir primitive function and apply the tir passes.
 
+
 def example():
     shape = (1, 64, 54, 54)
     c_data = np.empty(shape).astype("float32")
     c = relay.const(c_data)
-    weight = relay.var('weight', shape=(64, 64, 3, 3))
+    weight = relay.var("weight", shape=(64, 64, 3, 3))
     x = relay.var("x", relay.TensorType((1, 64, 56, 56), "float32"))
     conv = relay.nn.conv2d(x, weight)
     y = relay.add(c, c)
@@ -67,17 +68,20 @@ def example():
     z2 = relay.add(z, z1)
     return relay.Function([x, weight], z2)
 
+
 ###############################################################################
 # Let us register layout alteration for a conv2d op so that we can apply the
 # layout alteration pass on the example. How alter layout pass works is out
 # the scope of this tutorial.
 
+
 @relay.op.register_alter_op_layout("nn.conv2d", level=101)
 def alter_conv2d(attrs, inputs, tinfos, out_type):
     data, weight = inputs
     new_attrs = dict(attrs)
-    new_attrs['data_layout'] = 'NCHW16c'
+    new_attrs["data_layout"] = "NCHW16c"
     return relay.nn.conv2d(data, weight, **new_attrs)
+
 
 ###############################################################################
 # Optimize the Program
@@ -148,9 +152,13 @@ print(mod)
 f = example()
 mod = tvm.IRModule.from_expr(f)
 # Glob the interested passes.
-seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
-                                  relay.transform.EliminateCommonSubexpr(),
-                                  relay.transform.FuseOps(fuse_opt_level=2)])
+seq = tvm.transform.Sequential(
+    [
+        relay.transform.FoldConstant(),
+        relay.transform.EliminateCommonSubexpr(),
+        relay.transform.FuseOps(fuse_opt_level=2),
+    ]
+)
 mod1 = seq(mod)
 print(mod1)
 
@@ -191,7 +199,7 @@ print(mod4)
 
 seq1 = tvm.transform.Sequential([relay.transform.AlterOpLayout()])
 with tvm.transform.PassContext(opt_level=3):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         mod5 = seq1(mod)
 print(mod5)
 
@@ -207,6 +215,7 @@ print(mod5)
 # visited and each constant in the function will be replaced when we invoke the
 # customized pass.
 
+
 @relay.transform.function_pass(opt_level=1)
 class CustomPipeline:
     """Simple test function to replace one argument to another."""
@@ -221,7 +230,9 @@ class CustomPipeline:
         class ReplaceConstant(tvm.relay.ExprMutator):
             def visit_constant(self, c):
                 return relay.multiply(obj.multiplier, c)
+
         return ReplaceConstant().visit(func)
+
 
 f = example()
 mod = tvm.IRModule.from_expr(f)
@@ -240,16 +251,20 @@ print(mod3)
 
 f = example()
 mod = tvm.IRModule.from_expr(f)
-seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
-                                tvm.transform.PrintIR(),
-                                relay.transform.EliminateCommonSubexpr(),
-                                relay.transform.FuseOps(),
-                                relay.transform.AlterOpLayout()])
+seq = tvm.transform.Sequential(
+    [
+        relay.transform.FoldConstant(),
+        tvm.transform.PrintIR(),
+        relay.transform.EliminateCommonSubexpr(),
+        relay.transform.FuseOps(),
+        relay.transform.AlterOpLayout(),
+    ]
+)
 
 # By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass infra will
 # dump out the module IR when ``FoldConstant`` is done. Users can plug in this
 # pass after any pass they want to debug for viewing the optimization effect.
-# 
+#
 # There is a more flexible debugging mechanism also exposed by the build configuration
 # object. One can pass a tracing function which can be used to execute arbitrary code
 # before and/or after each pass. A tracing function will receive a :py::class:`tvm.IRModule`,
@@ -257,14 +272,16 @@ seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
 # and a boolean indicating whether you are executing before, or after a pass.
 # An example is below.
 
+
 def print_ir(mod, info, is_before):
     """Print the name of the pass, the IR, only before passes execute."""
     if is_before:
         print("Running pass: {}", info)
         print(mod)
 
+
 with tvm.transform.PassContext(opt_level=3, trace=print_ir):
-    with tvm.target.create("llvm"):
+    with tvm.target.Target("llvm"):
         # Perform the optimizations.
         mod = seq(mod)
 print(mod)

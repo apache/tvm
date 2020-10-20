@@ -95,7 +95,7 @@ TEST(Relay, Sequential) {
   pass_ctx->config.Set("relay.fallback_device_type", Integer(1));
   {
     tvm::With<relay::transform::PassContext> ctx_scope(pass_ctx);
-    tvm::With<tvm::Target> tctx(tvm::Target::Create("llvm"));
+    tvm::With<tvm::Target> tctx(tvm::Target("llvm"));
     mod = seq(mod);
   }
 

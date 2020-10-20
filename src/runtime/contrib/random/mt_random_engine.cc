@@ -42,7 +42,7 @@ class RandomEngine {
   /*!
    * \brief Creates a RandomEngine using a default seed.
    */
-  RandomEngine() { this->Seed(time(0)); }
+  RandomEngine() { this->Seed(time(nullptr)); }
 
   /*!
    * \brief Creates a RandomEngine, suggesting the use of a provided seed.

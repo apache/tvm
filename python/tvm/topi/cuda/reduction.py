@@ -22,6 +22,7 @@ from tvm import te
 from .. import tag
 from .injective import schedule_injective_from_existing
 
+
 def _schedule_reduce(op, sch, is_idx_reduce=False):
     if is_idx_reduce:
         data_out = op.input_tensors[0]
@@ -49,8 +50,9 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
 
     # Fuse and refactor the reduce axis
-    fused_reduce = sch[data_out].fuse(*[sch[data_out].op.reduce_axis[i]
-                                        for i in range(len(sch[data_out].op.reduce_axis))])
+    fused_reduce = sch[data_out].fuse(
+        *[sch[data_out].op.reduce_axis[i] for i in range(len(sch[data_out].op.reduce_axis))]
+    )
     ko, ki = sch[data_out].split(fused_reduce, factor=num_thread)
     if is_idx_reduce:
         data_out_rf, _ = sch.rfactor(data_out, ki)
@@ -67,8 +69,9 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         real_output = data_out
     if not all_reduce:
         # Fuse and split the axis
-        fused_outer = sch[real_output].fuse(*[sch[real_output].op.axis[i]
-                                              for i in range(len(sch[real_output].op.axis))])
+        fused_outer = sch[real_output].fuse(
+            *[sch[real_output].op.axis[i] for i in range(len(sch[real_output].op.axis))]
+        )
         bx, outer_in = sch[real_output].split(fused_outer, factor=num_thread)
 
         # Bind the axes to threads and blocks
@@ -81,10 +84,8 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         if is_idx_reduce:
             spatial_axis = sch[real_output].fuse(*(sch[real_output].op.axis))
             sch[real_output].bind(spatial_axis, te.thread_axis("blockIdx.x"))
-            sch[temp_idx_input].compute_at(sch[real_output],
-                                           spatial_axis)
-            sch[temp_val_input].compute_at(sch[real_output],
-                                           spatial_axis)
+            sch[temp_idx_input].compute_at(sch[real_output], spatial_axis)
+            sch[temp_val_input].compute_at(sch[real_output], spatial_axis)
     sch[real_output].set_store_predicate(thread_x.equal(0))
     return sch
 
@@ -128,12 +129,12 @@ def schedule_reduce(outs):
                 schedule_injective_from_existing(sch, operator.output(0))
             for tensor in operator.input_tensors:
                 traverse_after_reduce(tensor.op)
-        elif operator.tag == 'comm_reduce':
+        elif operator.tag == "comm_reduce":
             _schedule_reduce(operator, sch, is_idx_reduce=False)
             for tensor in operator.input_tensors:
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
-        elif operator.tag == 'comm_reduce_idx':
+        elif operator.tag == "comm_reduce_idx":
             _schedule_reduce(operator, sch, is_idx_reduce=True)
             input_tensors = operator.input_tensors[0].op.input_tensors
             for tensor in input_tensors:

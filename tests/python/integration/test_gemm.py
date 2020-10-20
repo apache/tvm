@@ -18,21 +18,20 @@ import tvm
 from tvm import te
 import numpy as np
 import time
+import tvm.testing
 
 
+@tvm.testing.requires_gpu
 def test_gemm():
     # graph
     nn = 1024
     n = tvm.runtime.convert(nn)
     m = n
     l = n
-    A = te.placeholder((n, l), name='A')
-    B = te.placeholder((m, l), name='B')
-    k = te.reduce_axis((0, l), name='k')
-    C = te.compute(
-        (n, m),
-        lambda ii, jj: te.sum(A[ii, k] * B[jj, k], axis=k),
-        name='CC')
+    A = te.placeholder((n, l), name="A")
+    B = te.placeholder((m, l), name="B")
+    k = te.reduce_axis((0, l), name="k")
+    C = te.compute((n, m), lambda ii, jj: te.sum(A[ii, k] * B[jj, k], axis=k), name="CC")
     # schedule
     s = te.create_schedule(C.op)
     xtile, ytile = 32, 32
@@ -60,7 +59,6 @@ def test_gemm():
     yo, xo = CC.op.axis
     s[CC].reorder(k, yo, xo)
 
-
     s[CC].compute_at(s[C], tx)
     s[AA].compute_at(s[CC], k)
     s[BB].compute_at(s[CC], k)
@@ -82,11 +80,11 @@ def test_gemm():
     # one line to build the function.
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             f = tvm.build(s, [A, B, C])
 
         # launch the kernel.
@@ -101,8 +99,7 @@ def test_gemm():
         ftimer = f.time_evaluator(f.entry_name, ctx, number=1)
         tcost = ftimer(a, b, c).mean
         print("%s: exec=%g sec/op" % (ctx, tcost))
-        tvm.testing.assert_allclose(
-            c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
     check_device("vulkan")
     check_device("nvptx -mcpu=sm_20")
@@ -110,6 +107,7 @@ def test_gemm():
     check_device("metal")
     check_device("opencl")
     check_device("cuda")
+
 
 if __name__ == "__main__":
     test_gemm()

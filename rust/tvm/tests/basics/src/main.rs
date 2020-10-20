@@ -33,7 +33,7 @@ fn main() {
     let dtype = DataType::from_str("float32").unwrap();
     let mut arr = NDArray::empty(shape, ctx, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
-    let mut ret = NDArray::empty(shape, ctx, dtype);
+    let ret = NDArray::empty(shape, ctx, dtype);
     let mut fadd = Module::load(&concat!(env!("OUT_DIR"), "/test_add.so")).unwrap();
     if !fadd.enabled(ctx_name) {
         return;
@@ -44,7 +44,7 @@ fn main() {
 
     fadd.entry()
         .expect("module must have entry point")
-        .invoke(vec![(&arr).into(), (&arr).into(), (&mut ret).into()])
+        .invoke(vec![(&arr).into(), (&arr).into(), (&ret).into()])
         .unwrap();
 
     assert_eq!(ret.to_vec::<f32>().unwrap(), vec![6f32, 8.0]);

@@ -42,13 +42,16 @@ TVM_REGISTER_NODE_TYPE(StateNode);
 TVM_REGISTER_NODE_TYPE(IteratorNode);
 
 /********** Iterator **********/
-Iterator::Iterator(String name, Range range, IteratorKind iter_kind,
-                   IteratorAnnotation annotation) {
+Iterator::Iterator(String name, Range range, IteratorKind iter_kind, IteratorAnnotation annotation,
+                   const std::vector<Iterator>* orig_iters) {
   auto node = make_object<IteratorNode>();
   node->name = std::move(name);
   node->range = std::move(range);
   node->iter_kind = iter_kind;
   node->annotation = annotation;
+  if (orig_iters != nullptr) {
+    node->orig_iters = *orig_iters;
+  }
   data_ = std::move(node);
 }
 
@@ -145,7 +148,7 @@ void AttachMap::DeleteStageEntry(AttachMapNode* pnode, int stage_id) {
   // We get <StageKey, IterKey> from this map
   if (old_entry != pnode->stage_to_attach_iter.end()) {
     // Delete the stage in `iter_to_attached_stages`, if the corresponding iterator does not have
-    // any attatched stage, delete this iterm too
+    // any attached stage, delete this iterm too
     auto entry2 = pnode->iter_to_attached_stages.find(old_entry->second);
     // We get <IterKey, std::vector<StageKey>> from this map
     FindAndDeleteItem(&entry2->second, stage_id);

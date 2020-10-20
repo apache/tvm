@@ -34,7 +34,8 @@ def _std_path():
 @tvm._ffi.register_object("relay.Id")
 class Id(Object):
     """Unique identifier(name) used in Var.
-       Guaranteed to be stable across all passes.
+    Guaranteed to be stable across all passes.
     """
+
     def __init__(self):
         raise RuntimeError("Cannot directly construct Id")

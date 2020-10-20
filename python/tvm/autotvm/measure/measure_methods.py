@@ -35,7 +35,8 @@ import numpy as np
 
 import tvm._ffi
 import tvm.ir.transform
-from tvm import nd, rpc as _rpc, target as _target
+from tvm import nd, rpc as _rpc
+from tvm.target import Target
 from tvm.error import TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
@@ -47,9 +48,10 @@ from ..task.space import InstantiationError
 from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
 from .local_executor import LocalExecutor
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
 
-class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost'))):
+
+class BuildResult(namedtuple("BuildResult", ("filename", "arg_info", "error", "time_cost"))):
     """
     Stores all the necessary inputs for a measurement.
 
@@ -65,6 +67,7 @@ class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 't
         The time cost of building
     """
 
+
 class LocalBuilder(Builder):
     """Run compilation on local machine
 
@@ -79,13 +82,14 @@ class LocalBuilder(Builder):
         If is 'ndk', use function for android ndk
         If is callable, use it as custom build function, expect lib_format field.
     """
-    def __init__(self, timeout=10, n_parallel=None, build_func='default'):
+
+    def __init__(self, timeout=10, n_parallel=None, build_func="default"):
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
-            if build_func == 'default':
+            if build_func == "default":
                 build_func = tar.tar
-            elif build_func == 'ndk':
+            elif build_func == "ndk":
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
@@ -101,11 +105,8 @@ class LocalBuilder(Builder):
 
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
-            for inp in measure_inputs[i:i + self.n_parallel]:
-                ret = self.executor.submit(self.build_func,
-                                           inp,
-                                           self.tmp_dir,
-                                           **self.build_kwargs)
+            for inp in measure_inputs[i : i + self.n_parallel]:
+                ret = self.executor.submit(self.build_func, inp, self.tmp_dir, **self.build_kwargs)
                 futures.append(ret)
 
             for future in futures:
@@ -113,28 +114,46 @@ class LocalBuilder(Builder):
 
                 if isinstance(res, Exception):
                     # timeout or fleet error, return MeasureResult directly
-                    results.append(MeasureResult((res,), MeasureErrorNo.BUILD_TIMEOUT,
-                                                 self.timeout, time.time()))
+                    results.append(
+                        MeasureResult(
+                            (res,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                        )
+                    )
                 elif res.error is not None:
                     # instantiation error
                     if isinstance(res.error, InstantiationError):
-                        results.append(MeasureResult((res.error,),
-                                                     MeasureErrorNo.INSTANTIATION_ERROR,
-                                                     res.time_cost, time.time()))
+                        results.append(
+                            MeasureResult(
+                                (res.error,),
+                                MeasureErrorNo.INSTANTIATION_ERROR,
+                                res.time_cost,
+                                time.time(),
+                            )
+                        )
                     else:
                         if "InstantiationError" in str(res.error):
                             msg = str(res.error)
                             try:
-                                msg = msg.split('\n')[-2].split(": ")[1]
+                                msg = msg.split("\n")[-2].split(": ")[1]
                             except Exception:  # pylint: disable=broad-except
                                 pass
-                            results.append(MeasureResult((InstantiationError(msg),),
-                                                         MeasureErrorNo.INSTANTIATION_ERROR,
-                                                         res.time_cost, time.time()))
+                            results.append(
+                                MeasureResult(
+                                    (InstantiationError(msg),),
+                                    MeasureErrorNo.INSTANTIATION_ERROR,
+                                    res.time_cost,
+                                    time.time(),
+                                )
+                            )
                         else:  # tvm error
-                            results.append(MeasureResult((res.error,),
-                                                         MeasureErrorNo.COMPILE_HOST,
-                                                         res.time_cost, time.time()))
+                            results.append(
+                                MeasureResult(
+                                    (res.error,),
+                                    MeasureErrorNo.COMPILE_HOST,
+                                    res.time_cost,
+                                    time.time(),
+                                )
+                            )
                 else:
                     # return BuildResult
                     results.append(res)
@@ -187,11 +206,22 @@ class RPCRunner(Runner):
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
     """
-    def __init__(self,
-                 key, host, port, priority=1,
-                 timeout=10, n_parallel=None,
-                 number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
-                 check_correctness=False, enable_cpu_cache_flush=False):
+
+    def __init__(
+        self,
+        key,
+        host,
+        port,
+        priority=1,
+        timeout=10,
+        n_parallel=None,
+        number=4,
+        repeat=3,
+        min_repeat_ms=0,
+        cooldown_interval=0.1,
+        check_correctness=False,
+        enable_cpu_cache_flush=False,
+    ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
         self.key = key
@@ -218,18 +248,21 @@ class RPCRunner(Runner):
         if check_remote(task.target, self.key, self.host, self.port):
             logger.info("Get devices for measurement successfully!")
         else:
-            raise RuntimeError("Cannot get remote devices from the tracker. "
-                               "Please check the status of tracker by "
-                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
-                               "and make sure you have free devices on the queue status.")
+            raise RuntimeError(
+                "Cannot get remote devices from the tracker. "
+                "Please check the status of tracker by "
+                "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
+                "and make sure you have free devices on the queue status."
+            )
 
         if self.check_correctness:
             # use llvm cpu to generate a reference input/output
             # this option works for tuning topi, but might not work for you custom op
-            with _target.create("llvm"):
+            with Target("llvm"):
                 s, arg_bufs = task.instantiate(task.config_space.get(0))
-            self.ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
-                              for x in arg_bufs]
+            self.ref_input = [
+                np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype) for x in arg_bufs
+            ]
             func = build(s, arg_bufs, "llvm")
             tvm_buf = [nd.array(x) for x in self.ref_input]
             func(*tvm_buf)
@@ -237,23 +270,27 @@ class RPCRunner(Runner):
 
     def get_build_kwargs(self):
         kwargs = {}
-        if 'cuda' in self.task.target.keys or 'opencl' in self.task.target.keys or \
-           'rocm' in self.task.target.keys or 'vulkan' in self.task.target.keys:
+        if (
+            "cuda" in self.task.target.keys
+            or "opencl" in self.task.target.keys
+            or "rocm" in self.task.target.keys
+            or "vulkan" in self.task.target.keys
+        ):
             remote = request_remote(self.key, self.host, self.port)
             ctx = remote.context(str(self.task.target), 0)
             max_dims = ctx.max_thread_dimensions
-            kwargs['check_gpu'] = {
-                'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
-                'max_threads_per_block': ctx.max_threads_per_block,
-                'max_thread_x': max_dims[0],
-                'max_thread_y': max_dims[1],
-                'max_thread_z': max_dims[2],
+            kwargs["check_gpu"] = {
+                "max_shared_memory_per_block": ctx.max_shared_memory_per_block,
+                "max_threads_per_block": ctx.max_threads_per_block,
+                "max_thread_x": max_dims[0],
+                "max_thread_y": max_dims[1],
+                "max_thread_z": max_dims[2],
             }
 
-            if 'cuda' in self.task.target.keys:
-                kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
-        if self.task.target.device_name == 'micro_dev':
-            kwargs.setdefault('build_option', {})['tir.disable_vectorize'] = True
+            if "cuda" in self.task.target.keys:
+                kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split("."))
+        if self.task.target.device_name == "micro_dev":
+            kwargs.setdefault("build_option", {})["tir.disable_vectorize"] = True
 
         return kwargs
 
@@ -263,30 +300,37 @@ class RPCRunner(Runner):
 
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
-            for measure_inp, build_res in zip(measure_inputs[i:i+self.n_parallel],
-                                              build_results[i:i+self.n_parallel]):
-                ret = self.executor.submit(run_through_rpc,
-                                           measure_inp,
-                                           build_res,
-                                           self.number,
-                                           self.repeat,
-                                           self.min_repeat_ms,
-                                           self.cooldown_interval,
-                                           remote_args,
-                                           self.ref_input,
-                                           self.ref_output,
-                                           self.enable_cpu_cache_flush)
+            for measure_inp, build_res in zip(
+                measure_inputs[i : i + self.n_parallel], build_results[i : i + self.n_parallel]
+            ):
+                ret = self.executor.submit(
+                    run_through_rpc,
+                    measure_inp,
+                    build_res,
+                    self.number,
+                    self.repeat,
+                    self.min_repeat_ms,
+                    self.cooldown_interval,
+                    remote_args,
+                    self.ref_input,
+                    self.ref_output,
+                    self.enable_cpu_cache_flush,
+                )
                 futures.append(ret)
 
             for future in futures:
                 res = future.get()
-                if isinstance(res, Exception):   # executor error or timeout
-                    results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
-                                                 self.timeout, time.time()))
+                if isinstance(res, Exception):  # executor error or timeout
+                    results.append(
+                        MeasureResult(
+                            (str(res),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                        )
+                    )
                 else:
                     results.append(res)
 
         return results
+
 
 class LocalRunner(RPCRunner):
     """Run generated code on local devices.
@@ -328,17 +372,31 @@ class LocalRunner(RPCRunner):
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
     for the user. In this way we reuse timeout/isolation mechanism in RPC infrastructure.
     """
-    def __init__(self,
-                 timeout=10,
-                 number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
-                 check_correctness=False, enable_cpu_cache_flush=False):
-        super(LocalRunner, self).__init__('', None, None, 0,
-                                          timeout=timeout, n_parallel=1,
-                                          number=number, repeat=repeat,
-                                          min_repeat_ms=min_repeat_ms,
-                                          cooldown_interval=cooldown_interval,
-                                          check_correctness=check_correctness,
-                                          enable_cpu_cache_flush=enable_cpu_cache_flush)
+
+    def __init__(
+        self,
+        timeout=10,
+        number=4,
+        repeat=3,
+        min_repeat_ms=0,
+        cooldown_interval=0.1,
+        check_correctness=False,
+        enable_cpu_cache_flush=False,
+    ):
+        super(LocalRunner, self).__init__(
+            "",
+            None,
+            None,
+            0,
+            timeout=timeout,
+            n_parallel=1,
+            number=number,
+            repeat=repeat,
+            min_repeat_ms=min_repeat_ms,
+            cooldown_interval=cooldown_interval,
+            check_correctness=check_correctness,
+            enable_cpu_cache_flush=enable_cpu_cache_flush,
+        )
         self.tracker = None
         self.server = None
 
@@ -348,12 +406,17 @@ class LocalRunner(RPCRunner):
         from ...rpc.server import Server
 
         self.task = task
-        tracker = Tracker('0.0.0.0', port=9000, port_end=10000, silent=True)
-        device_key = '$local$device$%d' % tracker.port
-        server = Server('0.0.0.0', port=9000, port_end=10000,
-                        key=device_key,
-                        use_popen=True, silent=True,
-                        tracker_addr=(tracker.host, tracker.port))
+        tracker = Tracker("0.0.0.0", port=9000, port_end=10000, silent=True)
+        device_key = "$local$device$%d" % tracker.port
+        server = Server(
+            "0.0.0.0",
+            port=9000,
+            port_end=10000,
+            key=device_key,
+            use_popen=True,
+            silent=True,
+            tracker_addr=(tracker.host, tracker.port),
+        )
         self.key = device_key
         self.host = tracker.host
         self.port = tracker.port
@@ -379,10 +442,13 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
             set_cuda_target_arch(cuda_arch)
 
         # if target is vta, we need to use vta build
-        if hasattr(measure_input.target, 'device_name') and \
-            measure_input.target.device_name == 'vta':
+        if (
+            hasattr(measure_input.target, "device_name")
+            and measure_input.target.device_name == "vta"
+        ):
             # pylint: disable=import-outside-toplevel
             import vta
+
             func = vta.build(s, args, target_host=task.target_host)
         else:
             with tvm.ir.transform.PassContext(config=opts):
@@ -390,7 +456,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
-class _WrappedBuildFunc():
+class _WrappedBuildFunc:
     """
     Wrap build_func to a function that can be used in measure.
 
@@ -407,6 +473,7 @@ class _WrappedBuildFunc():
     wrapped_build_func : callable
         The wrapped build function
     """
+
     def __init__(self, build_func):
         if not hasattr(build_func, "output_format"):
             raise AttributeError("Expect build_func to have the attribute output_format.")
@@ -426,8 +493,9 @@ class _WrappedBuildFunc():
         """
         tic = time.time()
         try:
-            filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (
-                getrandbits(64), self.build_func.output_format))
+            filename = os.path.join(
+                tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
+            )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
             func.export_library(filename, self.build_func)
@@ -435,10 +503,19 @@ class _WrappedBuildFunc():
             return BuildResult(None, None, e, time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
-def run_through_rpc(measure_input, build_result,
-                    number, repeat, min_repeat_ms, cooldown_interval,
-                    remote_args, ref_input=None, ref_output=None,
-                    enable_cpu_cache_flush=False):
+
+def run_through_rpc(
+    measure_input,
+    build_result,
+    number,
+    repeat,
+    min_repeat_ms,
+    cooldown_interval,
+    remote_args,
+    ref_input=None,
+    ref_output=None,
+    enable_cpu_cache_flush=False,
+):
     """Run a generated library through rpc
 
     Parameters
@@ -487,10 +564,13 @@ def run_through_rpc(measure_input, build_result,
         # upload built module
         remote = request_remote(*remote_args)
         # Program the FPGA every single time when targeting VTA
-        if hasattr(measure_input.target, 'device_name') and \
-            measure_input.target.device_name == 'vta':
+        if (
+            hasattr(measure_input.target, "device_name")
+            and measure_input.target.device_name == "vta"
+        ):
             # pylint: disable=import-outside-toplevel
             from vta import program_fpga, reconfig_runtime
+
             program_fpga(remote, None)
             reconfig_runtime(remote)
         remote.upload(build_result.filename)
@@ -502,27 +582,37 @@ def run_through_rpc(measure_input, build_result,
         # under the std::function. We could lift the restriction later once we fold
         # the PackedFunc as an object. Currently, we pass function name to work
         # around it.
-        f_prepare = 'cache_flush_cpu_non_first_arg' if enable_cpu_cache_flush else ''
+        f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
         time_f = func.time_evaluator(
-            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms,
-            f_preproc=f_prepare)
+            func.entry_name,
+            ctx,
+            number=number,
+            repeat=repeat,
+            min_repeat_ms=min_repeat_ms,
+            f_preproc=f_prepare,
+        )
 
         # set input
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
-            # create empty arrays on the remote device and copy them once.
-            # This can avoid some memory issues that make the measurement results unreliable.
+            try:
+                random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            except AttributeError:
+                raise AttributeError(
+                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+                )
             args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
-            args = [nd.array(x, ctx=ctx) for x in args]
+            for arg in args:
+                random_fill(arg)
             ctx.sync()
 
         costs = time_f(*args).results
 
         # clean up remote files
         remote.remove(build_result.filename)
-        remote.remove(os.path.splitext(build_result.filename)[0] + '.so')
-        remote.remove('')
+        remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
+        remote.remove("")
 
         if len(costs) > 2:  # remove largest and smallest value to reduce variance
             costs = list(costs)
@@ -538,9 +628,9 @@ def run_through_rpc(measure_input, build_result,
     except TVMError as exc:
         msg = str(exc)
         if "Stack trace returned" in msg:
-            msg = msg[:msg.index("Stack trace returned")]
+            msg = msg[: msg.index("Stack trace returned")]
         if "CUDA Source" in msg:
-            msg = msg[:msg.index("CUDA Source")]
+            msg = msg[: msg.index("CUDA Source")]
         costs = (RuntimeError(msg[:1024]),)
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
@@ -571,12 +661,11 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
     session: RPCSession
     """
     # connect to the tracker
-    host = host or os.environ['TVM_TRACKER_HOST']
-    port = port or int(os.environ['TVM_TRACKER_PORT'])
+    host = host or os.environ["TVM_TRACKER_HOST"]
+    port = port or int(os.environ["TVM_TRACKER_PORT"])
 
     tracker = _rpc.connect_tracker(host, port)
-    remote = tracker.request(device_key, priority=priority,
-                             session_timeout=timeout)
+    remote = tracker.request(device_key, priority=priority, session_timeout=timeout)
     return remote
 
 
@@ -606,12 +695,16 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     available: bool
         True if can find available device
     """
+
     def _check():
         remote = request_remote(device_key, host, port, priority)
         ctx = remote.context(str(target))
         while not ctx.exist:  # wait until we get an available device
             pass
-    t = threading.Thread(target=_check,)
+
+    t = threading.Thread(
+        target=_check,
+    )
     t.start()
     t.join(timeout)
     return not t.is_alive()
@@ -647,9 +740,11 @@ def gpu_verify_pass(**kwargs):
     """Verify the validity of a gpu kernel.
     This pass will check memory usage and number of threads per block.
     """
+
     def verify_pass(f, *_):
         valid = tvm.tir.analysis.verify_gpu_code(f, kwargs)
         if not valid:
             raise InstantiationError("Skipped because of invalid gpu kernel")
         return f
+
     return tvm.tir.transform.prim_func_pass(verify_pass, opt_level=0)

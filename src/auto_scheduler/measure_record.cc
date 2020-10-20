@@ -127,7 +127,7 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     s = reader->NextArrayItem();
     CHECK(s);
     reader->Read(&str_value);
-    data->target = ::tvm::Target::Create(str_value);
+    data->target = ::tvm::Target(str_value);
     s = reader->NextArrayItem();
     CHECK(!s);
   }

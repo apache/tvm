@@ -31,10 +31,11 @@ namespace tvm {
 namespace contrib {
 
 using namespace runtime;
+inline cublasOperation_t CUBLASBooleanToTranspose(bool item) {
+  return item ? CUBLAS_OP_T : CUBLAS_OP_N;
+}
 
-inline cublasOperation_t BooleanToTranspose(bool item) { return item ? CUBLAS_OP_T : CUBLAS_OP_N; }
-
-inline void TryEnableTensorCore(cublasHandle_t hdl) {
+inline void CUBLASTryEnableTensorCore(cublasHandle_t hdl) {
   // TensorCores are only supported in cublas 9.0 or higher
   int version;
   CHECK_CUBLAS_ERROR(cublasGetVersion(hdl, &version));
@@ -48,8 +49,9 @@ struct CublasHgemmOp {
 
   void operator()(bool ta, bool tb, int M, int N, int K, half alpha, half* A, int lda, half* B,
                   int ldb, half beta, half* C, int ldc) {
-    CHECK_CUBLAS_ERROR(cublasHgemm(handle, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K,
-                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
+    CHECK_CUBLAS_ERROR(cublasHgemm(handle, CUBLASBooleanToTranspose(ta),
+                                   CUBLASBooleanToTranspose(tb), M, N, K, &alpha, A, lda, B, ldb,
+                                   &beta, C, ldc));
   }
 };
 
@@ -60,8 +62,9 @@ struct CublasSgemmOp {
 
   void operator()(bool ta, bool tb, int M, int N, int K, float alpha, float* A, int lda, float* B,
                   int ldb, float beta, float* C, int ldc) {
-    CHECK_CUBLAS_ERROR(cublasSgemm(handle, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K,
-                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
+    CHECK_CUBLAS_ERROR(cublasSgemm(handle, CUBLASBooleanToTranspose(ta),
+                                   CUBLASBooleanToTranspose(tb), M, N, K, &alpha, A, lda, B, ldb,
+                                   &beta, C, ldc));
   }
 };
 
@@ -71,8 +74,9 @@ struct CublasDgemmOp {
   explicit CublasDgemmOp(cublasHandle_t hdl) : handle(hdl) {}
   void operator()(bool ta, bool tb, int M, int N, int K, double alpha, double* A, int lda,
                   double* B, int ldb, double beta, double* C, int ldc) {
-    CHECK_CUBLAS_ERROR(cublasDgemm(handle, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K,
-                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
+    CHECK_CUBLAS_ERROR(cublasDgemm(handle, CUBLASBooleanToTranspose(ta),
+                                   CUBLASBooleanToTranspose(tb), M, N, K, &alpha, A, lda, B, ldb,
+                                   &beta, C, ldc));
   }
 };
 
@@ -84,8 +88,8 @@ struct CublasHgemmBatchOp {
                   int a_stride, int lda, half* B, int b_stride, int ldb, half beta, half* C,
                   int c_stride, int ldc) {
     CHECK_CUBLAS_ERROR(cublasHgemmStridedBatched(
-        handle, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, &alpha, A, lda, a_stride,
-        B, ldb, b_stride, &beta, C, ldc, c_stride, batch_size));
+        handle, CUBLASBooleanToTranspose(ta), CUBLASBooleanToTranspose(tb), M, N, K, &alpha, A, lda,
+        a_stride, B, ldb, b_stride, &beta, C, ldc, c_stride, batch_size));
   }
 };
 
@@ -97,8 +101,8 @@ struct CublasSgemmBatchOp {
                   int a_stride, int lda, float* B, int b_stride, int ldb, float beta, float* C,
                   int c_stride, int ldc) {
     CHECK_CUBLAS_ERROR(cublasSgemmStridedBatched(
-        handle, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, &alpha, A, lda, a_stride,
-        B, ldb, b_stride, &beta, C, ldc, c_stride, batch_size));
+        handle, CUBLASBooleanToTranspose(ta), CUBLASBooleanToTranspose(tb), M, N, K, &alpha, A, lda,
+        a_stride, B, ldb, b_stride, &beta, C, ldc, c_stride, batch_size));
   }
 };
 
@@ -110,8 +114,8 @@ struct CublasDgemmBatchOp {
                   int a_stride, int lda, double* B, int b_stride, int ldb, double beta, double* C,
                   int c_stride, int ldc) {
     CHECK_CUBLAS_ERROR(cublasDgemmStridedBatched(
-        handle, BooleanToTranspose(ta), BooleanToTranspose(tb), M, N, K, &alpha, A, lda, a_stride,
-        B, ldb, b_stride, &beta, C, ldc, c_stride, batch_size));
+        handle, CUBLASBooleanToTranspose(ta), CUBLASBooleanToTranspose(tb), M, N, K, &alpha, A, lda,
+        a_stride, B, ldb, b_stride, &beta, C, ldc, c_stride, batch_size));
   }
 };
 
@@ -179,8 +183,8 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
 #endif
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
                                                     &opTranspose, sizeof(opTranspose)));
-  cublasOperation_t opTransA = BooleanToTranspose(transa);
-  cublasOperation_t opTransB = BooleanToTranspose(transb);
+  cublasOperation_t opTransA = CUBLASBooleanToTranspose(transa);
+  cublasOperation_t opTransB = CUBLASBooleanToTranspose(transb);
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA,
                                                     &opTransA, sizeof(opTransA)));
   CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB,
@@ -255,11 +259,11 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
   auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
 
-  CHECK_CUBLAS_ERROR(cublasGemmEx(hdl, BooleanToTranspose(transb), BooleanToTranspose(transa),
-                                  ColumnCount(B, transb), RowCount(A, transa),
-                                  ColumnCount(A, transa), alpha_ptr, B_data, cuda_in_type,
-                                  ColumnStride(B), A_data, cuda_in_type, ColumnStride(A), beta_ptr,
-                                  C_data, cuda_out_type, ColumnStride(C), cuda_out_type, algo));
+  CHECK_CUBLAS_ERROR(
+      cublasGemmEx(hdl, CUBLASBooleanToTranspose(transb), CUBLASBooleanToTranspose(transa),
+                   ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa), alpha_ptr,
+                   B_data, cuda_in_type, ColumnStride(B), A_data, cuda_in_type, ColumnStride(A),
+                   beta_ptr, C_data, cuda_out_type, ColumnStride(C), cuda_out_type, algo));
 }
 
 inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
@@ -319,10 +323,10 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
   auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
   CHECK_CUBLAS_ERROR(cublasGemmStridedBatchedEx(
-      hdl, BooleanToTranspose(transb), BooleanToTranspose(transa), ColumnCount3D(B, transb),
-      RowCount3D(A, transa), ColumnCount3D(A, transa), alpha_ptr, B_data, cuda_in_type,
-      ColumnStride3D(B), B_size, A_data, cuda_in_type, ColumnStride3D(A), A_size, beta_ptr, C_data,
-      cuda_out_type, ColumnStride3D(C), C_size, batch_size, cuda_out_type, algo));
+      hdl, CUBLASBooleanToTranspose(transb), CUBLASBooleanToTranspose(transa),
+      ColumnCount3D(B, transb), RowCount3D(A, transa), ColumnCount3D(A, transa), alpha_ptr, B_data,
+      cuda_in_type, ColumnStride3D(B), B_size, A_data, cuda_in_type, ColumnStride3D(A), A_size,
+      beta_ptr, C_data, cuda_out_type, ColumnStride3D(C), C_size, batch_size, cuda_out_type, algo));
 }
 
 // matrix multiplication for row major
@@ -332,7 +336,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul").set_body([](TVMArgs args, TVMRe
 
   CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-  TryEnableTensorCore(entry_ptr->handle);
+  CUBLASTryEnableTensorCore(entry_ptr->handle);
 
   if (TypeEqual(A->dtype, C->dtype)) {
     CHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
@@ -355,7 +359,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul").set_body([](TVMArgs args, TVM
 
   CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-  TryEnableTensorCore(entry_ptr->handle);
+  CUBLASTryEnableTensorCore(entry_ptr->handle);
 
   CHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
   cublasLtHandle_t ltHandle;
@@ -371,7 +375,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul").set_body([](TVMArgs args,
 
   CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-  TryEnableTensorCore(entry_ptr->handle);
+  CUBLASTryEnableTensorCore(entry_ptr->handle);
   if (TypeEqual(A->dtype, C->dtype)) {
     CHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
           TypeMatch(A->dtype, kDLFloat, 64));

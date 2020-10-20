@@ -27,7 +27,7 @@
 
 #include <unordered_set>
 
-#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/ir_utils.h"
 #include "message_passing.h"
 #include "operation_inline.h"
 
@@ -135,6 +135,15 @@ Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
   os << tensor->op->name;
   if (tensor->op->num_outputs() != 1) {
     os << ".v" << tensor->value_index;
+  }
+
+  // when a schedule has multiple cache_read on the same tensor,
+  // we make sure their op names are unique. e.g., w.shared, w_d.shared, w_d_d.shared
+  for (auto pair : (*this)->stage_map) {
+    auto stage = pair.second;
+    if (stage->op->name == os.str() + "." + scope) {
+      os << ".d";
+    }
   }
   os << "." << scope;
 

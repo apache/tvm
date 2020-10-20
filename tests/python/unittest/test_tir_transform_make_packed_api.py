@@ -18,12 +18,13 @@ import tvm
 from tvm import te
 import numpy
 
+
 def test_makeapi():
     """Not yet working, mock design"""
-    n = te.size_var('n')
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    n = te.size_var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     s = te.create_schedule(C.op)
 
     bounds = tvm.te.schedule.InferBound(s)
@@ -32,14 +33,17 @@ def test_makeapi():
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.Apply(
-        lambda f: f.with_attr({
-            "target": tvm.target.create("llvm"),
-            "global_symbol": "main",
-        }))(mod)
+        lambda f: f.with_attr(
+            {
+                "target": tvm.target.Target("llvm"),
+                "global_symbol": "main",
+            }
+        )
+    )(mod)
 
     num_unpacked_args = 2
     f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
-    assert(len(f.params) == 8)
+    assert len(f.params) == 8
 
 
 if __name__ == "__main__":

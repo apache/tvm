@@ -27,8 +27,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
 
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {
@@ -40,7 +40,11 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+
+  if (data == nullptr) {
+    return false;
+  }
+
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == DataType::Float(32))
       << "Input type should be one of float32 but was " << input_dtype;

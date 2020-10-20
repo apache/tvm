@@ -54,8 +54,9 @@ char* read_all_or_die(const char* name, const char* file_path, size_t* out_size)
 
   char* data = (char*)malloc(st.st_size);
   FILE* fp = fopen(file_path, "rb");
+  size_t bytes_to_read = st.st_size;
   size_t bytes_read = 0;
-  while (bytes_read < st.st_size) {
+  while (bytes_read < bytes_to_read) {
     size_t this_round = fread(data, 1, st.st_size, fp);
     if (this_round == 0) {
       if (ferror(fp)) {

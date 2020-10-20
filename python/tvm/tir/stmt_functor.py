@@ -59,7 +59,7 @@ def post_order_visit(stmt, fvisit):
 
 
 def substitute(node, vmap):
-    """ Substitute the var specified by vmap.
+    """Substitute the var specified by vmap.
 
     Parameters
     ----------

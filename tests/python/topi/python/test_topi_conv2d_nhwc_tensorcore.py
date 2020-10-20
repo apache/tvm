@@ -26,6 +26,7 @@ from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib import nvcc
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
+import tvm.testing
 
 
 _conv2d_nhwc_tensorcore_implement = {
@@ -33,19 +34,32 @@ _conv2d_nhwc_tensorcore_implement = {
 }
 
 
-def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
-                       padding, dilation=1, add_bias=False, add_relu=False, devices='cuda'):
+def verify_conv2d_nhwc(
+    batch,
+    in_channel,
+    in_size,
+    num_filter,
+    kernel,
+    stride,
+    padding,
+    dilation=1,
+    add_bias=False,
+    add_relu=False,
+    devices="cuda",
+):
     """Test the conv2d with tensorcore for nhwc layout"""
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
     padding_sum = pad_top + pad_left + pad_bottom + pad_right
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (
-        batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+    print(
+        "Workload: (%d, %d, %d, %d, %d, %d, %d, %d)"
+        % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation)
+    )
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_height, in_width, in_channel), name='A')
-    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    bias = te.placeholder((1, 1, 1, num_filter), name='bias')
+    A = te.placeholder((batch, in_height, in_width, in_channel), name="A")
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name="W")
+    bias = te.placeholder((1, 1, 1, num_filter), name="bias")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -70,16 +84,18 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if not nvcc.have_tensorcore(ctx.compute_version):
             print("skip because gpu does not support Tensor Cores")
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_nhwc_tensorcore_implement)
-            C = fcompute(A, W, stride, padding, dilation, 'float32')
+        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(
+                device, _conv2d_nhwc_tensorcore_implement
+            )
+            C = fcompute(A, W, stride, padding, dilation, "float32")
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
@@ -91,12 +107,22 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (
-                batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func = tvm.build(
+                s,
+                [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+            )
             func(a, w, b, c)
         else:
-            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (
-                batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func = tvm.build(
+                s,
+                [A, W, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
+            )
             func(a, w, c)
 
         rtol = 1e-3
@@ -105,6 +131,8 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     check_device(devices)
 
 
+@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_conv2d_nhwc_tensorcore():
     """Test the conv2d with tensorcore for nhwc layout"""
     verify_conv2d_nhwc(16, 16, 14, 16, 3, 1, 1)

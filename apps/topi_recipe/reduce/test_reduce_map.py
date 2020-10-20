@@ -47,20 +47,24 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
     # Build the logic and compile the function
     A = te.placeholder(shape=in_shape, name="A")
     if type == "sum":
-        TASK = "sum_map_id%d" %test_id
+        TASK = "sum_map_id%d" % test_id
         B = topi.sum(A, axis=axis, keepdims=keepdims)
     elif type == "max":
-        TASK = "max_map_id%d" %test_id
+        TASK = "max_map_id%d" % test_id
         B = topi.max(A, axis=axis, keepdims=keepdims)
     elif type == "min":
-        TASK = "min_map_id%d" %test_id
+        TASK = "min_map_id%d" % test_id
         B = topi.min(A, axis=axis, keepdims=keepdims)
     else:
         raise NotImplementedError
     s = topi.cuda.schedule_reduce(B)
-    with tvm.transform.PassContext(config={"tir.UnrollLoop": {
-        "auto_max_step": 16,
-    }}):
+    with tvm.transform.PassContext(
+        config={
+            "tir.UnrollLoop": {
+                "auto_max_step": 16,
+            }
+        }
+    ):
         fcuda = tvm.build(s, [A, B], "cuda", name="sum")
 
     # Test
@@ -81,24 +85,11 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
         fcuda(data_tvm, out_tvm)
     tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, rtol=4e-4, atol=4e-4)
 
+
 if __name__ == "__main__":
-    test_reduce_map(in_shape=(128, 24, 128, 24),
-                    axis=(1, 2, 3),
-                    keepdims=True,
-                    type="sum",
-                    test_id=0)
-    test_reduce_map(in_shape=(128, 24 * 128 * 24),
-                    axis=(1,),
-                    keepdims=False,
-                    type="max",
-                    test_id=1)
-    test_reduce_map(in_shape=(32, 128, 24),
-                    axis=None,
-                    keepdims=True,
-                    type="sum",
-                    test_id=2)
-    test_reduce_map(in_shape=(128, 24, 128, 24),
-                    axis=(0, 2),
-                    keepdims=False,
-                    type="min",
-                    test_id=3)
+    test_reduce_map(
+        in_shape=(128, 24, 128, 24), axis=(1, 2, 3), keepdims=True, type="sum", test_id=0
+    )
+    test_reduce_map(in_shape=(128, 24 * 128 * 24), axis=(1,), keepdims=False, type="max", test_id=1)
+    test_reduce_map(in_shape=(32, 128, 24), axis=None, keepdims=True, type="sum", test_id=2)
+    test_reduce_map(in_shape=(128, 24, 128, 24), axis=(0, 2), keepdims=False, type="min", test_id=3)

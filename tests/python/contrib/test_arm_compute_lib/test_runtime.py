@@ -46,15 +46,14 @@ def test_multiple_ops():
         out = relay.reshape(out, (1, 1000))
         return out
 
-    inputs = {
-        "a": tvm.nd.array(np.random.uniform(0, 1, (1, 1, 1, 1000)).astype("float32"))
-    }
+    inputs = {"a": tvm.nd.array(np.random.uniform(0, 1, (1, 1, 1, 1000)).astype("float32"))}
 
     outputs = []
     for acl in [False, True]:
         func = get_model(inputs["a"].shape, iter(inputs))
-        outputs.append(build_and_run(func, inputs, 1, None, device,
-                                     enable_acl=acl, acl_partitions=2)[0])
+        outputs.append(
+            build_and_run(func, inputs, 1, None, device, enable_acl=acl, acl_partitions=2)[0]
+        )
     verify(outputs, atol=0.002, rtol=0.01)
 
 
@@ -79,16 +78,16 @@ def test_heterogeneous():
         out = relay.reshape(out, (1, 1000))
         return out
 
-    inputs = {
-        "a": tvm.nd.array(np.random.uniform(-127, 128, (1, 1, 1, 1000)).astype("float32"))
-    }
+    inputs = {"a": tvm.nd.array(np.random.uniform(-127, 128, (1, 1, 1, 1000)).astype("float32"))}
 
     outputs = []
     for acl in [False, True]:
         func = get_model(inputs["a"].shape, iter(inputs))
-        outputs.append(build_and_run(func, inputs, 1, None, device,
-                                     enable_acl=acl, tvm_ops=1,
-                                     acl_partitions=2)[0])
+        outputs.append(
+            build_and_run(
+                func, inputs, 1, None, device, enable_acl=acl, tvm_ops=1, acl_partitions=2
+            )[0]
+        )
     verify(outputs, atol=0.002, rtol=0.01)
 
 
@@ -115,7 +114,7 @@ def test_multiple_runs():
             kernel_layout="OHWI",
             strides=(1, 1),
             padding=(0, 0),
-            dilation=(1, 1)
+            dilation=(1, 1),
         )
         params = {"w": w}
         return conv, params
@@ -125,10 +124,7 @@ def test_multiple_runs():
     }
 
     func, params = get_model()
-    outputs = build_and_run(func, inputs, 1,
-                  params, device,
-                  enable_acl=True,
-                  no_runs=3)
+    outputs = build_and_run(func, inputs, 1, params, device, enable_acl=True, no_runs=3)
     verify(outputs, atol=0.002, rtol=0.01)
 
 

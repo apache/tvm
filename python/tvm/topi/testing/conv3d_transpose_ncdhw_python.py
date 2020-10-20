@@ -63,7 +63,8 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
 
     # padding stage
     fpad_front, fpad_top, fpad_left, fpad_back, fpad_bottom, fpad_right = get_pad_tuple3d(
-        padding, (filter_d, filter_h, filter_w))
+        padding, (filter_d, filter_h, filter_w)
+    )
 
     bpad_front = filter_d - 1 - fpad_front
     bpad_back = filter_d - 1 - fpad_back + opad_d
@@ -72,16 +73,23 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
     bpad_left = filter_w - 1 - fpad_left
     bpad_right = filter_w - 1 - fpad_right + opad_w
 
-    padded_a_np = np.zeros((batch,
-                            in_c,
-                            dilated_a_np.shape[2]+bpad_front+bpad_back,
-                            dilated_a_np.shape[3]+bpad_top+bpad_bottom,
-                            dilated_a_np.shape[4]+bpad_left+bpad_right))
+    padded_a_np = np.zeros(
+        (
+            batch,
+            in_c,
+            dilated_a_np.shape[2] + bpad_front + bpad_back,
+            dilated_a_np.shape[3] + bpad_top + bpad_bottom,
+            dilated_a_np.shape[4] + bpad_left + bpad_right,
+        )
+    )
 
-    padded_a_np[:, :, bpad_front:dilated_a_np.shape[2]+bpad_front,
-                bpad_top:dilated_a_np.shape[3]+bpad_top,
-                bpad_left:dilated_a_np.shape[4]+bpad_left] = dilated_a_np
-
+    padded_a_np[
+        :,
+        :,
+        bpad_front : dilated_a_np.shape[2] + bpad_front,
+        bpad_top : dilated_a_np.shape[3] + bpad_top,
+        bpad_left : dilated_a_np.shape[4] + bpad_left,
+    ] = dilated_a_np
 
     # convolution stage
     out_d = (in_d - 1) * stride_d - bpad_front - bpad_back + filter_d
@@ -89,6 +97,8 @@ def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):
     out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w
 
     w_np = np.flip(w_np, axis=[2, 3, 4]).transpose((1, 0, 2, 3, 4))
-    b_np = tvm.topi.testing.conv3d_ncdhw_python(padded_a_np, w_np, stride=(1, 1, 1), padding=(0, 0, 0))
+    b_np = tvm.topi.testing.conv3d_ncdhw_python(
+        padded_a_np, w_np, stride=(1, 1, 1), padding=(0, 0, 0)
+    )
 
     return b_np

@@ -38,10 +38,24 @@ import vta.testing
 from vta.testing import simulator
 
 
-Workload = namedtuple("Conv2DTransposeWorkload",
-                      ['batch', 'height', 'width', 'in_filter', 'out_filter',
-                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride',
-                       'o_hpad', 'o_wpad'])
+Workload = namedtuple(
+    "Conv2DTransposeWorkload",
+    [
+        "batch",
+        "height",
+        "width",
+        "in_filter",
+        "out_filter",
+        "hkernel",
+        "wkernel",
+        "hpad",
+        "wpad",
+        "hstride",
+        "wstride",
+        "o_hpad",
+        "o_wpad",
+    ],
+)
 
 # Get batch info from env
 env = vta.get_env()
@@ -49,9 +63,9 @@ env = vta.get_env()
 # DCGAN workloads
 dcgan_wklds = [
     # dcgan
-    ('DCGAN.CT1', Workload(env.BATCH,  4,  4, 1024, 512, 4, 4, 1, 1, 2, 2, 0, 0)),
-    ('DCGAN.CT2', Workload(env.BATCH,  8,  8,  512, 256, 4, 4, 1, 1, 2, 2, 0, 0)),
-    ('DCGAN.CT3', Workload(env.BATCH, 16, 16,  256, 128, 4, 4, 1, 1, 2, 2, 0, 0)),
+    ("DCGAN.CT1", Workload(env.BATCH, 4, 4, 1024, 512, 4, 4, 1, 1, 2, 2, 0, 0)),
+    ("DCGAN.CT2", Workload(env.BATCH, 8, 8, 512, 256, 4, 4, 1, 1, 2, 2, 0, 0)),
+    ("DCGAN.CT3", Workload(env.BATCH, 16, 16, 256, 128, 4, 4, 1, 1, 2, 2, 0, 0)),
 ]
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
@@ -64,6 +78,7 @@ def my_clip(x, a_min, a_max):
     x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
+
 # Helper function to get factors
 def _find_factors(n):
     factors = []
@@ -73,9 +88,9 @@ def _find_factors(n):
     return factors
 
 
-def run_conv2d_transpose(env, remote, wl, target,
-               check_correctness=True, print_ir=False,
-               samples=4):
+def run_conv2d_transpose(
+    env, remote, wl, target, check_correctness=True, print_ir=False, samples=4
+):
 
     # Workload assertions
     assert wl.hpad == wl.wpad
@@ -97,10 +112,22 @@ def run_conv2d_transpose(env, remote, wl, target,
     a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)
     w_shape = (wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)
     if data_pack:
-        data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
-                      wl.height, wl.width, env.BATCH, env.BLOCK_IN)
-        kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
-                        wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
+        data_shape = (
+            wl.batch // env.BATCH,
+            wl.in_filter // env.BLOCK_IN,
+            wl.height,
+            wl.width,
+            env.BATCH,
+            env.BLOCK_IN,
+        )
+        kernel_shape = (
+            wl.out_filter // env.BLOCK_OUT,
+            wl.in_filter // env.BLOCK_IN,
+            wl.hkernel,
+            wl.wkernel,
+            env.BLOCK_OUT,
+            env.BLOCK_IN,
+        )
     else:
         data_shape = a_shape
         kernel_shape = w_shape
@@ -112,8 +139,8 @@ def run_conv2d_transpose(env, remote, wl, target,
     with target:
 
         res = fcompute(
-            data, kernel, (wl.hstride, wl.wstride), padding, env.acc_dtype,
-            (wl.o_hpad, wl.o_wpad))
+            data, kernel, (wl.hstride, wl.wstride), padding, env.acc_dtype, (wl.o_hpad, wl.o_wpad)
+        )
         res = topi.right_shift(res, env.WGT_WIDTH)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
@@ -125,7 +152,16 @@ def run_conv2d_transpose(env, remote, wl, target,
     # Derive number of ops
     fout_height = (wl.height - 1) * wl.hstride - 2 * wl.hpad + wl.hkernel + wl.o_hpad
     fout_width = (wl.width - 1) * wl.wstride - 2 * wl.wpad + wl.wkernel + wl.o_wpad
-    num_ops = 2 * wl.batch * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
+    num_ops = (
+        2
+        * wl.batch
+        * fout_height
+        * fout_width
+        * wl.hkernel
+        * wl.wkernel
+        * wl.out_filter
+        * wl.in_filter
+    )
 
     # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
     def get_ref_data():
@@ -133,36 +169,57 @@ def run_conv2d_transpose(env, remote, wl, target,
         a_min, a_max = 0 - (1 << (env.INP_WIDTH - 1)), (1 << (env.INP_WIDTH - 1))
         w_min, w_max = 0 - (1 << (env.WGT_WIDTH - 1)), (1 << (env.WGT_WIDTH - 1))
         a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
-        w_np = np.random.randint(w_min, w_max, size=(wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)).astype(kernel.dtype)
+        w_np = np.random.randint(
+            w_min, w_max, size=(wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)
+        ).astype(kernel.dtype)
         r_np = tvm.topi.testing.conv2d_transpose_nchw_python(
-            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad, (wl.o_hpad, wl.o_wpad)).astype(env.acc_dtype)
+            a_np.astype(env.acc_dtype),
+            w_np.astype(env.acc_dtype),
+            (wl.hstride, wl.wstride),
+            wl.hpad,
+            (wl.o_hpad, wl.o_wpad),
+        ).astype(env.acc_dtype)
         return a_np, w_np, r_np
 
     # Data in original format
     data_np, kernel_np, res_ref = get_ref_data()
     if data_pack:
         data_np = data_np.reshape(
-            wl.batch//env.BATCH, env.BATCH,
-            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-            wl.height, wl.width).transpose((0, 2, 4, 5, 1, 3))
+            wl.batch // env.BATCH,
+            env.BATCH,
+            wl.in_filter // env.BLOCK_IN,
+            env.BLOCK_IN,
+            wl.height,
+            wl.width,
+        ).transpose((0, 2, 4, 5, 1, 3))
         kernel_np = kernel_np.reshape(
-            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-            wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
-            wl.hkernel, wl.wkernel).transpose((2, 0, 4, 5, 3, 1))
+            wl.in_filter // env.BLOCK_IN,
+            env.BLOCK_IN,
+            wl.out_filter // env.BLOCK_OUT,
+            env.BLOCK_OUT,
+            wl.hkernel,
+            wl.wkernel,
+        ).transpose((2, 0, 4, 5, 3, 1))
         kernel_np = np.flip(kernel_np, 2)
         kernel_np = np.flip(kernel_np, 3)
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(s, [data, kernel, res],
-                        target=target,
-                        target_host=env.target_host,
-                        name="conv2d_transpose")
+        mod = vta.build(
+            s,
+            [data, kernel, res],
+            target=target,
+            target_host=env.target_host,
+            name="conv2d_transpose",
+        )
     else:
-        mod = tvm.build(s, [data, kernel, res],
-                        target=target,
-                        target_host=env.target_host,
-                        name="conv2d_transpose")
+        mod = tvm.build(
+            s,
+            [data, kernel, res],
+            target=target,
+            target_host=env.target_host,
+            name="conv2d_transpose",
+        )
     temp = util.tempdir()
     mod.save(temp.relpath("conv2d_transpose.o"))
     remote.upload(temp.relpath("conv2d_transpose.o"))
@@ -204,8 +261,9 @@ def run_conv2d_transpose(env, remote, wl, target,
     if check_correctness:
         res_orig = res_arr.asnumpy()
         if data_pack:
-            res_orig = res_orig.transpose(
-                (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
+            res_orig = res_orig.transpose((0, 4, 1, 5, 2, 3)).reshape(
+                wl.batch, wl.out_filter, fout_height, fout_width
+            )
         res_ref = res_ref >> env.WGT_WIDTH
         res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res_ref = res_ref.astype(env.out_dtype)
@@ -221,6 +279,7 @@ def run_conv2d_transpose(env, remote, wl, target,
 
     return correct, cost, stats
 
+
 @pytest.mark.parametrize("device", ["vta", "arm_cpu"])
 def test_conv2d_transpose(device):
     def _run(env, remote):
@@ -232,11 +291,13 @@ def test_conv2d_transpose(device):
                 reconfig_runtime(remote)
         elif device == "arm_cpu":
             target = env.target_vta_cpu
-        with autotvm.tophub.context(target): # load pre-tuned schedule parameters
+        with autotvm.tophub.context(target):  # load pre-tuned schedule parameters
             for _, wl in dcgan_wklds:
                 print(wl)
                 run_conv2d_transpose(env, remote, wl, target)
+
     vta.testing.run(_run)
+
 
 if __name__ == "__main__":
     test_conv2d_transpose(device="arm_cpu")

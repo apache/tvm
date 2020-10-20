@@ -26,6 +26,7 @@
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
+#include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/detail/ravel_unravel.h>
 #include <tvm/topi/detail/tensor_utils.h>
@@ -481,26 +482,29 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split(const Tensor& x, Array<Integer> split_indices, int axis,
+inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int axis,
                            std::string name = "T_split", std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
-  std::vector<int> begin_ids;
+  auto src_axis_size = x->shape[axis];
+  std::vector<PrimExpr> begin_ids;
   begin_ids.push_back(0);
 
-  for (Integer idx : split_indices) {
-    int val = static_cast<int>(idx->value);
-    CHECK_GT(val, begin_ids.back()) << "split_indices must be sorted";
-    begin_ids.push_back(val);
+  for (auto idx : split_indices) {
+    auto idx_node = idx.as<IntImmNode>();
+    auto back_node = begin_ids.back().as<IntImmNode>();
+    if (idx_node && back_node) {
+      CHECK_GT(idx_node->value, back_node->value) << "split_indices must be sorted";
+    }
+    begin_ids.push_back(idx);
   }
 
   Array<Array<PrimExpr> > out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
-    int out_axis_size;
+    PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
       out_axis_size = src_axis_size - begin_ids[i];
     } else {
@@ -668,15 +672,18 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
   }
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
-  auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
+  auto src_axis_size = x->shape[axis];
 
   CHECK_GT(num_sections, 0) << "Slice count must be > 0";
-  CHECK_EQ(src_axis_size % num_sections, 0)
-      << "num_sections must be an integer factor of the size of axis " << axis << " ("
-      << src_axis_size << ")";
 
-  Array<Integer> split_indices;
-  auto seg_size = src_axis_size / num_sections;
+  if (auto node = src_axis_size.as<IntImmNode>()) {
+    CHECK_EQ(node->value % num_sections, 0)
+        << "num_sections must be an integer factor of the size of axis " << axis << " ("
+        << node->value << ")";
+  }
+
+  Array<PrimExpr> split_indices;
+  auto seg_size = indexdiv(src_axis_size, num_sections);
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()
     if (i != 0) {
@@ -885,16 +892,22 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
       << " vs " << y->shape.size();
   CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
                                << y->dtype;
-  Array<PrimExpr> oshape = x->shape;
-  Tensor out;
 
-  if (condition->shape.size() != 1) {
+  if (x->shape.size() == 0) {
+    return compute(
+        condition->shape,
+        [&](const Array<Var>& indices) {
+          Array<PrimExpr> condition_idx{indices[0]};
+          return tvm::tir::Select(condition(condition_idx) != 0, x(), y());
+        },
+        name, tag);
+  } else if (condition->shape.size() != 1) {
     CHECK_EQ(condition->shape.size(), x->shape.size())
         << "condition array must be either have the same shape as x or to be a "
            "1-D array.Got different number of dimension: "
         << condition->shape.size() << " vs " << x->shape.size();
-    out = compute(
-        oshape,
+    return compute(
+        x->shape,
         [&](const Array<Var>& indices) {
           return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
         },
@@ -903,15 +916,14 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
         << "If condition is 1-D, the first dimension must be the same as x: " << condition->shape[0]
         << " vs " << x->shape[0];
-    out = compute(
-        oshape,
+    return compute(
+        x->shape,
         [&](const Array<Var>& indices) {
           Array<PrimExpr> condition_idx{indices[0]};
           return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
         },
         name, tag);
   }
-  return out;
 }
 
 /*!
@@ -1512,30 +1524,140 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>
 }
 
 /*!
- * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonal.
+ * \brief Returns a tensor with the diagonal of input tensor replaced with the provided diagonals.
  * \param input input tensor.
- * \param diagonal values to be filled in the diagonal.
+ * \param diagonal values to be filled in the diagonals.
+ * \param k1 lower limit (included) of the range of diagonals.
+ * \param k2 upper limit (included) of the range of diagonals.
+ * \param super_diag_right_align bool, true iff super-diagonal is right aligned (left-padded).
+ * \param sub_diag_right_align bool, true iff sub-diagonal is right aligned (left-padded).
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return new tensor with given diagonal values.
  */
-inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal,
+inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k1, int k2,
+                              bool super_diag_right_align, bool sub_diag_right_align,
                               const std::string name = "T_matrix_set_diag",
                               const std::string tag = kInjective) {
   size_t ndim = input->shape.size() - 1;
+
+  bool only_one_diagonal = k1 == k2;
 
   return compute(
       input->shape,
       [&](const Array<Var>& iter_vars) {
         auto get_diag = [&]() {
           Array<PrimExpr> diagonal_indices;
-          for (size_t i = 0; i < ndim; i++) {
+          PrimExpr k, offset = 0;
+          for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
           }
+          if (only_one_diagonal) {
+            k = k1;
+          } else {
+            // Determining which diagonal/sub-diagonal/super-diagonal it is
+            k = iter_vars[ndim] - iter_vars[ndim - 1];
+            diagonal_indices.push_back(k2 - k);
+
+            // Calculating the offset in diagonal tensor for this diagonal
+            auto get_offset = [&](PrimExpr M, PrimExpr N) {
+              // offset = max_diagonal_length - diagonal_length
+              return diagonal->shape[diagonal->shape.size() - 1] - if_then_else(M < N, M, N);
+            };
+            offset = if_then_else(
+                k >= 0,
+                super_diag_right_align ? get_offset(input->shape[ndim] - k, input->shape[ndim - 1])
+                                       : 0,
+                sub_diag_right_align ? get_offset(input->shape[ndim], input->shape[ndim - 1] + k)
+                                     : 0);
+          }
+          diagonal_indices.push_back(if_then_else(k >= 0, iter_vars[ndim - 1], iter_vars[ndim]) +
+                                     offset);
           return diagonal(diagonal_indices);
         };
-        return if_then_else((PrimExpr)iter_vars[ndim] == iter_vars[ndim - 1], get_diag(),
+        return if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] >= k1,
+                            if_then_else((PrimExpr)iter_vars[ndim] - iter_vars[ndim - 1] <= k2,
+                                         get_diag(), input(iter_vars)),
                             input(iter_vars));
+      },
+      name, tag);
+}
+
+/*!
+ * \brief Numpy style advanced indexing with tensor.
+ * \param data is input data.
+ * \param indices is list of indexing tensors.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Output tensor.
+ */
+inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
+                        const std::string name = "advanced_index",
+                        const std::string tag = kInjective) {
+  Array<PrimExpr> oshape;
+  Array<PrimExpr> broadcast_shape;
+  Array<Tensor> bindices;
+  std::vector<int64_t> flatten_shape_lens;
+  int64_t num_picked_elems = 1;
+  bool has_dyn_shape = false;
+
+  if (indices.size() == 1) {
+    broadcast_shape = indices[0]->shape;
+    bindices = indices;
+  } else {
+    for (const auto& index : indices) {
+      int64_t flatten_len = 1;
+      for (const auto& dim : index->shape) {
+        const IntImmNode* axis_len = dim.as<IntImmNode>();
+        if (!axis_len) {
+          broadcast_shape = index->shape;
+          has_dyn_shape = true;
+          break;
+        }
+        flatten_len *= axis_len->value;
+      }
+      if (has_dyn_shape) break;
+      flatten_shape_lens.push_back(flatten_len);
+      if (flatten_len > num_picked_elems) {
+        num_picked_elems = flatten_len;
+        broadcast_shape = index->shape;
+      }
+    }
+
+    // Do broadcast for indices
+    for (size_t i = 0; i < indices.size(); ++i) {
+      if (!has_dyn_shape && flatten_shape_lens[i] < num_picked_elems) {
+        bindices.push_back(broadcast_to(indices[i], broadcast_shape));
+      } else {
+        bindices.push_back(indices[i]);
+      }
+    }
+  }
+
+  for (const auto& dim : broadcast_shape) {
+    oshape.push_back(dim);
+  }
+  for (size_t i = indices.size(); i < data->shape.size(); ++i) {
+    oshape.push_back(data->shape[i]);
+  }
+
+  return compute(
+      oshape,
+      [&](const Array<Var>& iter_var) {
+        Array<PrimExpr> tensor_indices;
+        for (size_t i = 0; i < broadcast_shape.size(); ++i) {
+          tensor_indices.push_back(iter_var[i]);
+        }
+
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < bindices.size(); ++i) {
+          real_indices.push_back(bindices[i](tensor_indices));
+        }
+        for (size_t i = broadcast_shape.size(); i < iter_var.size(); ++i) {
+          real_indices.push_back(iter_var[i]);
+        }
+
+        return data(real_indices);
       },
       name, tag);
 }

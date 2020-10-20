@@ -18,6 +18,7 @@
 """L2 normalize in python"""
 import numpy as np
 
+
 def l2_normalize_python(a_np, eps, axis=None):
     """L2 normalize operator in NCHW layout.
 

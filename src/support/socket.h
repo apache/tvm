@@ -26,10 +26,14 @@
 #define TVM_SUPPORT_SOCKET_H_
 
 #if defined(_WIN32)
+
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#undef NOMINMAX
+
 using ssize_t = int;
 #ifdef _MSC_VER
 #pragma comment(lib, "Ws2_32.lib")
@@ -52,7 +56,7 @@ using ssize_t = int;
 #include <unordered_map>
 #include <vector>
 
-#include "../support/util.h"
+#include "../support/utils.h"
 
 #if defined(_WIN32)
 static inline int poll(struct pollfd* pfd, int nfds, int timeout) {
@@ -131,9 +135,9 @@ struct SockAddr {
     hints.ai_family = PF_UNSPEC;
     hints.ai_flags = AI_PASSIVE;
     hints.ai_socktype = SOCK_STREAM;
-    addrinfo* res = NULL;
-    int sig = getaddrinfo(host, NULL, &hints, &res);
-    CHECK(sig == 0 && res != NULL) << "cannot obtain address of " << host;
+    addrinfo* res = nullptr;
+    int sig = getaddrinfo(host, nullptr, &hints, &res);
+    CHECK(sig == 0 && res != nullptr) << "cannot obtain address of " << host;
     switch (res->ai_family) {
       case AF_INET: {
         sockaddr_in* addr4 = reinterpret_cast<sockaddr_in*>(&addr);
@@ -403,7 +407,7 @@ class TCPSocket : public Socket {
    * \return The accepted socket connection.
    */
   TCPSocket Accept() {
-    SockType newfd = accept(sockfd, NULL, NULL);
+    SockType newfd = accept(sockfd, nullptr, nullptr);
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }

@@ -59,8 +59,7 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
     try:
         ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
         if num_rpc_ctx == len(ctx):
-            fcreate = ctx[0]._rpc_sess.get_function(
-                "tvm.graph_runtime_debug.create")
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_debug.create")
         else:
             fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
@@ -176,9 +175,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         Time consumed for each execution will be set as debug output.
 
         """
-        self.debug_datum._time_list = [
-            [float(t) * 1e-6] for t in self.run_individual(10, 1, 1)
-        ]
+        self.debug_datum._time_list = [[float(t) * 1e-6] for t in self.run_individual(10, 1, 1)]
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
@@ -204,11 +201,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             except KeyError:
                 node_list = output_tensors.keys()
                 raise RuntimeError(
-                    "Node "
-                    + node
-                    + " not found, available nodes are: "
-                    + str(node_list)
-                    + "."
+                    "Node " + node + " not found, available nodes are: " + str(node_list) + "."
                 )
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list

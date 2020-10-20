@@ -265,7 +265,7 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
                    Stmt body) {
   // TODO(tvm-team): Add invariant check to make sure
   // IsPointerPType(buffer_var->type_annotation, dtype)
-  // once we fix the allocate hybrid script printing.
+  // once we fix the allocate tvm script printing.
   for (size_t i = 0; i < extents.size(); ++i) {
     CHECK(extents[i].defined());
     CHECK(extents[i].dtype().is_scalar());

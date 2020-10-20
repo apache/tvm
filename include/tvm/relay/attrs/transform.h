@@ -381,6 +381,25 @@ struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
   }
 };  // struct OneHotAttrs
 
+/*! \brief Attributes used in matrix_set_diag operator */
+struct MatrixSetDiagAttrs : public tvm::AttrsNode<MatrixSetDiagAttrs> {
+  int k1;
+  int k2;
+  bool super_diag_right_align;
+  bool sub_diag_right_align;
+
+  TVM_DECLARE_ATTRS(MatrixSetDiagAttrs, "relay.attrs.MatrixSetDiagAttrs") {
+    TVM_ATTR_FIELD(k1).set_default(0).describe("Lower limit (included) of the range of diagonals.");
+    TVM_ATTR_FIELD(k2).set_default(0).describe("Upper limit (included) of the range of diagonals.");
+    TVM_ATTR_FIELD(super_diag_right_align)
+        .set_default(true)
+        .describe("Bool, true iff super-diagonal is right aligned (left-padded).");
+    TVM_ATTR_FIELD(sub_diag_right_align)
+        .set_default(false)
+        .describe("Bool, true iff sub-diagonal is right aligned (left-padded).");
+  }
+};  // struct MatrixSetDiagAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

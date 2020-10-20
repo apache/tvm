@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../file_util.h"
+#include "../../file_utils.h"
 #include "ethosn_device.h"
 #include "ethosn_driver_library/Inference.hpp"
 #include "ethosn_driver_library/Network.hpp"
@@ -118,6 +118,14 @@ Module EthosnModule::LoadFromBinary(void* strm) {
   }
   auto n = make_object<EthosnModule>(&cmms);
   return Module(n);
+}
+
+void EthosnModule::SaveToFile(const std::string& path, const std::string& format) {
+  std::string data;
+  dmlc::MemoryStringStream writer(&data);
+  dmlc::SeekStream* strm = &writer;
+  SaveToBinary(strm);
+  SaveBinaryToFile(path, data);
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_ethos-n")

@@ -27,6 +27,6 @@ def test_key_is_not_present():
     assert not attrs.has_attr("b")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_key_is_present()
     test_key_is_present()

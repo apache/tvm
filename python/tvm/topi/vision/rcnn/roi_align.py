@@ -67,7 +67,7 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
 
     def _sample(i, c, ph, pw):
         roi = rois[i]
-        batch_index = roi[0].astype('int32')
+        batch_index = roi[0].astype("int32")
         roi_start_w, roi_start_h, roi_end_w, roi_end_h = roi[1], roi[2], roi[3], roi[4]
         roi_start_h *= spatial_scale
         roi_end_h *= spatial_scale
@@ -82,20 +82,27 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         bin_w = roi_w / pooled_size_w
 
         if sample_ratio > 0:
-            roi_bin_grid_h = roi_bin_grid_w = tvm.tir.const(sample_ratio, 'int32')
+            roi_bin_grid_h = roi_bin_grid_w = tvm.tir.const(sample_ratio, "int32")
         else:
-            roi_bin_grid_h = te.ceil(roi_h / pooled_size_h).astype('int32')
-            roi_bin_grid_w = te.ceil(roi_w / pooled_size_w).astype('int32')
+            roi_bin_grid_h = te.ceil(roi_h / pooled_size_h).astype("int32")
+            roi_bin_grid_w = te.ceil(roi_w / pooled_size_w).astype("int32")
 
         count = roi_bin_grid_h * roi_bin_grid_w
         rh = te.reduce_axis((0, roi_bin_grid_h))
         rw = te.reduce_axis((0, roi_bin_grid_w))
         roi_start_h += ph * bin_h
         roi_start_w += pw * bin_w
-        return te.sum(_bilinear(batch_index, c,
-                                roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
-                                roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w) / count,
-                      axis=[rh, rw])
+        return te.sum(
+            _bilinear(
+                batch_index,
+                c,
+                roi_start_h + (rh + 0.5) * bin_h / roi_bin_grid_h,
+                roi_start_w + (rw + 0.5) * bin_w / roi_bin_grid_w,
+            )
+            / count,
+            axis=[rh, rw],
+        )
 
-    return te.compute((num_roi, channel, pooled_size_h, pooled_size_w), _sample,
-                      tag='pool,roi_align_nchw')
+    return te.compute(
+        (num_roi, channel, pooled_size_h, pooled_size_w), _sample, tag="pool,roi_align_nchw"
+    )

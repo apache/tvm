@@ -137,7 +137,7 @@ void CodeGenVivadoHLS::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOL
   PrintBinaryExpr(op, opstr, os, this);
 }
 
-runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
+runtime::Module BuildSDAccel(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenVivadoHLS cg;
@@ -178,7 +178,6 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    Target target = Target::Create(target_str);
     String device = target->GetAttr<String>("device", "").value();
     xclbin = (*f)(kernel_info, device).operator std::string();
   } else {

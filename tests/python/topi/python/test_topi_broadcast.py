@@ -19,8 +19,8 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
-from common import get_all_backend
 
 
 def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
@@ -30,11 +30,11 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="broadcast_to")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
@@ -44,45 +44,56 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
         foo(data_nd, out_nd)
         tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for target in get_all_backend():
+    for target, ctx in tvm.testing.enabled_targets():
         check_device(target)
     check_device("sdaccel")
 
 
-def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
-                                ftopi, fnumpy,
-                                lhs_min=-100, lhs_max=100,
-                                rhs_min=-100, rhs_max=100,
-                                dtype="float32"):
+def verify_broadcast_binary_ele(
+    lhs_shape,
+    rhs_shape,
+    ftopi,
+    fnumpy,
+    lhs_min=-100,
+    lhs_max=100,
+    rhs_min=-100,
+    rhs_max=100,
+    dtype="float32",
+):
     # Build the logic and compile the function
-    A = (te.var("A", dtype=dtype) if lhs_shape is None
-         else te.placeholder(shape=lhs_shape, name="A", dtype=dtype))
-    B = (te.var("B", dtype=dtype) if rhs_shape is None
-         else te.placeholder(shape=rhs_shape, name="B", dtype=dtype))
+    A = (
+        te.var("A", dtype=dtype)
+        if lhs_shape is None
+        else te.placeholder(shape=lhs_shape, name="A", dtype=dtype)
+    )
+    B = (
+        te.var("B", dtype=dtype)
+        if rhs_shape is None
+        else te.placeholder(shape=rhs_shape, name="B", dtype=dtype)
+    )
     C = ftopi(A, B)
     if isinstance(A, tvm.tir.PrimExpr) and isinstance(B, tvm.tir.PrimExpr):
-        assert(isinstance(C, tvm.tir.PrimExpr))
+        assert isinstance(C, tvm.tir.PrimExpr)
         return
 
     def gen_operand(shape, low, high, ctx):
         if shape is None:
             npy = float(np.random.uniform(low=low, high=high))
-            if dtype.startswith('int'):
+            if dtype.startswith("int"):
                 npy = int(npy)
             nd = npy
         else:
-            npy = np.random.uniform(low=low, high=high,
-                                    size=shape).astype(dtype)
+            npy = np.random.uniform(low=low, high=high, size=shape).astype(dtype)
             nd = tvm.nd.array(npy, ctx)
         return npy, nd
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             s = tvm.topi.testing.get_broadcast_schedule(device)(C)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + ftopi.__name__)
 
@@ -92,13 +103,14 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
 
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1e-4, atol=1e-4)
 
-    for target in get_all_backend():
+    for target, ctx in tvm.testing.enabled_targets():
         check_device(target)
     check_device("sdaccel")
 
 
+@tvm.testing.uses_gpu
 def test_broadcast_to():
     verify_broadcast_to_ele((1,), (10,), topi.broadcast_to)
     verify_broadcast_to_ele((), (10,), topi.broadcast_to)
@@ -106,71 +118,92 @@ def test_broadcast_to():
     verify_broadcast_to_ele((1, 128, 1, 32), (64, 128, 64, 32), topi.broadcast_to)
 
 
+@tvm.testing.uses_gpu
 def test_add():
-    verify_broadcast_binary_ele(
-        (), (), topi.add, np.add)
-    verify_broadcast_binary_ele(
-        (5, 2, 3), (2, 1), topi.add, np.add)
+    verify_broadcast_binary_ele((), (), topi.add, np.add)
+    verify_broadcast_binary_ele((5, 2, 3), (2, 1), topi.add, np.add)
 
 
+@tvm.testing.uses_gpu
 def test_subtract():
-    verify_broadcast_binary_ele(
-        (5, 2, 3), (), topi.subtract, np.subtract)
-    verify_broadcast_binary_ele(
-        (5, 2, 3), None, topi.subtract, np.subtract)
-    verify_broadcast_binary_ele(
-        None, None, topi.subtract, np.subtract)
-    verify_broadcast_binary_ele(
-        (1, 32), (64, 32), topi.subtract, np.subtract)
+    verify_broadcast_binary_ele((5, 2, 3), (), topi.subtract, np.subtract)
+    verify_broadcast_binary_ele((5, 2, 3), None, topi.subtract, np.subtract)
+    verify_broadcast_binary_ele(None, None, topi.subtract, np.subtract)
+    verify_broadcast_binary_ele((1, 32), (64, 32), topi.subtract, np.subtract)
 
 
+@tvm.testing.uses_gpu
 def test_multiply():
-    verify_broadcast_binary_ele(
-        (5, 64, 128), (2, 5, 64, 1), topi.multiply, np.multiply)
+    verify_broadcast_binary_ele((5, 64, 128), (2, 5, 64, 1), topi.multiply, np.multiply)
 
 
+@tvm.testing.uses_gpu
 def test_divide():
-    verify_broadcast_binary_ele(
-        None, (10,), topi.divide, np.divide, rhs_min=0.0001)
-    verify_broadcast_binary_ele(
-        (), None, topi.divide, np.divide, rhs_min=0.0001)
-    verify_broadcast_binary_ele(
-        (2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(None, (10,), topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele((), None, topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele((2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
 
+
+@tvm.testing.uses_gpu
 def test_floor_divide():
-    def _canonical_floor_div(a,b):
+    def _canonical_floor_div(a, b):
         return np.floor(a / b)
-    verify_broadcast_binary_ele(
-        None, (10,), topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
-    verify_broadcast_binary_ele(
-        (), None, topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
-    verify_broadcast_binary_ele(
-        (2, 3, 64, 32), (64, 32), topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
 
+    verify_broadcast_binary_ele(
+        None, (10,), topi.floor_divide, _canonical_floor_div, rhs_min=0.0001
+    )
+    verify_broadcast_binary_ele((), None, topi.floor_divide, _canonical_floor_div, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (2, 3, 64, 32), (64, 32), topi.floor_divide, _canonical_floor_div, rhs_min=0.0001
+    )
+
+
+@tvm.testing.uses_gpu
 def test_maximum_minmum():
-    verify_broadcast_binary_ele(
-        (32,), (64, 32), topi.maximum, np.maximum)
-    verify_broadcast_binary_ele(
-        (1, 2, 2, 1, 32), (64, 32), topi.minimum, np.minimum)
+    verify_broadcast_binary_ele((32,), (64, 32), topi.maximum, np.maximum)
+    verify_broadcast_binary_ele((1, 2, 2, 1, 32), (64, 32), topi.minimum, np.minimum)
 
 
+@tvm.testing.uses_gpu
 def test_power():
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.power, np.power, lhs_min=0.001, rhs_min=0.001, rhs_max=2)
+        (1, 2, 2), (2,), topi.power, np.power, lhs_min=0.001, rhs_min=0.001, rhs_max=2
+    )
 
 
+@tvm.testing.uses_gpu
 def test_mod():
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.mod, np.mod, lhs_min=0.001, rhs_min=1, dtype="int32")
+        (1, 2, 2), (2,), topi.mod, np.mod, lhs_min=0.001, rhs_min=1, dtype="int32"
+    )
 
+
+@tvm.testing.uses_gpu
 def test_floor_mod():
-    def _canonical_floor_mod(a,b):
+    def _canonical_floor_mod(a, b):
         return a - np.floor(a / b) * b
-    verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.floor_mod, _canonical_floor_mod, lhs_min=0.001, rhs_min=1, dtype="int32")
-    verify_broadcast_binary_ele(
-        (3, 4, 5), (3, 4, 5), topi.floor_mod, _canonical_floor_mod, lhs_min=0.001, rhs_min=1, dtype="float32")
 
+    verify_broadcast_binary_ele(
+        (1, 2, 2),
+        (2,),
+        topi.floor_mod,
+        _canonical_floor_mod,
+        lhs_min=0.001,
+        rhs_min=1,
+        dtype="int32",
+    )
+    verify_broadcast_binary_ele(
+        (3, 4, 5),
+        (3, 4, 5),
+        topi.floor_mod,
+        _canonical_floor_mod,
+        lhs_min=0.001,
+        rhs_min=1,
+        dtype="float32",
+    )
+
+
+@tvm.testing.uses_gpu
 def test_cmp():
     # explicit specify the output type
     def greater(x, y):
@@ -190,61 +223,90 @@ def test_cmp():
 
     def less_equal(x, y):
         return topi.less_equal(x, y).astype("int8")
+
+    verify_broadcast_binary_ele((1, 2, 2), (2,), greater, np.greater)
+    verify_broadcast_binary_ele((2, 1, 2), (2, 3, 1), less, np.less)
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), greater, np.greater)
+        (2, 1, 2),
+        (2, 3, 1),
+        equal,
+        np.equal,
+        lhs_min=-2,
+        lhs_max=2,
+        rhs_min=-2,
+        rhs_max=2,
+        dtype="int32",
+    )
     verify_broadcast_binary_ele(
-        (2, 1, 2), (2, 3, 1), less, np.less)
+        (2, 1, 2),
+        (2, 3, 1),
+        not_equal,
+        np.not_equal,
+        lhs_min=-2,
+        lhs_max=2,
+        rhs_min=-2,
+        rhs_max=2,
+        dtype="int32",
+    )
     verify_broadcast_binary_ele(
-        (2, 1, 2), (2, 3, 1), equal, np.equal,
-        lhs_min=-2, lhs_max=2, rhs_min=-2, rhs_max=2, dtype='int32')
+        (7, 1, 5),
+        (7, 3, 1),
+        greater_equal,
+        np.greater_equal,
+        lhs_min=-3,
+        lhs_max=3,
+        rhs_min=-3,
+        rhs_max=3,
+        dtype="int32",
+    )
     verify_broadcast_binary_ele(
-        (2, 1, 2), (2, 3, 1), not_equal, np.not_equal,
-        lhs_min=-2, lhs_max=2, rhs_min=-2, rhs_max=2, dtype='int32')
-    verify_broadcast_binary_ele(
-        (7, 1, 5), (7, 3, 1), greater_equal, np.greater_equal,
-        lhs_min=-3, lhs_max=3, rhs_min=-3, rhs_max=3, dtype='int32')
-    verify_broadcast_binary_ele(
-        (7, 1, 5), (7, 3, 1), less_equal, np.less_equal,
-        lhs_min=-3, lhs_max=3, rhs_min=-3, rhs_max=3, dtype='int32')
+        (7, 1, 5),
+        (7, 3, 1),
+        less_equal,
+        np.less_equal,
+        lhs_min=-3,
+        lhs_max=3,
+        rhs_min=-3,
+        rhs_max=3,
+        dtype="int32",
+    )
 
 
+@tvm.testing.uses_gpu
 def test_shift():
     # explicit specify the output type
     verify_broadcast_binary_ele(
-        (2, 1, 2), None, topi.right_shift, np.right_shift,
-        dtype="int32", rhs_min=0, rhs_max=32)
+        (2, 1, 2), None, topi.right_shift, np.right_shift, dtype="int32", rhs_min=0, rhs_max=32
+    )
 
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.left_shift, np.left_shift,
-        dtype="int32", rhs_min=0, rhs_max=32)
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift, dtype="int32", rhs_min=0, rhs_max=32
+    )
 
     verify_broadcast_binary_ele(
-        (1, 2, 2), (2,), topi.left_shift, np.left_shift,
-        dtype="int8", rhs_min=0, rhs_max=32)
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift, dtype="int8", rhs_min=0, rhs_max=32
+    )
 
 
+@tvm.testing.uses_gpu
 def test_logical_single_ele():
     def test_apply(
-            func,
-            name,
-            f_numpy,
-            indata,
-            dtype="bool",
+        func,
+        name,
+        f_numpy,
+        indata,
+        dtype="bool",
     ):
         # Build the logic and compile the function
         A = te.placeholder(shape=indata.shape, name="A", dtype=dtype)
         B = func(A)
         if isinstance(A, tvm.tir.PrimExpr):
-            assert (isinstance(B, tvm.tir.PrimExpr))
+            assert isinstance(B, tvm.tir.PrimExpr)
             return
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
@@ -256,36 +318,33 @@ def test_logical_single_ele():
             foo(data_nd, out_nd)
             tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-        for device in get_all_backend():
-            check_device(device)
+        for device, ctx in tvm.testing.enabled_targets():
+            check_device(device, ctx)
 
     test_apply(topi.logical_not, "logical_not", np.logical_not, np.array([True, False, 0, 1]))
     test_apply(topi.logical_not, "logical_not", np.logical_not, np.array(np.arange(5) < 3))
 
 
+@tvm.testing.uses_gpu
 def test_bitwise_not():
     def test_apply(
-            func,
-            name,
-            f_numpy,
-            shape,
-            dtype="int32",
+        func,
+        name,
+        f_numpy,
+        shape,
+        dtype="int32",
     ):
         # Build the logic and compile the function
         A = te.placeholder(shape=shape, name="A", dtype=dtype)
         B = func(A)
 
         if isinstance(A, tvm.tir.PrimExpr):
-            assert (isinstance(B, tvm.tir.PrimExpr))
+            assert isinstance(B, tvm.tir.PrimExpr)
             return
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
@@ -297,37 +356,34 @@ def test_bitwise_not():
             foo(data_nd, out_nd)
             tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-        for device in get_all_backend():
-            check_device(device)
+        for device, ctx in tvm.testing.enabled_targets():
+            check_device(device, ctx)
 
     test_apply(topi.bitwise_not, "bitwise_not", np.bitwise_not, ())
     test_apply(topi.bitwise_not, "bitwise_not", np.bitwise_not, (2, 1, 2))
 
 
+@tvm.testing.uses_gpu
 def test_logical_binary_ele():
     def test_apply(
-            func,
-            name,
-            f_numpy,
-            lhs,
-            rhs,
-            dtype="bool",
+        func,
+        name,
+        f_numpy,
+        lhs,
+        rhs,
+        dtype="bool",
     ):
         # Build the logic and compile the function
-        A = (te.var("A", dtype=dtype))
-        B = (te.var("B", dtype=dtype))
+        A = te.var("A", dtype=dtype)
+        B = te.var("B", dtype=dtype)
         C = func(A, B)
         if isinstance(A, tvm.tir.PrimExpr) and isinstance(B, tvm.tir.PrimExpr):
-            assert (isinstance(C, tvm.tir.PrimExpr))
+            assert isinstance(C, tvm.tir.PrimExpr)
             return
 
-        def check_device(device):
-            ctx = tvm.context(device, 0)
-            if not ctx.exist:
-                print("Skip because %s is not enabled" % device)
-                return
+        def check_device(device, ctx):
             print("Running on target: %s" % device)
-            with tvm.target.create(device):
+            with tvm.target.Target(device):
                 s = tvm.topi.testing.get_broadcast_schedule(device)(C)
             foo = tvm.build(s, [A, B, C], device, name=name)
 
@@ -337,10 +393,10 @@ def test_logical_binary_ele():
             out_npy = f_numpy(lhs, rhs)
             out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
             foo(lhs_nd, rhs_nd, out_nd)
-            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1e-4, atol=1e-4)
 
-        for device in get_all_backend():
-            check_device(device)
+        for device, ctx in tvm.testing.enabled_targets():
+            check_device(device, ctx)
 
     test_apply(topi.logical_and, "logical_and", np.logical_and, True, False)
     test_apply(topi.logical_and, "logical_and", np.logical_and, [True, False], [False, False])
@@ -350,31 +406,26 @@ def test_logical_binary_ele():
     test_apply(topi.logical_xor, "logical_xor", np.logical_xor, [True, False], [False, False])
 
 
+@tvm.testing.uses_gpu
 def test_bitwise_and():
+    verify_broadcast_binary_ele(None, None, topi.bitwise_and, np.bitwise_and, dtype="int32")
     verify_broadcast_binary_ele(
-        None, None, topi.bitwise_and, np.bitwise_and,
-        dtype="int32")
-    verify_broadcast_binary_ele(
-        (2, 1, 2), (2, 1, 2), topi.bitwise_and, np.bitwise_and,
-        dtype="int32")
+        (2, 1, 2), (2, 1, 2), topi.bitwise_and, np.bitwise_and, dtype="int32"
+    )
 
 
+@tvm.testing.uses_gpu
 def test_bitwise_or():
-    verify_broadcast_binary_ele(
-        None, None, topi.bitwise_or, np.bitwise_or,
-        dtype="int32")
-    verify_broadcast_binary_ele(
-        (2, 1, 2), (2, 1, 2), topi.bitwise_or, np.bitwise_or,
-        dtype="int32")
+    verify_broadcast_binary_ele(None, None, topi.bitwise_or, np.bitwise_or, dtype="int32")
+    verify_broadcast_binary_ele((2, 1, 2), (2, 1, 2), topi.bitwise_or, np.bitwise_or, dtype="int32")
 
 
+@tvm.testing.uses_gpu
 def test_bitwise_xor():
+    verify_broadcast_binary_ele(None, None, topi.bitwise_xor, np.bitwise_xor, dtype="int32")
     verify_broadcast_binary_ele(
-        None, None, topi.bitwise_xor, np.bitwise_xor,
-        dtype="int32")
-    verify_broadcast_binary_ele(
-        (2, 1, 2), (2, 1, 2), topi.bitwise_xor, np.bitwise_xor,
-        dtype="int32")
+        (2, 1, 2), (2, 1, 2), topi.bitwise_xor, np.bitwise_xor, dtype="int32"
+    )
 
 
 if __name__ == "__main__":

@@ -27,44 +27,26 @@ cleanup()
 trap cleanup 0
 
 
-echo "Check file types..."
+echo "Checking file types..."
 python3 tests/lint/check_file_type.py
 
-echo "Check ASF license header..."
-java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep "== File" > /tmp/$$.apache-rat.txt || true)
-if grep --quiet -E "File" /tmp/$$.apache-rat.txt; then
-    echo "Need to add ASF header to the following files."
-    echo "----------------File List----------------"
-    cat /tmp/$$.apache-rat.txt
-    echo "-----------------------------------------"
-    echo "Use the following steps to add the headers:"
-    echo "- Create file_list.txt in your text editor"
-    echo "- Copy paste the above content in file-list into file_list.txt"
-    echo "- python3 tests/lint/add_asf_header.py file_list.txt"
-    exit 1
-fi
+echo "Checking ASF license headers..."
+tests/lint/check_asf_header.sh
 
-echo "Check codestyle of c++ code..."
-make cpplint
+echo "Linting the C++ code..."
+tests/lint/cpplint.sh
 
 echo "clang-format check..."
-# check lastest change, for squash merge into master
-./tests/lint/git-clang-format.sh HEAD~1
-# chekc against origin/master for PRs.
-./tests/lint/git-clang-format.sh origin/master
+tests/lint/clang_format.sh
 
-echo "Check codestyle of python code..."
-make pylint
-echo "Check codestyle of jni code..."
-make jnilint
+echo "black check..."
+tests/lint/python_format.sh
 
-echo "Check documentations of c++ code..."
-make doc 2>/tmp/$$.log.txt
+echo "Linting the Python code..."
+tests/lint/pylint.sh
 
-grep -v -E "ENABLE_PREPROCESSING|unsupported tag" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
-echo "---------Error Log----------"
-cat /tmp/$$.logclean.txt
-echo "----------------------------"
-if grep --quiet -E "warning|error" < /tmp/$$.logclean.txt; then
-    exit 1
-fi
+echo "Lintinf the JNI code..."
+tests/lint/jnilint.sh
+
+echo "Checking C++ documentation..."
+tests/lint/cppdocs.sh

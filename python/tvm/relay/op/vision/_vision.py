@@ -20,6 +20,8 @@ from __future__ import absolute_import
 
 from tvm import topi
 from tvm.te.hybrid import script
+from tvm.runtime import convert
+
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
@@ -43,6 +45,7 @@ reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
 reg.register_strategy("vision.non_max_suppression", strategy.nms_strategy)
 reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
 
+
 @script
 def _get_valid_counts_shape_func(data_shape):
     valid_counts_shape = output_tensor((1,), "int64")
@@ -57,9 +60,11 @@ def _get_valid_counts_shape_func(data_shape):
 
     return valid_counts_shape, out_tensor_shape, out_indices_shape
 
+
 @reg.register_shape_func("vision.get_valid_counts", False)
 def get_valid_counts_shape_func(attrs, inputs, _):
     return _get_valid_counts_shape_func(inputs[0])
+
 
 @script
 def _nms_shape_func(data_shape):
@@ -72,8 +77,24 @@ def _nms_shape_func(data_shape):
     count_shape[1] = int64(1)
     return out_shape, count_shape
 
+
 @reg.register_shape_func("vision.non_max_suppression", False)
 def nms_shape_func(attrs, inputs, _):
     if attrs.return_indices:
         return _nms_shape_func(inputs[0])
     return [topi.math.identity(inputs[0])]
+
+
+@script
+def _roi_align_shape_func(data_shape, rois_shape, pooled_size):
+    out = output_tensor((4,), "int64")
+    out[0] = rois_shape[0]
+    out[1] = data_shape[1]
+    out[2] = int64(pooled_size[0])
+    out[3] = int64(pooled_size[1])
+    return out
+
+
+@reg.register_shape_func("vision.roi_align", False)
+def roi_align_shape_func(attrs, inputs, _):
+    return [_roi_align_shape_func(inputs[0], inputs[1], convert(attrs.pooled_size))]

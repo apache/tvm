@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 from . import cpp
 
+
 def elemwise_sum(xs):
     """Perform element-wise sum on inputs
 

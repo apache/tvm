@@ -19,10 +19,7 @@ from tvm.relay import expr
 from . import _make
 
 
-def get_valid_counts(data,
-                     score_threshold,
-                     id_index=0,
-                     score_index=1):
+def get_valid_counts(data, score_threshold, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
 
@@ -52,22 +49,24 @@ def get_valid_counts(data,
         Indices in input data
     """
     return expr.TupleWrapper(
-        _make.get_valid_counts(data, score_threshold,
-                               id_index, score_index), 3)
+        _make.get_valid_counts(data, score_threshold, id_index, score_index), 3
+    )
 
 
-def non_max_suppression(data,
-                        valid_count,
-                        indices,
-                        max_output_size=-1,
-                        iou_threshold=0.5,
-                        force_suppress=False,
-                        top_k=-1,
-                        coord_start=2,
-                        score_index=1,
-                        id_index=0,
-                        return_indices=True,
-                        invalid_to_bottom=False):
+def non_max_suppression(
+    data,
+    valid_count,
+    indices,
+    max_output_size=-1,
+    iou_threshold=0.5,
+    force_suppress=False,
+    top_k=-1,
+    coord_start=2,
+    score_index=1,
+    id_index=0,
+    return_indices=True,
+    invalid_to_bottom=False,
+):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -129,18 +128,20 @@ def non_max_suppression(data,
     """
     if isinstance(max_output_size, int):
         max_output_size = expr.const(max_output_size, "int32")
-    out = _make.non_max_suppression(data,
-                                    valid_count,
-                                    indices,
-                                    max_output_size,
-                                    iou_threshold,
-                                    force_suppress,
-                                    top_k,
-                                    coord_start,
-                                    score_index,
-                                    id_index,
-                                    return_indices,
-                                    invalid_to_bottom)
+    out = _make.non_max_suppression(
+        data,
+        valid_count,
+        indices,
+        max_output_size,
+        iou_threshold,
+        force_suppress,
+        top_k,
+        coord_start,
+        score_index,
+        id_index,
+        return_indices,
+        invalid_to_bottom,
+    )
     if return_indices:
         return expr.TupleWrapper(out, 2)
     return out

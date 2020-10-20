@@ -116,24 +116,24 @@ header_groovystyle = """
 """.strip()
 
 FMT_MAP = {
-    "sh" : header_pystyle,
-    "cc" : header_cstyle,
-    "c" : header_cstyle,
-    "mm" : header_cstyle,
-    "m" : header_cstyle,
-    "go" : header_cstyle,
-    "java" : header_cstyle,
-    "h" : header_cstyle,
-    "py" : header_pystyle,
-    "toml" : header_pystyle,
+    "sh": header_pystyle,
+    "cc": header_cstyle,
+    "c": header_cstyle,
+    "mm": header_cstyle,
+    "m": header_cstyle,
+    "go": header_cstyle,
+    "java": header_cstyle,
+    "h": header_cstyle,
+    "py": header_pystyle,
+    "toml": header_pystyle,
     "yml": header_pystyle,
     "yaml": header_pystyle,
-    "rs" : header_cstyle,
-    "md" : header_mdstyle,
-    "cmake" : header_pystyle,
-    "mk" : header_pystyle,
-    "rst" : header_rststyle,
-    "gradle" : header_groovystyle,
+    "rs": header_cstyle,
+    "md": header_mdstyle,
+    "cmake": header_pystyle,
+    "mk": header_pystyle,
+    "rst": header_rststyle,
+    "gradle": header_groovystyle,
     "tcl": header_pystyle,
     "xml": header_mdstyle,
     "storyboard": header_mdstyle,
@@ -149,8 +149,9 @@ def copyright_line(line):
     # so that the copyright detector won"t detect the file itself.
     if line.find("Copyright " + "(c)") != -1:
         return True
-    if (line.find("Copyright") != -1 and
-        line.find(" by") != -1):
+    # break pattern into two lines to avoid false-negative check
+    spattern1 = "Copyright"
+    if line.find(spattern1) != -1 and line.find("by") != -1:
         return True
     return False
 
@@ -190,7 +191,7 @@ def add_header(fname, header):
         elif lines[0].startswith("<html>"):
             skipline = True
         elif lines[0].startswith("// !$"):
-            skipline =True
+            skipline = True
 
         if skipline:
             outfile.write(lines[0])
@@ -205,6 +206,7 @@ def add_header(fname, header):
         print("Add header to %s" % fname)
     if has_copyright:
         print("Removed copyright line from %s" % fname)
+
 
 def main(args):
     if len(args) != 2:

@@ -17,8 +17,9 @@
 import tvm
 from tvm import te
 
+
 def test_double_buffer():
-    dtype = 'int64'
+    dtype = "int64"
     n = 100
     m = 4
     tx = te.thread_axis("threadIdx.x")
@@ -36,17 +37,13 @@ def test_double_buffer():
             C[j] = B[j] + 1
 
     stmt = ib.get()
-    mod = tvm.IRModule({
-        "db" : tvm.tir.PrimFunc([A.asobject(), C.asobject()], stmt)
-    })
+    mod = tvm.IRModule({"db": tvm.tir.PrimFunc([A.asobject(), C.asobject()], stmt)})
 
     opt = tvm.transform.Sequential(
-        [tvm.tir.transform.InjectDoubleBuffer(),
-         tvm.tir.transform.Simplify()])
+        [tvm.tir.transform.InjectDoubleBuffer(), tvm.tir.transform.Simplify()]
+    )
 
-    with tvm.transform.PassContext(config={
-        "tir.InjectDoubleBuffer" : {"split_loop" : 2}
-    }):
+    with tvm.transform.PassContext(config={"tir.InjectDoubleBuffer": {"split_loop": 2}}):
         mod = opt(mod)
     stmt = mod["db"].body
 
@@ -55,9 +52,11 @@ def test_double_buffer():
 
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
+
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync")):
             count[0] += 1
+
     tvm.tir.stmt_functor.post_order_visit(f.body, count_sync)
     assert count[0] == 4
 

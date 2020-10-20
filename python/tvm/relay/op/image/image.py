@@ -20,12 +20,14 @@ from ..dyn.image import _make as _dyn_make
 from ...expr import Expr
 
 
-def resize(data,
-           size,
-           layout="NCHW",
-           method="bilinear",
-           coordinate_transformation_mode="half_pixel",
-           out_dtype=None):
+def resize(
+    data,
+    size,
+    layout="NCHW",
+    method="bilinear",
+    coordinate_transformation_mode="half_pixel",
+    out_dtype=None,
+):
     """Image resize operator.
 
     This operator takes data as input and does 2D scaling to the given scale factor.
@@ -65,17 +67,20 @@ def resize(data,
         The resized result.
     """
     if isinstance(size, Expr):
-        return _dyn_make.resize(data, size, layout, method, coordinate_transformation_mode,
-                                out_dtype)
+        return _dyn_make.resize(
+            data, size, layout, method, coordinate_transformation_mode, out_dtype
+        )
     return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
 
 
-def resize3d(data,
-             size,
-             layout="NCDHW",
-             method="trilinear",
-             coordinate_transformation_mode="half_pixel",
-             out_dtype=None):
+def resize3d(
+    data,
+    size,
+    layout="NCDHW",
+    method="trilinear",
+    coordinate_transformation_mode="half_pixel",
+    out_dtype=None,
+):
     """Image resize 3D operator.
 
     This operator takes data as input and does 3D scaling to the given scale factor.
@@ -116,14 +121,16 @@ def resize3d(data,
     return _make.resize3d(data, size, layout, method, coordinate_transformation_mode, out_dtype)
 
 
-def crop_and_resize(data,
-                    boxes,
-                    box_indices,
-                    crop_size,
-                    layout,
-                    method="bilinear",
-                    extrapolation_value=0,
-                    out_dtype=None):
+def crop_and_resize(
+    data,
+    boxes,
+    box_indices,
+    crop_size,
+    layout,
+    method="bilinear",
+    extrapolation_value=0,
+    out_dtype=None,
+):
     """Crop input images and resize them.
 
     method indicates the algorithm to be used while calculating the out value
@@ -162,18 +169,21 @@ def crop_and_resize(data,
     result: relay.Expr
         The computed result.
     """
-    return _make.crop_and_resize(data, boxes, box_indices, crop_size, layout, method,
-                                 extrapolation_value, out_dtype)
+    return _make.crop_and_resize(
+        data, boxes, box_indices, crop_size, layout, method, extrapolation_value, out_dtype
+    )
 
 
-def dilation2d(data,
-               weight,
-               strides=(1, 1),
-               padding=(0, 0),
-               dilations=(1, 1),
-               data_layout="NCHW",
-               kernel_layout="IHW",
-               out_dtype=""):
+def dilation2d(
+    data,
+    weight,
+    strides=(1, 1),
+    padding=(0, 0),
+    dilations=(1, 1),
+    data_layout="NCHW",
+    kernel_layout="IHW",
+    out_dtype="",
+):
     r"""Morphological Dilation 2D.
     This operator takes the weight as the dilation kernel and dilates it with
     data to produce an output. In the default case, where the data_layout is `NCHW`
@@ -219,8 +229,9 @@ def dilation2d(data,
         The computed result.
     """
 
-    return _make.dilation2d(data, weight, strides, padding, dilations, data_layout, kernel_layout,
-                            out_dtype)
+    return _make.dilation2d(
+        data, weight, strides, padding, dilations, data_layout, kernel_layout, out_dtype
+    )
 
 
 def affine_grid(data, target_shape=None):
@@ -246,7 +257,7 @@ def affine_grid(data, target_shape=None):
     return _make.affine_grid(data, target_shape)
 
 
-def grid_sample(data, grid, method='bilinear', layout='NCHW'):
+def grid_sample(data, grid, method="bilinear", layout="NCHW"):
     """Applies bilinear sampling to input feature map.
 
     Given :math:`data` and :math:`grid`, then the output is computed by

@@ -38,7 +38,9 @@ def test_reduction_grad():
 
 def verify_max_grad(d_shape, axis=None, keepdims=False, exclude=False):
     data = relay.var("data", relay.TensorType(d_shape, "float32"))
-    fwd_func = relay.Function([data], relay.max(data, axis=axis, keepdims=keepdims, exclude=exclude))
+    fwd_func = relay.Function(
+        [data], relay.max(data, axis=axis, keepdims=keepdims, exclude=exclude)
+    )
     check_grad(fwd_func, scale=1e-3)
 
 

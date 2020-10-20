@@ -20,9 +20,9 @@
 set +u
 
 if [[ ! -z $CI_PYTEST_ADD_OPTIONS ]]; then
-    export PYTEST_ADDOPTS="-v $CI_PYTEST_ADD_OPTIONS"
+    export PYTEST_ADDOPTS="-v $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
 else
-    export PYTEST_ADDOPTS="-v "
+    export PYTEST_ADDOPTS="-v $PYTEST_ADDOPTS"
 fi
 set -u
 

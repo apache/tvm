@@ -45,17 +45,14 @@ pub struct PassInfoNode {
 
 impl PassInfo {
     pub fn new(opt_level: i32, name: String, required: Vec<String>) -> Result<PassInfo> {
-        let required: Result<_> = required
-            .into_iter()
-            .map(|name| TString::new(name))
-            .collect();
+        let required = required.into_iter().map(|name| name.into()).collect();
 
-        let required = Array::from_vec(required?)?;
+        let required = Array::from_vec(required)?;
 
         let node = PassInfoNode {
             base: Object::base_object::<PassInfoNode>(),
             opt_level,
-            name: TString::new(name).unwrap(),
+            name: name.into(),
             required,
         };
 
@@ -74,6 +71,29 @@ pub fn function_pass<F: Fn(Function, IRModule, PassContext) -> Function + 'stati
 ) -> Result<Pass> {
     let func = pass_fn.to_function();
     create_func_pass(func, pass_info)
+}
+
+/// A macro for generating the correct TVM symbols for plugin loading.
+///
+/// The expression passed to the macro will be run when TVM loads the
+/// shared library.
+///
+/// This is useful for calling register to register packed functions
+/// to consume via TVM's packed function APIs.
+#[macro_export]
+macro_rules! initialize {
+    ($body:expr) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn initialize(
+            args: *mut tvm_sys::ffi::TVMValue,
+            type_codes: *mut c_int,
+            num_args: c_int,
+            ret: tvm_sys::ffi::TVMRetValueHandle,
+        ) -> c_int {
+            $body
+            return 0;
+        }
+    };
 }
 
 #[macro_export]

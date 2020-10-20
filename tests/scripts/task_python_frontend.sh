@@ -24,6 +24,8 @@ source tests/scripts/setup-pytest-env.sh
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
+export TVM_TEST_TARGETS="llvm;cuda"
+
 find . -type f -path "*.pyc" | xargs rm -f
 
 # Rebuild cython

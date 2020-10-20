@@ -43,10 +43,8 @@ import numpy as np
 # :code:`__expf` function, which is only available under CUDA.
 #
 n = te.var("n")
-A = te.placeholder((n,), name='A')
-B = te.compute(A.shape,
-                lambda i: tvm.tir.call_pure_extern("float32", "__expf", A[i]),
-                name="B")
+A = te.placeholder((n,), name="A")
+B = te.compute(A.shape, lambda i: tvm.tir.call_pure_extern("float32", "__expf", A[i]), name="B")
 s = te.create_schedule(B.op)
 num_thread = 64
 bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
@@ -69,7 +67,7 @@ print(f.imported_modules[0].get_source())
 # :py::func:`tvm.te.exp` to do the exponential.
 #
 n = te.var("n")
-A = te.placeholder((n,), name='A')
+A = te.placeholder((n,), name="A")
 B = te.compute(A.shape, lambda i: te.exp(A[i]), name="B")
 s = te.create_schedule(B.op)
 num_thread = 64
@@ -147,12 +145,13 @@ def my_cuda_mylog_rule(op):
     else:
         return op
 
+
 # new op registration is triggered by registering an attribute of the op
 tvm.ir.register_op_attr("tir.mylog", "TCallEffectKind", tvm.tir.CallEffectKind.Pure)
 tvm.target.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
 
 n = te.var("n")
-A = te.placeholder((n,), name='A')
+A = te.placeholder((n,), name="A")
 B = te.compute(A.shape, lambda i: mylog(A[i]), name="B")
 s = te.create_schedule(B.op)
 num_thread = 64

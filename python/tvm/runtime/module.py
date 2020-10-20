@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel
 """Runtime Module namespace."""
+import os
 import ctypes
 import struct
 from collections import namedtuple
@@ -35,6 +36,7 @@ ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 class Module(object):
     """Runtime Module."""
+
     __slots__ = ["handle", "_entry", "entry_name"]
 
     def __init__(self, handle):
@@ -79,13 +81,13 @@ class Module(object):
             The result function.
         """
         ret_handle = PackedFuncHandle()
-        check_call(_LIB.TVMModGetFunction(
-            self.handle, c_str(name),
-            ctypes.c_int(query_imports),
-            ctypes.byref(ret_handle)))
+        check_call(
+            _LIB.TVMModGetFunction(
+                self.handle, c_str(name), ctypes.c_int(query_imports), ctypes.byref(ret_handle)
+            )
+        )
         if not ret_handle.value:
-            raise AttributeError(
-                "Module has no function '%s'" %  name)
+            raise AttributeError("Module has no function '%s'" % name)
         return PackedFunc(ret_handle, False)
 
     def import_module(self, module):
@@ -163,7 +165,7 @@ class Module(object):
         """
         _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=''):
+    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0, f_preproc=""):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -208,8 +210,15 @@ class Module(object):
         """
         try:
             feval = _ffi_api.RPCTimeEvaluator(
-                self, func_name, ctx.device_type, ctx.device_id,
-                number, repeat, min_repeat_ms, f_preproc)
+                self,
+                func_name,
+                ctx.device_type,
+                ctx.device_id,
+                number,
+                repeat,
+                min_repeat_ms,
+                f_preproc,
+            )
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
@@ -243,11 +252,7 @@ class Module(object):
     def _dso_exportable(self):
         return self.type_key == "llvm" or self.type_key == "c"
 
-    def export_library(self,
-                       file_name,
-                       fcompile=None,
-                       addons=None,
-                       **kwargs):
+    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         """Export the module and its imported device code one library.
 
         This function only works on host llvm modules.
@@ -279,8 +284,10 @@ class Module(object):
 
         if self.type_key == "stackvm":
             if not file_name.endswith(".stackvm"):
-                raise ValueError("Module[%s]: can only be saved as stackvm format."
-                                 "did you build with LLVM enabled?" % self.type_key)
+                raise ValueError(
+                    "Module[%s]: can only be saved as stackvm format."
+                    "did you build with LLVM enabled?" % self.type_key
+                )
             self.save(file_name)
             return
 
@@ -303,10 +310,12 @@ class Module(object):
             path_obj = temp.relpath("lib" + str(index) + "." + object_format)
             module.save(path_obj)
             files.append(path_obj)
-            is_system_lib = (module.type_key == "llvm" and
-                             module.get_function("__tvm_is_system_module")())
-            llvm_target_triple = (module.type_key == "llvm" and
-                                  module.get_function("_get_target_triple")())
+            is_system_lib = (
+                module.type_key == "llvm" and module.get_function("__tvm_is_system_module")()
+            )
+            llvm_target_triple = (
+                module.type_key == "llvm" and module.get_function("_get_target_triple")()
+            )
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
@@ -337,7 +346,7 @@ class Module(object):
                 opts = kwargs["options"]
                 options = opts if isinstance(opts, (list, tuple)) else [opts]
             opts = options + ["-I" + path for path in find_include_path()]
-            kwargs.update({'options': opts})
+            kwargs.update({"options": opts})
 
         fcompile(file_name, files, **kwargs)
 
@@ -385,20 +394,26 @@ def load_module(path, fmt=""):
     This function will automatically call
     cc.create_shared if the path is in format .o or .tar
     """
+
+    # c++ compiler/linker
+    cc = os.environ.get("CXX", "g++")
+
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
         # Extra dependencies during runtime.
         from tvm.contrib import cc as _cc
-        _cc.create_shared(path + ".so", path)
+
+        _cc.create_shared(path + ".so", path, cc=cc)
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
         from tvm.contrib import cc as _cc, util as _util, tar as _tar
-        tar_temp = _util.tempdir(custom_path=path.replace('.tar', ''))
+
+        tar_temp = _util.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-        _cc.create_shared(path + ".so", files)
+        _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
     # TODO(weberlo): we should probably use a more distinctive suffix for uTVM object files
     elif path.endswith(".obj"):

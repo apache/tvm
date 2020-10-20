@@ -36,6 +36,7 @@ def schedule_argsort(outs):
     """
     return _default_schedule(outs, False)
 
+
 def schedule_topk(outs):
     """Schedule for topk operator.
 

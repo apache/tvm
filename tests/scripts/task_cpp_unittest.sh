@@ -19,6 +19,9 @@
 set -e
 set -u
 
+# Python is required by apps/bundle_deploy
+source tests/scripts/setup-pytest-env.sh
+
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 # NOTE: important to use abspath, when VTA is enabled.
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
@@ -30,8 +33,14 @@ export OMP_NUM_THREADS=1
 # Remove existing testcases
 rm -f build/*_test
 
-make cpptest -j8
-make crttest -j8
+make cpptest -j2
+make crttest  # NOTE: don't parallelize, due to issue with build deps.
 for test in build/*_test; do
     ./$test
 done
+
+# Test MISRA-C runtime
+cd apps/bundle_deploy
+rm -rf build
+make test_dynamic test_static
+cd ../..

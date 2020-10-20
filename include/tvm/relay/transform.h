@@ -209,6 +209,17 @@ TVM_DLL Pass SimplifyInference();
 TVM_DLL Pass FastMath();
 
 /*!
+ * \brief Find Dynamic ops and make them static
+ *
+ * Searches the graph for dynamic ops. If the dynamic inputs to those ops are constants, it replaces
+ * them with static ops and re-performs type inference and constant folding. The pass repeats
+ * itself until the graph stops changing or we run too many iterations.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass DynamicToStatic();
+
+/*!
  * \brief Infer the type of an expression.
  *
  * The result of type checking is a new expression with unambigous
@@ -406,18 +417,6 @@ TVM_DLL Pass SimplifyExpr();
  * \return The updated expression.
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
-
-/*!
- * \brief Infer the type of a function as if it is mapped to var in the mod.
- *
- * \param f the function.
- * \param mod The module used for referencing global functions.
- * \param var The global variable corresponding to the function.
- *
- * \return A type checked Function with its checked_type field populated.
- * \note this function mutates mod and is not thread-safe.
- */
-TVM_DLL Function InferType(const Function& f, const IRModule& mod, const GlobalVar& var);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This

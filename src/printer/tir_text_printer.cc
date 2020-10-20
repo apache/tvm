@@ -246,27 +246,27 @@ Doc TIRTextPrinter::VisitExpr_(const VarNode* op) {
   return meta_->InMeta(var) ? meta_->GetMetaNode(var) : AllocVar(GetRef<Var>(op));
 }
 
-#define TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(OpName, OpString) \
-  Doc TIRTextPrinter::VisitExpr_(const OpName* op) {           \
-    Doc doc;                                                   \
-    doc << "(" << Print(op->a) << OpString;                    \
-    doc << Print(op->b) << ")";                                \
-    return doc;                                                \
+#define TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(OpName, OpString) \
+  Doc TIRTextPrinter::VisitExpr_(const OpName* op) {         \
+    Doc doc;                                                 \
+    doc << "(" << Print(op->a) << OpString;                  \
+    doc << Print(op->b) << ")";                              \
+    return doc;                                              \
   }
 
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(AddNode, " + ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(SubNode, " - ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(MulNode, "*")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(DivNode, " / ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(ModNode, " % ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(EQNode, " == ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(NENode, " != ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(LTNode, " < ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(LENode, " <= ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(GTNode, " > ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(GENode, " >= ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(AndNode, " && ")
-TVM_DECLARE_TIR_HYBRID_PRINTER_BINOP(OrNode, " || ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(AddNode, " + ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(SubNode, " - ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(MulNode, "*")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(DivNode, " / ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(ModNode, " % ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(EQNode, " == ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(NENode, " != ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(LTNode, " < ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(LENode, " <= ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(GTNode, " > ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(GENode, " >= ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(AndNode, " && ")
+TVM_DECLARE_TIR_TEXT_PRINTER_BINOP(OrNode, " || ")
 
 Doc TIRTextPrinter::VisitExpr_(const FloorDivNode* op) {
   Doc doc;

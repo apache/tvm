@@ -28,13 +28,14 @@ def compare_graph(lhs_mod, rhs_mod):
 
 
 def test_squeeze_net():
-    shape_dict = {'data': (1, 3, 224, 224)}
-    dtype_dict = {'data': 'float32'}
+    shape_dict = {"data": (1, 3, 224, 224)}
+    dtype_dict = {"data": "float32"}
     mod, _, = relay.frontend.from_caffe2(
-        c2_squeezenet.init_net, c2_squeezenet.predict_net, shape_dict, dtype_dict)
+        c2_squeezenet.init_net, c2_squeezenet.predict_net, shape_dict, dtype_dict
+    )
     relay_mod, _ = relay_squeezenet()
     compare_graph(mod, relay_mod)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_squeeze_net()

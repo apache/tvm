@@ -20,7 +20,8 @@ import sys
 from tvm import relay
 from tvm.relay import testing
 
-def get_network(name, batch_size, dtype='float32'):
+
+def get_network(name, batch_size, dtype="float32"):
     """Get the symbol definition and random weight of a network
 
     Parameters
@@ -46,35 +47,47 @@ def get_network(name, batch_size, dtype='float32'):
     input_shape = (batch_size, 3, 224, 224)
     output_shape = (batch_size, 1000)
 
-    if name == 'mobilenet':
+    if name == "mobilenet":
         net, params = testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
-    elif name == 'inception_v3':
+    elif name == "inception_v3":
         input_shape = (batch_size, 3, 299, 299)
         net, params = testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
     elif "resnet" in name:
-        n_layer = int(name.split('-')[1])
-        net, params = testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        n_layer = int(name.split("-")[1])
+        net, params = testing.resnet.get_workload(
+            num_layers=n_layer, batch_size=batch_size, dtype=dtype
+        )
     elif "vgg" in name:
-        n_layer = int(name.split('-')[1])
-        net, params = testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
+        n_layer = int(name.split("-")[1])
+        net, params = testing.vgg.get_workload(
+            num_layers=n_layer, batch_size=batch_size, dtype=dtype
+        )
     elif "densenet" in name:
-        n_layer = int(name.split('-')[1])
-        net, params = testing.densenet.get_workload(densenet_size=n_layer, batch_size=batch_size, dtype=dtype)
+        n_layer = int(name.split("-")[1])
+        net, params = testing.densenet.get_workload(
+            densenet_size=n_layer, batch_size=batch_size, dtype=dtype
+        )
     elif "squeezenet" in name:
         version = name.split("_v")[1]
-        net, params = testing.squeezenet.get_workload(batch_size=batch_size, version=version, dtype=dtype)
-    elif name == 'mxnet':
+        net, params = testing.squeezenet.get_workload(
+            batch_size=batch_size, version=version, dtype=dtype
+        )
+    elif name == "mxnet":
         # an example for mxnet model
         from mxnet.gluon.model_zoo.vision import get_model
-        block = get_model('resnet18_v1', pretrained=True)
-        net, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
+
+        block = get_model("resnet18_v1", pretrained=True)
+        net, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
         net = net["main"]
-        net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
+        net = relay.Function(
+            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
+        )
         net = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
     return net, params, input_shape, output_shape
+
 
 def print_progress(msg):
     """print progress message

@@ -117,11 +117,9 @@ def __lldb_init_module(debugger, _):
         "tvm::relay::alter_op_layout::TransformMemorizer",
         "tvm::relay::fold_scale_axis::Message",
         "tvm::relay::fold_scale_axis:BackwardTransformer",
-                ]:
+    ]:
         debugger.HandleCommand(
-            "type summary add -F tvm.NodeRef_SummaryProvider {node} -w tvm".format(
-                node=node
-            )
+            "type summary add -F tvm.NodeRef_SummaryProvider {node} -w tvm".format(node=node)
         )
     debugger.HandleCommand("command script add -f tvm.PrettyPrint pp")
     debugger.HandleCommand("type category enable tvm")
@@ -141,9 +139,7 @@ def _GetContext(debugger):
 
 def PrettyPrint(debugger, command, result, internal_dict):
     ctx = _GetContext(debugger)
-    rc = ctx.EvaluateExpression(
-        "tvm::PrettyPrint({command})".format(command=command)
-    )
+    rc = ctx.EvaluateExpression("tvm::PrettyPrint({command})".format(command=command))
     result.AppendMessage(str(rc))
 
 
@@ -160,9 +156,7 @@ def _EvalExpression(logger, ctx, expr, value_name):
     if err.Fail():
         _log(logger, "_EvalExpression failed: {err}".format(err=err))
         raise EvaluateError(err)
-    _log(
-        logger, "_EvalExpression success: {typename}".format(typename=rc.GetTypeName())
-    )
+    _log(logger, "_EvalExpression success: {typename}".format(typename=rc.GetTypeName()))
     return rc
 
 
@@ -172,9 +166,7 @@ def _EvalExpressionAsString(logger, ctx, expr):
 
 
 def _EvalAsNodeRef(logger, ctx, value):
-    return _EvalExpressionAsString(
-        logger, ctx, "tvm::PrettyPrint({name})".format(name=value.name)
-    )
+    return _EvalExpressionAsString(logger, ctx, "tvm::PrettyPrint({name})".format(name=value.name))
 
 
 def NodeRef_SummaryProvider(value, _):

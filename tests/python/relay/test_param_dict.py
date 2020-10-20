@@ -43,14 +43,14 @@ def test_ndarray_reflection():
     # Make two `NDArrayWrapper`s that point to the same underlying array.
     np_array = np.random.uniform(size=(10, 2)).astype("float32")
     tvm_array = tvm.nd.array(np_array)
-    param_dict = {'x': tvm_array, 'y': tvm_array}
-    assert param_dict['x'].same_as(param_dict['y'])
+    param_dict = {"x": tvm_array, "y": tvm_array}
+    assert param_dict["x"].same_as(param_dict["y"])
     # Serialize then deserialize `param_dict`.
     deser_param_dict = relay.load_param_dict(relay.save_param_dict(param_dict))
     # Make sure the data matches the original data and `x` and `y` contain the same data.
-    np.testing.assert_equal(deser_param_dict['x'].asnumpy(), tvm_array.asnumpy())
+    np.testing.assert_equal(deser_param_dict["x"].asnumpy(), tvm_array.asnumpy())
     # Make sure `x` and `y` contain the same data.
-    np.testing.assert_equal(deser_param_dict['x'].asnumpy(), deser_param_dict['y'].asnumpy())
+    np.testing.assert_equal(deser_param_dict["x"].asnumpy(), deser_param_dict["y"].asnumpy())
 
 
 def test_bigendian_rpc_param():
@@ -61,13 +61,13 @@ def test_bigendian_rpc_param():
         return
 
     def verify_graph_runtime(remote, target, shape, dtype):
-        x = relay.var('x')
+        x = relay.var("x")
         y = relay.const(1)
         z = relay.add(x, y)
         func = relay.Function([x], z)
 
         x_in = np.ones(shape).astype(dtype)
-        params = {'x': x_in}
+        params = {"x": x_in}
         graph, lib, params = relay.build(func, target=target, params=params)
 
         temp = util.tempdir()

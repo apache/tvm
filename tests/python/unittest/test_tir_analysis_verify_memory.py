@@ -17,6 +17,7 @@
 import tvm
 import pytest
 from tvm import te
+import tvm.testing
 
 # The following DLDeviceType/TVMDeviceExtType values
 # are originally defined in dlpack.h and c_runtime_api.h.
@@ -27,83 +28,94 @@ other_devices = ["llvm", "ext_dev"]
 # All computations are bound.
 # So VerifyMemory pass is expected to succeed.
 #
+@tvm.testing.uses_gpu
 def test_verify_memory_all_bind():
-  n = te.var("n")
-  A = te.placeholder((n,), name='A')
-  B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
 
-  # B is bound to threads.
-  s = te.create_schedule(B.op)
-  bx, tx = s[B].split(B.op.axis[0], factor=64)
-  s[B].bind(bx, te.thread_axis("blockIdx.x"))
-  s[B].bind(tx, te.thread_axis("threadIdx.x"))
+    # B is bound to threads.
+    s = te.create_schedule(B.op)
+    bx, tx = s[B].split(B.op.axis[0], factor=64)
+    s[B].bind(bx, te.thread_axis("blockIdx.x"))
+    s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
-  mod = tvm.lower(s, [A, B])
+    mod = tvm.lower(s, [A, B])
 
-  for dev_type in gpu_devices + other_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.transform.VerifyMemory()(binded_mod)
-
+    for dev_type in gpu_devices + other_devices:
+        if tvm.testing.device_enabled(dev_type):
+            binded_mod = tvm.tir.transform.Apply(
+                lambda f: f.with_attr("target", tvm.target.Target(dev_type))
+            )(mod)
+            tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 # Computations are not bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
+@tvm.testing.uses_gpu
 def test_verify_memory_not_bind():
-  n = te.var("n")
-  A = te.placeholder((n,), name='A')
-  B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
 
-  # B is not bound to threads.
-  s = te.create_schedule(B.op)
+    # B is not bound to threads.
+    s = te.create_schedule(B.op)
 
-  mod = tvm.lower(s, [A, B])
+    mod = tvm.lower(s, [A, B])
 
-  for dev_type in gpu_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      with pytest.raises(RuntimeError):
-          tvm.tir.transform.VerifyMemory()(binded_mod)
+    for dev_type in gpu_devices:
+        if tvm.testing.device_enabled(dev_type):
+            binded_mod = tvm.tir.transform.Apply(
+                lambda f: f.with_attr("target", tvm.target.Target(dev_type))
+            )(mod)
+            with pytest.raises(RuntimeError):
+                tvm.tir.transform.VerifyMemory()(binded_mod)
 
-  for dev_type in other_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.transform.VerifyMemory()(binded_mod)
+    for dev_type in other_devices:
+        if tvm.testing.device_enabled(dev_type):
+            binded_mod = tvm.tir.transform.Apply(
+                lambda f: f.with_attr("target", tvm.target.Target(dev_type))
+            )(mod)
+            tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 # Computations are partially bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
+@tvm.testing.uses_gpu
 def test_verify_memory_partially_bind():
-  n = te.var("n")
-  A = te.placeholder((n,), name='A')
-  B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
-  C = te.compute(B.shape, lambda i: B[i] + 2.0, name="C")
-  D = te.compute(C.shape, lambda i: C[i] + 2.0, name="D")
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
+    C = te.compute(B.shape, lambda i: B[i] + 2.0, name="C")
+    D = te.compute(C.shape, lambda i: C[i] + 2.0, name="D")
 
-  # C is bound to threads, but B and D are not.
-  s = te.create_schedule([B.op, C.op, D.op])
-  bx, tx = s[C].split(C.op.axis[0], factor=64)
-  s[C].bind(bx, te.thread_axis("blockIdx.x"))
-  s[C].bind(tx, te.thread_axis("threadIdx.x"))
+    # C is bound to threads, but B and D are not.
+    s = te.create_schedule([B.op, C.op, D.op])
+    bx, tx = s[C].split(C.op.axis[0], factor=64)
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
-  mod = tvm. lower(s, [A, B, C, D])
+    mod = tvm.lower(s, [A, B, C, D])
 
-  for dev_type in gpu_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      with pytest.raises(RuntimeError):
-          tvm.tir.transform.VerifyMemory()(binded_mod)
+    for dev_type in gpu_devices:
+        if tvm.testing.device_enabled(dev_type):
+            binded_mod = tvm.tir.transform.Apply(
+                lambda f: f.with_attr("target", tvm.target.Target(dev_type))
+            )(mod)
+            with pytest.raises(RuntimeError):
+                tvm.tir.transform.VerifyMemory()(binded_mod)
 
-  for dev_type in other_devices:
-      binded_mod = tvm.tir.transform.Apply(
-          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.transform.VerifyMemory()(binded_mod)
-
+    for dev_type in other_devices:
+        if tvm.testing.device_enabled(dev_type):
+            binded_mod = tvm.tir.transform.Apply(
+                lambda f: f.with_attr("target", tvm.target.Target(dev_type))
+            )(mod)
+            tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 if __name__ == "__main__":
-  test_verify_memory_all_bind()
-  test_verify_memory_not_bind()
-  test_verify_memory_partially_bind()
+    test_verify_memory_all_bind()
+    test_verify_memory_not_bind()
+    test_verify_memory_partially_bind()

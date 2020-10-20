@@ -284,7 +284,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   Array<Shape> ComputeDynamicShape(const Function& func, const Array<ObjectRef>& args) {
-    CCacheKey key(func, Target::Create("llvm"));
+    CCacheKey key(func, Target("llvm"));
     auto cfunc = engine_->LowerShapeFunc(key);
     size_t arity = cfunc->inputs.size() + cfunc->outputs.size();
 
@@ -719,7 +719,9 @@ TypedPackedFunc<ObjectRef(Expr)> CreateInterpreter(IRModule mod, DLContext conte
   if (mod.defined()) {
     // eta expand to support constructors in argument position
     transform::Sequential seq({transform::EtaExpand(
-        /* expand_constructor */ true, /* expand_global_var */ false)});
+                                   /* expand_constructor */ true, /* expand_global_var */ false),
+                               transform::InferType()});
+
     transform::PassContext pass_ctx = transform::PassContext::Current();
     tvm::With<transform::PassContext> ctx(pass_ctx);
     mod = seq(mod);

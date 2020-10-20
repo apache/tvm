@@ -21,20 +21,23 @@ import re
 
 def test_fp16_to_fp32():
     if tvm.target.codegen.llvm_version_major() < 6:
-        print("Skipping due to LLVM version being {} < 6".format(
-            tvm.target.codegen.llvm_version_major()))
+        print(
+            "Skipping due to LLVM version being {} < 6".format(
+                tvm.target.codegen.llvm_version_major()
+            )
+        )
         return
 
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
         n = tvm.runtime.convert(elements)
-        A = te.placeholder((n, width), dtype="float16", name='A')
-        B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name='B')
+        A = te.placeholder((n, width), dtype="float16", name="A")
+        B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name="B")
         s = te.create_schedule(B.op)
         s[B].vectorize(s[B].op.axis[1])
         f = tvm.build(s, [A, B], target)
 
-        assembly = f.get_source('asm').splitlines()
+        assembly = f.get_source("asm").splitlines()
         if match:
             matches = [l for l in assembly if re.search(match, l)]
             assert matches
@@ -42,35 +45,22 @@ def test_fp16_to_fp32():
             not_matches = [l for l in assembly if re.search(not_match, l)]
             assert not not_matches
 
-
     fp16_to_fp32(
-        'llvm -mcpu=skylake-avx512', 15,
-        match="vcvtph2ps.*ymm", not_match="vcvtph2ps.*zmm")
+        "llvm -mcpu=skylake-avx512", 15, match="vcvtph2ps.*ymm", not_match="vcvtph2ps.*zmm"
+    )
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 16, match="vcvtph2ps.*zmm")
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 17, match="vcvtph2ps.*zmm")
+    fp16_to_fp32("llvm -mcpu=skylake-avx512", 49, match="vcvtph2ps.*zmm")
     fp16_to_fp32(
-        'llvm -mcpu=skylake-avx512', 16,
-        match="vcvtph2ps.*zmm")
-    fp16_to_fp32(
-        'llvm -mcpu=skylake-avx512', 17,
-        match="vcvtph2ps.*zmm")
-    fp16_to_fp32(
-        'llvm -mcpu=skylake-avx512', 49,
-        match="vcvtph2ps.*zmm")
-    fp16_to_fp32(
-        'llvm -mcpu=skylake-avx512 -mattr=-avx512f', 49,
+        "llvm -mcpu=skylake-avx512 -mattr=-avx512f",
+        49,
         match="vcvtph2ps.*ymm",
-        not_match="vcvtph2ps.*zmm")
-    fp16_to_fp32(
-        'llvm -mcpu=skylake-avx512 -mattr=-f16c,-avx512f', 49,
-        not_match="vcvtph2ps")
-    fp16_to_fp32(
-        'llvm -mcpu=core-avx2', 8,
-        match="vcvtph2ps.*ymm")
-    fp16_to_fp32(
-        'llvm -mcpu=core-avx2', 9,
-        match="vcvtph2ps.*ymm")
-    fp16_to_fp32(
-        'llvm', 9,
-        not_match="vcvtph2ps")
+        not_match="vcvtph2ps.*zmm",
+    )
+    fp16_to_fp32("llvm -mcpu=skylake-avx512 -mattr=-f16c,-avx512f", 49, not_match="vcvtph2ps")
+    fp16_to_fp32("llvm -mcpu=core-avx2", 8, match="vcvtph2ps.*ymm")
+    fp16_to_fp32("llvm -mcpu=core-avx2", 9, match="vcvtph2ps.*ymm")
+    fp16_to_fp32("llvm", 9, not_match="vcvtph2ps")
 
 
 if __name__ == "__main__":

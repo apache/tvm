@@ -97,7 +97,15 @@ class IdNode : public Object {
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name_hint", &name_hint); }
 
+  bool SEqualReduce(const IdNode* other, SEqualReducer equal) const {
+    return equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.FreeVarHashImpl(this); }
+
   static constexpr const char* _type_key = "relay.Id";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
 };
 

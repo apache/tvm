@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument,invalid-name
+# pylint: disable=unused-argument,invalid-name
 """The base node types for the Relay language."""
 import tvm._ffi
 import tvm.ir
@@ -48,6 +48,7 @@ class OpPattern(object):
     --------
     top.tag : Contains explanation of the tag type.
     """
+
     # Elementwise operator
     ELEMWISE = 0
     # Broadcast operator
@@ -67,6 +68,7 @@ class OpPattern(object):
 @tvm._ffi.register_object("relay.OpImplementation")
 class OpImplementation(Object):
     """Operator implementation"""
+
     def compute(self, attrs, inputs, out_type):
         """Call compute function.
 
@@ -118,6 +120,7 @@ class OpSpecialization(Object):
 @tvm._ffi.register_object("relay.OpStrategy")
 class OpStrategy(Object):
     """Operator strategy"""
+
     def __init__(self):
         self.__init_handle_by_constructor__(_make.OpStrategy)
 
@@ -147,6 +150,7 @@ def _wrap_default_fstrategy(compute, schedule, name):
         strategy = OpStrategy()
         strategy.add_implementation(compute, schedule, name=name)
         return strategy
+
     return _fstrategy
 
 
@@ -156,12 +160,12 @@ def _create_fstrategy_from_schedule(op_name, schedule):
     assert compute is not None, "FTVMCompute is not registered for op %s" % op_name
     fstrategy = get_native_generic_func("{}_strategy".format(op_name))
     name_pfx = schedule.__name__
-    name_pfx = name_pfx[name_pfx.index('_')+1:]
+    name_pfx = name_pfx[name_pfx.index("_") + 1 :]
     fstrategy.set_default(
-        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx))
+        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx)
+    )
     for key, sch in schedule.dispatch_dict.items():
-        fstrategy.register(
-            _wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
+        fstrategy.register(_wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
     return fstrategy
 
 
@@ -409,6 +413,7 @@ _schedule_reduce = None
 
 __DEBUG_COUNTER__ = 0
 
+
 def debug(expr, debug_func=None):
     """The main entry point to the debugger."""
     global __DEBUG_COUNTER__
@@ -418,8 +423,9 @@ def debug(expr, debug_func=None):
         tvm._ffi.register_func(name, debug_func)
         __DEBUG_COUNTER__ += 1
     else:
-        name = ''
+        name = ""
 
     return _make.debug(expr, name)
+
 
 tvm._ffi._init_api("relay.op", __name__)

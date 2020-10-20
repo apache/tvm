@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend
+import tvm.testing
 
 
 _conv2d_transpose_nchw_implement = {
@@ -34,14 +34,17 @@ _conv2d_transpose_nchw_implement = {
     "hls": (topi.nn.conv2d_transpose_nchw, topi.hls.schedule_conv2d_transpose_nchw),
 }
 
-def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, output_padding):
+
+def verify_conv2d_transpose_nchw(
+    batch, in_channel, in_size, num_filter, kernel, stride, padding, output_padding
+):
     in_height, in_width = in_size
     kernel_height, kernel_width = kernel
     stride_height, stride_width = stride
     pad_top, pad_left, pad_bottom, pad_right = padding
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = te.placeholder((in_channel, num_filter, kernel_height, kernel_width), name='W')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name="A")
+    W = te.placeholder((in_channel, num_filter, kernel_height, kernel_width), name="W")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -51,27 +54,26 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = tvm.topi.testing.conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding)
+        b_np = tvm.topi.testing.conv2d_transpose_nchw_python(
+            a_np, w_np, stride, padding, output_padding
+        )
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv2d_transpose_nchw_implement)
-            B = fcompute(A, W,
-                         [stride_height, stride_width],
-                         [pad_top, pad_left, pad_bottom, pad_right],
-                         A.dtype, output_padding)
-            C = topi.nn.relu(B)
-            s1 = fschedule([B])
-            s2 = fschedule([C])
+    def check(fcompute, fschedule, device, ctx):
+        B = fcompute(
+            A,
+            W,
+            [stride_height, stride_width],
+            [pad_top, pad_left, pad_bottom, pad_right],
+            A.dtype,
+            output_padding,
+        )
+        C = topi.nn.relu(B)
+        s1 = fschedule([B])
+        s2 = fschedule([C])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
@@ -83,19 +85,37 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
         func2(a, w, c)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
-    for device in get_all_backend():
-        check_device(device)
+
+    def check_generic(device, ctx):
+        print("Running generic on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = _conv2d_transpose_nchw_implement["generic"]
+            check(fcompute, fschedule, device, ctx)
+
+    check_generic("llvm", tvm.cpu(0))
+
+    def check_device(device, ctx):
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(
+                device, _conv2d_transpose_nchw_implement
+            )
+            check(fcompute, fschedule, device, ctx)
+
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
 
+@tvm.testing.uses_gpu
 def test_conv2d_transpose_nchw():
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (3, 3), (0, 0, 0, 0), (0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (2, 2), (1, 1, 1, 1), (0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (3, 3), (2, 2), (1, 1, 1, 1), (1, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (2, 2), (2, 2), (0, 0, 0, 0), (0, 0))
-    verify_conv2d_transpose_nchw(1, 3, (224, 224),  32, (2, 2), (2, 2), (0, 0, 0, 0), (1, 1))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (3, 3), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (2, 2), (1, 1, 1, 1), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (2, 2), (1, 1, 1, 1), (1, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (2, 2), (2, 2), (0, 0, 0, 0), (0, 0))
+    verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (2, 2), (2, 2), (0, 0, 0, 0), (1, 1))
     verify_conv2d_transpose_nchw(1, 32, (32, 32), 128, (5, 5), (1, 1), (0, 0, 0, 0), (0, 0))
     verify_conv2d_transpose_nchw(1, 32, (32, 32), 128, (5, 5), (2, 2), (1, 1, 1, 1), (0, 0))
     verify_conv2d_transpose_nchw(16, 32, (8192, 1), 8, (31, 1), (2, 1), (14, 0, 15, 0), (0, 0))

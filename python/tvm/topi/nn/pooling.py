@@ -18,10 +18,8 @@
 from __future__ import absolute_import
 from .. import cpp
 
-POOL_TYPE_CODE = {
-    "avg": 0,
-    "max": 1
-}
+POOL_TYPE_CODE = {"avg": 0, "max": 1}
+
 
 def global_pool(data, pool_type, layout="NCHW"):
     """Perform global pooling on height and width dimension of data.
@@ -58,14 +56,9 @@ def global_pool(data, pool_type, layout="NCHW"):
     return cpp.nn.global_pool(data, POOL_TYPE_CODE[pool_type], layout)
 
 
-def pool(data,
-         kernel,
-         stride,
-         padding,
-         pool_type,
-         ceil_mode=False,
-         layout="NCHW",
-         count_include_pad=True):
+def pool(
+    data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCHW", count_include_pad=True
+):
     """Perform pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
        in which 'W' and 'H' means width and height respectively.
@@ -111,18 +104,29 @@ def pool(data,
     output : tvm.te.Tensor
         n-D in the same layout
     """
-    return cpp.nn.pool(data, kernel, stride, padding,
-                       POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
+    return cpp.nn.pool(
+        data,
+        kernel,
+        stride,
+        padding,
+        POOL_TYPE_CODE[pool_type],
+        ceil_mode,
+        layout,
+        count_include_pad,
+    )
 
-def pool_grad(grads,
-              data,
-              kernel,
-              stride,
-              padding,
-              pool_type,
-              ceil_mode=False,
-              layout="NCHW",
-              count_include_pad=True):
+
+def pool_grad(
+    grads,
+    data,
+    kernel,
+    stride,
+    padding,
+    pool_type,
+    ceil_mode=False,
+    layout="NCHW",
+    count_include_pad=True,
+):
     """Gradient of pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
        in which 'W' and 'H' means width and height respectively.
@@ -171,15 +175,20 @@ def pool_grad(grads,
     output : tvm.te.Tensor
         n-D in the same layout
     """
-    return cpp.nn.pool_grad(grads, data, kernel,
-                            stride, padding, POOL_TYPE_CODE[pool_type],
-                            ceil_mode, layout, count_include_pad)
+    return cpp.nn.pool_grad(
+        grads,
+        data,
+        kernel,
+        stride,
+        padding,
+        POOL_TYPE_CODE[pool_type],
+        ceil_mode,
+        layout,
+        count_include_pad,
+    )
 
 
-def adaptive_pool(data,
-                  output_size,
-                  pool_type,
-                  layout="NCHW"):
+def adaptive_pool(data, output_size, pool_type, layout="NCHW"):
     """Perform pooling on height and width dimension of data.
        The pooling kernel and stride sizes are automatically chosen for desired
        output sizes.
@@ -218,24 +227,16 @@ def adaptive_pool(data,
     return cpp.nn.adaptive_pool(data, output_size, POOL_TYPE_CODE[pool_type], layout)
 
 
-def adaptive_pool3d(data,
-                    output_size,
-                    pool_type,
-                    layout="NCDHW"):
+def adaptive_pool3d(data, output_size, pool_type, layout="NCDHW"):
     """Perform pooling on three dimensional data.
-       See the two dimensional version above for details.
+    See the two dimensional version above for details.
     """
     return cpp.nn.adaptive_pool3d(data, output_size, POOL_TYPE_CODE[pool_type], layout)
 
 
-def pool1d(data,
-           kernel,
-           stride,
-           padding,
-           pool_type,
-           ceil_mode=False,
-           layout="NCW",
-           count_include_pad=True):
+def pool1d(
+    data, kernel, stride, padding, pool_type, ceil_mode=False, layout="NCW", count_include_pad=True
+):
     """Perform pooling on width dimension of data.
        Width axis is determined according to the layout string.
        in which 'w' means width.
@@ -282,21 +283,35 @@ def pool1d(data,
         n-D in the same layout
     """
     if isinstance(kernel, int):
-        kernel = [kernel, ]
+        kernel = [
+            kernel,
+        ]
     if isinstance(stride, int):
-        stride = [stride, ]
-    return cpp.nn.pool1d(data, kernel, stride, padding,
-                         POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
+        stride = [
+            stride,
+        ]
+    return cpp.nn.pool1d(
+        data,
+        kernel,
+        stride,
+        padding,
+        POOL_TYPE_CODE[pool_type],
+        ceil_mode,
+        layout,
+        count_include_pad,
+    )
 
 
-def pool3d(data,
-           kernel,
-           stride,
-           padding,
-           pool_type,
-           ceil_mode=False,
-           layout="NCDHW",
-           count_include_pad=True):
+def pool3d(
+    data,
+    kernel,
+    stride,
+    padding,
+    pool_type,
+    ceil_mode=False,
+    layout="NCDHW",
+    count_include_pad=True,
+):
     """Perform pooling on depth, height and width dimension of data.
        It decides the depth, height and width dimension according to the layout string,
        in which 'D', 'W' and 'H' means depth, width and height respectively.
@@ -342,5 +357,13 @@ def pool3d(data,
     output : tvm.te.Tensor
         n-D in the same layout
     """
-    return cpp.nn.pool3d(data, kernel, stride, padding,
-                         POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
+    return cpp.nn.pool3d(
+        data,
+        kernel,
+        stride,
+        padding,
+        POOL_TYPE_CODE[pool_type],
+        ceil_mode,
+        layout,
+        count_include_pad,
+    )

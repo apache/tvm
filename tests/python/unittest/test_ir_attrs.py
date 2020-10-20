@@ -18,6 +18,7 @@ import tvm
 import pytest
 import tvm.ir._ffi_api
 
+
 def test_make_attrs():
     with pytest.raises(AttributeError):
         x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
@@ -25,7 +26,7 @@ def test_make_attrs():
     with pytest.raises(AttributeError):
         x = tvm.ir.make_node("attrs.TestAttrs", axis=100, name="xx")
 
-    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4))
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     assert x.name == "xx"
     assert x.padding[0].value == 3
     assert x.padding[1].value == 4
@@ -33,7 +34,7 @@ def test_make_attrs():
 
 
 def test_dict_attrs():
-    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
+    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
     assert dattr.x.value == 1
     datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
     assert dattr.name == "xyz"
@@ -53,7 +54,6 @@ def test_attrs_equal():
     assert not tvm.ir.structural_equal(dattr0, dattr2)
     assert not tvm.ir.structural_equal({"x": 1}, tvm.runtime.convert(1))
     assert not tvm.ir.structural_equal([1, 2], tvm.runtime.convert(1))
-
 
 
 if __name__ == "__main__":

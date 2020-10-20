@@ -628,8 +628,8 @@ llvm::Constant* CodeGenLLVM::GetConstString(const std::string& str) {
   auto it = str_map_.find(str);
   if (it != str_map_.end()) return it->second;
   llvm::Type* type = llvm::ArrayType::get(t_char_, str.length() + 1);
-  llvm::GlobalVariable* global =
-      new llvm::GlobalVariable(*module_, type, true, llvm::GlobalValue::PrivateLinkage, 0, ".str");
+  llvm::GlobalVariable* global = new llvm::GlobalVariable(
+      *module_, type, true, llvm::GlobalValue::PrivateLinkage, nullptr, ".str");
 #if TVM_LLVM_VERSION >= 100
   global->setAlignment(llvm::Align(1));
 #else

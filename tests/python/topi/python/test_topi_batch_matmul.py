@@ -23,7 +23,7 @@ import tvm.topi.testing
 from tvm.topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
+import tvm.testing
 
 _batch_matmul_implement = {
     "generic": (topi.nn.batch_matmul, topi.generic.schedule_batch_matmul),
@@ -31,28 +31,26 @@ _batch_matmul_implement = {
     "gpu": (topi.cuda.batch_matmul, topi.cuda.schedule_batch_matmul),
 }
 
-def verify_batch_matmul(batch, M, N, K):
-    x = te.placeholder((batch, M, K), name='x')
-    y = te.placeholder((batch, N, K), name='y')
+
+def verify_batch_matmul(x_batch, y_batch, M, N, K):
+    x = te.placeholder((x_batch, M, K), name="x")
+    y = te.placeholder((y_batch, N, K), name="y")
     dtype = x.dtype
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_batch_matmul")
     def get_ref_data():
-        a_np = np.random.uniform(size=(batch, M, K)).astype(dtype)
-        b_np = np.random.uniform(size=(batch, N, K)).astype(dtype)
+        a_np = np.random.uniform(size=(x_batch, M, K)).astype(dtype)
+        b_np = np.random.uniform(size=(y_batch, N, K)).astype(dtype)
         c_np = tvm.topi.testing.batch_matmul(a_np, b_np)
         return (a_np, b_np, c_np)
+
     # get the test data
     a_np, b_np, c_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+    def check_device(device, ctx):
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _batch_matmul_implement)
             out = fcompute(x, y)
             s = fschedule([out])
@@ -63,14 +61,19 @@ def verify_batch_matmul(batch, M, N, K):
         f(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
+
+@tvm.testing.uses_gpu
 def test_batch_matmul():
-    verify_batch_matmul(1, 16, 16, 32)
-    verify_batch_matmul(5, 16, 16, 32)
-    verify_batch_matmul(5, 16, 20, 32)
-    verify_batch_matmul(30, 16, 20, 32)
+    verify_batch_matmul(1, 1, 16, 16, 32)
+    verify_batch_matmul(5, 5, 16, 16, 32)
+    verify_batch_matmul(5, 5, 16, 20, 32)
+    verify_batch_matmul(30, 30, 16, 20, 32)
+    # Test batch broadcasting.
+    verify_batch_matmul(1, 5, 16, 16, 32)
+    verify_batch_matmul(5, 1, 16, 16, 32)
 
 
 if __name__ == "__main__":

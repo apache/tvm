@@ -19,17 +19,18 @@ import tvm.relay.testing
 from tvm import relay
 from tvm import autotvm
 
+
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
     input_shape = (batch_size, 3, 224, 224)
 
-    if name == 'resnet-18':
+    if name == "resnet-18":
         mod, params = relay.testing.resnet.get_workload(num_layers=18, batch_size=batch_size)
-    elif name == 'resnet3d-18':
+    elif name == "resnet3d-18":
         mod, params = relay.testing.resnet_3d.get_workload(num_layers=18, batch_size=batch_size)
-    elif name == 'mobilenet':
+    elif name == "mobilenet":
         mod, params = relay.testing.mobilenet.get_workload(batch_size=batch_size)
-    elif name == 'dcgan':
+    elif name == "dcgan":
         mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size)
         input_shape = (batch_size, 100)
     else:
@@ -37,8 +38,9 @@ def get_network(name, batch_size):
 
     return mod, params, input_shape
 
+
 def test_task_extraction():
-    target = 'llvm'
+    target = "llvm"
     mod_list = []
     params_list = []
     conv2d = relay.op.get("nn.conv2d")
@@ -46,65 +48,59 @@ def test_task_extraction():
     conv2d_transpose = relay.op.get("nn.conv2d_transpose")
     dense = relay.op.get("nn.dense")
 
-    mod, params, _ = get_network('resnet-18', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod["main"], target=target,
-                                              params=params,
-                                              ops=(conv2d,))
+    mod, params, _ = get_network("resnet-18", batch_size=1)
+    tasks = autotvm.task.extract_from_program(
+        mod["main"], target=target, params=params, ops=(conv2d,)
+    )
     assert len(tasks) == 12
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params,
-                                              ops=(conv2d,))
+    tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(conv2d,))
     assert len(tasks) == 12
 
-    mod, params, _ = get_network('resnet-18', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod["main"], target=target,
-                                              params=params,
-                                              ops=(dense,))
+    mod, params, _ = get_network("resnet-18", batch_size=1)
+    tasks = autotvm.task.extract_from_program(
+        mod["main"], target=target, params=params, ops=(dense,)
+    )
     assert len(tasks) == 1
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params,
-                                              ops=(dense,))
+    tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(dense,))
     assert len(tasks) == 1
 
-    mod, params, _ = get_network('resnet-18', batch_size=1)
+    mod, params, _ = get_network("resnet-18", batch_size=1)
     mod_list.append(mod)
     params_list.append(params)
-    tasks = autotvm.task.extract_from_program(mod["main"], target=target,
-                                              params=params,
-                                              ops=(conv2d, dense))
+    tasks = autotvm.task.extract_from_program(
+        mod["main"], target=target, params=params, ops=(conv2d, dense)
+    )
     assert len(tasks) == 13
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params,
-                                              ops=(conv2d, dense))
+    tasks = autotvm.task.extract_from_program(
+        mod, target=target, params=params, ops=(conv2d, dense)
+    )
     assert len(tasks) == 13
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params)
+    tasks = autotvm.task.extract_from_program(mod, target=target, params=params)
     assert len(tasks) == 13
 
-    mod, params, _ = get_network('resnet3d-18', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params,
-                                              ops=(conv3d,))
+    mod, params, _ = get_network("resnet3d-18", batch_size=1)
+    tasks = autotvm.task.extract_from_program(mod, target=target, params=params, ops=(conv3d,))
     assert len(tasks) == 12
 
-    mod, params, _ = get_network('mobilenet', batch_size=1)
+    mod, params, _ = get_network("mobilenet", batch_size=1)
     mod_list.append(mod)
     params_list.append(params)
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params,
-                                              ops=(conv2d, dense))
+    tasks = autotvm.task.extract_from_program(
+        mod, target=target, params=params, ops=(conv2d, dense)
+    )
     assert len(tasks) == 20
 
-    mod, params, _ = get_network('dcgan', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod, target=target,
-                                              params=params,
-                                              ops=(conv2d_transpose,))
+    mod, params, _ = get_network("dcgan", batch_size=1)
+    tasks = autotvm.task.extract_from_program(
+        mod, target=target, params=params, ops=(conv2d_transpose,)
+    )
     assert len(tasks) == 4
 
-    tasks = autotvm.task.extract_from_multiple_program(mod_list, params_list,
-                                                       target=target,
-                                                       ops=(conv2d,))
+    tasks = autotvm.task.extract_from_multiple_program(
+        mod_list, params_list, target=target, ops=(conv2d,)
+    )
     assert len(tasks) == 31
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_task_extraction()

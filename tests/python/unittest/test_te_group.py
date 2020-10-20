@@ -18,6 +18,7 @@
 import tvm
 from tvm import te
 
+
 def test_scan_group():
     m = te.size_var("m")
     n = te.size_var("n")
@@ -25,7 +26,7 @@ def test_scan_group():
     s_state = te.placeholder((m, n))
     s_init = te.compute((1, n), lambda _, i: x[0, i])
 
-    s_update1 = te.compute((m, n), lambda t, i: s_state[t-1, i] + x[t, i])
+    s_update1 = te.compute((m, n), lambda t, i: s_state[t - 1, i] + x[t, i])
     s_update2 = te.compute((m, n), lambda t, i: s_update1[t, i] + 1)
     s_update3 = te.compute((m, n), lambda t, i: s_update2[t, i] + 1)
     res = tvm.te.scan(s_init, s_update3, s_state, inputs=x)
@@ -50,6 +51,7 @@ def test_scan_group():
     except tvm.error.TVMError:
         pass
 
+
 def test_compute_group():
     m = te.size_var("m")
     n = te.size_var("n")
@@ -63,6 +65,7 @@ def test_compute_group():
     g.compute_at(s[x2], x2.op.axis[1])
     assert g.attach_stage == s[x2]
     assert g.num_child_stages == 2
+
 
 def test_nest_group():
     m = te.size_var("m")
@@ -79,6 +82,7 @@ def test_nest_group():
     assert g1.group == g2
     assert g2.num_child_stages == 2
     assert g1.num_child_stages == 1
+
 
 if __name__ == "__main__":
     test_nest_group()

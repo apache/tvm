@@ -39,9 +39,9 @@ class IntGroupBounds(Object):
     upper : List[tvm.ir.PrimExpr]
         the upper bounds (include)
     """
+
     def __init__(self, coef, lower, equal, upper):
-        self.__init_handle_by_constructor__(
-            _ffi_api.IntGroupBounds, coef, lower, equal, upper)
+        self.__init_handle_by_constructor__(_ffi_api.IntGroupBounds, coef, lower, equal, upper)
 
     @staticmethod
     def from_range(rng):
@@ -61,7 +61,7 @@ class IntGroupBounds(Object):
 
     def find_best_range(self):
         """Return the best range from the grouped bounds.
-           None if (-inf, +inf).
+        None if (-inf, +inf).
         """
         return _ffi_api.IntGroupBounds_FindBestRange(self)
 
@@ -80,9 +80,9 @@ class IntConstraints(Object):
     relations : List[tvm.ir.PrimExpr]
         The relations between the variables (either equations or inequalities)
     """
+
     def __init__(self, variables, ranges, relations):
-        self.__init_handle_by_constructor__(
-            _ffi_api.IntConstraints, variables, ranges, relations)
+        self.__init_handle_by_constructor__(_ffi_api.IntConstraints, variables, ranges, relations)
 
 
 @tvm._ffi.register_object("arith.IntConstraintsTransform")
@@ -112,9 +112,11 @@ class IntConstraintsTransform(Object):
         mapping from variables in the dst to the variables in the src,
         e.g., {m -> a, n -> -b}
     """
+
     def __init__(self, src, dst, src_to_dst, dst_to_src):
         self.__init_handle_by_constructor__(
-            _ffi_api.IntConstraintsTransform, src, dst, src_to_dst, dst_to_src)
+            _ffi_api.IntConstraintsTransform, src, dst, src_to_dst, dst_to_src
+        )
 
 
 def solve_linear_equations(equations, variables=None, ranges=None):
@@ -168,8 +170,9 @@ def solve_linear_inequalities(equations, variables=None, ranges=None, deskew_ran
         If deskew_range is set (=True), the result ranges will be deskewed to be started from zero.
         New variables are created accordingly therefore IntConstraintsTransform is returned.
     """
-    solver = _ffi_api.SolveInequalitiesDeskewRange \
-        if deskew_range else _ffi_api.SolveInequalitiesToRange
+    solver = (
+        _ffi_api.SolveInequalitiesDeskewRange if deskew_range else _ffi_api.SolveInequalitiesToRange
+    )
     if isinstance(equations, IntConstraints):
         assert variables is None
         assert ranges is None

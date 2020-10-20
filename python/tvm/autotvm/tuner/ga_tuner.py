@@ -38,6 +38,7 @@ class GATuner(Tuner):
     mutation_prob: float
         probability of mutation of a knob in a gene
     """
+
     def __init__(self, task, pop_size=100, elite_num=3, mutation_prob=0.1):
         super(GATuner, self).__init__(task)
 
@@ -95,11 +96,11 @@ class GATuner(Tuner):
 
         if len(self.scores) >= len(self.genes) and len(self.visited) < len(self.space):
             genes = self.genes + self.elites
-            scores = np.array(self.scores[:len(self.genes)] + self.elite_scores)
+            scores = np.array(self.scores[: len(self.genes)] + self.elite_scores)
 
             # reserve elite
             self.elites, self.elite_scores = [], []
-            elite_indexes = np.argpartition(scores, -self.elite_num)[-self.elite_num:]
+            elite_indexes = np.argpartition(scores, -self.elite_num)[-self.elite_num :]
             for ind in elite_indexes:
                 self.elites.append(genes[ind])
                 self.elite_scores.append(scores[ind])
@@ -127,7 +128,9 @@ class GATuner(Tuner):
                 if len(self.visited) < len(self.space):
                     while knob2point(tmp_gene, self.dims) in self.visited:
                         j = np.random.randint(len(self.dims))
-                        tmp_gene[j] = np.random.randint(self.dims[j])  # pylint: disable=invalid-sequence-index
+                        tmp_gene[j] = np.random.randint(
+                            self.dims[j]
+                        )  # pylint: disable=invalid-sequence-index
                     next_genes.append(tmp_gene)
                     self.visited.add(knob2point(tmp_gene, self.dims))
                 else:

@@ -22,6 +22,7 @@ from .injective import schedule_injective_from_existing
 from .. import tag
 from ..util import get_const_tuple
 
+
 def _schedule_reduce(sch, op, is_idx_reduce=False):
     if is_idx_reduce:
         real_out = op.output(0)
@@ -97,12 +98,12 @@ def schedule_reduce(outs):
                 schedule_injective_from_existing(sch, operator)
             for tensor in operator.input_tensors:
                 traverse_after_reduce(tensor.op)
-        elif operator.tag == 'comm_reduce':
+        elif operator.tag == "comm_reduce":
             _schedule_reduce(sch, operator, is_idx_reduce=False)
             for tensor in operator.input_tensors:
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
-        elif operator.tag == 'comm_reduce_idx':
+        elif operator.tag == "comm_reduce_idx":
             _schedule_reduce(sch, operator, is_idx_reduce=True)
             input_tensors = operator.input_tensors[0].op.input_tensors
             for tensor in input_tensors:

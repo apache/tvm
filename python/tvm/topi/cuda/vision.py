@@ -24,20 +24,24 @@ from .. import tag
 from .pooling import schedule_pool
 from .injective import schedule_injective_from_existing
 
+
 def _default_schedule(outs):
     """Default schedule for gpu."""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
+
     def traverse(op):
-        if tag.is_broadcast(op.tag) or op.tag in ['bbox_score', 'sorted_bbox']:
+        if tag.is_broadcast(op.tag) or op.tag in ["bbox_score", "sorted_bbox"]:
             schedule_injective_from_existing(s, op.output(0))
         for tensor in op.input_tensors:
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                 traverse(tensor.op)
         scheduled_ops.append(op)
+
     traverse(outs[0].op)
     return s
+
 
 def schedule_reorg(outs):
     """Schedule for reorg operator.
@@ -56,6 +60,7 @@ def schedule_reorg(outs):
     cpp_target = cpp.TEST_create_target(target.kind.name)
     return cpp.cuda.schedule_injective(cpp_target, outs)
 
+
 def schedule_nms(outs):
     """Schedule for non-maximum suppression
 
@@ -72,6 +77,7 @@ def schedule_nms(outs):
     """
     return _default_schedule(outs)
 
+
 def schedule_multibox_prior(outs):
     """Schedule for multibox_prior operator.
 
@@ -87,6 +93,7 @@ def schedule_multibox_prior(outs):
         The computation schedule for multibox_prior.
     """
     return _default_schedule(outs)
+
 
 def schedule_multibox_transform_loc(outs):
     """Schedule for multibox_transform_loc
@@ -105,6 +112,7 @@ def schedule_multibox_transform_loc(outs):
     """
     return _default_schedule(outs)
 
+
 def schedule_multibox_detection(outs):
     """Schedule for multibox_detection operator.
 
@@ -121,11 +129,14 @@ def schedule_multibox_detection(outs):
     """
     return _default_schedule(outs)
 
+
 def schedule_roi_align(outs):
-    return schedule_pool(outs, 'NCHW')
+    return schedule_pool(outs, "NCHW")
+
 
 def schedule_roi_pool(outs):
-    return schedule_pool(outs, 'NCHW')
+    return schedule_pool(outs, "NCHW")
+
 
 def schedule_proposal(outs):
     """Schedule for proposal operator.
@@ -142,6 +153,7 @@ def schedule_proposal(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs)
+
 
 def schedule_get_valid_counts(outs):
     """Schedule for get_valid_counts operator.

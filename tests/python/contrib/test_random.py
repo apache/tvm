@@ -19,30 +19,17 @@ from tvm import te
 import numpy as np
 from tvm.contrib import random
 from tvm import rpc
+import tvm.testing
 
-def enabled_ctx_list():
-    ctx_list = [('cpu', tvm.cpu(0)),
-                ('gpu', tvm.gpu(0)),
-                ('cl', tvm.opencl(0)),
-                ('metal', tvm.metal(0)),
-                ('rocm', tvm.rocm(0)),
-                ('vulkan', tvm.vulkan(0)),
-                ('vpi', tvm.vpi(0))]
-    for k, v  in ctx_list:
-        assert tvm.context(k, 0) == v
-    ctx_list = [x[1] for x in ctx_list if x[1].exist]
-    return ctx_list
-
-ENABLED_CTX_LIST = enabled_ctx_list()
 
 def test_randint():
     m = 10240
     n = 10240
-    A = random.randint(-127, 128, size=(m, n), dtype='int32')
+    A = random.randint(-127, 128, size=(m, n), dtype="int32")
     s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
@@ -56,6 +43,7 @@ def test_randint():
         assert abs(np.mean(na)) < 0.3
         assert np.min(na) == -127
         assert np.max(na) == 127
+
     verify()
 
 
@@ -66,7 +54,7 @@ def test_uniform():
     s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
@@ -80,6 +68,7 @@ def test_uniform():
         assert abs(np.mean(na) - 0.5) < 1e-1
         assert abs(np.min(na) - 0.0) < 1e-3
         assert abs(np.max(na) - 1.0) < 1e-3
+
     verify()
 
 
@@ -90,7 +79,7 @@ def test_normal():
     s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.runtime.enabled(target):
+        if not tvm.testing.device_enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.normal", True):
@@ -103,8 +92,11 @@ def test_normal():
         na = a.asnumpy()
         assert abs(np.mean(na) - 3) < 1e-1
         assert abs(np.std(na) - 4) < 1e-2
+
     verify()
 
+
+@tvm.testing.uses_gpu
 def test_random_fill():
     def test_local(ctx, dtype):
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
@@ -125,7 +117,7 @@ def test_random_fill():
         if not tvm.get_global_func("tvm.contrib.random.random_fill", True):
             print("skip because extern function is not available")
             return
-        if not tvm.runtime.enabled("rpc") or not tvm.runtime.enabled("llvm"):
+        if not tvm.testing.device_enabled("rpc") or not tvm.runtime.enabled("llvm"):
             return
         np_ones = np.ones((512, 512), dtype=dtype)
         server = rpc.Server("localhost")
@@ -140,11 +132,24 @@ def test_random_fill():
         np_values = value.asnumpy()
         assert np.isfinite(np_values * np_values + np_values).any()
 
-    for dtype in ["bool", "int8", "uint8", "int16", "uint16", "int32", "int32",
-                  "int64", "uint64", "float16", "float32", "float64"]:
-        for ctx in ENABLED_CTX_LIST:
+    for dtype in [
+        "bool",
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "int32",
+        "int64",
+        "uint64",
+        "float16",
+        "float32",
+        "float64",
+    ]:
+        for _, ctx in tvm.testing.enabled_targets():
             test_local(ctx, dtype)
         test_rpc(dtype)
+
 
 if __name__ == "__main__":
     test_randint()

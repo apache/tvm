@@ -19,9 +19,7 @@
 
 /*!
  * \file auto_scheduler/auto_schedule.cc
- * \brief The user interface of the TVM Auto-scheduler. This is the entry structure to get
- * schedule search requirements from upper level (Python API), and returns a high performance
- * schedule after search process.
+ * \brief The user interface and tuning options of the TVM auto-scheduler.
  */
 
 #include <tvm/auto_scheduler/auto_schedule.h>

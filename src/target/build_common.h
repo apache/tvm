@@ -62,6 +62,7 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
   }
   return fmap;
 }
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_BUILD_COMMON_H_

@@ -43,8 +43,10 @@ def on_device(data, device):
     elif isinstance(device, str):
         device = _nd.context(device).device_type
     else:
-        raise ValueError("device is expected to be the type of TVMContext or "
-                         "str, but received %s" % (type(device)))
+        raise ValueError(
+            "device is expected to be the type of TVMContext or "
+            "str, but received %s" % (type(device))
+        )
     return _make.on_device(data, device)
 
 
@@ -78,6 +80,7 @@ def checkpoint(data):
         The annotated expression.
     """
     return _make.checkpoint(data)
+
 
 reg.register_injective_schedule("annotation.checkpoint")
 

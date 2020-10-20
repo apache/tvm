@@ -18,8 +18,10 @@
 """The type nodes of the Relay language."""
 from enum import IntEnum
 
+
 class Feature(IntEnum):
     """ The features a program might contain. """
+
     fVar = 0
     fGlobalVar = 1
     fConstant = 2

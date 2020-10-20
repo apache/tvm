@@ -26,7 +26,8 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.util import get_const_tuple
 
-from common import get_all_backend, Int8Fallback
+from common import Int8Fallback
+import tvm.testing
 
 
 _group_conv2d_nchw_implement = {
@@ -34,17 +35,34 @@ _group_conv2d_nchw_implement = {
     "gpu": (topi.cuda.group_conv2d_nchw, topi.cuda.schedule_group_conv2d_nchw),
 }
 
+_group_conv2d_nhwc_implement = {
+    "generic": (topi.nn.group_conv2d_nhwc, topi.generic.schedule_group_conv2d_nhwc),
+}
 
-def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups, add_bias=False, add_relu=False):
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d)" %
-        (batch, in_channel, in_size, num_filter,
-         kernel, stride, padding, dilation, groups))
+
+def verify_group_conv2d_nchw(
+    batch,
+    in_channel,
+    in_size,
+    num_filter,
+    kernel,
+    stride,
+    padding,
+    dilation,
+    groups,
+    add_bias=False,
+    add_relu=False,
+):
+    print(
+        "Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d)"
+        % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups)
+    )
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = te.placeholder((num_filter, in_channel // groups, kernel, kernel), name='W')
-    bias = te.placeholder((num_filter, 1, 1), name='bias')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name="A")
+    W = te.placeholder((num_filter, in_channel // groups, kernel, kernel), name="W")
+    bias = te.placeholder((num_filter, 1, 1), name="bias")
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -57,7 +75,9 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
         w_np = np.random.uniform(size=w_shape).astype(dtype)
         b_np = np.random.uniform(size=bias_shape).astype(dtype)
         dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding, groups).astype(dtype)
+        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding, groups).astype(
+            dtype
+        )
 
         if add_bias:
             b_np = np.random.uniform(size=bias_shape).astype(dtype)
@@ -71,12 +91,12 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _group_conv2d_nchw_implement)
             C = fcompute(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
@@ -90,12 +110,42 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" %\
-                (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
+            func = tvm.build(
+                s,
+                [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                ),
+            )
             func(a, w, b, c)
         else:
-            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" % \
-            (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
+            func = tvm.build(
+                s,
+                [A, W, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                ),
+            )
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
@@ -106,17 +156,31 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
 oc_block_factor = 4
 
 
-def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups, add_bias=False, add_relu=False):
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d)" %
-        (batch, in_channel, in_size, num_filter,
-         kernel, stride, padding, dilation, groups))
+def verify_group_conv2d_NCHWc_int8(
+    batch,
+    in_channel,
+    in_size,
+    num_filter,
+    kernel,
+    stride,
+    padding,
+    dilation,
+    groups,
+    add_bias=False,
+    add_relu=False,
+):
+    print(
+        "Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d)"
+        % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups)
+    )
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='int8')
-    W = te.placeholder((num_filter, in_channel // groups, kernel, kernel), name='W', dtype='int8')
-    bias = te.placeholder((num_filter // oc_block_factor, 1, 1, oc_block_factor), name='bias',
-                            dtype='int8')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype="int8")
+    W = te.placeholder((num_filter, in_channel // groups, kernel, kernel), name="W", dtype="int8")
+    bias = te.placeholder(
+        (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype="int8"
+    )
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -129,12 +193,15 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
         w_np = np.random.randint(low=-128, high=128, size=w_shape).astype(dtype)
         b_np = np.random.uniform(size=bias_shape).astype(dtype)
         dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding, groups).astype(dtype)
+        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding, groups).astype(
+            dtype
+        )
 
         # convert to NCHWc
         _, _, out_height, out_width = c_np.shape
-        c_np = c_np.reshape((batch, num_filter // oc_block_factor, oc_block_factor, \
-                out_height, out_width)).transpose(0, 1, 3, 4, 2)
+        c_np = c_np.reshape(
+            (batch, num_filter // oc_block_factor, oc_block_factor, out_height, out_width)
+        ).transpose(0, 1, 3, 4, 2)
 
         if add_bias:
             b_np = np.random.uniform(size=bias_shape).astype(dtype)
@@ -148,7 +215,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
 
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
@@ -156,7 +223,7 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
             return
 
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             C = topi.cuda.group_conv2d_NCHWc_int8(A, W, stride, padding, dilation, groups, dtype)
             if add_bias:
                 C = topi.add(C, bias)
@@ -169,12 +236,42 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" %\
-                (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
+            func = tvm.build(
+                s,
+                [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                ),
+            )
             func(a, w, b, c)
         else:
-            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" % \
-            (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
+            func = tvm.build(
+                s,
+                [A, W, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                ),
+            )
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
@@ -182,6 +279,120 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
         check_device(device)
 
 
+def verify_group_conv2d_nhwc(
+    batch,
+    in_channel,
+    in_size,
+    num_filter,
+    kernel,
+    stride,
+    padding,
+    dilation,
+    groups,
+    add_bias=False,
+    add_relu=False,
+):
+    print(
+        "Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d)"
+        % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups)
+    )
+
+    in_height = in_width = in_size
+
+    A = te.placeholder((batch, in_height, in_width, in_channel), name="A")
+    W = te.placeholder((kernel, kernel, in_channel // groups, num_filter), name="W")
+    bias = te.placeholder((1, 1, num_filter), name="bias")
+
+    a_shape = get_const_tuple(A.shape)
+    w_shape = get_const_tuple(W.shape)
+    bias_shape = get_const_tuple(bias.shape)
+    dtype = A.dtype
+
+    @memoize("topi.tests.test_topi_group_conv2d.verify_group_conv2d_nhwc")
+    def get_ref_data():
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        w_np = np.random.uniform(size=w_shape).astype(dtype)
+        b_np = np.random.uniform(size=bias_shape).astype(dtype)
+        dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+        c_np = tvm.topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding, groups).astype(
+            dtype
+        )
+
+        if add_bias:
+            b_np = np.random.uniform(size=bias_shape).astype(dtype)
+            c_np += b_np
+        if add_relu:
+            c_np = np.maximum(c_np, 0)
+
+        return a_np, w_np, b_np, c_np
+
+    a_np, w_np, b_np, c_np = get_ref_data()
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not tvm.testing.device_enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(device, _group_conv2d_nhwc_implement)
+            C = fcompute(A, W, stride, padding, dilation, groups, dtype)
+            if add_bias:
+                C = topi.add(C, bias)
+            if add_relu:
+                C = topi.nn.relu(C)
+            s = fschedule([C])
+
+        a = tvm.nd.array(a_np, ctx)
+        w = tvm.nd.array(w_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        if add_bias:
+            func = tvm.build(
+                s,
+                [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                ),
+            )
+            func(a, w, b, c)
+        else:
+            func = tvm.build(
+                s,
+                [A, W, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                % (
+                    batch,
+                    in_channel,
+                    in_size,
+                    num_filter,
+                    kernel,
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                ),
+            )
+            func(a, w, c)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+
+    for device in ["llvm"]:
+        check_device(device)
+
+
+@tvm.testing.uses_gpu
 def test_group_conv2d_nchw():
     # ResNeXt-50 workload
     verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 1, 32)
@@ -195,8 +406,7 @@ def test_group_conv2d_nchw():
     # bias, relu
     verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True)
     verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
-    verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True,
-                             add_bias=True)
+    verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True)
 
     # dilation
     verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 2, 32)
@@ -206,7 +416,7 @@ def test_group_conv2d_nchw():
     verify_group_conv2d_nchw(9, 128, 56, 128, 3, 1, 1, 1, 32)
 
 
-
+@tvm.testing.requires_cuda
 def test_group_conv2d_NCHWc_int8():
     with Int8Fallback():
         # ResNeXt-50 workload
@@ -221,8 +431,9 @@ def test_group_conv2d_NCHWc_int8():
         # bias, relu
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True)
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
-        verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True,
-                                       add_bias=True)
+        verify_group_conv2d_NCHWc_int8(
+            1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True
+        )
         # dilation
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 2, 32)
 
@@ -231,6 +442,30 @@ def test_group_conv2d_NCHWc_int8():
         verify_group_conv2d_NCHWc_int8(9, 128, 56, 128, 3, 1, 1, 1, 32)
 
 
+def test_group_conv2d_nhwc():
+    # ResNeXt-50 workload
+    verify_group_conv2d_nhwc(1, 128, 56, 128, 3, 1, 1, 1, 32)
+    verify_group_conv2d_nhwc(1, 256, 56, 256, 3, 2, 1, 1, 32)
+    verify_group_conv2d_nhwc(1, 256, 28, 256, 3, 1, 1, 1, 32)
+    verify_group_conv2d_nhwc(1, 512, 28, 512, 3, 2, 1, 1, 32)
+    verify_group_conv2d_nhwc(1, 512, 14, 512, 3, 1, 1, 1, 32)
+    verify_group_conv2d_nhwc(1, 1024, 14, 1024, 3, 2, 1, 1, 32)
+    verify_group_conv2d_nhwc(1, 1024, 7, 1024, 3, 1, 1, 1, 32)
+
+    # bias, relu
+    verify_group_conv2d_nhwc(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True)
+    verify_group_conv2d_nhwc(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
+    verify_group_conv2d_nhwc(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True, add_bias=True)
+
+    # dilation
+    verify_group_conv2d_nhwc(1, 128, 56, 128, 3, 1, 1, 2, 32)
+
+    # batch size
+    verify_group_conv2d_nhwc(2, 128, 56, 128, 3, 1, 1, 1, 32)
+    verify_group_conv2d_nhwc(9, 128, 56, 128, 3, 1, 1, 1, 32)
+
+
 if __name__ == "__main__":
     test_group_conv2d_nchw()
     test_group_conv2d_NCHWc_int8()
+    test_group_conv2d_nhwc()

@@ -53,11 +53,11 @@ class AccessAnalyzerNode : public Object {
   using OperationMap = std::unordered_map<te::Operation, T, ObjectPtrHash, ObjectPtrEqual>;
 
   /*! \brief Map an operation to all operations it reads from.
-   * For each operation pair, use a two-dimentional array for multiple multi-dimentional accesses
+   * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_from;
   /*! \brief Map an operation to all operations it is read by.
-   * For each operation pair, use a two-dimentional array for multiple multi-dimentional accesses
+   * For each operation pair, use a two-dimensional array for multiple multi-dimensional accesses
    * The inner vector represents the indices of multi-dimensional access.*/
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr>>>> read_by;
   /*! \brief Store the number of common outer iterators for operation pairs that have
@@ -67,7 +67,7 @@ class AccessAnalyzerNode : public Object {
    *  (e.g., injective, broadcast and elementwise ops without reduction) */
   OperationMap<bool> is_simple_access;
   /*! \brief Store whether the operation is strictly inlineable
-   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expensive operations)
    */
   OperationMap<bool> is_strictly_inlineable;
   /*! \brief Store whether the operation needs multi-level tiling
@@ -98,8 +98,8 @@ class AccessAnalyzer : public ObjectRef {
   TVM_DLL bool IsSimpleAccess(const te::Operation& op) const;
 
   /*!
-   * \brief Return whether this operation is strictly inlinable
-   * (e.g., injective, broadcast and elementwise without reduction, branch or expenive operations)
+   * \brief Return whether this operation is strictly inlineable
+   * (e.g., injective, broadcast and elementwise without reduction, branch or expensive operations)
    * \param op The operation
    */
   TVM_DLL bool IsStrictlyInlineable(const te::Operation& op) const;
@@ -200,10 +200,22 @@ class ComputeDAGNode : public Object {
  */
 class ComputeDAG : public ObjectRef {
  public:
-  /*! \brief The constructor.
+  /*! \brief Construct a DAG from a list of output tensors.
    * \param tensors `te::Tensor`s for a compute declaration.
    */
   TVM_DLL explicit ComputeDAG(Array<te::Tensor> tensors);
+
+  /*! \brief Construct a DAG based on a schedule.
+   * \param sch `te::Schedule`s for a compute declaration.
+   */
+  TVM_DLL explicit ComputeDAG(const te::Schedule& sch);
+
+  /*!
+   * \brief Rewrite the layout of placeholder specified by attr `layout_free_placeholders`
+   * according to the loop nest derived with `transform_steps`.
+   * \param transform_steps Transform steps of a state.
+   */
+  void RewriteLayout(const Array<Step>& transform_steps);
 
   /*!
    * \brief Apply the history transform steps to get a TVM schedule.
@@ -212,12 +224,15 @@ class ComputeDAG : public ObjectRef {
    * Pass a valid pointer if this information needs to be used outside this function.
    * \param stage_to_axes The map that stores all axes for one stage.
    * Pass a valid pointer if this information needs to be used outside this function.
+   * \param layout_rewrite Rewrite the layout of placeholders specified by
+   * attr `layout_free_placeholders`
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
-  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(
-      const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
-      StageToAxesMap* stage_to_axes = nullptr) const;
+  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(const Array<Step>& transform_steps,
+                                                        Array<te::Stage>* stages = nullptr,
+                                                        StageToAxesMap* stage_to_axes = nullptr,
+                                                        bool layout_rewrite = false) const;
 
   /*!
    * \brief Print transform steps as equivalent python schedule API.
@@ -245,7 +260,9 @@ class ComputeDAG : public ObjectRef {
    * This function calls TVM InferBound pass internally to get the bound.
    * The returned state of this function is guaranteed to have complete bound information.
    * \param states The input states.
-   * \return The States with complete bound information
+   * \return The States with complete bound information.
+   * \note The returned array will contains empty State, if there're infer bound failure on some
+   * states.
    */
   Array<State> InferBound(const Array<State>& states) const;
 
@@ -253,12 +270,14 @@ class ComputeDAG : public ObjectRef {
    * \brief Since some steps may change the ComputeDAG (e.g. CacheRead/CacheWrite), the initial
    * ComputeDAG may not be up-to-date. This function replays the given transform steps from the
    * initial state and returns an up-to-date ComputeDAG.
-   * \param steps The steps to be replaied. Usually we'll filter out the unused steps to speed up
+   * \param steps The steps to be replayed. Usually we'll filter out the unused steps to speed up
    * the replay process, since we only intend to get a ComputeDAG with the up-to-date op stage
    * structure.
    * \return The up-to-date ComputeDAG.
    */
   ComputeDAG ReplayAndGetDAG(const Array<Step>& steps) const;
+
+  static constexpr const char* layout_free_placeholders_key = "layout_free_placeholders";
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);

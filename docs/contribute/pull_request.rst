@@ -20,22 +20,36 @@ Submit a Pull Request
 
 This is a quick guide to submit a pull request, please also refer to the detailed guidelines.
 
-- Before submit, please rebase your code on the most recent version of master, you can do it by
+- Before submit, please rebase your code on the most recent version of main, you can do it by
 
   .. code:: bash
 
     git remote add upstream [url to tvm repo]
     git fetch upstream
-    git rebase upstream/master
+    git rebase upstream/main
 
 - Make sure code style check pass by typing the following command, and all the existing test-cases pass.
 
   .. code:: bash
 
-    # Reproduce the lint procedure in the CI.
+    # Run all lint steps.
+    docker/lint.sh
+
+    # To run steps individually, specify their step names on the command-line. An incorrectly
+    # spelled step name causes the tool to print all available steps.
+    docker/lint.sh <step_name> ...
+
+    # While the lint commands used should be identical to those run in CI, this command reproduces
+    # the CI lint procedure exactly (typically helpful for debugging lint script errors).
     docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh
-    # Run clang-format check for all the files that changed since upstream/master
-    docker/bash.sh tvmai/ci-lint ./tests/lint/git-clang-format.sh upstream/master
+
+  When the clang-format lint check fails, run git-clang-format as follows to automatically reformat
+  your code:
+
+  .. code:: bash
+
+    # Run clang-format check for all the files that changed since upstream/main
+    docker/bash.sh tvmai/ci-lint ./tests/lint/git-clang-format.sh upstream/main
 
 - Add test-cases to cover the new features or bugfix the patch introduces.
 - Document the code you wrote, see more at :ref:`doc_guide`

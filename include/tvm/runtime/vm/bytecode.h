@@ -66,6 +66,7 @@ enum class Opcode {
   AllocStorage = 16U,
   ShapeOf = 17U,
   ReshapeTensor = 18U,
+  DeviceCopy = 19U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -196,6 +197,8 @@ struct Instruction {
       Index alignment;
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
+      /*! \brief The device type of the allocation. */
+      Index device_type;
     } alloc_storage;
     struct /* ShapeOf Operands */ {
       RegName tensor;
@@ -204,6 +207,13 @@ struct Instruction {
       RegName tensor;
       RegName newshape;
     } reshape_tensor;
+    struct /* DeviceCopy Operands */ {
+      RegName src;
+      /*! \brief The source device type. */
+      Index src_device_type;
+      /*! \brief The destination device type. */
+      Index dst_device_type;
+    };
   };
 
   /*!
@@ -341,11 +351,12 @@ struct Instruction {
    * \param size The size of the allocation.
    * \param alignment The allocation's alignment.
    * \param dtype_hint The data type hint for the allocator.
+   * \param device_type The device type for the allocator.
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
   static Instruction AllocStorage(RegName size, Index alignment, DLDataType dtype_hint,
-                                  RegName dst);
+                                  Index device_type, RegName dst);
   /*!
    * \brief Get the shape of an input tensor.
    * \param tensor The input tensor.
@@ -361,6 +372,16 @@ struct Instruction {
    * \return The reshape tensor instruction.
    */
   static Instruction ReshapeTensor(RegName tensor, RegName newshape, RegName dst);
+  /*!
+   * \brief Copy tensor cross different devices.
+   * \param src The source register.
+   * \param src_device_type The device type of the tensor for the source register.
+   * \param dst_device_type The device type of the tensor ofr the destination register.
+   * \param dst The destination register to store the copied tensor.
+   * \return The device copy instruction.
+   */
+  static Instruction DeviceCopy(RegName src, Index src_device_type, Index dst_device_type,
+                                RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);

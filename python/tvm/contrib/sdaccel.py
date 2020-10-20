@@ -44,10 +44,15 @@ def compile_vhls(kernel_info, device_name):
 
     sdk = os.environ.get("XILINX_SDX", None)
     xocc = os.path.join(sdk, "bin/xocc") if sdk else "xocc"
-    target = os.environ.get("XCL_TARGET",
-                            "sw_emu" if os.environ.get("XCL_EMULATION_MODE") else "hw")
-    advanced_params = ["--xp", "param:compiler.preserveHlsOutput=1",
-                       "--xp", "param:compiler.generateExtraRunData=true"]
+    target = os.environ.get(
+        "XCL_TARGET", "sw_emu" if os.environ.get("XCL_EMULATION_MODE") else "hw"
+    )
+    advanced_params = [
+        "--xp",
+        "param:compiler.preserveHlsOutput=1",
+        "--xp",
+        "param:compiler.generateExtraRunData=true",
+    ]
     platform = device_name
     if not platform:
         platform = os.environ.get("XCL_PLATFORM", os.environ.get("AWS_PLATFORM"))
@@ -56,7 +61,7 @@ def compile_vhls(kernel_info, device_name):
         raise RuntimeError("No Xilinx device specified.")
 
     tmp_xo_files = []
-    for funcname, code  in kernel_info:
+    for funcname, code in kernel_info:
         funcname = funcname.value
         code = code.value
 
@@ -67,8 +72,11 @@ def compile_vhls(kernel_info, device_name):
             out_file.write(bytes(code))
 
         # build xo
-        args = [xocc, "-c", "-t", target, "--platform", platform, "-o", tmp_xo, "-k", funcname] + \
-               advanced_params + [tmp_cpp]
+        args = (
+            [xocc, "-c", "-t", target, "--platform", platform, "-o", tmp_xo, "-k", funcname]
+            + advanced_params
+            + [tmp_cpp]
+        )
         returncode = subprocess.call(args)
         if returncode != 0:
             raise RuntimeError("Compile error")
@@ -77,8 +85,11 @@ def compile_vhls(kernel_info, device_name):
 
     # build xclbin
     tmp_xclbin = tmp_dir.relpath("output.xclbin")
-    args = [xocc, "-l", "-t", target, "--platform", platform, "-o", tmp_xclbin] + tmp_xo_files + \
-           advanced_params
+    args = (
+        [xocc, "-l", "-t", target, "--platform", platform, "-o", tmp_xclbin]
+        + tmp_xo_files
+        + advanced_params
+    )
     returncode = subprocess.call(args)
     if returncode != 0:
         raise RuntimeError("Link error")

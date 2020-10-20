@@ -31,7 +31,7 @@ Features
 Software Emulation
 ~~~~~~~~~~~~~~~~~~
 
-In software emulation, the most interesting thing is the decorator ``tvm.hybrid.script``.
+In software emulation, the most interesting thing is the decorator ``tvm.te.hybrid.script``.
 This decorator helps 2 things:
 
 1. Importing runtime variables
@@ -40,7 +40,7 @@ This decorator helps 2 things:
 
 Correct me if I am wrong: I believe that how 1. is implemented is dangerous, but I have no
 choice. What I did is to add those names into python dict ``func.__global__`` and after
-the call to ``func`` is done, those names will be cleaned up. 
+the call to ``func`` is done, those names will be cleaned up.
 
 Overload is simple: the decorator checks the arguments' types and determines which function
 should be actually called.
@@ -49,16 +49,16 @@ should be actually called.
 Backend Compilation
 ~~~~~~~~~~~~~~~~~~~
 
-Compilation is a large module, you can see ``python/tvm/hybrid/var_decl.py`` and
-``python/tvm/hybrid/parser.py`` for more details. The first stage determines the
-usage, or more accurately the declaration of each variable and the second stage does
-the actual IR generation.
+Compilation is a large module, you can see ``python/tvm/te/hybrid/`` for more
+details. The first stage determines the usage, or more accurately the
+declaration of each variable and the second stage does the actual IR
+generation.
 
 Attributes
 ~~~~~~~~~~
 
 So far, ONLY tensors' `shape` attribute is supported. You can see ``visit_Subscript``
-in ``python/tvm/hybrid/parser.py`` for more details. This is a hacky solution, I just
+in ``python/tvm/te/hybrid/parser.py`` for more details. This is a hacky solution, I just
 check the attributes when subscript.
 
 Loops

@@ -18,6 +18,7 @@
 """Sequence mask in python"""
 import numpy as np
 
+
 def sequence_mask(data, valid_length, mask_value, axis):
     """batch_matmul operator implemented in numpy.
 
@@ -46,7 +47,8 @@ def sequence_mask(data, valid_length, mask_value, axis):
     val_len_expand_shape[1 - axis] = in_shape[1 - axis]
     seq_len_expand_shape = [1 for _ in range(len(in_shape))]
     seq_len_expand_shape[axis] = in_shape[axis]
-    mask = np.broadcast_to(np.arange(max_length).reshape(seq_len_expand_shape),
-                           in_shape) >= valid_length.reshape(val_len_expand_shape)
+    mask = np.broadcast_to(
+        np.arange(max_length).reshape(seq_len_expand_shape), in_shape
+    ) >= valid_length.reshape(val_len_expand_shape)
     out = data * (1 - mask) + mask_value * mask
     return out

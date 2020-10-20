@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Basic tensor operations."""
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, unused-argument
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
+from tvm.te.hybrid import script
 
 from . import _make
 from .dyn import _make as _dyn_make
 from ..expr import Tuple, Expr
+from . import op as reg
 
 
 # We create a wrapper function for each operator in the
@@ -32,6 +34,7 @@ from ..expr import Tuple, Expr
 # - Enable keyword arguments easily
 # - Not put too much burden on FFI to support complicated features
 #   like default value and keyword arguments
+
 
 def log(data):
     """Compute elementwise log of data.
@@ -48,6 +51,7 @@ def log(data):
     """
     return _make.log(data)
 
+
 def log2(data):
     """Compute elementwise log to the base 2 of data.
 
@@ -62,6 +66,7 @@ def log2(data):
         The computed result.
     """
     return _make.log2(data)
+
 
 def log10(data):
     """Compute elementwise log to the base 10 of data.
@@ -78,6 +83,7 @@ def log10(data):
     """
     return _make.log10(data)
 
+
 def tan(data):
     """Compute elementwise tan of data.
 
@@ -92,6 +98,7 @@ def tan(data):
         The computed result.
     """
     return _make.tan(data)
+
 
 def cos(data):
     """Compute elementwise cos of data.
@@ -108,6 +115,7 @@ def cos(data):
     """
     return _make.cos(data)
 
+
 def cosh(data):
     """Compute elementwise cosh of data.
 
@@ -122,6 +130,7 @@ def cosh(data):
         The computed result.
     """
     return _make.cosh(data)
+
 
 def sin(data):
     """Compute elementwise sin of data.
@@ -138,6 +147,7 @@ def sin(data):
     """
     return _make.sin(data)
 
+
 def sinh(data):
     """Compute elementwise sinh of data.
 
@@ -152,6 +162,7 @@ def sinh(data):
         The computed result.
     """
     return _make.sinh(data)
+
 
 def acos(data):
     """Compute elementwise acos of data.
@@ -168,6 +179,7 @@ def acos(data):
     """
     return _make.acos(data)
 
+
 def acosh(data):
     """Compute elementwise acosh of data.
 
@@ -182,6 +194,7 @@ def acosh(data):
         The computed result.
     """
     return _make.acosh(data)
+
 
 def asin(data):
     """Compute elementwise asin of data.
@@ -198,6 +211,7 @@ def asin(data):
     """
     return _make.asin(data)
 
+
 def asinh(data):
     """Compute elementwise asinh of data.
 
@@ -212,6 +226,7 @@ def asinh(data):
         The computed result.
     """
     return _make.asinh(data)
+
 
 def atan(data):
     """Compute elementwise atan of data.
@@ -228,6 +243,7 @@ def atan(data):
     """
     return _make.atan(data)
 
+
 def atanh(data):
     """Compute elementwise atanh of data.
 
@@ -242,6 +258,7 @@ def atanh(data):
         The computed result.
     """
     return _make.atanh(data)
+
 
 def exp(data):
     """Compute elementwise exp of data.
@@ -406,6 +423,7 @@ def abs(data):
     """
     return _make.abs(data)
 
+
 def sign(data):
     """Compute element-wise absolute of data.
 
@@ -420,6 +438,7 @@ def sign(data):
         The computed result.
     """
     return _make.sign(data)
+
 
 def tanh(data):
     """Compute element-wise tanh of data.
@@ -689,6 +708,7 @@ def logical_xor(lhs, rhs):
         The computed result.
     """
     return _make.logical_xor(lhs, rhs)
+
 
 def bitwise_and(lhs, rhs):
     """bitwise AND with numpy-style broadcasting.
@@ -1034,6 +1054,7 @@ def clip(a, a_min, a_max):
     """
     return _make.clip(a, a_min, a_max)
 
+
 def fixed_point_multiply(data, multiplier, shift):
     """Fixed point multiplication between data and a fixed point
     constant expressed as multiplier * 2^(-shift), where multiplier
@@ -1119,6 +1140,19 @@ def copy(data):
     return _make.copy(data)
 
 
+@script
+def _copy_shape_func(data_shape):
+    return data_shape
+
+
+@reg.register_shape_func("copy", False)
+def copy_shape_func(attrs, inputs, _):
+    """
+    Shape function for copy op.
+    """
+    return [_copy_shape_func(inputs[0])]
+
+
 def device_copy(data, src_dev, dst_dev):
     """Copy data from the source device to the destination device. This
     operator helps data transferring between difference contexts for
@@ -1145,16 +1179,20 @@ def device_copy(data, src_dev, dst_dev):
     elif isinstance(src_dev, str):
         src_dev = _nd.context(src_dev).device_type
     else:
-        raise ValueError("src_dev is expected to be the type of TVMContext or "
-                         "str, but received %s" % (type(src_dev)))
+        raise ValueError(
+            "src_dev is expected to be the type of TVMContext or "
+            "str, but received %s" % (type(src_dev))
+        )
 
     if isinstance(dst_dev, _TVMContext):
         dst_dev = dst_dev.device_type
     elif isinstance(dst_dev, str):
         dst_dev = _nd.context(dst_dev).device_type
     else:
-        raise ValueError("dst_dev is expected to be the type of TVMContext or "
-                         "str, but received %s" % (type(dst_dev)))
+        raise ValueError(
+            "dst_dev is expected to be the type of TVMContext or "
+            "str, but received %s" % (type(dst_dev))
+        )
     return _make.device_copy(data, src_dev, dst_dev)
 
 

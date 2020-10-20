@@ -27,7 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -139,6 +139,25 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
+        {Op::Get("dyn.nn.upsampling3d"),
+         [](const CallNode* call_node) {
+           const ConstantNode* scale_d = call_node->args[1].as<ConstantNode>();
+           const ConstantNode* scale_h = call_node->args[2].as<ConstantNode>();
+           const ConstantNode* scale_w = call_node->args[3].as<ConstantNode>();
+           if (scale_d && scale_h && scale_w) {
+             CHECK_EQ(scale_d->data->ndim, 0);
+             CHECK_EQ(scale_h->data->ndim, 0);
+             CHECK_EQ(scale_w->data->ndim, 0);
+             const UpSampling3DAttrs* param = call_node->attrs.as<UpSampling3DAttrs>();
+             CHECK(param);
+
+             return MakeUpSampling3D(call_node->args[0], ToScalar(scale_d->data),
+                                     ToScalar(scale_h->data), ToScalar(scale_w->data),
+                                     param->layout, param->method,
+                                     param->coordinate_transformation_mode);
+           }
+           return Expr(nullptr);
+         }},
         {Op::Get("dyn.nn.pad"),
          [](const CallNode* call_node) {
            const ConstantNode* pad_width = call_node->args[1].as<ConstantNode>();
@@ -151,6 +170,22 @@ class DynamicToStaticMutator : public MixedModeMutator {
              CHECK(param);
              return MakePad(call_node->args[0], ToMatrix(pad_width->data), ToScalar(pad_fill->data),
                             param->pad_mode);
+           }
+           return Expr(nullptr);
+         }},
+        {Op::Get("dyn.strided_slice"),
+         [](const CallNode* call_node) {
+           const ConstantNode* begin = call_node->args[1].as<ConstantNode>();
+           const ConstantNode* end = call_node->args[2].as<ConstantNode>();
+           const ConstantNode* stride = call_node->args[3].as<ConstantNode>();
+           if (begin && end && stride) {
+             CHECK_EQ(begin->data->ndim, 1);
+             CHECK_EQ(end->data->ndim, 1);
+             CHECK_EQ(stride->data->ndim, 1);
+             const StridedSliceAttrs* param = call_node->attrs.as<StridedSliceAttrs>();
+             CHECK(param);
+             return MakeStridedSlice(call_node->args[0], ToVector(begin->data), ToVector(end->data),
+                                     ToVector(stride->data), param->slice_mode);
            }
            return Expr(nullptr);
          }},
@@ -192,6 +227,9 @@ Expr DynamicToStatic(Function f, IRModule m) {
     vars.Set(kv.second, kv.first);
   }
   const auto gv = vars[f];
+  // Put a limit on the while loop
+  // Primarily used to prevent accidental infinite lops in development
+  const int loop_limit = 1000;
   int i = 0;
   do {
     pre = expr;
@@ -201,13 +239,13 @@ Expr DynamicToStatic(Function f, IRModule m) {
     expr = mutator.Mutate(m->functions[gv]);
     m->Update(gv, Downcast<BaseFunc>(expr));
     i += 1;
-  } while (pre != expr && i < 1000);
+  } while (!StructuralEqual()(pre, expr) && i < loop_limit);
   return expr;
 }
 
 namespace transform {
 
-Pass ConvertDynamicToStatic() {
+Pass DynamicToStatic() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(DynamicToStatic(f, m));
@@ -216,7 +254,7 @@ Pass ConvertDynamicToStatic() {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.DynamicToStatic").set_body_typed([]() {
-  return ConvertDynamicToStatic();
+  return DynamicToStatic();
 });
 
 }  // namespace transform

@@ -29,6 +29,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/container.h>
+#include <tvm/parser/source_map.h>
 
 #include <string>
 #include <unordered_map>
@@ -53,14 +54,17 @@ class IRModuleNode : public Object {
   Map<GlobalVar, BaseFunc> functions;
   /*! \brief A map from global type vars to ADT type data. */
   Map<GlobalTypeVar, TypeData> type_definitions;
+  /*! \brief The source map for the module. */
+  parser::SourceMap source_map;
 
-  IRModuleNode() {}
+  IRModuleNode() : source_map() {}
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("global_type_var_map_", &global_type_var_map_);
+    v->Visit("source_map", &source_map);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -280,12 +284,14 @@ class IRModule : public ObjectRef {
    * \param functions Functions in the module.
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module
+   * \param map The module source map.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {});
+                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {});
+
   /*! \brief default constructor */
-  IRModule() : IRModule(Map<GlobalVar, BaseFunc>()) {}
+  IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}
   /*!
    * \brief constructor
    * \param n The object pointer.

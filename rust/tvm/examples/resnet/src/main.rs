@@ -18,21 +18,25 @@
  */
 
 use std::{
-    collections::HashMap,
-    convert::TryInto,
     fs::{self, File},
+    io::{BufRead, BufReader},
     path::Path,
 };
 
 use ::ndarray::{Array, ArrayD, Axis};
 use image::{FilterType, GenericImageView};
 
-use tvm::runtime::ByteArray;
+use anyhow::Context as _;
+use tvm::runtime::graph_rt::GraphRt;
 use tvm::*;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let ctx = Context::cpu(0);
-    let img = image::open(concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png")).unwrap();
+    println!("{}", concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"));
+
+    let img = image::open(concat!(env!("CARGO_MANIFEST_DIR"), "/cat.png"))
+        .context("Failed to open cat.png")?;
+
     println!("original image dimensions: {:?}", img.dimensions());
     // for bigger size images, one needs to first resize to 256x256
     // with `img.resize_exact` method and then `image.crop` to 224x224
@@ -52,100 +56,68 @@ fn main() {
         }
     }
 
-    let arr = Array::from_shape_vec((224, 224, 3), pixels).unwrap();
+    let arr = Array::from_shape_vec((224, 224, 3), pixels)?;
     let arr: ArrayD<f32> = arr.permuted_axes([2, 0, 1]).into_dyn();
     // make arr shape as [1, 3, 224, 224] acceptable to resnet
     let arr = arr.insert_axis(Axis(0));
     // create input tensor from rust's ndarray
-    let input = NDArray::from_rust_ndarray(&arr, Context::cpu(0), DataType::float(32, 1)).unwrap();
+    let input = NDArray::from_rust_ndarray(&arr, Context::cpu(0), DataType::float(32, 1))?;
     println!(
-        "input size is {:?}",
-        input.shape().expect("cannot get the input shape")
+        "input shape is {:?}, len: {}, size: {}",
+        input.shape(),
+        input.len(),
+        input.size(),
     );
-    let graph =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json")).unwrap();
+
+    let graph = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json"))
+        .context("Failed to open graph")?;
+
     // load the built module
     let lib = Module::load(&Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/deploy_lib.so"
-    )))
-    .unwrap();
-    // get the global TVM graph runtime function
-    let runtime_create_fn = Function::get("tvm.graph_runtime.create").unwrap();
-    let runtime_create_fn_ret = runtime_create_fn.invoke(vec![
-        graph.into(),
-        (&lib).into(),
-        (&ctx.device_type).into(),
-        (&ctx.device_id).into(),
-    ]);
+    )))?;
 
-    // get graph runtime module
-    let graph_runtime_module: Module = runtime_create_fn_ret.unwrap().try_into().unwrap();
+    let mut graph_rt = GraphRt::create_from_parts(&graph, lib, ctx)?;
 
-    // get the registered `load_params` from runtime module
-    let ref load_param_fn = graph_runtime_module
-        .get_function("load_params", false)
-        .unwrap();
     // parse parameters and convert to TVMByteArray
-    let params: Vec<u8> =
-        fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params")).unwrap();
-    let barr = ByteArray::from(&params);
-    // load the parameters
-    load_param_fn.invoke(vec![(&barr).into()]).unwrap();
-    // get the set_input function
-    let ref set_input_fn = graph_runtime_module
-        .get_function("set_input", false)
-        .unwrap();
+    let params: Vec<u8> = fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params"))?;
 
-    set_input_fn
-        .invoke(vec!["data".into(), (&input).into()])
-        .unwrap();
+    println!("param bytes: {}", params.len());
 
-    // get `run` function from runtime module
-    let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();
-    // execute the run function. Note that it has no argument
-    run_fn.invoke(vec![]).unwrap();
+    graph_rt.load_params(&params)?;
+    graph_rt.set_input("data", input)?;
+    graph_rt.run()?;
+
     // prepare to get the output
-    let output_shape = &mut [1, 1000];
+    let output_shape = &[1, 1000];
     let output = NDArray::empty(output_shape, Context::cpu(0), DataType::float(32, 1));
-    // get the `get_output` function from runtime module
-    let ref get_output_fn = graph_runtime_module
-        .get_function("get_output", false)
-        .unwrap();
-    // execute the get output function
-    get_output_fn
-        .invoke(vec![(&0).into(), (&output).into()])
-        .unwrap();
+    graph_rt.get_output_into(0, output.clone())?;
+
     // flatten the output as Vec<f32>
-    let output = output.to_vec::<f32>().unwrap();
+    let output = output.to_vec::<f32>()?;
+
     // find the maximum entry in the output and its index
-    let mut argmax = -1;
-    let mut max_prob = 0.;
-    for i in 0..output.len() {
-        if output[i] > max_prob {
-            max_prob = output[i];
-            argmax = i as i32;
-        }
-    }
+    let (argmax, max_prob) = output
+        .iter()
+        .copied()
+        .enumerate()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+        .unwrap();
+
     // create a hash map of (class id, class name)
-    let mut synset: HashMap<i32, String> = HashMap::new();
-    let file = File::open("synset.csv").unwrap();
-    let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .from_reader(file);
+    let file = File::open("synset.txt").context("failed to open synset")?;
+    let synset: Vec<String> = BufReader::new(file)
+        .lines()
+        .into_iter()
+        .map(|x| x.expect("readline failed"))
+        .collect();
 
-    for result in rdr.records() {
-        let record = result.unwrap();
-        let id: i32 = record[0].parse().unwrap();
-        let cls = record[1].to_string();
-        synset.insert(id, cls);
-    }
-
+    let label = &synset[argmax];
     println!(
         "input image belongs to the class `{}` with probability {}",
-        synset
-            .get(&argmax)
-            .expect("cannot find the class id for argmax"),
-        max_prob
+        label, max_prob
     );
+
+    Ok(())
 }

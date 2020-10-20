@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file auto_scheduler/search_policy/utils.cc
+ * \file auto_scheduler/search_policy/utils.h
  * \brief Common utilities for search policies.
  */
 
@@ -32,6 +32,7 @@
 #include <tvm/te/operation.h>
 
 #include <algorithm>
+#include <condition_variable>
 #include <set>
 #include <string>
 #include <tuple>
@@ -302,7 +303,7 @@ inline int64_t GetExtent(const Iterator& it) {
 }
 
 /*! \brief Compute the product of lengths of all space iters and all reduce iters, respectively. */
-inline std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLengh(const Stage& stage) {
+inline std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const Stage& stage) {
   int64_t cum_space_len = 1, cum_reduce_len = 1;
   for (const auto& iter : stage->iters) {
     if (iter->iter_kind == IteratorKind::kSpatial) {
@@ -321,7 +322,7 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, int stage_i
     // Compute the product of lengths of all space iters and all reduce iters
     int cum_space_len, cum_reduce_len;
     std::tie(cum_space_len, cum_reduce_len) =
-        GetCumulativeSpaceAndReductionLengh(state->stages[stage_id]);
+        GetCumulativeSpaceAndReductionLength(state->stages[stage_id]);
 
     if (NeedsMultilevelTiling(task, state, stage_id)) {
       // Do not use rfactor if we have enough parallelism on space iters
@@ -372,11 +373,18 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task, const St
     *target_stage_id = *consumers.begin();
     if (ElementwiseMatch(task, state, stage_id, *target_stage_id) &&
         (!(HasReduceIter(state->stages[stage_id]) &&
-           HasReduceIter(state->stages[*target_stage_id])))) {
+           HasReduceIter(state->stages[*target_stage_id]))) &&
+        (!StrEndsWith(state->stages[*target_stage_id]->op->name, ".shared"))) {
       return true;
     }
   }
   return false;
+}
+
+/*! \brief Return whether the step changes the number of stages */
+inline bool IsStageNumberChangingStep(const Step& step) {
+  return step->IsInstance<CacheWriteStepNode>() || step->IsInstance<CacheReadStepNode>() ||
+         step->IsInstance<RfactorStepNode>();
 }
 
 /*! \brief Return whether the state does cache_read for stage_id. */
@@ -388,9 +396,7 @@ inline bool HasCacheReadStage(const State& s, int stage_id) {
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -408,9 +414,7 @@ inline bool HasCacheWriteStage(const State& s, int stage_id) {
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -428,9 +432,7 @@ inline bool HasRfactorStage(const State& s, int stage_id) {
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -535,6 +537,20 @@ inline Iterator GetLastReduceIteratorInOutermostReduceTile(const Stage& stage) {
   return stage->iters[0];
 }
 
+/*! \brief Get the target stage id of a history step in the new state.
+ * We need this because the stage_id in the history may be stale due to later steps */
+inline int GetTargetStageIDInState(const State& s, int step_id) {
+  int stage_inc = 0;
+
+  for (size_t i = step_id + 1; i < s->transform_steps.size(); ++i) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
+      if (s->transform_steps[i]->stage_id <= s->transform_steps[step_id]->stage_id + stage_inc)
+        stage_inc++;
+    }
+  }
+  return s->transform_steps[step_id]->stage_id + stage_inc;
+}
+
 /*! \brief Get all split steps for one stage. */
 inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* split_step_ids) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
@@ -544,9 +560,7 @@ inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* spli
       }
     }
 
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+    if (IsStageNumberChangingStep(s->transform_steps[i])) {
       if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
@@ -615,6 +629,32 @@ inline Array<State> RandomSampleStates(const Array<State>& in_states, std::mt199
   return out_states;
 }
 
+/*! \brief Compute prefix-sum probabiilty based on the given weights */
+inline void ComputePrefixSumProb(const std::vector<float>& weights,
+                                 std::vector<double>* prefix_sum_probs) {
+  // Compute selection probabilities.
+  float sum = 0.0;
+  prefix_sum_probs->resize(weights.size());
+  for (size_t i = 0; i < weights.size(); ++i) {
+    sum += std::max(weights[i], 0.0f);
+    (*prefix_sum_probs)[i] = sum;
+  }
+  for (size_t i = 0; i < weights.size(); ++i) {
+    (*prefix_sum_probs)[i] /= sum;
+  }
+}
+
+/*! \brief Random choose an index according to a prefix sum probability. */
+inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt19937* random_gen) {
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+  double x = dis(*random_gen);
+
+  CHECK(!prefix_sum_probs.empty());
+
+  return std::lower_bound(prefix_sum_probs.begin(), prefix_sum_probs.end(), x) -
+         prefix_sum_probs.begin();
+}
+
 /*! \brief Print a title */
 inline void PrintTitle(const std::string& title, int verbose) {
   StdCout(verbose) << Chars('-', 60) << "\n"
@@ -635,7 +675,34 @@ class SplitFactorizationMemo {
   const std::vector<int>& GetFactors(int n);
 
  private:
-  void DfsEnumerate(int now, int remaining_lenght, int max_innermost_factor);
+  void DfsEnumerate(int now, int remaining_length, int max_innermost_factor);
+
+  /*!
+   * \brief A simple implementation of read-write lock.
+   * The guarded block can be read by multiple threads at the same time, while other operations will
+   * be blocked if one thread is writing.
+   * \note Writing threads will wait until all reading threads have finshed. If there're multiple
+   * writing threads, the process order of them is not guaranteed.
+   */
+  class ReadWriteLock {
+   public:
+    /*! \brief The method to get the read lock. One thread can process read if there's on other
+     * writing threads. */
+    void GetRead();
+    /*! \brief The method to get the write lock. One thread can process write if there's on other
+     * reading or writing threads. */
+    void GetWrite();
+    /*! \brief The method to release the read lock. */
+    void UnlockRead();
+    /*! \brief The method to release the write lock. */
+    void UnlockWrite();
+
+   private:
+    uint32_t read_count_ = 0;
+    bool is_writing_ = false;
+    std::mutex cv_mutex_;
+    std::condition_variable cv_;
+  } lock_;
 
   std::unordered_map<QueryKey, Array<Array<Integer>>> memory_;
 
@@ -645,12 +712,16 @@ class SplitFactorizationMemo {
   std::unordered_map<int, std::vector<int>> factor_memory_;
 };
 
-/*! \brief Get the indexes of SplitStep that processes on spatial iteratior. */
+/*! \brief Get the indexes of SplitStep that processes on spatial iterator. */
 Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id);
 
+/*! \brief Get the possible compute locations for a stage. */
+std::vector<std::pair<int, int>> GetComputeLocationCandidates(const SearchTask& task,
+                                                              const State& state, int stage_id);
+
 // Apply multi-level tiling structure according to a string format,
-// where "S" stands a space level, "R" stands for a reudciton level.
-// For example, if the format is "SSRSRS", the we will
+// where "S" stands a space level, "R" stands for a reduction level.
+// For example, if the format is "SSRSRS", then we will
 // use tiling structure:  space_L0, space_L1, reduce_L0, space_L2, reduce_L1, space_L3
 // For example, if apply "SSRSRS" to matrix multiplication,
 // we have space iterators i and j, reduce iterator k.
@@ -661,6 +732,9 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 // Apply tiling structure: space, space, space, ..., with tile sizes from other SplitStep
 State FollowTiling(const State& state, int stage_id, const std::vector<int>& split_step_ids,
                    int n_split);
+
+// Prune invalid states and return the results in-place.
+void PruneInvalidState(const SearchTask& task, Array<State>* states);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

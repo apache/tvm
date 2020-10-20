@@ -18,26 +18,29 @@ import tvm
 from tvm import te
 from tvm.contrib import util
 import numpy as np
+import tvm.testing
 
+
+@tvm.testing.requires_gpu
 def test_large_uint_imm():
-    value =  (1 << 63) + 123
+    value = (1 << 63) + 123
     other = tvm.tir.const(3, "uint64")
     n = 12
     num_thread = 2
 
-    A = te.compute((n,), lambda *i: tvm.tir.const(value, "uint64") + other, name='A')
+    A = te.compute((n,), lambda *i: tvm.tir.const(value, "uint64") + other, name="A")
     s = te.create_schedule(A.op)
     xo, xi = s[A].split(A.op.axis[0], factor=num_thread)
     s[A].bind(xi, te.thread_axis("threadIdx.x"))
     s[A].bind(xo, te.thread_axis("blockIdx.x"))
 
     def check_target(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             return
+        ctx = tvm.context(device, 0)
         f = tvm.build(s, [A], device)
         # launch the kernel.
-        a = tvm.nd.empty((n, ), dtype=A.dtype, ctx=ctx)
+        a = tvm.nd.empty((n,), dtype=A.dtype, ctx=ctx)
         f(a)
         assert a.asnumpy()[0] == value + 3
 
@@ -45,12 +48,13 @@ def test_large_uint_imm():
     check_target("vulkan")
 
 
+@tvm.testing.requires_gpu
 def test_add_pipeline():
-    n = te.size_var('n')
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((), name='B')
-    C = te.compute(A.shape, lambda *i: A(*i) + B(), name='C')
-    D = te.compute(A.shape, lambda *i: C(*i) + 1, name='D')
+    n = te.size_var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((), name="B")
+    C = te.compute(A.shape, lambda *i: A(*i) + B(), name="C")
+    D = te.compute(A.shape, lambda *i: C(*i) + 1, name="D")
     s = te.create_schedule(D.op)
 
     # GPU schedule have to split by gridIdx and threadIdx
@@ -64,11 +68,9 @@ def test_add_pipeline():
     s[D].bind(xo, te.thread_axis("blockIdx.x"))
 
     def check_target(device, host="stackvm"):
+        if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
+            return
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            return
-        if not tvm.runtime.enabled(host):
-            return
         mhost = tvm.driver.build(s, [A, B, D], target=device, target_host=host)
         f = mhost.entry_func
         # launch the kernel.
@@ -77,8 +79,7 @@ def test_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), ctx)
         d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
         f(a, b, d)
-        tvm.testing.assert_allclose(
-            d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
+        tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
     check_target("cuda", host="llvm")
     check_target("nvptx", host="llvm")

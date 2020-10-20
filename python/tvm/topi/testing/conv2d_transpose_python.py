@@ -66,10 +66,20 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
     bpad_right = filter_w - 1 - fpad_right + opad_w
-    padded_a_np = np.zeros((batch, in_c, dilated_a_np.shape[2]+bpad_top+bpad_bottom, \
-                            dilated_a_np.shape[3]+bpad_left+bpad_right))
-    padded_a_np[:, :, bpad_top:dilated_a_np.shape[2]+bpad_top, \
-                bpad_left:dilated_a_np.shape[3]+bpad_left] = dilated_a_np
+    padded_a_np = np.zeros(
+        (
+            batch,
+            in_c,
+            dilated_a_np.shape[2] + bpad_top + bpad_bottom,
+            dilated_a_np.shape[3] + bpad_left + bpad_right,
+        )
+    )
+    padded_a_np[
+        :,
+        :,
+        bpad_top : dilated_a_np.shape[2] + bpad_top,
+        bpad_left : dilated_a_np.shape[3] + bpad_left,
+    ] = dilated_a_np
     # convolution stage
     out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h + opad_h
     out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad_w
@@ -77,14 +87,14 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     for n in range(batch):
         for f in range(out_c):
             for c in range(in_c):
-                out = scipy.signal.convolve2d(
-                    padded_a_np[n, c], w_np[c, f], mode='valid')
+                out = scipy.signal.convolve2d(padded_a_np[n, c], w_np[c, f], mode="valid")
                 b_np[n, f] += out
     return b_np
 
 
-def conv2d_transpose_nhwc_python(a_nhwc, weight, weight_format, stride, padding,
-                                 output_padding=(0, 0)):
+def conv2d_transpose_nhwc_python(
+    a_nhwc, weight, weight_format, stride, padding, output_padding=(0, 0)
+):
     """Transposed convolution operator in NHWC layout.
 
     Parameters
@@ -115,18 +125,19 @@ def conv2d_transpose_nhwc_python(a_nhwc, weight, weight_format, stride, padding,
     a_nchw = np.transpose(a_nhwc, (0, 3, 1, 2))
 
     # conv2d_transpose_nchw_python needs kernel layout to be IOHW
-    if weight_format == 'HWIO':
+    if weight_format == "HWIO":
         w_iohw = np.transpose(weight, (2, 3, 0, 1))
-    elif weight_format == 'HWOI':
+    elif weight_format == "HWOI":
         w_iohw = np.transpose(weight, (3, 2, 0, 1))
-    elif weight_format == 'OIHW':
+    elif weight_format == "OIHW":
         w_iohw = np.transpose(weight, (1, 0, 2, 3))
-    elif weight_format == 'IOHW':
+    elif weight_format == "IOHW":
         w_iohw = weight
     else:
-        raise ValueError('Valid weight_formats are HWIO, HWOI, OIHW or IOHW')
+        raise ValueError("Valid weight_formats are HWIO, HWOI, OIHW or IOHW")
 
-    res_nchw = conv2d_transpose_nchw_python(a_nchw, w_iohw, stride, padding,
-                                            output_padding=output_padding)
+    res_nchw = conv2d_transpose_nchw_python(
+        a_nchw, w_iohw, stride, padding, output_padding=output_padding
+    )
     res_nhwc = np.transpose(res_nchw, (0, 2, 3, 1))
     return res_nhwc

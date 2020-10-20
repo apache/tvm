@@ -40,7 +40,8 @@ try:
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
-        "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg)
+        "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg
+    )
 
 from . import _ffi_api
 from . import base
@@ -51,6 +52,7 @@ from .._ffi.base import py_str
 
 class ForwardHandler(object):
     """Forward handler to forward the message."""
+
     def _init_handler(self):
         """Initialize handler."""
         self._init_message = bytes()
@@ -76,14 +78,14 @@ class ForwardHandler(object):
     def _init_step(self, message):
         if self._magic is None:
             assert len(message) == 4
-            self._magic = struct.unpack('<i', message)[0]
+            self._magic = struct.unpack("<i", message)[0]
             if self._magic != base.RPC_MAGIC:
                 logging.info("Invalid RPC magic from %s", self.name())
                 self.close()
             self._init_req_nbytes = 4
         elif self._rpc_key_length is None:
             assert len(message) == 4
-            self._rpc_key_length = struct.unpack('<i', message)[0]
+            self._rpc_key_length = struct.unpack("<i", message)[0]
             self._init_req_nbytes = self._rpc_key_length
         elif self.rpc_key is None:
             assert len(message) == self._rpc_key_length
@@ -143,13 +145,14 @@ class ForwardHandler(object):
 
 class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
     """Event driven TCP handler."""
+
     def __init__(self, sock, addr):
         super(TCPHandler, self).__init__(sock)
         self._init_handler()
         self.addr = addr
 
     def name(self):
-        return "TCPSocketProxy:%s:%s"  % (str(self.addr[0]), self.rpc_key)
+        return "TCPSocketProxy:%s:%s" % (str(self.addr[0]), self.rpc_key)
 
     def send_data(self, message, binary=True):
         self.write_message(message, True)
@@ -169,6 +172,7 @@ class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
 
 class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
     """Handler for websockets."""
+
     def __init__(self, *args, **kwargs):
         super(WebSocketHandler, self).__init__(*args, **kwargs)
         self._init_handler()
@@ -201,6 +205,7 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
 
 class RequestHandler(tornado.web.RequestHandler):
     """Handles html request."""
+
     def __init__(self, *args, **kwargs):
         file_path = kwargs.pop("file_path")
         if file_path.endswith("html"):
@@ -208,8 +213,8 @@ class RequestHandler(tornado.web.RequestHandler):
             web_port = kwargs.pop("rpc_web_port", None)
             if web_port:
                 self.page = self.page.replace(
-                    "ws://localhost:9190/ws",
-                    "ws://localhost:%d/ws" % web_port)
+                    "ws://localhost:9190/ws", "ws://localhost:%d/ws" % web_port
+                )
         else:
             self.page = open(file_path, "rb").read()
         super(RequestHandler, self).__init__(*args, **kwargs)
@@ -223,16 +228,20 @@ class RequestHandler(tornado.web.RequestHandler):
 
 class ProxyServerHandler(object):
     """Internal proxy server handler class."""
+
     current = None
-    def __init__(self,
-                 sock,
-                 listen_port,
-                 web_port,
-                 timeout_client,
-                 timeout_server,
-                 tracker_addr,
-                 index_page=None,
-                 resource_files=None):
+
+    def __init__(
+        self,
+        sock,
+        listen_port,
+        web_port,
+        timeout_client,
+        timeout_server,
+        tracker_addr,
+        index_page=None,
+        resource_files=None,
+    ):
         assert ProxyServerHandler.current is None
         ProxyServerHandler.current = self
         if web_port:
@@ -241,7 +250,8 @@ class ProxyServerHandler(object):
             ]
             if index_page:
                 handlers.append(
-                    (r"/", RequestHandler, {"file_path": index_page, "rpc_web_port": web_port}))
+                    (r"/", RequestHandler, {"file_path": index_page, "rpc_web_port": web_port})
+                )
                 logging.info("Serving RPC index html page at http://localhost:%d", web_port)
             resource_files = resource_files if resource_files else []
             for fname in resource_files:
@@ -254,10 +264,11 @@ class ProxyServerHandler(object):
         self.sock = sock
         self.sock.setblocking(0)
         self.loop = ioloop.IOLoop.current()
+
         def event_handler(_, events):
             self._on_event(events)
-        self.loop.add_handler(
-            self.sock.fileno(), event_handler, self.loop.READ)
+
+        self.loop.add_handler(self.sock.fileno(), event_handler, self.loop.READ)
         self._client_pool = {}
         self._server_pool = {}
         self.timeout_alloc = 5
@@ -272,8 +283,10 @@ class ProxyServerHandler(object):
         self.update_tracker_period = 2
         if tracker_addr:
             logging.info("Tracker address:%s", str(tracker_addr))
+
             def _callback():
                 self._update_tracker(True)
+
             self.loop.call_later(self.update_tracker_period, _callback)
         logging.info("RPCProxy: Websock port bind to %d", web_port)
 
@@ -290,12 +303,12 @@ class ProxyServerHandler(object):
         lhs.forward_proxy = rhs
         rhs.forward_proxy = lhs
 
-        lhs.send_data(struct.pack('<i', base.RPC_CODE_SUCCESS))
-        lhs.send_data(struct.pack('<i', len(rhs.rpc_key)))
+        lhs.send_data(struct.pack("<i", base.RPC_CODE_SUCCESS))
+        lhs.send_data(struct.pack("<i", len(rhs.rpc_key)))
         lhs.send_data(rhs.rpc_key.encode("utf-8"))
 
-        rhs.send_data(struct.pack('<i', base.RPC_CODE_SUCCESS))
-        rhs.send_data(struct.pack('<i', len(lhs.rpc_key)))
+        rhs.send_data(struct.pack("<i", base.RPC_CODE_SUCCESS))
+        rhs.send_data(struct.pack("<i", len(lhs.rpc_key)))
         rhs.send_data(lhs.rpc_key.encode("utf-8"))
         logging.info("Pairup connect %s  and %s", lhs.name(), rhs.name())
 
@@ -318,8 +331,9 @@ class ProxyServerHandler(object):
         """Update information on tracker."""
         try:
             if self._tracker_conn is None:
-                self._tracker_conn = socket.socket(base.get_addr_family(self._tracker_addr),
-                                                   socket.SOCK_STREAM)
+                self._tracker_conn = socket.socket(
+                    base.get_addr_family(self._tracker_addr), socket.SOCK_STREAM
+                )
                 self._tracker_conn.connect(self._tracker_addr)
                 self._tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 magic = struct.unpack("<i", base.recvall(self._tracker_conn, 4))[0]
@@ -344,8 +358,9 @@ class ProxyServerHandler(object):
                             update_keys.append(k)
                             v.alloc_time = None
                 if update_keys:
-                    logging.info("RPCProxy: No incoming conn on %s, regenerate keys...",
-                                 str(update_keys))
+                    logging.info(
+                        "RPCProxy: No incoming conn on %s, regenerate keys...", str(update_keys)
+                    )
                     new_keys = self._regenerate_server_keys(update_keys)
                     self._tracker_pending_puts += new_keys
 
@@ -353,9 +368,9 @@ class ProxyServerHandler(object):
             # report new connections
             for key in self._tracker_pending_puts:
                 rpc_key = key.split(":")[0]
-                base.sendjson(self._tracker_conn,
-                              [TrackerCode.PUT, rpc_key,
-                               (self._listen_port, key), None])
+                base.sendjson(
+                    self._tracker_conn, [TrackerCode.PUT, rpc_key, (self._listen_port, key), None]
+                )
                 assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
                 if rpc_key not in self._key_set:
                     self._key_set.add(rpc_key)
@@ -364,21 +379,24 @@ class ProxyServerHandler(object):
             if need_update_info:
                 keylist = "[" + ",".join(self._key_set) + "]"
                 cinfo = {"key": "server:proxy" + keylist}
-                base.sendjson(self._tracker_conn,
-                              [TrackerCode.UPDATE_INFO, cinfo])
+                base.sendjson(self._tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
                 assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
             self._tracker_pending_puts = []
         except (socket.error, IOError) as err:
             logging.info(
                 "Lost tracker connection: %s, try reconnect in %g sec",
-                str(err), self.update_tracker_period)
+                str(err),
+                self.update_tracker_period,
+            )
             self._tracker_conn.close()
             self._tracker_conn = None
             self._regenerate_server_keys(self._server_pool.keys())
 
         if period_update:
+
             def _callback():
                 self._update_tracker(True)
+
             self.loop.call_later(self.update_tracker_period, _callback)
 
     def _handler_ready_tracker_mode(self, handler):
@@ -393,7 +411,7 @@ class ProxyServerHandler(object):
             if handler.match_key in self._server_pool:
                 self._pair_up(self._server_pool.pop(handler.match_key), handler)
             else:
-                handler.send_data(struct.pack('<i', base.RPC_CODE_MISMATCH))
+                handler.send_data(struct.pack("<i", base.RPC_CODE_MISMATCH))
                 handler.signal_close()
 
     def _handler_ready_proxy_mode(self, handler):
@@ -411,18 +429,23 @@ class ProxyServerHandler(object):
             return
         if key not in pool_dst:
             pool_dst[key] = handler
+
             def cleanup():
                 """Cleanup client connection if timeout"""
                 if pool_dst.get(key, None) == handler:
-                    logging.info("Timeout client connection %s, cannot find match key=%s",
-                                 handler.name(), key)
+                    logging.info(
+                        "Timeout client connection %s, cannot find match key=%s",
+                        handler.name(),
+                        key,
+                    )
                     pool_dst.pop(key)
-                    handler.send_data(struct.pack('<i', base.RPC_CODE_MISMATCH))
+                    handler.send_data(struct.pack("<i", base.RPC_CODE_MISMATCH))
                     handler.signal_close()
+
             self.loop.call_later(timeout, cleanup)
         else:
             logging.info("Duplicate connection with same key=%s", key)
-            handler.send_data(struct.pack('<i', base.RPC_CODE_DUPLICATE))
+            handler.send_data(struct.pack("<i", base.RPC_CODE_DUPLICATE))
             handler.signal_close()
 
     def handler_ready(self, handler):
@@ -438,22 +461,26 @@ class ProxyServerHandler(object):
         ioloop.IOLoop.current().start()
 
 
-def _proxy_server(listen_sock,
-                  listen_port,
-                  web_port,
-                  timeout_client,
-                  timeout_server,
-                  tracker_addr,
-                  index_page,
-                  resource_files):
-    handler = ProxyServerHandler(listen_sock,
-                                 listen_port,
-                                 web_port,
-                                 timeout_client,
-                                 timeout_server,
-                                 tracker_addr,
-                                 index_page,
-                                 resource_files)
+def _proxy_server(
+    listen_sock,
+    listen_port,
+    web_port,
+    timeout_client,
+    timeout_server,
+    tracker_addr,
+    index_page,
+    resource_files,
+):
+    handler = ProxyServerHandler(
+        listen_sock,
+        listen_port,
+        web_port,
+        timeout_client,
+        timeout_server,
+        tracker_addr,
+        index_page,
+        resource_files,
+    )
     handler.run()
 
 
@@ -492,16 +519,19 @@ class Proxy(object):
     resource_files : str, optional
         Path to local resources that can be included in the http request
     """
-    def __init__(self,
-                 host,
-                 port=9091,
-                 port_end=9199,
-                 web_port=0,
-                 timeout_client=600,
-                 timeout_server=600,
-                 tracker_addr=None,
-                 index_page=None,
-                 resource_files=None):
+
+    def __init__(
+        self,
+        host,
+        port=9091,
+        port_end=9199,
+        web_port=0,
+        timeout_client=600,
+        timeout_server=600,
+        tracker_addr=None,
+        index_page=None,
+        resource_files=None,
+    ):
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
         self.port = None
         for my_port in range(port, port_end):
@@ -519,9 +549,17 @@ class Proxy(object):
         sock.listen(1)
         self.proc = multiprocessing.Process(
             target=_proxy_server,
-            args=(sock, self.port, web_port,
-                  timeout_client, timeout_server,
-                  tracker_addr, index_page, resource_files))
+            args=(
+                sock,
+                self.port,
+                web_port,
+                timeout_client,
+                timeout_server,
+                tracker_addr,
+                index_page,
+                resource_files,
+            ),
+        )
         self.proc.start()
         sock.close()
         self.host = host
@@ -548,13 +586,14 @@ def websocket_proxy_server(url, key=""):
     key : str
         The key to identify the server.
     """
+
     def create_on_message(conn):
         def _fsend(data):
             data = bytes(data)
             conn.write_message(data, binary=True)
             return len(data)
-        on_message = _ffi_api.CreateEventDrivenServer(
-            _fsend, "WebSocketProxyServer", "%toinit")
+
+        on_message = _ffi_api.CreateEventDrivenServer(_fsend, "WebSocketProxyServer", "%toinit")
         return on_message
 
     @gen.coroutine
@@ -563,13 +602,13 @@ def websocket_proxy_server(url, key=""):
         on_message = create_on_message(conn)
         temp = _server_env(None)
         # Start connecton
-        conn.write_message(struct.pack('<i', base.RPC_MAGIC), binary=True)
+        conn.write_message(struct.pack("<i", base.RPC_MAGIC), binary=True)
         key = "server:" + key
-        conn.write_message(struct.pack('<i', len(key)), binary=True)
+        conn.write_message(struct.pack("<i", len(key)), binary=True)
         conn.write_message(key.encode("utf-8"), binary=True)
         msg = yield conn.read_message()
         assert len(msg) >= 4
-        magic = struct.unpack('<i', msg[:4])[0]
+        magic = struct.unpack("<i", msg[:4])[0]
         if magic == base.RPC_CODE_DUPLICATE:
             raise RuntimeError("key: %s has already been used in proxy" % key)
         if magic == base.RPC_CODE_MISMATCH:
@@ -594,5 +633,6 @@ def websocket_proxy_server(url, key=""):
         logging.info("WebSocketProxyServer closed...")
         temp.remove()
         ioloop.IOLoop.current().stop()
+
     ioloop.IOLoop.current().spawn_callback(_connect, key)
     ioloop.IOLoop.current().start()

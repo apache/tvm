@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm.topi.testing import conv2d_nhwc_python
-from tvm.contrib import nvcc
+import tvm.testing
 
 VERIFY = True
 
@@ -29,19 +29,34 @@ def intrin_wmma_load_matrix(shape, scope):
         row, col = n, l
     elif scope == "wmma.matrix_b":
         row, col = l, m
-    A = te.placeholder((row, col), name='A', dtype='float16')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='shared', data_alignment=32, offset_factor=row * col)
-    C = te.compute((row, col), lambda i, j: A[i, j], name='C')
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=row * col)
+    A = te.placeholder((row, col), name="A", dtype="float16")
+    BA = tvm.tir.decl_buffer(
+        A.shape, A.dtype, scope="shared", data_alignment=32, offset_factor=row * col
+    )
+    C = te.compute((row, col), lambda i, j: A[i, j], name="C")
+    BC = tvm.tir.decl_buffer(
+        C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=row * col
+    )
 
     def intrin_func(ins, outs):
         ib = tvm.tir.ir_builder.create()
 
         BA = ins[0]
         BC = outs[0]
-        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_load_matrix_sync',
-                                BC.data, n, m, l, BC.elem_offset // (row * col),
-                                BA.access_ptr('r'), col, 'row_major'))
+        ib.emit(
+            tvm.tir.call_intrin(
+                "handle",
+                "tir.tvm_load_matrix_sync",
+                BC.data,
+                n,
+                m,
+                l,
+                BC.elem_offset // (row * col),
+                BA.access_ptr("r"),
+                col,
+                "row_major",
+            )
+        )
         return ib.get()
 
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
@@ -49,33 +64,65 @@ def intrin_wmma_load_matrix(shape, scope):
 
 def intrin_wmma_gemm(shape):
     n, m, l = shape
-    A = te.placeholder((n, l), name='A', dtype='float16')
-    B = te.placeholder((l, m), name='B', dtype='float16')
+    A = te.placeholder((n, l), name="A", dtype="float16")
+    B = te.placeholder((l, m), name="B", dtype="float16")
     k = te.reduce_axis((0, l), name="k")
-    C = te.compute((n, m),
-                    lambda ii, jj:
-                    te.sum(A[ii, k].astype('float') * B[k, jj].astype('float'), axis=k),
-                    name='C')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA', scope='wmma.matrix_a', data_alignment=32, offset_factor=n * l)
-    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB', scope='wmma.matrix_b', data_alignment=32, offset_factor=l * m)
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC', scope='wmma.accumulator', data_alignment=32, offset_factor=n * m)
+    C = te.compute(
+        (n, m),
+        lambda ii, jj: te.sum(A[ii, k].astype("float") * B[k, jj].astype("float"), axis=k),
+        name="C",
+    )
+    BA = tvm.tir.decl_buffer(
+        A.shape, A.dtype, name="BA", scope="wmma.matrix_a", data_alignment=32, offset_factor=n * l
+    )
+    BB = tvm.tir.decl_buffer(
+        B.shape, B.dtype, name="BB", scope="wmma.matrix_b", data_alignment=32, offset_factor=l * m
+    )
+    BC = tvm.tir.decl_buffer(
+        C.shape,
+        C.dtype,
+        name="BC",
+        scope="wmma.accumulator",
+        data_alignment=32,
+        offset_factor=n * m,
+    )
 
     def intrin_func(ins, outs):
         BA, BB = ins
-        BC, = outs
+        (BC,) = outs
 
         def init():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_fill_fragment', BC.data, n, m, l, BC.elem_offset // (n * m), 0.0))
+            ib.emit(
+                tvm.tir.call_intrin(
+                    "handle",
+                    "tir.tvm_fill_fragment",
+                    BC.data,
+                    n,
+                    m,
+                    l,
+                    BC.elem_offset // (n * m),
+                    0.0,
+                )
+            )
             return ib.get()
 
         def update():
             ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_mma_sync',
-                                    BC.data, BC.elem_offset // (n * m),
-                                    BA.data, BA.elem_offset // (n * l),
-                                    BB.data, BB.elem_offset // (l * m),
-                                    BC.data, BC.elem_offset // (n * m)))
+            ib.emit(
+                tvm.tir.call_intrin(
+                    "handle",
+                    "tir.tvm_mma_sync",
+                    BC.data,
+                    BC.elem_offset // (n * m),
+                    BA.data,
+                    BA.elem_offset // (n * l),
+                    BB.data,
+                    BB.elem_offset // (l * m),
+                    BC.data,
+                    BC.elem_offset // (n * m),
+                )
+            )
             return ib.get()
 
         return update(), init(), update()
@@ -85,47 +132,59 @@ def intrin_wmma_gemm(shape):
 
 def intrin_wmma_store_matrix(shape):
     n, m, l = shape
-    A = te.placeholder((n, m), name='A', dtype='float32')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='wmma.accumulator', data_alignment=32, offset_factor=n * m)
-    C = te.compute((n, m), lambda i, j: A[i, j], name='C')
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=n * m)
+    A = te.placeholder((n, m), name="A", dtype="float32")
+    BA = tvm.tir.decl_buffer(
+        A.shape, A.dtype, scope="wmma.accumulator", data_alignment=32, offset_factor=n * m
+    )
+    C = te.compute((n, m), lambda i, j: A[i, j], name="C")
+    BC = tvm.tir.decl_buffer(
+        C.shape, C.dtype, scope="global", data_alignment=32, offset_factor=n * m
+    )
 
     def intrin_func(ins, outs):
         ib = tvm.tir.ir_builder.create()
 
         BA = ins[0]
         BC = outs[0]
-        ib.emit(tvm.tir.call_intrin('handle', 'tir.tvm_store_matrix_sync',
-                                BA.data, n, m, l, BA.elem_offset // (n * m),
-                                BC.access_ptr('w'), m, 'row_major'))
+        ib.emit(
+            tvm.tir.call_intrin(
+                "handle",
+                "tir.tvm_store_matrix_sync",
+                BA.data,
+                n,
+                m,
+                l,
+                BA.elem_offset // (n * m),
+                BC.access_ptr("w"),
+                m,
+                "row_major",
+            )
+        )
         return ib.get()
 
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
+@tvm.testing.requires_tensorcore
 def test_tensor_core_batch_matmal():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     batch_size = 4
     n = 512
     m, l = n, n
-    assert (n % 32 == 0)
-    assert (m % 8 == 0)
-    assert (l % 16 == 0)
+    assert n % 32 == 0
+    assert m % 8 == 0
+    assert l % 16 == 0
     nn, mm, ll = n // 32, m // 8, l // 16
-    A = te.placeholder((batch_size, nn, ll, 32, 16), name='A', dtype='float16')
-    B = te.placeholder((batch_size, ll, mm, 16, 8), name='B', dtype='float16')
-    k1 = te.reduce_axis((0, ll), name='k1')
-    k2 = te.reduce_axis((0, 16), name='k2')
-    C = te.compute((batch_size, nn, mm, 32, 8),
-                    lambda b, i, j, ii, jj:
-                    te.sum(A[b, i, k1, ii, k2].astype('float') * B[b, k1, j, k2, jj].astype('float'), axis=[k1, k2]),
-                    name='Fragment_C')
+    A = te.placeholder((batch_size, nn, ll, 32, 16), name="A", dtype="float16")
+    B = te.placeholder((batch_size, ll, mm, 16, 8), name="B", dtype="float16")
+    k1 = te.reduce_axis((0, ll), name="k1")
+    k2 = te.reduce_axis((0, 16), name="k2")
+    C = te.compute(
+        (batch_size, nn, mm, 32, 8),
+        lambda b, i, j, ii, jj: te.sum(
+            A[b, i, k1, ii, k2].astype("float") * B[b, k1, j, k2, jj].astype("float"), axis=[k1, k2]
+        ),
+        name="Fragment_C",
+    )
     s = te.create_schedule(C.op)
 
     warp_size = 32
@@ -136,18 +195,18 @@ def test_tensor_core_batch_matmal():
     warp_col_tiles = 2
     chunk = 4
 
-    block_x = te.thread_axis('blockIdx.x')
-    block_y = te.thread_axis('blockIdx.y')
-    block_z = te.thread_axis('blockIdx.z')
-    thread_x = te.thread_axis('threadIdx.x')
-    thread_y = te.thread_axis('threadIdx.y')
-    thread_z = te.thread_axis('threadIdx.z')
+    block_x = te.thread_axis("blockIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    block_z = te.thread_axis("blockIdx.z")
+    thread_x = te.thread_axis("threadIdx.x")
+    thread_y = te.thread_axis("threadIdx.y")
+    thread_z = te.thread_axis("threadIdx.z")
 
-    AS = s.cache_read(A, 'shared', [C])
-    BS = s.cache_read(B, 'shared', [C])
-    AF = s.cache_read(AS, 'wmma.matrix_a', [C])
-    BF = s.cache_read(BS, 'wmma.matrix_b', [C])
-    CF = s.cache_write(C, 'wmma.accumulator')
+    AS = s.cache_read(A, "shared", [C])
+    BS = s.cache_read(B, "shared", [C])
+    AF = s.cache_read(AS, "wmma.matrix_a", [C])
+    BF = s.cache_read(BS, "wmma.matrix_b", [C])
+    CF = s.cache_write(C, "wmma.accumulator")
 
     b, i, j, kernel_i, kernel_j = s[C].op.axis
     i, ii = s[C].split(i, factor=warp_row_tiles)
@@ -190,12 +249,12 @@ def test_tensor_core_batch_matmal():
     s[BS].bind(ty, thread_z)
     s[BS].bind(to, thread_x)
 
-    s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix((32, 8, 16), 'wmma.matrix_a'))
-    s[BF].tensorize(BF.op.axis[-2], intrin_wmma_load_matrix((32, 8, 16), 'wmma.matrix_b'))
+    s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix((32, 8, 16), "wmma.matrix_a"))
+    s[BF].tensorize(BF.op.axis[-2], intrin_wmma_load_matrix((32, 8, 16), "wmma.matrix_b"))
     s[C].tensorize(kernel_i, intrin_wmma_store_matrix((32, 8, 16)))
     s[CF].tensorize(_i, intrin_wmma_gemm((32, 8, 16)))
 
-    func = tvm.build(s, [A, B, C], 'cuda')
+    func = tvm.build(s, [A, B, C], "cuda")
 
     ctx = tvm.gpu(0)
     a_np = np.random.uniform(size=(batch_size, nn, ll, 32, 16)).astype(A.dtype)
@@ -205,25 +264,20 @@ def test_tensor_core_batch_matmal():
     c = tvm.nd.array(np.zeros((batch_size, nn, mm, 32, 8), dtype=C.dtype), ctx)
     func(a, b, c)
     evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
-    print('gemm with tensor core: %f ms' % (evaluator(a, b, c).mean * 1e3))
+    print("gemm with tensor core: %f ms" % (evaluator(a, b, c).mean * 1e3))
 
     if VERIFY:
         func(a, b, c)
         a_np = a_np.transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
         b_np = b_np.transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
         c_np = c.asnumpy().transpose((0, 1, 3, 2, 4)).reshape(batch_size, n, n)
-        np.testing.assert_allclose(c_np, np.matmul(a_np.astype(C.dtype), b_np.astype(C.dtype)), rtol=1e-4, atol=1e-4)
+        np.testing.assert_allclose(
+            c_np, np.matmul(a_np.astype(C.dtype), b_np.astype(C.dtype)), rtol=1e-4, atol=1e-4
+        )
 
 
-
+@tvm.testing.requires_tensorcore
 def test_tensor_core_batch_conv():
-    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
-        print("skip because cuda is not enabled..")
-        return
-    if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-        print("skip because gpu does not support tensor core")
-        return
-
     # The sizes of inputs and filters
     batch_size = 32
     height = 14
@@ -246,70 +300,87 @@ def test_tensor_core_batch_conv():
     chunk = 2
 
     # Input feature map: (N, H, W, IC, n, ic)
-    data_shape = (batch_size // block_size,
-                  height,
-                  width,
-                  in_channels // block_size,
-                  block_size,
-                  block_size)
+    data_shape = (
+        batch_size // block_size,
+        height,
+        width,
+        in_channels // block_size,
+        block_size,
+        block_size,
+    )
     # Kernel: (H, W, IC, OC, ic, oc)
-    kernel_shape = (kernel_h,
-                    kernel_w,
-                    in_channels // block_size,
-                    out_channels // block_size,
-                    block_size,
-                    block_size)
+    kernel_shape = (
+        kernel_h,
+        kernel_w,
+        in_channels // block_size,
+        out_channels // block_size,
+        block_size,
+        block_size,
+    )
 
     # Output feature map: (N, H, W, OC, n, oc)
-    output_shape = (batch_size // block_size,
-                    height,
-                    width,
-                    out_channels // block_size,
-                    block_size,
-                    block_size)
+    output_shape = (
+        batch_size // block_size,
+        height,
+        width,
+        out_channels // block_size,
+        block_size,
+        block_size,
+    )
 
-    assert (batch_size % block_size == 0)
-    assert (in_channels % block_size == 0)
-    assert (out_channels % block_size == 0)
+    assert batch_size % block_size == 0
+    assert in_channels % block_size == 0
+    assert out_channels % block_size == 0
 
-    kh = te.reduce_axis((0, kernel_h), name='kh')
-    kw = te.reduce_axis((0, kernel_w), name='kw')
-    ic = te.reduce_axis((0, in_channels // block_size), name='ic')
-    ii = te.reduce_axis((0, block_size), name='ii')
+    kh = te.reduce_axis((0, kernel_h), name="kh")
+    kw = te.reduce_axis((0, kernel_w), name="kw")
+    ic = te.reduce_axis((0, in_channels // block_size), name="ic")
+    ii = te.reduce_axis((0, block_size), name="ii")
 
     # Algorithm
-    A = te.placeholder(data_shape, name='A', dtype="float16")
-    W = te.placeholder(kernel_shape, name='W', dtype="float16")
+    A = te.placeholder(data_shape, name="A", dtype="float16")
+    W = te.placeholder(kernel_shape, name="W", dtype="float16")
     Apad = te.compute(
-        (batch_size // block_size, height + 2 * pad_h, width + 2 * pad_w, in_channels // block_size, block_size,
-         block_size),
+        (
+            batch_size // block_size,
+            height + 2 * pad_h,
+            width + 2 * pad_w,
+            in_channels // block_size,
+            block_size,
+            block_size,
+        ),
         lambda n, h, w, i, nn, ii: tvm.tir.if_then_else(
-            tvm.tir.all(h >= pad_h, h - pad_h < height,
-                    w >= pad_w, w - pad_w < width),
-            A[n, h - pad_h, w - pad_w, i, nn, ii], tvm.tir.const(0., "float16")),
-        name='Apad')
-    Conv = te.compute(output_shape,
-                       lambda n, h, w, o, nn, oo: te.sum(
-                           Apad[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("float32") *
-                           W[kh, kw, ic, o, ii, oo].astype("float32"),
-                           axis=[ic, kh, kw, ii]),
-                       name="Conv")
+            tvm.tir.all(h >= pad_h, h - pad_h < height, w >= pad_w, w - pad_w < width),
+            A[n, h - pad_h, w - pad_w, i, nn, ii],
+            tvm.tir.const(0.0, "float16"),
+        ),
+        name="Apad",
+    )
+    Conv = te.compute(
+        output_shape,
+        lambda n, h, w, o, nn, oo: te.sum(
+            Apad[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("float32")
+            * W[kh, kw, ic, o, ii, oo].astype("float32"),
+            axis=[ic, kh, kw, ii],
+        ),
+        name="Conv",
+    )
 
     s = te.create_schedule(Conv.op)
     s[Apad].compute_inline()
 
-    AS = s.cache_read(Apad, 'shared', [Conv])
-    WS = s.cache_read(W, 'shared', [Conv])
-    AF = s.cache_read(AS, 'wmma.matrix_a', [Conv])
-    WF = s.cache_read(WS, 'wmma.matrix_b', [Conv])
-    ConvF = s.cache_write(Conv, 'wmma.accumulator')
+    AS = s.cache_read(Apad, "shared", [Conv])
+    WS = s.cache_read(W, "shared", [Conv])
+    AF = s.cache_read(AS, "wmma.matrix_a", [Conv])
+    WF = s.cache_read(WS, "wmma.matrix_b", [Conv])
+    ConvF = s.cache_write(Conv, "wmma.accumulator")
 
-    block_x = te.thread_axis('blockIdx.x')
-    block_y = te.thread_axis('blockIdx.y')
-    block_z = te.thread_axis('blockIdx.z')
-    thread_x = te.thread_axis('threadIdx.x')
-    thread_y = te.thread_axis('threadIdx.y')
-    thread_z = te.thread_axis('threadIdx.z')
+    block_x = te.thread_axis("blockIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    block_z = te.thread_axis("blockIdx.z")
+    thread_x = te.thread_axis("threadIdx.x")
+    thread_y = te.thread_axis("threadIdx.y")
+    thread_z = te.thread_axis("threadIdx.z")
 
     nc, hc, wc, oc, nnc, ooc = Conv.op.axis
     block_k = s[Conv].fuse(hc, wc)
@@ -354,12 +425,12 @@ def test_tensor_core_batch_conv():
     s[WS].bind(to, thread_x)
     s[WS].vectorize(ti)
 
-    s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix((16, 16, 16), 'wmma.matrix_a'))
-    s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix((16, 16, 16), 'wmma.matrix_b'))
+    s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix((16, 16, 16), "wmma.matrix_a"))
+    s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix((16, 16, 16), "wmma.matrix_b"))
     s[Conv].tensorize(nnc, intrin_wmma_store_matrix((16, 16, 16)))
     s[ConvF].tensorize(nnf, intrin_wmma_gemm((16, 16, 16)))
 
-    func = tvm.build(s, [A, W, Conv], 'cuda')
+    func = tvm.build(s, [A, W, Conv], "cuda")
 
     ctx = tvm.gpu(0)
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
@@ -368,20 +439,25 @@ def test_tensor_core_batch_conv():
     w = tvm.nd.array(w_np, ctx)
     c = tvm.nd.array(np.zeros(output_shape, dtype=Conv.dtype), ctx)
     evaluator = func.time_evaluator(func.entry_name, ctx, number=3)
-    print('conv2d with tensor core: %f ms' % (evaluator(a, w, c).mean * 1e3))
+    print("conv2d with tensor core: %f ms" % (evaluator(a, w, c).mean * 1e3))
 
     if VERIFY:
         func(a, w, c)
         a_np = a_np.transpose(0, 4, 1, 2, 3, 5).reshape(batch_size, height, width, in_channels)
-        w_np = w_np.transpose(0, 1, 2, 4, 3, 5).reshape(kernel_h, kernel_w, in_channels, out_channels)
-        c_np = c.asnumpy().transpose((0, 4, 1, 2, 3, 5)).reshape(batch_size, height, width, out_channels)
-        c_std = conv2d_nhwc_python(a_np.astype(Conv.dtype),
-                                   w_np.astype(Conv.dtype),
-                                   (stride_h, stride_w),
-                                   (pad_h, pad_w)).astype(Conv.dtype)
+        w_np = w_np.transpose(0, 1, 2, 4, 3, 5).reshape(
+            kernel_h, kernel_w, in_channels, out_channels
+        )
+        c_np = (
+            c.asnumpy()
+            .transpose((0, 4, 1, 2, 3, 5))
+            .reshape(batch_size, height, width, out_channels)
+        )
+        c_std = conv2d_nhwc_python(
+            a_np.astype(Conv.dtype), w_np.astype(Conv.dtype), (stride_h, stride_w), (pad_h, pad_w)
+        ).astype(Conv.dtype)
         np.testing.assert_allclose(c_np, c_std, rtol=1e-4, atol=1e-4)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_tensor_core_batch_matmal()
     test_tensor_core_batch_conv()

@@ -238,7 +238,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     Entry b = VisitExpr(op->args[1]);
     // a c x  / c -> a x
     if (b.is_const()) {
-      return DivByConst(op->args[0], 1 << b.base, true);
+      return DivByConst(op->args[0], static_cast<int64_t>(1) << b.base, true);
     }
     return Everything();
   }

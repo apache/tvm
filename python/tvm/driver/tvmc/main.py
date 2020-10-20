@@ -56,17 +56,13 @@ def _main(argv):
     """ TVM command line interface. """
 
     parser = argparse.ArgumentParser(
-        prog='tvmc',
+        prog="tvmc",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="TVM compiler driver",
         epilog=__doc__,
     )
-    parser.add_argument(
-        "-v", "--verbose", action="count", default=0, help="increase verbosity"
-    )
-    parser.add_argument(
-        "--version", action="store_true", help="print the version and exit"
-    )
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
+    parser.add_argument("--version", action="store_true", help="print the version and exit")
 
     subparser = parser.add_subparsers(title="commands")
     for make_subparser in REGISTERED_PARSER:
@@ -76,14 +72,17 @@ def _main(argv):
     if args.verbose > 4:
         args.verbose = 4
 
-    logging.getLogger().setLevel(40 - args.verbose * 10)
+    logging.getLogger("TVMC").setLevel(40 - args.verbose * 10)
 
     if args.version:
         version = pkg_resources.get_distribution("tvm").version
         sys.stdout.write("%s\n" % version)
         return 0
 
-    assert hasattr(args, "func"), "Error: missing 'func' attribute for subcommand {0}".format(argv)
+    if not hasattr(args, "func"):
+        # In case no valid subcommand is provided, show usage and exit
+        parser.print_help(sys.stderr)
+        return 1
 
     try:
         return args.func(args)
@@ -91,8 +90,10 @@ def _main(argv):
         sys.stderr.write("Error: %s\n" % err)
         return 4
 
+
 def main():
     sys.exit(_main(sys.argv[1:]))
+
 
 if __name__ == "__main__":
     main()

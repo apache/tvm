@@ -31,9 +31,9 @@ class Array(Object):
     to Array during tvm function call.
     You may get Array in return values of TVM function call.
     """
+
     def __getitem__(self, idx):
-        return getitem_helper(
-            self, _ffi_node_api.ArrayGetItem, len(self), idx)
+        return getitem_helper(self, _ffi_node_api.ArrayGetItem, len(self), idx)
 
     def __len__(self):
         return _ffi_node_api.ArraySize(self)
@@ -47,6 +47,7 @@ class Map(Object):
     Normally python dict will be converted automaticall to Map during tvm function call.
     You can use convert to create a dict[Object-> Object] into a Map
     """
+
     def __getitem__(self, k):
         return _ffi_node_api.MapGetItem(self, k)
 
@@ -56,7 +57,7 @@ class Map(Object):
     def items(self):
         """Get the items from the map"""
         akvs = _ffi_node_api.MapItems(self)
-        return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
+        return [(akvs[i], akvs[i + 1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
         return _ffi_node_api.MapSize(self)

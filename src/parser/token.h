@@ -89,6 +89,9 @@ enum class TokenType {
   kMetadata,
   kMetaReference,
   kFreeVar,
+  kRef,
+  kRefRead,
+  kRefWrite,
   kVersion,
   kUnknown,
   kEndOfFile,
@@ -199,6 +202,12 @@ std::string ToString(const TokenType& token_type) {
       return "FreeVar";
     case TokenType::kVersion:
       return "Version";
+    case TokenType::kRef:
+      return "Ref";
+    case TokenType::kRefRead:
+      return "RefRead";
+    case TokenType::kRefWrite:
+      return "RefWrite";
     case TokenType::kUnknown:
       return "Unknown";
     case TokenType::kEndOfFile:
@@ -314,6 +323,12 @@ std::string Pretty(const TokenType& token_type) {
       return "`match?`";
     case TokenType::kQuestion:
       return "`?`";
+    case TokenType::kRef:
+      return "`ref`";
+    case TokenType::kRefRead:
+      return "`ref_read`";
+    case TokenType::kRefWrite:
+      return "`ref_write`";
     case TokenType::kUnknown:
       return "unknown";
     case TokenType::kEndOfFile:

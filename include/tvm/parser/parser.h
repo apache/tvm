@@ -32,7 +32,8 @@
 namespace tvm {
 namespace parser {
 
-IRModule ParseModule(std::string file_name, std::string file_content);
+IRModule ParseModule(std::string file_name, std::string file_content,
+                     Optional<IRModule> init_module = Optional<IRModule>());
 
 }  // namespace parser
 }  // namespace tvm

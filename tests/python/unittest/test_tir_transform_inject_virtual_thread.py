@@ -17,11 +17,13 @@
 import tvm
 from tvm import te
 
+
 def test_vthread():
-    dtype = 'int64'
+    dtype = "int64"
     n = 100
     m = 4
     nthread = 2
+
     def get_vthread(name):
         tx = te.thread_axis(name)
         ty = te.thread_axis(name)
@@ -34,28 +36,36 @@ def test_vthread():
             B = ib.allocate("float32", m, name="B", scope="shared")
             B[i] = A[i * nthread + tx]
             bbuffer = tvm.tir.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
-            ib.emit(tvm.tir.call_extern("int32", "Run",
-                                    bbuffer.access_ptr("r"),
-                                    tvm.tir.call_intrin("int32", "tir.tvm_context_id")))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    "Run",
+                    bbuffer.access_ptr("r"),
+                    tvm.tir.call_intrin("int32", "tir.tvm_context_id"),
+                )
+            )
             C[i * nthread + tx] = B[i] + 1
         return ib.get()
 
-    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([], get_vthread("vthread"))))["main"].body
+    stmt = tvm.tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("vthread")))
+    )["main"].body
 
     assert stmt.body.body.extents[0].value == 2
 
-    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([], get_vthread("cthread"))))["main"].body
+    stmt = tvm.tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("cthread")))
+    )["main"].body
 
     assert len(stmt.body.body.extents) == 3
 
 
 def test_vthread_extern():
-    dtype = 'int64'
+    dtype = "int64"
     n = 100
     m = 4
     nthread = 2
+
     def get_vthread(name):
         tx = te.thread_axis(name)
         ty = te.thread_axis(name)
@@ -71,15 +81,20 @@ def test_vthread_extern():
             bbuffer = tvm.tir.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
             A[tx] = tx + 1.0
             B[ty] = ty + 1.0
-            ib.emit(tvm.tir.call_extern("int32", "Run",
-                                        abuffer.access_ptr("r"),
-                                        bbuffer.access_ptr("r"),
-                                        cbuffer.access_ptr("rw")))
+            ib.emit(
+                tvm.tir.call_extern(
+                    "int32",
+                    "Run",
+                    abuffer.access_ptr("r"),
+                    bbuffer.access_ptr("r"),
+                    cbuffer.access_ptr("rw"),
+                )
+            )
         return ib.get()
 
-
-    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([], get_vthread("cthread"))))["main"].body
+    stmt = tvm.tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread("cthread")))
+    )["main"].body
 
     assert stmt.body.body.extents[0].value == 2
     assert stmt.body.body.body.body.body.body.extents[0].value == 2
@@ -102,11 +117,13 @@ def test_vthread_if_then_else():
             B[i] = A[i * nthread + tx] + 2
     stmt = ib.get()
 
-    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([], stmt)))["main"].body
+    stmt = tvm.tir.transform.InjectVirtualThread()(
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    )["main"].body
 
     assert stmt.body.body.body[0].else_case != None
     assert stmt.body.body.body[1].else_case == None
+
 
 if __name__ == "__main__":
     test_vthread_extern()

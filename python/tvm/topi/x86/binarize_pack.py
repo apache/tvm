@@ -41,7 +41,7 @@ def schedule_binarize_pack(outs):
 
     def traverse(OP):
         # schedule binarize_pack
-        if OP.tag == 'binarize_pack':
+        if OP.tag == "binarize_pack":
             Out = OP.output(0)
             _schedule(Out)
         else:

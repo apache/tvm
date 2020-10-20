@@ -27,7 +27,6 @@ import tvm.runtime.ndarray as _nd
 import tvm.runtime.vm as vm_rt
 from tvm import autotvm
 from tvm.relay import expr as _expr
-from tvm.relay.ty import is_dynamic
 from tvm.relay.backend.interpreter import Executor
 from . import _vm
 
@@ -190,15 +189,17 @@ class VMCompiler(object):
         tgts = {}
         if isinstance(target, (str, tvm.target.Target)):
             dev_type = tvm.tir.IntImm("int32", tvm.nd.context(str(target)).device_type)
-            tgts[dev_type] = tvm.target.create(target)
+            tgts[dev_type] = tvm.target.Target(target)
         elif isinstance(target, dict):
             for dev, tgt in target.items():
                 dev_type = tvm.tir.IntImm("int32", tvm.nd.context(dev).device_type)
-                tgts[dev_type] = tvm.target.create(tgt)
+                tgts[dev_type] = tvm.target.Target(tgt)
         else:
-            raise TypeError("target is expected to be str, tvm.target.Target, " +
-                            "or dict of str to str/tvm.target.Target, but received " +
-                            "{}".format(type(target)))
+            raise TypeError(
+                "target is expected to be str, tvm.target.Target, "
+                + "or dict of str to str/tvm.target.Target, but received "
+                + "{}".format(type(target))
+            )
         return tgts
 
     def _update_target_host(self, target, target_host):
@@ -212,7 +213,7 @@ class VMCompiler(object):
         if not target_host:
             target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
         if isinstance(target_host, str):
-            target_host = tvm.target.create(target_host)
+            target_host = tvm.target.Target(target_host)
         return target_host
 
     def _tophub_context(self, target):
@@ -261,12 +262,6 @@ class VMExecutor(Executor):
 
         def _vm_wrapper(*args, **kwargs):
             args = self._convert_args(main, args, kwargs)
-            ret_type = self.mod["main"].checked_type.ret_type
-            if is_dynamic(ret_type) and "llvm" not in str(self.target) and "arm" not in str(
-                    self.target):
-                raise ValueError(
-                    "Virtual Machine only supports dynamic graphs on CPU, got output type",
-                    ret_type, "on target", self.target)
             return self.vm.run(*args)
 
         return _vm_wrapper

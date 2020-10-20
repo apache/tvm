@@ -255,6 +255,8 @@ class IterAdapter {
 
   IterAdapter operator+(difference_type offset) const { return IterAdapter(iter_ + offset); }
 
+  IterAdapter operator-(difference_type offset) const { return IterAdapter(iter_ - offset); }
+
   template <typename T = IterAdapter>
   typename std::enable_if<std::is_same<iterator_category, std::random_access_iterator_tag>::value,
                           typename T::difference_type>::type inline
@@ -1278,6 +1280,20 @@ class String : public ObjectRef {
    * \return true if empty, false otherwise.
    */
   bool empty() const { return size() == 0; }
+
+  /*!
+   * \brief Read an element.
+   * \param pos The position at which to read the character.
+   *
+   * \return The char at position
+   */
+  char at(size_t pos) const {
+    if (pos < size()) {
+      return data()[pos];
+    } else {
+      throw std::out_of_range("tvm::String index out of bounds");
+    }
+  }
 
   /*!
    * \brief Return the data pointer

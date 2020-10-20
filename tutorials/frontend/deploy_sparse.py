@@ -132,9 +132,9 @@ def load_keras_model(module, name, seq_len, batch_size, report_runtime=True):
     dummy_input = tf.keras.Input(shape=[seq_len], batch_size=batch_size, dtype="int32")
     dummy_out = model(dummy_input)  # Propagate shapes through the keras model.
     if report_runtime:
-        np_input = np.random.uniform(
-            size=[batch_size, seq_len], low=0, high=seq_len
-        ).astype("int32")
+        np_input = np.random.uniform(size=[batch_size, seq_len], low=0, high=seq_len).astype(
+            "int32"
+        )
         start = time.time()
         repeats = 50
         for i in range(repeats):
@@ -180,12 +180,8 @@ def import_graphdef(
 ):
     abs_path = os.path.dirname(os.path.abspath(__file__))
     shape_dict = {"input_1": (batch_size, seq_len)}
-    relay_file = ("%s_%d_%d_%s" % (name, batch_size, seq_len, relay_file)).replace(
-        "/", "_"
-    )
-    relay_params = ("%s_%d_%d_%s" % (name, batch_size, seq_len, relay_params)).replace(
-        "/", "_"
-    )
+    relay_file = ("%s_%d_%d_%s" % (name, batch_size, seq_len, relay_file)).replace("/", "_")
+    relay_params = ("%s_%d_%d_%s" % (name, batch_size, seq_len, relay_params)).replace("/", "_")
     if os.path.exists(os.path.join(abs_path, relay_file)) and os.path.exists(
         os.path.join(abs_path, relay_params)
     ):
@@ -218,11 +214,9 @@ def run_relay_graph(mod, params, shape_dict, target, ctx):
     with relay.build_config(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
     input_shape = shape_dict["input_1"]
-    dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype(
-        "int32"
-    )
+    dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype("int32")
 
-    m = graph_runtime.GraphModule(lib['default'](ctx))
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     m.set_input(0, dummy_data)
     m.run()
     tvm_output = m.get_output(0)
@@ -252,7 +246,7 @@ def run_dense(mod, params, shape_dict, target, ctx):
 # into the parameters. This makes it easier to convert to matrix multiplies
 # to sparse versions. Next we apply `bsr_dense.convert` to identify all
 # weight matrices that can be sparse, and automatically replace them.
-# 
+#
 # The `bsr_dense.convert` call below is doing the heavy lifting of identifying
 # which weights in the model can be made sparse by checking if they are
 # at least `sparsity_threshold` percent sparse. If so, it converts those
@@ -269,9 +263,7 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype="float32"):
     assert N % BS_C == 0
     nnz = int(density * M * N)
     num_blocks = int(nnz / (BS_R * BS_C)) + 1
-    candidate_blocks = np.asarray(
-        list(itertools.product(range(0, M, BS_R), range(0, N, BS_C)))
-    )
+    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
     assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
     chosen_blocks = candidate_blocks[
         np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)
@@ -308,9 +300,7 @@ def random_sparse_bert_params(func, params, density, BS_R, BS_C):
 def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights):
     mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
     if gen_weights:
-        params = random_sparse_bert_params(
-            mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity
-        )
+        params = random_sparse_bert_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
     mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
     print("Block Sparse Model with {blocksize}x1 blocks:".format(blocksize=bs_r))
     return run_relay_graph(mod, params, shape_dict, target, ctx)

@@ -23,7 +23,7 @@ from ..base import string_types, py2cerror
 from ..runtime_ctypes import DataType, TVMContext, TVMByteArray, ObjectRValueRef
 
 
-cdef void tvm_callback_finalize(void* fhandle):
+cdef void tvm_callback_finalize(void* fhandle) with gil:
     local_pyfunc = <object>(fhandle)
     Py_DECREF(local_pyfunc)
 

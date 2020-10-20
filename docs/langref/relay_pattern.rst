@@ -20,9 +20,9 @@
 Pattern Matching in Relay
 =========================
 
-There are many places in TVM where we identify pure data-flow sub-graphs of the Relay program and attempt to transform them in some way example passes include fusion, quantization, external code generation, and device specific optimizations such as bitpacking, and layer slicing used by VTA. 
+There are many places in TVM where we identify pure data-flow sub-graphs of the Relay program and attempt to transform them in some way example passes include fusion, quantization, external code generation, and device specific optimizations such as bitpacking, and layer slicing used by VTA.
 
-Many of these passes today require a lots of boring boilerplate code in order to implement as well as requiring users to think in terms of visitors and AST matching. Many of these transformations can easily be described in terms of graph rewrites. In order to build a rewriter or other advanced machinery we first need a language of patterns to describe what we can match. 
+Many of these passes today require a lots of boring boilerplate code in order to implement as well as requiring users to think in terms of visitors and AST matching. Many of these transformations can easily be described in terms of graph rewrites. In order to build a rewriter or other advanced machinery we first need a language of patterns to describe what we can match.
 
 Such a language is not just useful for building a rewriter but also providing extension points for existing passes. For example the fusion pass could be parameterized by a set of fusion patterns which describes the capability of your hardware, and the quantization pass could take a set of patterns which describe which operators can be quantized on a given platform.
 
@@ -35,7 +35,7 @@ There are quite a few properties of operators that are worth matching. Below we 
 demonstrates how to write patterns. It is recommended to check `tests/python/relay/test_dataflow_pattern.py`_
 for more use cases.
 
-.. _tests/python/relay/test_dataflow_pattern.py: https://github.com/apache/incubator-tvm/blob/master/tests/python/relay/test_dataflow_pattern.py
+.. _tests/python/relay/test_dataflow_pattern.py: https://github.com/apache/incubator-tvm/blob/main/tests/python/relay/test_dataflow_pattern.py
 
 .. note::
 
@@ -200,7 +200,7 @@ use ``is_expr``. This could be useful for algebraic simplify.
     def test_match_plus_zero():
         zero = (is_expr(relay.const(0)) | is_expr(relay.const(0.0)))
         pattern = wildcard() + zero
-        
+
         x = relay.Var('x')
         y = x + relay.const(0)
         assert pattern.match(y)
@@ -356,7 +356,7 @@ with a single batch_norm op:
             self.beta = wildcard()
             self.gamma = wildcard()
             self.eps = wildcard()
-            
+
             self.pattern = self.gamma * (self.x - self.mean)/is_op("sqrt")(self.var + self.eps) + self.beta
 
         def callback(self, pre, post, node_map):

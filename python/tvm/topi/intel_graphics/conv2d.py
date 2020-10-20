@@ -152,23 +152,25 @@ def _pack_data(data, kernel, ic_bn, oc_bn):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
-                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                      name="data_vec")
+    data = te.compute(
+        (n, ic_chunk, ih, iw, ic_bn),
+        lambda bs, c, h, w, vc: data[bs, c * ic_bn + vc, h, w],
+        name="data_vec",
+    )
 
     kernel = te.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn),
-        lambda occ, icc, k_h, k_w, icb, ocb:
-        kernel[occ * oc_bn + ocb,
-               icc * ic_bn + icb, k_h, k_w],
-        name="kernel_vec")
+        lambda occ, icc, k_h, k_w, icb, ocb: kernel[occ * oc_bn + ocb, icc * ic_bn + icb, k_h, k_w],
+        name="kernel_vec",
+    )
 
     return data, kernel
 
 
 @autotvm.register_topi_compute("conv2d_NCHWc.intel_graphics")
-def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
-                 out_layout, out_dtype='float32'):
+def conv2d_NCHWc(
+    cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype="float32"
+):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
@@ -204,7 +206,8 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
 
     dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     pad_top, pad_left, pad_down, pad_right = nn.get_pad_tuple(
-        padding, (kernel_height, kernel_width))
+        padding, (kernel_height, kernel_width)
+    )
     assert (dh, dw) == (1, 1), "Does not support dilation"
     if isinstance(strides, (tuple, list)):
         stride_h, stride_w = strides
@@ -216,10 +219,16 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
     _create_schedule_template(cfg, data_shape, kernel_shape, strides, padding, dilation)
 
     if cfg.is_fallback:
-        _get_default_config(cfg, te.placeholder((batch, in_channel, ih, iw), dtype=data.dtype),
-                            te.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                                           dtype=kernel.dtype),
-                            strides, padding, out_dtype)
+        _get_default_config(
+            cfg,
+            te.placeholder((batch, in_channel, ih, iw), dtype=data.dtype),
+            te.placeholder(
+                (num_filter, in_channel, kernel_height, kernel_width), dtype=kernel.dtype
+            ),
+            strides,
+            padding,
+            out_dtype,
+        )
 
     ic_bn = cfg["tile_ic"].val if hasattr(cfg["tile_ic"], "val") else cfg["tile_ic"].size[-1]
     oc_bn = cfg["tile_oc"].val if hasattr(cfg["tile_oc"], "val") else cfg["tile_oc"].size[-1]
@@ -233,9 +242,9 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
     out_width = simplify((iw - kernel_width + pad_left + pad_right) // stride_w + 1)
     oshape = (batch, out_channel // oc_bn, out_height, out_width, oc_bn)
 
-    rc = te.reduce_axis((0, in_channel), name='rc')
-    ry = te.reduce_axis((0, kernel_height), name='ry')
-    rx = te.reduce_axis((0, kernel_width), name='rx')
+    rc = te.reduce_axis((0, in_channel), name="rc")
+    ry = te.reduce_axis((0, kernel_height), name="ry")
+    rx = te.reduce_axis((0, kernel_width), name="rx")
 
     block_h = cfg["block_oh"].val
     block_w = cfg["block_ow"].val
@@ -252,11 +261,14 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
     cshape = (batch, out_channel // oc_bn, c_h, c_w, oc_bn)
 
     pad_before = [0, 0, pad_top, pad_left, 0]
-    pad_after = [0, 0, pad_down + c_h - out_height, pad_right + \
-                 c_w - out_width, 0]
-    DOPAD = (pad_top != 0 or pad_left != 0 or pad_down + c_h - out_height != 0 \
-             or pad_right + c_w - out_width != 0)
-    DOUNPACK = (c_h - out_height != 0 or c_w - out_width != 0)
+    pad_after = [0, 0, pad_down + c_h - out_height, pad_right + c_w - out_width, 0]
+    DOPAD = (
+        pad_top != 0
+        or pad_left != 0
+        or pad_down + c_h - out_height != 0
+        or pad_right + c_w - out_width != 0
+    )
+    DOUNPACK = c_h - out_height != 0 or c_w - out_width != 0
     if DOPAD:
         temp = nn.pad(data, pad_before, pad_after, name="pad_temp")
     else:
@@ -264,19 +276,24 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
 
     conv = te.compute(
         cshape,
-        lambda nn, ff, yy, xx, ff_v: \
-        te.sum(
-            temp[nn, rc//ic_bn, yy * stride_h + ry, xx * stride_w + rx, rc%ic_bn]. \
-            astype(out_dtype) *
-            kernel[ff, rc//ic_bn, ry, rx, rc%ic_bn, ff_v].astype(out_dtype),
-            axis=[rc, ry, rx]), tag="conv2d_NCHWc", name='conv2d_NCHWc')
+        lambda nn, ff, yy, xx, ff_v: te.sum(
+            temp[nn, rc // ic_bn, yy * stride_h + ry, xx * stride_w + rx, rc % ic_bn].astype(
+                out_dtype
+            )
+            * kernel[ff, rc // ic_bn, ry, rx, rc % ic_bn, ff_v].astype(out_dtype),
+            axis=[rc, ry, rx],
+        ),
+        tag="conv2d_NCHWc",
+        name="conv2d_NCHWc",
+    )
 
     if DOUNPACK:
         output = te.compute(
             oshape,
-            lambda nn, ff, yy, xx, ff_v:
-            conv[nn][ff][yy][xx][ff_v],
-            name='output_unpack', tag="conv2d_NCHWc_unpack")
+            lambda nn, ff, yy, xx, ff_v: conv[nn][ff][yy][xx][ff_v],
+            name="output_unpack",
+            tag="conv2d_NCHWc_unpack",
+        )
     else:
         output = conv
 
@@ -324,7 +341,7 @@ def _schedule_cl_spatialpack_NCHWc(cfg, s, op):
             s[output].compute_inline()
             conv = s.outputs[0]
         SCHEDULE_OUTPUT = False
-    else: # conv2d_NCHWc_unpack
+    else:  # conv2d_NCHWc_unpack
         conv = op.input_tensors[0]
         temp = s[conv].op.input_tensors[0]
         kernel = s[conv].op.input_tensors[1]
@@ -420,7 +437,7 @@ def _schedule_cl_spatialpack_NCHWc(cfg, s, op):
         tile_and_bind3d(s, out, w, h, vc, 4, 8, 8)
 
 
-def conv2d_nchw(data, kernel, stride, padding, dilation, out_dtype='float32'):
+def conv2d_nchw(data, kernel, stride, padding, dilation, out_dtype="float32"):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
@@ -462,14 +479,14 @@ def schedule_conv2d_nchw(outs):
 
     def _callback(op):
         """inline all one-to-one-mapping operators except the last stage (output)"""
-        if 'conv2d' in op.tag:
+        if "conv2d" in op.tag:
             _schedule_cl_spatialpack(s, op)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
+def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype="float16"):
     batch, in_channel, in_height, in_width = [util.get_const_int(x) for x in data.shape]
     num_filter, channel, kernel_h, kernel_w = [util.get_const_int(x) for x in kernel.shape]
     pad_top, pad_left, pad_down, pad_right = nn.get_pad_tuple(padding, (kernel_h, kernel_w))
@@ -484,9 +501,9 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
     out_width = simplify((in_width - kernel_w + pad_left + pad_right) // stride_w + 1)
     oshape = (batch, out_channel, out_height, out_width)
 
-    rc = te.reduce_axis((0, in_channel), name='rc')
-    ry = te.reduce_axis((0, kernel_h), name='ry')
-    rx = te.reduce_axis((0, kernel_w), name='rx')
+    rc = te.reduce_axis((0, in_channel), name="rc")
+    ry = te.reduce_axis((0, kernel_h), name="ry")
+    rx = te.reduce_axis((0, kernel_w), name="rx")
 
     if stride_h == 2:
         if num_filter + kernel_h == 515:
@@ -508,7 +525,7 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
     else:
         block_h = 1
         block_w = 16
-    attrs = {'block_h': block_h, 'block_w' : block_w}
+    attrs = {"block_h": block_h, "block_w": block_w}
     c_h = out_height
     c_w = out_width
 
@@ -531,23 +548,26 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
     kvshape = (num_filter // nv, channel, kernel_h, kernel_w, nv)
 
     kernel_vec = te.compute(
-        kvshape,
-        lambda co, ci, kh, kw, vc:
-        kernel[co*nv + vc][ci][kh][kw], name='kernel_vec')
+        kvshape, lambda co, ci, kh, kw, vc: kernel[co * nv + vc][ci][kh][kw], name="kernel_vec"
+    )
 
     conv = te.compute(
         cshape,
-        lambda nn, ff, yy, xx, vc: \
-        te.sum(
-            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
-            kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
-            axis=[rc, ry, rx]), name='conv', attrs=attrs)
+        lambda nn, ff, yy, xx, vc: te.sum(
+            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype)
+            * kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
+            axis=[rc, ry, rx],
+        ),
+        name="conv",
+        attrs=attrs,
+    )
 
     output = te.compute(
         oshape,
-        lambda nn, ff, yy, xx:
-        conv[nn][ff//nv][yy][xx][ff%nv],
-        name='output_unpack', tag='conv2d')
+        lambda nn, ff, yy, xx: conv[nn][ff // nv][yy][xx][ff % nv],
+        name="output_unpack",
+        tag="conv2d",
+    )
 
     return output
 
@@ -567,8 +587,8 @@ def _schedule_cl_spatialpack(s, op):
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
 
     attrs = s[conv].op.attrs
-    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
-    OUTPUT_BLOCK_WIDTH = attrs['block_w']
+    OUTPUT_BLOCK_HEIGHT = attrs["block_h"]
+    OUTPUT_BLOCK_WIDTH = attrs["block_w"]
 
     # schedule conv
     z_factor = 1

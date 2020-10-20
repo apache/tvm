@@ -27,9 +27,9 @@ def test_util():
 
 
 def test_ewise():
-    m = te.var('m')
-    l = te.var('l')
-    A = te.placeholder((m, l), name='A')
+    m = te.var("m")
+    l = te.var("l")
+    A = te.placeholder((m, l), name="A")
 
     def test_apply(func, name):
         B = func(A)

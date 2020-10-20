@@ -252,8 +252,8 @@ export class RPCServer {
         this.logger
       );
       try {
-        const gpuDevice: GPUDevice | undefined = await detectGPUDevice();
-        if (gpuDevice !== undefined) {
+        const gpuDevice: GPUDevice | undefined | null = await detectGPUDevice();
+        if (gpuDevice !== undefined && gpuDevice !== null) {
           const label = gpuDevice.label?.toString() || "WebGPU";
           this.log("Initialize GPU device: " + label);
           inst.initWebGPU(gpuDevice);

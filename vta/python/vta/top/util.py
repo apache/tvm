@@ -16,6 +16,7 @@
 # under the License.
 """VTA TOPI Utils."""
 
+
 def is_packed_layout(layout):
     """Check if layout is packed layout"""
     if layout == "NCHW":

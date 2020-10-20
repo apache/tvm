@@ -26,22 +26,24 @@ from tvm.ir import IRModule
 from tvm import relay
 from tvm.relay.data_dep_optimization import simplify_fc_transpose
 
+
 def run_func(func, params, x):
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, new_params = relay.build(func, "llvm", params=params)
+        lib = relay.build(func, "llvm", params=params)
 
     from tvm.contrib import graph_runtime
+
     ctx = tvm.cpu(0)
-    dtype = 'float32'
-    m = graph_runtime.create(graph, lib, ctx)
+    dtype = "float32"
+    m = graph_runtime.GraphModule(lib["default"](ctx))
     # set inputs
-    m.set_input('data', tvm.nd.array(x.astype(dtype)))
-    m.set_input(**new_params)
+    m.set_input("data", tvm.nd.array(x.astype(dtype)))
     # execute
     m.run()
     # get outputs
     tvm_output = m.get_output(0)
     return tvm_output.asnumpy()
+
 
 def test_simplify_fc_transpose():
     data = relay.var("data", shape=(1, 32), dtype="float32")
@@ -54,7 +56,7 @@ def test_simplify_fc_transpose():
     func = relay.Function(relay.analysis.free_vars(zz), zz)
     params = {
         "w1": tvm.nd.array(np.random.uniform(-1, 1, (32, 64)).astype("float32")),
-        "w2": tvm.nd.array(np.random.uniform(-1, 1, (64, 16)).astype("float32"))
+        "w2": tvm.nd.array(np.random.uniform(-1, 1, (64, 16)).astype("float32")),
     }
     x_np = np.random.randn(1, 32).astype("float32")
     old_result = run_func(func, params, x_np)
@@ -62,6 +64,7 @@ def test_simplify_fc_transpose():
     new_func, new_params = simplify_fc_transpose.convert(func, params)
     new_result = run_func(new_func, new_params, x_np)
     np.testing.assert_allclose(old_result, new_result, atol=1e-5, rtol=1e-5)
+
 
 if __name__ == "__main__":
     test_simplify_fc_transpose()

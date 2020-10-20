@@ -278,6 +278,7 @@ def atan(x):
     """
     return te.compute(x.shape, lambda *i: te.atan(x(*i)))
 
+
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def atanh(x):
     """Take atanh of input x.
@@ -293,6 +294,7 @@ def atanh(x):
         The result.
     """
     return te.compute(x.shape, lambda *i: te.atanh(x(*i)))
+
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
@@ -605,12 +607,15 @@ def clip(x, a_min, a_max):
     y : tvm.te.Tensor
         The result.
     """
+
     def _compute(*indices):
         value = x(*indices)
         const_min = tvm.tir.const(a_min, value.dtype)
         const_max = tvm.tir.const(a_max, value.dtype)
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
+
     return te.compute(x.shape, _compute)
+
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def fixed_point_multiply(x, multiplier, shift):
@@ -632,13 +637,18 @@ def fixed_point_multiply(x, multiplier, shift):
     y : tvm.te.Tensor
         The result.
     """
+
     def _compute(*indices):
         value = x(*indices)
-        return tvm.tir.q_multiply_shift(value,
-                                        tvm.tir.const(multiplier, 'int32'),
-                                        tvm.tir.const(31, 'int32'),
-                                        tvm.tir.const(shift, 'int32'))
+        return tvm.tir.q_multiply_shift(
+            value,
+            tvm.tir.const(multiplier, "int32"),
+            tvm.tir.const(31, "int32"),
+            tvm.tir.const(shift, "int32"),
+        )
+
     return te.compute(x.shape, _compute)
+
 
 def cast(x, dtype):
     """Cast input to specified data type.
@@ -657,10 +667,10 @@ def cast(x, dtype):
         The result.
     """
     if isinstance(x, te.tensor.Tensor):
-        return te.compute(
-            x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
+        return te.compute(x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
     # pylint: disable=import-outside-toplevel
     from tvm.tir import _ffi_api
+
     return _ffi_api._cast(dtype, x)
 
 

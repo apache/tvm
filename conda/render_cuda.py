@@ -21,7 +21,7 @@ import subprocess
 
 from jinja2 import Template
 
-CUDA_VERSIONS = ['10.0', '9.0']
+CUDA_VERSIONS = ["10.0", "9.0"]
 
 
 # Make sure that the cudnn version you set here is available
@@ -29,8 +29,8 @@ CUDA_VERSIONS = ['10.0', '9.0']
 # and from conda.
 
 # These two must be in sync
-CUDNN_FULL_VERSION = '7.6.0.64'
-CUDNN_VERSION = '7.6.0'
+CUDNN_FULL_VERSION = "7.6.0.64"
+CUDNN_VERSION = "7.6.0"
 
 
 condadir = os.path.dirname(sys.argv[0])
@@ -38,22 +38,21 @@ condadir = os.path.abspath(condadir)
 srcdir = os.path.dirname(condadir)
 
 
-with open(os.path.join(condadir, 'Dockerfile.template')) as f:
+with open(os.path.join(condadir, "Dockerfile.template")) as f:
     docker_template = Template(f.read())
 
 
 def render_dockerfile(version):
-    txt = docker_template.render(cuda_version=version,
-                                 cudnn_short_version=CUDNN_VERSION,
-                                 cudnn_version=CUDNN_FULL_VERSION)
-    fname = os.path.join(condadir,
-                         '../docker/Dockerfile.conda_cuda' + version.replace('.', ''))
-    with open(fname, 'w') as f:
+    txt = docker_template.render(
+        cuda_version=version, cudnn_short_version=CUDNN_VERSION, cudnn_version=CUDNN_FULL_VERSION
+    )
+    fname = os.path.join(condadir, "../docker/Dockerfile.conda_cuda" + version.replace(".", ""))
+    with open(fname, "w") as f:
         f.write(txt)
     return fname
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     build_versions = CUDA_VERSIONS
     if len(sys.argv) > 1:
         build_versions = sys.argv[1:]

@@ -36,6 +36,9 @@ from tvm import te
 import numpy as np
 from tvm.contrib import cblas
 
+if not tvm.get_global_func("tvm.contrib.cblas.matmul", allow_missing=True):
+    raise Exception("Not compiled with cblas support; can't build this tutorial")
+
 ######################################################################
 # Use Extern Tensor Function
 # --------------------------
@@ -54,14 +57,18 @@ from tvm.contrib import cblas
 n = 1024
 l = 128
 m = 235
-bias = te.var('bias', dtype="float32")
-A = te.placeholder((n, l), name='A')
-B = te.placeholder((l, m), name='B')
-C = te.extern((n, m), [A, B],
-               lambda ins, outs: tvm.tir.call_packed(
-                   "tvm.contrib.cblas.matmul",
-                   ins[0], ins[1], outs[0], False, False), name="C")
-D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+bias = te.var("bias", dtype="float32")
+A = te.placeholder((n, l), name="A")
+B = te.placeholder((l, m), name="B")
+C = te.extern(
+    (n, m),
+    [A, B],
+    lambda ins, outs: tvm.tir.call_packed(
+        "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], False, False
+    ),
+    name="C",
+)
+D = te.compute(C.shape, lambda i, j: C[i, j] + bias, name="D")
 s = te.create_schedule(D.op)
 
 ######################################################################
@@ -76,8 +83,7 @@ b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
 d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
 bb = 10.0
 f(a, b, d, bb)
-tvm.testing.assert_allclose(
-    d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 10, rtol=1e-5)
+tvm.testing.assert_allclose(d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 10, rtol=1e-5)
 
 ######################################################################
 # Extern Contrib Wrappers
@@ -86,8 +92,9 @@ tvm.testing.assert_allclose(
 # the following line is equivalent to the previous example.
 #
 from tvm.contrib import cblas
+
 C = cblas.matmul(A, B)
-D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+D = te.compute(C.shape, lambda i, j: C[i, j] + bias, name="D")
 s = te.create_schedule(D.op)
 
 ######################################################################
@@ -107,9 +114,14 @@ def my_tvm_addone(x, y):
     print("my_tvm_addone signatures: %s, %s" % (type(x), type(y)))
     tvm.nd.array(x.asnumpy() + 1).copyto(y)
 
-A = te.placeholder((n,), name='A')
-B = te.extern(A.shape, [A], lambda ins, outs: tvm.tir.call_packed(
-    "tvm.contrib.my_tvm_addone", ins[0], outs[0]), name="C")
+
+A = te.placeholder((n,), name="A")
+B = te.extern(
+    A.shape,
+    [A],
+    lambda ins, outs: tvm.tir.call_packed("tvm.contrib.my_tvm_addone", ins[0], outs[0]),
+    name="C",
+)
 s = te.create_schedule(B.op)
 f = tvm.build(s, [A, B], "llvm")
 a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)

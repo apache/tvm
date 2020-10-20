@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 import os
@@ -22,17 +23,19 @@ import os
 os.environ["XCL_EMULATION_MODE"] = "1"
 os.environ["CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA"] = "1"
 
+
 @tvm.register_func
 def tvm_callback_vhls_postproc(code):
     """Hook to inspect the Vivado HLS code before actually run it"""
     print(code)
     return code
 
+
 def test_exp():
     # graph
     n = tvm.runtime.convert(1024)
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: te.exp(A(*i)), name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: te.exp(A(*i)), name="B")
     s = te.create_schedule(B.op)
     # create iter var and assign them tags.
     px, x = s[B].split(B.op.axis[0], nparts=1)
@@ -40,22 +43,17 @@ def test_exp():
 
     # one line to build the function.
     def check_device(device, host="llvm"):
-        if not tvm.runtime.enabled(host):
+        if not tvm.testing.device_enabled(device):
             return
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            return
-        fexp = tvm.build(s, [A, B],
-                         device, host,
-                         name="myexp")
+        fexp = tvm.build(s, [A, B], device, host, name="myexp")
         ctx = tvm.context(device, 0)
         # launch the kernel.
         n = 1024
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
         fexp(a, b)
-        tvm.testing.assert_allclose(
-            b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
 
     check_device("sdaccel")
     if "AWS_PLATFORM" in os.environ:
@@ -63,13 +61,14 @@ def test_exp():
 
     check_device("aocl_sw_emu")
 
+
 def test_multi_kernel():
     # graph
     n = tvm.runtime.convert(1024)
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    D = te.compute(A.shape, lambda *i: A(*i) + C(*i), name='D')
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
+    D = te.compute(A.shape, lambda *i: A(*i) + C(*i), name="D")
     s = te.create_schedule(D.op)
     # create iter var and assign them tags.
     px, x = s[C].split(C.op.axis[0], nparts=1)
@@ -79,14 +78,10 @@ def test_multi_kernel():
 
     # one line to build the function.
     def check_device(device, host="llvm"):
-        if not tvm.runtime.enabled(host):
+        if not tvm.testing.device_enabled(device):
             return
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            return
-        fadd = tvm.build(s, [A, B, C, D],
-                         device, host,
-                         name="myadd")
+        fadd = tvm.build(s, [A, B, C, D], device, host, name="myadd")
         ctx = tvm.context(device, 0)
         # launch the kernel.
         n = 1024
@@ -95,8 +90,7 @@ def test_multi_kernel():
         c = tvm.nd.array(np.random.uniform(size=n).astype(C.dtype), ctx)
         d = tvm.nd.array(np.random.uniform(size=n).astype(D.dtype), ctx)
         fadd(a, b, c, d)
-        tvm.testing.assert_allclose(
-            d.asnumpy(), a.asnumpy() * 2 + b.asnumpy(), rtol=1e-5)
+        tvm.testing.assert_allclose(d.asnumpy(), a.asnumpy() * 2 + b.asnumpy(), rtol=1e-5)
 
     check_device("sdaccel")
     check_device("aocl_sw_emu")

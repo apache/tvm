@@ -25,8 +25,8 @@
  */
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/internal/common/logging.h>
 #include <tvm/runtime/crt/internal/graph_runtime/graph_runtime.h>
+#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
 #include <tvm/runtime/crt/packed_func.h>
@@ -606,7 +606,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
     uint64_t name_length;
     name_length = ((uint64_t*)bptr)[0];  // NOLINT(*)
     bptr += sizeof(name_length);
-    if (name_length >= 80) {
+    if (name_length >= TVM_CRT_STRLEN_NAME) {
       fprintf(stderr, "Error: function name longer than expected.\n");
       status = -1;
     }

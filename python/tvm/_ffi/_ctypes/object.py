@@ -30,6 +30,7 @@ OBJECT_TYPE = {}
 
 _CLASS_OBJECT = None
 
+
 def _set_class_object(object_class):
     global _CLASS_OBJECT
     _CLASS_OBJECT = object_class
@@ -60,16 +61,20 @@ def _return_object(x):
     obj.handle = handle
     return obj
 
+
 RETURN_SWITCH[ArgTypeCode.OBJECT_HANDLE] = _return_object
 C_TO_PY_ARG_SWITCH[ArgTypeCode.OBJECT_HANDLE] = _wrap_arg_func(
-    _return_object, ArgTypeCode.OBJECT_HANDLE)
+    _return_object, ArgTypeCode.OBJECT_HANDLE
+)
 
 C_TO_PY_ARG_SWITCH[ArgTypeCode.OBJECT_RVALUE_REF_ARG] = _wrap_arg_func(
-    _return_object, ArgTypeCode.OBJECT_RVALUE_REF_ARG)
+    _return_object, ArgTypeCode.OBJECT_RVALUE_REF_ARG
+)
 
 
 class PyNativeObject:
     """Base class of all TVM objects that also subclass python's builtin types."""
+
     __slots__ = []
 
     def __init_tvm_object_by_constructor__(self, fconstructor, *args):
@@ -94,9 +99,9 @@ class PyNativeObject:
         self.__tvm_object__ = obj
 
 
-
 class ObjectBase(object):
     """Base object for all object types"""
+
     __slots__ = ["handle"]
 
     def __del__(self):

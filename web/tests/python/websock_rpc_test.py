@@ -29,6 +29,7 @@ import numpy as np
 proxy_host = "localhost"
 proxy_port = 9090
 
+
 def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
@@ -37,8 +38,8 @@ def test_rpc():
     if not tvm.runtime.enabled(target):
         raise RuntimeError("Target %s is not enbaled" % target)
     n = te.var("n")
-    A = te.placeholder((n,), name='A')
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    A = te.placeholder((n,), name="A")
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     s = te.create_schedule(B.op)
 
     fadd = tvm.build(s, [A, B], target, name="addone")
@@ -49,19 +50,23 @@ def test_rpc():
 
     wasm_binary = open(wasm_path, "rb").read()
 
-    remote = rpc.connect(proxy_host, proxy_port, key="wasm",
-                         session_constructor_args=["rpc.WasmSession", wasm_binary])
+    remote = rpc.connect(
+        proxy_host,
+        proxy_port,
+        key="wasm",
+        session_constructor_args=["rpc.WasmSession", wasm_binary],
+    )
 
     def check(remote):
         # basic function checks.
         faddone = remote.get_function("testing.asyncAddOne")
         fecho = remote.get_function("testing.echo")
-        assert(faddone(100) == 101)
-        assert(fecho(1, 2, 3) == 1)
-        assert(fecho(1, 2, 3) == 1)
-        assert(fecho(100, 2, 3) == 100)
-        assert(fecho("xyz") == "xyz")
-        assert(bytes(fecho(bytearray(b"123"))) == b"123")
+        assert faddone(100) == 101
+        assert fecho(1, 2, 3) == 1
+        assert fecho(1, 2, 3) == 1
+        assert fecho(100, 2, 3) == 100
+        assert fecho("xyz") == "xyz"
+        assert bytes(fecho(bytearray(b"123"))) == b"123"
 
         # run the generated library.
         f1 = remote.system_lib()
@@ -76,9 +81,10 @@ def test_rpc():
         time_f = f1.time_evaluator("addone", ctx, number=100, repeat=10)
         time_f(a, b)
         cost = time_f(a, b).mean
-        print('%g secs/op' % cost)
+        print("%g secs/op" % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     check(remote)
+
 
 test_rpc()

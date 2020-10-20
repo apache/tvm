@@ -38,8 +38,7 @@ from ..libinfo import find_libvta
 def server_start():
     """VTA RPC server extension."""
     # pylint: disable=unused-variable
-    curr_path = os.path.dirname(
-        os.path.abspath(os.path.expanduser(__file__)))
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
     dll_path = find_libvta("libvta")[0]
     cfg_path = os.path.abspath(os.path.join(proj_root, "3rdparty/vta-hw/config/vta_config.json"))
@@ -69,6 +68,7 @@ def server_start():
         env = get_env()
         if env.TARGET == "pynq":
             from pynq import xlnk
+
             # Reset xilinx driver
             xlnk.Xlnk().xlnk_reset()
         elif env.TARGET == "de10nano":
@@ -112,8 +112,13 @@ def server_start():
         ldflags = pkg.ldflags
         lib_name = dll_path
         source = pkg.lib_source
-        logging.info("Rebuild runtime:\n output=%s,\n cflags=%s,\n source=%s,\n ldflags=%s",
-                     dll_path, '\n\t'.join(cflags), '\n\t'.join(source), '\n\t'.join(ldflags))
+        logging.info(
+            "Rebuild runtime:\n output=%s,\n cflags=%s,\n source=%s,\n ldflags=%s",
+            dll_path,
+            "\n\t".join(cflags),
+            "\n\t".join(source),
+            "\n\t".join(ldflags),
+        )
         cc.create_shared(lib_name, source, cflags + ldflags)
         with open(cfg_path, "w") as outputfile:
             outputfile.write(pkg.cfg_json)
@@ -122,16 +127,13 @@ def server_start():
 def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', type=str, default="0.0.0.0",
-                        help='the hostname of the server')
-    parser.add_argument('--port', type=int, default=9091,
-                        help='The port of the RPC')
-    parser.add_argument('--port-end', type=int, default=9199,
-                        help='The end search port of the RPC')
-    parser.add_argument('--key', type=str, default="",
-                        help="RPC key used to identify the connection type.")
-    parser.add_argument('--tracker', type=str, default="",
-                        help="Report to RPC tracker")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="the hostname of the server")
+    parser.add_argument("--port", type=int, default=9091, help="The port of the RPC")
+    parser.add_argument("--port-end", type=int, default=9199, help="The end search port of the RPC")
+    parser.add_argument(
+        "--key", type=str, default="", help="RPC key used to identify the connection type."
+    )
+    parser.add_argument("--tracker", type=str, default="", help="Report to RPC tracker")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
@@ -140,17 +142,15 @@ def main():
         port = int(port)
         tracker_addr = (url, port)
         if not args.key:
-            raise RuntimeError(
-                "Need key to present type of resource when tracker is available")
+            raise RuntimeError("Need key to present type of resource when tracker is available")
     else:
         tracker_addr = None
 
-    server = rpc.Server(args.host,
-                        args.port,
-                        args.port_end,
-                        key=args.key,
-                        tracker_addr=tracker_addr)
+    server = rpc.Server(
+        args.host, args.port, args.port_end, key=args.key, tracker_addr=tracker_addr
+    )
     server.proc.join()
+
 
 if __name__ == "__main__":
     main()

@@ -19,18 +19,18 @@
 import tvm
 from tvm import te
 from tvm import topi
+import tvm.testing
 import tvm.topi.testing
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
 
-from common import get_all_backend
 
-def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
-    buffer = te.placeholder(buffer_shape, name='buffer', dtype=dtype)
-    data = te.placeholder(data_shape, name='data', dtype=dtype)
+def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype="float32"):
+    buffer = te.placeholder(buffer_shape, name="buffer", dtype=dtype)
+    data = te.placeholder(data_shape, name="data", dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
-    @memoize('topi.tests.test_fifo_buffer')
+    @memoize("topi.tests.test_fifo_buffer")
     def get_ref_data():
         buffer_np = np.random.uniform(size=buffer_shape).astype(dtype)
         data_np = np.random.uniform(size=data_shape).astype(dtype)
@@ -46,26 +46,23 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
     # Get the test data
     buffer_np, data_np, out_np = get_ref_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print('  Skip because %s is not enabled' % device)
-            return
-        print('  Running on target: {}'.format(device))
+    def check_device(device, ctx):
+        print("  Running on target: {}".format(device))
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = topi.nn.fifo_buffer(data, buffer, axis=axis)
             s = tvm.topi.testing.get_injective_schedule(device)([out])
 
         buffer_tvm = tvm.nd.array(buffer_np, ctx=ctx)
         data_tvm = tvm.nd.array(data_np, ctx=ctx)
         out_tvm = tvm.nd.empty(shape=buffer_shape, ctx=ctx, dtype=dtype)
-        f = tvm.build(s, [data, buffer, out], device, name='fifo')
+        f = tvm.build(s, [data, buffer, out], device, name="fifo")
         f(data_tvm, buffer_tvm, out_tvm)
         tvm.testing.assert_allclose(out_tvm.asnumpy(), out_np)
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
+
 
 def verify_conv1d_integration():
     batch_size = 1
@@ -97,21 +94,22 @@ def verify_conv1d_integration():
     # Rule: Convolution of Tensor[context_shape] and Tensor[kernel_shape]
     #       produces Tensor[inc_input_shape]
 
-    dtype = 'float32'
+    dtype = "float32"
 
-    inc_input = te.placeholder(inc_input_shape, name='inc_input', dtype=dtype)
-    input_window = te.placeholder(input_window_shape, name='input_window', dtype=dtype)
-    context = te.placeholder(context_shape, name='context', dtype=dtype)
-    kernel = te.placeholder(kernel_shape, name='kernel', dtype=dtype)
-    inc_output = te.placeholder(inc_input_shape, name='inc_output', dtype=dtype)
-    output_window = te.placeholder(output_window_shape, name='output_window', dtype=dtype)
+    inc_input = te.placeholder(inc_input_shape, name="inc_input", dtype=dtype)
+    input_window = te.placeholder(input_window_shape, name="input_window", dtype=dtype)
+    context = te.placeholder(context_shape, name="context", dtype=dtype)
+    kernel = te.placeholder(kernel_shape, name="kernel", dtype=dtype)
+    inc_output = te.placeholder(inc_input_shape, name="inc_output", dtype=dtype)
+    output_window = te.placeholder(output_window_shape, name="output_window", dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
-    @memoize('topi.tests.test_fifo_buffer_conv1d_integration')
+    @memoize("topi.tests.test_fifo_buffer_conv1d_integration")
     def get_data():
         # Generate [num_iteration] slices of input
-        inc_input_np = np.random.uniform(size=tuple([num_iteration] + list(inc_input_shape)))\
-                       .astype(dtype)
+        inc_input_np = np.random.uniform(
+            size=tuple([num_iteration] + list(inc_input_shape))
+        ).astype(dtype)
         input_window_np = np.zeros(input_window_shape, dtype=dtype)
         kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
         context_np = np.zeros(context_shape, dtype=dtype)
@@ -122,37 +120,35 @@ def verify_conv1d_integration():
     # Get the test data
     inc_input_np, input_window_np, kernel_np, context_np, output_window_np = get_data()
 
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print('  Skip because %s is not enabled' % device)
-            return
-        print('  Running on target: {}'.format(device))
+    def check_device(device, ctx):
+        print("  Running on target: {}".format(device))
 
         conv2d_nchw, schedule_conv2d_nchw = tvm.topi.testing.get_conv2d_nchw_implement(device)
 
-        with tvm.target.create(device):
+        with tvm.target.Target(device):
             out = topi.nn.fifo_buffer(inc_input, context, axis=buffer_axis)
             s = tvm.topi.testing.get_injective_schedule(device)([out])
-            update_context = tvm.build(s, [inc_input, context, out], device, name='update_context')
+            update_context = tvm.build(s, [inc_input, context, out], device, name="update_context")
 
             out = conv2d_nchw(context, kernel, stride, padding, dilate, dtype)
             s = schedule_conv2d_nchw([out])
-            conv2d_inc = tvm.build(s, [context, kernel, out], device, name='conv2d_inc')
+            conv2d_inc = tvm.build(s, [context, kernel, out], device, name="conv2d_inc")
 
             out = topi.nn.fifo_buffer(inc_output, output_window, axis=buffer_axis)
             s = tvm.topi.testing.get_injective_schedule(device)([out])
-            update_output_window = tvm.build(s, [inc_output, output_window, out], device,
-                 name='update_output_window')
+            update_output_window = tvm.build(
+                s, [inc_output, output_window, out], device, name="update_output_window"
+            )
 
             out = topi.nn.fifo_buffer(inc_input, input_window, axis=buffer_axis)
             s = tvm.topi.testing.get_injective_schedule(device)([out])
-            update_input_window = tvm.build(s, [inc_input, input_window, out], device,
-                                            name='update_input_window')
+            update_input_window = tvm.build(
+                s, [inc_input, input_window, out], device, name="update_input_window"
+            )
 
             out = conv2d_nchw(input_window, kernel, stride, padding, dilate, dtype)
             s = schedule_conv2d_nchw([out])
-            conv2d = tvm.build(s, [input_window, kernel, out], device, name='conv2d')
+            conv2d = tvm.build(s, [input_window, kernel, out], device, name="conv2d")
 
         input_window_tvm = tvm.nd.array(input_window_np, ctx=ctx)
         new_input_window_tvm = tvm.nd.empty(shape=input_window_shape, ctx=ctx, dtype=dtype)
@@ -181,25 +177,34 @@ def verify_conv1d_integration():
             conv2d(input_window_tvm, kernel_tvm, output_window_ref_tvm)
             # Incrementally updating the output window should be equivalent to computing it from
             # scratch using the input window
-            tvm.testing.assert_allclose(output_window_tvm.asnumpy(),
-                                        output_window_ref_tvm.asnumpy())
+            tvm.testing.assert_allclose(
+                output_window_tvm.asnumpy(), output_window_ref_tvm.asnumpy()
+            )
 
-    for device in get_all_backend():
-        check_device(device)
+    for device, ctx in tvm.testing.enabled_targets():
+        check_device(device, ctx)
 
+
+@tvm.testing.uses_gpu
 def test_fifo_buffer():
     for ndim in [1, 2, 3, 4, 5, 6]:
         for axis in range(ndim):
             buffer_shape = tuple(7 for _ in range(ndim))
             data_shape = tuple((2 if i == axis else 7) for i in range(ndim))
-            print('Testing FIFO buffer op: buffer_shape = {}, data_shape = {}, axis = {}'
-                  .format(buffer_shape, data_shape, axis))
+            print(
+                "Testing FIFO buffer op: buffer_shape = {}, data_shape = {}, axis = {}".format(
+                    buffer_shape, data_shape, axis
+                )
+            )
             verify_fifo_buffer(buffer_shape, data_shape, axis)
 
+
+@tvm.testing.uses_gpu
 def test_conv1d_integration():
-    print('Testing FIFO buffer with 1D convolution')
+    print("Testing FIFO buffer with 1D convolution")
     verify_conv1d_integration()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_fifo_buffer()
     test_conv1d_integration()

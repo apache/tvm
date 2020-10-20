@@ -24,6 +24,7 @@ from tvm import relay
 
 class Initializer(object):
     """The base class of an initializer."""
+
     def __init__(self, **kwargs):
         self._kwargs = kwargs
 
@@ -38,17 +39,17 @@ class Initializer(object):
         arr : NDArray
             The array to be initialized.
         """
-        if desc.endswith('weight'):
+        if desc.endswith("weight"):
             self._init_weight(desc, arr)
-        elif desc.endswith('bias'):
+        elif desc.endswith("bias"):
             self._init_bias(desc, arr)
-        elif desc.endswith('gamma'):
+        elif desc.endswith("gamma"):
             self._init_gamma(desc, arr)
-        elif desc.endswith('beta'):
+        elif desc.endswith("beta"):
             self._init_beta(desc, arr)
-        elif desc.endswith('mean'):
+        elif desc.endswith("mean"):
             self._init_mean(desc, arr)
-        elif desc.endswith('var'):
+        elif desc.endswith("var"):
             self._init_var(desc, arr)
         else:
             self._init_default(desc, arr)
@@ -74,10 +75,11 @@ class Initializer(object):
 
     def _init_default(self, name, _):
         raise ValueError(
-            'Unknown initialization pattern for %s. ' \
-            'Default initialization is now limited to '\
-            '"weight", "bias", "gamma" (1.0), and "beta" (0.0).' \
-            'Please use mx.sym.Variable(init=mx.init.*) to set initialization pattern' % name)
+            "Unknown initialization pattern for %s. "
+            "Default initialization is now limited to "
+            '"weight", "bias", "gamma" (1.0), and "beta" (0.0).'
+            "Please use mx.sym.Variable(init=mx.init.*) to set initialization pattern" % name
+        )
 
 
 class Xavier(Initializer):
@@ -94,24 +96,27 @@ class Xavier(Initializer):
     magnitude: float, optional
         Scale of random number.
     """
+
     def __init__(self, rnd_type="uniform", factor_type="avg", magnitude=3):
-        super(Xavier, self).__init__(rnd_type=rnd_type,
-                                     factor_type=factor_type,
-                                     magnitude=magnitude)
+        super(Xavier, self).__init__(
+            rnd_type=rnd_type, factor_type=factor_type, magnitude=magnitude
+        )
         self.rnd_type = rnd_type
         self.factor_type = factor_type
         self.magnitude = float(magnitude)
 
     def _init_weight(self, name, arr):
         shape = arr.shape
-        hw_scale = 1.
+        hw_scale = 1.0
         if len(shape) < 2:
-            raise ValueError('Xavier initializer cannot be applied to vector {0}. It requires at'
-                             ' least 2D.'.format(name))
+            raise ValueError(
+                "Xavier initializer cannot be applied to vector {0}. It requires at"
+                " least 2D.".format(name)
+            )
         if len(shape) > 2:
             hw_scale = np.prod(shape[2:])
         fan_in, fan_out = shape[1] * hw_scale, shape[0] * hw_scale
-        factor = 1.
+        factor = 1.0
         if self.factor_type == "avg":
             factor = (fan_in + fan_out) / 2.0
         elif self.factor_type == "in":
@@ -131,11 +136,11 @@ class Xavier(Initializer):
 
 
 class Constant(Initializer):
-    """ Constant initialization of weights. Sum of weights in the matrix is 1.
-    """
+    """Constant initialization of weights. Sum of weights in the matrix is 1."""
+
     def _init_weight(self, name, arr):
-        num_elements = reduce(lambda x, y: x*y, arr.shape)
-        arr[:] = 1./num_elements
+        num_elements = reduce(lambda x, y: x * y, arr.shape)
+        arr[:] = 1.0 / num_elements
 
 
 def create_workload(net, initializer=None, seed=0):
@@ -162,8 +167,7 @@ def create_workload(net, initializer=None, seed=0):
     """
     mod = tvm.IRModule.from_expr(net)
     mod = relay.transform.InferType()(mod)
-    shape_dict = {
-        v.name_hint : v.checked_type for v in mod["main"].params}
+    shape_dict = {v.name_hint: v.checked_type for v in mod["main"].params}
     np.random.seed(seed)
     initializer = initializer if initializer else Xavier()
     params = {}

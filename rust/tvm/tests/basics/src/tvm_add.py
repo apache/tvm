@@ -25,25 +25,24 @@ from tvm.contrib import cc
 
 
 def main(target, out_dir):
-    n = te.var('n')
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda i: A[i] + B[i], name='C')
+    n = te.var("n")
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
     s = te.create_schedule(C.op)
 
-    if target == 'cuda':
+    if target == "cuda":
         bx, tx = s[C].split(C.op.axis[0], factor=64)
-        s[C].bind(bx, te.thread_axis('blockIdx.x'))
-        s[C].bind(tx, te.thread_axis('threadIdx.x'))
+        s[C].bind(bx, te.thread_axis("blockIdx.x"))
+        s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
-    fadd = tvm.build(s, [A, B, C], target, target_host='llvm', name='myadd')
+    fadd = tvm.build(s, [A, B, C], target, target_host="llvm", name="myadd")
 
-    fadd.save(osp.join(out_dir, 'test_add.o'))
-    if target == 'cuda':
-        fadd.imported_modules[0].save(osp.join(out_dir, 'test_add.ptx'))
-    cc.create_shared(
-        osp.join(out_dir, 'test_add.so'), [osp.join(out_dir, 'test_add.o')])
+    fadd.save(osp.join(out_dir, "test_add.o"))
+    if target == "cuda":
+        fadd.imported_modules[0].save(osp.join(out_dir, "test_add.ptx"))
+    cc.create_shared(osp.join(out_dir, "test_add.so"), [osp.join(out_dir, "test_add.o")])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])

@@ -18,7 +18,8 @@
 import tvm._ffi
 from ..rpc import base as rpc_base
 
-def create(tflite_model_bytes, ctx, runtime_target='cpu'):
+
+def create(tflite_model_bytes, ctx, runtime_target="cpu"):
     """Create a runtime executor module given a tflite model and context.
     Parameters
     ----------
@@ -36,7 +37,7 @@ def create(tflite_model_bytes, ctx, runtime_target='cpu'):
     """
     device_type = ctx.device_type
 
-    if runtime_target == 'edge_tpu':
+    if runtime_target == "edge_tpu":
         runtime_func = "tvm.edgetpu_runtime.create"
     else:
         runtime_func = "tvm.tflite_runtime.create"

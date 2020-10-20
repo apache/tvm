@@ -16,21 +16,22 @@
 # under the License.
 
 from tvm import relay
+
 a = relay.Var("a")
-b = relay.expr.const (1.0, dtype='float32')
+b = relay.expr.const(1.0, dtype="float32")
 
 c = a < b
-d = relay.less (a, b)
-assert (c.astext() == d.astext())
+d = relay.less(a, b)
+assert c.astext() == d.astext()
 
 c = a > b
-d = relay.greater (a, b)
-assert (c.astext() == d.astext())
+d = relay.greater(a, b)
+assert c.astext() == d.astext()
 
-c = (a >= b)
+c = a >= b
 d = relay.greater_equal(a, b)
-assert (c.astext() == d.astext())
+assert c.astext() == d.astext()
 
-c = (a <= b)
+c = a <= b
 d = relay.less_equal(a, b)
-assert (c.astext() == d.astext())
+assert c.astext() == d.astext()

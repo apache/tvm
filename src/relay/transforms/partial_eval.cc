@@ -98,7 +98,7 @@
 #include <tvm/relay/transform.h>
 
 #include "let_list.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -536,7 +536,7 @@ DLContext CPUContext() {
 FInterpreter CPUInterpreter() {
   using tvm::transform::PassContext;
 
-  Target target = Target::Create("llvm");
+  Target target = Target("llvm");
   // use a fresh build context
   // in case we are already in a build context.
   With<PassContext> fresh_build_ctx(PassContext::Create());

@@ -133,7 +133,7 @@ impl Function {
         match rv {
             RetValue::ObjectHandle(object) => {
                 let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
-                println!("after wrapped call: {}", optr.count());
+                // println!("after wrapped call: {}", optr.count());
                 crate::object::ObjectPtr::leak(optr);
             }
             _ => {}
