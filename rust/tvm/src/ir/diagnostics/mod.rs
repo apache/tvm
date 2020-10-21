@@ -34,7 +34,6 @@ use tvm_macros::{external, Object};
 
 pub mod codespan;
 
-// Get the the diagnostic renderer.
 external! {
     #[name("node.ArrayGetItem")]
     fn get_renderer() -> DiagnosticRenderer;
@@ -47,6 +46,9 @@ external! {
 
     #[name("diagnostics.DiagnosticContextRender")]
     fn diagnostic_context_render(ctx: DiagnosticContext) -> ();
+
+    #[name("diagnostics.DiagnosticRendererRender")]
+    fn diagnositc_renderer_render(renderer: DiagnosticRenderer,ctx: DiagnosticContext) -> ();
 
     #[name("diagnostics.ClearRenderer")]
     fn clear_renderer() -> ();
@@ -108,11 +110,17 @@ pub struct DiagnosticBuilder {
     /// The level.
     pub level: DiagnosticLevel,
 
-    /// The source name.
-    pub source_name: SourceName,
-
     /// The span of the diagnostic.
     pub span: Span,
+
+    /// The in progress message.
+    pub message: String,
+}
+
+impl DiagnosticBuilder {
+    pub fn new(level: DiagnosticLevel, span: Span) -> DiagnosticBuilder {
+        DiagnosticBuilder { level, span, message: "".into() }
+    }
 }
 
 //   /*! \brief Display diagnostics in a given display format.
@@ -138,16 +146,12 @@ pub struct DiagnosticRendererNode {
     // missing field here
 }
 
-//     def render(self, ctx):
-//         """
-//         Render the provided context.
-
-//         Params
-//         ------
-//         ctx: DiagnosticContext
-//             The diagnostic context to render.
-//         """
-//         return _ffi_api.DiagnosticRendererRender(self, ctx
+impl DiagnosticRenderer {
+    /// Render the provided context.
+    pub fn render(&self, ctx: DiagnosticContext) -> Result<()> {
+        diagnositc_renderer_render(self.clone(), ctx)
+    }
+}
 
 #[repr(C)]
 #[derive(Object)]
