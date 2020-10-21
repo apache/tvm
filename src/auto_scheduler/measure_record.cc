@@ -50,10 +50,10 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Stage>> {
   }
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::Array<::tvm::auto_scheduler::Stage>* data) {
-    //  bool s;
+    bool s;
     reader->BeginArray();
-    reader->NextArrayItem();
-    //  CHECK(!s);
+    s = reader->NextArrayItem();
+    CHECK(!s);
   }
 };
 
@@ -73,13 +73,14 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
 
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::Array<::tvm::auto_scheduler::Step>* data) {
+    bool s;
     reader->BeginArray();
     data->clear();
     while (reader->NextArrayItem()) {
       reader->BeginArray();
       data->push_back(::tvm::auto_scheduler::StepReadFromRecord(reader));
-      reader->NextArrayItem();
-      //  CHECK(!s);
+      s = reader->NextArrayItem();
+      CHECK(!s);
     }
   }
 };
@@ -102,7 +103,7 @@ struct Handler<::tvm::auto_scheduler::StateNode> {
     CHECK(s);
     reader->Read(&data->transform_steps);
     s = reader->NextArrayItem();
-    //  CHECK(!s);
+    CHECK(!s);
   }
 };
 
@@ -128,7 +129,7 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     reader->Read(&str_value);
     data->target = ::tvm::Target(str_value);
     s = reader->NextArrayItem();
-    //  CHECK(!s);
+    CHECK(!s);
   }
 };
 
@@ -155,7 +156,7 @@ struct Handler<::tvm::auto_scheduler::MeasureInputNode> {
     CHECK(s);
     reader->Read(state_node.get());
     s = reader->NextArrayItem();
-    //  CHECK(!s);
+    CHECK(!s);
 
     data->task = ::tvm::auto_scheduler::SearchTask(task_node);
     data->state = ::tvm::auto_scheduler::State(state_node);
@@ -202,7 +203,7 @@ struct Handler<::tvm::auto_scheduler::MeasureResultNode> {
     CHECK(s);
     reader->Read(&data->timestamp);
     s = reader->NextArrayItem();
-    //  CHECK(!s);
+    CHECK(!s);
   }
 };
 
@@ -279,7 +280,6 @@ bool RecordReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
       // skip comment lines begin with '#' or ' '
       continue;
     }
-    LOG(WARNING) << cur_line_;
     ReadMeasureRecord(cur_line_, inp, res, &log_version);
     return true;
   }
