@@ -128,13 +128,13 @@ ALLOW_SPECIFIC_FILE = {
     "tests/micro/qemu/zephyr-runtime/prj.conf",
     "tests/micro/qemu/zephyr-runtime/qemu-hack/qemu-system-i386",
     # microTVM Virtual Machines
-    "tools/microtvm/base-box/Vagrantfile",
-    "tools/microtvm/base-box/Vagrantfile.packer-template",
-    "tools/microtvm/base-box/Vagrantfile.provision",
-    "tools/microtvm/base-box/kitware-archive-latest.asc",
-    "tools/microtvm/base-box/packer.json.template",
-    "tools/microtvm/vm/Vagrantfile",
-    "tools/microtvm/vm/kitware-archive-latest.asc",
+    "apps/microtvm-vm/base-box/Vagrantfile",
+    "apps/microtvm-vm/base-box/Vagrantfile.packer-template",
+    "apps/microtvm-vm/base-box/Vagrantfile.provision",
+    "apps/microtvm-vm/base-box/kitware-archive-latest.asc",
+    "apps/microtvm-vm/base-box/packer.json.template",
+    "apps/microtvm-vm/vm/Vagrantfile",
+    "apps/microtvm-vm/vm/kitware-archive-latest.asc",
 }
 
 
