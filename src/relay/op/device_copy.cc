@@ -61,7 +61,6 @@ on different devices.
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
                            [](const Attrs& attrs, const Array<te::Tensor>& inputs,
