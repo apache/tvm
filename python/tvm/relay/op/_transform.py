@@ -802,3 +802,8 @@ def stack_shape_func(attrs, inputs, _):
     if axis < 0:
         axis += inputs[0].shape[0] + 1
     return [_stack_shape_func(inputs[0], convert(axis), convert(len(inputs)))]
+
+
+@_reg.register_shape_func("where", False)
+def where_shape_func(attrs, inputs, _):
+    return [topi.math.identity(inputs[1])]
