@@ -156,7 +156,7 @@ struct Handler<::tvm::auto_scheduler::MeasureInputNode> {
     CHECK(s);
     reader->Read(state_node.get());
     s = reader->NextArrayItem();
-    CHECK(!s);
+    //  CHECK(!s);
 
     data->task = ::tvm::auto_scheduler::SearchTask(task_node);
     data->state = ::tvm::auto_scheduler::State(state_node);
@@ -281,6 +281,7 @@ bool RecordReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
       continue;
     }
     ReadMeasureRecord(cur_line_, inp, res, &log_version);
+    LOG(WARNING) << cur_line_;
     return true;
   }
 
