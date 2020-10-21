@@ -2233,8 +2233,7 @@ class If(OnnxOpConverter):
             graph_scope._nodes.update({var.name_hint: var})
 
         # Now we can construct the relay if statement and return.
-        output = _expr.If(cond, then_expr, else_expr)
-        return output
+        return _expr.If(cond, then_expr, else_expr)
 
 
 # compatible operators that do NOT require any conversion.
