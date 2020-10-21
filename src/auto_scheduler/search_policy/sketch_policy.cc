@@ -259,11 +259,11 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
 Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Get parameters
   int population = GetIntParam(params, SketchParamKey::SampleInitPopulation::population);
-  int num_use_measured =
-      std::min(static_cast<int>(measured_states_vector_.size()),
-               static_cast<int>(
-                   GetDoubleParam(params, SketchParamKey::SampleInitPopulation::use_measured_ratio) *
-                   population));
+  int num_use_measured = std::min(
+      static_cast<int>(measured_states_vector_.size()),
+      static_cast<int>(
+          GetDoubleParam(params, SketchParamKey::SampleInitPopulation::use_measured_ratio) *
+          population));
   bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
 
   // 1. Generate sketches
