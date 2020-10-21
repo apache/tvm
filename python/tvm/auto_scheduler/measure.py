@@ -185,6 +185,33 @@ class ProgramRunner(Object):
         return _ffi_api.ProgramRunnerRun(self, measure_inputs, build_results, verbose)
 
 
+@tvm._ffi.register_object("auto_scheduler.ProgramMeasurer")
+class ProgramMeasurer(Object):
+    """
+    Measurer that measures the time costs of tvm programs
+    This class combines ProgramBuilder and ProgramRunner, and provides a simpler API.
+
+    Parameters
+    ----------
+    builder : ProgramBuilder
+        The ProgramBuilder to build programs
+    runner : ProgramRunner
+        The ProgramRunner to measure programs.
+    callbacks : List[MeasureCallback]
+        Callbacks to be called after each measurement batch
+    verbose : int
+        The Verbosity level: 0 for silent, 1 to output information during program
+    max_continuous_error : Optional[int]
+        The number of allowed maximum continuous error before stop the tuning
+    """
+
+    def __init__(self, builder, runner, callbacks, verbose, max_continuous_error=None):
+        max_continuous_error = max_continuous_error or -1  # -1 means using the default value
+        self.__init_handle_by_constructor__(
+            _ffi_api.ProgramMeasurer, builder, runner, callbacks, verbose, max_continuous_error
+        )
+
+
 @tvm._ffi.register_object("auto_scheduler.LocalBuilder")
 class LocalBuilder(ProgramBuilder):
     """LocalBuilder use local CPU cores to build programs in parallel.

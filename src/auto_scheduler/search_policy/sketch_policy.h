@@ -19,13 +19,15 @@
 
 /*!
  * \file auto_scheduler/search_policy/sketch_policy.h
- * \brief The search policy that searches in a hierarchical search space defined by sketches.
- * The policy randomly samples programs from the space defined by sketches and use evolutionary
- * search to fine-tune them.
+ * \brief This search policy constructs a search space according to the compute declaration.
+ * It then randomly samples programs from the search space and uses evolutionary search with a
+ * learned cost model to fine tune the sampled programs.
+ * The final optimized programs are sent to actual hardware for measurement.
+ * The above process is repeated until the auto-scheduler runs out of time budget.
  *
  * Reference:
  * L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
- * Programs for Deep Learning." arXiv preprint arXiv:2006.06762 (2020).
+ * Programs for Deep Learning." (OSDI 2020).
  */
 
 #ifndef TVM_AUTO_SCHEDULER_SEARCH_POLICY_SKETCH_POLICY_H_
@@ -105,6 +107,9 @@ class SketchPolicyNode : public SearchPolicyNode {
 
   State Search(int num_measure_trials, int early_stopping, int num_measures_per_round,
                ProgramMeasurer measurer) final;
+
+  std::pair<Array<MeasureInput>, Array<MeasureResult>> ContinueSearchOneRound(
+      int num_measure, ProgramMeasurer measurer) final;
 
   /*!
    * \brief Generate sketches.

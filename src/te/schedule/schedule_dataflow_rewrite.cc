@@ -136,6 +136,15 @@ Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
   if (tensor->op->num_outputs() != 1) {
     os << ".v" << tensor->value_index;
   }
+
+  // when a schedule has multiple cache_read on the same tensor,
+  // we make sure their op names are unique. e.g., w.shared, w_d.shared, w_d_d.shared
+  for (auto pair : (*this)->stage_map) {
+    auto stage = pair.second;
+    if (stage->op->name == os.str() + "." + scope) {
+      os << ".d";
+    }
+  }
   os << "." << scope;
 
   std::unordered_map<Tensor, Tensor> vsub;

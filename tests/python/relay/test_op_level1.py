@@ -134,7 +134,7 @@ def test_binary_op():
                     continue
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01, atol=1e-3)
 
     for opfunc, ref in [
         (relay.add, np.add),

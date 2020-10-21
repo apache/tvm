@@ -20,5 +20,13 @@ set -e
 set -u
 set -o pipefail
 
-# install libraries for python package on ubuntu
-pip3 install six numpy pytest cython decorator scipy tornado typed_ast pytest mypy orderedset attrs requests Pillow packaging cloudpickle
+v=3.13
+version=3.13.5
+wget https://cmake.org/files/v${v}/cmake-${version}.tar.gz
+tar xvf cmake-${version}.tar.gz
+cd cmake-${version}
+./bootstrap
+make -j$(nproc)
+make install
+cd ..
+rm -rf cmake-${version} cmake-${version}.tar.gz

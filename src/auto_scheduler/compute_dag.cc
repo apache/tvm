@@ -662,7 +662,42 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   node->tensors = std::move(tensors);
   node->access_analyzer = AccessAnalyzer(node->tensors);
-  node->ops = node->access_analyzer->ops_topo_order;
+
+  Array<te::Operation> out_ops;
+  for (const auto& op : node->access_analyzer->ops_topo_order) {
+    if (node->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
+    }
+  }
+  te::Schedule sch = te::create_schedule(out_ops);
+  for (auto stage : sch->stages) {
+    node->ops.push_back(stage->op);
+  }
+
+  node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
+  node->init_state = State(node->ops);
+  data_ = std::move(node);
+}
+
+ComputeDAG::ComputeDAG(const te::Schedule& sch) {
+  auto node = make_object<ComputeDAGNode>();
+
+  // Initialize ops. Here we enforce the order of ops and stages are consistent
+  for (auto stage : sch->stages) {
+    node->ops.push_back(stage->op);
+  }
+
+  // Collect input and output tensors
+  Array<te::Tensor> tensors;
+  for (auto stage : sch->stages) {
+    if (stage->op->IsInstance<te::PlaceholderOpNode>() || stage->is_output) {
+      for (auto i = 0; i < stage->op->num_outputs(); ++i) {
+        tensors.push_back(stage->op.output(i));
+      }
+    }
+  }
+  node->tensors = std::move(tensors);
+  node->access_analyzer = AccessAnalyzer(node->tensors);
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
@@ -949,8 +984,6 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
         }
       }
 
-      p_dag->init_state = State(p_dag->ops);
-
       Array<te::Tensor> old_tensors = p_dag->tensors;
       ArrayNode* p_tensors = p_dag->tensors.CopyOnWrite();
 
@@ -970,8 +1003,21 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
     }  // end for placeholder
   }    // end for stage
   p_dag->access_analyzer = AccessAnalyzer(p_dag->tensors);
-  p_dag->ops = p_dag->access_analyzer->ops_topo_order;
+
+  Array<te::Operation> out_ops;
+  for (const auto& op : p_dag->access_analyzer->ops_topo_order) {
+    if (p_dag->access_analyzer.IsOutput(op)) {
+      out_ops.push_back(op);
+    }
+  }
+
+  p_dag->ops.clear();
+  te::Schedule sch = te::create_schedule(out_ops);
+  for (auto stage : sch->stages) {
+    p_dag->ops.push_back(stage->op);
+  }
   p_dag->flop_ct = FlopEstimator().EstimateFlop(p_dag->ops);
+  p_dag->init_state = State(p_dag->ops);
 }
 
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
@@ -1144,17 +1190,7 @@ ComputeDAG ComputeDAG::ReplayAndGetDAG(const Array<Step>& transform_steps) const
   te::Schedule sch;
   Array<te::Tensor> old_tensors;
   std::tie(sch, old_tensors) = ApplySteps(transform_steps);
-
-  Array<te::Tensor> new_tensors;
-  for (auto stage : sch->stages) {
-    if (stage->op->IsInstance<te::PlaceholderOpNode>() || stage->is_output) {
-      for (auto i = 0; i < stage->op->num_outputs(); ++i) {
-        new_tensors.push_back(stage->op.output(i));
-      }
-    }
-  }
-
-  return ComputeDAG(new_tensors);
+  return ComputeDAG(sch);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -1259,9 +1295,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ss.str();
     });
 
-TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG").set_body_typed([](Array<te::Tensor> tensors) {
-  return ComputeDAG(tensors);
-});
+TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
+    .set_body_typed([](Optional<Array<te::Tensor>> tensors, Optional<te::Schedule> sch) {
+      if (tensors) {
+        return ComputeDAG(tensors.value());
+      }
+      CHECK(sch) << "Both tensors and schedule are null";
+      return ComputeDAG(sch.value());
+    });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state, const bool layout_rewrite) {

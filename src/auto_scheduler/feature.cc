@@ -871,7 +871,9 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
         stride = (i == static_cast<int>(for_loop_stack_.size()) - 1 ? stride : 0);
 
         float n_continuous = ele_bytes;
-        for (int i = static_cast<int>(tmp_region.size()) - 1; i >= 0; i--) {
+        for (int i = std::min(static_cast<int>(tmp_region.size()) - 1,
+                              static_cast<int>(int_shape.size()) - 1);
+             i >= 0; i--) {
           if (tmp_region[i] == int_shape[i]) {
             n_continuous *= tmp_region[i];
             break;

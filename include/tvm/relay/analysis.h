@@ -24,12 +24,12 @@
 #ifndef TVM_RELAY_ANALYSIS_H_
 #define TVM_RELAY_ANALYSIS_H_
 
-#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/type.h>
+#include <tvm/support/logging.h>
 
 #include <string>
 #include <unordered_map>
