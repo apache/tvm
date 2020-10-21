@@ -141,7 +141,6 @@ Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
  * \param tensor The quantized input tensor of dtype int32.
  * \param exp The exp or the power of 2 representing the number to be multiplied.
  * \return The sequence of Relay ops for power of two multiplication.
-
  */
 Expr PowerOfTwoMultiply(Expr tensor, int32_t exp);
 
