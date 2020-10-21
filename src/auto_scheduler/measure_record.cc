@@ -53,7 +53,7 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Stage>> {
     bool s;
     reader->BeginArray();
     s = reader->NextArrayItem();
-    CHECK(!s);
+    //  CHECK(!s);
   }
 };
 
@@ -80,7 +80,7 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
       reader->BeginArray();
       data->push_back(::tvm::auto_scheduler::StepReadFromRecord(reader));
       s = reader->NextArrayItem();
-      CHECK(!s);
+      //  CHECK(!s);
     }
   }
 };
@@ -103,7 +103,7 @@ struct Handler<::tvm::auto_scheduler::StateNode> {
     CHECK(s);
     reader->Read(&data->transform_steps);
     s = reader->NextArrayItem();
-    CHECK(!s);
+    //  CHECK(!s);
   }
 };
 
@@ -129,7 +129,7 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     reader->Read(&str_value);
     data->target = ::tvm::Target(str_value);
     s = reader->NextArrayItem();
-    CHECK(!s);
+    //  CHECK(!s);
   }
 };
 
@@ -203,7 +203,7 @@ struct Handler<::tvm::auto_scheduler::MeasureResultNode> {
     CHECK(s);
     reader->Read(&data->timestamp);
     s = reader->NextArrayItem();
-    CHECK(!s);
+    //  CHECK(!s);
   }
 };
 
@@ -280,8 +280,8 @@ bool RecordReaderNode::ReadNext(MeasureInputNode* inp, MeasureResultNode* res) {
       // skip comment lines begin with '#' or ' '
       continue;
     }
-    ReadMeasureRecord(cur_line_, inp, res, &log_version);
     LOG(WARNING) << cur_line_;
+    ReadMeasureRecord(cur_line_, inp, res, &log_version);
     return true;
   }
 
