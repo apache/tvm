@@ -857,6 +857,10 @@ class FuseMutator : private ExprMutator {
     if (call->op.as<OpNode>()) {
       static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
 
+      if(call->op == Op::Get("device_copy")) {
+        return ExprMutator::VisitExpr_(call);
+      }
+
       if (fnoncomputational.get(Downcast<Op>(call->op), false)) {
         return ExprMutator::VisitExpr_(call);
       }
