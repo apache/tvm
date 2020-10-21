@@ -814,4 +814,4 @@ def where_shape_func(attrs, inputs, _):
     else:
         out_shape = x_shape
 
-    return topi.math.identity(out_shape)
+    return [topi.math.identity(out_shape)]
