@@ -141,17 +141,17 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best("matmul.json", task.workload_key)
+# inp, res = auto_scheduler.load_best("matmul.json", task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
 print("Equivalent python schedule:")
-print(task.compute_dag.print_python_code_from_state(inp.state))
+# print(task.compute_dag.print_python_code_from_state(inp.state))
 
 # Rebuild the binary. This shows how you can apply the best schedule from a
 # log file without reruning the search again.
-sch, args = task.compute_dag.apply_steps_from_state(inp.state)
-func = tvm.build(sch, args)
+# sch, args = task.compute_dag.apply_steps_from_state(inp.state)
+# func = tvm.build(sch, args)
 
 ######################################################################
 # A more complicated example is to resume the search.
