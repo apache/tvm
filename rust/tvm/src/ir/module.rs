@@ -62,6 +62,8 @@ external! {
     #[name("parser.ParseExpr")]
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
     // Module methods
+    #[name("ir.Module_Add")]
+    fn module_add_def(module: IRModule, type_name: GlobalVar, expr: relay::Expr, update: bool) -> ();
     #[name("ir.Module_AddDef")]
     fn module_add_def(module: IRModule, type_name: GlobalTypeVar, type_data: TypeData, update: bool) -> ();
     #[name("ir.Module_GetGlobalVar")]
@@ -72,55 +74,28 @@ external! {
     fn module_lookup(module: IRModule, var: GlobalVar) -> BaseFunc;
     #[name("ir.Module_Lookup_str")]
     fn module_lookup_str(module: IRModule, name: TVMString) -> BaseFunc;
+    #[name("ir.Module_GetGlobalTypeVars")]
+    fn module_get_global_type_vars() -> Array<GlobalTypeVar>;
+    #[name("ir.Module_ContainGlobalVar")]
+    fn module_get_global_var(name: TVMString) -> bool;
+    #[name("ir.Module_ContainGlobalTypeVar")]
+    fn module_get_global_type_var(name: TVMString) -> bool;
+    #[name("ir.Module_LookupDef")]
+    fn module_lookup_def(module: IRModule, global: GlobalTypeVar) -> TypeDef;
+    #[name("ir.Module_LookupDef_str")]
+    fn module_lookup_def_str(module: IRModule, global: GlobalTypeVar) -> TypeDef;
+    #[name("ir.Module_LookupTag")]
+    fn module_lookup_tag(module: IRModule, tag: i32) -> Constructor;
+    #[name("ir.Module_FromExpr")]
+    fn module_from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> IRModule;
+    #[name("ir.Module_Import")]
+    fn module_import(module: IRModule, path: TVMString);
+    #[name("ir.Module_ImportFromStd")]
+    fn module_import_from_std(module: IRModule, path: TVMString);
 }
 
-// TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVars")
-//     .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVars);
+// Note: we don't expose update here as update is going to be removed.
 
-// TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar")
-//     .set_body_method<IRModule>(&IRModuleNode::ContainGlobalVar);
-
-// TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVar")
-//     .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVar);
-
-// TVM_REGISTER_GLOBAL("ir.Module_LookupDef").set_body_typed([](IRModule mod, GlobalTypeVar var) {
-//   return mod->LookupTypeDef(var);
-// });
-
-// TVM_REGISTER_GLOBAL("ir.Module_LookupDef_str").set_body_typed([](IRModule mod, String var) {
-//   return mod->LookupTypeDef(var);
-// });
-
-// TVM_REGISTER_GLOBAL("ir.Module_LookupTag").set_body_typed([](IRModule mod, int32_t tag) {
-//   return mod->LookupTag(tag);
-// });
-
-// TVM_REGISTER_GLOBAL("ir.Module_FromExpr")
-//     .set_body_typed([](RelayExpr e, tvm::Map<GlobalVar, BaseFunc> funcs,
-//                        tvm::Map<GlobalTypeVar, TypeData> type_defs) {
-//       return IRModule::FromExpr(e, funcs, type_defs);
-//     });
-
-// TVM_REGISTER_GLOBAL("ir.Module_Update").set_body_typed([](IRModule mod, IRModule from) {
-//   mod->Update(from);
-// });
-
-// TVM_REGISTER_GLOBAL("ir.Module_UpdateFunction")
-//     .set_body_typed([](IRModule mod, GlobalVar gv, BaseFunc func) { mod->Update(gv, func); });
-
-// TVM_REGISTER_GLOBAL("ir.Module_Import").set_body_typed([](IRModule mod, String path) {
-//   mod->Import(path);
-// });
-
-// TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd").set_body_typed([](IRModule mod, String path) {
-//   mod->ImportFromStd(path);
-// });
-
-// TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-//     .set_dispatch<IRModuleNode>([](const ObjectRef& ref, ReprPrinter* p) {
-//       auto* node = static_cast<const IRModuleNode*>(ref.get());
-//       p->stream << "IRModuleNode( " << node->functions << ")";
-//     });
 
 impl IRModule {
     pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>

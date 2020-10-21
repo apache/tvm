@@ -17,6 +17,7 @@
  * under the License.
  */
 use proc_macro2::Span;
+use proc_macro_error::abort;
 use quote::quote;
 use syn::parse::{Parse, ParseStream, Result};
 
@@ -109,7 +110,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             .iter()
             .map(|ty_param| match ty_param {
                 syn::GenericParam::Type(param) => param.clone(),
-                _ => panic!(),
+                _ => abort! { ty_param,
+                    "Only supports type parameters."
+                }
             })
             .collect();
 

@@ -35,6 +35,7 @@ pub fn macro_impl(input: TokenStream) -> TokenStream {
     TokenStream::from(object::macro_impl(input))
 }
 
+#[proc_macro_error]
 #[proc_macro]
 pub fn external(input: TokenStream) -> TokenStream {
     external::macro_impl(input)
