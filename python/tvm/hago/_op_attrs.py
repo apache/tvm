@@ -27,6 +27,7 @@ import math
 import functools
 import numpy as np
 import logging
+from .base import to_scalar
 
 RUNTIME_DEBUG = False
 
@@ -132,7 +133,7 @@ def check_overflow(data, in_dtype, output):
     if 'float' in in_dtype:
         # skip overflow check for float input dtype
         data.copyto(output)
-        return 
+        return
 
     if not allclose(arr, data.asnumpy(), rtol=1e-03, atol=1.0):
         logging.warning('overflow happens')
@@ -238,7 +239,7 @@ register_infer_scale("nn.dense", product_scale)
 
 def identity_scale(input_scales):
     input_scales = [scale.value for scale in input_scales]
-    scale0 = input_scales[0] 
+    scale0 = input_scales[0]
     for scale in input_scales:
         assert math.isclose(scale, scale, rel_tol=1e-6)
     return scale0
@@ -249,56 +250,14 @@ register_infer_scale("nn.softmax", identity_scale)
 register_infer_scale("layout_transform", identity_scale)
 register_infer_scale("nn.pad", identity_scale)
 register_infer_scale("nn.relu", identity_scale)
+register_infer_scale("clip", identity_scale)
 register_infer_scale("nn.max_pool2d", identity_scale)
 register_infer_scale("nn.avg_pool2d", identity_scale)
 register_infer_scale("nn.global_avg_pool2d", identity_scale)
 register_infer_scale("nn.adaptive_avg_pool2d", identity_scale)
 register_infer_scale("nn.batch_flatten", identity_scale)
 
-# threshold rectify function registered for ops
-
-def register_threshold_rectify(op_name, frectify=None, level=10):
-    return tvm.ir.register_op_attr(op_name, "FHagoRectify", frectify, level)
-
-@register_threshold_rectify("add")
-def unify_scale(input_bits, output_bits, input_thresholds, output_thresholds):
-    sign_bit = 1
-    # convert from tvm object to POD
-    ibits = [bit.value for bit in input_bits]
-    # FIXME - Uncommenting next line can cause failures when add is followed by a non-quantized op.
-    # Exmaple is add --> clip and model is MXNet mobilenetv2
-    # obits = [32 if bit is None else bit.value for bit in output_bits]
-    itholds = [thold.value for thold in input_thresholds]
-    otholds = [thold.value for thold in output_thresholds]
-
-    # choose scale of the one with max threshold
-    idx = np.argmax(itholds)
-    chosen_thold = itholds[idx]
-    chosen_bit = ibits[idx]
-    unified_scale = itholds[idx] / (2 ** (ibits[idx] - sign_bit))
-
-    print('  in bits   : {}'.format(ibits))
-    # print('  out bits  : {}'.format(obits))
-    print('  in tholds : {}'.format(', '.join(["{:.3f}".format(thold) for thold in itholds])))
-    print('  out tholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in otholds])))
-    print('  choose unifed scale {:.3e} for op add'.format(unified_scale))
-    new_tholds = []
-    for i, bit in enumerate(ibits):
-        # integer_range = 2 ** (bit - sign_bit) - 1
-        # thold = integer_range * unified_scale
-        thold = (2 ** (bit - chosen_bit)) * chosen_thold 
-        print('  rectify threshold from {} to {} for op add'.format(itholds[i], thold))
-        new_tholds.append(thold)
-    for thold in otholds:
-        new_tholds.append(thold)
-
-    print('  new tholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in new_tholds])))
-
-    return new_tholds
-
-
 # realize registration for ops
-
 def register_realize(op_name, frealize=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FHagoRealize", frealize, level)
 
@@ -332,3 +291,42 @@ def realize_conv2d(node, in_types, out_types):
     attrs_dict['out_dtype'] = DataType(out_types[0])
     attrs = tvm.ir.make_node("relay.attrs.Conv2DAttrs", **attrs_dict)
     return relay.Call(node.op, node.args, attrs, node.type_args)
+
+@register_realize("clip")
+def realize_clip(node, in_types, out_types):
+    data = node.args[0]
+    assert data.op.name == 'qnn.requantize'
+    scale, zero_point = data.args[3], data.args[4]
+    scale_val = to_scalar(scale)
+    zero_point_val = to_scalar(zero_point)
+    dtype = data.attrs.out_dtype
+
+    clip_min = node.attrs.a_min
+    clip_max = node.attrs.a_max
+
+    # Quantize a float value to an quantized integer value
+    quantize = lambda x: float(int(round(x / scale_val)) + zero_point_val)
+
+    # Get min/max of the output dtype. This will be used to ensure that clip a_min/a_max are not
+    # beyond the dtype range.
+    qmin = float(tvm.tir.op.min_value(dtype).value)
+    qmax = float(tvm.tir.op.max_value(dtype).value)
+    return relay.clip(data,
+                      a_min=max(qmin, quantize(clip_min)),
+                      a_max=min(qmax, quantize(clip_max)))
+
+def register_rectify_scale(op_name, frectify_scale=None, level=10):
+    return tvm.ir.register_op_attr(op_name, "FHagoRectifyScale", frectify_scale, level)
+
+@register_rectify_scale("add")
+def add_rectify_scale(args, old_in_scales, old_out_scales):
+    new_scale = old_out_scales[0] if old_out_scales[0] > old_out_scales[1] else old_out_scales[1]
+    return [new_scale, new_scale]
+
+def return_input_scale(args, old_in_scales, old_out_scales):
+    # Skip the requantize before relu
+    return [old_in_scales[0]]
+
+register_rectify_scale("nn.relu", return_input_scale)
+register_rectify_scale("clip", return_input_scale)
+

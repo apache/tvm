@@ -25,6 +25,7 @@ from .hardware import *
 from .topology import Topology
 
 import tvm
+from tvm.tir import expr
 import sys
 import math
 import numpy as np
@@ -98,7 +99,7 @@ def select_desc(graph, hardware, topology, bits):
             print('  {0}'.format(desc))
             descs[node2idx[node]] = desc
     relay.analysis.post_order_visit(graph, fvisit)
-    return descs  
+    return descs
 
 
 def infer_quantized_dtypes(topology, constraints):
@@ -139,7 +140,7 @@ def infer_quantized_dtypes(topology, constraints):
                     eidx = edge2idx[edge]
                     assign_dtype(req_dtypes, eidx, dtype)
     relay.analysis.post_order_visit(topology.graph, fvisit)
-    return prov_dtypes, req_dtypes 
+    return prov_dtypes, req_dtypes
 
 
 class CalibrationDataset(object):
@@ -203,7 +204,7 @@ class Simulator(tvm.relay.ExprMutator):
         """compile simulated model and run it on the dataset"""
         # prepare parameters
         internal_params, output_params = self.calculate_params(bits, thresholds)
-        param_map = {} 
+        param_map = {}
         for nodes, p in zip(self.internal_param_nodes, internal_params):
             vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
             for node, val in zip(nodes, vals):
@@ -313,7 +314,7 @@ class Simulator(tvm.relay.ExprMutator):
                 assert isinstance(out_scale_node, relay.Var)
                 oshape = out_scale_node.type_annotation.shape
                 if oshape != ():
-                    in_scale_shape = oshape 
+                    in_scale_shape = oshape
 
         in_scale = relay.var('in_scale' + str(self._name_cnt), shape=in_scale_shape)
         out_scale = relay.var('out_scale' + str(self._name_cnt), 'float32')
@@ -345,7 +346,7 @@ class Simulator(tvm.relay.ExprMutator):
         """calculate parameters of simulated quantize op from bits and thresholds"""
         graph, topology, constraints = self.graph, self.topology, self.constraints
         sign_bit = 1
-        edge2idx  = self._edge2idx 
+        edge2idx  = self._edge2idx
         node2idx  = self._node2idx
         assert len(thresholds) == len(node2idx)
         edge2bit = topology.build_edge_info(bits)
@@ -375,7 +376,7 @@ class Simulator(tvm.relay.ExprMutator):
             else:
                 # per channel scales
                 assert len(input_scales) == 2
-                lhs, rhs = input_scales 
+                lhs, rhs = input_scales
                 # support conv2d now, so only do scale multiplication
                 scale = lhs * rhs
             return scale
@@ -383,6 +384,40 @@ class Simulator(tvm.relay.ExprMutator):
         print('\ncalculate parameters')
         def fvisit(node):
             if isinstance(node, relay.Call):
+                in_scales = list()
+                in_dtypes = list()
+                out_dtypes = list()
+                out_scales = list()
+                for edge in list_in_edges(node):
+                    src, _ = edge
+                    eidx = edge2idx[edge]
+                    in_scales.append(infer_scale_for_node(src))
+                    in_dtypes.append(prov_dtypes[node2idx[src]])
+                    out_dtypes.append(req_dtypes[eidx])
+                    if 'float' in str(req_dtypes[eidx]):
+                        out_scale = 1.0
+                    else:
+                        bit = edge2bit[(src, node)]
+                        integer_range = 2 ** (bit - sign_bit)
+                        thold = thresholds[node2idx[src]]
+                        out_scale = thold / integer_range
+                    out_scales.append(out_scale)
+
+                rectified_output_scales = None
+                frectify_scale = node.op.get_attr('FHagoRectifyScale')
+                if frectify_scale:
+                    new_output_scales = frectify_scale(node.args,
+                                                       in_scales,
+                                                       out_scales)
+                    rectified_output_scales = list()
+                    for idx, scale in enumerate(new_output_scales):
+                        if isinstance(scale, expr.FloatImm):
+                            rectified_output_scales.append(scale.value)
+                        else:
+                            raise NotImplementedError()
+
+
+                arg_idx = 0
                 for edge in list_in_edges(node):
                     src, _ = edge
                     eidx = edge2idx[edge]
@@ -401,8 +436,11 @@ class Simulator(tvm.relay.ExprMutator):
                     else:
                         bit = edge2bit[(src, node)]
                         integer_range = 2 ** (bit - sign_bit)
-                        thold = thresholds[node2idx[src]]
-                        out_scale = thold / integer_range 
+                        if rectified_output_scales is not None:
+                            out_scale = rectified_output_scales[arg_idx]
+                        else:
+                            thold = thresholds[node2idx[src]]
+                            out_scale = thold / integer_range
                         clip_min = - (integer_range - 1)
                         clip_max =    integer_range - 1
                         print('  bit={}, threshold={}'.format(bit, thold))
@@ -412,10 +450,11 @@ class Simulator(tvm.relay.ExprMutator):
                                                     in_dtype, out_dtype)
                     print('  {}'.format(param))
                     internal_params.append(param)
+                    arg_idx += 1
                 return
             if isinstance(node, relay.Function):
-                # handle output of function 
-                assert isinstance(node.body, relay.Call) 
+                # handle output of function
+                assert isinstance(node.body, relay.Call)
                 node = node.body
                 print('---------')
                 print("{} -> OUT".format(node_str(node, node2idx)))
@@ -445,7 +484,7 @@ class Simulator(tvm.relay.ExprMutator):
     def bind_simulated_graph(self, bits, thresholds):
         # prepare parameters
         internal_params, output_params = self.calculate_params(bits, thresholds)
-        param_map = {} 
+        param_map = {}
         for nodes, p in zip(self.internal_param_nodes, internal_params):
             vals = [p.in_scale, p.out_scale, p.clip_min, p.clip_max]
             for node, val in zip(nodes, vals):
@@ -482,7 +521,7 @@ class Realizer(tvm.relay.ExprMutator):
         cstr = self._constraints[nidx]
         frealize = node.op.get_attr("FHagoRealize")
         if frealize and cstr is not None:
-            in_dtypes = [str(cstr.in_dtype(i)) for i in range(node.op.num_inputs)] 
+            in_dtypes = [str(cstr.in_dtype(i)) for i in range(node.op.num_inputs)]
             out_dtypes = [str(cstr.out_dtype(0))]
             new_node = frealize(new_node, in_dtypes, out_dtypes)
         return new_node
@@ -498,7 +537,7 @@ class Realizer(tvm.relay.ExprMutator):
         out_dtype = attrs.out_dtype
         print('  in_scale: {}'.format(in_scale))
         print('  out_scale: {}'.format(out_scale))
-    
+
         if in_dtype == 'float32' and out_dtype == 'float32':
             # do nothing
             return data
@@ -517,10 +556,6 @@ class Realizer(tvm.relay.ExprMutator):
             print('  clip max: {}'.format(clip_max))
             data = relay.clip(data, clip_min, clip_max)
             data = relay.cast(data, out_dtype)
-            return data
-        elif in_scale == out_scale and in_dtype == out_dtype:
-            # do nothing
-            # TODO(ziheng) whether to clip?
             return data
         else:
             # requantize
@@ -552,10 +587,10 @@ class Realizer(tvm.relay.ExprMutator):
 
         def use_shift(in_val, out_val):
             # whether to use shift, consider floating point numeric error
-            in_cond, in_exp = exponent_based_two(in_val) 
-            out_cond, out_exp = exponent_based_two(out_val) 
+            in_cond, in_exp = exponent_based_two(in_val)
+            out_cond, out_exp = exponent_based_two(out_val)
             if in_cond and out_cond:
-                return True, in_exp - out_exp 
+                return True, in_exp - out_exp
             return exponent_based_two(in_val / out_val)
 
         factor = in_scale / out_scale
@@ -588,7 +623,7 @@ class Realizer(tvm.relay.ExprMutator):
             raise ValueError
         return out
 
-    
+
 class Quantizer(object):
     def __init__(self, graph, hardware, topology, bits, thresholds):
         self.original_graph = graph

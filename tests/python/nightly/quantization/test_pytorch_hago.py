@@ -14,7 +14,7 @@ import mxnet as mx
 from tvm import hago
 from mxnet import gluon
 
-from common_hago import *
+from common_utils import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", default="resnet50_v1", help="model to quantize")

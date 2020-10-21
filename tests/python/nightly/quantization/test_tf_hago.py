@@ -9,7 +9,7 @@ import mxnet as mx
 from tvm import hago
 from mxnet import gluon
 
-from common_hago import *
+from common_utils import *
 
 try:
   # %tensorflow_version only exists in Colab.

@@ -148,6 +148,7 @@ def create_accelerator_description():
     hardware.add_op_desc('concatenate', OpDesc(in_dtypes='float32', out_dtypes='float32'))
 
     hardware.add_op_desc('nn.relu', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    hardware.add_op_desc('clip', OpDesc(in_dtypes='int32', out_dtypes='int32'))
     hardware.add_op_desc('nn.avg_pool2d', OpDesc(in_dtypes='float32', out_dtypes='float32'))
     # hardware.add_op_desc('nn.avg_pool2d', OpDesc(in_dtypes='int32', out_dtypes='int32'))
     hardware.add_op_desc('nn.max_pool2d', OpDesc(in_dtypes='int32', out_dtypes='int32'))

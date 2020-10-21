@@ -60,7 +60,7 @@ def threshold_rectify(graph, topology, bits, thresholds):
     return thresholds
 
 
-def threshold_estimate(graph, topology, stats, bits=None, rectify=True):
+def threshold_estimate(graph, topology, stats, bits=None):
     print('calculating threshold...')
     cfg = current_qconfig()
     print('threshold method:')
@@ -84,9 +84,5 @@ def threshold_estimate(graph, topology, stats, bits=None, rectify=True):
     else:
         raise ValueError
 
-    print('before rectify, thresholds: {}'.format(thresholds))
-    if rectify:
-        assert bits is not None
-        thresholds = threshold_rectify(graph, topology, bits, thresholds)
-    print('after rectify, thresholds: {}'.format(thresholds))
+    print('thresholds: {}'.format(thresholds))
     return thresholds

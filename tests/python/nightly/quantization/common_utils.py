@@ -68,8 +68,7 @@ def eval_acc(func, dataset, batch_fn, args, var_name, target='cuda', ctx=tvm.gpu
 # Quantize helper
 #################
 def quantize_hago(mod, params, calib_dataset):
-    qconfig = hago.qconfig(skip_conv_layers=[0],
-                           log_file='temp.log')
+    qconfig = hago.qconfig(log_file='temp.log')
 
     with qconfig:
         graph = hago.prerequisite_optimize(mod['main'], params=params)
