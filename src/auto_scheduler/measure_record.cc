@@ -50,9 +50,9 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Stage>> {
   }
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::Array<::tvm::auto_scheduler::Stage>* data) {
-    bool s;
+    //  bool s;
     reader->BeginArray();
-    s = reader->NextArrayItem();
+    reader->NextArrayItem();
     //  CHECK(!s);
   }
 };
@@ -73,13 +73,12 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
 
   inline static void Read(dmlc::JSONReader* reader,
                           ::tvm::Array<::tvm::auto_scheduler::Step>* data) {
-    bool s;
     reader->BeginArray();
     data->clear();
     while (reader->NextArrayItem()) {
       reader->BeginArray();
       data->push_back(::tvm::auto_scheduler::StepReadFromRecord(reader));
-      s = reader->NextArrayItem();
+      bool s = reader->NextArrayItem();
       //  CHECK(!s);
     }
   }
