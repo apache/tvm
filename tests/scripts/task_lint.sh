@@ -26,7 +26,6 @@ cleanup()
 }
 trap cleanup 0
 
-
 echo "Checking file types..."
 python3 tests/lint/check_file_type.py
 
