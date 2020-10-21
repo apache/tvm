@@ -78,7 +78,7 @@ struct Handler<::tvm::Array<::tvm::auto_scheduler::Step>> {
     while (reader->NextArrayItem()) {
       reader->BeginArray();
       data->push_back(::tvm::auto_scheduler::StepReadFromRecord(reader));
-      bool s = reader->NextArrayItem();
+      reader->NextArrayItem();
       //  CHECK(!s);
     }
   }
