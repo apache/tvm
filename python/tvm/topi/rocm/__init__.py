@@ -20,6 +20,7 @@
 from __future__ import absolute_import as _abs
 
 from .batch_matmul import *
+from .batch_matmul_mfma import *
 from .conv2d import *
 from .dense import *
 from .dense_mfma import *

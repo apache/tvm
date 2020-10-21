@@ -22,7 +22,7 @@ from tvm import te
 
 def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, strides_dst=None):
     M, N, K = shape
-    if matrix in ("A", "W"):
+    if matrix in ("A", "BT", "W"):
         row, col = M, K
     elif matrix == "B":
         row, col = K, N
@@ -53,7 +53,7 @@ def intrin_mfma_load_matrix(shape, matrix, thread=None, strides_src=None, stride
         blk_td = tx % 16
         offset = tx // 16
         # TODO(csullivan): Using offset works, but using tx directly does not, fix this
-        if matrix in ("A", "W"):
+        if matrix in ("A", "BT", "W"):
             for blk_id in range(0,4):
                 ib.emit(BC.vstore([0, blk_id], BA.vload([blk_td, blk_id*4 + offset], "float16")))
         elif matrix == "B":

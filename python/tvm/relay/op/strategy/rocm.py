@@ -226,6 +226,17 @@ def batch_matmul_strategy_rocm(attrs, inputs, out_type, target):
         name="batch_matmul.cuda",
         plevel=10,
     )
+    if rocm.support_mfma(tvm.rocm(0)):
+        A, B = inputs
+        _, M, K = get_const_tuple(A.shape)
+        _, _, N = get_const_tuple(B.shape)
+        if (M % 16 == 0 and N % 16 == 0 and K % 16 == 0):
+            strategy.add_implementation(
+                wrap_compute_batch_matmul(topi.rocm.batch_matmul_mfma),
+                wrap_topi_schedule(topi.rocm.schedule_batch_matmul_mfma),
+                name="batch_matmul_mfma.rocm",
+                plevel=20,
+            )
     if target.kind.name == "rocm" and "rocblas" in target.libs:
         assert out_type.dtype == inputs[0].dtype, "Mixed precision not supported."
         strategy.add_implementation(
