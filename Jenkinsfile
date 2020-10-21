@@ -158,7 +158,148 @@ def unpack_lib(name, libs) {
      """
 }
 
+stage('Build') {
+  parallel 'BUILD: GPU': {
+    node('GPUBUILD') {
+      ws(per_exec_ws("tvm/build-gpu")) {
+        init_git()
+        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
+        make(ci_gpu, 'build', '-j2')
+        pack_lib('gpu', tvm_multilib)
+        // compiler test
+        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
+        make(ci_gpu, 'build2', '-j2')
+      }
+    }
+  },
+  'BUILD: CPU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-cpu")) {
+        init_git()
+        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+        make(ci_cpu, 'build', '-j2')
+        pack_lib('cpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+        }
+      }
+    }
+    },
+  'BUILD: WASM': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-wasm")) {
+        init_git()
+        sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
+        make(ci_wasm, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh"
+        }
+      }
+    }
+  },
+  'BUILD : i386': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-i386")) {
+        init_git()
+        sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
+        make(ci_i386, 'build', '-j2')
+        pack_lib('i386', tvm_multilib)
+      }
+    }
+  },
+  'BUILD: QEMU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/build-qemu")) {
+        init_git()
+        sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+        make(ci_qemu, 'build', '-j2')
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+        }
+      }
+    }
+  }
+}
+
+stage('Unit Test') {
+  parallel 'python3: GPU': {
+    node('TensorCore') {
+      ws(per_exec_ws("tvm/ut-python-gpu")) {
+        init_git()
+        unpack_lib('gpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+        }
+      }
+    }
+  },
+  'python3: i386': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/ut-python-i386")) {
+        init_git()
+        unpack_lib('i386', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
+        }
+      }
+    }
+  },
+  'java: GPU': {
+    node('GPU') {
+      ws(per_exec_ws("tvm/ut-java")) {
+        init_git()
+        unpack_lib('gpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh"
+        }
+      }
+    }
+  }
+}
+
 stage('Integration Test') {
+  parallel 'topi: GPU': {
+    node('GPU') {
+      ws(per_exec_ws("tvm/topi-python-gpu")) {
+        init_git()
+        unpack_lib('gpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh"
+        }
+      }
+    }
+  },
+  'frontend: GPU': {
+    node('GPU') {
+      ws(per_exec_ws("tvm/frontend-python-gpu")) {
+        init_git()
+        unpack_lib('gpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
+        }
+      }
+    }
+  },
+  'frontend: CPU': {
+    node('CPU') {
+      ws(per_exec_ws("tvm/frontend-python-cpu")) {
+        init_git()
+        unpack_lib('cpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
+        }
+      }
+    }
+  },
   'docs: GPU': {
     node('TensorCore') {
       ws(per_exec_ws("tvm/docs-python-gpu")) {
@@ -191,3 +332,14 @@ stage('Build packages') {
 }
 */
 
+stage('Deploy') {
+    node('doc') {
+      ws(per_exec_ws("tvm/deploy-docs")) {
+        if (env.BRANCH_NAME == "main") {
+           unpack_lib('mydocs', 'docs.tgz')
+           sh "cp docs.tgz /var/docs/docs.tgz"
+           sh "tar xf docs.tgz -C /var/docs"
+        }
+      }
+    }
+}
