@@ -32,6 +32,8 @@ find a good schedule in the space.
 We use a convolution layer as an example in this tutorial.
 """
 
+import tempfile
+
 import numpy as np
 import tvm
 from tvm import te, auto_scheduler, topi
@@ -82,17 +84,19 @@ print(task.compute_dag)
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use :code:`RecordToFile` to dump measurement records into a file `conv2d.json`.
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a file.
+#   Note that here we use a temporarty file for demonstraction, but in practice you should use
+#   a more maintainable file name such as `conv2d.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
 # * see :any:`auto_scheduler.TuningOptions`,
 #   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
-
+logfile = tempfile.NamedTemporaryFile(prefix="conv2d", suffix=".json")
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile("conv2d.json")],
+    measure_callbacks=[auto_scheduler.RecordToFile(logfile.name)],
 )
 
 ######################################################################
@@ -149,7 +153,7 @@ print(
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
 # During the search, all measuremnt records are dumpped into the record
-# file "conv2d.json". The measurement records can be used to re-apply search results,
+# file. The measurement records can be used to re-apply search results,
 # resume the search, and perform other analyses.
 
 ######################################################################
@@ -157,17 +161,17 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-# inp, res = auto_scheduler.load_best("conv2d.json", task.workload_key)
+inp, res = auto_scheduler.load_best(logfile.name, task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
 print("Equivalent python schedule:")
-# print(task.compute_dag.print_python_code_from_state(inp.state))
+print(task.compute_dag.print_python_code_from_state(inp.state))
 
 # Rebuild the binary. This shows how you can apply the best schedule from a
 # log file without reruning the search again.
-# sch, args = task.compute_dag.apply_steps_from_state(inp.state)
-# func = tvm.build(sch, args, target)
+sch, args = task.compute_dag.apply_steps_from_state(inp.state)
+func = tvm.build(sch, args, target)
 
 ######################################################################
 # A more complicated example is to resume the search.
@@ -176,19 +180,18 @@ print("Equivalent python schedule:")
 # In the example below we resume the status and do more 5 trials.
 
 
-# log_file = "conv2d.json"
-# cost_model = auto_scheduler.XGBModel()
-# cost_model.update_from_file(log_file)
-# search_policy = auto_scheduler.SketchPolicy(
-#     task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
-# )
-# measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
-# tune_option = auto_scheduler.TuningOptions(
-#     num_measure_trials=5,
-#     runner=measure_ctx.runner,
-#     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-# )
-# sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
+cost_model = auto_scheduler.XGBModel()
+cost_model.update_from_file(logfile.name)
+search_policy = auto_scheduler.SketchPolicy(
+    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(logfile.name)]
+)
+measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
+tune_option = auto_scheduler.TuningOptions(
+    num_measure_trials=5,
+    runner=measure_ctx.runner,
+    measure_callbacks=[auto_scheduler.RecordToFile(logfile.name)],
+)
+sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
 # Kill the measurement process
 # del measure_ctx
