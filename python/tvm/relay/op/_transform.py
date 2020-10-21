@@ -806,4 +806,12 @@ def stack_shape_func(attrs, inputs, _):
 
 @_reg.register_shape_func("where", False)
 def where_shape_func(attrs, inputs, _):
-    return [topi.math.identity(inputs[1])]
+    cond_shape = inputs[0]
+    x_shape = inputs[1]
+
+    if len(x_shape.shape) == 0:
+        out_shape = cond_shape
+    else:
+        out_shape = x_shape
+
+    return topi.math.identity(out_shape)

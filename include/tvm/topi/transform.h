@@ -896,7 +896,16 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
   if (x->shape.size() == 0) {
     return compute(
         condition->shape,
-        [&](const Array<Var>& indices) { return tvm::tir::Select(condition() != 0, x(), y()); },
+        [&](const Array<Var>& indices) {
+          PrimExpr cond;
+          if (condition->shape.size() == 0) {
+            cond = condition();
+          } else {
+            Array<PrimExpr> condition_idx{indices[0]};
+            cond = condition(condition_idx);
+          }
+          return tvm::tir::Select(cond != 0, x(), y());
+        },
         name, tag);
   } else if (condition->shape.size() != 1) {
     CHECK_EQ(condition->shape.size(), x->shape.size())
