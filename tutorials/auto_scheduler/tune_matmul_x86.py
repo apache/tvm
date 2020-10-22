@@ -28,7 +28,8 @@ find a good schedule in the space.
 
 We use matrix multiplication as an example in this tutorial.
 """
-import tempfile
+
+import os
 
 import numpy as np
 import tvm
@@ -76,16 +77,17 @@ print(task.compute_dag)
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
-# * In addition, we use :code:`RecordToFile` to dump measurement records into a file.
-#   Note that here we use a temporarty file for demonstraction, but in practice you should use
-#   a more maintainable file name such as `matmul.json`.
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a file `matmul.json`.
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
 # * see :any:`auto_scheduler.TuningOptions` for more parameters
 
-logfile = tempfile.NamedTemporaryFile(prefix="matmul", suffix=".json")
+if not os.path.exists("./auto_scheduler_logs"):
+    os.mkdir("./auto_scheduler_logs")
+
+logfile = os.path.join("./auto_scheduler_logs", "matmul.json")
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile(logfile.name)]
+    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile(logfile)]
 )
 
 ######################################################################
@@ -145,7 +147,7 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best(logfile.name, task.workload_key)
+inp, res = auto_scheduler.load_best(logfile, task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
@@ -176,7 +178,7 @@ def resume_search(task, logfile_name):
     sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
 
-# resume_search(task, logfile.name)
+# resume_search(task, logfile)
 
 ######################################################################
 # .. note::
