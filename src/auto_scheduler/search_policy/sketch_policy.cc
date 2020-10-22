@@ -427,6 +427,9 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
           fail_ct++;
         }
       }
+    }
+
+    if (iter % 5 == 0) {
       double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
                             std::chrono::high_resolution_clock::now() - tic_begin)
                             .count();
@@ -439,7 +442,11 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     if (unchange_cnt == 5) {
       // Reduce the target size to avoid too-long time in this phase if no valid state was found
       // in the past iterations
-      target_size = (target_size > 1) ? target_size / 2 : target_size;
+      if (target_size > 1) {
+        target_size /= 2;
+        StdCout(verbose) << "#Target has been reduced to " << target_size
+                         << " due to too many failures";
+      }
       unchange_cnt = 0;
     }
     iter++;
