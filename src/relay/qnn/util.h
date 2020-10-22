@@ -136,6 +136,13 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
  */
 Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
                                  const Array<IndexExpr>& input_shape);
+/*
+ * \brief Mutiply an integer datatype tensor by a power of two.
+ * \param tensor The quantized input tensor of dtype int32.
+ * \param exp The exp or the power of 2 representing the number to be multiplied.
+ * \return The sequence of Relay ops for power of two multiplication.
+ */
+Expr PowerOfTwoMultiply(Expr tensor, int32_t exp);
 
 /*
  * \brief Fixed point multiplication between integer tensor with floating point
