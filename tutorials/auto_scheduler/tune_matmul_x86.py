@@ -139,7 +139,7 @@ print(
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
 # During the search, all measuremnt records are dumpped into the record
-# file. The measurement records can be used to re-apply search results,
+# file "matmul.json". The measurement records can be used to re-apply search results,
 # resume the search, and perform other analyses.
 
 ######################################################################
