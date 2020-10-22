@@ -475,7 +475,9 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
   llvm::Constant* undef = llvm::UndefValue::get(type);
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
-#if TVM_LLVM_VERSION >= 110
+#if TVM_LLVM_VERSION >= 120
+  llvm::Constant* mask = llvm::ConstantVector::getSplat(llvm::ElementCount::getFixed(lanes), zero);
+#elif TVM_LLVM_VERSION >= 110
   llvm::Constant* mask =
       llvm::ConstantVector::getSplat(llvm::ElementCount(lanes, /*Scalable=*/false), zero);
 #else
