@@ -14,17 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script Scope Emitter for TIR"""
+"""TVM Script Context Maintainer for TIR"""
 
 from tvm.te import schedule
 
 
-class ScopeEmitter:
-    """Maintain the nodes and symbols of scopes"""
+class ContextMaintainer:
+    """Maintain all the necessary context info"""
 
     def __init__(self, parser):
-        self.node_stack = [[]]  # AST nodes of scopes
-        self.symbols = [dict()]  # Symbols of scopes
+        # scope context
+        self.node_stack = []  # AST nodes of scopes
+        self.symbols = []  # symbols of scopes
+        # function context
+        self.func_params = []  # parameter list of function
+        self.func_buffer_map = {}  # buffer_map of function
+        self.func_dict_attr = {}  # func_attr of function
+        self.func_var_env_dict = {}  # map from var to env_name
+        # parser
         self.parser = parser
 
     def pop_scope(self):
@@ -32,9 +39,11 @@ class ScopeEmitter:
         self.symbols.pop()
         self.node_stack.pop()
 
-    def new_scope(self):
-        """ Creating a new scope """
-        self.node_stack.append([])
+    def new_scope(self, nodes=None):
+        """Creating a new scope"""
+        if nodes is None:
+            nodes = []
+        self.node_stack.append(list(reversed(nodes)))
         self.symbols.append(dict())
 
     def update_symbol(self, name, symbol):
@@ -60,3 +69,6 @@ class ScopeEmitter:
             if name in symbols:
                 return symbols[name]
         return None
+
+    def report_error(self, message):
+        self.parser.report_error(message)

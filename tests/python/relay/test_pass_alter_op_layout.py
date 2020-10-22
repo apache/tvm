@@ -673,6 +673,45 @@ def test_alter_layout_nchw_upsamping_op():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_alter_layout_nchw_dyn_upsamping_op():
+    """Test upsamping operators """
+
+    def before():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var("weight", shape=(32, 32, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.nn.upsampling(y, scale_h=relay.const(2), scale_w=relay.const(2))
+        y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2))
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW16c"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var("weight")
+        x = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(
+            x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1), data_layout="NCHW16c"
+        )
+        y = relay.nn.upsampling(y, scale_h=relay.const(2), scale_w=relay.const(2), layout="NCHW16c")
+        y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2), layout="NCHW16c")
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 @tvm.testing.uses_gpu
 def test_alter_layout_strided_slice():
     """Test rewriting strided_slice during alter_iop_layout"""

@@ -32,6 +32,8 @@ find a good schedule in the space.
 We use a convolution layer as an example in this tutorial.
 """
 
+import os
+
 import numpy as np
 import tvm
 from tvm import te, auto_scheduler, topi
@@ -88,11 +90,15 @@ print(task.compute_dag)
 # * see :any:`auto_scheduler.TuningOptions`,
 #   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
 
+if not os.path.exists("./auto_scheduler_logs"):
+    os.mkdir("./auto_scheduler_logs")
+
+logfile = os.path.join("./auto_scheduler_logs", "conv2d.json")
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile("conv2d.json")],
+    measure_callbacks=[auto_scheduler.RecordToFile(logfile)],
 )
 
 ######################################################################
@@ -157,7 +163,7 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best("conv2d.json", task.workload_key)
+inp, res = auto_scheduler.load_best(logfile, task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
@@ -176,17 +182,16 @@ func = tvm.build(sch, args, target)
 # In the example below we resume the status and do more 5 trials.
 
 
-log_file = "conv2d.json"
 cost_model = auto_scheduler.XGBModel()
-cost_model.update_from_file(log_file)
+cost_model.update_from_file(logfile)
 search_policy = auto_scheduler.SketchPolicy(
-    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
+    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(logfile)]
 )
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=5,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    measure_callbacks=[auto_scheduler.RecordToFile(logfile)],
 )
 sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 

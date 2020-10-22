@@ -23,14 +23,15 @@ a wrapper for uniform Type system in IR
 import tvm
 
 
-class TypeGeneric:
+class TypeGeneric:  # pylint: disable=too-few-public-methods
     """Base class for all the TVM script typing class"""
 
     def evaluate(self):
+        """Return an actual ir.Type Object that this Generic class wraps"""
         raise TypeError("Cannot get tvm.Type from a generic type")
 
 
-class ConcreteType(TypeGeneric):
+class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods
     """TVM script typing class for uniform Type objects"""
 
     def __init__(self, vtype):
