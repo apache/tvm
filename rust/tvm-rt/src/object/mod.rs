@@ -88,7 +88,7 @@ pub trait IsObjectRef:
 
 external! {
     #[name("ir.DebugPrint")]
-    fn debug_print(object: ObjectRef) -> CString;
+    pub fn debug_print(object: ObjectRef) -> CString;
     #[name("node.StructuralHash")]
     fn structural_hash(object: ObjectRef, map_free_vars: bool) -> ObjectRef;
     #[name("node.StructuralEqual")]

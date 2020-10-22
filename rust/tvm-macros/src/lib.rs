@@ -18,6 +18,7 @@
  */
 
 use proc_macro::TokenStream;
+use proc_macro_error::proc_macro_error;
 
 mod external;
 mod import_module;

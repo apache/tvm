@@ -21,6 +21,9 @@ use std::path::Path;
 use thiserror::Error;
 use tvm_macros::Object;
 
+use std::io::Result as IOResult;
+use std::path::Path;
+
 use crate::runtime::array::Array;
 use crate::runtime::function::Result;
 use crate::runtime::map::Map;
@@ -30,10 +33,9 @@ use crate::runtime::{external, Object, ObjectRef};
 use super::expr::GlobalVar;
 use super::function::BaseFunc;
 use super::source_map::SourceMap;
+use super::{ty::GlobalTypeVar, relay};
 
-// TODO(@jroesch): define type
 type TypeData = ObjectRef;
-type GlobalTypeVar = ObjectRef;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -63,7 +65,7 @@ external! {
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
     // Module methods
     #[name("ir.Module_Add")]
-    fn module_add_def(module: IRModule, type_name: GlobalVar, expr: relay::Expr, update: bool) -> ();
+    fn module_add(module: IRModule, type_name: GlobalVar, expr: relay::Expr, update: bool) -> ();
     #[name("ir.Module_AddDef")]
     fn module_add_def(module: IRModule, type_name: GlobalTypeVar, type_data: TypeData, update: bool) -> ();
     #[name("ir.Module_GetGlobalVar")]
@@ -77,15 +79,15 @@ external! {
     #[name("ir.Module_GetGlobalTypeVars")]
     fn module_get_global_type_vars() -> Array<GlobalTypeVar>;
     #[name("ir.Module_ContainGlobalVar")]
-    fn module_get_global_var(name: TVMString) -> bool;
+    fn module_contains_global_var(name: TVMString) -> bool;
     #[name("ir.Module_ContainGlobalTypeVar")]
-    fn module_get_global_type_var(name: TVMString) -> bool;
+    fn module_contains_global_type_var(name: TVMString) -> bool;
     #[name("ir.Module_LookupDef")]
     fn module_lookup_def(module: IRModule, global: GlobalTypeVar) -> TypeDef;
     #[name("ir.Module_LookupDef_str")]
     fn module_lookup_def_str(module: IRModule, global: GlobalTypeVar) -> TypeDef;
     #[name("ir.Module_LookupTag")]
-    fn module_lookup_tag(module: IRModule, tag: i32) -> Constructor;
+    fn module_lookup_tag(module: IRModule, tag: i32) -> relay::Constructor;
     #[name("ir.Module_FromExpr")]
     fn module_from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> IRModule;
     #[name("ir.Module_Import")]
@@ -143,4 +145,10 @@ impl IRModule {
     {
         module_lookup_str(self.clone(), name.into())
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // #[test]
+    // fn
 }
