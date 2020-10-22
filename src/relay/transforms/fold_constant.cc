@@ -152,7 +152,7 @@ class ConstantFolder : public MixedModeMutator {
 
     // We should think about potentially constant evaluation over these ops too.
     static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
-    if (auto call_node = call->op.as<OpNode>()) {
+    if (const auto* call_node = call->op.as<OpNode>()) {
       Op op = GetRef<Op>(call_node);
       if ((fnoncomputational.count(op) && fnoncomputational[op]) || (call->op == device_copy_op_)) {
         return GetRef<Call>(call);
