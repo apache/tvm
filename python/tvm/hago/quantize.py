@@ -62,7 +62,7 @@ def select_desc(graph, hardware, topology, bits):
     def select(node, in_bits, hardware):
         # assume descriptors have been sorted
         # need to handle None
-        for desc in hardware.list_integer_descs(node.op):
+        for desc in hardware.list_integer_descs(node):
             selected = True
             in_dtypes = desc.in_dtypes
             if not isinstance(in_dtypes, list):

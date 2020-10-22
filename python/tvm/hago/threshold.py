@@ -60,6 +60,10 @@ def threshold_rectify(graph, topology, bits, thresholds):
     return thresholds
 
 
+def _round2pot(x):
+    pot = 2**np.math.ceil(np.math.log(x, 2)) if x > 0 else 1.0
+    return pot
+
 def threshold_estimate(graph, topology, stats, bits=None):
     print('calculating threshold...')
     cfg = current_qconfig()
@@ -69,8 +73,6 @@ def threshold_estimate(graph, topology, stats, bits=None):
         thresholds = [cfg.global_scale for _ in exprs]
     elif cfg.threshold_estimate_method == 'avg_range':
         thresholds = stats.avg_range
-    elif cfg.threshold_estimate_method == 'pot_range':
-        thresholds = stats.pot_range
     elif cfg.threshold_estimate_method == 'kl_estimate':
         thresholds = []
         for idx in range(len(stats.data)):
@@ -85,4 +87,7 @@ def threshold_estimate(graph, topology, stats, bits=None):
         raise ValueError
 
     print('thresholds: {}'.format(thresholds))
+    if cfg.round_scale_to_pot:
+        thresholds = [_round2pot(x) for x in thresholds]
+
     return thresholds

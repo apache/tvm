@@ -13,7 +13,7 @@ from common_utils import *
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model", default="resnet50_v1", help="model to quantize")
+parser.add_argument("--model", default="resnet18_v1", help="model to quantize")
 parser.add_argument("--soundness_check", default=False, action='store_true')
 parser.add_argument("--skip_fp32", default=False, action='store_true')
 parser.add_argument("--run_all", default=False, action='store_true')
@@ -67,7 +67,8 @@ def get_model(model_name):
     return mod, params
 
 def main():
-    val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
+    # val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
+    val_path = "~/datasets1/imagenet/rec/val.rec"
     if args.run_all:
         models = ['resnet50_v1', 'inceptionv3', 'mobilenetv2_1.0', 'mobilenet1.0', 'resnet18_v1',
                   'densenet161', 'vgg16']
@@ -86,7 +87,9 @@ def main():
         # Quantize
         calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name='data')
         fp32_mod, params = get_model(model_name)
-        quantized_func = quantize_hago(fp32_mod, params, calib_dataset)
+        qconfig = hago.qconfig(round_scale_to_pot=True,
+                               log_file='temp.log')
+        quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig)
         acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name='data', target=target, ctx=ctx)
         print("quantized_accuracy", model_name, acc, sep=',')
 

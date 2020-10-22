@@ -56,10 +56,6 @@ class Stats(object):
     def data(self, idx):
         return self.data[idx]
 
-    def _round2pot(self, x):
-        pot = 2**np.math.ceil(np.math.log(x, 2)) if x > 0 else 1.0
-        return pot
-
     def _calculate_avg_range(self, arr):
         num_samples = arr.shape[0]
         arr = np.reshape(arr, (num_samples, -1))
@@ -92,12 +88,6 @@ class Stats(object):
                         arange = np.amax(np.abs(arr))
                 self._avg_range.append(arange)
         return self._avg_range
-
-    @property
-    def pot_range(self):
-        if self._pot_range is None:
-            self._pot_range = [self._round2pot(r) for r in self.avg_range]
-        return self._pot_range
 
     def mean(self, idx):
         pass

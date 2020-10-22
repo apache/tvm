@@ -85,13 +85,13 @@ class Topology(object):
 
             if isinstance(node, relay.Call):
                 # print(node.op.name)
-                if not hardware.list_integer_descs(node.op):
+                if not hardware.list_integer_descs(node):
                     # current op does not support integer computation 
                     set_cond(node, False)
                     return
 
                 src_node_conds = [self._node_conds[node2idx[src]] for src in list_in_nodes(node)]
-                if not any(src_node_conds) and hardware.list_float_descs(node.op):
+                if not any(src_node_conds) and hardware.list_float_descs(node):
                     # all float input and current op support float computation
                     set_cond(node, False)
                 else:
@@ -119,11 +119,11 @@ class Topology(object):
         for node in node2idx:
             if self.is_quantized_node(node):
                 for src_idx, src in enumerate(list_in_nodes(node)):
-                    dst_can_consume = [desc.in_dtype(src_idx).bits for desc in hardware.list_integer_descs(node.op)]
+                    dst_can_consume = [desc.in_dtype(src_idx).bits for desc in hardware.list_integer_descs(node)]
                     if isinstance(src, (relay.Var, relay.Constant)):
                         src_can_produce = []
                     else:
-                        src_can_produce = [desc.out_dtype(0).bits for desc in hardware.list_integer_descs(src.op)]
+                        src_can_produce = [desc.out_dtype(0).bits for desc in hardware.list_integer_descs(src)]
                     max_consume = max(dst_can_consume) if len(dst_can_consume) else None
                     max_produce = max(src_can_produce) if len(src_can_produce) else None
                     final_bit = min_with_none(max_consume, max_produce)
