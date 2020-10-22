@@ -132,7 +132,12 @@ def check_dynamism(args, op_name):
         elif isinstance(arg, Tuple):
             return check_dynamism(arg.fields, op_name)
         else:
-            raise NotImplementedError(type(arg))
+            print(
+                "Arg not supported in TensorRT for ",
+                op_name,
+                type(arg),
+            )
+            return True
     return False
 
 
