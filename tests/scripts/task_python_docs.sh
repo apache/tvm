@@ -37,7 +37,7 @@ rm -rf docs/_build
 mkdir -p docs/_build/html
 rm -rf docs/gen_modules
 rm -rf docs/doxygen
-rm -rf auto_scheduler_logs
+rm -rf tutorials/auto_scheduler/auto_scheduler_logs
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials
