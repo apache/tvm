@@ -203,6 +203,7 @@ class ForScopeHandler(ScopeHandler):
 
 @register
 class Serial(ForScopeHandler):
+    """ For scope handler tir.serial(begin, end)"""
     def __init__(self):
         def serial(begin, end):
             if len(self.loop_vars) != 1:
@@ -216,6 +217,7 @@ class Serial(ForScopeHandler):
 
 @register
 class Parallel(ForScopeHandler):
+    """ For scope handler tir.parallel(begin, end)"""
     def __init__(self):
         def parallel(begin, end):
             if len(self.loop_vars) != 1:
@@ -229,6 +231,7 @@ class Parallel(ForScopeHandler):
 
 @register
 class Vectorized(ForScopeHandler):
+    """ For scope handler tir.vectorized(begin, end)"""
     def __init__(self):
         def vectorized(begin, end):
             if len(self.loop_vars) != 1:
@@ -242,6 +245,7 @@ class Vectorized(ForScopeHandler):
 
 @register
 class Unroll(ForScopeHandler):
+    """ For scope handler tir.unroll(begin, end)"""
     def __init__(self):
         def unroll(begin, end):
             if len(self.loop_vars) != 1:
