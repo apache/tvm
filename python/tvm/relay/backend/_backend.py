@@ -88,6 +88,13 @@ def _tensor_value_repr(tvalue):
     return str(tvalue.data.asnumpy())
 
 
+@tvm._ffi.register_func("relay._ndarray_repr")
+def _tensor_constant_repr(tvalue):
+    tmp = tvalue.asnumpy()
+    return "NDArray of shape " + str(tmp.shape) + " and dtype " + str(tmp.dtype) +"\n\t" + str(tmp)
+
+
+
 @tvm._ffi.register_func("relay._constant_repr")
 def _tensor_constant_repr(tvalue):
     dtype = tvm.runtime.DataType(tvalue.data.dtype)

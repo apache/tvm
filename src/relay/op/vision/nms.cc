@@ -33,6 +33,7 @@ bool GetValidCountRel(const Array<Type>& types, int num_inputs, const Attrs& att
                       const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
   const auto& dshape = data->shape;
   ICHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
 
@@ -75,7 +76,9 @@ bool NMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 6);
   const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
   const auto* valid_count = types[1].as<TensorTypeNode>();
+  if (valid_count == nullptr) return false;
   const NonMaximumSuppressionAttrs* param = attrs.as<NonMaximumSuppressionAttrs>();
   const auto& dshape = data->shape;
   const auto& vshape = valid_count->shape;

@@ -57,7 +57,6 @@ def get_tvm_output_with_vm(
         from tvm.relay import transform
 
         mod = transform.DynamicToStatic()(mod)
-
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data)
     if isinstance(result, tvm.runtime.NDArray):
