@@ -59,9 +59,9 @@ class WellFormedChecker : private MixedModeVisitor, PatternVisitor {
     WellFormedChecker* wfc;
     explicit Scope(WellFormedChecker* wfc) : wfc(wfc) { wfc->scope.push_back({{}}); }
     ~Scope() {
-      CHECK_GE(wfc->scope.size(), 0);
+      ICHECK_GE(wfc->scope.size(), 0);
       for (const Var& v : wfc->scope.back()) {
-        CHECK_GE(wfc->current_bound.count(v), 0);
+        ICHECK_GE(wfc->current_bound.count(v), 0);
         wfc->current_bound.erase(v);
       }
       wfc->scope.pop_back();
@@ -73,7 +73,7 @@ class WellFormedChecker : private MixedModeVisitor, PatternVisitor {
       Illformed(Diagnostic::Error(v->span) << "the variable " << v->name_hint()
                                            << "is bound more then once, this is not valid IR");
     }
-    CHECK_GE(scope.size(), 0);
+    ICHECK_GE(scope.size(), 0);
     scope.back().insert(v);
     current_bound.insert(v);
     total_bound.insert(v);
@@ -120,14 +120,14 @@ class WellFormedChecker : private MixedModeVisitor, PatternVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    CHECK(call->op.defined());
+    ICHECK(call->op.defined());
 
     for (auto arg : call->args) {
-      CHECK(arg.defined());
+      ICHECK(arg.defined());
     }
 
-    // CHECK(call->attrs.defined());
-    CHECK(call->type_args.defined());
+    // ICHECK(call->attrs.defined());
+    ICHECK(call->type_args.defined());
     MixedModeVisitor::VisitExpr_(call);
   }
 

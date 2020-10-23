@@ -415,7 +415,7 @@ class BufferAnalyser : public StmtExprVisitor {
     } else if (op->attr_key == tir::attr::buffer_dim_align) {
       te::Tensor tensor = Downcast<te::Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
-      CHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
+      ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
       auto& vinfo = dim_align_[tensor];
       size_t dim = tuple->args[0].as<IntImmNode>()->value;
       if (dim >= vinfo.size()) {
@@ -433,9 +433,9 @@ class BufferAnalyser : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
     auto key = Downcast<Tensor>(op->producer);
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key->GetNameHint();
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key->GetNameHint();
     const BufferInfo& bi = it->second;
-    CHECK(!bi.released) << "Read a buffer that is already out of scope";
+    ICHECK(!bi.released) << "Read a buffer that is already out of scope";
 
     if (matrix_abc_.count(key->GetNameHint())) {
       if (bi.shape.size() < 2) {
@@ -535,9 +535,9 @@ class BufferAnalyser : public StmtExprVisitor {
 
     auto tensor = Downcast<Tensor>(op->producer);
     auto it = buf_map_.find(tensor);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << tensor->GetNameHint();
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << tensor->GetNameHint();
     const BufferInfo& bi = it->second;
-    CHECK(!bi.released) << "Read a buffer that is already out of scope";
+    ICHECK(!bi.released) << "Read a buffer that is already out of scope";
 
     if (matrix_abc_.count(tensor->op->name)) {
       if (bi.shape.size() < 2) {
@@ -591,7 +591,7 @@ class BufferAnalyser : public StmtExprVisitor {
   void VisitStmt_(const ProducerRealizeNode* op) final {
     auto key = Downcast<Tensor>(op->producer);
     if (buf_map_.count(key)) {
-      CHECK(buf_map_.at(key).external);
+      ICHECK(buf_map_.at(key).external);
       this->VisitStmt(op->body);
     } else {
       // create a buffer entry
@@ -678,7 +678,7 @@ class BufferAnalyser : public StmtExprVisitor {
     inline Array<PrimExpr> RelIndex(Array<PrimExpr> args) const {
       if (bounds.size() != 0) {
         Array<PrimExpr> index;
-        CHECK_EQ(bounds.size(), args.size());
+        ICHECK_EQ(bounds.size(), args.size());
         for (size_t i = 0; i < bounds.size(); ++i) {
           index.push_back(args[i] - bounds[i]->min);
         }
@@ -797,7 +797,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       for (size_t i = 0; i < op->bounds.size() - 2; ++i) {
         new_bounds.push_back(op->bounds[i]);
       }
-      CHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key->GetNameHint();
+      ICHECK_GE(op->bounds.size(), 2) << "Less than 2 dimensions for matrix " << key->GetNameHint();
       new_bounds.push_back(
           Range::FromMinExtent(op->bounds[op->bounds.size() - 2]->min, new_extents[0]));
       new_bounds.push_back(
@@ -818,7 +818,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         }
 
         auto it = matrix_abc_.find(simplify_name(node->name));
-        CHECK(it != matrix_abc_.end()) << "Cannot find matrix info for " << node->name;
+        ICHECK(it != matrix_abc_.end()) << "Cannot find matrix info for " << node->name;
         auto matrix_abc = tvm::tir::StringImm("wmma." + it->second);
         Stmt body = this->VisitStmt(op->body);
         return AttrStmt(op->node, op->attr_key, matrix_abc, body);
@@ -887,12 +887,12 @@ class TensorCoreIRMutator : public StmtExprMutator {
       }
 
       const ProducerLoadNode* value = op->value.as<ProducerLoadNode>();
-      CHECK(value != nullptr) << "Can only load fragment from a buffer";
+      ICHECK(value != nullptr) << "Can only load fragment from a buffer";
 
       auto it = strides_.find(value->producer->GetNameHint());
-      CHECK(it != strides_.end()) << "Cannot find stride for " << value->producer->GetNameHint();
+      ICHECK(it != strides_.end()) << "Cannot find stride for " << value->producer->GetNameHint();
       auto strides = it->second;
-      CHECK_GE(strides.size(), 2);
+      ICHECK_GE(strides.size(), 2);
       PrimExpr stride = strides[strides.size() - 2];
 
       // thread index unification inside a warp
@@ -905,7 +905,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       auto pload = dst.as<ProducerLoadNode>();
       PrimExpr matrix_major;
       auto iter2 = matrix_major_.find(simplify_name(pload->producer->GetNameHint()));
-      CHECK(iter2 != matrix_major_.end())
+      ICHECK(iter2 != matrix_major_.end())
           << "Can not determine matrix major for " << pload->producer->GetNameHint();
       if (iter2->second == "col_major") {
         matrix_major = StringImm("col_major");
@@ -928,9 +928,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
     auto it3 = frag_store_.find(op);
     if (it3 != frag_store_.end()) {
       auto it = strides_.find(op->producer->GetNameHint());
-      CHECK(it != strides_.end()) << "Cannot find stride for " << op->producer->GetNameHint();
+      ICHECK(it != strides_.end()) << "Cannot find stride for " << op->producer->GetNameHint();
       auto strides = it->second;
-      CHECK_GE(strides.size(), 2);
+      ICHECK_GE(strides.size(), 2);
       PrimExpr stride = strides[strides.size() - 2];
 
       PrimExpr dst = it3->second;
@@ -978,7 +978,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
   Array<PrimExpr> get_tile_size_(const std::string& name) {
     auto it = matrix_abc_.find(name);
     auto it2 = matrix_major_.find(name);
-    CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
+    ICHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
         << "Cannot find matrix info for " << name;
     PrimExpr size0 = make_const(DataType::Int(32), 16);
     PrimExpr size1 = make_const(DataType::Int(32), 16);
@@ -1011,13 +1011,13 @@ class TensorCoreIRMutator : public StmtExprMutator {
                               const std::function<Stmt(const Buffer& buffer)>& call_back) {
     auto tensor = Downcast<Tensor>(pload->producer);
     auto it = bounds_.find(tensor);
-    CHECK(it != bounds_.end());
+    ICHECK(it != bounds_.end());
     Array<PrimExpr> min_bound;
     for (auto i : it->second) {
       min_bound.push_back(i->min);
     }
 
-    CHECK_GE(it->second.size(), 2);
+    ICHECK_GE(it->second.size(), 2);
     Array<PrimExpr> shape;
     for (size_t i = 0; i < it->second.size() - 2; ++i) {
       shape.push_back(it->second[i]->extent);
@@ -1037,13 +1037,13 @@ class TensorCoreIRMutator : public StmtExprMutator {
     strides.push_back(make_const(DataType::Int(32), 1));
 
     PrimExpr elem_offset = IntImm(DataType::Int(32), 0);
-    CHECK_EQ(pload->indices.size(), min_bound.size());
+    ICHECK_EQ(pload->indices.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
       elem_offset = Add(elem_offset, Mul(strides[i], Sub(pload->indices[i], min_bound[i])));
     }
 
     auto it2 = matrix_abc_.find(simplify_name(tensor->op->name));
-    CHECK(it2 != matrix_abc_.end()) << "Cannot find matrix info for " << tensor->op->name;
+    ICHECK(it2 != matrix_abc_.end()) << "Cannot find matrix info for " << tensor->op->name;
     buffer_node->data = Var(tensor->op->name, DataType::Handle());
     buffer_node->name = tensor->op->name;
     buffer_node->scope = "wmma." + it2->second;

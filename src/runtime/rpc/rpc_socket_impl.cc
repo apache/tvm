@@ -70,17 +70,17 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
-  CHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
+  ICHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
   // hand shake
   std::ostringstream os;
   int code = kRPCMagic;
   int keylen = static_cast<int>(key.length());
-  CHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
-  CHECK_EQ(sock.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  ICHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
+  ICHECK_EQ(sock.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
   if (keylen != 0) {
-    CHECK_EQ(sock.SendAll(key.c_str(), keylen), keylen);
+    ICHECK_EQ(sock.SendAll(key.c_str(), keylen), keylen);
   }
-  CHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
+  ICHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
   if (code == kRPCMagic + 2) {
     sock.Close();
     LOG(FATAL) << "URL " << url << ":" << port << " cannot find server that matches key=" << key;
@@ -91,11 +91,11 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
     sock.Close();
     LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
   }
-  CHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  ICHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
   std::string remote_key;
   if (keylen != 0) {
     remote_key.resize(keylen);
-    CHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
+    ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
   auto endpt =
       RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);

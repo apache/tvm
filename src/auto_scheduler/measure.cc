@@ -303,7 +303,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         auto old_config = p->stream.precision(4);
         for (size_t i = 0; i < node->costs.size(); ++i) {
           auto pf = node->costs[i].as<FloatImmNode>();
-          CHECK(pf != nullptr);
+          ICHECK(pf != nullptr);
           p->stream << pf->value;
           if (i != node->costs.size() - 1) {
             p->stream << ",";

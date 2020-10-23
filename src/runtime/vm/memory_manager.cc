@@ -35,7 +35,7 @@ namespace vm {
 
 static void BufferDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
-  CHECK(ptr->manager_ctx != nullptr);
+  ICHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
   MemoryManager::GetAllocator(buffer->ctx)->Free(*(buffer));
   delete buffer;
@@ -59,15 +59,15 @@ void StorageObj::Deleter(Object* obj) {
 }
 
 inline void VerifyDataType(DLDataType dtype) {
-  CHECK_GE(dtype.lanes, 1);
+  ICHECK_GE(dtype.lanes, 1);
   if (dtype.code == kDLFloat) {
-    CHECK_EQ(dtype.bits % 8, 0);
+    ICHECK_EQ(dtype.bits % 8, 0);
   } else {
     // allow uint1 as a special flag for bool.
     if (dtype.bits == 1 && dtype.code == kDLUInt) return;
-    CHECK_EQ(dtype.bits % 8, 0);
+    ICHECK_EQ(dtype.bits % 8, 0);
   }
-  CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
+  ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
 inline size_t GetDataAlignment(const DLTensor& arr) {
@@ -102,7 +102,7 @@ NDArray StorageObj::AllocNDArray(size_t offset, std::vector<int64_t> shape, DLDa
   NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.
 
-  CHECK(offset + needed_size <= this->buffer.size)
+  ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
 

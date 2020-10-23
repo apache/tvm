@@ -94,7 +94,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
       Var var = op->node.as<IterVarNode>()->var;
       const auto* extent = op->value.as<IntImmNode>();
-      CHECK(extent);
+      ICHECK(extent);
 
       std::string name = var.get()->name_hint;
       // record the number of threads in a block
@@ -167,7 +167,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   void VisitStmt_(const ForNode* op) {
     if (op->loop_var->name_hint == "vthread.s") {
       const auto* extent = op->extent.as<IntImmNode>();
-      CHECK(extent);
+      ICHECK(extent);
 
       size_t num_vthread = static_cast<size_t>(extent->value);
       if (num_vthread > max_vthread_) {

@@ -47,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ConstantNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const ConstantNode*>(ref.get());
       const PackedFunc* fprint = Registry::Get("relay._constant_repr");
-      CHECK(fprint) << "unable to find printing function for constants";
+      ICHECK(fprint) << "unable to find printing function for constants";
       std::string data = (*fprint)(GetRef<Constant>(node));
       p->stream << "Constant(" << data << ")";
     });
@@ -56,8 +56,8 @@ TensorType ConstantNode::tensor_type() const {
   auto dtype = DataType(data->dtype);
   Array<tvm::PrimExpr> shape;
   for (int i = 0; i < data->ndim; i++) {
-    CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
-    CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
+    ICHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
+    ICHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
     shape.push_back(tvm::IntImm(DataType::Int(32), data->shape[i]));
   }
 

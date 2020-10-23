@@ -134,7 +134,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
     }
 
     Expr VisitExpr_(const FunctionNode* op, const MCont& k) final {
-      CHECK(!op->HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
+      ICHECK(!op->HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
       return k(ToCPS(GetRef<Function>(op), m, cm, vm, answer));
     }
 
@@ -309,14 +309,14 @@ Function ToCPS(const Function& f, const IRModule& m) {
 
 Function UnCPS(const Function& f) {
   CheckFeature(f, FeatureSet::All() - fGraph);
-  CHECK_GT(f->params.size(), 0);
+  ICHECK_GT(f->params.size(), 0);
   std::vector<Var> new_params;
   for (const auto& p : f->params) {
     new_params.push_back(Var(p->name_hint(), p->checked_type()));
   }
   auto cont_type = Downcast<FuncType>(new_params.back()->type_annotation);
   new_params.pop_back();
-  CHECK_EQ(cont_type->arg_types.size(), 1);
+  ICHECK_EQ(cont_type->arg_types.size(), 1);
   auto new_ret_type = Type(cont_type->arg_types[0]);
   std::vector<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
@@ -325,7 +325,7 @@ Function UnCPS(const Function& f) {
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();
   // TODO(@M.K.): make alphaequal work on free term
-  // CHECK(tvm::StructuralEqual()(cont_type, Arrow(new_ret_type, answer_type)));
+  // ICHECK(tvm::StructuralEqual()(cont_type, Arrow(new_ret_type, answer_type)));
   auto x = Var("x", new_ret_type);
   auto cont = Function({x}, x, new_ret_type, {}, {});
   tvm::Array<Expr> args;

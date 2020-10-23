@@ -17,12 +17,12 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <llvm/ADT/Optional.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Process.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <deque>
@@ -107,7 +107,7 @@ struct non_const_str {
   }
   size_t size() const { return pointers_.size(); }
   operator char*() {
-    CHECK_EQ(pointers_.size(), 1);
+    ICHECK_EQ(pointers_.size(), 1);
     return pointers_[0];
   }
   operator char* *() { return pointers_.data(); }
@@ -394,17 +394,17 @@ decltype(HexagonSimulator::opt_map_) HexagonSimulator::opt_map_ = {
     {"--verbose", &HexagonSimulator::HandleVerbose},
 };
 
-#define CHECKED_CALL(func, ...)                                                      \
-  do {                                                                               \
-    HEXAPI_Status s = sim_->func(__VA_ARGS__);                                       \
-    CHECK_EQ(s, HEX_STAT_SUCCESS) << "HexagonSimulator: " #func " failed with code " \
-                                  << HexagonSimulator::to_string(s);                 \
+#define CHECKED_CALL(func, ...)                                                               \
+  do {                                                                                        \
+    HEXAPI_Status s = sim_->func(__VA_ARGS__);                                                \
+    ICHECK_EQ(s, HEX_STAT_SUCCESS)                                                            \
+        << "HexagonSimulator: " #func " failed with code " << HexagonSimulator::to_string(s); \
   } while (false)
 
 inline HEX_VA_t HexagonSimulator::p2va(const void* p) {
   uintptr_t u = reinterpret_cast<uintptr_t>(p);
   HEX_VA_t va = static_cast<HEX_VA_t>(u);
-  CHECK_EQ(static_cast<uintptr_t>(va), u);
+  ICHECK_EQ(static_cast<uintptr_t>(va), u);
   return va;
 }
 
@@ -425,13 +425,13 @@ template <unsigned N>
 void HexagonSimulator::CopyNToV(HEX_VA_t dst, const void* host_src) {
   using src_uint_t = typename unalign<typename uint<N>::type>::type;
   auto* ps = reinterpret_cast<const src_uint_t*>(host_src);
-  CHECK_EQ(sim_->WriteVirtual(dst, -1u, N, ps->value), HEX_STAT_SUCCESS);
+  ICHECK_EQ(sim_->WriteVirtual(dst, -1u, N, ps->value), HEX_STAT_SUCCESS);
 }
 
 template <unsigned N>
 void HexagonSimulator::CopyNFromV(void* host_dst, HEX_VA_t src) {
   typename uint<N>::type v;
-  CHECK_EQ(sim_->ReadVirtual(src, -1u, N, &v), HEX_STAT_SUCCESS);
+  ICHECK_EQ(sim_->ReadVirtual(src, -1u, N, &v), HEX_STAT_SUCCESS);
 
   using dst_uint_t = typename unalign<typename uint<N>::type>::type;
   auto* pd = reinterpret_cast<dst_uint_t*>(host_dst);
@@ -465,7 +465,7 @@ void HexagonSimulator::CopyToV(HEX_VA_t dst, const void* host_src, unsigned len)
     src++;
     len--;
   }
-  CHECK_EQ(len, 0);
+  ICHECK_EQ(len, 0);
 }
 
 void HexagonSimulator::CopyFromV(void* host_dst, HEX_VA_t src, unsigned len) {
@@ -495,7 +495,7 @@ void HexagonSimulator::CopyFromV(void* host_dst, HEX_VA_t src, unsigned len) {
     src++;
     len--;
   }
-  CHECK_EQ(len, 0);
+  ICHECK_EQ(len, 0);
 }
 
 void HexagonSimulator::SendMsg(Message& m, const void* data, bool show_dbg) {
@@ -504,13 +504,13 @@ void HexagonSimulator::SendMsg(Message& m, const void* data, bool show_dbg) {
     HEX_4u_t result;
     HEX_8u_t cycles0, cycles1;
     if (report_cycles) {
-      CHECK_EQ(sim_->GetSimulatedCycleCount(&cycles0), HEX_STAT_SUCCESS);
+      ICHECK_EQ(sim_->GetSimulatedCycleCount(&cycles0), HEX_STAT_SUCCESS);
     }
 
     core = sim_->Run(&result);
-    CHECK_EQ(core, HEX_CORE_BREAKPOINT);
+    ICHECK_EQ(core, HEX_CORE_BREAKPOINT);
     if (report_cycles) {
-      CHECK_EQ(sim_->GetSimulatedCycleCount(&cycles1), HEX_STAT_SUCCESS);
+      ICHECK_EQ(sim_->GetSimulatedCycleCount(&cycles1), HEX_STAT_SUCCESS);
       LOG(INFO) << "host: execution took " << (cycles1 - cycles0) << " cycles";
     }
   };
@@ -522,8 +522,8 @@ void HexagonSimulator::SendMsg(Message& m, const void* data, bool show_dbg) {
 
   // Receive the acknowledgement with the address for the payload.
   CopyFromV(&r, message_buffer_v_, sizeof(r));
-  CHECK_EQ(r.code, kMsgAck);
-  CHECK_GE(r.len, m.len);
+  ICHECK_EQ(r.code, kMsgAck);
+  ICHECK_GE(r.len, m.len);
 
   // Send the actual message.
   m.va = r.va;
@@ -533,7 +533,7 @@ void HexagonSimulator::SendMsg(Message& m, const void* data, bool show_dbg) {
 
   // Receive the return data.
   CopyFromV(&m, message_buffer_v_, sizeof(m));
-  CHECK_EQ(m.code, kNone);
+  ICHECK_EQ(m.code, kNone);
 }
 
 HexagonSimulator::HexagonSimulator(bool enable_queuing) {
@@ -610,12 +610,12 @@ void* HexagonSimulator::Alloc(unsigned size, unsigned align) {
   MsgAlloc ma = {size, align};
   SendMsg(m, &ma, true);
 
-  CHECK_EQ(sizeof(MsgPointer), m.len);
+  ICHECK_EQ(sizeof(MsgPointer), m.len);
   MsgPointer mp;
   CopyFromV(&mp, m.va, m.len);
 
   LOG(INFO) << "HexagonSimulator::Alloc -> " << std::hex << mp.va << std::dec;
-  CHECK_NE(mp.va, 0);
+  ICHECK_NE(mp.va, 0);
   return va2p(mp.va);
 }
 
@@ -636,12 +636,12 @@ void* HexagonSimulator::AllocVtcm(unsigned size, unsigned align) {
   MsgAlloc ma = {size, align};
   SendMsg(m, &ma, true);
 
-  CHECK_EQ(sizeof(MsgPointer), m.len);
+  ICHECK_EQ(sizeof(MsgPointer), m.len);
   MsgPointer mp;
   CopyFromV(&mp, m.va, m.len);
 
   LOG(INFO) << "HexagonSimulator::AllocVtcm -> " << std::hex << mp.va << std::dec;
-  CHECK_NE(mp.va, 0);
+  ICHECK_NE(mp.va, 0);
   return va2p(mp.va);
 }
 
@@ -650,7 +650,7 @@ void HexagonSimulator::FreeVtcm(void* ptr) {}
 void HexagonSimulator::CopyDeviceToDevice(void* dst, const void* src, unsigned len) {
   LOG(INFO) << "HexagonSimulator::CopyDeviceToDevice(dst=" << std::hex << dst << ", src=" << src
             << ", len=" << std::dec << len << ')';
-  CHECK(dst != nullptr && src != nullptr);
+  ICHECK(dst != nullptr && src != nullptr);
   Message m = {kCopy, sizeof(MsgCopy), 0u};
   MsgCopy mc = {p2va(dst), p2va(src), len};
   SendMsg(m, &mc, true);
@@ -677,7 +677,7 @@ void* HexagonSimulator::Load(const std::string& data, const std::string& fmt) {
   Message m = {kLoad, static_cast<uint32_t>(data.size() + 1), 0u};
   SendMsg(m, data.c_str(), false);
 
-  CHECK_EQ(sizeof(MsgPointer), m.len);
+  ICHECK_EQ(sizeof(MsgPointer), m.len);
   MsgPointer mp;
   CopyFromV(&mp, m.va, sizeof(mp));
 
@@ -685,7 +685,7 @@ void* HexagonSimulator::Load(const std::string& data, const std::string& fmt) {
 }
 
 void HexagonSimulator::Unload(void* mod) {
-  CHECK(mod);
+  ICHECK(mod);
   Message m = {kUnload, sizeof(MsgPointer), 0u};
   MsgPointer mp = {p2va(mod)};
   SendMsg(m, &mp, false);
@@ -696,7 +696,7 @@ void* HexagonSimulator::Resolve(const std::string& sym) {
   Message m = {kResolve, static_cast<uint32_t>(sym.size() + 1), 0u};
   SendMsg(m, sym.c_str(), true);
 
-  CHECK_EQ(sizeof(MsgPointer), m.len);
+  ICHECK_EQ(sizeof(MsgPointer), m.len);
   MsgPointer mp;
   CopyFromV(&mp, m.va, sizeof(mp));
 
@@ -717,7 +717,7 @@ void HexagonSimulator::Call(void* func, uint32_t* scalar, unsigned sc_num, uint3
   // Copy the MsgCall contents into the data vector as a sequence of uints.
   MsgCall me = {p2va(func), sc_num, st_num};
 
-  CHECK((is_multiple_of<sizeof(MsgCall), sizeof(uint32_t)>()));
+  ICHECK((is_multiple_of<sizeof(MsgCall), sizeof(uint32_t)>()));
   for (unsigned i = 0, e = sizeof(me) / sizeof(uint32_t); i != e; ++i)
     data.push_back(reinterpret_cast<uint32_t*>(&me)[i]);
 
@@ -763,14 +763,14 @@ bool HexagonSimulator::Configure(string_list& opts) {
       LOG(FATAL) << "Unrecognized simulator option: " << key;
       // unreachable
     }
-    CHECK((this->*f->second)(opts)) << "error handling option: " << key;
+    ICHECK((this->*f->second)(opts)) << "error handling option: " << key;
   }
 
   // Check AHB.
   if (ahb_.first.hasValue() && ahb_.second.hasValue()) {
     CHECKED_CALL(ConfigureAHB, *ahb_.first, *ahb_.second);
   } else {
-    CHECK(!ahb_.first.hasValue() && !ahb_.second.hasValue())
+    ICHECK(!ahb_.first.hasValue() && !ahb_.second.hasValue())
         << "HexagonSimulator: please specify both low and high addresses "
            "for AHB";
   }
@@ -779,7 +779,7 @@ bool HexagonSimulator::Configure(string_list& opts) {
   if (axi2_.first.hasValue() && axi2_.second.hasValue()) {
     CHECKED_CALL(ConfigureAXI2, *axi2_.first, *axi2_.second);
   } else {
-    CHECK(!axi2_.first.hasValue() && !axi2_.second.hasValue())
+    ICHECK(!axi2_.first.hasValue() && !axi2_.second.hasValue())
         << "HexagonSimulator: please specify both low and high addresses "
            "for AXI2";
   }
@@ -806,7 +806,7 @@ bool HexagonSimulator::HandleAHBBusRatio(string_list& rest) {
 
 bool HexagonSimulator::HandleAHBHighAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  CHECK(addr) << "HexagonSimulator: invalid value for AHB high adddress";
+  ICHECK(addr) << "HexagonSimulator: invalid value for AHB high adddress";
   if (addr) {
     ahb_.second = *addr;
   }
@@ -815,7 +815,7 @@ bool HexagonSimulator::HandleAHBHighAddr(string_list& rest) {
 
 bool HexagonSimulator::HandleAHBLowAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  CHECK(addr) << "HexagonSimulator: invalid value for AHB low adddress";
+  ICHECK(addr) << "HexagonSimulator: invalid value for AHB low adddress";
   if (addr) {
     ahb_.first = *addr;
   }
@@ -841,7 +841,7 @@ bool HexagonSimulator::HandleAXI2BusRatio(string_list& rest) {
 
 bool HexagonSimulator::HandleAXI2HighAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  CHECK(addr) << "HexagonSimulator: invalid value for AXI2 high adddress";
+  ICHECK(addr) << "HexagonSimulator: invalid value for AXI2 high adddress";
   if (addr) {
     axi2_.second = *addr;
   }
@@ -850,7 +850,7 @@ bool HexagonSimulator::HandleAXI2HighAddr(string_list& rest) {
 
 bool HexagonSimulator::HandleAXI2LowAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  CHECK(addr) << "HexagonSimulator: invalid value for AXI2 low adddress";
+  ICHECK(addr) << "HexagonSimulator: invalid value for AXI2 low adddress";
   if (addr) {
     axi2_.first = *addr;
   }

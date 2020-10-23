@@ -60,19 +60,19 @@ Pass InlinePrimitives();
 
 Pass ManifestAlloc(Target target_host, vm::TargetsMap targets) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
-  CHECK(f != nullptr) << "unable to load allocation manifestation pass";
+  ICHECK(f != nullptr) << "unable to load allocation manifestation pass";
   return (*f)(target_host, targets);
 }
 
 Pass MemoryPlan() {
   auto f = tvm::runtime::Registry::Get("relay.transform.MemoryPlan");
-  CHECK(f != nullptr) << "unable to load the memory planning pass";
+  ICHECK(f != nullptr) << "unable to load the memory planning pass";
   return (*f)();
 }
 
 Pass LiftConstants() {
   auto f = tvm::runtime::Registry::Get("relay.transform.LiftConstants");
-  CHECK(f != nullptr) << "unable to load the constant lifting pass";
+  ICHECK(f != nullptr) << "unable to load the constant lifting pass";
   return (*f)();
 }
 
@@ -178,7 +178,7 @@ TreeObjectPtr BuildDecisionTreeFromPattern(MatchValuePtr data, Pattern pattern,
     return TreeBranchNode::Make(cond, then_branch, else_branch);
   } else {
     const auto* pt = pattern.as<PatternTupleNode>();
-    CHECK(pt) << "unhandled case: " << AsText(pattern, false);
+    ICHECK(pt) << "unhandled case: " << AsText(pattern, false);
     size_t field_index = 0;
     for (auto& p : pt->patterns) {
       auto d = std::make_shared<AccessField>(data, field_index++);
@@ -209,10 +209,10 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
   if (shape->ndim == 0) {
     return raw_shape;
   }
-  CHECK_EQ(shape->ndim, 1u);
-  CHECK_EQ(shape->dtype.code, 0U) << "The dtype of constant shape must be int32 or int64, but got "
-                                  << DLDataType2String(shape->dtype);
-  CHECK(shape->dtype.bits == 64 || shape->dtype.bits == 32)
+  ICHECK_EQ(shape->ndim, 1u);
+  ICHECK_EQ(shape->dtype.code, 0U) << "The dtype of constant shape must be int32 or int64, but got "
+                                   << DLDataType2String(shape->dtype);
+  ICHECK(shape->dtype.bits == 64 || shape->dtype.bits == 32)
       << "The dtype of constant shape must be int32 or int64, but got"
       << DLDataType2String(shape->dtype);
 
@@ -247,7 +247,7 @@ int GetFallbackDevice() {
   Optional<Integer> opt_fallback_dev =
       pass_ctx->GetConfig("relay.fallback_device_type", Integer(static_cast<int>(kDLCPU)));
   auto fallback_dev = opt_fallback_dev.value();
-  CHECK_GT(fallback_dev->value, 0U);
+  ICHECK_GT(fallback_dev->value, 0U);
   return fallback_dev->value;
 }
 
@@ -271,7 +271,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // We then assign register num to the free variables
     for (auto param : func->params) {
       auto arg_register = NewRegister();
-      CHECK_EQ(i, arg_register);
+      ICHECK_EQ(i, arg_register);
       var_register_map_.insert({param, arg_register});
       params_.push_back(param->name_hint());
       ++i;
@@ -281,7 +281,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       Function inner_func = Downcast<Function>(func->body);
       for (auto param : inner_func->params) {
         auto arg_register = NewRegister();
-        CHECK_EQ(i, arg_register);
+        ICHECK_EQ(i, arg_register);
         var_register_map_.insert({param, arg_register});
         params_.push_back(param->name_hint());
         ++i;
@@ -295,10 +295,10 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     std::vector<Index> params_device_type;
     for (const auto& it : func->params) {
       if (!expr_device_map_.empty()) {
-        CHECK_GT(expr_device_map_.count(it), 0U);
+        ICHECK_GT(expr_device_map_.count(it), 0U);
         params_device_type.push_back(expr_device_map_[it].device_type);
       } else {
-        CHECK_EQ(targets_.size(), 1U);
+        ICHECK_EQ(targets_.size(), 1U);
         params_device_type.push_back((targets_.begin())->first);
       }
     }
@@ -311,7 +311,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   inline void Emit(const Instruction& instr) {
     DLOG(INFO) << "VMCompiler::Emit: instr=" << instr;
-    CHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
+    ICHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
       case Opcode::AllocADT:
       case Opcode::AllocTensor:
@@ -348,7 +348,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       context_->const_device_type.push_back(targets_.begin()->first);
     } else {
       auto con = GetRef<Constant>(const_node);
-      CHECK_GT(expr_device_map_.count(con), 0U);
+      ICHECK_GT(expr_device_map_.count(con), 0U);
       context_->const_device_type.push_back(expr_device_map_[con].device_type);
     }
     context_->constants.push_back(const_node->data);
@@ -358,7 +358,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void VisitExpr_(const VarNode* var_node) {
     auto var = GetRef<Var>(var_node);
     auto reg_it = this->var_register_map_.find(var);
-    CHECK(reg_it != this->var_register_map_.end());
+    ICHECK(reg_it != this->var_register_map_.end());
     last_register_ = reg_it->second;
   }
 
@@ -400,7 +400,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto var = GetRef<GlobalVar>(gvar);
     auto func = context_->module->Lookup(var);
     auto it = context_->global_map.find(var);
-    CHECK(it != context_->global_map.end());
+    ICHECK(it != context_->global_map.end());
     // Allocate closure with zero free vars
     Emit(Instruction::AllocClosure(it->second, 0, {}, NewRegister()));
   }
@@ -458,7 +458,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto cfunc = engine_->LowerShapeFunc(key);
     int op_index = -1;
     // pick the only function inside the context
-    CHECK_EQ(cfunc->funcs->functions.size(), 1);
+    ICHECK_EQ(cfunc->funcs->functions.size(), 1);
     auto pfunc = Downcast<tir::PrimFunc>((*cfunc->funcs->functions.begin()).second);
     if (context_->seen_funcs.count(pfunc) == 0) {
       op_index = context_->cached_funcs.size();
@@ -477,7 +477,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     for (auto output : outputs) {
       auto reg = var_register_map_.find(Downcast<Var>(output));
-      CHECK(reg != var_register_map_.end())
+      ICHECK(reg != var_register_map_.end())
           << "internal error: all variables should be in the register mapping";
       argument_registers.push_back(reg->second);
     }
@@ -489,16 +489,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   void EmitInvokeTVMOp(const Function& func, const Expr& inputs, const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK(func->GetAttr<Integer>(attr::kPrimitive, 0) != 0)
+    ICHECK(func->GetAttr<Integer>(attr::kPrimitive, 0) != 0)
         << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
-    CHECK(input_tuple) << "internal error: invoke_tvm_op inputs must be a tuple,"
-                       << "please file a bug in the memory manifestation pass";
+    ICHECK(input_tuple) << "internal error: invoke_tvm_op inputs must be a tuple,"
+                        << "please file a bug in the memory manifestation pass";
 
     auto output_tuple = outputs.as<TupleNode>();
-    CHECK(output_tuple) << "internal error: invoke_tvm_op outputs must be a tuple,"
-                        << "please file a bug in the memory manifestation pass";
+    ICHECK(output_tuple) << "internal error: invoke_tvm_op outputs must be a tuple,"
+                         << "please file a bug in the memory manifestation pass";
 
     for (auto input : input_tuple->fields) {
       VisitExpr(input);
@@ -507,7 +507,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     for (auto output : output_tuple->fields) {
       auto reg = var_register_map_.find(Downcast<Var>(output));
-      CHECK(reg != var_register_map_.end())
+      ICHECK(reg != var_register_map_.end())
           << "internal error: all variables should be in the register mapping";
       argument_registers.push_back(reg->second);
     }
@@ -520,11 +520,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // Next generate the invoke instruction.
       if (expr_device_map_.empty()) {
         // homogeneous execution.
-        CHECK_EQ(targets_.size(), 1U);
+        ICHECK_EQ(targets_.size(), 1U);
         const auto& it = targets_.begin();
         target = (*it).second;
       } else {
-        CHECK_GT(expr_device_map_.count(func), 0U)
+        ICHECK_GT(expr_device_map_.count(func), 0U)
             << "Found not annotated expression, please make sure "
                "context analysis has been executed";
         int dev_type = expr_device_map_[func].device_type;
@@ -545,7 +545,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       context_->cached_funcs.push_back(cfunc);
     } else {
       // TODO(jroesch): support lowered funcs for multiple targets
-      CHECK_EQ(cfunc->funcs->functions.size(), 1);
+      ICHECK_EQ(cfunc->funcs->functions.size(), 1);
       auto pfunc = Downcast<tir::PrimFunc>((*cfunc->funcs->functions.begin()).second);
       if (context_->seen_funcs.find(pfunc) == context_->seen_funcs.end()) {
         op_index = context_->cached_funcs.size();
@@ -571,16 +571,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       matcher
           .Match("vm.invoke_tvm_op",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 3);
+                   ICHECK_EQ(args.size(), 3);
                    EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2]);
                  })
           .Match("memory.alloc_tensor",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 3);
+                   ICHECK_EQ(args.size(), 3);
 
                    // Get the attributes.
                    auto alloc_attrs = attrs.as<AllocTensorAttrs>();
-                   CHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
+                   ICHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
                    auto dtype = alloc_attrs->dtype;
 
                    // The storage will be passed dynamically.
@@ -612,22 +612,22 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
           .Match("memory.alloc_storage",
                  [this, call_node](const Array<Expr>& args, const Attrs& attrs,
                                    const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 2);
+                   ICHECK_EQ(args.size(), 2);
                    // Compute the size of the allocation.
                    this->VisitExpr(args[0]);
                    auto size_register = last_register_;
 
-                   CHECK(args[1].as<ConstantNode>());
+                   ICHECK(args[1].as<ConstantNode>());
                    NDArray alignment_arr = args[1].as<ConstantNode>()->data;
-                   CHECK_EQ(alignment_arr->dtype.code, 0U)
+                   ICHECK_EQ(alignment_arr->dtype.code, 0U)
                        << "The dtype of constant shape must be int32 or int64, but got "
                        << DLDataType2String(alignment_arr->dtype);
-                   CHECK_EQ(alignment_arr->dtype.bits, 64U);
+                   ICHECK_EQ(alignment_arr->dtype.bits, 64U);
                    Index alignment = reinterpret_cast<int64_t*>(alignment_arr->data)[0];
 
                    // Get the dtype hint from the attributes.
                    auto alloc_attrs = attrs.as<AllocStorageAttrs>();
-                   CHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
+                   ICHECK(alloc_attrs != nullptr) << "must be the AllocStorage attrs";
                    auto dtype = alloc_attrs->dtype;
 
                    Index device_type;
@@ -637,7 +637,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                      auto& kv = *(targets_.begin());
                      device_type = kv.first;
                    } else {
-                     CHECK_GT(expr_device_map_.count(GetRef<Call>(call_node)), 0U)
+                     ICHECK_GT(expr_device_map_.count(GetRef<Call>(call_node)), 0U)
                          << " The alloc_storage node is not annotated";
                      device_type = expr_device_map_[GetRef<Call>(call_node)].device_type;
                    }
@@ -647,7 +647,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                  })
           .Match("vm.shape_func",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 3);
+                   ICHECK_EQ(args.size(), 3);
                    auto shape_func = Downcast<Function>(args[0]);
                    auto inputs = Downcast<Tuple>(args[1]);
                    auto outputs = Downcast<Tuple>(args[2]);
@@ -655,11 +655,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                  })
           .Match("vm.shape_of",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 1U);
+                   ICHECK_EQ(args.size(), 1U);
                    // Get the attributes.
                    const auto* shape_of_attrs = attrs.as<ShapeOfAttrs>();
-                   CHECK(shape_of_attrs) << "Must be the shape_of attrs";
-                   CHECK_EQ(shape_of_attrs->dtype.bits(), 64)
+                   ICHECK(shape_of_attrs) << "Must be the shape_of attrs";
+                   ICHECK_EQ(shape_of_attrs->dtype.bits(), 64)
                        << "The dtype of shape of must be int64, but got"
                        << DLDataType2String(shape_of_attrs->dtype);
                    this->VisitExpr(args[0]);
@@ -667,7 +667,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                  })
           .Match("vm.reshape_tensor",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 2u);
+                   ICHECK_EQ(args.size(), 2u);
                    this->VisitExpr(args[0]);
                    auto tensor_reg = last_register_;
                    this->VisitExpr(args[1]);
@@ -676,12 +676,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                  })
           .Match("device_copy",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   CHECK_EQ(args.size(), 1U);
+                   ICHECK_EQ(args.size(), 1U);
                    this->VisitExpr(args[0]);
                    auto src_reg = last_register_;
 
                    auto device_copy_attrs = attrs.as<DeviceCopyAttrs>();
-                   CHECK(device_copy_attrs != nullptr) << "Must be the device copy attrs";
+                   ICHECK(device_copy_attrs != nullptr) << "Must be the device copy attrs";
                    Index src_device_type = device_copy_attrs->src_dev_type;
                    Index dst_device_type = device_copy_attrs->dst_dev_type;
                    Emit(Instruction::DeviceCopy(src_reg, src_device_type, dst_device_type,
@@ -711,7 +711,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // calling convention.
       auto global = GetRef<GlobalVar>(global_node);
       auto it = context_->global_map.find(global);
-      CHECK(it != context_->global_map.end());
+      ICHECK(it != context_->global_map.end());
       DLOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
                  << " with func_index=" << it->second;
 
@@ -855,13 +855,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.num_args, 3);
+      ICHECK_EQ(args.num_args, 3);
       IRModule mod = args[0];
       this->Lower(mod, args[1], args[2]);
     });
   } else if (name == "codegen") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.num_args, 0);
+      ICHECK_EQ(args.num_args, 0);
       this->Codegen();
     });
   } else if (name == "get_executable") {
@@ -884,7 +884,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else if (name == "optimize") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.num_args, 3);
+      ICHECK_EQ(args.num_args, 3);
       *rv = this->OptimizeModule(args[0], args[1], args[2]);
     });
   } else {
@@ -900,7 +900,7 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
 void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
-    CHECK(base_func->IsInstance<FunctionNode>())
+    ICHECK(base_func->IsInstance<FunctionNode>())
         << "VM compiler expects to compile relay::Function";
     auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
     auto gvar = mod->GetGlobalVar("main");
@@ -936,7 +936,7 @@ void VMCompiler::Lower(IRModule mod, const TargetsMap& targets, const tvm::Targe
       auto vm_func = func_compiler.Compile(gvar, func);
 
       size_t func_index = context_.global_map.at(gvar);
-      CHECK(func_index < exec_->functions.size());
+      ICHECK(func_index < exec_->functions.size());
       exec_->functions[func_index] = vm_func;
     }
   }
@@ -1123,7 +1123,7 @@ void VMCompiler::Codegen() {
 
     if (target_str == "ext_dev") {
       // Collect metadata in functions that are handled by external codegen.
-      CHECK(mod->ContainGlobalVar(cfunc->func_name));
+      ICHECK(mod->ContainGlobalVar(cfunc->func_name));
       backend::ConstantUpdater const_visit(cfunc->func_name, &params_);
       const_visit(Downcast<Function>(mod->Lookup(cfunc->func_name)));
       continue;

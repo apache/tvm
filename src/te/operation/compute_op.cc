@@ -74,12 +74,12 @@ Array<IterVar> BaseComputeOpNode::root_iter_vars() const {
 }
 
 DataType ComputeOpNode::output_dtype(size_t idx) const {
-  CHECK_LT(idx, num_outputs());
+  ICHECK_LT(idx, num_outputs());
   return body[idx].dtype();
 }
 
 Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
-  CHECK_LT(idx, num_outputs());
+  ICHECK_LT(idx, num_outputs());
   // for now, all outputs of a BaseComputeOp have the same shape
   Array<PrimExpr> shape;
   for (const auto& ivar : this->axis) {
@@ -170,7 +170,7 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
 
 Operation ComputeOpNode::ReplaceInputs(const Operation& self,
                                        const std::unordered_map<Tensor, Tensor>& rmap) const {
-  CHECK_EQ(self.operator->(), this);
+  ICHECK_EQ(self.operator->(), this);
   VerifyComputeOp(this);
   Array<PrimExpr> arr;
   if (this->body[0]->IsInstance<tir::ReduceNode>()) {
@@ -202,7 +202,7 @@ Operation ComputeOpNode::ReplaceInputs(const Operation& self,
 void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
                                       const std::unordered_map<const VarNode*, IntSet>& dom_map,
                                       std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
-  CHECK_EQ(self.operator->(), this);
+  ICHECK_EQ(self.operator->(), this);
   auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
     if (auto* pload = n.as<tir::ProducerLoadNode>()) {
       Tensor t = Downcast<Tensor>(pload->producer);
@@ -245,15 +245,15 @@ void ComputeOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* an
 void BaseComputeOpNode::GatherBound(const Operation& self,
                                     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
                                     std::unordered_map<IterVar, Range>* out_dom_map) const {
-  CHECK_EQ(self.operator->(), this);
+  ICHECK_EQ(self.operator->(), this);
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
     Range r = arith::Union(tdom.data.at(i)).CoverRange(this->axis[i]->dom);
-    CHECK(!out_dom_map->count(this->axis[i]));
+    ICHECK(!out_dom_map->count(this->axis[i]));
     (*out_dom_map)[this->axis[i]] = r;
   }
   for (size_t i = 0; i < this->reduce_axis.size(); ++i) {
-    CHECK(!out_dom_map->count(this->reduce_axis[i]));
+    ICHECK(!out_dom_map->count(this->reduce_axis[i]));
     (*out_dom_map)[this->reduce_axis[i]] = this->reduce_axis[i]->dom;
   }
 }
@@ -261,7 +261,7 @@ void BaseComputeOpNode::GatherBound(const Operation& self,
 Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
                                      const std::unordered_map<IterVar, Range>& realize_map,
                                      const Stmt& body) const {
-  CHECK_EQ(stage->op.get(), this);
+  ICHECK_EQ(stage->op.get(), this);
   Region bounds;
   for (IterVar iv : this->axis) {
     bounds.push_back(realize_map.at(iv));
@@ -301,9 +301,9 @@ void MakeReduction(const ComputeOpNode* op, const Array<Tensor>& tensors, Stmt* 
 
   size_t size = op->body.size();
   const ReduceNode* reduce = op->body[0].as<ReduceNode>();
-  CHECK(reduce);
+  ICHECK(reduce);
   const CommReducerNode* combiner = reduce->combiner.as<CommReducerNode>();
-  CHECK(combiner);
+  ICHECK(combiner);
   Array<PrimExpr> lhs;
   for (size_t i = 0; i < size; ++i) {
     lhs.push_back(tensors[i](args));
@@ -405,11 +405,11 @@ ComputeType DetectComputeType(const ComputeOpNode* self, const Stage& stage) {
         ++normal_red;
       }
     } else {
-      CHECK_EQ(thread_red, 0) << "Cross thread reduce cannot swap with normal data axis";
+      ICHECK_EQ(thread_red, 0) << "Cross thread reduce cannot swap with normal data axis";
     }
   }
   if (tensorize != 0) {
-    CHECK(thread_red == 0) << "Cannot mix cross thread reduction with Tensorize";
+    ICHECK(thread_red == 0) << "Cannot mix cross thread reduction with Tensorize";
     return ComputeType::kTensorize;
   }
   if (thread_red != 0) {
@@ -423,7 +423,7 @@ ComputeType DetectComputeType(const ComputeOpNode* self, const Stage& stage) {
 Stmt ComputeOpNode::BuildProvide(const Stage& stage,
                                  const std::unordered_map<IterVar, Range>& dom_map,
                                  bool debug_keep_trivial_loop) const {
-  CHECK_EQ(stage->op.operator->(), this);
+  ICHECK_EQ(stage->op.operator->(), this);
   ComputeType ctype = DetectComputeType(this, stage);
   if (ctype == ComputeType::kCrossThreadReduction) {
     // specially handle cross thread reduction.
@@ -438,7 +438,7 @@ Stmt ComputeOpNode::BuildProvide(const Stage& stage,
 ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Stage& stage,
                                         const std::unordered_map<IterVar, Range>& dom_map,
                                         bool debug_keep_trivial_loop) {
-  CHECK_EQ(stage->op.operator->(), self);
+  ICHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest
   ret.main_nest = MakeLoopNest(stage, dom_map, 0, false, std::unordered_set<IterVar>(),
@@ -489,7 +489,7 @@ ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Sta
       e = likely(e);
     }
   } else {
-    CHECK_EQ(ret.main_nest.size(), stage->leaf_iter_vars.size() + 1);
+    ICHECK_EQ(ret.main_nest.size(), stage->leaf_iter_vars.size() + 1);
     ret.num_common_loop = stage->leaf_iter_vars.size();
   }
   // copy elison here.
@@ -524,12 +524,12 @@ class ComputeVerifier final : protected tir::ExprVisitor {
     for (const PrimExpr e : compute_->body) {
       // Check for consistency of top level reductions
       const tir::ReduceNode* reduce = e.as<tir::ReduceNode>();
-      CHECK((reduce && reduce_) || (!reduce && !reduce_)) << "All ComputeOp should be consistent "
-                                                          << "with being Reduce operation or not.";
+      ICHECK((reduce && reduce_) || (!reduce && !reduce_)) << "All ComputeOp should be consistent "
+                                                           << "with being Reduce operation or not.";
 
       if (reduce && reduce_) {
-        CHECK(ReduceEqual(reduce, reduce_)) << "The Reduce inputs of ComputeOp should "
-                                            << "have the same attribute except value_index";
+        ICHECK(ReduceEqual(reduce, reduce_)) << "The Reduce inputs of ComputeOp should "
+                                             << "have the same attribute except value_index";
       }
 
       level_ = 0;
@@ -548,8 +548,8 @@ class ComputeVerifier final : protected tir::ExprVisitor {
 
   void VisitExpr_(const tir::ReduceNode* op) final {
     // Check for non top level reductions
-    CHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
-                       << "Please create another tensor for further composition.";
+    ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
+                        << "Please create another tensor for further composition.";
   }
   //@}
 
@@ -581,7 +581,7 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
     }
     if (iv->iter_type == kCommReduce) {
       auto vit = dom_map.find(iv);
-      CHECK(vit != dom_map.end());
+      ICHECK(vit != dom_map.end());
       const Range& vrange = vit->second;
       conds.push_back(likely(iv->var > vrange->min));
       banned.insert(iv->var.get());

@@ -24,7 +24,7 @@
 
 #include "llvm_common.h"
 
-#include <dmlc/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/target/target.h>
 
 #include <atomic>
@@ -133,7 +133,7 @@ std::unique_ptr<llvm::TargetMachine> GetLLVMTargetMachine(const Target& target, 
   std::string err;
   const llvm::Target* llvm_target = llvm::TargetRegistry::lookupTarget(target_triple, err);
   if (llvm_target == nullptr) {
-    CHECK(allow_null) << err << " target_triple=" << target_triple;
+    ICHECK(allow_null) << err << " target_triple=" << target_triple;
     return nullptr;
   }
   llvm::TargetMachine* tm =

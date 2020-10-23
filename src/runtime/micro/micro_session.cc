@@ -23,10 +23,10 @@
 
 #include "micro_session.h"
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/crt/rpc_common/framing.h>
 #include <tvm/runtime/crt/rpc_common/session.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <chrono>
@@ -106,7 +106,7 @@ class MicroTransportChannel : public RPCChannel {
         int unframer_error = unframer_.Write((const uint8_t*)pending_chunk_.data(),
                                              pending_chunk_.size(), &bytes_consumed);
 
-        CHECK(bytes_consumed <= pending_chunk_.size())
+        ICHECK(bytes_consumed <= pending_chunk_.size())
             << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
         pending_chunk_ = pending_chunk_.substr(bytes_consumed);
         bytes_received += bytes_consumed;
@@ -138,7 +138,7 @@ class MicroTransportChannel : public RPCChannel {
   }
 
   bool StartSession() {
-    CHECK(state_ == State::kReset)
+    ICHECK(state_ == State::kReset)
         << "MicroSession: state_: expected kReset, got " << uint8_t(state_);
 
     ::std::chrono::steady_clock::time_point start_time = ::std::chrono::steady_clock::now();
@@ -151,8 +151,8 @@ class MicroTransportChannel : public RPCChannel {
       end_time = session_start_end_time;
     }
     while (!session_.IsEstablished()) {
-      CHECK_EQ(kTvmErrorNoError, session_.Initialize());
-      CHECK_EQ(kTvmErrorNoError, session_.StartSession());
+      ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
+      ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
 
       ::std::chrono::microseconds time_remaining = ::std::max(
           ::std::chrono::microseconds{0}, ::std::chrono::duration_cast<::std::chrono::microseconds>(
@@ -176,7 +176,7 @@ class MicroTransportChannel : public RPCChannel {
   size_t Send(const void* data, size_t size) override {
     const uint8_t* data_bytes = static_cast<const uint8_t*>(data);
     tvm_crt_error_t err = session_.SendMessage(MessageType::kNormal, data_bytes, size);
-    CHECK(err == kTvmErrorNoError) << "SendMessage returned " << err;
+    ICHECK(err == kTvmErrorNoError) << "SendMessage returned " << err;
 
     return size;
   }
@@ -191,7 +191,7 @@ class MicroTransportChannel : public RPCChannel {
           session_.ClearReceiveBuffer();
         }
         if (num_bytes_recv == size) {
-          CHECK(message_buffer_ == nullptr || message_buffer_->ReadAvailable() > 0);
+          ICHECK(message_buffer_ == nullptr || message_buffer_->ReadAvailable() > 0);
           return num_bytes_recv;
         }
       }
@@ -256,7 +256,7 @@ class MicroTransportChannel : public RPCChannel {
           return;
         }
 
-        CHECK_EQ(buf->Read(message, sizeof(message) - 1), message_size_bytes);
+        ICHECK_EQ(buf->Read(message, sizeof(message) - 1), message_size_bytes);
         message[message_size_bytes] = 0;
         LOG(INFO) << "remote: " << message;
         session_.ClearReceiveBuffer();
@@ -316,5 +316,5 @@ void TVMLogf(const char* fmt, ...) {
   LOG(INFO) << msg_buf;
 }
 
-void TVMPlatformAbort(int error_code) { CHECK(false) << "TVMPlatformAbort: " << error_code; }
+void TVMPlatformAbort(int error_code) { ICHECK(false) << "TVMPlatformAbort: " << error_code; }
 }

@@ -26,7 +26,7 @@
 #ifndef TVM_SUPPORT_BASE64_H_
 #define TVM_SUPPORT_BASE64_H_
 
-#include <dmlc/logging.h>
+#include <tvm/support/logging.h>
 
 #include <cctype>
 #include <cstdio>
@@ -154,7 +154,7 @@ class Base64InStream : public dmlc::Stream {
       {
         // second byte
         temp_ch_ = reader_.GetChar();
-        CHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         nvalue |= DecodeTable[temp_ch_] << 12;
         *cptr++ = (nvalue >> 16) & 0xFF;
         --tlen;
@@ -162,13 +162,13 @@ class Base64InStream : public dmlc::Stream {
       {
         // third byte
         temp_ch_ = reader_.GetChar();
-        CHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         // handle termination
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          CHECK(temp_ch_ == '=') << "invalid base64 format";
+          ICHECK(temp_ch_ == '=') << "invalid base64 format";
           temp_ch_ = reader_.GetChar();
-          CHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
+          ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_] << 6;
@@ -182,10 +182,10 @@ class Base64InStream : public dmlc::Stream {
       {
         // fourth byte
         temp_ch_ = reader_.GetChar();
-        CHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          CHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
+          ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_];
@@ -200,7 +200,7 @@ class Base64InStream : public dmlc::Stream {
       temp_ch_ = reader_.GetChar();
     }
     if (kStrictCheck) {
-      CHECK_EQ(tlen, 0) << "Base64InStream: read incomplete";
+      ICHECK_EQ(tlen, 0) << "Base64InStream: read incomplete";
     }
     return size - tlen;
   }

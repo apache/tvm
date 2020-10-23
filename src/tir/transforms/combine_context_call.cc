@@ -42,13 +42,13 @@ class ContextCallCombiner final : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_thread_context())) {
-      CHECK_EQ(op->args.size(), 1U);
+      ICHECK_EQ(op->args.size(), 1U);
       PrimExpr ctx = op->args[0];
       auto it = ctx_map_.find(ctx);
       if (it != ctx_map_.end()) {
         return it->second;
       } else {
-        CHECK(ctx.dtype().is_handle());
+        ICHECK(ctx.dtype().is_handle());
         Var ctx_var("ctx_cache_", ctx.dtype());
         ctx_map_[ctx] = ctx_var;
         return std::move(ctx_var);
