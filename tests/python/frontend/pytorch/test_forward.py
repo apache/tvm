@@ -3350,6 +3350,26 @@ def test_convert_torch_script_with_input_types():
     assert tvm.ir.structural_equal(expected_mod, mod["main"], map_free_vars=True)
 
 
+def test_bincount():
+    class Bincount(torch.nn.Module):
+        def __init__(self, weights=None):
+            super().__init__()
+            self.weights = weights
+
+        def forward(self, x):
+            return torch.bincount(x, weights=self.weights)
+
+    inp = torch.randint(0, 8, (5,), dtype=torch.int64)
+    weights = torch.linspace(0, 1, steps=5)
+
+    verify_trace_model(Bincount(), [inp], ["llvm"])
+    verify_trace_model(Bincount(weights), [inp], ["llvm"])
+
+
+def test_scatter_add():
+    pass
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3476,6 +3496,7 @@ if __name__ == "__main__":
     test_forward_nonzero()
     test_forward_scatter()
     test_numel()
+    test_bincount()
 
     # Model tests
     test_resnet18()

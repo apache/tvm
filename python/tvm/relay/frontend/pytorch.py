@@ -2357,6 +2357,25 @@ def _empty():
     return _impl
 
 
+def _bincount():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        weights = inputs[1]
+        maximum = _op.max(data)
+        dim = maximum + _expr.const(1, dtype="int64")
+        if weights:
+            out_dtype = "float32"
+            updates = weights
+        else:
+            out_dtype = "int64"
+            updates = _op.ones_like(data)
+
+        counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
+        return _op.scatter_add(counts, data, updates, axis=0)
+
+    return _impl
+
+
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
@@ -2699,6 +2718,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::tensor": _identity(),  # used for example in tensor(1.0)
         "aten::numel": _numel(),
         "aten::empty": _empty(),
+        "aten::bincount": _bincount(),
     }
     return convert_map
 
@@ -3330,6 +3350,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    print(graph)
 
     if custom_convert_map:
         convert_map.update(custom_convert_map)
