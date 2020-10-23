@@ -17,16 +17,18 @@
 from tvm.relay.testing import resnet
 from tvm.relay.analysis import count_layers
 
+
 def test_layer_count():
     def verify(num_layers):
         # Load a resnet with a known number of layers.
         mod, _ = resnet.get_workload(num_layers=num_layers)
         # Count the number of conv and dense layers.
-        count = count_layers(mod, valid_ops=['nn.conv2d', 'nn.dense'])
+        count = count_layers(mod, valid_ops=["nn.conv2d", "nn.dense"])
         assert count == num_layers
-    
+
     verify(18)
     verify(50)
+
 
 if __name__ == "__main__":
     test_layer_count()

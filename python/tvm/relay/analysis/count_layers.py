@@ -21,15 +21,16 @@ from ..expr_functor import ExprVisitor
 
 class LayerCounter(ExprVisitor):
     """A visitor pass that computes the deepest chain of specified ops in graph."""
+
     def __init__(self, valid_ops):
         self.depth_count = 0
         self.deepest_count = 0
         self.valid_ops = [relay.op.get(op) for op in valid_ops]
         super().__init__()
-    
+
     def visit_call(self, call):
         if call.op in self.valid_ops:
-            self.depth_count += 1 
+            self.depth_count += 1
         current_count = self.depth_count
         self.deepest_count = max(self.deepest_count, current_count)
         for arg in call.args:
@@ -60,7 +61,7 @@ def count_layers(expr, valid_ops):
         The number of layers of the specified operations found in the graph.
     """
     if isinstance(expr, tvm.ir.IRModule):
-        expr = expr['main']
+        expr = expr["main"]
     count_pass = LayerCounter(valid_ops)
     count_pass.visit(expr)
     return count_pass.count()

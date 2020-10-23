@@ -388,9 +388,10 @@ def AlterOpLayout():
 
 class LayoutConfig(object):
     """A structure for customizing the ConvertLayout pass."""
+
     current = None
 
-    def __init__(self, skip_layers = []):
+    def __init__(self, skip_layers=[]):
         self.skip_counter = 0
         self.skip_layers = skip_layers
 
@@ -398,7 +399,7 @@ class LayoutConfig(object):
         skip = self.skip_counter in self.skip_layers
         self.skip_counter += 1
         return skip
-   
+
     def reset(self):
         self.skip_counter = 0
         self.skip_layers = []
@@ -407,7 +408,7 @@ class LayoutConfig(object):
         self._old_manager = LayoutConfig.current
         LayoutConfig.current = self
         return self
-    
+
     def __exit__(self, ptype, value, trace):
         LayoutConfig.current = self._old_manager
 

@@ -172,7 +172,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     if layout_config is not None:
         skip_layer = layout_config.check_skip()
         if skip_layer:
-            return relay.nn.conv2d(data, weight, **attrs)        
+            return relay.nn.conv2d(data, weight, **attrs)
 
     # Prepare new layout.
     new_attrs = dict(attrs)
@@ -203,8 +203,8 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         else:
             new_attrs["kernel_layout"] = "HWIO"
         return relay.nn.conv2d(data, weight, **new_attrs)
-    elif desired_data_layout == 'HWNC':
-        new_attrs['kernel_layout'] = 'HWOI'
+    elif desired_data_layout == "HWNC":
+        new_attrs["kernel_layout"] = "HWOI"
         return relay.nn.conv2d(data, weight, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)

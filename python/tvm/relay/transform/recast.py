@@ -23,8 +23,10 @@ from ..function import Function
 from ..analysis import count_layers
 from ..expr_functor import ExprMutator, Call
 
+
 class RecastMutator(ExprMutator):
     """Cast operations to the target type."""
+
     def __init__(self, dtype, out_dtype, valid_ops, valid_op_count, skip_layers=[]):
         self.dtype = dtype
         self.out_dtype = out_dtype
@@ -63,35 +65,35 @@ class RecastMutator(ExprMutator):
 
             # If out_dtype is in the attributes, we need to update it.
             orig_dtype = None
-            if 'out_dtype' in call.attrs.keys():
-                new_attr_dict= {}
+            if "out_dtype" in call.attrs.keys():
+                new_attr_dict = {}
                 for attr in call.attrs.keys():
                     attr_value = call.attrs[attr]
                     if isinstance(attr_value, tvm.ir.container.Array):
                         attr_value = tuple(attr_value)
                     new_attr_dict[str(attr)] = attr_value
-                new_attr_dict['out_dtype'] = self.out_dtype
-                attr_type = str(call.attrs).split('(')[0]
+                new_attr_dict["out_dtype"] = self.out_dtype
+                attr_type = str(call.attrs).split("(")[0]
                 new_attrs = tvm.ir.make_node(attr_type, **new_attr_dict)
-                if call.attrs['out_dtype'] != "":
-                    orig_dtype = call.attrs['out_dtype']
+                if call.attrs["out_dtype"] != "":
+                    orig_dtype = call.attrs["out_dtype"]
             else:
                 new_attrs = call.attrs
 
             if orig_dtype is None:
                 # Perform type inference to determine the original type.
-                new_mod = IRModule.from_expr(args[0])
-                entry = new_mod['main']
-                checked_arg = entry if isinstance(args[0], Function) else entry.body
+                new_mod = IRModule.from_expr(call)
+                new_mod = InferType()(new_mod)
+                checked_arg = new_mod["main"].body
                 orig_dtype = checked_arg.checked_type.dtype
             # Recast the output for compatibility with other graph operations.
             return relay.cast(Call(new_fn, new_args, new_attrs), orig_dtype)
-                
+
         # Otherwise return the unchanged call.
         return Call(new_fn, args, call.attrs)
 
 
-def recast(expr, dtype, out_dtype, ops=['nn.conv2d'], skip_layers=[]):
+def recast(expr, dtype, out_dtype, ops=["nn.conv2d"], skip_layers=[]):
     """Convert the types of operations in a graph to a new value.
     Note that this is primarily useful for testing performance of individual
     operations at the new datatype. In a real setting, this pass will
@@ -124,7 +126,7 @@ def recast(expr, dtype, out_dtype, ops=['nn.conv2d'], skip_layers=[]):
     """
     return_mod = False
     if isinstance(expr, tvm.ir.IRModule):
-        expr = expr['main']
+        expr = expr["main"]
         return_mod = True
     layer_depth = count_layers(expr, ops)
     recast_pass = RecastMutator(dtype, out_dtype, ops, layer_depth, skip_layers)
