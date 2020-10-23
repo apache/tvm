@@ -17,9 +17,11 @@
 """Relay type recasting pass"""
 import tvm
 from tvm import relay
-from tvm.relay import ExprMutator, Call
-from tvm.relay.frontend.common import infer_type
-from tvm.relay.analysis import count_layers
+from tvm.ir import IRModule
+from .transform import InferType
+from ..function import Function
+from ..analysis import count_layers
+from ..expr_functor import ExprMutator, Call
 
 class RecastMutator(ExprMutator):
     """Cast operations to the target type."""
@@ -60,6 +62,7 @@ class RecastMutator(ExprMutator):
                 new_args.append(relay.cast(arg, dtype=self.dtype))
 
             # If out_dtype is in the attributes, we need to update it.
+            orig_dtype = None
             if 'out_dtype' in call.attrs.keys():
                 new_attr_dict= {}
                 for attr in call.attrs.keys():
@@ -70,10 +73,19 @@ class RecastMutator(ExprMutator):
                 new_attr_dict['out_dtype'] = self.out_dtype
                 attr_type = str(call.attrs).split('(')[0]
                 new_attrs = tvm.ir.make_node(attr_type, **new_attr_dict)
+                if call.attrs['out_dtype'] != "":
+                    orig_dtype = call.attrs['out_dtype']
             else:
                 new_attrs = call.attrs
+
+            if orig_dtype is None:
+                # Perform type inference to determine the original type.
+                new_mod = IRModule.from_expr(args[0])
+                entry = new_mod['main']
+                checked_arg = entry if isinstance(args[0], Function) else entry.body
+                orig_dtype = checked_arg.checked_type.dtype
             # Recast the output for compatibility with other graph operations.
-            return relay.cast(Call(new_fn, new_args, new_attrs), infer_type(args[0]).checked_type.dtype)
+            return relay.cast(Call(new_fn, new_args, new_attrs), orig_dtype)
                 
         # Otherwise return the unchanged call.
         return Call(new_fn, args, call.attrs)
@@ -114,7 +126,7 @@ def recast(expr, dtype, out_dtype, ops=['nn.conv2d'], skip_layers=[]):
     if isinstance(expr, tvm.ir.IRModule):
         expr = expr['main']
         return_mod = True
-    layer_depth = count_layers.count_layers(expr, ops)
+    layer_depth = count_layers(expr, ops)
     recast_pass = RecastMutator(dtype, out_dtype, ops, layer_depth, skip_layers)
     expr = recast_pass.visit(expr)
     if return_mod:
