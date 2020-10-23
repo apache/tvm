@@ -50,6 +50,7 @@ def build_artifact(artifact_path, immobile=False):
     )
 
     from tvm.micro import artifact
+
     art = artifact.Artifact(artifact_path, TEST_LABELS, TEST_METADATA, immobile=immobile)
 
     return art
