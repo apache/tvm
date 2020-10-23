@@ -1549,7 +1549,7 @@ def _stridedSlice():
                 idx += st
 
             # Only return when in_shape is fully static in the range from begin to end.
-            if idx >= st:
+            if idx >= ed:
                 ret = _expr.const(out_data, dtype)
                 if shrink_axis_mask:
                     ret = _op.squeeze(ret)
@@ -1659,14 +1659,26 @@ def _stridedSlice():
 
 def _pad(name):
     def _impl(inputs, attr, params, mod):
-        padlist = _get_param(params, inputs[1])
-        paddings = tuple(tuple(l) for l in padlist)
+        try:
+            padlist = _get_param(params, inputs[1])
+        except (IndexError, KeyError, AttributeError):
+            try:
+                padlist = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+            except Exception:
+                padlist = inputs[1]
+
+        if isinstance(padlist, _expr.Expr):
+            paddings = padlist
+        else:
+            paddings = tuple(tuple(l) for l in padlist)
         attr["pad_width"] = paddings
         attr["pad_value"] = 0
         new_inputs = [inputs[0]]
         if name == "PadV2":
-            constant_values = _get_num_param(params, inputs[2])
-            attr["pad_value"] = constant_values
+            try:
+                attr["pad_value"] = _get_num_param(params, inputs[2])
+            except (IndexError, KeyError, AttributeError):
+                attr["pad_value"] = inputs[2]
         return AttrCvt(
             op_name="pad",
             ignores=["Tpaddings"],
