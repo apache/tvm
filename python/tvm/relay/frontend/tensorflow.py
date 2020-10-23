@@ -2391,6 +2391,7 @@ _convert_map = {
     "ReverseV2": _reverse_v2(),
     "RightShift": AttrCvt("right_shift"),
     "Round": AttrCvt("round"),
+    "Rint": AttrCvt("round"),
     "Rsqrt": _rsqrt(),
     "Select": _where(),
     "Selu": _selu(),
