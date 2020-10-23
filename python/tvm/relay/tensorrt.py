@@ -207,7 +207,9 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
     # _register_external_op_helper("slice_like")
 
     def add_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
-
+        for arg in args:
+            if not arg.checked_type.shape:
+                return False
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
             return False
