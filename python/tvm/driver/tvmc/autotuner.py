@@ -92,12 +92,10 @@ def add_tune_parser(subparsers):
     )
     parser.add_argument(
         "--rpc-key",
-        nargs=1,
         help="the RPC tracker key of the target device. Required when --rpc-tracker is provided.",
     )
     parser.add_argument(
         "--rpc-tracker",
-        nargs=1,
         help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
         "e.g. '192.168.0.100:9999'",
     )
