@@ -258,12 +258,12 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
 
 Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Get parameters
-  int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
-  int num_use_measured =
-      std::min(static_cast<int>(measured_states_vector_.size()),
-               static_cast<int>(
-                   GetDoubleParam(params, SketchParamKey::EvolutionarySearch::use_measured_ratio) *
-                   population));
+  int population = GetIntParam(params, SketchParamKey::SampleInitPopulation::population);
+  int num_use_measured = std::min(
+      static_cast<int>(measured_states_vector_.size()),
+      static_cast<int>(
+          GetDoubleParam(params, SketchParamKey::SampleInitPopulation::use_measured_ratio) *
+          population));
   bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
 
   // 1. Generate sketches
@@ -374,10 +374,14 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  while (static_cast<int>(out_states.size()) < out_size && fail_ct < out_size) {
+  size_t iter = 1;
+  size_t target_size = out_size;
+  size_t unchange_cnt = 0;
+  while (out_states.size() < target_size) {
     std::vector<State> temp_states(out_size);
 
-    support::parallel_for(0, out_size - out_states.size(),
+    // Initial a batch of states randomly
+    support::parallel_for(0, out_size,
                           [this, &temp_states, &sketches, &rand_gens](int index) {
                             // Randomly choose a sketch
                             State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
@@ -395,13 +399,57 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
                             }
                           });
 
-    for (int i = 0; i < out_size; i++) {
-      if (temp_states[i].defined()) {
-        out_states.push_back(std::move(temp_states[i]));
+    // Filter out the states that were failed to apply initial rules
+    Array<State> cand_states;
+    for (auto tmp_s : temp_states) {
+      if (tmp_s.defined()) {
+        cand_states.push_back(std::move(tmp_s));
       } else {
         fail_ct++;
       }
     }
+
+    unchange_cnt++;
+    if (!cand_states.empty()) {
+      // Run the cost model to make filter out states that failed to extract features.
+      // This may happen due to illegal schedules or the schedules that uses too much
+      // memory on GPU.
+      std::vector<float> pop_scores;
+      pop_scores.reserve(cand_states.size());
+      cand_states = search_task->compute_dag.InferBound(cand_states);
+      program_cost_model->Predict(search_task, cand_states, &pop_scores);
+
+      for (size_t i = 0; i < cand_states.size(); i++) {
+        if (pop_scores[i] > -1e10) {
+          out_states.push_back(std::move(cand_states[i]));
+          unchange_cnt = 0;  // Reset the counter once we found a valid state
+        } else {
+          fail_ct++;
+        }
+      }
+    }
+
+    if (iter % 5 == 0) {
+      double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                            std::chrono::high_resolution_clock::now() - tic_begin)
+                            .count();
+      StdCout(verbose) << "Sample Iter: " << iter << std::fixed << std::setprecision(4)
+                       << "\t#Pop: " << out_states.size() << "\t#Target: " << target_size
+                       << "\tfail_ct: " << fail_ct << "\tTime elapsed: " << std::fixed
+                       << std::setprecision(2) << duration << std::endl;
+    }
+
+    if (unchange_cnt == 5) {
+      // Reduce the target size to avoid too-long time in this phase if no valid state was found
+      // in the past iterations
+      if (target_size > 1) {
+        target_size /= 2;
+        StdCout(verbose) << "#Target has been reduced to " << target_size
+                         << " due to too many failures";
+      }
+      unchange_cnt = 0;
+    }
+    iter++;
   }
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(

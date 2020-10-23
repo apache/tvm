@@ -192,7 +192,7 @@ class XGBModel(PythonBasedModel):
         else:
             ret = np.random.uniform(0, 1, (len(states),))
 
-        # Predict 0 for invalid states that failed to be lowered.
+        # Predict -inf for invalid states that failed to be lowered.
         for idx, feature in enumerate(features):
             if feature.min() == feature.max() == 0:
                 ret[idx] = float("-inf")
