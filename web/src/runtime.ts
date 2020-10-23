@@ -1216,6 +1216,7 @@ export class Instance implements Disposable {
           tcode == ArgTypeCode.TVMObjectHandle ||
           tcode == ArgTypeCode.TVMObjectRValueRefArg ||
           tcode == ArgTypeCode.TVMPackedFuncHandle ||
+          tcode == ArgTypeCode.TVMNDArrayHandle ||
           tcode == ArgTypeCode.TVMModuleHandle
         ) {
           lib.checkCall(

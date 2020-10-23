@@ -103,8 +103,10 @@ pub trait ToFunction<I, O>: Sized {
                 value = args_list[i];
                 tcode = type_codes_list[i];
                 if tcode == ffi::TVMArgTypeCode_kTVMObjectHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kkTVMObjectRValueRefArg as c_int
                     || tcode == ffi::TVMArgTypeCode_kTVMPackedFuncHandle as c_int
                     || tcode == ffi::TVMArgTypeCode_kTVMModuleHandle as c_int
+                    || tcode == ffi::TVMArgTypeCode_kTVMNDArrayFuncHandle as c_int
                 {
                     check_call!(ffi::TVMCbArgToReturn(
                         &mut value as *mut _,
