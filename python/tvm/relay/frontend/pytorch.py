@@ -2376,6 +2376,17 @@ def _bincount():
     return _impl
 
 
+def _scatter_add():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        index = inputs[2]
+        src = inputs[3]
+        return _op.scatter_add(data, index, src, axis=axis)
+
+    return _impl
+
+
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
@@ -2719,6 +2730,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::numel": _numel(),
         "aten::empty": _empty(),
         "aten::bincount": _bincount(),
+        "aten::scatter_add": _scatter_add(),
     }
     return convert_map
 

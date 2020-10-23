@@ -3147,11 +3147,20 @@ def test_forward_scatter():
         def forward(self, data, index, src):
             return torch.scatter(data, dim=self.dim, index=index, src=src)
 
+    class ScatterAdd(Module):
+        def __init__(self, dim=0):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, data, index, src):
+            return torch.scatter_add(data, dim=self.dim, index=index, src=src)
+
     in_data = torch.zeros(3, 5)
     in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
     in_src = torch.rand(2, 5)
     # TODO: add scatter gpu schedule to enable gpu test.
     verify_trace_model(Scatter(), [in_data, in_index, in_src], ["llvm"])
+    verify_trace_model(ScatterAdd(), [in_data, in_index, in_src], ["llvm"])
 
     in_data = torch.zeros(2, 4)
     in_index = torch.tensor([[2], [3]])
@@ -3159,6 +3168,7 @@ def test_forward_scatter():
 
     # TODO: add scatter gpu schedule to enable gpu test.
     verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
+    verify_trace_model(ScatterAdd(1), [in_data, in_index, in_src], ["llvm"])
 
 
 def test_numel():
