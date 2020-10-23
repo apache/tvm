@@ -391,9 +391,9 @@ class LayoutConfig(object):
 
     current = None
 
-    def __init__(self, skip_layers=[]):
+    def __init__(self, skip_layers=None):
         self.skip_counter = 0
-        self.skip_layers = skip_layers
+        self.skip_layers = skip_layers if skip_layers is not None else []
 
     def check_skip(self):
         skip = self.skip_counter in self.skip_layers
