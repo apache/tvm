@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from tvm.relay.testing import resnet
-from tvm.relay.analysis.count_layers import count_layers
+from tvm.relay.analysis import count_layers
 
 def test_layer_count():
     def verify(num_layers):

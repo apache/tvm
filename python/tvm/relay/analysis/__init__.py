@@ -31,4 +31,4 @@ from . import feature
 from . import sparse_dense
 
 # Utilities
-from . import count_layers
+from .count_layers import count_layers

@@ -29,7 +29,7 @@ class LayerCounter(ExprVisitor):
     
     def visit_call(self, call):
         if call.op in self.valid_ops:
-            self.depth_count = self.depth_count + 1
+            self.depth_count += 1 
         current_count = self.depth_count
         self.deepest_count = max(self.deepest_count, current_count)
         for arg in call.args:
