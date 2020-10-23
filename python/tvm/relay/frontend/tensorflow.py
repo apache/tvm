@@ -788,6 +788,14 @@ def _expand_dims():
     return _impl
 
 
+def _expm1():
+    def _impl(inputs, attr, params, mod):
+        lh = get_relay_op("exp")(inputs[0])
+        return get_relay_op("subtract")(lh, tvm.relay.const(1, attr["T"].name))
+
+    return _impl
+
+
 def _resize(method):
     def _impl(inputs, attr, params, mod):
         if attr["_output_shapes"][0] is not None:
@@ -2297,6 +2305,7 @@ _convert_map = {
     "EuclideanNorm": _euclidean_norm(),
     "Exp": AttrCvt("exp"),
     "ExpandDims": _expand_dims(),
+    "Expm1": _expm1(),
     "Fill": _fill(),
     "Floor": AttrCvt("floor"),
     "FloorDiv": _floordiv(),
