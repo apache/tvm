@@ -3376,10 +3376,6 @@ def test_bincount():
     verify_trace_model(Bincount(weights), [inp], ["llvm"])
 
 
-def test_scatter_add():
-    pass
-
-
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
