@@ -119,8 +119,7 @@ as follows:
 
 .. code-block:: bash
 
-    $ ssh tvm@microtvm
-    Password: tvm
+    $ vagrant ssh
 
 Then ``cd`` to the same path used on your host machine for TVM. For example, on Mac:
 
