@@ -333,7 +333,19 @@ def test_numpy_scalar():
     assert tvm.testing.echo(np.int64(maxint)) == maxint
 
 
+def test_ndarray_args():
+    def check(arr):
+        assert not arr.is_view
+        assert tvm.testing.object_use_count(arr) == 2
+
+    fcheck = tvm.runtime.convert(check)
+    x = tvm.nd.array([1, 2, 3])
+    fcheck(x)
+    assert tvm.testing.object_use_count(x) == 1
+
+
 if __name__ == "__main__":
+    test_ndarray_args()
     test_numpy_scalar()
     test_rvalue_ref()
     test_empty_array()
