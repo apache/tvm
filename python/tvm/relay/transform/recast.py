@@ -4,7 +4,7 @@ from tvm import relay
 from tvm.relay import ExprVisitor, ExprMutator, Call, Var, Constant, TupleGetItem, Function
 import tvm.relay.transform as _transform
 from tvm.relay.frontend.common import infer_type
-from depth_count import DepthCounter
+from tvm.relay.analysis import count_layers
 
 
 def recast(func, dtype, out_dtype, ops=['nn.conv2d'], skip_layers=[]):
@@ -79,9 +79,8 @@ def recast(func, dtype, out_dtype, ops=['nn.conv2d'], skip_layers=[]):
                     
             return super().visit_call(call)
 
-    count_pass = DepthCounter(ops)
-    count_pass.visit(func)
-    print(count_pass.depth_count)
+    layer_depth = count_layers.count_layers(func, ['nn.conv2d', 'nn.dense'])
+    print(layer_depth)
     exit()
     recast_pass = RecastMutator(count_pass.valid_op_count)
     func = recast_pass.visit(func)

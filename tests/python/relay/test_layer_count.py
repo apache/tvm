@@ -14,21 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin, invalid-name
-"""The Relay IR namespace containing the analysis passes."""
-# Analysis passes
-from .analysis import *
+from tvm.relay.testing import resnet
+from tvm.relay.analysis.count_layers import count_layers
 
-# Annotations
-from .annotated_regions import AnnotatedRegionSet
+def test_layer_count():
+    def verify(num_layers):
+        # Load a resnet with a known number of layers.
+        mod, _ = resnet.get_workload(num_layers=num_layers)
+        # Count the number of conv and dense layers.
+        count = count_layers(mod, valid_ops=['nn.conv2d', 'nn.dense'])
+        assert count == num_layers
+    
+    verify(18)
+    verify(50)
 
-# Call graph
-from . import call_graph
-from .call_graph import CallGraph
-
-# Feature
-from . import feature
-from . import sparse_dense
-
-# Utilities
-from . import count_layers
+if __name__ == "__main__":
+    test_layer_count()
