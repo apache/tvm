@@ -285,6 +285,7 @@ def _add_output_quant_params_to_scalar_op(node, graph, input_scale, input_zero_p
 
     %7 and %8 are newly created output scale and zp constant nodes
     """
+    # pylint: disable=c-extension-no-member
     import torch
 
     operator = node.kind()
