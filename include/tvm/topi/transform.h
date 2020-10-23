@@ -897,8 +897,14 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
     return compute(
         condition->shape,
         [&](const Array<Var>& indices) {
-          Array<PrimExpr> condition_idx{indices[0]};
-          return tvm::tir::Select(condition(condition_idx) != 0, x(), y());
+          PrimExpr cond;
+          if (condition->shape.size() == 0) {
+            cond = condition();
+          } else {
+            Array<PrimExpr> condition_idx{indices[0]};
+            cond = condition(condition_idx);
+          }
+          return tvm::tir::Select(cond != 0, x(), y());
         },
         name, tag);
   } else if (condition->shape.size() != 1) {
@@ -913,9 +919,13 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
         },
         name, tag);
   } else {
-    CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
-        << "If condition is 1-D, the first dimension must be the same as x: " << condition->shape[0]
-        << " vs " << x->shape[0];
+    int64_t cond_first_dim = topi::GetConstInt(condition->shape[0]);
+    int64_t x_first_dim = topi::GetConstInt(x->shape[0]);
+    if (cond_first_dim > 0 && x_first_dim > 0) {
+      CHECK_EQ(cond_first_dim, x_first_dim)
+          << "If condition is 1-D, the first dimension must be the same as x: " << cond_first_dim
+          << " vs " << x_first_dim;
+    }
     return compute(
         x->shape,
         [&](const Array<Var>& indices) {
