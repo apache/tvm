@@ -83,6 +83,10 @@ impl DataType {
         DataType::new(DL_FLOAT_CODE, bits, lanes)
     }
 
+    pub const fn float32() -> DataType {
+        Self::float(32, 1)
+    }
+
     pub const fn uint(bits: u8, lanes: u16) -> DataType {
         DataType::new(DL_UINT_CODE, bits, lanes)
     }

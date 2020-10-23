@@ -22,6 +22,7 @@ use thiserror::Error;
 use tvm_macros::Object;
 
 use std::io::Result as IOResult;
+use std::iter::FromIterator;
 use std::path::Path;
 
 use crate::runtime::array::Array;
@@ -35,6 +36,12 @@ use super::function::BaseFunc;
 use super::source_map::SourceMap;
 use super::{ty::GlobalTypeVar, relay};
 
+<<<<<<< HEAD
+=======
+use tvm_macros::Object;
+
+// TODO(@jroesch): define type
+>>>>>>> WIP
 type TypeData = ObjectRef;
 
 #[derive(Error, Debug)]
@@ -63,9 +70,11 @@ external! {
     fn parse_module(file_name: TVMString, source: TVMString) -> IRModule;
     #[name("parser.ParseExpr")]
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
+    #[name("ir.IRModule")]
+    fn module_new(funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> IRModule;
     // Module methods
     #[name("ir.Module_Add")]
-    fn module_add(module: IRModule, type_name: GlobalVar, expr: relay::Expr, update: bool) -> ();
+    fn module_add(module: IRModule, type_name: GlobalVar, expr: BaseFunc, update: bool) -> IRModule;
     #[name("ir.Module_AddDef")]
     fn module_add_def(module: IRModule, type_name: GlobalTypeVar, type_data: TypeData, update: bool) -> ();
     #[name("ir.Module_GetGlobalVar")]
@@ -77,15 +86,15 @@ external! {
     #[name("ir.Module_Lookup_str")]
     fn module_lookup_str(module: IRModule, name: TVMString) -> BaseFunc;
     #[name("ir.Module_GetGlobalTypeVars")]
-    fn module_get_global_type_vars() -> Array<GlobalTypeVar>;
+    fn module_get_global_type_vars(module: IRModule) -> Array<GlobalTypeVar>;
     #[name("ir.Module_ContainGlobalVar")]
-    fn module_contains_global_var(name: TVMString) -> bool;
+    fn module_contains_global_var(module: IRModule, name: TVMString) -> bool;
     #[name("ir.Module_ContainGlobalTypeVar")]
-    fn module_contains_global_type_var(name: TVMString) -> bool;
+    fn module_contains_global_type_var(module: IRModule, name: TVMString) -> bool;
     #[name("ir.Module_LookupDef")]
-    fn module_lookup_def(module: IRModule, global: GlobalTypeVar) -> TypeDef;
+    fn module_lookup_def(module: IRModule, global: GlobalTypeVar) -> TypeData;
     #[name("ir.Module_LookupDef_str")]
-    fn module_lookup_def_str(module: IRModule, global: GlobalTypeVar) -> TypeDef;
+    fn module_lookup_def_str(module: IRModule, global: GlobalTypeVar) -> TypeData;
     #[name("ir.Module_LookupTag")]
     fn module_lookup_tag(module: IRModule, tag: i32) -> relay::Constructor;
     #[name("ir.Module_FromExpr")]
@@ -98,9 +107,17 @@ external! {
 
 // Note: we don't expose update here as update is going to be removed.
 
-
 impl IRModule {
+<<<<<<< HEAD
     pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
+=======
+    pub fn new<F, T>(funcs: F, types: T) -> Result<IRModule>
+    where F: IntoIterator<Item=(GlobalVar, BaseFunc)>, T: IntoIterator<Item=(GlobalTypeVar, TypeData)> {
+        module_new(Map::from_iter(funcs), Map::from_iter(types))
+    }
+
+    pub fn parse<N, S>(file_name: N, source: S) -> IRModule
+>>>>>>> WIP
     where
         N: Into<TVMString>,
         S: Into<TVMString>,
@@ -117,6 +134,13 @@ impl IRModule {
         let module = IRModule::parse(file_path_as_str, source)?;
         Ok(module)
     }
+
+    pub fn add(
+        &mut self,
+        var: GlobalVar,
+        func: BaseFunc) -> Result<IRModule> {
+            module_add(self.clone(), var, func, true)
+        }
 
     pub fn add_def(
         &mut self,
@@ -145,10 +169,127 @@ impl IRModule {
     {
         module_lookup_str(self.clone(), name.into())
     }
+
+    pub fn get_global_type_vars(&self) -> Result<Array<GlobalTypeVar>> {
+        module_get_global_type_vars(self.clone())
+    }
+
+    pub fn contains_global_var<S: Into<TVMString>>(&self, name: S) -> Result<bool> {
+        module_contains_global_var(self.clone(), name.into())
+    }
+
+    pub fn contains_global_type_var<S: Into<TVMString>>(&self, name: S) -> Result<bool> {
+        module_contains_global_type_var(self.clone(), name.into())
+    }
+
+    pub fn lookup_def(&self, global: GlobalTypeVar) -> Result<TypeData> {
+        module_lookup_def(self.clone(), global)
+    }
+
+    pub fn lookup_def_str(&self, global: GlobalTypeVar) -> Result<TypeData> {
+        module_lookup_def_str(self.clone(), global)
+    }
+
+    pub fn lookup_tag(&self, tag: i32) -> Result<relay::Constructor> {
+        module_lookup_tag(self.clone(), tag)
+    }
+
+    pub fn from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> Result<IRModule> {
+        module_from_expr(expr, funcs, types)
+    }
+
+    pub fn import<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
+        module_import(self.clone(), path.into())
+    }
+
+    pub fn import_from_std<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
+        module_import_from_std(self.clone(), path.into())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    // #[test]
-    // fn
+    use std::collections::HashMap;
+    use super::relay::*;
+    use super::*;
+    use super::super::span::Span;
+    use tvm_rt::IsObjectRef;
+
+    #[test]
+    fn test_module_add() -> anyhow::Result<()> {
+        let funcs = HashMap::<GlobalVar, BaseFunc>::new();
+        let types =  HashMap::<GlobalTypeVar, TypeData>::new();
+        let mut module = IRModule::new(funcs, types)?;
+        let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
+        let params = Array::from_vec(vec![x.clone()])?;
+        let func = relay::Function::simple(params, x.upcast()).upcast();
+        let module = module.add(GlobalVar::new("foo".into(), Span::null()), func)?;
+        // let lfunc = module.lookup_str("foo")?;
+        // let lfunc = lfunc.downcast::<relay::Function>()?;
+        // assert_eq!(lfunc.params.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_module_add_def() {
+
+    }
+
+    #[test]
+    fn test_get_global_var() {
+
+    }
+
+    #[test]
+    fn test_get_global_vars() {
+
+    }
+
+    #[test]
+    fn test_lookup() {
+
+    }
+
+
+    // pub fn get_global_type_vars(&self) -> Result<Array<GlobalTypeVar>> {
+    //     module_get_global_type_vars(self.clone())
+    // }
+
+    // pub fn contains_global_var<S: Into<TVMString>>(&self, name: S) -> Result<bool> {
+    //     module_contains_global_var(self.clone(), name.into())
+    // }
+
+    // pub fn contains_global_type_var<S: Into<TVMString>>(&self, name: S) -> Result<bool> {
+    //     module_contains_global_type_var(self.clone(), name.into())
+    // }
+
+    #[test]
+    fn test_lookup_def() {
+
+    }
+    // pub fn lookup_def(&self, global: GlobalTypeVar) -> Result<TypeData> {
+    //     module_lookup_def(self.clone(), global)
+    // }
+
+    // pub fn lookup_def_str(&self, global: GlobalTypeVar) -> Result<TypeData> {
+    //     module_lookup_def_str(self.clone(), global)
+    // }
+
+    // pub fn lookup_tag(&self, tag: i32) -> Result<relay::Constructor> {
+    //     module_lookup_tag(self.clone(), tag)
+    // }
+
+    // pub fn from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> Result<IRModule> {
+    //     module_from_expr(expr, funcs, types)
+    // }
+
+
+    // pub fn import<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
+    //     module_import(self.clone(), path.into())
+    // }
+
+
+    // pub fn import_from_std<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
+    //     module_import_from_std(self.clone(), path.into())
+    // }
 }

@@ -22,7 +22,6 @@
 //! `RetValue` is the owned version of `TVMPODValue`.
 
 use std::convert::TryFrom;
-// use std::ffi::c_void;
 
 use crate::{ArgValue, Module, RetValue};
 use tvm_sys::{errors::ValueDowncastError, ffi::TVMModuleHandle, try_downcast};

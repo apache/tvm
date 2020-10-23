@@ -342,6 +342,22 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     }
 }
 
+impl<T: IsObject> std::hash::Hash for ObjectPtr<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_i64(super::structural_hash(ObjectRef(Some(self.clone().upcast())), false).unwrap())
+    }
+}
+
+impl<T: IsObject> PartialEq for ObjectPtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        let lhs = ObjectRef(Some(self.clone().upcast()));
+        let rhs = ObjectRef(Some(other.clone().upcast()));
+        super::structural_equal(lhs, rhs, false, false).unwrap()
+    }
+}
+
+impl<T: IsObject> Eq for ObjectPtr<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::{Object, ObjectPtr};

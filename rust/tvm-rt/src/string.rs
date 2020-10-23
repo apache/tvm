@@ -28,6 +28,7 @@ use tvm_macros::Object;
 #[derive(Object)]
 #[ref_name = "String"]
 #[type_key = "runtime.String"]
+#[no_derive]
 pub struct StringObj {
     base: Object,
     data: *const u8,

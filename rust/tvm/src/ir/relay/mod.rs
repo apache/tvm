@@ -16,11 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-pub mod attrs;
-
-use std::hash::Hash;
-
 use crate::runtime::array::Array;
 use crate::runtime::{object::*, IsObjectRef, String as TString};
 
@@ -29,11 +24,15 @@ use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
 use super::span::Span;
 use super::ty::{Type, TypeNode};
+use super::span::Span;
 
 use tvm_macros::Object;
 use tvm_rt::NDArray;
 
 pub use super::expr::{GlobalVar, GlobalVarNode};
+pub use crate::runtime::DataType;
+
+pub mod attrs;
 
 #[repr(C)]
 #[derive(Object)]
@@ -57,20 +56,6 @@ impl ExprNode {
         }
     }
 }
-
-impl Hash for Expr {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_ptr().unwrap().ptr.hash(state)
-    }
-}
-
-impl PartialEq for Expr {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ptr().unwrap().ptr.eq(&other.as_ptr().unwrap().ptr)
-    }
-}
-
-impl Eq for Expr {}
 
 #[repr(C)]
 #[derive(Object)]
@@ -140,11 +125,11 @@ pub struct VarNode {
 }
 
 impl Var {
-    pub fn new(name_hint: String, type_annotation: Type, _span: ObjectRef) -> Var {
+    pub fn new(name_hint: String, type_annotation: Type, _span: Span) -> Var {
         let node = VarNode {
             base: ExprNode::base::<VarNode>(),
             vid: Id::new(name_hint.into()),
-            type_annotation,
+            type_annotation: type_annotation,
         };
         Var(Some(ObjectPtr::new(node)))
     }
@@ -153,8 +138,9 @@ impl Var {
         &self.vid.0.as_ref().unwrap().name_hint
     }
 
-    pub fn to_expr(self) -> Expr {
-        unsafe { Expr(std::mem::transmute(self.0)) }
+    pub fn static_tensor(name_hint: String, sh: Vec<i32>, dtype: DataType) -> Var {
+        let sh = Array::from_vec(sh.into_iter().map(Into::into).collect()).unwrap();
+        Self::new(name_hint, super::ty::TensorType::new(sh, dtype, Span::null()).upcast(), Span::null())
     }
 }
 
@@ -509,6 +495,10 @@ impl Function {
             type_params: type_params,
         };
         Function(Some(ObjectPtr::new(node)))
+    }
+
+    pub fn simple(params: Array<Var>, body: Expr) -> Function {
+        Self::new(params, body, Type::null(), Array::from_vec(vec![]).unwrap())
     }
 }
 

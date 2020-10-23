@@ -47,6 +47,20 @@ macro_rules! define_node {
 // TODO(@jroesch): should move up to expr.rs to mirror TVM.
 define_node!(IntImm, "IntImm", "IntImm";
              IntImmNode { value: i64 });
+
+impl From<i32> for IntImm {
+    fn from(i: i32) -> IntImm {
+        IntImm::new(DataType::int(32, 1), i as i64)
+    }
+}
+
+impl From<i32> for PrimExpr {
+    fn from(i: i32) -> PrimExpr {
+        use crate::runtime::IsObjectRef;
+        IntImm::from(i).upcast()
+    }
+}
+
 define_node!(Var, "Var", "tir.Var";
              VarNode { name_hint: TVMString });
 
