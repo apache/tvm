@@ -1145,20 +1145,18 @@ class StridedSliceOpConverter : public TrtOpConverter {
             attrs->strides.value()[0].as<IntImmNode>()->value == 1);
     }
 
-    auto process_slice_index = [](Integer x, int default_value, int dim_value) {
+    auto process_slice_index = [](Integer x, int default_value) {
       if (!x.defined()) return default_value;
       int value = x.as<IntImmNode>()->value;
-      if (value < 0) value += dim_value;
+      if (value == -1) return default_value;
       return value;
     };
 
     const int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
     std::vector<int> start, size, strides;
     for (size_t i = start_index; i < attrs->begin.value().size(); ++i) {
-      const int begin_value =
-          process_slice_index(attrs->begin.value()[i], 0, input_dims[i - start_index]);
-      const int end_value = process_slice_index(attrs->end.value()[i], input_dims[i - start_index],
-                                                input_dims[i - start_index]);
+      const int begin_value = process_slice_index(attrs->begin.value()[i], 0);
+      const int end_value = process_slice_index(attrs->end.value()[i], input_dims[i - start_index]);
       const int stride_value = (default_strides || i >= attrs->strides.value().size() ||
                                 !attrs->strides.value()[i].defined())
                                    ? 1

@@ -511,6 +511,16 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
         if any([x is not None and x <= 0 for x in attrs.strides]):
             print("strided_slice: stride must be positive")
             return False
+        for i in range(0, len(args[0].checked_type.shape)):
+            begin = int(attrs.begin[i])
+            end = (
+                int(attrs.end[i])
+                if attrs.end[i] is not None and int(attrs.end[i]) != -1
+                else args[0].checked_type.shape[i]
+            )
+            if int(end) - int(begin) < 1:
+                print("strided_slice: size of slice must be at least 1")
+                return False
         return True
 
     def resize_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
