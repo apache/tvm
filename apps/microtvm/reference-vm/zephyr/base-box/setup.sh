@@ -18,12 +18,14 @@
 
 apt update
 apt install -y build-essential
-useradd \
-    -G adm,cdrom,dip,plugdev,lxd,lpadmin,sambashare,dialout,sudo \
-    -p $(perl -e 'print crypt("tvm", "password")') \
-    -m \
-    -s /bin/bash \
-    tvm
+apt-get --purge remove modemmanager  # required to access serial ports.
+# useradd \
+#     -G adm,cdrom,dip,plugdev,lxd,lpadmin,sambashare,dialout,sudo \
+#     -p $(perl -e 'print crypt("tvm", "password")') \
+#     -m \
+#     -s /bin/bash \
+#     tvm
+# chown tvm:tvm /home/tvm
 
 # Zephyr
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
@@ -36,8 +38,8 @@ apt install -y --no-install-recommends git cmake ninja-build gperf \
   make gcc gcc-multilib g++-multilib libsdl2-dev \
   cmake
 
-# Avahi, so that ssh tvm@microtvm works.
-apt install -y avahi-daemon
+# Avahi, so that ssh microtvm works.
+# apt install -y avahi-daemon
 
 OLD_HOSTNAME=$(hostname)
 hostnamectl set-hostname microtvm
@@ -52,8 +54,6 @@ apt install -y llvm
 # ONNX deps
 apt install -y protobuf-compiler libprotoc-dev
 
-chown tvm:tvm /home/tvm
-
 # nrfjprog
 cd ~vagrant
 mkdir nrfjprog
@@ -65,13 +65,30 @@ apt install -y ./nRF-Command-Line-Tools_10_9_0_Linux-amd64.deb
 source ~/.profile
 nrfjprog --help
 
-cp ~vagrant/setup-tvm-user.sh /home/tvm/setup-tvm-user.sh
-chown tvm:tvm /home/tvm/setup-tvm-user.sh
-chmod u+x /home/tvm/setup-tvm-user.sh
-sudo -u tvm -sH ~tvm/setup-tvm-user.sh
+# Zephyr
+pip3 install --user -U west
+echo 'export PATH=$HOME/.local/bin:"$PATH"' >> ~/.profile
+source ~/.profile
+echo PATH=$PATH
+west init --mr v2.4.0 ~/zephyr
+cd ~/zephyr
+west update
+west zephyr-export
 
-sudo find ~tvm/zephyr-sdk -name '*.rules' -exec cp {} /etc/udev/rules.d \;
+cd ~
+echo "Downloading zephyr SDK..."
+wget --no-verbose https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.11.3/zephyr-sdk-0.11.3-setup.run
+chmod +x zephyr-sdk-0.11.3-setup.run
+./zephyr-sdk-0.11.3-setup.run -- -d ~/zephyr-sdk -y
+
+sudo find ~/zephyr-sdk -name '*.rules' -exec cp {} /etc/udev/rules.d \;
 sudo udevadm control --reload
+
+# Poetry
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+sed -i "/^# If not running interactively,/ i source \$HOME/.poetry/env" ~/.bashrc
+sed -i "/^# If not running interactively,/ i export ZEPHYR_BASE=$HOME/zephyr/zephyr" ~/.bashrc
+sed -i "/^# If not running interactively,/ i\\ " ~/.bashrc
 
 # Clean box for packaging as a base box
 sudo apt-get clean

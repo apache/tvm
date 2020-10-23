@@ -15,6 +15,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+# This file is used to build and release a base box.
+
 
 SKIP_ADD=( )
 if [ "$1" == "--skip-add" ]; then

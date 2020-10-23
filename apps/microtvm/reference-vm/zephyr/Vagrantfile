@@ -16,12 +16,13 @@
 # under the License.
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "areusch/microtvm-staging"
+  config.vm.box = "tlcpack/microtvm-zephyr"
   config.vm.provision "file", source: "setup-workspace.sh", destination: "~/setup-workspace.sh"
 
-  dirs_to_mount = [Pathname.new(Pathname.new("../../..").expand_path())]
+  tvm_home = "../../../.."
+  dirs_to_mount = [Pathname.new(Pathname.new(tvm_home).expand_path())]
 
-  git_file = Pathname.new("../../../.git")
+  git_file = Pathname.new(tvm_home + "/.git")
   if git_file.ftype() == "file" then
     gitdir_match = Regexp.new('^gitdir: (?<gitdir>.*/.git).*\n$', Regexp::MULTILINE).match(git_file.read())
     if !gitdir_match.nil? then

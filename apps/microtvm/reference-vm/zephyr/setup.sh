@@ -1,3 +1,4 @@
+#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,9 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-def microtvm_provision(config, base_dir)
-    # microTVM provisioning.
-    config.vm.provision "file", source: base_dir + "/kitware-archive-latest.asc", destination: "~/kitware-archive-latest.asc"
-    config.vm.provision "file", source: base_dir + "/setup-tvm-user.sh", destination: "~/setup-tvm-user.sh"
-    config.vm.provision "shell", path: base_dir + "/setup.sh"
-end
+mkdir /home/tvm/.ssh
+cp ~vagrant/.ssh/authorized_keys /home/tvm/.ssh
+chown tvm:tvm /home/tvm/.ssh
+chown tvm:tvm /home/tvm/.ssh/authorized_keys
+chmod 644 /home/tvm/.ssh/authorized_keys
+chmod 755 /home/tvm/.ssh
+
+cp ~vagrant/setup-workspace.sh /home/tvm/setup-workspace.sh
+chown tvm:tvm /home/tvm/setup-workspace.sh
+chmod u+x /home/tvm/setup-workspace.sh
+sudo -u tvm -sH bash --login ~tvm/setup-workspace.sh "${TVM_HOME}"
+echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile

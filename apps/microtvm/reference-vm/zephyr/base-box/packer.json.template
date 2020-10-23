@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+# This is configuration for the Packer VM builder tool.
+# See its documentation for explanation of this file's schema: https://www.packer.io
 {
     "variables": {
         "provider": null,
@@ -35,7 +38,7 @@
     "post-processors": [
         {
             "type": "vagrant-cloud",
-            "box_tag": "areusch/microtvm-staging",
+            "box_tag": "tlcpack/microtvm-zephyr",
             "version": "{{user `version`}}",
             "access_token": "{{user `access_token`}}"
         }
