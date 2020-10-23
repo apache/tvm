@@ -2364,7 +2364,8 @@ def _bincount():
         maximum = _op.max(data)
         dim = maximum + _expr.const(1, dtype="int64")
         if weights:
-            out_dtype = "float32"
+            weight_type = _infer_type(weights).checked_type
+            out_dtype = weight_type.dtype
             updates = weights
         else:
             out_dtype = "int64"
