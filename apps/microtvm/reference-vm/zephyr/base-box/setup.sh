@@ -19,13 +19,6 @@
 sudo apt update
 sudo apt install -y build-essential
 sudo apt-get --purge remove modemmanager  # required to access serial ports.
-# useradd \
-#     -G adm,cdrom,dip,plugdev,lxd,lpadmin,sambashare,dialout,sudo \
-#     -p $(perl -e 'print crypt("tvm", "password")') \
-#     -m \
-#     -s /bin/bash \
-#     tvm
-# chown tvm:tvm /home/tvm
 
 # Zephyr
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc

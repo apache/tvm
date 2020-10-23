@@ -16,18 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-#mkdir /home/tvm/.ssh
-#cp ~vagrant/.ssh/authorized_keys /home/tvm/.ssh
-#chown tvm:tvm /home/tvm/.ssh
-#chown tvm:tvm /home/tvm/.ssh/authorized_keys
-#chmod 644 /home/tvm/.ssh/authorized_keys
-#chmod 755 /home/tvm/.ssh
-
-#cp ~vagrant/setup-workspace.sh /home/tvm/setup-workspace.sh
-#chown tvm:tvm /home/tvm/setup-workspace.sh
-#chmod u+x /home/tvm/setup-workspace.sh
-#sudo -u tvm -sH bash --login ~tvm/setup-workspace.sh "${TVM_HOME}"
-
 set -e
 
 # TVM
