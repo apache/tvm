@@ -16,9 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-apt update
-apt install -y build-essential
-apt-get --purge remove modemmanager  # required to access serial ports.
+sudo apt update
+sudo apt install -y build-essential
+sudo apt-get --purge remove modemmanager  # required to access serial ports.
 # useradd \
 #     -G adm,cdrom,dip,plugdev,lxd,lpadmin,sambashare,dialout,sudo \
 #     -p $(perl -e 'print crypt("tvm", "password")') \
@@ -29,39 +29,38 @@ apt-get --purge remove modemmanager  # required to access serial ports.
 
 # Zephyr
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
-apt-key add kitware-archive-latest.asc
-apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
-apt update
-apt install -y --no-install-recommends git cmake ninja-build gperf \
+sudo apt-key add kitware-archive-latest.asc
+sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
+sudo apt update
+sudo apt install -y --no-install-recommends git cmake ninja-build gperf \
   ccache dfu-util device-tree-compiler wget \
   python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
-  make gcc gcc-multilib g++-multilib libsdl2-dev \
-  cmake
+  make gcc gcc-multilib g++-multilib libsdl2-dev
 
 # Avahi, so that ssh microtvm works.
 # apt install -y avahi-daemon
 
 OLD_HOSTNAME=$(hostname)
-hostnamectl set-hostname microtvm
-sed -i.bak "s/${OLD_HOSTNAME}/microtvm.localdomain/g" /etc/hosts
+sudo hostnamectl set-hostname microtvm
+sudo sed -i.bak "s/${OLD_HOSTNAME}/microtvm.localdomain/g" /etc/hosts
 
 # Poetry deps
-apt install -y python3-venv
+sudo apt install -y python3-venv
 
 # TVM deps
-apt install -y llvm
+sudo apt install -y llvm
 
 # ONNX deps
-apt install -y protobuf-compiler libprotoc-dev
+sudo apt install -y protobuf-compiler libprotoc-dev
 
 # nrfjprog
-cd ~vagrant
-mkdir nrfjprog
+cd ~
+mkdir -p nrfjprog
 wget --no-verbose -O nRFCommandLineTools1090Linuxamd64.tar.gz https://www.nordicsemi.com/-/media/Software-and-other-downloads/Desktop-software/nRF-command-line-tools/sw/Versions-10-x-x/10-9-0/nRFCommandLineTools1090Linuxamd64tar.gz
 cd nrfjprog
 tar -xzvf ../nRFCommandLineTools1090Linuxamd64.tar.gz
-apt install -y ./JLink_Linux_V680a_x86_64.deb
-apt install -y ./nRF-Command-Line-Tools_10_9_0_Linux-amd64.deb
+sudo apt install -y ./JLink_Linux_V680a_x86_64.deb
+sudo apt install -y ./nRF-Command-Line-Tools_10_9_0_Linux-amd64.deb
 source ~/.profile
 nrfjprog --help
 

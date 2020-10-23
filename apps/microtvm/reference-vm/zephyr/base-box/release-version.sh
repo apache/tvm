@@ -46,7 +46,7 @@ fi
 cat packer.json.template | sed 's/^#.*//g' >packer.json
 
 ALL_PROVIDERS=( \
-#    virtualbox \
+    virtualbox \
     parallels \
 )
 for provider in "${ALL_PROVIDERS[@]}"; do

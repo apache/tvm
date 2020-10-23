@@ -61,7 +61,7 @@ decorator = "^4.4"
 numpy = "~1.19"
 psutil = "^5"
 scipy = "^1.4"
-python = "^3.7"
+python = "^3.6"
 tornado = "^6"
 typed_ast = "^1.4"
 

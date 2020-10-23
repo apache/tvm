@@ -16,8 +16,10 @@
 # under the License.
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "tlcpack/microtvm-zephyr"
-  config.vm.provision "file", source: "setup-workspace.sh", destination: "~/setup-workspace.sh"
+  # For dev:
+  config.vm.box = "./base-box/package.box"
+  # config.vm.box = "tlcpack/microtvm-zephyr"
+#  config.vm.provision "file", source: "setup-workspace.sh", destination: "~/setup-workspace.sh"
 
   tvm_home = "../../../.."
   dirs_to_mount = [Pathname.new(Pathname.new(tvm_home).expand_path())]
@@ -37,7 +39,7 @@ Vagrant.configure("2") do |config|
     config.vm.synced_folder d.to_s, d.to_s, mount_options: ["share", "nosuid", "host_inodes"]
   end
 
-  config.vm.provision "shell", path: "setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}
+  config.vm.provision "shell", path: "setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}, privileged: false
 
   # Enable USB Controller on VirtualBox
   config.vm.provider "virtualbox" do |vb|
