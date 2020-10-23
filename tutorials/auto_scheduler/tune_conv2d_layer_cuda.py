@@ -90,10 +90,10 @@ print(task.compute_dag)
 # * see :any:`auto_scheduler.TuningOptions`,
 #   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
 
-if not os.path.exists("./auto_scheduler_logs"):
-    os.mkdir("./auto_scheduler_logs")
+if not os.path.exists("./logs"):
+    os.mkdir("./logs")
 
-logfile = os.path.join("./auto_scheduler_logs", "conv2d.json")
+logfile = os.path.join("./logs", "conv2d.json")
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,

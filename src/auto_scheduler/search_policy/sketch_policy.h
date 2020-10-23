@@ -56,16 +56,20 @@ struct SketchParamKey {
   /*! \brief Retry several times if SearchOneRound gets no valid state. */
   static constexpr const char* empty_retry_count = "retry_search_one_round_on_empty";
 
+  struct SampleInitPopulation {
+    /*! \brief The population size of initial sampling. */
+    static constexpr const char* population = "sample_init_population";
+    /*! \brief The maximum percentage of measured states in the initial sampling. */
+    static constexpr const char* use_measured_ratio = "sample_init_use_measured_ratio";
+  };
+
   struct EvolutionarySearch {
-    /*! \brief The population size for evolutionary search. */
+    /*! \brief The population size of evolutionary search. */
     static constexpr const char* population = "evolutionary_search_population";
     /*! \brief The number of iterations performed by generic algorithm.*/
     static constexpr const char* num_iters = "evolutionary_search_num_iters";
     /*! \brief The mutation probability.*/
     static constexpr const char* mutation_prob = "evolutionary_search_mutation_prob";
-    /*! \brief The maximum percentage of measured states in the initial population for evolutionary
-     * search. */
-    static constexpr const char* use_measured_ratio = "evolutionary_search_use_measured_ratio";
   };
 
   struct MultiLevelTiling {
