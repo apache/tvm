@@ -487,7 +487,7 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
 }
 
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
-  int num_elems = llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
+  int num_elems = GetVectorNumElements(vec);
   if (extent == num_elems && begin == 0) return vec;
   CHECK(begin >= 0 && extent <= num_elems) << "Slicing out of bound!\n";
   std::vector<llvm::Constant*> indices;
@@ -503,7 +503,7 @@ llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent
 }
 
 llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
-  int num_elems = llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
+  int num_elems = GetVectorNumElements(vec);
 #if TVM_LLVM_VERSION >= 110
   std::vector<int> indices;
 #else
@@ -517,7 +517,7 @@ llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
 
 llvm::Value* CodeGenLLVM::CreateVecPad(llvm::Value* vec, int target_lanes) {
   llvm::Value* mask = llvm::UndefValue::get(DTypeToLLVMType(DataType::Int(32, target_lanes)));
-  int num_elems = llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
+  int num_elems = GetVectorNumElements(vec);
   if (num_elems == target_lanes) return vec;
   CHECK_LT(num_elems, target_lanes);
   for (int i = 0; i < num_elems; ++i) {
@@ -531,15 +531,15 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
   int total_lanes = 0;
 
   for (llvm::Value* v : vecs) {
-    total_lanes += llvm::cast<llvm::VectorType>(v->getType())->getNumElements();
+    total_lanes += GetVectorNumElements(v);
   }
   while (vecs.size() > 1) {
     std::vector<llvm::Value*> new_vecs;
     for (size_t i = 0; i < vecs.size() - 1; i += 2) {
       llvm::Value* lhs = vecs[i];
       llvm::Value* rhs = vecs[i + 1];
-      const size_t lhs_lanes = llvm::cast<llvm::VectorType>(lhs->getType())->getNumElements();
-      const size_t rhs_lanes = llvm::cast<llvm::VectorType>(rhs->getType())->getNumElements();
+      const size_t lhs_lanes = GetVectorNumElements(lhs);
+      const size_t rhs_lanes = GetVectorNumElements(rhs);
       if (lhs_lanes < rhs_lanes) {
         lhs = CreateVecPad(lhs, rhs_lanes);
       } else if (rhs_lanes < lhs_lanes) {
@@ -843,16 +843,16 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return builder_->CreateFCmpUNO(a, a);
   } else if (op->op.same_as(builtin::vectorlow())) {
     llvm::Value* v = MakeValue(op->args[0]);
-    int l = llvm::cast<llvm::VectorType>(v->getType())->getNumElements();
+    int l = GetVectorNumElements(v);
     return CreateVecSlice(v, 0, l / 2);
   } else if (op->op.same_as(builtin::vectorhigh())) {
     llvm::Value* v = MakeValue(op->args[0]);
-    int l = llvm::cast<llvm::VectorType>(v->getType())->getNumElements();
+    int l = GetVectorNumElements(v);
     return CreateVecSlice(v, l / 2, l / 2);
   } else if (op->op.same_as(builtin::vectorcombine())) {
     llvm::Value* v0 = MakeValue(op->args[0]);
     llvm::Value* v1 = MakeValue(op->args[1]);
-    int num_elems = llvm::cast<llvm::VectorType>(v0->getType())->getNumElements() * 2;
+    int num_elems = GetVectorNumElements(v0) * 2;
 #if TVM_LLVM_VERSION >= 110
     std::vector<int> indices;
 #else
