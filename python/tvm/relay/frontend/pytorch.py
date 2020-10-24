@@ -3373,6 +3373,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
+
     outputs = _get_relay_input_vars(
         graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
@@ -3383,7 +3384,8 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
-    if "aten::quantize_per_tensor" in op_names:
+    quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
+    if len(quantized_ops.intersection(set(op_names))) > 0:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)

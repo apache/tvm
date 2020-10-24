@@ -826,6 +826,39 @@ def _mul_scalar():
     return _impl
 
 
+def _linear_dynamic():
+    def _impl(inputs, _):
+        weight = inputs[1][0]
+        weight_scale = inputs[1][1]
+        weight_zero_point = inputs[1][2]
+
+        input_scale = _expr.const(1.0)
+        input_zero_point = _expr.const(0)
+
+        qinp = relay.qnn.op.quantize(inputs[0], input_scale, input_zero_point)
+
+        weight_shape = infer_shape(weight)
+        dense = relay.qnn.op.dense(
+            qinp,
+            weight,
+            input_zero_point,
+            weight_zero_point,
+            input_scale,
+            weight_scale,
+            units=weight_shape[0],
+        )
+        bias_var = inputs[1][3]
+
+        dense_out = _op.cast(dense, "float32")
+
+        if bias_var is not None:
+            return _op.nn.bias_add(dense_out, bias_var)
+
+        return dense_out
+
+    return _impl
+
+
 convert_map = {
     "aten::quantize_per_tensor": _quantize_per_tensor(),
     "quantized::conv2d_relu": _quantized_conv2d(with_relu=True),
@@ -841,4 +874,5 @@ convert_map = {
     "quantized::add_scalar": _add_scalar(),
     "quantized::mul_scalar": _mul_scalar(),
     "quantized::relu6": _relu6(),
+    "quantized::linear_dynamic": _linear_dynamic(),
 }

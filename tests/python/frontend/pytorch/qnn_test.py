@@ -41,6 +41,7 @@ def get_tvm_runtime(script_module, input_name, ishape):
 
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    print(mod["main"])
 
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
@@ -508,3 +509,40 @@ def test_serialized_modules():
     num_identical = np.sum(np.abs(tvm_result - pt_result) < 1e-2)
     match_ratio = num_identical / float(np.prod(tvm_result.shape))
     assert match_ratio > 0.90
+
+
+def test_quantize_dynamic():
+    # A wrapper is required for quantize_dynamic to work correctly
+    class LinearWrapper(nn.Module):
+        def __init__(self, in_dim, hidden_dim):
+            super().__init__()
+            self.linear = nn.Linear(in_dim, hidden_dim)
+
+        def forward(self, inp):
+            return self.linear(inp)
+
+    mod = LinearWrapper(16, 32)
+
+    qmod = torch.quantization.quantize_dynamic(mod, {nn.Linear}, dtype=torch.qint8)
+
+    inp = torch.randn(16, 16)
+    script_module = torch.jit.trace(qmod, inp).eval()
+
+    with torch.no_grad():
+        pt_result = script_module(inp.clone()).numpy()
+
+    input_name = "input"
+    runtime = get_tvm_runtime(script_module, "input", inp.shape)
+    runtime.set_input(input_name, inp.numpy().copy())
+    runtime.run()
+    tvm_result = runtime.get_output(0).asnumpy()
+
+    max_abs_diff = np.max(np.abs(tvm_result - pt_result))
+    mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
+    num_identical = np.sum(tvm_result == pt_result)
+    match_ratio = num_identical / float(np.prod(tvm_result.shape))
+
+    print(max_abs_diff, mean_abs_diff, match_ratio)
+
+
+test_quantize_dynamic()
