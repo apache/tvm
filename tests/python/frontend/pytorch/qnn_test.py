@@ -523,7 +523,10 @@ def test_quantize_dynamic():
 
     mod = LinearWrapper(16, 32)
 
-    qmod = torch.quantization.quantize_dynamic(mod, {nn.Linear}, dtype=torch.qint8)
+    qspec = {nn.Linear: torch.quantization.per_channel_dynamic_qconfig}
+    qmod = torch.quantization.quantize_dynamic(
+        mod, qconfig_spec=qspec, dtype=torch.qint8
+    )
 
     inp = torch.randn(16, 16)
     script_module = torch.jit.trace(qmod, inp).eval()
