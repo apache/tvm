@@ -64,6 +64,10 @@ ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
 
+# BYODT deps
+COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
+RUN bash /install/ubuntu_install_universal.sh
+
 # Chisel deps for TSIM
 COPY install/ubuntu_install_chisel.sh /install/ubuntu_install_chisel.sh
 RUN bash /install/ubuntu_install_chisel.sh
