@@ -42,14 +42,17 @@ ALL_PROVIDERS = (
 )
 
 
-def parse_virtaulbox_devices():
+def parse_virtualbox_devices():
     output = subprocess.check_output(["VBoxManage", "list", "usbhost"], encoding="utf-8")
     devices = []
     current_dev = {}
     for line in output.split("\n"):
-        if not line.strip() and current_dev:
-            devices.append(current_dev)
-            current_dev = {}
+        if not line.strip():
+            if current_dev:
+                if "VendorId" in current_dev and "ProductId" in current_dev:
+                    devices.append(current_dev)
+                current_dev = {}
+
             continue
 
         key, value = line.split(":", 1)
@@ -66,20 +69,21 @@ VIRTUALBOX_VID_PID_RE = re.compile(r"0x([0-9A-Fa-f]{4}).*")
 
 def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
     usb_devices = parse_virtualbox_devices()
-    for dev in usb_device:
+    for dev in usb_devices:
+        print('dev', dev)
         m = VIRTUALBOX_VID_PID_RE.match(dev["VendorId"])
         if not m:
             _LOG.warning("Malformed VendorId: %s", dev["VendorId"])
             continue
 
-        dev_vid_hex = m.group(1)
+        dev_vid_hex = m.group(1).lower()
 
         m = VIRTUALBOX_VID_PID_RE.match(dev["ProductId"])
         if not m:
             _LOG.warning("Malformed ProductId: %s", dev["ProductId"])
             continue
 
-        dev_pid_hex = m.group(1)
+        dev_pid_hex = m.group(1).lower()
 
         if (
             vid_hex == dev_vid_hex
@@ -90,12 +94,12 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
                 "VBoxManage",
                 "usbfilter",
                 "add",
-                "--target",
-                uuid,
-                "--vendorid",
-                vid_hex,
-                "--productid",
-                pid_hex,
+                "0",
+                "--action", "hold",
+                "--name", "test device",
+                "--target", uuid,
+                "--vendorid", vid_hex,
+                "--productid", pid_hex,
             ]
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
@@ -114,6 +118,8 @@ def attach_parallels(uuid, vid_hex=None, pid_hex=None, serial=None):
     )
     for dev in usb_devices:
         _, dev_vid_hex, dev_pid_hex, _, _, dev_serial = dev["System name"].split("|")
+        dev_vid_hex = dev_vid_hex.lower()
+        dev_pid_hex = dev_pid_hex.lower()
         if (
             vid_hex == dev_vid_hex
             and pid_hex == dev_pid_hex
@@ -193,6 +199,9 @@ def test_command(args):
             assert key in test_config and isinstance(
                 test_config[key], expected_type
             ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
+
+        test_config["vid_hex"] = test_config["vid_hex"].lower()
+        test_config["pid_hex"] = test_config["pid_hex"].lower()
 
     providers = args.provider.split(",")
     provider_passed = {p: False for p in providers}

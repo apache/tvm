@@ -30,24 +30,26 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  num = 0
-  dirs_to_mount.each do |d|
-    num += 1
-    config.vm.synced_folder d.to_s, d.to_s, mount_options: ["share", "nosuid", "host_inodes"]
-  end
-
   config.vm.provision "shell", path: "setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}, privileged: false
 
   # Enable USB Controller on VirtualBox
-  config.vm.provider "virtualbox" do |vb|
+  config.vm.provider "virtualbox" do |vb, overrides|
     vb.name = "microtvm"
     vb.customize ["modifyvm", :id, "--usb", "on"]
+    vb.customize ["modifyvm", :id, "--usbehci", "on"]
+    vb.customize ["modifyvm", :id, "--usbxhci", "on"]
+    dirs_to_mount.each do |d|
+      overrides.vm.synced_folder d.to_s, d.to_s
+    end
   end
 
-  config.vm.provider "parallels" do |prl|
+  config.vm.provider "parallels" do |prl, overrides|
     prl.name = "microtvm"
     prl.update_guest_tools = true
     prl.customize ["set", :id, "--support-usb30", "on"]
+    dirs_to_mount.each do |d|
+      overrides.vm.synced_folder d.to_s, d.to_s, mount_options: ["share", "nosuid", "host_inodes"]
+    end
   end
 
 end
