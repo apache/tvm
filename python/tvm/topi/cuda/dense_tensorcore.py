@@ -199,6 +199,8 @@ def _schedule_dense_tensorcore(cfg, s, C):
     bb, bbii = s[CS].split(bb, factor=warp_row_tiles)
     oo, ooii = s[CS].split(oo, factor=warp_col_tiles)
     s[CS].reorder(bb, oo, bbii, ooii, bbi, ooi)
+    s[CS].bind(bb, thread_y)
+    s[CS].bind(oo, thread_z)
 
     # Schedule for wmma computation
     s[CF].compute_at(s[CS], oo)
