@@ -120,13 +120,13 @@ void TouchExtractor::ExitItervar_() {
     if (kv.second.stride != 0) {  // multiply count
       for (auto stack_var : itervar_stack_) {
         auto touch_pattern = itervar_map[stack_var].touch_feature.find(kv.first);
-        CHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
+        ICHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
         touch_pattern->second.count *= itervar_map[var].length;
       }
     } else {  // multiply reuse ratio
       for (auto stack_var : itervar_stack_) {
         auto touch_pattern = itervar_map[stack_var].touch_feature.find(kv.first);
-        CHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
+        ICHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
         touch_pattern->second.reuse *= itervar_map[var].length;
       }
     }
@@ -151,7 +151,7 @@ void TouchExtractor::ExitItervar_() {
       for (auto stack_var : itervar_stack_) {
         if (ParallelLevel(itervar_map[stack_var].ann) == para_level + 1) {
           auto touch_pattern = itervar_map[stack_var].touch_feature.find(kv.first);
-          CHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
+          ICHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
           touch_pattern->second.thread_reuse = -kv.second.reuse;
           touch_pattern->second.thread_count = -kv.second.count;
           // NOTE: use minus as a flag to denote it is a base,

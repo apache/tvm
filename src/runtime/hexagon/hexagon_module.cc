@@ -22,8 +22,8 @@
 #ifdef __ANDROID__
 #include <android/log.h>
 #endif
-#include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <memory>
 #include <set>
@@ -176,8 +176,8 @@ void ArgLayout::Push(uint32_t* v, unsigned t_size, unsigned t_align) {
 
   if (!InReg) {
     // Allocate on stack.
-    CHECK_EQ((t_align & (t_align - 1)), 0) << "Alignment should be a power of 2";
-    CHECK_GE(t_align, 4) << "Alignment should be at least 4";
+    ICHECK_EQ((t_align & (t_align - 1)), 0) << "Alignment should be a power of 2";
+    ICHECK_GE(t_align, 4) << "Alignment should be at least 4";
     // Round t_size up to a multiple of 4.
     unsigned s_size = Stack.size();
     unsigned s_align = t_align / 4;  // Alignment of T in words on the stack.
@@ -223,18 +223,18 @@ class HexagonModuleNode final : public runtime::ModuleNode {
       std::string meta_file = GetMetaFilePath(file_name);
       SaveMetaDataToFile(meta_file, fmap_);
       std::string c = "cp " + data_ + " " + file_name;
-      CHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
+      ICHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
     } else if (fmt == "s" || fmt == "asm") {
-      CHECK(!asm_.empty()) << "Assembler source not available";
+      ICHECK(!asm_.empty()) << "Assembler source not available";
       SaveBinaryToFile(file_name, asm_);
     } else if (fmt == "o" || fmt == "obj") {
-      CHECK(!obj_.empty()) << "Object data not available";
+      ICHECK(!obj_.empty()) << "Object data not available";
       SaveBinaryToFile(file_name, obj_);
     } else if (fmt == "ll") {
-      CHECK(!ir_.empty()) << "LLVM IR source not available";
+      ICHECK(!ir_.empty()) << "LLVM IR source not available";
       SaveBinaryToFile(file_name, ir_);
     } else if (fmt == "bc") {
-      CHECK(!bc_.empty()) << "LLVM IR bitcode not available";
+      ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
       SaveBinaryToFile(file_name, bc_);
     } else {
       LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt << "'";
@@ -480,7 +480,7 @@ hexagon::ArgLayout HexagonModuleNode::BuildArgLayout(const TVMArgs& As) const {
         // types, so there is no way to tell if the value being passed needs
         // one or two registers. Assume that all integers are 32-bit, and
         // simply abort if the actual value does not fit.
-        CHECK_EQ(static_cast<int64_t>(A), static_cast<int32_t>(A));
+        ICHECK_EQ(static_cast<int64_t>(A), static_cast<int32_t>(A));
         Args.Push(static_cast<int>(A));
         break;
       // 64-bit values

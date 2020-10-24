@@ -38,38 +38,38 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     Stmt s = *ri;
     if (const auto* for_ = s.as<ForNode>()) {
       auto n = make_object<ForNode>(*for_);
-      CHECK(is_no_op(n->body));
+      ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* let = s.as<LetStmtNode>()) {
       auto n = make_object<LetStmtNode>(*let);
-      CHECK(is_no_op(n->body));
+      ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* attr = s.as<AttrStmtNode>()) {
       auto n = make_object<AttrStmtNode>(*attr);
-      CHECK(is_no_op(n->body));
+      ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = make_object<IfThenElseNode>(*ite);
-      CHECK(is_no_op(n->then_case));
-      CHECK(!n->else_case.defined());
+      ICHECK(is_no_op(n->then_case));
+      ICHECK(!n->else_case.defined());
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
       auto n = make_object<SeqStmtNode>(*seq);
-      CHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
+      ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
       n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
     } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
       auto n = make_object<AssertStmtNode>(*assert_);
-      CHECK(is_no_op(n->body));
+      ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* alloc = s.as<AllocateNode>()) {
       auto n = make_object<AllocateNode>(*alloc);
-      CHECK(is_no_op(n->body));
+      ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else {
@@ -177,7 +177,7 @@ class IRConvertSSA final : public StmtExprMutator {
           Stmt new_alloc = this->VisitStmt(op->body);
           if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
           alloc = new_alloc.as<AllocateNode>();
-          CHECK(alloc);
+          ICHECK(alloc);
           return AttrStmt(alloc->buffer_var, op->attr_key, op->value, new_alloc);
         }
       }

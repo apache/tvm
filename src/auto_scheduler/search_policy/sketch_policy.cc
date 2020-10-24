@@ -147,7 +147,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
   if (n_trials <= 1) {
     // No measurement is allowed
     const Array<State>& best_states = SearchOneRound(0);
-    CHECK_GT(best_states.size(), 0);
+    ICHECK_GT(best_states.size(), 0);
     return best_states[0];
   } else {
     int num_random =
@@ -348,10 +348,10 @@ Array<State> SketchPolicyNode::GenerateSketches() {
     auto pstate = state.CopyOnWrite();
     for (size_t step_id = 0; step_id < pstate->transform_steps.size(); ++step_id) {
       if (pstate->transform_steps[step_id]->IsInstance<RfactorStepNode>()) {
-        CHECK_GE(step_id, 1);
+        ICHECK_GE(step_id, 1);
         int split_step_id = static_cast<int>(step_id - 1);
         auto step = pstate->transform_steps[split_step_id].as<SplitStepNode>();
-        CHECK(step != nullptr);
+        ICHECK(step != nullptr);
         pstate->transform_steps.Set(
             split_step_id, SplitStep(step->stage_id, step->iter_id, step->extent, {NullOpt},
                                      step->inner_to_outer));

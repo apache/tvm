@@ -31,10 +31,10 @@ TVM_REGISTER_NODE_TYPE(GetValidCountsAttrs);
 
 bool GetValidCountRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto& dshape = data->shape;
-  CHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
+  ICHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
 
   std::vector<IndexExpr> oshape({data->shape[0]});
   std::vector<IndexExpr> oshape_indices({data->shape[0], data->shape[1]});
@@ -73,14 +73,14 @@ TVM_REGISTER_NODE_TYPE(NonMaximumSuppressionAttrs);
 
 bool NMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 5);
+  ICHECK_EQ(types.size(), 5);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* valid_count = types[1].as<TensorTypeNode>();
   const NonMaximumSuppressionAttrs* param = attrs.as<NonMaximumSuppressionAttrs>();
   const auto& dshape = data->shape;
   const auto& vshape = valid_count->shape;
-  CHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
-  CHECK_EQ(vshape.size(), 1) << "Input valid count should be 1-D.";
+  ICHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
+  ICHECK_EQ(vshape.size(), 1) << "Input valid count should be 1-D.";
 
   // assign output type
   if (param->return_indices) {

@@ -85,7 +85,7 @@ class CodegenCBase {
    * \brief Exit a scope.
    */
   void ExitScope() {
-    CHECK_GE(indent_, 2U) << "Wrong ident found.";
+    ICHECK_GE(indent_, 2U) << "Wrong ident found.";
     indent_ -= 2;
   }
 
@@ -262,7 +262,7 @@ class CodegenCBase {
    */
   std::string GetDtypeString(const Var& var) {
     auto ttype = var->checked_type().as<TensorTypeNode>();
-    CHECK(ttype) << "Expect TensorTypeNode";
+    ICHECK(ttype) << "Expect TensorTypeNode";
     return GetDtypeString(ttype);
   }
 
@@ -297,7 +297,7 @@ class CodegenCBase {
    */
   std::string CreateInitChecker(const std::string& symbol) const {
     std::ostringstream oss;
-    oss << "CHECK(!" << symbol
+    oss << "ICHECK(!" << symbol
         << "_consts.empty()) << \"C source module hasn't been initialized.\";\n";
     return oss.str();
   }

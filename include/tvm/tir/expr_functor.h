@@ -58,7 +58,7 @@ namespace tir {
  *  };
  *  MyExprFunctor f;
  *  Var x("x");
- *  CHECK_EQ(f(x + 1, 2), 3);
+ *  ICHECK_EQ(f(x + 1, 2), 3);
  * \endcode
  *
  * \note Why do we need this more powerful Functor:

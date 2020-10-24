@@ -67,7 +67,7 @@ runtime::Module CreateMetadataModule(
       for (size_t i = 0; i < variables.size(); i++) {
         arrays.push_back(variables[i].operator std::string());
       }
-      CHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
+      ICHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
       sym_metadata[symbol] = arrays;
     }
   }
@@ -132,10 +132,10 @@ class CSourceModuleNode : public runtime::ModuleNode {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "cc") {
-      CHECK_NE(code_.length(), 0);
+      ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
-      CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
   }
 
@@ -179,7 +179,7 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);

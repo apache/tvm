@@ -98,8 +98,8 @@ inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t, double alpha = 0.1,
 inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& slope,
                              const int axis = 1, std::string name = "T_prelu",
                              std::string tag = kBroadcast) {
-  CHECK((size_t)axis < x->shape.size()) << "Wrong axis (" << axis << ")value. ";
-  CHECK(topi::detail::GetConstInt(slope->shape[0]) == topi::detail::GetConstInt(x->shape[axis]))
+  ICHECK((size_t)axis < x->shape.size()) << "Wrong axis (" << axis << ")value. ";
+  ICHECK(topi::detail::GetConstInt(slope->shape[0]) == topi::detail::GetConstInt(x->shape[axis]))
       << "Wrong slope shape received.";
 
   return tvm::te::compute(
@@ -162,8 +162,8 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
   }
 
   arith::Analyzer analyzer;
-  CHECK_GE(pad_before.size(), 1);
-  CHECK_EQ(pad_before.size(), pad_after.size());
+  ICHECK_GE(pad_before.size(), 1);
+  ICHECK_EQ(pad_before.size(), pad_after.size());
   tvm::Array<tvm::PrimExpr> pad_before_int32;
   tvm::Array<tvm::PrimExpr> pad_after_int32;
 
@@ -262,8 +262,8 @@ inline tvm::te::Tensor conv2d_nchw(const tvm::te::Tensor& I, const tvm::te::Tens
                                    int pad_h = 0, int pad_w = 0, int stride_h = 1, int stride_w = 1,
                                    std::string name = "T_conv2d_nchw",
                                    std::string tag = kConv2dNCHW) {
-  CHECK_EQ(4, I->shape.size());
-  CHECK_EQ(4, W->shape.size());
+  ICHECK_EQ(4, I->shape.size());
+  ICHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   tvm::Array<tvm::PrimExpr> output_shape{
@@ -306,8 +306,8 @@ inline tvm::te::Tensor conv2d_hwcn(const tvm::te::Tensor& I, const tvm::te::Tens
                                    int pad_h = 0, int pad_w = 0, int stride_h = 1, int stride_w = 1,
                                    std::string name = "T_conv2d_hwcn",
                                    std::string tag = kConv2dHWCN) {
-  CHECK_EQ(4, I->shape.size());
-  CHECK_EQ(4, W->shape.size());
+  ICHECK_EQ(4, I->shape.size());
+  ICHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   tvm::Array<tvm::PrimExpr> output_shape{
@@ -351,8 +351,8 @@ inline tvm::te::Tensor depthwise_conv2d_nchw(const tvm::te::Tensor& I, const tvm
                                              int stride_w = 1,
                                              std::string name = "T_depthwise_conv2d_nchw",
                                              std::string tag = kDepthwiseConv2dNCHW) {
-  CHECK_EQ(4, I->shape.size());
-  CHECK_EQ(4, W->shape.size());
+  ICHECK_EQ(4, I->shape.size());
+  ICHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   auto pCM = W->shape[1];  // channel_multiplier
@@ -380,8 +380,8 @@ inline tvm::te::Tensor depthwise_conv2d_nhwc(const tvm::te::Tensor& I, const tvm
                                              int stride_w = 1,
                                              std::string name = "T_depthwise_conv2d_nhwc",
                                              std::string tag = kDepthwiseConv2dNHWC) {
-  CHECK_EQ(4, I->shape.size());
-  CHECK_EQ(4, W->shape.size());
+  ICHECK_EQ(4, I->shape.size());
+  ICHECK_EQ(4, W->shape.size());
   auto pH = I->shape[1];
   auto pW = I->shape[2];
   auto pCM = W->shape[1];  // channel_multiplier
@@ -429,8 +429,8 @@ inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I, const tvm::t
                                           int stride_w = 1,
                                           std::string name = "T_group_conv2d_ngchw",
                                           std::string tag = kGroupConv2d) {
-  CHECK_EQ(5, I->shape.size());
-  CHECK_EQ(5, W->shape.size());
+  ICHECK_EQ(5, I->shape.size());
+  ICHECK_EQ(5, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   tvm::Array<tvm::PrimExpr> output_shape{

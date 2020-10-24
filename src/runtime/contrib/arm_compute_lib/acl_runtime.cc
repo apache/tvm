@@ -75,7 +75,7 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const Array<NDArray>& consts) override {
-    CHECK_EQ(consts.size(), const_idx_.size())
+    ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
     BuildEngine();
@@ -222,7 +222,7 @@ class ACLRuntime : public JSONRuntimeBase {
     arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
 
     int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
-    CHECK(groups == 1) << "Arm Compute Library NEON convolution only supports group size of 1.";
+    ICHECK(groups == 1) << "Arm Compute Library NEON convolution only supports group size of 1.";
 
     arm_compute::ActivationLayerInfo act_info;
     if (node.HasAttr("activation_type")) {
@@ -242,7 +242,7 @@ class ACLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     if (node.GetOpName() == "qnn.conv2d") {
-      CHECK(num_inputs >= 8U && num_inputs <= 9U)
+      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
           << "Quantized convolution requires 9 inputs with a bias, 8 inputs without.";
       has_bias = num_inputs == 9;
       layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
@@ -253,7 +253,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
-      CHECK(num_inputs >= 2U && num_inputs <= 3U)
+      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
           << "Convolution requires 3 inputs with a bias, 2 inputs without.";
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {
@@ -286,7 +286,7 @@ class ACLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     if (node.GetOpName() == "qnn.dense") {
-      CHECK(num_inputs >= 8U && num_inputs <= 9U)
+      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
           << "Quantized fully connected (dense) layer requires 9 inputs with a bias, 8 inputs "
              "without.";
       has_bias = num_inputs == 9;
@@ -298,7 +298,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
-      CHECK(num_inputs >= 2U && num_inputs <= 3U)
+      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
           << "Fully connected (dense) layer requires 3 inputs with a bias, 2 inputs without.";
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {

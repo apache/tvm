@@ -67,7 +67,7 @@ class BufferTouchedDomain final : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tir::attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
-      CHECK(thread_axis);
+      ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
       dom_map_[var] = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
       StmtExprVisitor::VisitStmt_(op);

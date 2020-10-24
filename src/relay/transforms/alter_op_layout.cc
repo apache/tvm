@@ -97,7 +97,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
     }
 
     const CallNode* new_call = new_e.as<CallNode>();
-    CHECK(new_call) << "Can only replace the original operator with another call node";
+    ICHECK(new_call) << "Can only replace the original operator with another call node";
     return GetRef<Call>(new_call);
   }
 

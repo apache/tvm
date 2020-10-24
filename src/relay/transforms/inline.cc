@@ -114,16 +114,16 @@ class Inliner : ExprMutator {
 
   // Make a new Relay expression to replace the callee.
   Expr MakeNewExpr(const GlobalVar& global, const Array<Expr>& args, const Expr& callee) {
-    CHECK(callee->IsInstance<CallNode>() || callee->IsInstance<GlobalVarNode>());
+    ICHECK(callee->IsInstance<CallNode>() || callee->IsInstance<GlobalVarNode>());
     auto base_func = call_graph_->GetGlobalFunction(global);
     const auto* fn = base_func.as<FunctionNode>();
-    CHECK(fn) << "Expected to work on a Relay function.";
+    ICHECK(fn) << "Expected to work on a Relay function.";
 
     auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
     if (!func->GetAttr<String>(attr::kCompiler).defined()) {
-      CHECK_EQ(func->params.size(), args.size())
+      ICHECK_EQ(func->params.size(), args.size())
           << "Mismatch found in the number of parameters and call args";
       // Bind the parameters with call args.
       Map<Var, Expr> bind_map;
@@ -137,7 +137,7 @@ class Inliner : ExprMutator {
         // its body when the global var returns FuncType.
         return ret_type->IsInstance<FuncTypeNode>() ? std::move(func) : func->body;
       } else {
-        CHECK(callee->IsInstance<CallNode>());
+        ICHECK(callee->IsInstance<CallNode>());
         return Bind(func->body, bind_map);
       }
     } else if (const auto* call_node = callee.as<CallNode>()) {
@@ -189,7 +189,7 @@ IRModule Inline(const IRModule& module) {
     if (const auto* fn = base_func.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
       if (func->HasNonzeroAttr(attr::kInline)) {
-        CHECK_EQ(cgn->GetRefCount(), 0U)
+        ICHECK_EQ(cgn->GetRefCount(), 0U)
             << cgn->GetNameHint() << " is marked as inline but not inlined.";
         cgn->CleanCallGraphEntries();
         cg->RemoveGlobalVarFromModule(cgn, /*update_call_graph*/ true);

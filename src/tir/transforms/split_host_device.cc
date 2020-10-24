@@ -43,7 +43,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      CHECK_NE(iv->thread_tag.length(), 0U);
+      ICHECK_NE(iv->thread_tag.length(), 0U);
       // thread_extent can appear multiple times
       // use the first appearance as def.
       if (!use_count_.count(iv->var.get())) {
@@ -108,7 +108,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
     auto it = let_binding_.find(op->var);
     PrimExpr value = this->VisitExpr(op->value);
     if (it != let_binding_.end()) {
-      CHECK(deep_equal_(it->second->value, value))
+      ICHECK(deep_equal_(it->second->value, value))
           << "Let cannot bind the same var to two different values";
       return GetRef<PrimExpr>(it->second);
     } else {
@@ -147,16 +147,16 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   void HandleDef(const VarNode* v) {
-    CHECK(!def_count_.count(v)) << "variable " << v->name_hint
-                                << " has already been defined, the Stmt is not SSA";
-    CHECK(!use_count_.count(v)) << "variable " << v->name_hint
-                                << " has been used before definition!";
+    ICHECK(!def_count_.count(v)) << "variable " << v->name_hint
+                                 << " has already been defined, the Stmt is not SSA";
+    ICHECK(!use_count_.count(v)) << "variable " << v->name_hint
+                                 << " has been used before definition!";
     use_count_[v] = 0;
     def_count_[v] = 1;
   }
 
   void HandleUse(const PrimExpr& v) {
-    CHECK(v.as<VarNode>());
+    ICHECK(v.as<VarNode>());
     Var var = Downcast<Var>(v);
     auto it = use_count_.find(var.get());
     if (it != use_count_.end()) {
@@ -290,9 +290,9 @@ class HostDeviceSplitter : public StmtMutator {
 
 PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  CHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
+  ICHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
+  ICHECK(global_symbol.defined())
       << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
 
   HostDeviceSplitter splitter(device_mod, target.value(),
@@ -316,7 +316,7 @@ Pass SplitHostDevice() {
     for (auto& kv : *func_dict) {
       if (kv.second->IsInstance<PrimFuncNode>()) {
         PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
-        CHECK(device_mod.defined()) << "The device module must be defined.";
+        ICHECK(device_mod.defined()) << "The device module must be defined.";
         kv.second = SplitHostDevice(std::move(func), &device_mod);
       }
     }

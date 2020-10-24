@@ -47,7 +47,7 @@ void OpenCLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
     *rv = static_cast<int>(index < devices.size());
     return;
   }
-  CHECK_LT(index, devices.size()) << "Invalid device id " << index;
+  ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
   switch (kind) {
     case kExist:
       break;
@@ -119,7 +119,7 @@ void OpenCLWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* 
 void* OpenCLWorkspace::AllocDataSpace(TVMContext ctx, size_t size, size_t alignment,
                                       DLDataType type_hint) {
   this->Init();
-  CHECK(context != nullptr) << "No OpenCL device";
+  ICHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
   cl_mem mptr = clCreateBuffer(this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
@@ -140,7 +140,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
                                      TVMContext ctx_to, DLDataType type_hint,
                                      TVMStreamHandle stream) {
   this->Init();
-  CHECK(stream == nullptr);
+  ICHECK(stream == nullptr);
   if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueCopyBuffer(this->GetQueue(ctx_to),
                                     static_cast<cl_mem>((void*)from),  // NOLINT(*)
@@ -163,7 +163,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void*
 }
 
 void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
-  CHECK(stream == nullptr);
+  ICHECK(stream == nullptr);
   OPENCL_CALL(clFinish(this->GetQueue(ctx)));
 }
 
@@ -266,7 +266,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   this->context = clCreateContext(nullptr, this->devices.size(), &(this->devices[0]), nullptr,
                                   nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
-  CHECK_EQ(this->queues.size(), 0U);
+  ICHECK_EQ(this->queues.size(), 0U);
   for (size_t i = 0; i < this->devices.size(); ++i) {
     cl_device_id did = this->devices[i];
     this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));

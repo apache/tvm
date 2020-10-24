@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/support/logging.h>
 
 #include <string>
 #include <type_traits>
@@ -74,7 +74,7 @@ class DataType {
     data_.bits = static_cast<uint8_t>(bits);
     data_.lanes = static_cast<uint16_t>(lanes);
     if (code == kBFloat) {
-      CHECK_EQ(bits, 16);
+      ICHECK_EQ(bits, 16);
     }
   }
   /*! \return The type code. */
@@ -212,7 +212,7 @@ inline int GetVectorBytes(DataType dtype) {
       dtype == DataType::Int(1)) {
     return 1;
   }
-  CHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
+  ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
   return data_bits / 8;
 }
 
@@ -373,7 +373,7 @@ inline DLDataType String2DLDataType(std::string s) {
   if (*xdelim == 'x') {
     t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
   }
-  CHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
+  ICHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
   return t;
 }
 

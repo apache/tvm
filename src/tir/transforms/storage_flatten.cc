@@ -69,7 +69,7 @@ class StorageFlattener : public StmtExprMutator {
     op = stmt.as<StoreNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      CHECK(it->second.as<VarNode>());
+      ICHECK(it->second.as<VarNode>());
       Var buf_var = Downcast<Var>(it->second);
       return Store(buf_var, op->value, op->index, op->predicate);
     } else {
@@ -86,7 +86,7 @@ class StorageFlattener : public StmtExprMutator {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
       auto it = buf_map_.find(buffer);
-      CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
+      ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
       body = AttrStmt(it->second.buffer->data, op->attr_key, op->value, std::move(body));
       return body;
     } else if (op->attr_key == attr::thread_extent) {
@@ -101,7 +101,7 @@ class StorageFlattener : public StmtExprMutator {
     } else if (op->attr_key == attr::buffer_dim_align) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
-      CHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
+      ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
       auto& vinfo = dim_align_[buffer];
       int dim = tuple->args[0].as<IntImmNode>()->value;
       if (static_cast<size_t>(dim) >= vinfo.size()) {
@@ -122,10 +122,10 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
 
     const BufferEntry& e = it->second;
-    CHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(!e.released) << "Read a buffer that is already out of scope";
 
     Stmt body = e.buffer.vstore(e.RelIndex(op->indices), op->value);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
@@ -145,7 +145,7 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     if (buf_map_.count(key)) {
-      CHECK(buf_map_.at(key).external);
+      ICHECK(buf_map_.at(key).external);
       return this->VisitStmt(op->body);
     } else {
       // create a buffer entry
@@ -157,7 +157,7 @@ class StorageFlattener : public StmtExprMutator {
       }
       // deduce current storage scope.
       auto it = storage_scope_.find(op->buffer.get());
-      CHECK(it != storage_scope_.end()) << "Cannot find storage scope of " << op->buffer;
+      ICHECK(it != storage_scope_.end()) << "Cannot find storage scope of " << op->buffer;
       StorageScope skey;
       const std::string& strkey = it->second;
       if (strkey.length() == 0) {
@@ -176,7 +176,7 @@ class StorageFlattener : public StmtExprMutator {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
         if (info.defined()) {
           align = (info->max_simd_bits + dtype.bits() - 1) / dtype.bits();
-          CHECK_LE(const_size * dtype.bits(), info->max_num_bits)
+          ICHECK_LE(const_size * dtype.bits(), info->max_num_bits)
               << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
@@ -243,7 +243,7 @@ class StorageFlattener : public StmtExprMutator {
     op = expr.as<LoadNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      CHECK(it->second.as<VarNode>());
+      ICHECK(it->second.as<VarNode>());
       Var buf_var = Downcast<Var>(it->second);
       return Load(op->dtype, buf_var, op->index, op->predicate);
     } else {
@@ -267,9 +267,9 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
     const BufferEntry& e = it->second;
-    CHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(!e.released) << "Read a buffer that is already out of scope";
 
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
@@ -280,15 +280,15 @@ class StorageFlattener : public StmtExprMutator {
   Stmt VisitStmt_(const PrefetchNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<PrefetchNode>();
-    CHECK(op != nullptr);
+    ICHECK(op != nullptr);
 
     const auto& key = op->buffer;
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
     const BufferEntry& e = it->second;
 
-    CHECK(!e.released) << "Read a buffer that is already out of scope";
-    CHECK_EQ(e.buffer->shape.size(), op->bounds.size())
+    ICHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK_EQ(e.buffer->shape.size(), op->bounds.size())
         << "Prefetch dim should be the same as buffer dim";
 
     int block_size = 1, elem_cnt = cache_line_size_ / e.buffer->dtype.bytes();
@@ -385,22 +385,22 @@ class StorageFlattener : public StmtExprMutator {
   // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
-    CHECK_EQ(arr.size(), 2U);
+    ICHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
     const BufferNode* target = arr[1].as<BufferNode>();
     const CallNode* tuple = op->value.as<CallNode>();
-    CHECK(buffer && target);
-    CHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
+    ICHECK(buffer && target);
+    ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
     auto key = GetRef<Buffer>(target);
 
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find buffer of " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find buffer of " << key;
     const BufferEntry& be = it->second;
-    CHECK(!be.released);
-    CHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
+    ICHECK(!be.released);
+    ICHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
     Array<PrimExpr> begins, extents;
     if (be.bounds.size() != 0) {
-      CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
+      ICHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
       for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
         begins.push_back(tuple->args[2 * i] - be.bounds[i]->min);
         extents.push_back(tuple->args[2 * i + 1]);
@@ -414,7 +414,7 @@ class StorageFlattener : public StmtExprMutator {
     }
     Buffer slice = be.buffer.MakeSlice(begins, extents);
     if (buffer->strides.size() == 0) {
-      CHECK_EQ(slice->strides.size(), 0U)
+      ICHECK_EQ(slice->strides.size(), 0U)
           << "Trying to bind compact buffer to strided one strides=" << slice->strides;
     } else {
       slice = slice.MakeStrideView();
@@ -452,7 +452,7 @@ class StorageFlattener : public StmtExprMutator {
     inline Array<PrimExpr> RelIndex(Array<PrimExpr> args) const {
       if (bounds.size() != 0) {
         Array<PrimExpr> index;
-        CHECK_EQ(bounds.size(), args.size());
+        ICHECK_EQ(bounds.size(), args.size());
         for (size_t i = 0; i < bounds.size(); ++i) {
           index.push_back(args[i] - bounds[i]->min);
         }
