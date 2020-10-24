@@ -1334,7 +1334,7 @@ def _fused_batch_norm():
             op_name="batch_norm",
             transforms={"scale_after_normalization": "scale", "variance_epsilon": "epsilon"},
             extras={"axis": axis},
-            ignores=["data_format", "U"],
+            ignores=["data_format", "U", "exponential_avg_factor"],
             disables=["momentum"],
         )(inputs, attr)
 
@@ -1364,7 +1364,7 @@ def _batch_norm():
             op_name="batch_norm",
             transforms={"scale_after_normalization": "scale", "variance_epsilon": "epsilon"},
             extras={"axis": axis},
-            ignores=["data_format"],
+            ignores=["data_format", "exponential_avg_factor"],
             disables=["momentum"],
         )(new_inputs, attr)
 
