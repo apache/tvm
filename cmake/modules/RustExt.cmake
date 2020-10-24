@@ -7,7 +7,7 @@ if(USE_RUST_EXT)
     elseif(USE_RUST_EXT STREQUAL "DYNAMIC")
         set(COMPILER_EXT_PATH "${CARGO_OUT_DIR}/release/libcompiler_ext.so")
     else()
-        message(FATAL_ERROR "invalid setting for RUST_EXT")
+        message(FATAL_ERROR "invalid setting for USE_RUST_EXT")
     endif()
 
     add_custom_command(
