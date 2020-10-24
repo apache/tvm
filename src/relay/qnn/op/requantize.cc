@@ -324,6 +324,7 @@ Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("Requantize", RequantizeRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", RequantizeInferCorrectLayout);
 
