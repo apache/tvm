@@ -48,7 +48,7 @@ namespace codegen {
 
 static std::string get_name(const PrimFunc& f) {
   auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
+  ICHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
   return std::string(global_symbol.value());
 }
@@ -139,9 +139,9 @@ void CodeGenHexagon::InitTarget(llvm::TargetMachine* tm) {
   if (len_end != npos) {
     int hvx_bytes = 0;
     len_begin += std::strlen(hvx_length_feature);
-    CHECK(!fs.substr(len_begin, len_end - len_begin).getAsInteger(10, hvx_bytes))
+    ICHECK(!fs.substr(len_begin, len_end - len_begin).getAsInteger(10, hvx_bytes))
         << "invalid HVX length in feature string: " << fs.str();
-    CHECK(hvx_bytes == 64 || hvx_bytes == 128)
+    ICHECK(hvx_bytes == 64 || hvx_bytes == 128)
         << "invalid HVX vector length: " << hvx_bytes << ", should be 64 or 128";
     native_vector_bits_ = hvx_bytes * 8;
   }
@@ -249,7 +249,7 @@ llvm::GlobalVariable* CodeGenHexagon::InitContextPtr(llvm::Type* p_type, std::st
 }
 
 llvm::Value* CodeGenHexagon::GetContextPtr(llvm::GlobalVariable* gv) {
-  CHECK(gv != nullptr);
+  ICHECK(gv != nullptr);
 #if TVM_LLVM_VERSION >= 110
   llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, llvm::Align(gv->getAlignment()));
 #else
@@ -305,7 +305,7 @@ llvm::BasicBlock* CodeGenHexagon::MakeCallPacked(const Array<PrimExpr>& args, ll
   llvm::Value* handle = GetPackedFuncHandle(func_name);
   // call the function
   int64_t nargs = end - begin;
-  CHECK_GE(nargs, 0);
+  ICHECK_GE(nargs, 0);
   llvm::Value* stack_value = MakeValue(args[1]);
   llvm::Value* stack_tcode = MakeValue(args[2]);
   llvm::Value* arg_value = builder_->CreateInBoundsGEP(
@@ -416,7 +416,7 @@ llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
     return ConstInt32(0);
   }
 
-  CHECK_EQ(op->args.size(), 5U);
+  ICHECK_EQ(op->args.size(), 5U);
   llvm::Value* rvalue = nullptr;
   llvm::Value* ret_tcode = nullptr;
   MakeCallPacked(op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImmNode>()->value,
@@ -426,7 +426,7 @@ llvm::Value* CodeGenHexagon::CreateCallPacked(const CallNode* op) {
 
 llvm::Value* CodeGenHexagon::CreateCallTracePacked(const CallNode* op) {
   using llvm::BasicBlock;
-  CHECK_EQ(op->args.size(), 6U);
+  ICHECK_EQ(op->args.size(), 6U);
   llvm::Value* rvalue = nullptr;
   llvm::Value* ret_tcode = nullptr;
   BasicBlock* end_block =
@@ -506,7 +506,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
     return CreateCallTracePacked(op);
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
-    CHECK_EQ(op->args.size(), 3);
+    ICHECK_EQ(op->args.size(), 3);
     int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* ref =
         CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
@@ -515,9 +515,9 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
     }
     return builder_->CreateLoad(ref);
   } else if (op->op.same_as(builtin::tvm_struct_set())) {
-    CHECK_EQ(op->args.size(), 4);
+    ICHECK_EQ(op->args.size(), 4);
     int kind = op->args[2].as<IntImmNode>()->value;
-    CHECK(kind != builtin::kArrAddr);
+    ICHECK(kind != builtin::kArrAddr);
     llvm::Value* ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
                                           MakeValue(op->args[1]), kind);
     llvm::Value* value = MakeValue(op->args[3]);
@@ -527,7 +527,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
     builder_->CreateStore(value, ref);
     return ConstInt32(0);
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
-    CHECK_EQ(op->args.size(), 2);
+    ICHECK_EQ(op->args.size(), 2);
     const std::string& name = op->args[0].as<StringImmNode>()->value;
     llvm::Value* size = ConstInt32(op->args[1].as<IntImmNode>()->value);
     return builder_->CreateAlloca(types_for_alloca_.at(name), size);
@@ -559,7 +559,7 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
     } else {
-      CHECK_EQ(buf->getType(), t_tvm_array_->getPointerTo());
+      ICHECK_EQ(buf->getType(), t_tvm_array_->getPointerTo());
     }
     /* The following "kinds" are accessing the members of DLTensor:
        typedef struct {
@@ -605,8 +605,8 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
          TVMContext v_ctx;
        } TVMValue;
     */
-    CHECK_EQ(t.lanes(), 1);
-    CHECK(t.is_handle() || t.bits() == 64);
+    ICHECK_EQ(t.lanes(), 1);
+    ICHECK(t.is_handle() || t.bits() == 64);
     if (t.is_int()) {
       buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
       return builder_->CreateInBoundsGEP(buf, index);
@@ -614,7 +614,7 @@ llvm::Value* CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf, ll
       buf = builder_->CreatePointerCast(buf, t_float64_->getPointerTo());
       return builder_->CreateInBoundsGEP(buf, index);
     } else {
-      CHECK(t.is_handle());
+      ICHECK(t.is_handle());
       buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
       buf = builder_->CreateInBoundsGEP(buf, index);
       return builder_->CreatePointerCast(buf, t_void_p_->getPointerTo());
@@ -708,7 +708,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
   cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
     auto f = Downcast<PrimFunc>(kv.second);
     cg->AddFunction(f);
   }
@@ -740,7 +740,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       llvm::raw_svector_ostream os(ss);
       std::unique_ptr<llvm::Module> cm = CloneModule(m);
       legacy::PassManager pass;
-      CHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
+      ICHECK(tm->addPassesToEmitFile(pass, os, nullptr, ft) == 0) << "Cannot emit target code";
       pass.run(*cm.get());
       out.assign(ss.c_str(), ss.size());
     }
@@ -752,13 +752,13 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     llvm::SmallString<64> file_name;
     int fd;
     std::error_code ec = llvm::sys::fs::createTemporaryFile("tvm", suffix, fd, file_name);
-    CHECK_EQ(static_cast<bool>(ec), false) << ec.message();
+    ICHECK_EQ(static_cast<bool>(ec), false) << ec.message();
     llvm::raw_fd_ostream file(fd, true);
     file << data;
-    CHECK(!file.has_error()) << file.error().message();
+    ICHECK(!file.has_error()) << file.error().message();
     // If there is an error, execution will never get here, but return
     // {ec, name} anyway to allow caller to handle error conditions.
-    // This way the "CHECK" above can be removed with minimal effort.
+    // This way the "ICHECK" above can be removed with minimal effort.
     return std::make_pair(file.error(), std::string(file_name.c_str()));
   };
 
@@ -772,12 +772,12 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   so_name += "so";
 
   const auto* f = tvm::runtime::Registry::Get("tvm.contrib.hexagon.link_shared");
-  CHECK(f != nullptr) << "tvm.contrib.hexagon.link_shared does not to exist, "
-                         "do import tvm.contrib.hexagon";
+  ICHECK(f != nullptr) << "tvm.contrib.hexagon.link_shared does not to exist, "
+                          "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
   int rc = (*f)(so_name, o_names);
-  CHECK(rc == 0) << "Failed to link " << so_name;
+  ICHECK(rc == 0) << "Failed to link " << so_name;
 
   // Move it to ExtractFuncInfo?
   std::set<std::string> export_abi;

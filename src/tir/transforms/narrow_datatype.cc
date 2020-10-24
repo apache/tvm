@@ -105,7 +105,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
-      CHECK_NE(iv->thread_tag.length(), 0U);
+      ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
@@ -216,8 +216,8 @@ class DataTypeRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     Stmt s = StmtExprMutator::VisitStmt_(op);
     op = s.as<ForNode>();
-    CHECK(op != nullptr) << "Expected type to be ForNode"
-                         << ", but get " << s->GetTypeKey();
+    ICHECK(op != nullptr) << "Expected type to be ForNode"
+                          << ", but get " << s->GetTypeKey();
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var>(e);
     return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->for_type,
@@ -228,11 +228,11 @@ class DataTypeRewriter : public StmtExprMutator {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       Stmt s = StmtExprMutator::VisitStmt_(op);
       op = s.as<AttrStmtNode>();
-      CHECK(op != nullptr) << "Expected type to be AttrStmtNode"
-                           << ", but get " << s->GetTypeKey();
+      ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
+                            << ", but get " << s->GetTypeKey();
       const IterVarNode* iv = op->node.as<IterVarNode>();
-      CHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                           << ", but get " << op->node->GetTypeKey();
+      ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
+                            << ", but get " << op->node->GetTypeKey();
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
@@ -284,8 +284,8 @@ class DataTypeRewriter : public StmtExprMutator {
     if (is_index_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
       PrimExpr e = StmtExprMutator::VisitExpr_(op);
       const CastNode* new_op = e.as<CastNode>();
-      CHECK(new_op != nullptr) << "Expected type to be CastNode"
-                               << ", but get " << e->GetTypeKey();
+      ICHECK(new_op != nullptr) << "Expected type to be CastNode"
+                                << ", but get " << e->GetTypeKey();
       return Cast(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
@@ -353,8 +353,8 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
-  CHECK(op != nullptr) << "Expected type to be CallNode"
-                       << ", but get " << e->GetTypeKey();
+  ICHECK(op != nullptr) << "Expected type to be CallNode"
+                        << ", but get " << e->GetTypeKey();
 
   if (op->op.same_as(builtin::if_then_else())) {
     return if_then_else(op->args[0], op->args[1], op->args[2]);

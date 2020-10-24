@@ -49,7 +49,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
 
 void CodeGenCHost::AddFunction(const PrimFunc& f) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
+  ICHECK(global_symbol.defined())
       << "CodeGenCHost: Expect PrimFunc to have the global_symbol attribute";
   function_names_.emplace_back(global_symbol.value());
 
@@ -71,7 +71,7 @@ void CodeGenCHost::PrintFinalReturn() {  // NOLINT(*)
 void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    CHECK_EQ(lanes, 1) << "does not support vector types";
+    ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
     return;
   }
@@ -192,7 +192,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     std::string stack_name = GetUniqueName("stack");
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
-    CHECK(num != nullptr);
+    ICHECK(num != nullptr);
     static_assert(alignof(TVMValue) % alignof(DLTensor) == 0, "invariant");
     size_t unit = sizeof(TVMValue);
     size_t size = 0;
@@ -212,18 +212,18 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     os << stack_name;
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     const StringImmNode* s = op->args[0].as<StringImmNode>();
-    CHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
+    ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
     int64_t begin = op->args[3].as<IntImmNode>()->value;
     int64_t end = op->args[4].as<IntImmNode>()->value;
     int64_t num_args = end - begin;
-    CHECK_GE(num_args, 0);
+    ICHECK_GE(num_args, 0);
     std::string func_name = s->value;
     // NOTE: cannot rely on GetUnique for global decl_stream declarations
     // because it is reset between AddFunction().
     std::string packed_func_name = func_name + "_packed";
     if (declared_globals_.insert(packed_func_name).second) {
       // Still reserve the name among unique names.
-      CHECK(GetUniqueName(packed_func_name) == packed_func_name)
+      ICHECK(GetUniqueName(packed_func_name) == packed_func_name)
           << "Expected name " << packed_func_name << " to not be taken";
       decl_stream << "static void* " << packed_func_name << " = NULL;\n";
     }
@@ -307,13 +307,13 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   cg.Init(output_ssa, emit_asserts);
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     cg.AddFunction(f);
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
-    CHECK_EQ(target->GetAttr<String>("runtime").value_or(""), "c")
+    ICHECK_EQ(target->GetAttr<String>("runtime").value_or(""), "c")
         << "c target only supports generating C runtime SystemLibs";
     cg.GenerateFuncRegistry();
     cg.GenerateCrtSystemLib();

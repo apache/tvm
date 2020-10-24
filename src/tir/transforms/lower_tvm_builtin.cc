@@ -35,7 +35,7 @@ namespace tvm {
 namespace tir {
 
 inline PrimExpr ConstInt32(size_t index) {
-  CHECK_LE(index, std::numeric_limits<int>::max());
+  ICHECK_LE(index, std::numeric_limits<int>::max());
   return make_const(DataType::Int(32), static_cast<int>(index));
 }
 
@@ -70,8 +70,8 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt(const Stmt& s) final {
     auto stmt = StmtExprMutator::VisitStmt(s);
-    CHECK_EQ(run_shape_stack_, -1);
-    CHECK_EQ(run_array_stack_, 0);
+    ICHECK_EQ(run_shape_stack_, -1);
+    ICHECK_EQ(run_array_stack_, 0);
 
     if (prep_seq_.size() != 0) {
       Stmt ret = SeqStmt::Flatten(prep_seq_, stmt);
@@ -102,8 +102,8 @@ class BuiltinLower : public StmtExprMutator {
     for (size_t i = 0; i < op->extents.size(); ++i) {
       total_bytes = total_bytes * op->extents[i];
     }
-    CHECK(device_type_.defined()) << "Unknown device type in current IR";
-    CHECK(device_id_.defined()) << "Unknown device id in current IR";
+    ICHECK(device_type_.defined()) << "Unknown device type in current IR";
+    ICHECK(device_id_.defined()) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
     Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}),
@@ -129,11 +129,11 @@ class BuiltinLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::device_context_id) {
-      CHECK(!device_id_.defined());
+      ICHECK(!device_id_.defined());
       device_id_ = op->value;
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::device_context_type) {
-      CHECK(!device_type_.defined());
+      ICHECK(!device_type_.defined());
       device_type_ = op->value;
       return this->VisitStmt(op->body);
     } else {
@@ -202,8 +202,8 @@ class BuiltinLower : public StmtExprMutator {
     }
     prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrByteOffset,
                                         cast(DataType::UInt(64), byte_offset)));
-    CHECK(device_type_.defined()) << "Unknown device type in current IR";
-    CHECK(device_id_.defined()) << "Unknown device id in current IR";
+    ICHECK(device_type_.defined()) << "Unknown device type in current IR";
+    ICHECK(device_id_.defined()) << "Unknown device id in current IR";
     prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrDeviceId,
                                         cast(DataType::Int(32), device_id_)));
     prep_seq_.emplace_back(TVMStructSet(stack_array_, idx, builtin::kArrDeviceType,
@@ -256,7 +256,7 @@ class BuiltinLower : public StmtExprMutator {
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     size_t args_size = op->args.size();
-    CHECK_GT(args_size, 0);
+    ICHECK_GT(args_size, 0);
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
@@ -270,7 +270,7 @@ class BuiltinLower : public StmtExprMutator {
       prep_seq_.emplace_back(TVMStructSet(stack_value_, static_cast<int>(arg_stack_begin + i - 1),
                                           builtin::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
-      CHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
+      ICHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
       prep_seq_.emplace_back(
           Store(stack_tcode_, ConstInt32(arg_tcode), stack_index, const_true(1)));
     }

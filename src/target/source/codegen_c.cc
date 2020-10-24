@@ -78,7 +78,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   ReserveKeywordsAsUnique();
 
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined()) << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  ICHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
@@ -187,7 +188,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr i
       // optimize for constant access
       if (auto* ptr = index.as<tir::IntImmNode>()) {
         int64_t offset = ptr->value;
-        CHECK_EQ(offset % t.lanes(), 0) << "Find unaligned vector load to a vector type";
+        ICHECK_EQ(offset % t.lanes(), 0) << "Find unaligned vector load to a vector type";
         os << vid << '[' << (offset / t.lanes()) << ']';
         return os.str();
       }
@@ -275,7 +276,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << ')';
     return os.str();
   } else {
-    CHECK_LT(kind, builtin::kTVMValueKindBound_);
+    ICHECK_LT(kind, builtin::kTVMValueKindBound_);
     std::ostringstream os;
     os << "(((TVMValue*)";
     this->PrintExpr(buffer, os);
@@ -305,7 +306,7 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, DataType t) {
   if (it == handle_data_type_.end()) {
     handle_data_type_[buf_var] = t;
   } else {
-    CHECK(it->second == t) << "conflicting buf var type";
+    ICHECK(it->second == t) << "conflicting buf var type";
   }
 }
 
@@ -346,11 +347,11 @@ void CodeGenC::PrintStorageSync(const CallNode* op) {  // NOLINT(*)
 }
 
 void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  CHECK_EQ(scope, "global");
+  ICHECK_EQ(scope, "global");
 }
 
 void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  CHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
+  ICHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
   if (t.is_handle()) {
     os << "void*";
     return;
@@ -491,7 +492,7 @@ inline void PrintBinaryIntrinsic(const CallNode* op, const char* opstr,
                                  std::ostream& os,  // NOLINT(*)
                                  CodeGenC* p) {
   if (op->dtype.lanes() == 1) {
-    CHECK_EQ(op->args.size(), 2U);
+    ICHECK_EQ(op->args.size(), 2U);
     os << '(';
     p->PrintExpr(op->args[0], os);
     os << opstr;
@@ -576,7 +577,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     auto call_op = GetRef<Op>(ptr_op);
 
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
-      CHECK_GE(op->args.size(), 1U);
+      ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
     } else if (op_attr_global_symbol_.count(call_op)) {
@@ -586,7 +587,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
     } else if (op->op.same_as(builtin::large_uint_imm())) {
-      CHECK_EQ(op->args.size(), 2U);
+      ICHECK_EQ(op->args.size(), 2U);
       uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
       uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
       uint64_t val = (high << 32U) | low;
@@ -596,7 +597,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::bitwise_or())) {
       PrintBinaryIntrinsic(op, " | ", os, this);
     } else if (op->op.same_as(builtin::bitwise_not())) {
-      CHECK_EQ(op->args.size(), 1U);
+      ICHECK_EQ(op->args.size(), 1U);
       os << "(~";
       this->PrintExpr(op->args[0], os);
       os << ')';
@@ -614,7 +615,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << ")";
     } else if (op->op.same_as(builtin::address_of())) {
       const LoadNode* l = op->args[0].as<LoadNode>();
-      CHECK(op->args.size() == 1 && l);
+      ICHECK(op->args.size() == 1 && l);
       os << "((";
       this->PrintType(l->dtype.element_of(), os);
       os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
@@ -625,10 +626,10 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
       os << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
-      CHECK_EQ(op->args.size(), 3U);
+      ICHECK_EQ(op->args.size(), 3U);
       os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
     } else if (op->op.same_as(builtin::isnullptr())) {
-      CHECK_EQ(op->args.size(), 1U);
+      ICHECK_EQ(op->args.size(), 1U);
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
@@ -649,7 +650,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       LOG(FATAL) << "Unresolved call " << op->op;
     }
   } else {
-    CHECK(op->op.as<GlobalVarNode>());
+    ICHECK(op->op.as<GlobalVarNode>());
     LOG(FATAL) << "Do not yet support cross function call";
   }
 }
@@ -678,7 +679,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
     std::string ref = GetBufferRef(op->dtype, op->buffer_var.get(), op->index);
     HandleVolatileLoads(ref, op, os);
   } else {
-    CHECK(is_one(op->predicate)) << "predicated load is not supported";
+    ICHECK(is_one(op->predicate)) << "predicated load is not supported";
 
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
@@ -722,7 +723,7 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
-    CHECK(is_one(op->predicate)) << "Predicated store is not supported";
+    ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
 
     // The assignment below introduces side-effect, and the resulting value cannot
@@ -767,7 +768,7 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
 void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
-    CHECK(deep_equal_(it->second->value, op->value))
+    ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
     let_binding_[op->var] = op;
@@ -779,7 +780,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // constraint of current logic
-  CHECK_EQ(op->base.dtype(), DataType::Int(32));
+  ICHECK_EQ(op->base.dtype(), DataType::Int(32));
   os << "((int" << op->lanes << ")(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
@@ -810,7 +811,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
 void CodeGenC::VisitStmt_(const LetStmtNode* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
-    CHECK(!var_idmap_.count(op->var.get()));
+    ICHECK(!var_idmap_.count(op->var.get()));
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
@@ -828,12 +829,12 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const AllocateNode* op) {
-  CHECK(!is_zero(op->condition));
+  ICHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
   int32_t constant_size = op->constant_allocation_size();
-  CHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
   std::string scope = alloc_storage_scope_.at(buffer);
   PrintStorageScope(scope, stream);
@@ -854,15 +855,15 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
     }
   } else if (op->attr_key == tir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
-    CHECK(v);
+    ICHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
-    CHECK(v);
+    ICHECK(v);
     volatile_buf_.insert(v);
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
-    CHECK(value != nullptr);
+    ICHECK(value != nullptr);
     decl_stream << value->value;
   }
   this->PrintStmt(op->body);
@@ -873,7 +874,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   PrintIndent();
   if (const auto* str = op->message.as<StringImmNode>()) {
     // GLOG style check
-    stream << "CHECK(" << cond << ") << \"" << str->value << "\";\n";
+    stream << "ICHECK(" << cond << ") << \"" << str->value << "\";\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }
@@ -884,7 +885,7 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
-  CHECK(is_zero(op->min));
+  ICHECK(is_zero(op->min));
   stream << "for (";
   PrintType(op->loop_var.dtype(), stream);
   stream << ' ' << vid << " = 0; " << vid << " < " << extent << "; ++" << vid << ") {\n";
@@ -932,7 +933,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
       this->PrintStorageSync(call);
       return;
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
-      CHECK_EQ(call->args.size(), 4);
+      ICHECK_EQ(call->args.size(), 4);
       std::string value = PrintExpr(call->args[3]);
       std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1],
                                      call->args[2].as<IntImmNode>()->value);
@@ -949,7 +950,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) {
-  CHECK_GT(t.lanes(), 1);
+  ICHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (i != 0) {
       os << "|";

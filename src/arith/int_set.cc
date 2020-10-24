@@ -412,7 +412,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   IntervalSet VisitExpr_(const OrNode* op) final { return VisitBinaryExpr_<Or>(op); }
 
   IntervalSet VisitExpr_(const RampNode* op) final {
-    CHECK(eval_vec_);
+    ICHECK(eval_vec_);
     IntervalSet base = Eval(op->base);
     PVar<IntImm> stride;
     if (stride.Match(op->stride)) {
@@ -431,7 +431,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   }
 
   IntervalSet VisitExpr_(const BroadcastNode* op) final {
-    CHECK(eval_vec_);
+    ICHECK(eval_vec_);
     return VisitExpr(op->value);
   }
 
@@ -506,7 +506,7 @@ Range IntSet::CoverRange(Range max_range) const {
   IntSet temp;
   Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  CHECK(s_int != nullptr);
+  ICHECK(s_int != nullptr);
   if (s_int->HasUpperBound() && s_int->HasLowerBound()) {
     return Range::FromMinExtent(s_int->min_value,
                                 analyzer.Simplify(s_int->max_value + 1 - s_int->min_value));
@@ -516,13 +516,13 @@ Range IntSet::CoverRange(Range max_range) const {
 
 PrimExpr IntSet::min() const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  CHECK(s_int);
+  ICHECK(s_int);
   return s_int->min_value;
 }
 
 PrimExpr IntSet::max() const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  CHECK(s_int);
+  ICHECK(s_int);
   return s_int->max_value;
 }
 
@@ -584,7 +584,7 @@ SignType IntSet::GetSignType() const {
 }
 PrimExpr IntSet::PointValue() const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  CHECK(s_int && s_int->IsSinglePoint());
+  ICHECK(s_int && s_int->IsSinglePoint());
   return s_int->min_value;
 }
 

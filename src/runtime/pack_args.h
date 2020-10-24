@@ -119,7 +119,7 @@ enum ArgConvertCode {
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
-  CHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to devic function for now";
+  ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to devic function for now";
   if (t.code == kDLInt) {
     if (t.bits == 64U) return INT64_TO_INT64;
     if (t.bits == 32U) return INT64_TO_INT32;
@@ -284,7 +284,7 @@ inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types) {
     }
   }
   for (size_t i = base; i < arg_types.size(); ++i) {
-    CHECK(arg_types[i].code != kTVMOpaqueHandle) << "Device function need to be organized";
+    ICHECK(arg_types[i].code != kTVMOpaqueHandle) << "Device function need to be organized";
   }
   return base;
 }

@@ -92,8 +92,8 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * \return The result.
    */
   R operator()(const ObjectRef& n, Args... args) const {
-    CHECK(can_dispatch(n)) << "NodeFunctor calls un-registered function on type "
-                           << n->GetTypeKey();
+    ICHECK(can_dispatch(n)) << "NodeFunctor calls un-registered function on type "
+                            << n->GetTypeKey();
     return (*func_[n->type_index()])(n, std::forward<Args>(args)...);
   }
   /*!
@@ -108,7 +108,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
     if (func_.size() <= tindex) {
       func_.resize(tindex + 1, nullptr);
     }
-    CHECK(func_[tindex] == nullptr) << "Dispatch for " << TNode::_type_key << " is already set";
+    ICHECK(func_[tindex] == nullptr) << "Dispatch for " << TNode::_type_key << " is already set";
     func_[tindex] = f;
     return *this;
   }
@@ -121,7 +121,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
   template <typename TNode>
   TSelf& clear_dispatch() {  // NOLINT(*)
     uint32_t tindex = TNode::RuntimeTypeIndex();
-    CHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
+    ICHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
     func_[tindex] = nullptr;
     return *this;
   }

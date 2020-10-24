@@ -60,8 +60,8 @@ void PassContext::EnterWithScope() {
 
 void PassContext::ExitWithScope() {
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
-  CHECK(!entry->context_stack.empty());
-  CHECK(entry->context_stack.top().same_as(*this));
+  ICHECK(!entry->context_stack.empty());
+  ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -77,7 +77,7 @@ PassContext PassContext::Current() {
 class PassConfigManager {
  public:
   void Register(std::string key, uint32_t value_type_index) {
-    CHECK_EQ(key2vtype_.count(key), 0U);
+    ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
     info.type_index = value_type_index;
     info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
@@ -103,7 +103,7 @@ class PassConfigManager {
         LOG(FATAL) << os.str();
       }
       const auto& info = it->second;
-      CHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
+      ICHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
       if (kv.second->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
         ObjectRef converted =
             reflection->CreateObject(info.type_key, Downcast<Map<String, ObjectRef>>(kv.second));
@@ -376,7 +376,7 @@ Pass GetPass(const String& pass_name) {
     // pass
   } else if ((f = Registry::Get("relay._transform." + pass_name))) {
   }
-  CHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
+  ICHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
   return (*f)();
 }
 
@@ -385,7 +385,7 @@ Pass GetPass(const String& pass_name) {
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
-    CHECK(pass.defined()) << "Found undefined pass for optimization.";
+    ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
     if (!PassEnabled(pass_info)) continue;
     // resolve dependencies

@@ -36,7 +36,7 @@ template <unsigned id>
 inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));

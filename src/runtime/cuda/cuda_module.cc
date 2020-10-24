@@ -71,11 +71,11 @@ class CUDAModuleNode : public runtime::ModuleNode {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "cu") {
-      CHECK_NE(cuda_source_.length(), 0);
+      ICHECK_NE(cuda_source_.length(), 0);
       SaveMetaDataToFile(meta_file, fmap_);
       SaveBinaryToFile(file_name, cuda_source_);
     } else {
-      CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
       SaveMetaDataToFile(meta_file, fmap_);
       SaveBinaryToFile(file_name, data_);
     }
@@ -124,7 +124,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
     size_t nbytes;
 
     CUresult result = cuModuleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str());
-    CHECK_EQ(nbytes, expect_nbytes);
+    ICHECK_EQ(nbytes, expect_nbytes);
     if (result != CUDA_SUCCESS) {
       const char* msg;
       cuGetErrorName(result, &msg);
@@ -232,8 +232,8 @@ class CUDAPrepGlobalBarrier {
 
 PackedFunc CUDAModuleNode::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
-  CHECK_EQ(sptr_to_self.get(), this);
-  CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
+  ICHECK_EQ(sptr_to_self.get(), this);
+  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   if (name == symbol::tvm_prepare_global_barrier) {
     return PackedFunc(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }

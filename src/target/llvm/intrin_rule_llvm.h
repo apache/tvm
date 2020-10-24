@@ -41,7 +41,7 @@ template <unsigned id, int num_signature>
 inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
@@ -57,7 +57,7 @@ template <unsigned id, int num_signature>
 inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));

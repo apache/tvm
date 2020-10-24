@@ -97,7 +97,7 @@ class NoOpRemover : public StmtMutator {
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     Stmt ret = StmtMutator::VisitSeqStmt_(op, true);
     op = ret.as<SeqStmtNode>();
-    CHECK(op != nullptr);
+    ICHECK(op != nullptr);
     bool need_compact = false;
     for (size_t i = 0; i < op->size(); ++i) {
       if (is_no_op(op->seq[i])) need_compact = true;

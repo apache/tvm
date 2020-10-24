@@ -109,9 +109,9 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
   if (!can_override) {
     auto it = var_map_.find(var);
     if (it != var_map_.end()) {
-      CHECK(ExprDeepEqual()(it->second, info)) << "Trying to update var \'" << var << "\'"
-                                               << " with a different value: "
-                                               << "original=" << it->second << ", new=" << info;
+      ICHECK(ExprDeepEqual()(it->second, info)) << "Trying to update var \'" << var << "\'"
+                                                << " with a different value: "
+                                                << "original=" << it->second << ", new=" << info;
     }
   }
   var_map_[var] = info;
@@ -222,7 +222,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   literal_constraints_.push_back(operator()(constraint));
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
-    CHECK_EQ(literal_constraints_.size(), new_literal_size);
+    ICHECK_EQ(literal_constraints_.size(), new_literal_size);
     literal_constraints_.resize(old_literal_size);
   };
   return frecover;
@@ -461,8 +461,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
-    CHECK(op->dtype.is_float() ||
-          datatype::Registry::Global()->GetTypeRegistered(op->dtype.code()));
+    ICHECK(op->dtype.is_float() ||
+           datatype::Registry::Global()->GetTypeRegistered(op->dtype.code()));
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
 

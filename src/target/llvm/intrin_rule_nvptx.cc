@@ -36,13 +36,14 @@ inline void DispatchPureExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
-  CHECK(call != nullptr);
-  CHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64) << "Only support float32 or float64.";
+  ICHECK(call != nullptr);
+  ICHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64)
+      << "Only support float32 or float64.";
 
   const OpNode* op = call->op.as<OpNode>();
-  CHECK(op != nullptr);
+  ICHECK(op != nullptr);
   std::string name = op->name;
-  CHECK_EQ(name.substr(0, 4), "tir.");
+  ICHECK_EQ(name.substr(0, 4), "tir.");
 
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << name.substr(4);

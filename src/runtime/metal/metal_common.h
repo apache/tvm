@@ -30,10 +30,10 @@
 #import <Metal/MTLCommandQueue.h>
 #import <Metal/MTLDevice.h>
 #import <Metal/MTLLibrary.h>
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/support/logging.h>
 
 #include <memory>
 #include <mutex>
@@ -64,15 +64,15 @@ class MetalWorkspace final : public DeviceAPI {
   ~MetalWorkspace();
   // Get command queue for given context.
   id<MTLCommandQueue> GetCommandQueue(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kDLMetal);
-    CHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
+    ICHECK_EQ(ctx.device_type, kDLMetal);
+    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid Metal device_id=" << ctx.device_id;
     return queues[ctx.device_id];
   }
   // Get device for given context
   id<MTLDevice> GetDevice(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kDLMetal);
-    CHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < devices.size())
+    ICHECK_EQ(ctx.device_type, kDLMetal);
+    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < devices.size())
         << "Invalid Metal device_id=" << ctx.device_id;
     return devices[ctx.device_id];
   }

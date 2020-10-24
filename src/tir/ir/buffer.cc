@@ -244,10 +244,10 @@ inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
     // Scalar case
     if (n->shape.size() == 0 && index.size() == 1) {
       auto is_int = index[0].as<IntImmNode>();
-      CHECK(is_int && is_int->value == 0);
+      ICHECK(is_int && is_int->value == 0);
       base = base + index[0];
     } else {
-      CHECK_EQ(n->shape.size(), index.size());
+      ICHECK_EQ(n->shape.size(), index.size());
       if (index.size() > 0) {
         PrimExpr offset = index[0];
         for (size_t i = 1; i < index.size(); ++i) {
@@ -257,7 +257,7 @@ inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
       }
     }
   } else {
-    CHECK_EQ(n->strides.size(), index.size());
+    ICHECK_EQ(n->strides.size(), index.size());
     if (is_zero(base)) {
       base = MergeMulMod(&ana, index[0] * n->strides[0]);
     } else {
@@ -285,7 +285,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
-  CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
+  ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
     return tir::Cast(DataType::Bool(),
@@ -300,7 +300,7 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   DataType dtype = value.dtype();
-  CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
+  ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot store " << dtype << " to buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
     return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
@@ -383,7 +383,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                PrimExpr elem_offset, String name, String scope, int data_alignment,
                int offset_factor, BufferType buffer_type) {
-  CHECK(IsPointerType(data->type_annotation, dtype))
+  ICHECK(IsPointerType(data->type_annotation, dtype))
       << "Buffer data field expect to have the right pointer type annotation"
       << " annotation=" << data->type_annotation << ", dtype=" << dtype;
 
@@ -428,7 +428,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args.size(), 10);
+  ICHECK_EQ(args.size(), 10);
   auto buffer_type = args[9].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
   *ret =

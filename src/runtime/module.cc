@@ -39,7 +39,7 @@ void ModuleNode::Import(Module other) {
     static const PackedFunc* fimport_ = nullptr;
     if (fimport_ == nullptr) {
       fimport_ = runtime::Registry::Get("rpc.ImportRemoteModule");
-      CHECK(fimport_ != nullptr);
+      ICHECK(fimport_ != nullptr);
     }
     (*fimport_)(GetRef<Module>(this), other);
     return;
@@ -57,7 +57,7 @@ void ModuleNode::Import(Module other) {
       stack.push_back(next);
     }
   }
-  CHECK(!visited.count(this)) << "Cyclic dependency detected during import";
+  ICHECK(!visited.count(this)) << "Cyclic dependency detected during import";
   this->imports_.emplace_back(std::move(other));
 }
 
@@ -75,13 +75,13 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
 
 Module Module::LoadFromFile(const std::string& file_name, const std::string& format) {
   std::string fmt = GetFileFormat(file_name, format);
-  CHECK(fmt.length() != 0) << "Cannot deduce format of file " << file_name;
+  ICHECK(fmt.length() != 0) << "Cannot deduce format of file " << file_name;
   if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
     fmt = "so";
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
   const PackedFunc* f = Registry::Get(load_f_name);
-  CHECK(f != nullptr) << "Loader of " << format << "(" << load_f_name << ") is not presented.";
+  ICHECK(f != nullptr) << "Loader of " << format << "(" << load_f_name << ") is not presented.";
   Module m = (*f)(file_name, format);
   return m;
 }
@@ -109,8 +109,8 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   }
   if (pf == nullptr) {
     const PackedFunc* f = Registry::Get(name);
-    CHECK(f != nullptr) << "Cannot find function " << name
-                        << " in the imported modules or global registry";
+    ICHECK(f != nullptr) << "Cannot find function " << name
+                         << " in the imported modules or global registry";
     return f;
   } else {
     import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));

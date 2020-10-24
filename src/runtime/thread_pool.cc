@@ -21,13 +21,13 @@
  * \file thread_pool.cc
  * \brief Threadpool for multi-threading runtime.
  */
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
+#include <tvm/support/logging.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
@@ -189,7 +189,7 @@ class SpscTaskQueue {
     }
     const uint32_t head = head_.load(std::memory_order_relaxed);
     // sanity check if the queue is empty
-    CHECK(tail_.load(std::memory_order_acquire) != head);
+    ICHECK(tail_.load(std::memory_order_acquire) != head);
     *output = buffer_[head];
     head_.store((head + 1) % kRingSize, std::memory_order_release);
     return true;
@@ -280,13 +280,13 @@ class ThreadPool {
   }
   int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
-    CHECK(!launcher->is_worker)
+    ICHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
     if (num_task == 0) {
       num_task = num_workers_used_;
     }
     if (need_sync != 0) {
-      CHECK_LE(num_task, num_workers_used_)
+      ICHECK_LE(num_task, num_workers_used_)
           << "Request parallel sync task larger than number of threads used "
           << " workers=" << num_workers_used_ << " request=" << num_task;
     }
@@ -333,7 +333,7 @@ class ThreadPool {
     // TODO(tulloch): should we make this configurable via standard APIs?
     static size_t spin_count = GetSpinCount();
     while (queue->Pop(&task, spin_count)) {
-      CHECK(task.launcher != nullptr);
+      ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
       if ((*task.launcher->flambda)(task.task_id, penv, cdata) == 0) {

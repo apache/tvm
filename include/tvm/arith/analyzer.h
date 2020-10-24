@@ -320,10 +320,10 @@ class CanonicalSimplifier {
  *  arith::Analyzer analyzer;
  *  {
  *    With<arith::ConstraintContext> scope(&analyzer, x % 3 == 0);
- *    CHECK_EQ(analyzer.modular_set(x)->coeff, 3);
+ *    ICHECK_EQ(analyzer.modular_set(x)->coeff, 3);
  *  }
  *  // constraint no longer in effect.
- *  CHECK_NE(analyzer.modular_set(x)->coeff, 3);
+ *  ICHECK_NE(analyzer.modular_set(x)->coeff, 3);
  *
  * \endcode
  */
