@@ -144,4 +144,4 @@ def test_compile_runtime(platform):
 
 
 if __name__ == "__main__":
-    pytest.main([os.path.dirname(__file__)] + sys.argv[1:])
+    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
