@@ -16,10 +16,7 @@
 # under the License.
 
 Vagrant.configure("2") do |config|
-  # For dev:
-  config.vm.box = "./base-box/package.box"
-  # config.vm.box = "tlcpack/microtvm-zephyr"
-#  config.vm.provision "file", source: "setup-workspace.sh", destination: "~/setup-workspace.sh"
+  config.vm.box = "tlcpack/microtvm-zephyr"
 
   tvm_home = "../../../.."
   dirs_to_mount = [Pathname.new(Pathname.new(tvm_home).expand_path())]
@@ -45,8 +42,6 @@ Vagrant.configure("2") do |config|
   config.vm.provider "virtualbox" do |vb|
     vb.name = "microtvm"
     vb.customize ["modifyvm", :id, "--usb", "on"]
-    vb.customize ["modifyvm", :id, "--usbehci", "on"]
-    vb.customize ["modifyvm", :id, "--usbxhci", "on"]
   end
 
   config.vm.provider "parallels" do |prl|

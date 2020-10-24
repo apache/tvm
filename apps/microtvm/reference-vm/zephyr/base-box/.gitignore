@@ -1,5 +1,4 @@
 *.box
 .vagrant
-/api-token
-/output-vagrant-*
+/output-packer-*
 /packer.json

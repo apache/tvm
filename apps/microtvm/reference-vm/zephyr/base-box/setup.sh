@@ -16,6 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+set -e
+
 sudo apt update
 sudo apt install -y build-essential
 sudo apt-get --purge remove modemmanager  # required to access serial ports.
