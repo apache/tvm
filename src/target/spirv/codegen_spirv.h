@@ -116,7 +116,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
     // Update content type if it hasn't beenupdated.
     void UpdateContentType(DataType type) {
       if (content_fixed) {
-        CHECK_EQ(type, content_type) << "Cannot use two different content type in GLSL model";
+        ICHECK_EQ(type, content_type) << "Cannot use two different content type in GLSL model";
       } else {
         this->content_type = type;
         content_fixed = true;

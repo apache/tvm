@@ -21,8 +21,8 @@
  * \file threading_backend.cc
  * \brief Native threading backend
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/threading_backend.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <thread>
@@ -46,7 +46,7 @@ class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
-    CHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
+    ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
@@ -112,7 +112,7 @@ class ThreadGroup::Impl {
 #endif
 #endif
 #if defined(__linux__) || defined(__ANDROID__)
-    CHECK_GE(sorted_order_.size(), num_workers_);
+    ICHECK_GE(sorted_order_.size(), num_workers_);
 
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;

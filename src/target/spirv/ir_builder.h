@@ -93,7 +93,7 @@ class Instr {
    * \return reference to idx-th word.
    */
   uint32_t& operator[](uint32_t idx) {
-    CHECK_LT(idx, word_count_);
+    ICHECK_LT(idx, word_count_);
     return (*data_)[begin_ + idx];
   }
 
@@ -122,7 +122,7 @@ struct PhiValue : public Value {
    * \param parent The parent label.
    */
   void SetIncoming(uint32_t index, const Value& value, const Label& parent) {
-    CHECK_EQ(this->stype.id, value.stype.id);
+    ICHECK_EQ(this->stype.id, value.stype.id);
     instr[3 + index * 2] = value.id;
     instr[3 + index * 2 + 1] = parent.id;
   }
@@ -152,7 +152,7 @@ class InstrBuilder {
    */
   InstrBuilder& Begin(spv::Op op) {  // NOLINT(*);
     // finish previous build
-    CHECK_EQ(data_.size(), 0U);
+    ICHECK_EQ(data_.size(), 0U);
     op_ = op;
     data_.push_back(0);
     return *this;

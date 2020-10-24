@@ -42,7 +42,7 @@ using OpRegistry = AttrRegistry<OpRegEntry, Op>;
 // find operator by name
 const Op& Op::Get(const String& name) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(name);
-  CHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
+  ICHECK(reg != nullptr) << "AttributeError: Operator " << name << " is not registered";
   return reg->op();
 }
 
@@ -130,7 +130,7 @@ struct Op2ObjectPtr : public ObjectRef {
 ObjectPtr<Object> CreateOp(const std::string& name) {
   // Hack use TVMRetValue as exchange
   auto op = Op::Get(name);
-  CHECK(op.defined()) << "Cannot find op \'" << name << '\'';
+  ICHECK(op.defined()) << "Cannot find op \'" << name << '\'';
   return Op2ObjectPtr::Get(op);
 }
 

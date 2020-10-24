@@ -138,9 +138,9 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  */
 inline DataType APIType(DataType t) {
   if (t.is_handle()) return t;
-  CHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
+  ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.is_uint() || t.is_int()) return DataType::Int(64);
-  CHECK(t.is_float());
+  ICHECK(t.is_float());
   return DataType::Float(64);
 }
 

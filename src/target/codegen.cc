@@ -55,7 +55,7 @@ runtime::Module Build(IRModule mod, Target target) {
   }
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  CHECK(bf != nullptr) << build_f_name << " is not enabled";
+  ICHECK(bf != nullptr) << build_f_name << " is not enabled";
   return (*bf)(mod, target);
 }
 
@@ -233,7 +233,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  CHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
+  ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 

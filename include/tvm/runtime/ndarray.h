@@ -325,29 +325,29 @@ inline bool NDArray::IsContiguous() const {
 }
 
 inline void NDArray::CopyFrom(const DLTensor* other) {
-  CHECK(data_ != nullptr);
+  ICHECK(data_ != nullptr);
   CopyFromTo(other, &(get_mutable()->dl_tensor));
 }
 
 inline void NDArray::CopyFrom(const NDArray& other) {
-  CHECK(data_ != nullptr);
-  CHECK(other.data_ != nullptr);
+  ICHECK(data_ != nullptr);
+  ICHECK(other.data_ != nullptr);
   CopyFromTo(&(other.get_mutable()->dl_tensor), &(get_mutable()->dl_tensor));
 }
 
 inline void NDArray::CopyTo(DLTensor* other) const {
-  CHECK(data_ != nullptr);
+  ICHECK(data_ != nullptr);
   CopyFromTo(&(get_mutable()->dl_tensor), other);
 }
 
 inline void NDArray::CopyTo(const NDArray& other) const {
-  CHECK(data_ != nullptr);
-  CHECK(other.data_ != nullptr);
+  ICHECK(data_ != nullptr);
+  ICHECK(other.data_ != nullptr);
   CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
 }
 
 inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
-  CHECK(data_ != nullptr);
+  ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
   NDArray ret =
       Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, ctx);
@@ -422,7 +422,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    CHECK_EQ(
+    ICHECK_EQ(
         TVMArrayCopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size),
         0)
         << TVMGetLastError();
@@ -438,19 +438,19 @@ inline void NDArray::Save(dmlc::Stream* strm) const { SaveDLTensor(strm, operato
 
 inline bool NDArray::Load(dmlc::Stream* strm) {
   uint64_t header, reserved;
-  CHECK(strm->Read(&header)) << "Invalid DLTensor file format";
-  CHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
-  CHECK(header == kTVMNDArrayMagic) << "Invalid DLTensor file format";
+  ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
+  ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
+  ICHECK(header == kTVMNDArrayMagic) << "Invalid DLTensor file format";
   DLContext ctx;
   int ndim;
   DLDataType dtype;
-  CHECK(strm->Read(&ctx)) << "Invalid DLTensor file format";
-  CHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
-  CHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
-  CHECK_EQ(ctx.device_type, kDLCPU) << "Invalid DLTensor context: can only save as CPU tensor";
+  ICHECK(strm->Read(&ctx)) << "Invalid DLTensor file format";
+  ICHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
+  ICHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
+  ICHECK_EQ(ctx.device_type, kDLCPU) << "Invalid DLTensor context: can only save as CPU tensor";
   std::vector<int64_t> shape(ndim);
   if (ndim != 0) {
-    CHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
+    ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
   NDArray ret = NDArray::Empty(shape, dtype, ctx);
   int64_t num_elems = 1;
@@ -459,12 +459,12 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
     num_elems *= ret->shape[i];
   }
   int64_t data_byte_size;
-  CHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
-  CHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
+  ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
+  ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
   auto read_ret = strm->Read(ret->data, data_byte_size);
   // Only check non-empty data
   if (ndim > 0 && shape[0] != 0) {
-    CHECK(read_ret) << "Invalid DLTensor file format";
+    ICHECK(read_ret) << "Invalid DLTensor file format";
   }
   if (!DMLC_IO_NO_ENDIAN_SWAP) {
     dmlc::ByteSwap(ret->data, elem_bytes, num_elems);

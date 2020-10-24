@@ -166,7 +166,7 @@ class PassContext : public ObjectRef {
    * \return const access pointer.
    */
   const PassContextNode* operator->() const {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<const PassContextNode*>(get());
   }
   /*!
@@ -174,7 +174,7 @@ class PassContext : public ObjectRef {
    * \return mutable access pointer.
    */
   PassContextNode* operator->() {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<PassContextNode*>(get_mutable());
   }
 
@@ -344,7 +344,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod) const {
     const PassNode* node = operator->();
-    CHECK(node != nullptr);
+    ICHECK(node != nullptr);
     return node->operator()(std::move(mod));
   }
   /*!
@@ -357,7 +357,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const {
     const PassNode* node = operator->();
-    CHECK(node != nullptr);
+    ICHECK(node != nullptr);
     return node->operator()(std::move(mod), pass_ctx);
   }
 

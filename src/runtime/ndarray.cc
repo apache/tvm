@@ -21,10 +21,10 @@
  * \file ndarray.cc
  * \brief NDArray container infratructure.
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/support/logging.h>
 
 #include "runtime_base.h"
 
@@ -39,9 +39,9 @@ namespace tvm {
 namespace runtime {
 
 inline void VerifyDataType(DLDataType dtype) {
-  CHECK_GE(dtype.lanes, 1);
+  ICHECK_GE(dtype.lanes, 1);
   if (dtype.code == kDLFloat) {
-    CHECK_EQ(dtype.bits % 8, 0);
+    ICHECK_EQ(dtype.bits % 8, 0);
   } else {
     // allow uint1 as a special flag for bool.
     if (dtype.bits == 1 && dtype.code == kDLUInt) return;
@@ -53,9 +53,9 @@ inline void VerifyDataType(DLDataType dtype) {
     else if (dtype.bits == 4 && dtype.code == kDLInt)
       return;
     else
-      CHECK_EQ(dtype.bits % 8, 0);
+      ICHECK_EQ(dtype.bits % 8, 0);
   }
-  CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
+  ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
 inline size_t GetDataAlignment(const DLTensor& arr) {
@@ -69,8 +69,8 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
-  CHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
-  CHECK(IsContiguous(*handle)) << "ArrayCopyFromBytes only support contiguous array for now";
+  ICHECK_EQ(arr_size, nbytes) << "ArrayCopyFromBytes: size mismatch";
+  ICHECK(IsContiguous(*handle)) << "ArrayCopyFromBytes only support contiguous array for now";
   DeviceAPI::Get(handle->ctx)
       ->CopyDataFromTo(data, 0, handle->data, static_cast<size_t>(handle->byte_offset), nbytes,
                        cpu_ctx, handle->ctx, handle->dtype, nullptr);
@@ -83,8 +83,8 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
   size_t arr_size = GetDataSize(*handle);
-  CHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
-  CHECK(IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
+  ICHECK_EQ(arr_size, nbytes) << "ArrayCopyToBytes: size mismatch";
+  ICHECK(IsContiguous(*handle)) << "ArrayCopyToBytes only support contiguous array for now";
   DeviceAPI::Get(handle->ctx)
       ->CopyDataFromTo(handle->data, static_cast<size_t>(handle->byte_offset), data, 0, nbytes,
                        handle->ctx, cpu_ctx, handle->dtype, nullptr);
@@ -153,7 +153,7 @@ struct NDArray::Internal {
   }
 
   static DLManagedTensor* ToDLPack(NDArray::Container* from) {
-    CHECK(from != nullptr);
+    ICHECK(from != nullptr);
     DLManagedTensor* ret = new DLManagedTensor();
     ret->dl_tensor = from->dl_tensor;
     ret->manager_ctx = from;
@@ -169,13 +169,13 @@ struct NDArray::Internal {
 };
 
 NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
-  CHECK(data_ != nullptr);
-  CHECK(get_mutable()->dl_tensor.strides == nullptr) << "Can only create view for compact tensor";
+  ICHECK(data_ != nullptr);
+  ICHECK(get_mutable()->dl_tensor.strides == nullptr) << "Can only create view for compact tensor";
   NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.ctx);
   ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
   size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
   size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
-  CHECK_LE(view_size, curr_size)
+  ICHECK_LE(view_size, curr_size)
       << "Tries to create a view that has bigger memory than current one";
   // increase ref count
   get_mutable()->IncRef();
@@ -211,25 +211,25 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
 }
 
 void NDArray::CopyToBytes(void* data, size_t nbytes) const {
-  CHECK(data != nullptr);
-  CHECK(data_ != nullptr);
+  ICHECK(data != nullptr);
+  ICHECK(data_ != nullptr);
   ArrayCopyToBytes(&get_mutable()->dl_tensor, data, nbytes);
 }
 
 void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
-  CHECK(data != nullptr);
-  CHECK(data_ != nullptr);
+  ICHECK(data != nullptr);
+  ICHECK(data_ != nullptr);
   ArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes);
 }
 
 void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   size_t from_size = GetDataSize(*from);
   size_t to_size = GetDataSize(*to);
-  CHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
+  ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
 
-  CHECK(from->ctx.device_type == to->ctx.device_type || from->ctx.device_type == kDLCPU ||
-        to->ctx.device_type == kDLCPU || from->ctx.device_type == kDLCPUPinned ||
-        to->ctx.device_type == kDLCPUPinned)
+  ICHECK(from->ctx.device_type == to->ctx.device_type || from->ctx.device_type == kDLCPU ||
+         to->ctx.device_type == kDLCPU || from->ctx.device_type == kDLCPUPinned ||
+         to->ctx.device_type == kDLCPUPinned)
       << "Can not copy across different ctx types directly";
 
   // Use the context that is *not* a cpu context to get the correct device

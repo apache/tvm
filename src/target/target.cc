@@ -421,8 +421,8 @@ void Target::EnterWithScope() {
 
 void Target::ExitWithScope() {
   TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStore::Get();
-  CHECK(!entry->context_stack.empty());
-  CHECK(entry->context_stack.top().same_as(*this));
+  ICHECK(!entry->context_stack.empty());
+  ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -431,7 +431,7 @@ Target Target::Current(bool allow_not_defined) {
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
   }
-  CHECK(allow_not_defined)
+  ICHECK(allow_not_defined)
       << "Target context required. Please set it by constructing a TargetContext";
 
   return Target();
@@ -473,8 +473,8 @@ ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_targ
 
 ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
   const auto* loader = tvm::runtime::Registry::Get("target._load_config_dict");
-  CHECK(loader) << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
-                   "if the python module is properly loaded";
+  ICHECK(loader) << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
+                    "if the python module is properly loaded";
   Optional<Map<String, ObjectRef>> config = (*loader)(config_str);
   if (!config.defined()) {
     throw dmlc::Error(": Cannot load config dict with python JSON loader");

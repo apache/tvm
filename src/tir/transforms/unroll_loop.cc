@@ -107,7 +107,7 @@ class LoopUnroller : public StmtExprMutator {
         auto_unroll && (value * step_count_ <= auto_max_step_ || value <= auto_max_extent_);
 
     if (op->for_type == ForType::Unrolled) {
-      CHECK_GE(value, 0) << "Cannot unroll non-constant loop";
+      ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
       auto_unroll = true;
     }
 
@@ -163,7 +163,7 @@ class LoopUnroller : public StmtExprMutator {
   Stmt Unroll(const ForNode* op) {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
-    CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
+    ICHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return Evaluate(0);
     Stmt body = op->body;
     Map<Var, PrimExpr> vmap;

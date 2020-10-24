@@ -50,10 +50,10 @@ class BF16PromoteRewriter : public StmtExprMutator {
     auto b = this->VisitExpr(orig_b);
     *is_bfloat16 = false;
     if (a->dtype.is_bfloat16()) {
-      CHECK(b->dtype.is_bfloat16());
+      ICHECK(b->dtype.is_bfloat16());
       *is_bfloat16 = true;
     } else if (b->dtype.is_bfloat16()) {
-      CHECK(a->dtype.is_bfloat16());
+      ICHECK(a->dtype.is_bfloat16());
       *is_bfloat16 = true;
     }
 
@@ -182,14 +182,14 @@ class BF16LowerRewriter : public StmtExprMutator {
     auto op_val = StmtExprMutator::VisitExpr(op->value);
     if (op->value->dtype.is_bfloat16()) {
       // if is cast_from_bf16, check if is to fp32
-      CHECK(op->dtype.is_float() && op->dtype.bits() == 32);
+      ICHECK(op->dtype.is_float() && op->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
       auto uint32_v = Cast(uint32_dtype, op_val);
       // to be endian invariant.
       return Call(op->dtype, builtin::reinterpret(), {uint32_v << 16});
     } else if (op->dtype.is_bfloat16()) {
       // if is cast_to_bf16, check if op->value is fp32
-      CHECK(op->value->dtype.is_float() && op->value->dtype.bits() == 32);
+      ICHECK(op->value->dtype.is_float() && op->value->dtype.bits() == 32);
       auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
       auto uint32_v = Call(uint32_dtype, builtin::reinterpret(), {op_val});
       auto uint16_dtype = DataType(kDLUInt, 16, op_val->dtype.lanes());
@@ -299,7 +299,7 @@ class BF16LowerRewriter : public StmtExprMutator {
 
     if (op->dtype.is_bfloat16()) {
       auto it = var_remap_.find(op->buffer_var);
-      CHECK(it != var_remap_.end()) << "bfloat* var needs to be remapped";
+      ICHECK(it != var_remap_.end()) << "bfloat* var needs to be remapped";
       return Load(DataType::UInt(16, op->dtype.lanes()), it->second, op->index, op->predicate);
     } else {
       return ret;

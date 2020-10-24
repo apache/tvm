@@ -59,7 +59,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
   // add to alloc buffer type.
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined()) << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  ICHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
   // Function header.
   this->stream << "kernel void " << static_cast<std::string>(global_symbol.value()) << "(";
@@ -97,7 +98,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     decl_stream << "struct " << arg_buf_type << " {\n";
     for (size_t i = num_buffer; i < f->params.size(); ++i) {
       Var v = f->params[i];
-      CHECK(!v.dtype().is_handle());
+      ICHECK(!v.dtype().is_handle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
       if (v.dtype().bits() == 32) {
@@ -116,8 +117,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     decl_stream << "};\n\n";
   }
   // Setup the thread group info.
-  CHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
-  CHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
+  ICHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
+  ICHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
   int work_dim = 0;
   auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
 
@@ -136,7 +137,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   }
   // bind thread axis
   for (IterVar iv : thread_axis) {
-    CHECK(!var_idmap_.count(iv->var.get()));
+    ICHECK(!var_idmap_.count(iv->var.get()));
     std::string vname = iv->thread_tag;
     if (work_dim <= 1) {
       vname = vname.substr(0, iv->thread_tag.length() - 2);
@@ -154,7 +155,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 }
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
-  CHECK(!var_idmap_.count(iv->var.get()));
+  ICHECK(!var_idmap_.count(iv->var.get()));
   var_idmap_[iv->var.get()] =
       CastFromTo(iv->thread_tag, DataType::UInt(thread_index_bits_), iv->var.dtype());
 }
@@ -162,7 +163,7 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    CHECK_EQ(lanes, 1) << "do not yet support vector types";
+    ICHECK_EQ(lanes, 1) << "do not yet support vector types";
     os << "void*";
     return;
   }
@@ -289,10 +290,10 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   cg.Init(output_ssa);
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
