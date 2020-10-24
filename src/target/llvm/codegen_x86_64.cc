@@ -117,7 +117,11 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
                                              llvm::Type* result_ty,
                                              const std::vector<llvm::Value*>& args) {
   llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id, {});
+#if TVM_LLVM_VERSION >= 120
+  size_t num_elems = llvm::cast<llvm::FixedVectorType>(result_ty)->getNumElements();
+#else
   size_t num_elems = llvm::cast<llvm::VectorType>(result_ty)->getNumElements();
+#endif
   if (intrin_lanes == num_elems) {
     return builder_->CreateCall(f, args);
   }
@@ -130,7 +134,7 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
     std::vector<llvm::Value*> split_args;
     for (const auto& v : args) {
       if (v->getType()->isVectorTy()) {
-        CHECK_EQ(llvm::cast<llvm::VectorType>(v->getType())->getNumElements(), num_elems);
+        CHECK_EQ(GetVectorNumElements(v), num_elems);
         split_args.push_back(CreateVecSlice(v, i, intrin_lanes));
       } else {
         split_args.push_back(v);
