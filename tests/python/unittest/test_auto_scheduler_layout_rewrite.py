@@ -107,8 +107,8 @@ def test_correctness_layout_rewrite_with_placeholder():
         func_ref(*args_ref)
         ctx.sync()
 
-        np.testing.assert_allclose(np_args[0], np_args_ref[0])
-        np.testing.assert_allclose(np_args[2], np_args_ref[2])
+        np.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
+        np.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
 
 
 def test_correctness_layout_rewrite_with_pre_transpose():
@@ -133,14 +133,9 @@ def test_correctness_layout_rewrite_with_pre_transpose():
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(inp.state,
             layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPreTranspose"])
-        print(bufs)
-        print("<<<")
-        print(tvm.lower(s, bufs, simple_mode=True))
-        exit(0)
 
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
-        np_args_ref = [np.array(x) for x in np_args]
 
         func = tvm.build(s, bufs, target=target)
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
@@ -149,17 +144,19 @@ def test_correctness_layout_rewrite_with_pre_transpose():
         ctx_ref = tvm.cpu()
 
         args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
-        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args_ref]
+        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args]
         ctx.sync()
 
         func(*args)
         func_ref(*args_ref)
         ctx.sync()
 
-        np.testing.assert_allclose(np_args, np_args_ref)
+        np.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
+        np.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy())
+        np.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
 
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
-    # test_correctness_layout_rewrite_with_placeholder()
+    test_correctness_layout_rewrite_with_placeholder()
     test_correctness_layout_rewrite_with_pre_transpose()

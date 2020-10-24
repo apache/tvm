@@ -961,7 +961,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
           if (step->IsInstance<ComputeAtStepNode>()) {
             auto compute_at_step = tvm::Downcast<ComputeAtStep>(step);
             if (compute_at_step->target_stage_id >= static_cast<int>(stage_id)) {
-              dynamic_cast<ComputeAtStepNode*>(step.CopyOnWrite())->target_stage_id++;
+              dynamic_cast<ComputeAtStepNode*>(compute_at_step.CopyOnWrite())->target_stage_id++;
             }
             transform_steps->Set(i, std::move(compute_at_step));
           } else {
@@ -1101,7 +1101,7 @@ std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
   if (layout_rewrite != LayoutRewriteOption::NoRewrite && !transform_steps.empty()) {
     Array<Step> steps = transform_steps;
     const auto& dag = RewriteLayout(&steps, layout_rewrite);
-    return dag.ApplySteps(steps, stages, stage_to_axes, LayoutRewriteOption::NoRewrite);
+    return dag.ApplySteps(steps);
   }
 
   // Temporal object to be used if the input pointer is nullptr
