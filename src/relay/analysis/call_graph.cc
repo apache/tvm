@@ -51,7 +51,7 @@ CallGraph::CallGraph(IRModule module) {
 }
 
 void CallGraphNode::AddToCallGraph(const GlobalVar& gv, const Function& func) {
-  CHECK(func.defined() && gv.defined());
+  ICHECK(func.defined() && gv.defined());
   // Add the current global function as an entry to the call grpah.
   CallGraphEntry* cg_node = LookupGlobalVar(gv);
 
@@ -73,20 +73,20 @@ void CallGraphNode::AddToCallGraph(const GlobalVar& gv, const Function& func) {
 
 const CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) const {
   const_iterator cit = call_graph_.find(gv);
-  CHECK(cit != call_graph_.end()) << "GlobalVar " << gv->name_hint
-                                  << " not found in the call graph!";
+  ICHECK(cit != call_graph_.end())
+      << "GlobalVar " << gv->name_hint << " not found in the call graph!";
   return cit->second.get();
 }
 
 CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) {
   const_iterator cit = call_graph_.find(gv);
-  CHECK(cit != call_graph_.end()) << "GlobalVar " << gv->name_hint
-                                  << " not found in the call graph!";
+  ICHECK(cit != call_graph_.end())
+      << "GlobalVar " << gv->name_hint << " not found in the call graph!";
   return cit->second.get();
 }
 
 BaseFunc CallGraphNode::GetGlobalFunction(const GlobalVar& var) const {
-  CHECK(module->ContainGlobalVar(var->name_hint))
+  ICHECK(module->ContainGlobalVar(var->name_hint))
       << "GlobalVar " << var->name_hint << " not found in the current ir module";
   return module->Lookup(var);
 }
@@ -94,13 +94,13 @@ BaseFunc CallGraphNode::GetGlobalFunction(const GlobalVar& var) const {
 // Query the existence of a GlobalVar in the call graph. It creates an entry if
 // there is no such node available.
 CallGraphEntry* CallGraphNode::LookupGlobalVar(const GlobalVar& gv) {
-  CHECK(gv.defined());
+  ICHECK(gv.defined());
 
   // This inserts an element to the call graph if it is not there yet.
   auto& call_graph_node = call_graph_[gv];
   if (call_graph_node) return call_graph_node.get();
 
-  CHECK(module->ContainGlobalVar(gv->name_hint))
+  ICHECK(module->ContainGlobalVar(gv->name_hint))
       << "GlobalVar " << gv->name_hint << " not found in the current ir module";
 
   // Create the node for the inserted entry.
@@ -118,7 +118,7 @@ void CallGraphNode::Print(std::ostream& os) const {
 
 GlobalVar CallGraphNode::RemoveGlobalVarFromModule(CallGraphEntry* cg_node,
                                                    bool update_call_graph) {
-  CHECK(cg_node->empty() || (cg_node->IsRecursive() && cg_node->size() == 1))
+  ICHECK(cg_node->empty() || (cg_node->IsRecursive() && cg_node->size() == 1))
       << "Cannot remove global var " << cg_node->GetNameHint()
       << " from call graph, because it still calls " << cg_node->size()
       << " other global functions";
@@ -232,7 +232,7 @@ inline void CallGraphEntry::AddCalledGlobal(CallGraphEntry* cg_node) {
 // Remove an edge from the current global function to the callee.
 void CallGraphEntry::RemoveCallTo(const GlobalVar& callee) {
   for (auto it = begin();; ++it) {
-    CHECK(it != end()) << "Cannot find global function " << callee->name_hint << " to remove!";
+    ICHECK(it != end()) << "Cannot find global function " << callee->name_hint << " to remove!";
     if (it->second->GetGlobalVar() == callee) {
       // Only remove one occurrence of the call site.
       it->second->DecRef();
@@ -256,7 +256,7 @@ void CallGraphEntry::RemoveAllCallTo(CallGraphEntry* callee) {
     }
   }
   // Make sure all references to the callee are removed.
-  CHECK_EQ(callee->GetRefCount(), 0U)
+  ICHECK_EQ(callee->GetRefCount(), 0U)
       << "All references to " << callee->GetNameHint() << " should have been removed";
 }
 
@@ -291,7 +291,7 @@ TVM_REGISTER_NODE_TYPE(CallGraphNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallGraphNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const CallGraphNode*>(ref.get());
-      CHECK(node);
+      ICHECK(node);
       p->stream << "CallGraph: \n" << GetRef<CallGraph>(node);
     });
 

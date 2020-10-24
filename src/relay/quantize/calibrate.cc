@@ -71,7 +71,7 @@ static float ComputeEntropy(float* p, float* q, size_t size) {
   float q_sum = std::accumulate(q, q + size, 0.f);
   float ret = 0;
   for (size_t i = 0; i < size; i++) {
-    CHECK(p[i] > 0 && q[i] > 0);
+    ICHECK(p[i] > 0 && q[i] > 0);
     p[i] /= p_sum;
     q[i] /= q_sum;
     if (p[i] && q[i]) ret += p[i] * std::log(p[i] / q[i]);
@@ -150,7 +150,7 @@ class StatsCollector : private ExprMutator {
   Expr Collect(const Expr& expr) {
     auto new_e = this->Mutate(expr);
     const FunctionNode* func = new_e.as<FunctionNode>();
-    CHECK(func) << "Input shoule be Function";
+    ICHECK(func) << "Input shoule be Function";
     Expr new_body = Tuple(std::move(profile_data_));
     return Function(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
                     func->attrs);
@@ -163,7 +163,7 @@ class StatsCollector : private ExprMutator {
   Expr VisitExpr_(const CallNode* call) {
     Expr new_e = ExprMutator::VisitExpr_(call);
     const CallNode* new_call = new_e.as<CallNode>();
-    CHECK(new_call);
+    ICHECK(new_call);
     if (new_call->op == simulated_quantize_op_) {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
       // rewrite the annotation
@@ -178,7 +178,7 @@ class StatsCollector : private ExprMutator {
 
       // add non-const expressions to profile data
       if (attrs->kind != QAnnotateKind::kQWeight) {
-        CHECK(!quantize_input.as<ConstantNode>());
+        ICHECK(!quantize_input.as<ConstantNode>());
         profile_data_.push_back(identity_quantize);
       }
       return identity_quantize;

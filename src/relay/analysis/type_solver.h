@@ -208,7 +208,7 @@ class TypeSolver {
    */
   void AddToQueue(RelationNode* rel) {
     if (rel->inqueue) return;
-    CHECK(!rel->resolved);
+    ICHECK(!rel->resolved);
     rel->inqueue = true;
     update_queue_.push(rel);
   }

@@ -20,11 +20,11 @@
 /*!
  * \file Use external nnpack library call.
  */
-#include <dmlc/logging.h>
 #include <nnpack.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include "nnpack_utils.h"
 
@@ -36,7 +36,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
       static std::once_flag flag;
-      std::call_once(flag, []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
+      std::call_once(flag, []() { ICHECK_EQ(nnp_initialize(), nnp_status_success); });
       DLTensor* input = args[0];
       DLTensor* kernel = args[1];
       DLTensor* bias = nullptr;
@@ -52,36 +52,36 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
 
       uint64_t algo_ = args[11];
       nnp_convolution_algorithm algo = static_cast<nnp_convolution_algorithm>(algo_);
-      CHECK_EQ(input->ndim, 4);
-      CHECK_EQ(kernel->ndim, 4);
+      ICHECK_EQ(input->ndim, 4);
+      ICHECK_EQ(kernel->ndim, 4);
       if (bias) {
-        CHECK_EQ(bias->ndim, 1);
+        ICHECK_EQ(bias->ndim, 1);
       }
-      CHECK_EQ(output->ndim, 4);
-      CHECK_EQ(input->shape[1], kernel->shape[1]);
-      CHECK_EQ(input->shape[0], output->shape[0]);
+      ICHECK_EQ(output->ndim, 4);
+      ICHECK_EQ(input->shape[1], kernel->shape[1]);
+      ICHECK_EQ(input->shape[0], output->shape[0]);
       size_t input_channels = input->shape[1];
-      CHECK_EQ(output->shape[1], kernel->shape[0]);
+      ICHECK_EQ(output->shape[1], kernel->shape[0]);
       if (bias) {
-        CHECK_EQ(output->shape[1], bias->shape[0]);
+        ICHECK_EQ(output->shape[1], bias->shape[0]);
       }
       size_t output_channels = output->shape[1];
       nnp_size input_size{static_cast<size_t>(input->shape[2]),
                           static_cast<size_t>(input->shape[3])};
       nnp_size kernel_size{static_cast<size_t>(kernel->shape[2]),
                            static_cast<size_t>(kernel->shape[3])};
-      CHECK(input->strides == nullptr);
-      CHECK(kernel->strides == nullptr);
+      ICHECK(input->strides == nullptr);
+      ICHECK(kernel->strides == nullptr);
       if (bias) {
-        CHECK(bias->strides == nullptr);
+        ICHECK(bias->strides == nullptr);
       }
 
-      CHECK(TypeMatch(input->dtype, kDLFloat, 32));
-      CHECK(TypeMatch(kernel->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(input->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(kernel->dtype, kDLFloat, 32));
       if (bias) {
-        CHECK(TypeMatch(bias->dtype, kDLFloat, 32));
+        ICHECK(TypeMatch(bias->dtype, kDLFloat, 32));
       }
-      CHECK(TypeMatch(output->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(output->dtype, kDLFloat, 32));
 
       // Allocate a zero-bias if we don't pass one in.
       std::unique_ptr<std::vector<float>> zero_bias;
@@ -94,7 +94,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
           algo, nnp_convolution_transform_strategy_compute, input_channels, output_channels,
           input_size, input_padding, kernel_size, stride_size, nullptr, nullptr, nullptr, nullptr,
           nullptr, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool, nullptr);
-      CHECK_EQ(status, nnp_status_success);
+      ICHECK_EQ(status, nnp_status_success);
 
       // Division with rounding up, in case size is not multiple of sizeof(float)
       const size_t workspace_elements = (workspace_size + sizeof(float) - 1) / sizeof(float);
@@ -105,7 +105,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
       DeviceAPI* cpu_api = DeviceAPI::Get(ctx);
       void* workspace_buffer =
           cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
-      CHECK(workspace_buffer != nullptr);
+      ICHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
         nnp_status status = nnp_convolution_inference(
@@ -120,7 +120,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference")
             workspace_buffer, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool,
             nullptr);
 
-        CHECK_EQ(status, nnp_status_success);
+        ICHECK_EQ(status, nnp_status_success);
       }
       cpu_api->FreeWorkspace(ctx, workspace_buffer);
     });
@@ -129,7 +129,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
       static std::once_flag flag;
-      std::call_once(flag, []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
+      std::call_once(flag, []() { ICHECK_EQ(nnp_initialize(), nnp_status_success); });
       DLTensor* input = args[0];
       DLTensor* transformed_kernel = args[1];
       DLTensor* bias = nullptr;
@@ -145,32 +145,32 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
 
       uint64_t algo_ = args[11];
       nnp_convolution_algorithm algo = static_cast<nnp_convolution_algorithm>(algo_);
-      CHECK_EQ(input->ndim, 4);
+      ICHECK_EQ(input->ndim, 4);
       if (bias) {
-        CHECK_EQ(bias->ndim, 1);
+        ICHECK_EQ(bias->ndim, 1);
       }
-      CHECK_EQ(output->ndim, 4);
-      CHECK_EQ(input->shape[0], output->shape[0]);
+      ICHECK_EQ(output->ndim, 4);
+      ICHECK_EQ(input->shape[0], output->shape[0]);
       size_t input_channels = input->shape[1];
       if (bias) {
-        CHECK_EQ(output->shape[1], bias->shape[0]);
+        ICHECK_EQ(output->shape[1], bias->shape[0]);
       }
       size_t output_channels = output->shape[1];
       nnp_size input_size{static_cast<size_t>(input->shape[2]),
                           static_cast<size_t>(input->shape[3])};
       nnp_size kernel_size{3, 3};
-      CHECK(input->strides == nullptr);
-      CHECK(transformed_kernel->strides == nullptr);
+      ICHECK(input->strides == nullptr);
+      ICHECK(transformed_kernel->strides == nullptr);
       if (bias) {
-        CHECK(bias->strides == nullptr);
+        ICHECK(bias->strides == nullptr);
       }
 
-      CHECK(TypeMatch(input->dtype, kDLFloat, 32));
-      CHECK(TypeMatch(transformed_kernel->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(input->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(transformed_kernel->dtype, kDLFloat, 32));
       if (bias) {
-        CHECK(TypeMatch(bias->dtype, kDLFloat, 32));
+        ICHECK(TypeMatch(bias->dtype, kDLFloat, 32));
       }
-      CHECK(TypeMatch(output->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(output->dtype, kDLFloat, 32));
 
       // Allocate a zero-bias if we don't pass one in.
       std::unique_ptr<std::vector<float>> zero_bias;
@@ -183,7 +183,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
           algo, nnp_convolution_transform_strategy_reuse, input_channels, output_channels,
           input_size, input_padding, kernel_size, stride_size, nullptr, nullptr, nullptr, nullptr,
           nullptr, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool, nullptr);
-      CHECK_EQ(status, nnp_status_success);
+      ICHECK_EQ(status, nnp_status_success);
 
       // Division with rounding up, in case size is not multiple of sizeof(float)
       const size_t workspace_elements = (workspace_size + sizeof(float) - 1) / sizeof(float);
@@ -194,7 +194,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
       DeviceAPI* cpu_api = DeviceAPI::Get(ctx);
       void* workspace_buffer =
           cpu_api->AllocWorkspace(ctx, workspace_elements * sizeof(float), type_hint);
-      CHECK(workspace_buffer != nullptr);
+      ICHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
         nnp_status status = nnp_convolution_inference(
@@ -208,7 +208,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
                 n * output->shape[1] * output->shape[2] * output->shape[3],
             workspace_buffer, &workspace_size, nnp_activation_identity, nullptr, entry->threadpool,
             nullptr);
-        CHECK_EQ(status, nnp_status_success);
+        ICHECK_EQ(status, nnp_status_success);
       }
 
       cpu_api->FreeWorkspace(ctx, workspace_buffer);
@@ -218,7 +218,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_weight_transform")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
       static std::once_flag flag;
-      std::call_once(flag, []() { CHECK_EQ(nnp_initialize(), nnp_status_success); });
+      std::call_once(flag, []() { ICHECK_EQ(nnp_initialize(), nnp_status_success); });
       DLTensor* kernel = args[0];
       DLTensor* transformed_kernel = args[1];
       // Dummy sizes
@@ -231,15 +231,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_weight_transform")
 
       uint64_t algo_ = args[3];
       nnp_convolution_algorithm algo = static_cast<nnp_convolution_algorithm>(algo_);
-      CHECK_EQ(kernel->ndim, 4);
+      ICHECK_EQ(kernel->ndim, 4);
       size_t input_channels = kernel->shape[1];
       size_t output_channels = kernel->shape[0];
-      CHECK_EQ(kernel->shape[2], 3);
-      CHECK_EQ(kernel->shape[3], 3);
+      ICHECK_EQ(kernel->shape[2], 3);
+      ICHECK_EQ(kernel->shape[3], 3);
       nnp_size kernel_size{static_cast<size_t>(kernel->shape[2]),
                            static_cast<size_t>(kernel->shape[3])};
-      CHECK(kernel->strides == nullptr);
-      CHECK(TypeMatch(kernel->dtype, kDLFloat, 32));
+      ICHECK(kernel->strides == nullptr);
+      ICHECK(TypeMatch(kernel->dtype, kDLFloat, 32));
 
       size_t transformed_kernel_size = 0;
       nnp_status status;
@@ -248,9 +248,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_weight_transform")
           input_size, input_padding, kernel_size, stride_size, nullptr, nullptr, nullptr, nullptr,
           nullptr, &transformed_kernel_size, nnp_activation_identity, nullptr, entry->threadpool,
           nullptr);
-      CHECK_EQ(status, nnp_status_success);
+      ICHECK_EQ(status, nnp_status_success);
 
-      CHECK_LE(transformed_kernel_size, GetDataSize(*transformed_kernel));
+      ICHECK_LE(transformed_kernel_size, GetDataSize(*transformed_kernel));
 
       status = nnp_convolution_inference(
           algo, nnp_convolution_transform_strategy_precompute, input_channels, output_channels,
@@ -258,7 +258,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_weight_transform")
           static_cast<float*>(kernel->data), nullptr, nullptr,
           static_cast<float*>(transformed_kernel->data), &transformed_kernel_size,
           nnp_activation_identity, nullptr, entry->threadpool, nullptr);
-      CHECK_EQ(status, nnp_status_success);
+      ICHECK_EQ(status, nnp_status_success);
     });
 }  // namespace contrib
 }  // namespace tvm

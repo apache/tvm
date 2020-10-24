@@ -44,7 +44,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
 
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
-    CHECK(old_in_t.as<TensorTypeNode>());
+    ICHECK(old_in_t.as<TensorTypeNode>());
     old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
   }
 
@@ -52,8 +52,8 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
   if (new_in_layouts.defined()) {
     // Adapt to new layout. The axis has to change.
     // Record original reduce axis. Convert to the modified layout axis.
-    CHECK_EQ(new_in_layouts.size(), 5);
-    CHECK_EQ(old_in_layouts.size(), 5);
+    ICHECK_EQ(new_in_layouts.size(), 5);
+    ICHECK_EQ(old_in_layouts.size(), 5);
 
     // 1) Get the axis.
     int axis = param->axis;
@@ -90,7 +90,7 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     param->axis = new_axis;
   } else if (old_in_layouts.defined()) {
     // If the new layout is undefined, set the old layout as the inferred layout.
-    CHECK_EQ(old_in_layouts.size(), 5);
+    ICHECK_EQ(old_in_layouts.size(), 5);
 
     Layout old_layout = old_in_layouts[0];
 
@@ -214,32 +214,32 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
  */
 Expr RequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                                const Array<tvm::relay::Type>& types) {
-  CHECK_EQ(new_args.size(), 5);
+  ICHECK_EQ(new_args.size(), 5);
   auto& quantized_data = new_args[0];
   auto& input_scale = new_args[1];
   auto& input_zero_point = new_args[2];
   auto& output_scale = new_args[3];
   auto& output_zero_point = new_args[4];
   const auto* param = attrs.as<RequantizeAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   // Find input shape.
-  CHECK_EQ(types.size(), 6);
+  ICHECK_EQ(types.size(), 6);
   auto in_type = types[0];
   auto in_tensor_type = in_type.as<TensorTypeNode>();
-  CHECK(in_tensor_type != nullptr) << "Type information missing."
-                                   << " Please run infer_type pass.";
+  ICHECK(in_tensor_type != nullptr) << "Type information missing."
+                                    << " Please run infer_type pass.";
   Array<IndexExpr> input_shape = in_tensor_type->shape;
 
   // Find the output dtype.
   auto out_type = types[5];
   auto out_tensor_type = out_type.as<TensorTypeNode>();
-  CHECK(out_tensor_type != nullptr) << "Type information missing."
-                                    << " Please run infer_type pass.";
+  ICHECK(out_tensor_type != nullptr) << "Type information missing."
+                                     << " Please run infer_type pass.";
   auto out_dtype = out_tensor_type->dtype;
 
   // Check rounding validity.
-  CHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
+  ICHECK(param->rounding == "UPWARD" || param->rounding == "TONEAREST")
       << "QNN requantize supports two rounding modes - UPWARD and "
       << "TONEAREST";
   return RequantizeLower(quantized_data, input_scale, input_zero_point, output_scale,
@@ -256,7 +256,7 @@ Expr RequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
  */
 bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 6);
+  ICHECK_EQ(types.size(), 6);
   const auto* data = types[0].as<TensorTypeNode>();
 
   if (data == nullptr) {
@@ -264,29 +264,29 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
 
   const auto in_dtype = data->dtype;
-  CHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
-        in_dtype == DataType::Int(32))
+  ICHECK(in_dtype == DataType::Int(8) || in_dtype == DataType::UInt(8) ||
+         in_dtype == DataType::Int(32))
       << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const RequantizeAttrs* requantize_attrs = attrs.as<RequantizeAttrs>();
   int axis = requantize_attrs->axis;
   axis = (axis == -1) ? data->shape.size() - 1 : axis;
-  CHECK_LT(axis, static_cast<int>(data->shape.size()))
+  ICHECK_LT(axis, static_cast<int>(data->shape.size()))
       << "axis " << requantize_attrs->axis << " is out of range";
-  CHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
+  ICHECK_GE(axis, 0) << "axis " << requantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
   AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // input_scale
   AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // input_zero_pt
   // For now, requantize output tensor is limited to full tensor uniform quantization.
-  CHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
-  CHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
+  ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
-  CHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
-        out_dtype == DataType::Int(32))
+  ICHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
+         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[5], TensorType(oshape, out_dtype));
   return true;

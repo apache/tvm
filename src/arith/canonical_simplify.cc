@@ -63,7 +63,7 @@ inline PrimExpr ModImpl(PrimExpr a, PrimExpr b, DivMode mode) {
   if (mode == kTruncDiv) {
     return truncmod(a, b);
   } else {
-    CHECK_EQ(mode, kFloorDiv);
+    ICHECK_EQ(mode, kFloorDiv);
     return floormod(a, b);
   }
 }
@@ -72,7 +72,7 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
   if (mode == kTruncDiv) {
     return truncdiv(a, b);
   } else {
-    CHECK_EQ(mode, kFloorDiv);
+    ICHECK_EQ(mode, kFloorDiv);
     return floordiv(a, b);
   }
 }
@@ -102,7 +102,7 @@ class SplitExprNode : public CanonicalExprNode {
   DivMode div_mode{kTruncDiv};
 
   /*! \brief verify that this is a valid entry. */
-  void Verify() const { CHECK(upper_factor == kPosInf || upper_factor % lower_factor == 0); }
+  void Verify() const { ICHECK(upper_factor == kPosInf || upper_factor % lower_factor == 0); }
 
   PrimExpr NormalizeWithScale(int64_t sscale) const {
     PrimExpr res = this->index;
@@ -118,7 +118,7 @@ class SplitExprNode : public CanonicalExprNode {
     }
     sscale *= this->scale;
     if (sscale != 1) {
-      CHECK(!dtype.is_uint() || sscale > 0);
+      ICHECK(!dtype.is_uint() || sscale > 0);
       res = res * make_const(dtype, sscale);
     }
     return res;
@@ -209,10 +209,10 @@ class SumExprNode : public CanonicalExprNode {
    * \param scale The scale to be applied.
    */
   void DivideBy(int64_t scale) {
-    CHECK_EQ(this->base % scale, 0);
+    ICHECK_EQ(this->base % scale, 0);
     this->base /= scale;
     for (size_t i = 0; i < this->args.size(); ++i) {
-      CHECK_EQ(args[i]->scale % scale, 0);
+      ICHECK_EQ(args[i]->scale % scale, 0);
       args[i].CopyOnWrite()->scale /= scale;
     }
   }
@@ -508,7 +508,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
       return expr;
     }
     expr = ToSplitExpr(Normalize(expr));
-    CHECK(expr->DivModeCompatibleTo(div_mode));
+    ICHECK(expr->DivModeCompatibleTo(div_mode));
     expr.CopyOnWrite()->div_mode = div_mode;
     return expr;
   }
@@ -648,7 +648,7 @@ void CanonicalSimplifier::Impl::SeparateDivisibleParts(const SumExprNode* psum, 
 }
 
 SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
-  CHECK_GT(cval, 0);
+  ICHECK_GT(cval, 0);
   lhs = ConvertDivMode(lhs, div_mode);
 
   // the following rule works for both floordiv and truncdiv
@@ -682,8 +682,8 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, 
   }
   // directly return the split with cval == 1
   lhs = ToSplitExpr(Normalize(lhs));
-  CHECK(lhs->DivModeCompatibleTo(div_mode));
-  CHECK_EQ(lhs->scale, 1);
+  ICHECK(lhs->DivModeCompatibleTo(div_mode));
+  ICHECK_EQ(lhs->scale, 1);
   lhs.CopyOnWrite()->lower_factor *= cval;
   lhs.CopyOnWrite()->div_mode = div_mode;
   return lhs;
@@ -803,7 +803,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
 }
 
 SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
-  CHECK_GT(cval, 0);
+  ICHECK_GT(cval, 0);
   lhs = ConvertDivMode(lhs, div_mode);
 
   if (lhs->scale % cval == 0) {
@@ -842,9 +842,9 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
   }
   // Normalize the value.
   lhs = ToSplitExpr(Normalize(lhs));
-  CHECK(lhs->DivModeCompatibleTo(div_mode));
-  CHECK_EQ(lhs->scale, 1);
-  CHECK_EQ(lhs->lower_factor, 1);
+  ICHECK(lhs->DivModeCompatibleTo(div_mode));
+  ICHECK_EQ(lhs->scale, 1);
+  ICHECK_EQ(lhs->lower_factor, 1);
   lhs.CopyOnWrite()->div_mode = div_mode;
   lhs.CopyOnWrite()->upper_factor = cval;
   return lhs;
@@ -886,7 +886,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
             // contonue to use logic below.
             a = extra;
             psum = a.as<SumExprNode>();
-            CHECK(psum != nullptr);
+            ICHECK(psum != nullptr);
           }
         }
       }
@@ -948,7 +948,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
           // contonue to use logic below.
           a = extra;
           psum = a.as<SumExprNode>();
-          CHECK(psum != nullptr);
+          ICHECK(psum != nullptr);
         }
       }
       // Simplify the offset constant if necessary.

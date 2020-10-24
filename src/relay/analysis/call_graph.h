@@ -218,25 +218,25 @@ class CallGraph : public ObjectRef {
   /*! \return The begin iterator. */
   iterator begin() {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->begin();
   }
   /*! \return The end iterator. */
   iterator end() {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->end();
   }
   /*! \return The begin iterator. */
   const_iterator begin() const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->begin();
   }
   /*! \return The end iterator. */
   const_iterator end() const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->end();
   }
 
@@ -249,7 +249,7 @@ class CallGraph : public ObjectRef {
    */
   const CallGraphEntry* operator[](const GlobalVar& gv) const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return (*n)[gv];
   }
   /*!
@@ -261,7 +261,7 @@ class CallGraph : public ObjectRef {
    */
   CallGraphEntry* operator[](const GlobalVar& gv) {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return (*n)[gv];
   }
   /*!
@@ -273,7 +273,7 @@ class CallGraph : public ObjectRef {
    */
   const CallGraphEntry* operator[](const std::string& gvar_name) const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return (*n)[gvar_name];
   }
   /*!
@@ -285,14 +285,14 @@ class CallGraph : public ObjectRef {
    */
   CallGraphEntry* operator[](const std::string& gvar_name) {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return (*n)[gvar_name];
   }
 
   /*! \return mutable pointers to the node. */
   CallGraphNode* operator->() const {
     auto* ptr = get_mutable();
-    CHECK(ptr != nullptr);
+    ICHECK(ptr != nullptr);
     return static_cast<CallGraphNode*>(ptr);
   }
 
@@ -360,7 +360,7 @@ class CallGraphEntry {
    * \return The fetched CallGraphEntry.
    */
   CallGraphEntry* operator[](size_t i) const {
-    CHECK_LT(i, called_globals_.size()) << "Invalid Index";
+    ICHECK_LT(i, called_globals_.size()) << "Invalid Index";
     return called_globals_[i].second;
   }
 
@@ -452,7 +452,7 @@ class CallGraphEntry {
  private:
   /*! \brief Decrement the reference counter by 1. */
   void DecRef() {
-    CHECK_GT(ref_cnt_, 0);
+    ICHECK_GT(ref_cnt_, 0);
     --ref_cnt_;
   }
   /*! \brief Increment the reference counter by 1. */

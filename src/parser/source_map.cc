@@ -62,7 +62,7 @@ Source::Source(SourceName src_name, std::string source) {
 
 tvm::String Source::GetLine(int line) {
   DLOG(INFO) << "Source::GetLine: line=" << line;
-  CHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
+  ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
       << "requested line: " << line << "at index: " << (line - 1)
       << "line_map size: " << (*this)->line_map.size() << "source: " << (*this)->source;
 

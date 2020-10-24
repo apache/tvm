@@ -103,12 +103,12 @@ class DefuncMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) {
     if (auto op = call->op.as<GlobalVarNode>()) {
-      CHECK_EQ(call->type_args.size(), op->checked_type().as<FuncTypeNode>()->type_params.size())
+      ICHECK_EQ(call->type_args.size(), op->checked_type().as<FuncTypeNode>()->type_params.size())
           << "all type args must be explicit";
 
       auto op_type = InstFuncType(op->checked_type().as<FuncTypeNode>(), call->type_args);
-      CHECK_EQ(FreeTypeVars(op_type, mod).size(), 0) << "free type vars in instantiated";
-      CHECK(!HasFuncType(op_type->ret_type)) << "returning functions not supported";
+      ICHECK_EQ(FreeTypeVars(op_type, mod).size(), 0) << "free type vars in instantiated";
+      ICHECK(!HasFuncType(op_type->ret_type)) << "returning functions not supported";
 
       if (!IsHigherOrderFunc(op_type)) {
         // not higher order function
@@ -152,7 +152,7 @@ class DefuncMutator : public ExprMutator {
       // var node will be encoded as datatype
       // so we need to use the `apply` helper method
       auto var_original_type = GetUnencodedType(op->type_annotation).as<FuncTypeNode>();
-      CHECK(var_original_type) << "var original type not saved in var_save_type map";
+      ICHECK(var_original_type) << "var original type not saved in var_save_type map";
       auto op_type = InstFuncType(var_original_type, call->type_args);
 
       Array<Expr> args = {GetRef<Var>(op)};
@@ -209,7 +209,7 @@ class DefuncMutator : public ExprMutator {
    */
   void AddApplyCase(GlobalVar apply_gv, FuncType ft, Constructor c, const Expr& expr,
                     const Array<Pattern> patterns) {
-    CHECK(c->inputs.size() == patterns.size())
+    ICHECK(c->inputs.size() == patterns.size())
         << "constructor function and pattern vars have different sizes";
     if (!mod->ContainGlobalVar(apply_gv->name_hint)) {
       auto x = Var("x", TypeCall(c->belong_to, {}));
@@ -229,7 +229,7 @@ class DefuncMutator : public ExprMutator {
     } else {
       auto f = Downcast<Function>(mod->Lookup(apply_gv));
       auto body = f->body.as<MatchNode>();
-      CHECK(body) << "internal invariant broken; apply function body should be a match node";
+      ICHECK(body) << "internal invariant broken; apply function body should be a match node";
 
       auto clauses = body->clauses;
       auto x = f->params[0];
@@ -245,8 +245,8 @@ class DefuncMutator : public ExprMutator {
 
   Expr EncodeArg(const Expr& arg, const Type& type) {
     // we assume arg is either an identifier (var or globalvar) or a function
-    CHECK(type.as<FuncTypeNode>()) << "assume no nested functions";
-    CHECK(arg.as<VarNode>() || arg.as<GlobalVarNode>() || arg.as<FunctionNode>())
+    ICHECK(type.as<FuncTypeNode>()) << "assume no nested functions";
+    ICHECK(arg.as<VarNode>() || arg.as<GlobalVarNode>() || arg.as<FunctionNode>())
         << "assume all first-order-parameters are identifiers or functions";
 
     if (arg.as<VarNode>()) {
@@ -334,11 +334,11 @@ class DefuncMutator : public ExprMutator {
    */
   FuncType GetUnencodedType(const Type& t) {
     auto tc = t.as<TypeCallNode>();
-    CHECK(tc) << "expected type call when getting original type from encoded type";
+    ICHECK(tc) << "expected type call when getting original type from encoded type";
     auto gv = tc->func.as<GlobalTypeVarNode>();
-    CHECK(gv) << "expected global type var in encoded type";
+    ICHECK(gv) << "expected global type var in encoded type";
     auto type = original_func_type_map[GetRef<GlobalTypeVar>(gv)];
-    CHECK(type.defined()) << "reverse mapping from encoded type to original type not found";
+    ICHECK(type.defined()) << "reverse mapping from encoded type to original type not found";
     return Downcast<FuncType>(type);
   }
 
@@ -357,8 +357,8 @@ class DefuncMutator : public ExprMutator {
    * \brief specialize a function type
    */
   FuncType InstFuncType(const FuncTypeNode* fty, const Array<Type> type_args) {
-    CHECK(fty) << "InstFuncType functype is null";
-    CHECK_EQ(fty->type_params.size(), type_args.size())
+    ICHECK(fty) << "InstFuncType functype is null";
+    ICHECK_EQ(fty->type_params.size(), type_args.size())
         << "size mismatch between function type params and type args";
     auto map = tvm::Map<TypeVar, Type>();
     for (size_t i = 0; i < type_args.size(); i++) {
@@ -372,7 +372,7 @@ class DefuncMutator : public ExprMutator {
    * \brief specialize a function expression
    */
   Function Specialize(const Function& f, const Array<Type> type_args) {
-    CHECK_EQ(f->type_params.size(), type_args.size())
+    ICHECK_EQ(f->type_params.size(), type_args.size())
         << "cannot specialize function with size mismatch between function type params and type "
            "args";
     auto map = tvm::Map<TypeVar, Type>();
@@ -389,7 +389,7 @@ class DefuncMutator : public ExprMutator {
    * using the `apply` function for applications
    */
   Function FirstifyVars(const Function& f) {
-    CHECK(f->type_params.size() == 0) << "firstify function has type params";
+    ICHECK(f->type_params.size() == 0) << "firstify function has type params";
 
     tvm::Map<Var, Expr> var_bind_map;
     Array<Var> params;
@@ -403,7 +403,7 @@ class DefuncMutator : public ExprMutator {
         var_bind_map.Set(var, new_var);
         params.push_back(new_var);
       } else {
-        CHECK(!HasFuncType(var->type_annotation))
+        ICHECK(!HasFuncType(var->type_annotation))
             << "nested function type in parameter not supported yet";
         params.push_back(var);
       }
@@ -416,11 +416,11 @@ class DefuncMutator : public ExprMutator {
 
 Expr Defunctionalization(const Function& f, const IRModule& mod) {
   // f is the starting point of the program, all types MUST be known
-  CHECK(f->type_params.size() == 0) << "no polymorphism supported for defunctionalization";
+  ICHECK(f->type_params.size() == 0) << "no polymorphism supported for defunctionalization";
   for (const auto& p : f->params) {
-    CHECK(!HasFuncType(p->checked_type())) << "program cannot have func type parameters";
+    ICHECK(!HasFuncType(p->checked_type())) << "program cannot have func type parameters";
   }
-  CHECK(!HasFuncType(f->ret_type)) << "return type cannot contain function";
+  ICHECK(!HasFuncType(f->ret_type)) << "return type cannot contain function";
 
   return Downcast<Function>(DefuncMutator(mod).VisitExpr(f));
 }

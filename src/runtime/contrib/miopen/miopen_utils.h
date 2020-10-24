@@ -24,9 +24,9 @@
 #ifndef TVM_RUNTIME_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
 #define TVM_RUNTIME_CONTRIB_MIOPEN_MIOPEN_UTILS_H_
 
-#include <dmlc/logging.h>
 #include <miopen/miopen.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/logging.h>
 
 #include <string>
 
@@ -38,10 +38,10 @@ namespace miopen {
 
 std::string miopenGetErrorString(int error_code);
 
-#define MIOPEN_CALL(func)                                                            \
-  {                                                                                  \
-    miopenStatus_t e = (func);                                                       \
-    CHECK_EQ(e, miopenStatusSuccess) << "miopen error: " << miopenGetErrorString(e); \
+#define MIOPEN_CALL(func)                                                             \
+  {                                                                                   \
+    miopenStatus_t e = (func);                                                        \
+    ICHECK_EQ(e, miopenStatusSuccess) << "miopen error: " << miopenGetErrorString(e); \
   }
 
 struct ConvEntry {

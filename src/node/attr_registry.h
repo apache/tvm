@@ -109,10 +109,10 @@ class AttrRegistry {
       op_map->data_.resize(index + 1, std::make_pair(TVMRetValue(), 0));
     }
     std::pair<TVMRetValue, int>& p = op_map->data_[index];
-    CHECK(p.second != plevel) << "Attribute " << attr_name << " of " << key->AttrRegistryName()
-                              << " is already registered with same plevel=" << plevel;
-    CHECK(value.type_code() != kTVMNullptr) << "Registered packed_func is Null for " << attr_name
-                                            << " of operator " << key->AttrRegistryName();
+    ICHECK(p.second != plevel) << "Attribute " << attr_name << " of " << key->AttrRegistryName()
+                               << " is already registered with same plevel=" << plevel;
+    ICHECK(value.type_code() != kTVMNullptr) << "Registered packed_func is Null for " << attr_name
+                                             << " of operator " << key->AttrRegistryName();
     if (p.second < plevel && value.type_code() != kTVMNullptr) {
       op_map->data_[index] = std::make_pair(value, plevel);
     }

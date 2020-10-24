@@ -81,7 +81,7 @@ class MemoizedExprTranslator : public ::tvm::relay::ExprFunctor<OutputType(const
    * \return The result of the call
    */
   virtual OutputType VisitExpr(const Expr& n) {
-    CHECK(n.defined());
+    ICHECK(n.defined());
     auto it = memo_.find(n);
     if (it != memo_.end()) {
       return it->second;
@@ -115,7 +115,7 @@ inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
 template <typename R, typename... Args>
 inline const runtime::TypedPackedFunc<R(Args...)> GetTypedPackedFunc(const std::string& func_name) {
   auto* pf = GetPackedFunc(func_name);
-  CHECK(pf != nullptr) << "can not find packed function";
+  ICHECK(pf != nullptr) << "can not find packed function";
   return runtime::TypedPackedFunc<R(Args...)>(*pf);
 }
 
@@ -129,7 +129,7 @@ inline std::vector<int64_t> GetIntShape(const Array<IndexExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
     const int64_t* pval = tir::as_const_int(dim);
-    CHECK(pval) << "Expect integer, but received: " << dim->GetTypeKey();
+    ICHECK(pval) << "Expect integer, but received: " << dim->GetTypeKey();
     ret.push_back(*pval);
   }
   return ret;
@@ -192,8 +192,8 @@ inline relay::Function BindParamsByName(
   }
   Expr bound_expr = relay::Bind(func, bind_dict);
   Function ret = Downcast<Function>(bound_expr);
-  CHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
-                       << "\n";
+  ICHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
+                        << "\n";
   return ret;
 }
 
@@ -204,11 +204,11 @@ inline relay::Function BindParamsByName(
  */
 inline std::vector<int> GetShape(const Type& type) {
   const auto* ttype = type.as<TensorTypeNode>();
-  CHECK(ttype) << "Expect TensorTypeNode";
+  ICHECK(ttype) << "Expect TensorTypeNode";
   std::vector<int> shape;
   for (size_t i = 0; i < ttype->shape.size(); ++i) {
     auto* val = ttype->shape[i].as<IntImmNode>();
-    CHECK(val);
+    ICHECK(val);
     shape.push_back(val->value);
   }
   return shape;
@@ -223,7 +223,7 @@ inline std::vector<int> GetShape(const Type& type) {
  */
 inline bool IsOp(const CallNode* call, const std::string& op_name) {
   const auto* op_node = call->op.as<OpNode>();
-  CHECK(op_node) << "Expects a single op.";
+  ICHECK(op_node) << "Expects a single op.";
   Op op = GetRef<Op>(op_node);
   return op == Op::Get(op_name);
 }
@@ -239,14 +239,14 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
 
 inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
                                    const std::vector<std::string>& expected_op_names) {
-  CHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
-        IsOp(current_call, expected_op_names[depth]));
+  ICHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
+         IsOp(current_call, expected_op_names[depth]));
 
   if (depth == 0) {
     return current_call;
   }
 
-  CHECK_GT(current_call->args.size(), 0);
+  ICHECK_GT(current_call->args.size(), 0);
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
@@ -260,7 +260,7 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
  */
 inline std::string GetExtSymbol(const Function& func) {
   const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
+  ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }
 

@@ -65,7 +65,7 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
     auto iit = n->parents.head;
     Scope s;
     if (iit == nullptr) {
-      CHECK(!global_scope_used);
+      ICHECK(!global_scope_used);
       s = global_scope;
       global_scope_used = true;
     } else {
@@ -90,7 +90,7 @@ std::pair<NodeScopeMap, ExprSet> CalcScope(const DependencyGraph& dg) {
       expr_scope.insert({n, s});
     }
   }
-  CHECK(global_scope_used);
+  ICHECK(global_scope_used);
   return std::make_pair(expr_scope, lifted_exprs);
 }
 
@@ -114,11 +114,11 @@ Scope Fill::GetSubScope(const Expr& e, size_t i) {
   DependencyGraph::Node* n = dg_.expr_node.at(e);
   auto h = n->children.head;
   while (i != 0) {
-    CHECK(h);
+    ICHECK(h);
     --i;
     h = h->next;
   }
-  CHECK(h);
+  ICHECK(h);
   return node_scope_->at(h->value);
 }
 
@@ -130,7 +130,7 @@ Expr Fill::VisitExpr(const Expr& e, const Var& v) {
   }
   auto ret = memo.at(e);
   // if no include_set is specified, every expression should be atomic.
-  if (include_set_ == nullptr) CHECK(IsAtomic(ret));
+  if (include_set_ == nullptr) ICHECK(IsAtomic(ret));
   return ret;
 }
 
@@ -258,12 +258,12 @@ IRModule ToANormalForm(const IRModule& m) {
   tvm::Map<GlobalVar, Function> updates;
   auto funcs = m->functions;
   for (const auto& it : funcs) {
-    CHECK_EQ(FreeVars(it.second).size(), 0);
+    ICHECK_EQ(FreeVars(it.second).size(), 0);
     if (const auto* n = it.second.as<FunctionNode>()) {
       if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
     Expr ret = TransformF([&](const Expr& e) { return transform::ToANormalForm(e); }, it.second);
-    CHECK_EQ(FreeVars(ret).size(), 0)
+    ICHECK_EQ(FreeVars(ret).size(), 0)
         << AsText(ret) << "should not has free vars: " << FreeVars(ret);
     updates.Set(it.first, Downcast<Function>(ret));
   }

@@ -107,7 +107,7 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs) {  // NOLINT(*)
   } else if (rtype.lanes() == 1 && ltype.lanes() != 1) {
     rhs = tir::Broadcast(rhs, ltype.lanes());
   } else {
-    CHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
+    ICHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
   }
   if (lhs.dtype() == rhs.dtype()) return;
   // Only do very simple type coversion
@@ -146,7 +146,7 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs) {  // NOLINT(*)
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype) {
   using namespace tir;
-  CHECK_EQ(dtype.lanes(), 1);
+  ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
     if (dtype.bits() == 64) {
       return IntImm(dtype, std::numeric_limits<int64_t>::max());
@@ -178,10 +178,10 @@ PrimExpr max_value(const DataType& dtype) {
 
 PrimExpr min_value(const DataType& dtype) {
   using namespace tir;
-  CHECK_EQ(dtype.lanes(), 1);
+  ICHECK_EQ(dtype.lanes(), 1);
   if (datatype::Registry::Global()->GetTypeRegistered(dtype.code())) {
     auto f = datatype::GetMinFunc(dtype.code());
-    CHECK(f) << "No minimum function registered for custom dtype " << (unsigned int)dtype.code();
+    ICHECK(f) << "No minimum function registered for custom dtype " << (unsigned int)dtype.code();
     // TODO(@hypercubestart) Document this change (and others associated with the overflowing
     // floatimm min bug)
     return (*f)(dtype.bits());
@@ -211,7 +211,7 @@ PrimExpr min_value(const DataType& dtype) {
 // infinity
 PrimExpr infinity(const DataType& dtype) {
   using namespace tir;
-  CHECK_EQ(dtype.lanes(), 1);
+  ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_float()) {
     if (dtype.bits() == 64) {
       return FloatImm(dtype, std::numeric_limits<double>::infinity());
@@ -273,7 +273,7 @@ PrimExpr cast(const DataType& t, PrimExpr value) {
       }
       return tir::Broadcast(value, t.lanes());
     } else {
-      CHECK(value.dtype().lanes() == t.lanes());
+      ICHECK(value.dtype().lanes() == t.lanes());
       return tir::Cast(t, value);
     }
   }
@@ -326,8 +326,8 @@ PrimExpr div(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr truncdiv(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  CHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   return div(a, b);
 }
 
@@ -348,8 +348,8 @@ PrimExpr indexdiv(PrimExpr a, PrimExpr b) { return floordiv(a, b); }
 PrimExpr indexmod(PrimExpr a, PrimExpr b) { return floormod(a, b); }
 
 PrimExpr floordiv(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  CHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b);
   PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a, b);
   if (ret.defined()) return ret;
@@ -357,8 +357,8 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr floormod(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  CHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b);
   PrimExpr ret = arith::TryConstFold<tir::FloorMod>(a, b);
   if (ret.defined()) return ret;
@@ -395,7 +395,7 @@ PrimExpr max(PrimExpr a, PrimExpr b) {
 
 // if_then_else
 PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value) {
-  CHECK(cond.dtype() == DataType::Bool(1))
+  ICHECK(cond.dtype() == DataType::Bool(1))
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value);
   if (const IntImmNode* op = cond.as<IntImmNode>()) {
@@ -460,23 +460,23 @@ PrimExpr operator!=(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr operator&&(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_bool());
-  CHECK(b.dtype().is_bool());
+  ICHECK(a.dtype().is_bool());
+  ICHECK(b.dtype().is_bool());
   PrimExpr ret = arith::TryConstFold<tir::And>(a, b);
   if (ret.defined()) return ret;
   return tir::And(a, b);
 }
 
 PrimExpr operator||(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_bool());
-  CHECK(b.dtype().is_bool());
+  ICHECK(a.dtype().is_bool());
+  ICHECK(b.dtype().is_bool());
   PrimExpr ret = arith::TryConstFold<tir::Or>(a, b);
   if (ret.defined()) return ret;
   return tir::Or(a, b);
 }
 
 PrimExpr operator!(PrimExpr a) {
-  CHECK(a.dtype().is_bool());
+  ICHECK(a.dtype().is_bool());
   PrimExpr ret = arith::TryConstFold<tir::Not>(a);
   if (ret.defined()) return ret;
   return tir::Not(a);
@@ -484,13 +484,13 @@ PrimExpr operator!(PrimExpr a) {
 
 // shirt right
 PrimExpr operator>>(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint());
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pb)
-      CHECK(pb->value >= 0 && pb->value < rtype.bits())
+      ICHECK(pb->value >= 0 && pb->value < rtype.bits())
           << "Shift amount must be non-negative and less than " << rtype.bits() << " for type "
           << rtype;
     if (pa && pb) return IntImm(rtype, (pa->value >> pb->value));
@@ -504,13 +504,13 @@ PrimExpr operator>>(PrimExpr a, PrimExpr b) {
 
 // shift left
 PrimExpr operator<<(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint());
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pb)
-      CHECK(pb->value >= 0 && pb->value < rtype.bits())
+      ICHECK(pb->value >= 0 && pb->value < rtype.bits())
           << "Shift amount must be non-negative and less than " << rtype.bits() << " for type "
           << rtype;
     if (pa && pb) return IntImm(rtype, (pa->value << pb->value));
@@ -523,8 +523,8 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
 
 // bitwise and
 PrimExpr operator&(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint());
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
@@ -535,8 +535,8 @@ PrimExpr operator&(PrimExpr a, PrimExpr b) {
 
 // bitwise_or
 PrimExpr operator|(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint());
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
@@ -547,8 +547,8 @@ PrimExpr operator|(PrimExpr a, PrimExpr b) {
 
 // bitwise_xor
 PrimExpr operator^(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint());
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
@@ -559,7 +559,7 @@ PrimExpr operator^(PrimExpr a, PrimExpr b) {
 
 // bitwie_not
 PrimExpr operator~(PrimExpr a) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint());
   return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a});
 }
 
@@ -568,7 +568,7 @@ TVM_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a) { return ~a
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y) {
   BinaryOpMatchTypes(x, y);
-  CHECK(x.dtype().is_float()) << "power only applies to float";
+  ICHECK(x.dtype().is_float()) << "power only applies to float";
   static auto op = Op::Get("tir.pow");
   return tir::Call(x.dtype(), op, {x, y});
 }
@@ -652,7 +652,7 @@ PrimExpr sum(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
 }
 
 PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
-  CHECK(source.dtype().is_bool());
+  ICHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::And(x, y);
   PrimExpr identity_element = make_const(source.dtype(), true);
@@ -661,7 +661,7 @@ PrimExpr all(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
 }
 
 PrimExpr any(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
-  CHECK(source.dtype().is_bool());
+  ICHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::Or(x, y);
   PrimExpr identity_element = make_const(source.dtype(), false);
@@ -696,7 +696,7 @@ PrimExpr prod(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init) {
 // fmod
 PrimExpr fmod(PrimExpr x, PrimExpr y) {
   BinaryOpMatchTypes(x, y);
-  CHECK(x.dtype().is_float()) << "fmod only applies to float";
+  ICHECK(x.dtype().is_float()) << "fmod only applies to float";
   static auto op = Op::Get("tir.fmod");
   return tir::Call(x.dtype(), op, {x, y});
 }

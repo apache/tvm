@@ -33,31 +33,31 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
   // `types` contains: [data, k, result]
   const TopKAttrs* param = attrs.as<TopKAttrs>();
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* k = types[1].as<TensorTypeNode>();
   if (data == nullptr) {
-    CHECK(types[0].as<IncompleteTypeNode>())
+    ICHECK(types[0].as<IncompleteTypeNode>())
         << "tile: expect input type to be TensorType but get " << types[0];
     return false;
   }
   if (k == nullptr) {
-    CHECK(types[1].as<IncompleteTypeNode>())
+    ICHECK(types[1].as<IncompleteTypeNode>())
         << "tile: expect input type to be TensorType but get " << types[1];
     return false;
   }
-  CHECK(k->shape.size() <= 1) << "Parameter k must be a Scalar or a Tensor of shape (1, )";
+  ICHECK(k->shape.size() <= 1) << "Parameter k must be a Scalar or a Tensor of shape (1, )";
   if (k->shape.size() == 1) {
     const IntImmNode* k_shape = k->shape[0].as<IntImmNode>();
-    CHECK(k_shape) << "Parameter k must have static shape";
-    CHECK_EQ(k_shape->value, 1) << "Parameter k must be a Scalar or a Tensor of shape (1, )";
+    ICHECK(k_shape) << "Parameter k must have static shape";
+    ICHECK_EQ(k_shape->value, 1) << "Parameter k must be a Scalar or a Tensor of shape (1, )";
   }
   int ndim = data->shape.size();
   int axis = param->axis;
   if (axis < 0) {
     axis += ndim;
   }
-  CHECK(axis >= 0 && axis < ndim);
+  ICHECK(axis >= 0 && axis < ndim);
   Array<IndexExpr> out_shape;
   for (int i = 0; i < ndim; ++i) {
     if (i != axis) {

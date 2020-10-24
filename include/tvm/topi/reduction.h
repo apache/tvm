@@ -75,8 +75,8 @@ inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
       if (val < 0) {
         val += ndim;
       }
-      CHECK_LE(val, ndim) << " exceeds the maximum dimension " << ndim;
-      CHECK_GE(val, 0);
+      ICHECK_LE(val, ndim) << " exceeds the maximum dimension " << ndim;
+      ICHECK_GE(val, 0);
       real_axis.push_back(static_cast<int>(val));
     }
     std::sort(real_axis.begin(), real_axis.end());
@@ -181,7 +181,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExp
 inline Tensor CommReduce(const Tensor& data, const Array<Integer>& axis, FReduce func,
                          bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
-  CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
   return DoCommReduce(data, func, target_shape, real_axis,
@@ -204,7 +204,7 @@ inline Tensor CommReduce(const Tensor& data, const Array<Integer>& axis, FReduce
 inline Tensor CommReduceIdx(const Tensor& data, const Array<Integer>& axis, FCommReduce func,
                             bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
-  CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
@@ -325,7 +325,7 @@ inline Tensor sum(const Tensor& data, const Array<Integer>& axis, bool keepdims 
 }
 
 inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
-  CHECK_GE(data->shape.size(), target_shape.size());
+  ICHECK_GE(data->shape.size(), target_shape.size());
   auto ishape = detail::GetConstIntValues(data->shape, "ishape");
   auto oshape = detail::GetConstIntValues(target_shape, "oshape");
 

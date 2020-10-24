@@ -20,10 +20,10 @@
 /*!
  * \file Use external nnpack library call.
  */
-#include <dmlc/logging.h>
 #include <nnpack.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include "nnpack_utils.h"
 
@@ -42,17 +42,17 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.fully_connected_inference")
       DLTensor* C = args[2];
       NNPackConfig(args[3]);
 
-      CHECK_EQ(A->ndim, 1);
-      CHECK_EQ(B->ndim, 2);
-      CHECK_EQ(C->ndim, 1);
-      CHECK_EQ(B->shape[0], C->shape[0]);
-      CHECK_EQ(B->shape[1], A->shape[0]);
-      CHECK(C->strides == nullptr);
-      CHECK(B->strides == nullptr);
-      CHECK(A->strides == nullptr);
-      CHECK(TypeMatch(A->dtype, kDLFloat, 32));
-      CHECK(TypeMatch(B->dtype, kDLFloat, 32));
-      CHECK(TypeMatch(C->dtype, kDLFloat, 32));
+      ICHECK_EQ(A->ndim, 1);
+      ICHECK_EQ(B->ndim, 2);
+      ICHECK_EQ(C->ndim, 1);
+      ICHECK_EQ(B->shape[0], C->shape[0]);
+      ICHECK_EQ(B->shape[1], A->shape[0]);
+      ICHECK(C->strides == nullptr);
+      ICHECK(B->strides == nullptr);
+      ICHECK(A->strides == nullptr);
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
       nnp_fully_connected_inference(B->shape[1], B->shape[0], static_cast<float*>(A->data),
                                     static_cast<float*>(B->data), static_cast<float*>(C->data),

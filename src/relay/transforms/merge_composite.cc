@@ -46,7 +46,7 @@ Function InferType(const Function& expr, const IRModule& m) {
 Expr MergeComposite(const Function& func, const Array<runtime::String>& pattern_names,
                     const Array<DFPattern>& patterns, const std::vector<PackedFunc>& checks,
                     const IRModule& m) {
-  CHECK_EQ(pattern_names.size(), patterns.size());
+  ICHECK_EQ(pattern_names.size(), patterns.size());
   Function merged_func = func;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {

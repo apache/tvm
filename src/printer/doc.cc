@@ -85,7 +85,7 @@ class DocLine : public DocAtom {
 
 // DSL function implementations
 Doc& Doc::operator<<(const Doc& right) {
-  CHECK(this != &right);
+  ICHECK(this != &right);
   this->stream_.insert(this->stream_.end(), right.stream_.begin(), right.stream_.end());
   return *this;
 }

@@ -36,12 +36,12 @@ inline void DispatchPureExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
 
   const OpNode* op = call->op.as<OpNode>();
-  CHECK(op != nullptr);
+  ICHECK(op != nullptr);
   std::string name = op->name;
-  CHECK_EQ(name.substr(0, 4), "tir.");
+  ICHECK_EQ(name.substr(0, 4), "tir.");
 
   std::ostringstream intrinsic_name;
   intrinsic_name << "__ocml_" << name.substr(4) << "_f" << call->dtype.bits();
@@ -58,10 +58,10 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e_call = targs[0];
   using namespace tir;
   const CallNode* call = e_call.as<CallNode>();
-  CHECK(call != nullptr);
-  CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  ICHECK(call != nullptr);
+  ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   PrimExpr var = call->args[1];
-  CHECK_EQ(var.dtype().bits(), 32);
+  ICHECK_EQ(var.dtype().bits(), 32);
 
   // get own lane in self (__lane_id)
   PrimExpr minus_one = tir::make_const(DataType::Int(32), -1);
@@ -82,7 +82,7 @@ inline void DispatchShuffle(const TVMArgs& targs, TVMRetValue* rv) {
     index = self - delta;
     index = Select(index < (self & ~(width - 1)), self, index);
   } else {
-    CHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
+    ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
     PrimExpr delta = call->args[2];
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);

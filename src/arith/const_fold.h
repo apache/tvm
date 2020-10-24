@@ -150,7 +150,7 @@ inline PrimExpr TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     if (pa && pb) {
       // due to division and mod can have different modes
       // NOTE: this will assumes truc div.
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
       return IntImm(rtype, pa->value / pb->value);
     }
     if (pa) {
@@ -158,7 +158,7 @@ inline PrimExpr TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     }
     if (pb) {
       if (pb->value == 1) return a;
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
     if (fa && fb && fb->value != 0) {
       return FloatImm(rtype, fa->value / fb->value);
@@ -166,7 +166,7 @@ inline PrimExpr TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     if (fa && fa->value == 0) return a;
     if (fb) {
       if (fb->value == 1) return a;
-      CHECK_NE(fb->value, 0) << "Divide by zero";
+      ICHECK_NE(fb->value, 0) << "Divide by zero";
     }
   });
   return PrimExpr();
@@ -177,7 +177,7 @@ inline PrimExpr TryConstFold<tir::Mod>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) {
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
       return IntImm(rtype, pa->value % pb->value);
     }
     if (pa) {
@@ -185,7 +185,7 @@ inline PrimExpr TryConstFold<tir::Mod>(PrimExpr a, PrimExpr b) {
     }
     if (pb) {
       if (pb->value == 1) return tir::make_zero(rtype);
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
   return PrimExpr();
@@ -196,7 +196,7 @@ inline PrimExpr TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) {
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
       return IntImm(rtype, arith::floordiv(pa->value, pb->value));
     }
     if (pa) {
@@ -204,7 +204,7 @@ inline PrimExpr TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr b) {
     }
     if (pb) {
       if (pb->value == 1) return a;
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
     if (fa && fb && fb->value != 0) {
       return FloatImm(rtype, std::floor(fa->value / fb->value));
@@ -212,7 +212,7 @@ inline PrimExpr TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr b) {
     if (fa && fa->value == 0) return a;
     if (fb) {
       if (fb->value == 1) return a;
-      CHECK_NE(fb->value, 0) << "Divide by zero";
+      ICHECK_NE(fb->value, 0) << "Divide by zero";
     }
   });
   return PrimExpr();
@@ -223,7 +223,7 @@ inline PrimExpr TryConstFold<tir::FloorMod>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) {
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
       return IntImm(rtype, floormod(pa->value, pb->value));
     }
     if (pa) {
@@ -231,7 +231,7 @@ inline PrimExpr TryConstFold<tir::FloorMod>(PrimExpr a, PrimExpr b) {
     }
     if (pb) {
       if (pb->value == 1) return tir::make_zero(rtype);
-      CHECK_NE(pb->value, 0) << "Divide by zero";
+      ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
   return PrimExpr();

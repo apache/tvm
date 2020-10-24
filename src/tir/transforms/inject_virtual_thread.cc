@@ -58,8 +58,8 @@ class ExprTouched final : public StmtExprVisitor {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       const VarNode* buffer_var = op->args[1].as<VarNode>();
-      CHECK(buffer_var);
-      CHECK(rw_mask);
+      ICHECK(buffer_var);
+      ICHECK(rw_mask);
       // read
       if (rw_mask->value & 1) {
         HandleUseVar(buffer_var);
@@ -182,7 +182,7 @@ class VTInjector : public StmtExprMutator {
         allow_share_(allow_share) {}
   // Inject VTLoop when needed.
   Stmt VisitStmt(const Stmt& s) final {
-    CHECK(!visit_touched_var_);
+    ICHECK(!visit_touched_var_);
     auto stmt = StmtExprMutator::VisitStmt(s);
     if (visit_touched_var_ || trigger_base_inject_) {
       if (!vt_loop_injected_) {
@@ -195,7 +195,7 @@ class VTInjector : public StmtExprMutator {
   }
   // Variable
   PrimExpr VisitExpr_(const VarNode* op) final {
-    CHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
+    ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
@@ -221,7 +221,7 @@ class VTInjector : public StmtExprMutator {
   // Expression.
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      CHECK_EQ(op->args.size(), 5U);
+      ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
       auto it = alloc_remap_.find(buffer);
@@ -290,7 +290,7 @@ class VTInjector : public StmtExprMutator {
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {
-    CHECK(is_zero(op->min));
+    ICHECK(is_zero(op->min));
     PrimExpr extent = this->VisitExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(GetRef<Stmt>(op), true);
@@ -313,7 +313,7 @@ class VTInjector : public StmtExprMutator {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
-    CHECK_EQ(max_loop_depth_, 0);
+    ICHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->VisitStmt(op->then_case);
     Stmt else_case;
     if (op->else_case.defined()) {
@@ -332,7 +332,7 @@ class VTInjector : public StmtExprMutator {
 
   // Seq
   Stmt VisitStmt_(const SeqStmtNode* op) final {
-    CHECK_EQ(max_loop_depth_, 0);
+    ICHECK_EQ(max_loop_depth_, 0);
     auto fmutate = [this](const Stmt& s) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
@@ -392,7 +392,7 @@ class VTInjector : public StmtExprMutator {
 
   // inject vthread loop
   Stmt InjectVTLoop(Stmt stmt, bool before_mutation) {
-    CHECK(!vt_loop_injected_);
+    ICHECK(!vt_loop_injected_);
     // reset the flags
     visit_touched_var_ = false;
     trigger_base_inject_ = false;

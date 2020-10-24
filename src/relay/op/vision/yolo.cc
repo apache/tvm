@@ -44,14 +44,14 @@ TVM_REGISTER_NODE_TYPE(YoloReorgAttrs);
  */
 bool YoloReorgRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const YoloReorgAttrs* param = attrs.as<YoloReorgAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
-  CHECK(data->shape.size() == 4) << "Yolo reorg supports only 4 dimension.";
+  ICHECK(data->shape.size() == 4) << "Yolo reorg supports only 4 dimension.";
   std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
   oshape[1] = oshape[1] * param->stride * param->stride;
   oshape[2] = indexdiv(oshape[2], param->stride);
@@ -80,7 +80,7 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
     .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
       const auto* params = attrs.as<YoloReorgAttrs>();
-      CHECK(params != nullptr);
+      ICHECK(params != nullptr);
       return Array<te::Tensor>{topi::vision::reorg(inputs[0], params->stride)};
     });
 

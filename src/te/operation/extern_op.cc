@@ -60,14 +60,14 @@ ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> att
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
-  CHECK_EQ(inputs.size(), input_placeholders.size());
+  ICHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
-    CHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
-    CHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
+    ICHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
+    ICHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
     for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
-      CHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
+      ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
     }
-    CHECK_EQ(input_placeholders[i]->strides.size(), 0U);
+    ICHECK_EQ(input_placeholders[i]->strides.size(), 0U);
   }
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);
@@ -87,7 +87,7 @@ Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
 
 Operation ExternOpNode::ReplaceInputs(const Operation& self,
                                       const std::unordered_map<Tensor, Tensor>& rmap) const {
-  CHECK_EQ(self.operator->(), this);
+  ICHECK_EQ(self.operator->(), this);
   auto n = make_object<ExternOpNode>(*this);
   n->body = ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
@@ -125,7 +125,7 @@ void ExternOpNode::GatherBound(const Operation& self,
 Stmt ExternOpNode::BuildRealize(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& realize_map,
                                 const Stmt& body) const {
-  CHECK_EQ(stage->op.get(), this);
+  ICHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
     Tensor t = stage->op.output(k);
@@ -141,7 +141,7 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
 Stmt ExternOpNode::BuildProvide(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& dom_map,
                                 bool debug_keep_trivial_loop) const {
-  CHECK_EQ(stage->op.operator->(), this);
+  ICHECK_EQ(stage->op.operator->(), this);
   Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;

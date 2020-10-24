@@ -65,10 +65,10 @@ inline Tensor pool_impl(const Tensor& x, const Array<PrimExpr>& kernel_size,
                         const Array<PrimExpr>& stride_size, const Array<PrimExpr>& padding_size,
                         PoolType pool_type, bool ceil_mode, const size_t height_axis,
                         const size_t width_axis, bool count_include_pad) {
-  CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
-  CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
-  CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
-  CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
+  ICHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
+  ICHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
+  ICHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
+  ICHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
   auto kernel_height = cast(DataType::DataType::Int(32), kernel_size[0]);
   auto kernel_width = cast(DataType::DataType::Int(32), kernel_size[1]);
@@ -181,11 +181,11 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
                              const Array<PrimExpr>& padding_size, PoolType pool_type,
                              bool ceil_mode, const size_t height_axis, const size_t width_axis,
                              bool count_include_pad) {
-  CHECK(out_grad->shape.size() >= 2) << "Pooling grad output must >= 2-D (H, W)";
-  CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
-  CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
-  CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
-  CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
+  ICHECK(out_grad->shape.size() >= 2) << "Pooling grad output must >= 2-D (H, W)";
+  ICHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
+  ICHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
+  ICHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
+  ICHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
   auto kernel_height = cast(DataType::DataType::Int(32), kernel_size[0]);
   auto kernel_width = cast(DataType::DataType::Int(32), kernel_size[1]);
@@ -372,7 +372,7 @@ inline bool find_depth_height_width(const std::string& layout, int* depth_axis, 
 
 inline bool find_height_width(const std::string& layout, int* height_axis, int* width_axis) {
   int dummy;
-  CHECK_EQ(find_depth_height_width(layout, &dummy, height_axis, width_axis), false);
+  ICHECK_EQ(find_depth_height_width(layout, &dummy, height_axis, width_axis), false);
   if (*height_axis != -1 && *width_axis != -1) {
     return true;
   }
@@ -381,7 +381,7 @@ inline bool find_height_width(const std::string& layout, int* height_axis, int* 
 
 inline bool find_width(const std::string& layout, int* width_axis) {
   int dummy;
-  CHECK_EQ(find_depth_height_width(layout, &dummy, &dummy, width_axis), false);
+  ICHECK_EQ(find_depth_height_width(layout, &dummy, &dummy, width_axis), false);
   if (*width_axis != -1) {
     return true;
   }
@@ -422,7 +422,7 @@ inline Tensor pool(const Tensor& x, const Array<PrimExpr>& kernel_size,
                    PoolType pool_type, bool ceil_mode, const std::string& layout = "NCHW",
                    bool count_include_pad = true) {
   int height_axis = -1, width_axis = -1;
-  CHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
+  ICHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
   return pool_impl(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode, height_axis,
                    width_axis, count_include_pad);
 }
@@ -462,7 +462,7 @@ inline Tensor pool_grad(const Tensor& out_grad, const Tensor& x, const Array<Pri
                         PoolType pool_type, bool ceil_mode, const std::string& layout = "NCHW",
                         bool count_include_pad = true) {
   int height_axis = -1, width_axis = -1;
-  CHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
+  ICHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
   return pool_grad_impl(out_grad, x, kernel_size, stride_size, padding_size, pool_type, ceil_mode,
                         height_axis, width_axis, count_include_pad);
 }
@@ -489,7 +489,7 @@ inline PrimExpr end_index(const Var& out_index, const PrimExpr& odim, const Prim
 inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_size,
                                  PoolType pool_type, const std::vector<int>& axes) {
   const auto n_dim = output_size.size();
-  CHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
+  ICHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
 
   Array<PrimExpr> data_shape = x->shape;
   for (size_t i = 0; i < data_shape.size(); ++i) {
@@ -591,7 +591,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
 inline Tensor adaptive_pool(const Tensor& x, const Array<PrimExpr>& output_size, PoolType pool_type,
                             const std::string& layout = "NCHW") {
   int height_axis = -1, width_axis = -1;
-  CHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
+  ICHECK(find_height_width(layout, &height_axis, &width_axis)) << "Unsupported layout " << layout;
   return adaptive_pool_impl(x, output_size, pool_type, {height_axis, width_axis});
 }
 
@@ -606,7 +606,7 @@ inline Tensor adaptive_pool(const Tensor& x, const Array<PrimExpr>& output_size,
 inline Tensor adaptive_pool3d(const Tensor& x, const Array<PrimExpr>& output_size,
                               PoolType pool_type, const std::string& layout = "NCDHW") {
   int depth_axis = -1, height_axis = -1, width_axis = -1;
-  CHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
+  ICHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
       << "Unsupported layout " << layout;
   return adaptive_pool_impl(x, output_size, pool_type, {depth_axis, height_axis, width_axis});
 }
@@ -661,10 +661,10 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
                            bool count_include_pad) {
   int k_size = kernel_size.size();
   int x_size = x->shape.size();
-  CHECK_EQ(stride_size.size(), k_size) << "Pooling stride_size must have same elements as kernel";
-  CHECK_EQ(padding_size.size(), k_size * 2) << "Pooling padding_size must has double elements of"
-                                               " kernel";
-  CHECK_EQ(axis.size(), k_size) << "axis must have same elements as kernel";
+  ICHECK_EQ(stride_size.size(), k_size) << "Pooling stride_size must have same elements as kernel";
+  ICHECK_EQ(padding_size.size(), k_size * 2) << "Pooling padding_size must has double elements of"
+                                                " kernel";
+  ICHECK_EQ(axis.size(), k_size) << "axis must have same elements as kernel";
 
   Array<IterVar> daxis;
   std::vector<PrimExpr> kernel(k_size);
@@ -812,7 +812,7 @@ inline Tensor pool1d(const Tensor& x, const Array<PrimExpr>& kernel_size,
                      PoolType pool_type, bool ceil_mode, const std::string& layout = "NCW",
                      bool count_include_pad = true) {
   int width_axis = -1;
-  CHECK(find_width(layout, &width_axis)) << "Unsupported layout " << layout;
+  ICHECK(find_width(layout, &width_axis)) << "Unsupported layout " << layout;
   std::vector<int> axis = {width_axis};
   return pool_impl_nd(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode, axis,
                       count_include_pad);
@@ -853,7 +853,7 @@ inline Tensor pool3d(const Tensor& x, const Array<PrimExpr>& kernel_size,
                      PoolType pool_type, bool ceil_mode, const std::string& layout = "NCDHW",
                      bool count_include_pad = true) {
   int depth_axis = -1, height_axis = -1, width_axis = -1;
-  CHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
+  ICHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
       << "Unsupported layout " << layout;
   std::vector<int> axis = {depth_axis, height_axis, width_axis};
   return pool_impl_nd(x, kernel_size, stride_size, padding_size, pool_type, ceil_mode, axis,

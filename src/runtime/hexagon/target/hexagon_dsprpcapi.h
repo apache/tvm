@@ -21,8 +21,8 @@
 #define TVM_RUNTIME_HEXAGON_TARGET_HEXAGON_DSPRPCAPI_H_
 
 #ifdef __ANDROID__
-#include <dmlc/logging.h>
 #include <stdint.h>
+#include <tvm/support/logging.h>
 
 #include "remote.h"
 #include "remote64.h"
@@ -109,7 +109,7 @@ class DspRpcAPI {
 
 #define DECLFUNC(fn)                                   \
   fn##_t* fn##_ptr(bool allow_nullptr = false) const { \
-    if (!allow_nullptr) CHECK(fn##_ != nullptr);       \
+    if (!allow_nullptr) ICHECK(fn##_ != nullptr);      \
     return fn##_;                                      \
   }
   DECLFUNC(remote_handle_close)

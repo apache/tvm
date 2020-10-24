@@ -44,7 +44,7 @@ template <typename AttrType>
 bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   // types: [data, result]
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   /* If we receive a tuple we can continue, if we receive
    * anything but an incomplete type we should signal an
    * error.
@@ -131,9 +131,9 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
   ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
 
   Array<Array<IndexExpr>> old_in_shapes;
-  CHECK_EQ(old_in_types.size(), 1);
+  ICHECK_EQ(old_in_types.size(), 1);
   for (auto old_in_tuple_t : old_in_types) {
-    CHECK(old_in_tuple_t.as<TupleTypeNode>());
+    ICHECK(old_in_tuple_t.as<TupleTypeNode>());
     for (auto old_in_t : old_in_tuple_t.as<TupleTypeNode>()->fields) {
       old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
     }
