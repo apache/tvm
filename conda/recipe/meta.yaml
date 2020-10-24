@@ -71,14 +71,20 @@ outputs:
     script: install_tvm_python.sh  # [not win]
     script: install_tvm_python.bat # [win]
     string: {{ build_tag }}_py{{ PY_VER | replace('.', '')}}
+    # skip bytecompile pyc to speedup CI speed
+    skip_compile_pyc:
+      - "*/**/*.py"
     requirements:
       host:
         - python
         - setuptools
+        - cython
+        - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
       run:
         - python
         - decorator
         - psutil
+        - scipy
         - {{ pin_compatible('numpy') }}
         - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
 
