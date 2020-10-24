@@ -150,6 +150,7 @@ scale and zero point.
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("Quantize", QuantizeRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QuantizeQnnCanonicalize);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.quantize").set_body_typed(MakeQuantize);

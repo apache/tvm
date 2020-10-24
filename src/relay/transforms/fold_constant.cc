@@ -151,9 +151,12 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // We should think about potentially constant evaluation over these ops too.
-    if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
-        call->op == alloc_storage_op_ || call->op == device_copy_op_) {
-      return GetRef<Call>(call);
+    static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+    if (const auto* call_node = call->op.as<OpNode>()) {
+      Op op = GetRef<Op>(call_node);
+      if ((fnoncomputational.count(op) && fnoncomputational[op]) || (call->op == device_copy_op_)) {
+        return GetRef<Call>(call);
+      }
     }
 
     bool all_const_args = true;
