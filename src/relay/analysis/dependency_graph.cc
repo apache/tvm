@@ -50,7 +50,7 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
   void Depend(DependencyGraph::Node* parent, const Expr& child) {
     VisitExpr(child);
 
-    CHECK_NE(graph_.expr_node.count(child), 0);
+    ICHECK_NE(graph_.expr_node.count(child), 0);
 
     Depend(parent, graph_.expr_node[child]);
   }

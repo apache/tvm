@@ -35,7 +35,7 @@ NNPackThreadLocalEntry* NNPackThreadLocalEntry::ThreadLocal() {
 bool NNPackConfig(uint64_t nthreads) {
   NNPackThreadLocalEntry* entry = NNPackThreadLocalEntry::ThreadLocal();
   if (entry->threadpool && pthreadpool_get_threads_count(entry->threadpool) == nthreads) {
-    CHECK_NE(nthreads, 1);
+    ICHECK_NE(nthreads, 1);
     return true;
   }
   if (entry->threadpool) {
@@ -46,7 +46,7 @@ bool NNPackConfig(uint64_t nthreads) {
   if (nthreads == 1) {
     // a null threadpool means the function is invoked on the calling thread,
     // which is the desired logic for nthreads == 1
-    CHECK(!entry->threadpool);
+    ICHECK(!entry->threadpool);
     return true;
   }
 

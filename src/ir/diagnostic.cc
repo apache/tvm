@@ -225,7 +225,7 @@ void ReportAt(const DiagnosticContext& context, std::ostream& out, const Span& s
     return;
   }
 
-  CHECK(context->module->source_map.defined());
+  ICHECK(context->module->source_map.defined());
   auto it = context->module->source_map->source_map.find(span->source_name);
 
   // If the source name is not in the current source map, sources were not annotated.

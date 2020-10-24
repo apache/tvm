@@ -151,7 +151,7 @@ DeviceDomainPtr Join(const DeviceDomainPtr& lhs, const DeviceDomainPtr& rhs) {
   } else if (rhs->IsEmptyDomain()) {
     return lhs;
   } else {
-    CHECK(*lhs.get() == *rhs.get()) << "All expressions must have a singular device to unify";
+    ICHECK(*lhs.get() == *rhs.get()) << "All expressions must have a singular device to unify";
     return lhs;
   }
 }
@@ -311,7 +311,7 @@ class ContextAnalyzer : public MixedModeVisitor {
       auto ty = let->value->checked_type();
       if (ty->IsInstance<FuncTypeNode>()) {
         auto gv = ExtractClosure(let);
-        CHECK(gv.defined() && gv->IsInstance<GlobalVarNode>());
+        ICHECK(gv.defined() && gv->IsInstance<GlobalVarNode>());
         closures_[let->var] = Downcast<GlobalVar>(gv);
       }
 
@@ -444,7 +444,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   // Process device copy call node
   void UnifyDeviceCopyCall(const CallNode* call) {
-    CHECK_EQ(call->args.size(), 1U);
+    ICHECK_EQ(call->args.size(), 1U);
 
     std::vector<Expr> inps{call->args[0]};
     std::vector<Expr> outs{GetRef<Call>(call)};
@@ -455,13 +455,13 @@ class ContextAnalyzer : public MixedModeVisitor {
       inps.push_back(fn->params[0]);
       outs.push_back(call->op);
       Expr body = fn->body;
-      CHECK(body->IsInstance<CallNode>() && IsDeviceCopy(body));
+      ICHECK(body->IsInstance<CallNode>() && IsDeviceCopy(body));
       Call call_body = Downcast<Call>(body);
       attrs = call_body->attrs.as<DeviceCopyAttrs>();
     } else {
       attrs = call->attrs.as<DeviceCopyAttrs>();
     }
-    CHECK(attrs != nullptr);
+    ICHECK(attrs != nullptr);
     src_dev_type = static_cast<DLDeviceType>(attrs->src_dev_type);
     dst_dev_type = static_cast<DLDeviceType>(attrs->dst_dev_type);
 
@@ -474,7 +474,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   void UnifyAllocStorageCall(const CallNode* call) {
     // [size, alignment]
-    CHECK_EQ(call->args.size(), 2U);
+    ICHECK_EQ(call->args.size(), 2U);
 
     // The arguments of alloc storage should be on CPU.
     for (int i = 0; i < 2; i++) {
@@ -490,7 +490,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   void UnifyAllocTensorCall(const CallNode* call) {
     // [storage, offset, shape]
-    CHECK_EQ(call->args.size(), 3U);
+    ICHECK_EQ(call->args.size(), 3U);
 
     Expr storage = call->args[0];
     Expr shape = call->args[1];
@@ -503,7 +503,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   void UnifyShapeFuncCall(const CallNode* call) {
     // [func, inputs, outputs]
-    CHECK_EQ(call->args.size(), 3U);
+    ICHECK_EQ(call->args.size(), 3U);
     auto shape_func_domain = DeviceType(cpu_ctx_);
 
     // No need to unify the op of a shape_func as shape_func doesn't
@@ -523,7 +523,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   void UnifyInvokeTVMOpCall(const CallNode* call) {
     // [op, inputs, outputs]
-    CHECK_EQ(call->args.size(), 3U);
+    ICHECK_EQ(call->args.size(), 3U);
     Tuple inps = Downcast<Tuple>(call->args[1]);
     Tuple outputs = Downcast<Tuple>(call->args[2]);
     UnifyCall(call->args[0], inps->fields, outputs->fields, Bottom());
@@ -532,7 +532,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   void UnifyShapeOfCall(const CallNode* call) {
     // vm shape_of is always on the CPU.
-    CHECK_EQ(call->args.size(), 1U);
+    ICHECK_EQ(call->args.size(), 1U);
     MixedModeVisitor::VisitExpr(call->args[0]);
     // Note we don't unify the input of a shape_of with the cpu domain. This is
     // because vm.shape_of has a native instruction to compute the shape of
@@ -544,7 +544,7 @@ class ContextAnalyzer : public MixedModeVisitor {
 
   void UnifyReshapeTensorCall(const CallNode* call) {
     // [data, shape]
-    CHECK_EQ(call->args.size(), 2U);
+    ICHECK_EQ(call->args.size(), 2U);
     Expr data = call->args[0];
     Expr shape = call->args[1];
     Unify(DeviceFor(GetRef<Call>(call)), DeviceFor(data));
@@ -583,10 +583,10 @@ class ContextAnalyzer : public MixedModeVisitor {
   // Invoke a global function.
   void UnifyGlobalVarCall(const CallNode* call) {
     auto device = DeviceFor(GetRef<Call>(call));
-    CHECK(mod_.defined()) << "Cannot analyze context on a globalvar without module";
+    ICHECK(mod_.defined()) << "Cannot analyze context on a globalvar without module";
     GlobalVar gv = Downcast<GlobalVar>(call->op);
     auto func = Downcast<Function>(mod_->Lookup(gv));
-    CHECK_EQ(call->args.size(), func->params.size())
+    ICHECK_EQ(call->args.size(), func->params.size())
         << "The number of arguments doesn't match the number of parameters of the function.";
 
     for (size_t i = 0; i < call->args.size(); i++) {
@@ -596,14 +596,14 @@ class ContextAnalyzer : public MixedModeVisitor {
 
       // Save the the arg to function mapping for closures as it will
       // be invoked/unified later.
-      CHECK(arg->checked_type().defined())
+      ICHECK(arg->checked_type().defined())
           << "Type inference is required to run the context analysis passes.";
       if (arg->checked_type()->IsInstance<FuncTypeNode>()) {
         auto it = closures_.find(arg);
         if (it != closures_.end()) {
           closures_[param] = it->second;
         } else {
-          CHECK(arg->IsInstance<GlobalVarNode>());
+          ICHECK(arg->IsInstance<GlobalVarNode>());
           closures_[param] = Downcast<GlobalVar>(arg);
         }
       }
@@ -631,9 +631,9 @@ class ContextAnalyzer : public MixedModeVisitor {
     // Unify the corresponding arguement and parameter.
     auto device = DeviceFor(GetRef<Call>(call));
     auto it = closures_.find(call->op);
-    CHECK(it != closures_.end()) << "Cannot find var: " << call->op;
+    ICHECK(it != closures_.end()) << "Cannot find var: " << call->op;
     auto glb_var = it->second;
-    CHECK(mod_.defined()) << "Cannot analyze context on a globalvar without module";
+    ICHECK(mod_.defined()) << "Cannot analyze context on a globalvar without module";
     Function func = Downcast<Function>(mod_->Lookup(glb_var));
     // Unify the underlying function for clousre or currying functions.
     while (IsClosure(func) || IsCurrying(func)) {
@@ -648,7 +648,7 @@ class ContextAnalyzer : public MixedModeVisitor {
       }
     }
 
-    CHECK_EQ(call->args.size(), func->params.size());
+    ICHECK_EQ(call->args.size(), func->params.size());
     for (size_t i = 0; i < call->args.size(); i++) {
       Unify(DeviceFor(call->args[i]), DeviceFor(func->params[i]));
       MixedModeVisitor::VisitExpr(call->args[i]);

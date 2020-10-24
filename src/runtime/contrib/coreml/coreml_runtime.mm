@@ -59,7 +59,7 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
 
   MLMultiArray* dest = [[MLMultiArray alloc] initWithShape:shape dataType:dataType error:nil];
 
-  CHECK(data_in->strides == NULL);
+  ICHECK(data_in->strides == NULL);
   memcpy(dest.dataPointer, data_in->data, size);
 
   NSString* nsKey = [NSString stringWithUTF8String:key.c_str()];
@@ -155,7 +155,8 @@ PackedFunc CoreMLRuntime::GetFunction(const std::string& name,
 
       // Copy input tensors to corresponding data entries.
       for (auto i = 0; i < args.size() - 1; ++i) {
-        CHECK(args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMNDArrayHandle)
+        ICHECK(args[i].type_code() == kTVMDLTensorHandle ||
+               args[i].type_code() == kTVMNDArrayHandle)
             << "Expect NDArray or DLTensor as inputs\n";
         if (args[i].type_code() == kTVMDLTensorHandle) {
           model_->SetInput([input_names[i] UTF8String], args[i]);
@@ -238,7 +239,7 @@ Module CoreMLRuntimeLoadFromBinary(void* strm) {
   NSString* model_path = [tempDir stringByAppendingPathComponent:dirname];
   NSURL* url = [NSURL fileURLWithPath:model_path];
   BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
-  CHECK(res) << "Failed to create model directory " << [model_path UTF8String];
+  ICHECK(res) << "Failed to create model directory " << [model_path UTF8String];
 
   auto exec = make_object<CoreMLRuntime>();
   exec->Init(symbol, [model_path UTF8String]);

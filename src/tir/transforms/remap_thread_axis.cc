@@ -41,7 +41,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      CHECK_NE(iv->thread_tag.length(), 0U);
+      ICHECK_NE(iv->thread_tag.length(), 0U);
       auto it = tmap_.find(iv->thread_tag);
       if (it != tmap_.end()) {
         const IterVar& new_iv = it->second;
@@ -49,7 +49,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
         if (!vmap_.count(v)) {
           vmap_[v] = new_iv->var;
         } else {
-          CHECK(vmap_[v].same_as(new_iv->var));
+          ICHECK(vmap_[v].same_as(new_iv->var));
         }
         Stmt body = this->VisitStmt(op->body);
         return AttrStmt(new_iv, op->attr_key, op->value, body);
@@ -76,7 +76,7 @@ PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map)
   }
 
   auto opt_thread_axis = f->GetAttr<Array<IterVar>>(tir::attr::kDeviceThreadAxis);
-  CHECK(opt_thread_axis != nullptr) << "Require attribute " << tir::attr::kDeviceThreadAxis;
+  ICHECK(opt_thread_axis != nullptr) << "Require attribute " << tir::attr::kDeviceThreadAxis;
   auto thread_axis = opt_thread_axis.value();
   auto* n = f.CopyOnWrite();
 

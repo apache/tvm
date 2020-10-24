@@ -55,8 +55,8 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
     // 1) Create a map from axis to param_width using old layout.
     std::map<std::string, tvm::Array<Integer>> axis_pad_width;
     int index_counter = 0;
-    CHECK_EQ(new_in_layouts.size(), 1);
-    CHECK_EQ(old_in_layouts.size(), 1);
+    ICHECK_EQ(new_in_layouts.size(), 1);
+    ICHECK_EQ(old_in_layouts.size(), 1);
     for (auto iter_var : old_in_layouts[0]->axes) {
       const auto& old_layout_axis = LayoutAxis::Get(iter_var);
       axis_pad_width.emplace(old_layout_axis.name(), params->pad_width[index_counter]);
@@ -75,7 +75,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
         // This is the axis that got split. So, check that pad_width was [0, 0] originally.
         const auto& dual_axis = new_layout_axis.ToPrimal();
         auto dual_axis_name = dual_axis.name();
-        CHECK(axis_pad_width.count(dual_axis_name))
+        ICHECK(axis_pad_width.count(dual_axis_name))
             << "Missing axis " << dual_axis << " in " << old_in_layouts[0].name();
         new_pad_width.push_back(axis_pad_width.at(dual_axis_name));
 
@@ -102,7 +102,7 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
 
   if (!is_layout_modified) {
     if (old_in_layouts.defined()) {
-      CHECK_EQ(old_in_layouts.size(), 1);
+      ICHECK_EQ(old_in_layouts.size(), 1);
       ret = old_in_layouts[0];
     } else {
       ret = Layout::Undef();
@@ -114,15 +114,15 @@ Array<Array<Layout>> PadInferCorrectLayout(const Attrs& attrs, const Array<Layou
 
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const PadAttrs* param = attrs.as<PadAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   // check that pad widths match lengths
-  CHECK(data->shape.size() == param->pad_width.size())
+  ICHECK(data->shape.size() == param->pad_width.size())
       << "There should be as many pad width pairs as shape dimensions "
       << "but the shape has " << data->shape.size() << " dimensions "
       << "and there are " << param->pad_width.size() << " pad width pairs.";
@@ -130,19 +130,19 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // each pad width element should be a pair of positive integers
   std::vector<IndexExpr> oshape;
   for (size_t i = 0; i < param->pad_width.size(); i++) {
-    CHECK(param->pad_width[i].size() == 2)
+    ICHECK(param->pad_width[i].size() == 2)
         << "Each pad width element should be a pair but at index " << i << " there are "
         << param->pad_width[i].size() << " elements.";
 
     auto width1 = tir::as_const_int(param->pad_width[i][0]);
     auto width2 = tir::as_const_int(param->pad_width[i][1]);
-    CHECK(width1 != nullptr);
-    CHECK(width2 != nullptr);
+    ICHECK(width1 != nullptr);
+    ICHECK(width2 != nullptr);
 
-    CHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
-                        << "index " << i << " is " << *width1 << ".";
-    CHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
-                        << "index " << i << " is " << *width2 << ".";
+    ICHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
+                         << "index " << i << " is " << *width1 << ".";
+    ICHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
+                         << "index " << i << " is " << *width2 << ".";
 
     if (!data->shape[i].as<tir::AnyNode>()) {
       auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
@@ -159,10 +159,10 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                              const Type& out_type) {
   const auto* param = attrs.as<PadAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   auto pad_width = param->pad_width;
-  CHECK(pad_width.size() == inputs[0].ndim() && pad_width[0].size() == 2) << "Illegal pad_width";
+  ICHECK(pad_width.size() == inputs[0].ndim() && pad_width[0].size() == 2) << "Illegal pad_width";
   Array<IndexExpr> pad_before;
   for (size_t i = 0; i < pad_width.size(); ++i) {
     pad_before.push_back(pad_width[i][0]);
@@ -207,15 +207,15 @@ TVM_REGISTER_NODE_TYPE(MirrorPadAttrs);
 
 bool MirrorPadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const MirrorPadAttrs* param = attrs.as<MirrorPadAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   // check that pad widths match lengths
-  CHECK(data->shape.size() == param->pad_width.size())
+  ICHECK(data->shape.size() == param->pad_width.size())
       << "There should be as many pad width pairs as shape dimensions "
       << "but the shape has " << data->shape.size() << " dimensions "
       << "and there are " << param->pad_width.size() << " pad width pairs.";
@@ -223,19 +223,19 @@ bool MirrorPadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // each pad width element should be a pair of positive integers
   std::vector<IndexExpr> oshape;
   for (size_t i = 0; i < param->pad_width.size(); i++) {
-    CHECK(param->pad_width[i].size() == 2)
+    ICHECK(param->pad_width[i].size() == 2)
         << "Each pad width element should be a pair but at index " << i << " there are "
         << param->pad_width[i].size() << " elements.";
 
     auto width1 = tir::as_const_int(param->pad_width[i][0]);
     auto width2 = tir::as_const_int(param->pad_width[i][1]);
-    CHECK(width1 != nullptr);
-    CHECK(width2 != nullptr);
+    ICHECK(width1 != nullptr);
+    ICHECK(width2 != nullptr);
 
-    CHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
-                        << "index " << i << " is " << *width1 << ".";
-    CHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
-                        << "index " << i << " is " << *width2 << ".";
+    ICHECK(*width1 >= 0) << "Param width elements should be positive but first pad width at "
+                         << "index " << i << " is " << *width1 << ".";
+    ICHECK(*width2 >= 0) << "Param width elements should be positive but first pad width at "
+                         << "index " << i << " is " << *width2 << ".";
 
     auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
     oshape.push_back(data->shape[i] + padding);

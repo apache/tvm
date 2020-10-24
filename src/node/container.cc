@@ -96,8 +96,8 @@ struct NDArrayContainerTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::NDArray::Container* key, SHashReducer hash_reduce) {
-    CHECK_EQ(key->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
-    CHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
+    ICHECK_EQ(key->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
     hash_reduce(runtime::DataType(key->dl_tensor.dtype));
     hash_reduce(key->dl_tensor.ndim);
     for (int i = 0; i < key->dl_tensor.ndim; ++i) {
@@ -113,10 +113,10 @@ struct NDArrayContainerTrait {
 
     auto ldt = lhs->dl_tensor.dtype;
     auto rdt = rhs->dl_tensor.dtype;
-    CHECK_EQ(lhs->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
-    CHECK_EQ(rhs->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
-    CHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
-    CHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
+    ICHECK_EQ(lhs->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    ICHECK_EQ(rhs->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
+    ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
 
     if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
     for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
@@ -172,18 +172,18 @@ TVM_REGISTER_GLOBAL("node.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
 
 TVM_REGISTER_GLOBAL("node.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
   int64_t i = args[1];
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  CHECK(ptr->IsInstance<ArrayNode>());
+  ICHECK(ptr->IsInstance<ArrayNode>());
   auto* n = static_cast<const ArrayNode*>(ptr);
-  CHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
+  ICHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
   *ret = n->at(i);
 });
 
 TVM_REGISTER_GLOBAL("node.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  CHECK(ptr->IsInstance<ArrayNode>());
+  ICHECK(ptr->IsInstance<ArrayNode>());
   *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
 });
 
@@ -300,7 +300,7 @@ TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> { return MapNode::Empty(); });
 
 TVM_REGISTER_GLOBAL("node.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args.size() % 2, 0);
+  ICHECK_EQ(args.size() % 2, 0);
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> data;
   for (int i = 0; i < args.num_args; i += 2) {
     ObjectRef k =
@@ -312,29 +312,29 @@ TVM_REGISTER_GLOBAL("node.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
 });
 
 TVM_REGISTER_GLOBAL("node.MapSize").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  CHECK(ptr->IsInstance<MapNode>());
+  ICHECK(ptr->IsInstance<MapNode>());
   auto* n = static_cast<const MapNode*>(ptr);
   *ret = static_cast<int64_t>(n->size());
 });
 
 TVM_REGISTER_GLOBAL("node.MapGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  CHECK(ptr->IsInstance<MapNode>());
+  ICHECK(ptr->IsInstance<MapNode>());
 
   auto* n = static_cast<const MapNode*>(ptr);
   auto it = n->find(String::CanConvertFrom(args[1]) ? args[1].operator String()
                                                     : args[1].operator ObjectRef());
-  CHECK(it != n->end()) << "cannot find the corresponding key in the Map";
+  ICHECK(it != n->end()) << "cannot find the corresponding key in the Map";
   *ret = (*it).second;
 });
 
 TVM_REGISTER_GLOBAL("node.MapCount").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  CHECK(ptr->IsInstance<MapNode>());
+  ICHECK(ptr->IsInstance<MapNode>());
   const MapNode* n = static_cast<const MapNode*>(ptr);
   int64_t cnt = n->count(String::CanConvertFrom(args[1]) ? args[1].operator String()
                                                          : args[1].operator ObjectRef());
@@ -342,7 +342,7 @@ TVM_REGISTER_GLOBAL("node.MapCount").set_body([](TVMArgs args, TVMRetValue* ret)
 });
 
 TVM_REGISTER_GLOBAL("node.MapItems").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   auto* n = static_cast<const MapNode*>(ptr);
   Array<ObjectRef> rkvs;

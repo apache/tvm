@@ -46,7 +46,7 @@ class LibraryModuleNode final : public ModuleNode {
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
           reinterpret_cast<const char*>(lib_->GetSymbol(runtime::symbol::tvm_module_main));
-      CHECK(entry_name != nullptr)
+      ICHECK(entry_name != nullptr)
           << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
       faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(entry_name));
     } else {
@@ -75,7 +75,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
     int ret_type_code = kTVMNullptr;
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                        args.num_args, &ret_value, &ret_type_code, nullptr);
-    CHECK_EQ(ret, 0) << TVMGetLastError();
+    ICHECK_EQ(ret, 0) << TVMGetLastError();
     if (ret_type_code != kTVMNullptr) {
       *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
     }
@@ -107,7 +107,7 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
  * \return Root Module.
  */
 runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
-  CHECK(mblob != nullptr);
+  ICHECK(mblob != nullptr);
   uint64_t nbytes = 0;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
     uint64_t c = mblob[i];
@@ -117,21 +117,21 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
                                  static_cast<size_t>(nbytes));
   dmlc::Stream* stream = &fs;
   uint64_t size;
-  CHECK(stream->Read(&size));
+  ICHECK(stream->Read(&size));
   std::vector<Module> modules;
   std::vector<uint64_t> import_tree_row_ptr;
   std::vector<uint64_t> import_tree_child_indices;
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
-    CHECK(stream->Read(&tkey));
+    ICHECK(stream->Read(&tkey));
     // Currently, _lib is for DSOModule, but we
     // don't have loadbinary function for it currently
     if (tkey == "_lib") {
       auto dso_module = Module(make_object<LibraryModuleNode>(lib));
       modules.emplace_back(dso_module);
     } else if (tkey == "_import_tree") {
-      CHECK(stream->Read(&import_tree_row_ptr));
-      CHECK(stream->Read(&import_tree_child_indices));
+      ICHECK(stream->Read(&import_tree_row_ptr));
+      ICHECK(stream->Read(&import_tree_child_indices));
     } else {
       std::string loadkey = "runtime.module.loadbinary_";
       std::string fkey = loadkey + tkey;
@@ -146,7 +146,7 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
             loaders += name.substr(loadkey.size());
           }
         }
-        CHECK(f != nullptr)
+        ICHECK(f != nullptr)
             << "Binary was created using " << tkey
             << " but a loader of that name is not registered. Available loaders are " << loaders
             << ". Perhaps you need to recompile with this runtime enabled.";
@@ -169,12 +169,12 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
       for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
         auto module_import_addr = ModuleInternal::GetImportsAddr(modules[i].operator->());
         auto child_index = import_tree_child_indices[j];
-        CHECK(child_index < modules.size());
+        ICHECK(child_index < modules.size());
         module_import_addr->emplace_back(modules[child_index]);
       }
     }
   }
-  CHECK(!modules.empty());
+  ICHECK(!modules.empty());
   // invariance: root module is always at location 0.
   // The module order is collected via DFS
   return modules[0];

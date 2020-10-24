@@ -69,12 +69,12 @@ TVM_REGISTER_GLOBAL("relay.op.vm.shape_func")
 
 bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4u);
+  ICHECK_EQ(types.size(), 4u);
   auto shape_func_attrs = attrs.as<ShapeFuncAttrs>();
-  CHECK(shape_func_attrs != nullptr) << "Internal compiler error";
+  ICHECK(shape_func_attrs != nullptr) << "Internal compiler error";
 
   auto func_type = types[0].as<FuncTypeNode>();
-  CHECK(func_type != nullptr);
+  ICHECK(func_type != nullptr);
 
   auto tuple = TupleType(func_type->arg_types);
   auto in_types = FlattenTupleType(tuple);
@@ -137,20 +137,20 @@ RELAY_REGISTER_OP("vm.shape_func")
 // vm.invoke_tvm_op
 bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4u);
+  ICHECK_EQ(types.size(), 4u);
   auto func_type = types[0].as<FuncTypeNode>();
-  CHECK(func_type != nullptr) << "input must be operator with known type";
+  ICHECK(func_type != nullptr) << "input must be operator with known type";
   auto input_type = types[1].as<TupleTypeNode>();
   auto output_type = types[2].as<TupleTypeNode>();
-  CHECK(input_type != nullptr)
+  ICHECK(input_type != nullptr)
       << "internal invariant violated: invoke_tvm_op inputs must be a tuple";
-  CHECK(output_type != nullptr)
+  ICHECK(output_type != nullptr)
       << "internal invariant violated: invoke_tvm_op outputs must be a tuple";
   Type ex_output;
   if (func_type->ret_type.as<TensorTypeNode>()) {
     ex_output = TupleType({func_type->ret_type});
   } else {
-    CHECK(func_type->ret_type.as<TupleTypeNode>()) << "should be tuple type";
+    ICHECK(func_type->ret_type.as<TupleTypeNode>()) << "should be tuple type";
     ex_output = func_type->ret_type;
   }
   auto ex_input = TupleType(func_type->arg_types);
@@ -188,11 +188,11 @@ TVM_REGISTER_NODE_TYPE(ReshapeTensorAttrs);
 
 bool ReshapeTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3u);
+  ICHECK_EQ(types.size(), 3u);
   auto reshape_attrs = attrs.as<ReshapeTensorAttrs>();
-  CHECK(reshape_attrs);
+  ICHECK(reshape_attrs);
   auto tt = types[0].as<TensorTypeNode>();
-  CHECK(tt) << "input must be tensor type";
+  ICHECK(tt) << "input must be tensor type";
   reporter->Assign(types[2], TensorType(reshape_attrs->newshape, tt->dtype));
   return true;
 }

@@ -121,7 +121,7 @@ class CandidateSelector final : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* iv = op->node.as<IterVarNode>();
-      CHECK(iv);
+      ICHECK(iv);
       Var var = iv->var;
       runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
       if ((scope.rank == 0) && (!is_const_int(op->value) || partition_const_loop_)) {
@@ -210,7 +210,7 @@ class PartitionFinder : public StmtExprVisitor {
     // handle thread_axis
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
-      CHECK(thread_axis);
+      ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
       IntSet dom = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
@@ -363,7 +363,7 @@ class LoopPartitioner : public StmtMutator {
     }
 
     const IterVarNode* iv = op->node.as<IterVarNode>();
-    CHECK(iv);
+    ICHECK(iv);
     Var var = iv->var;
     auto as = GetRef<Stmt>(op);
     if (selector.candidates.count(as)) {
@@ -595,7 +595,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 
 inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt body) {
   const ForNode* for_node = static_cast<const ForNode*>(node);
-  CHECK(for_node);
+  ICHECK(for_node);
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
@@ -609,7 +609,7 @@ class RemoveLikelyTags : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
-      CHECK_EQ(op->args.size(), 1);
+      ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {
       return StmtExprMutator::VisitExpr_(op);

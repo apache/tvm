@@ -553,7 +553,7 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
         if (pop->attrs.count("FLOP")) {
           // Use user-provided FLOP
           auto pint = pop->attrs["FLOP"].as<IntImmNode>();
-          CHECK(pint != nullptr);
+          ICHECK(pint != nullptr);
           ret += pint->value;
         } else {
           // Estimate by parsing the compute body
@@ -719,11 +719,11 @@ class IndexRewriter : public StmtExprMutator {
       for (const auto& arg : op->indices) {
         std::string axis_name;
         if (const auto* int_imm = arg.as<IntImmNode>()) {
-          CHECK_EQ(int_imm->value, 0);
+          ICHECK_EQ(int_imm->value, 0);
           axis_name = "IntImm";
         } else {
           axis_name = AxisBaseName(CleanName(Downcast<Var>(arg)->name_hint));
-          CHECK_EQ(name_to_arg.count(axis_name), 0);
+          ICHECK_EQ(name_to_arg.count(axis_name), 0);
           name_to_arg[axis_name] = arg;
         }
       }
@@ -733,7 +733,7 @@ class IndexRewriter : public StmtExprMutator {
       for (int i = new_names_.size() - 1; i >= 0; --i) {
         auto ori_iter_name = new_names_[i];
         auto name_it = name_to_arg.find(ori_iter_name);
-        CHECK(name_it != name_to_arg.end());
+        ICHECK(name_it != name_to_arg.end());
         PrimExpr ori_arg = name_it->second;
 
         PrimExpr mod_factor = new_shape_[i];
@@ -772,12 +772,12 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
   std::ostringstream os;
   uint32_t i = 0;
   const auto& placeholder_op = placeholder->op;
-  CHECK_GT(extractor.read_access.count(placeholder_op), 0);
+  ICHECK_GT(extractor.read_access.count(placeholder_op), 0);
   for (const auto& ev : extractor.read_access[placeholder_op]) {
     for (const auto& e : ev) {
       std::string axis_name;
       if (const auto* int_imm = e.as<IntImmNode>()) {
-        CHECK_EQ(int_imm->value, 0);
+        ICHECK_EQ(int_imm->value, 0);
         axis_name = "IntImm";
       } else {
         axis_name = AxisBaseName(CleanName(Downcast<Var>(e)->name_hint));
@@ -788,7 +788,7 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
     }
   }
 
-  CHECK_EQ(placeholder_axis_names->size(), placeholder->shape.size());
+  ICHECK_EQ(placeholder_axis_names->size(), placeholder->shape.size());
   std::string orig_layout = os.str();
   os.str("");
   // TODO(minmin): uncomment this line for relay integration
@@ -837,7 +837,7 @@ std::string GetNewLayout(Array<PrimExpr>* new_shape, const State& state, const i
     ExtractOriginalIterators(iter->name, &ori_iter_names);
     // fused iters have been replaced with iter->orig_iters.
     // So there should be only one ori iter name extracted from iter->name.
-    CHECK_EQ(ori_iter_names.size(), 1);
+    ICHECK_EQ(ori_iter_names.size(), 1);
     auto ori_iter_name = AxisBaseName(*ori_iter_names.begin());
     new_axis_names.push_back(ori_iter_name);
   }
@@ -937,7 +937,7 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
               new_body.push_back(index_rewriter.Rewrite(body));
             }
             old_compute_op = op;
-            CHECK(!new_compute_op.defined());
+            ICHECK(!new_compute_op.defined());
             new_compute_op = te::ComputeOp(pop->name, pop->tag, pop->attrs, pop->axis, new_body);
           }
         }
@@ -1109,7 +1109,7 @@ String ComputeDAG::PrintStepsAsPython(const Array<Step>& transform_steps) const 
 }
 
 State ComputeDAG::InferBound(const State& state) const {
-  CHECK(state->concrete) << "Only concrete state can be processed to get bound info.";
+  ICHECK(state->concrete) << "Only concrete state can be processed to get bound info.";
 
   State ret_state;
   StateNode* pstate;
@@ -1267,7 +1267,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
               ss << ".v" << k;
             }
             if (auto preduce = pop->body[k].as<ReduceNode>()) {
-              CHECK_LT(k, preduce->combiner->result.size());
+              ICHECK_LT(k, preduce->combiner->result.size());
               PrimExpr combiner = preduce->combiner->result[k];
               if (combiner->IsInstance<AddNode>()) {
                 ss << " += " << preduce->source[0] << "\n";
@@ -1300,7 +1300,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
       if (tensors) {
         return ComputeDAG(tensors.value());
       }
-      CHECK(sch) << "Both tensors and schedule are null";
+      ICHECK(sch) << "Both tensors and schedule are null";
       return ComputeDAG(sch.value());
     });
 

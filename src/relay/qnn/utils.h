@@ -41,16 +41,16 @@ namespace qnn {
 
 static inline Array<IndexExpr> get_shape(const Type& type) {
   auto input_tt = type.as<TensorTypeNode>();
-  CHECK(input_tt != nullptr) << "Type information missing."
-                             << " Please run infer_type pass.";
+  ICHECK(input_tt != nullptr) << "Type information missing."
+                              << " Please run infer_type pass.";
   return input_tt->shape;
 }
 
 static inline int32_t GetQmin(const DataType& dtype) {
-  CHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
+  ICHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
     auto* min_value = tir::as_const_int(tvm::min_value(dtype));
-    CHECK(min_value != nullptr);
+    ICHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
@@ -59,10 +59,10 @@ static inline int32_t GetQmin(const DataType& dtype) {
 }
 
 static inline int32_t GetQmax(const DataType& dtype) {
-  CHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
+  ICHECK_LE(dtype.bits(), 32) << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
     auto* max_value = tir::as_const_int(tvm::max_value(dtype));
-    CHECK(max_value != nullptr);
+    ICHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
@@ -109,7 +109,7 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
 
 static inline int64_t get_const_int(const tvm::PrimExpr& x) {
   auto* value_ptr = tir::as_const_int(x);
-  CHECK(value_ptr) << "Expr is not a constant int";
+  ICHECK(value_ptr) << "Expr is not a constant int";
   return value_ptr[0];
 }
 
@@ -172,10 +172,10 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multiplier,
  */
 static inline bool IsScalarType(const Type& expr_type, const DataType& dtype) {
   const auto* tensor_type = expr_type.as<TensorTypeNode>();
-  CHECK(tensor_type) << "Only tensor type can be checked for scalar values. But got"
-                     << AsText(expr_type, false);
-  CHECK_EQ(tensor_type->shape.size(), 0);
-  CHECK(tensor_type->dtype == dtype) << "Expected " << dtype << " but got " << tensor_type->dtype;
+  ICHECK(tensor_type) << "Only tensor type can be checked for scalar values. But got"
+                      << AsText(expr_type, false);
+  ICHECK_EQ(tensor_type->shape.size(), 0);
+  ICHECK(tensor_type->dtype == dtype) << "Expected " << dtype << " but got " << tensor_type->dtype;
   return true;
 }
 
@@ -190,9 +190,10 @@ static inline void AssignType(const Type& expr_type, const DataType& dtype, cons
                               const TypeReporter& reporter) {
   // Scale/Zero_points can be either const scalar or a vector with C axis num elems.
   const auto* tensor_type = expr_type.as<TensorTypeNode>();
-  CHECK(tensor_type) << "Can assign type to Tensor type only. But got " << AsText(expr_type, false);
+  ICHECK(tensor_type) << "Can assign type to Tensor type only. But got "
+                      << AsText(expr_type, false);
   const auto tensor_dtype = tensor_type->dtype;
-  CHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
+  ICHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
   if (tensor_type->shape.size() != 0) {
     reporter->Assign(expr_type, TensorType({shape}, tensor_type->dtype));
   }
@@ -201,7 +202,7 @@ static inline void AssignType(const Type& expr_type, const DataType& dtype, cons
 static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
   const auto* n = expr.as<ConstantNode>();
   std::vector<float> vals;
-  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  ICHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
   int64_t num_elems = 1;
   auto shape = n->data.Shape();
   for (size_t i = 0; i < shape.size(); i++) {

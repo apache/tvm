@@ -39,26 +39,26 @@ namespace qnn {
 
 bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 7);
+  ICHECK_EQ(types.size(), 7);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<DenseAttrs>();
-  CHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
-  CHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
+  ICHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
-  CHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
+  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for weight but was " << weight->dtype;
-  CHECK(param->out_dtype == DataType::Int(32))
+  ICHECK(param->out_dtype == DataType::Int(32))
       << "Expected quantized dense type(int32) for output but was " << param->out_dtype;
 
   // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
-  CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
+  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   AssignType(types[5], DataType::Float(32), param->units, reporter);
 
-  CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
+  ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Dense infer type function.
@@ -133,7 +133,7 @@ Expr DenseFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int re
  */
 Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
-  CHECK_EQ(new_args.size(), 6);
+  ICHECK_EQ(new_args.size(), 6);
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
   Expr input_zero_point = new_args[2];

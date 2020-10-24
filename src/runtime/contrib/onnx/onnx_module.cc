@@ -53,8 +53,8 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
   std::string GetSource(const std::string& format) final { return code_; }
 
   void SaveToFile(const std::string& path, const std::string& format) final {
-    CHECK_EQ(format, "onnx") << "Can only save to onnx format";
-    CHECK_NE(code_.length(), 0);
+    ICHECK_EQ(format, "onnx") << "Can only save to onnx format";
+    ICHECK_NE(code_.length(), 0);
     const PackedFunc* to_onnx_ = runtime::Registry::Get("relay.ext.onnx.save_to_file");
     (*to_onnx_)(code_, path, format);
   }

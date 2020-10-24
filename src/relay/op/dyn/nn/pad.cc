@@ -41,7 +41,7 @@ namespace dyn {
 bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
             const TypeReporter& reporter) {
   // types = [data_type, pad_width_type, pad_value_type, ret_type]
-  CHECK_EQ(types.size(), 4);
+  ICHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
@@ -52,13 +52,13 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (pad_value == nullptr) return false;
 
   int data_rank = data->shape.size();
-  CHECK(data_rank) << "Data shape must have static rank";
+  ICHECK(data_rank) << "Data shape must have static rank";
 
   int pad_width_rank = pad_width->shape.size();
-  CHECK_EQ(pad_width_rank, 2) << "Pad width must be 2D";
+  ICHECK_EQ(pad_width_rank, 2) << "Pad width must be 2D";
 
   const PadAttrs* param = attrs.as<PadAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   std::vector<IndexExpr> oshape;
   for (int i = 0; i < data_rank; i++) {
@@ -72,7 +72,7 @@ bool PadRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                              const Type& out_type) {
   const auto* param = attrs.as<PadAttrs>();
-  CHECK(param);
+  ICHECK(param);
 
   auto data = inputs[0];
   auto pad_width = inputs[1];
@@ -88,7 +88,7 @@ Array<te::Tensor> PadCompute(const Attrs& attrs, const Array<te::Tensor>& inputs
   }
 
   const auto* out_ttype = out_type.as<TensorTypeNode>();
-  CHECK(out_ttype != nullptr);
+  ICHECK(out_ttype != nullptr);
 
   return Array<te::Tensor>{topi::pad(inputs[0], pad_before, pad_after, pad_value, "T_pad",
                                      topi::kElementWise, param->pad_mode,

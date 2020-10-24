@@ -53,9 +53,9 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
-      CHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
-                   << static_cast<unsigned>(type_code) << " source type "
-                   << static_cast<unsigned>(src_type_code) << " not found";
+      ICHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
+                    << static_cast<unsigned>(type_code) << " source type "
+                    << static_cast<unsigned>(src_type_code) << " not found";
       return (*lower)(expr);
     }
     return expr;
@@ -66,8 +66,8 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     auto e = GetRef<PrimExpr>(imm);
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
-      CHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
-                   << static_cast<unsigned>(type_code) << " not found";
+      ICHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
+                    << static_cast<unsigned>(type_code) << " not found";
       return (*lower)(e);
     }
     return e;
@@ -103,11 +103,11 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     call = expr.as<CallNode>();
     if (toBeLowered) {
       auto op = call->op.as<OpNode>();
-      CHECK(op != nullptr) << "Lowering non-intrinsic Calls not implemented";
+      ICHECK(op != nullptr) << "Lowering non-intrinsic Calls not implemented";
       auto lower = datatype::GetIntrinLowerFunc(target_, op->name, call->dtype.code());
-      CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
-                   << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
-                   << " not found";
+      ICHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
+                    << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
+                    << " not found";
       return (*lower)(expr);
     }
     return expr;
@@ -121,8 +121,8 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     op = expr.as<NodeName>();                                                      \
     if (toBeLowered) {                                                             \
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);               \
-      CHECK(lower) << #OP " lowering function for target " << target_ << " type "  \
-                   << static_cast<unsigned>(type_code) << " not found";            \
+      ICHECK(lower) << #OP " lowering function for target " << target_ << " type " \
+                    << static_cast<unsigned>(type_code) << " not found";           \
       return (*lower)(expr);                                                       \
     }                                                                              \
     return expr;                                                                   \
@@ -153,7 +153,7 @@ Pass LowerCustomDatatypes() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    CHECK(target.defined()) << "LowerCustomDatatypes: Require the target attribute";
+    ICHECK(target.defined()) << "LowerCustomDatatypes: Require the target attribute";
 
     n->body = CustomDatatypesLowerer(target.value()->kind->name)(std::move(n->body));
     return f;

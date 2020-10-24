@@ -32,7 +32,7 @@ namespace auto_scheduler {
 Array<Integer> GetSpatialSplitStepIds(const State& s, int stage_id) {
   const auto& stage = s->stages[stage_id];
   const auto& pop = s->stages[stage_id]->op.as<te::ComputeOpNode>();
-  CHECK(pop != nullptr);
+  ICHECK(pop != nullptr);
   const std::set<std::string>& no_split_at_inner_name_set =
       stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
           ? GetIterNameSetParam(stage->op->attrs, SearchPolicyKey::no_split_at_inner)
@@ -182,7 +182,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   for (const auto& iter : state->stages[stage_id]->iters) {
     if (!no_split_at_inner_name_set.count(iter->name)) {
       if (iter->iter_kind == IteratorKind::kSpatial) {
-        CHECK_GE(n_space, 1);
+        ICHECK_GE(n_space, 1);
 
         if (n_space == 1) {
           space_levels[0].push_back(iter);
@@ -194,7 +194,7 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
           spatial_split_step_ids->push_back(tmp_s->transform_steps.size() - 1);
         }
       } else if (iter->iter_kind == IteratorKind::kReduction) {
-        CHECK_GE(n_reduce, 1);
+        ICHECK_GE(n_reduce, 1);
 
         if (n_reduce == 1) {
           reduce_levels[0].push_back(iter);
@@ -219,26 +219,26 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   }
 
   if (!space_outer.empty()) {
-    CHECK(!space_levels.empty());
+    ICHECK(!space_levels.empty());
     space_levels.front().insert(space_levels.front().begin(),
                                 std::make_move_iterator(space_outer.begin()),
                                 std::make_move_iterator(space_outer.end()));
   }
   if (!space_inner.empty()) {
-    CHECK(!space_levels.empty());
+    ICHECK(!space_levels.empty());
     space_levels.back().insert(space_levels.back().begin(),
                                std::make_move_iterator(space_inner.begin()),
                                std::make_move_iterator(space_inner.end()));
   }
 
   if (!reduce_outer.empty()) {
-    CHECK(!reduce_levels.empty());
+    ICHECK(!reduce_levels.empty());
     reduce_levels.front().insert(reduce_levels.front().begin(),
                                  std::make_move_iterator(reduce_outer.begin()),
                                  std::make_move_iterator(reduce_outer.end()));
   }
   if (!reduce_inner.empty()) {
-    CHECK(!reduce_levels.empty());
+    ICHECK(!reduce_levels.empty());
     reduce_levels.back().insert(reduce_levels.back().begin(),
                                 std::make_move_iterator(reduce_inner.begin()),
                                 std::make_move_iterator(reduce_inner.end()));
@@ -274,7 +274,7 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
   Array<Iterator> split_res;
 
   auto pop = state->stages[stage_id]->op.as<te::ComputeOpNode>();
-  CHECK(pop != nullptr);
+  ICHECK(pop != nullptr);
   const Stage& stage = state->stages[stage_id];
   const std::set<std::string>& no_split_at_inner_name_set =
       stage->op->attrs.count(SearchPolicyKey::no_split_at_inner)
@@ -285,8 +285,8 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
     no_split_at_inner_name_in_stage_cnt += no_split_at_inner_name_set.count(iter->name);
   }
 
-  CHECK_EQ(state->stages[stage_id]->iters.size() - no_split_at_inner_name_in_stage_cnt,
-           split_step_ids.size());
+  ICHECK_EQ(state->stages[stage_id]->iters.size() - no_split_at_inner_name_in_stage_cnt,
+            split_step_ids.size());
 
   State tmp_s = state;
   int ct = 0;
@@ -328,7 +328,7 @@ State FollowTiling(const State& state, int stage_id, const std::vector<int>& spl
           } else if (n_split == 2) {
             space_2.push_back(iter);
           } else {
-            CHECK_EQ(n_split, 3);
+            ICHECK_EQ(n_split, 3);
             space_3.push_back(iter);
           }
         }

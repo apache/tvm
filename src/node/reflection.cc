@@ -50,7 +50,7 @@ class AttrGetter : public AttrVisitor {
     if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, uint64_t* value) final {
-    CHECK_LE(value[0], static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+    ICHECK_LE(value[0], static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         << "cannot return too big constant";
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }
@@ -198,7 +198,7 @@ class NodeAttrSetter : public AttrVisitor {
 void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const TVMArgs& args) {
   NodeAttrSetter setter;
   setter.type_key = n->GetTypeKey();
-  CHECK_EQ(args.size() % 2, 0);
+  ICHECK_EQ(args.size() % 2, 0);
   for (int i = 0; i < args.size(); i += 2) {
     setter.attrs.emplace(args[i].operator std::string(), args[i + 1]);
   }
@@ -245,13 +245,13 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
 
 // Expose to FFI APIs.
 void NodeGetAttr(TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* self = static_cast<Object*>(args[0].value().v_handle);
   *ret = ReflectionVTable::Global()->GetAttr(self, args[1]);
 }
 
 void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* self = static_cast<Object*>(args[0].value().v_handle);
 
   auto names =

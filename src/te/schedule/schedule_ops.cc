@@ -69,13 +69,13 @@ class InjectAttach : public StmtMutator {
         debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
 
   Stmt VisitStmt(const Stmt& input_stmt) final {
-    CHECK(input_stmt.defined());
+    ICHECK(input_stmt.defined());
     auto stmt = StmtMutator::VisitStmt(input_stmt);
     const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr && op->attr_key == tir::attr::loop_scope) {
       if (attach_spec_->attach_type == kScope && op->node == attach_spec_->attach_ivar) {
-        CHECK(!found_attach) << "Find IterVar" << attach_spec_->attach_ivar
-                             << " in multiple places in the IR";
+        ICHECK(!found_attach) << "Find IterVar" << attach_spec_->attach_ivar
+                              << " in multiple places in the IR";
         found_attach = true;
         stmt = AttrStmt(op->node, op->attr_key, op->value,
                         MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
@@ -111,7 +111,7 @@ class InjectScanStep : public StmtMutator {
         debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
 
   Stmt VisitStmt(const Stmt& input_stmt) final {
-    CHECK(input_stmt.defined());
+    ICHECK(input_stmt.defined());
     auto stmt = StmtMutator::VisitStmt(input_stmt);
     // update
     const AttrStmtNode* op = stmt.as<AttrStmtNode>();
@@ -160,14 +160,14 @@ class SchedulePostProc : public StmtExprMutator {
       return this->VisitStmt(op->body);
     } else if (op->attr_key == tir::attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
-      CHECK(scan);
+      ICHECK(scan);
       var_value_[scan->scan_axis->var.get()] = op->value;
       return this->VisitStmt(op->body);
     } else if (op->attr_key == tir::attr::thread_extent) {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {
-        CHECK(is_zero(analyzer_.Simplify(it->second - op->value)));
+        ICHECK(is_zero(analyzer_.Simplify(it->second - op->value)));
         return this->VisitStmt(op->body);
       } else {
         thread_extent_scope_[op->node.get()] = op->value;
@@ -243,7 +243,7 @@ class SchedulePostProc : public StmtExprMutator {
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<ProducerLoadNode>();
-    CHECK(op != nullptr);
+    ICHECK(op != nullptr);
 
     auto key = Downcast<Tensor>(op->producer);
     auto it = replace_buffer_.find(key);
@@ -271,7 +271,7 @@ class SchedulePostProc : public StmtExprMutator {
         if (kv.second->bind_thread.defined()) {
           const Var& from = kv.first->var;
           const Var& to = kv.second->bind_thread->var;
-          CHECK(!var_value_.count(from.get()));
+          ICHECK(!var_value_.count(from.get()));
           var_value_[from.get()] = to;
         }
       }
@@ -325,7 +325,8 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
     if (!scan) continue;
     for (Tensor t : scan->init) {
       if (scan_init.count(t->op)) {
-        CHECK(scan_init.at(t->op).same_as(s->op)) << "Scan init tensor can only belong to one scan";
+        ICHECK(scan_init.at(t->op).same_as(s->op))
+            << "Scan init tensor can only belong to one scan";
       } else {
         scan_init[t->op] = s->op;
       }
@@ -333,44 +334,44 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
   }
   // verify correctness of group.
   for (Stage g : sch->groups) {
-    CHECK(!g->op.defined());
-    CHECK_EQ(g->leaf_iter_vars.size(), 0U);
+    ICHECK(!g->op.defined());
+    ICHECK_EQ(g->leaf_iter_vars.size(), 0U);
   }
   // reverse the post DFS order.
   for (size_t i = sch->stages.size(); i != 0; --i) {
     Stage s = sch->stages[i - 1];
-    CHECK_NE(s->attach_type, kInline) << "call schedule.normalize before scheduleops";
-    CHECK(s->op.defined());
+    ICHECK_NE(s->attach_type, kInline) << "call schedule.normalize before scheduleops";
+    ICHECK(s->op.defined());
     // no need to specify place holder op.
     if (s->op.as<PlaceholderOpNode>()) continue;
     // Remove grouping sugar, get the real attach spec.
     Stage attach_spec = s.GetAttachSpec();
 
     if (scan_init.count(s->op)) {
-      CHECK(body.defined());
+      ICHECK(body.defined());
       InjectScanStep mu(s, scan_init.at(s->op), dom_map, true, debug_keep_trivial_loop);
       body = mu(std::move(body));
-      CHECK(mu.found_attach) << "did not find attachment point for scan.init";
+      ICHECK(mu.found_attach) << "did not find attachment point for scan.init";
     } else if (attach_spec->attach_type == kScanUpdate) {
       // Handle scan update
-      CHECK(body.defined());
+      ICHECK(body.defined());
       InjectScanStep mu(s, attach_spec->attach_stage->op, dom_map, false, debug_keep_trivial_loop);
       body = mu(std::move(body));
-      CHECK(mu.found_attach) << "did not find attachment point for scan.update";
+      ICHECK(mu.found_attach) << "did not find attachment point for scan.update";
     } else if (attach_spec->attach_type == kInlinedAlready) {
       // do nothing
     } else if (attach_spec->attach_type == kGroupRoot) {
-      CHECK(!s->group.defined());
+      ICHECK(!s->group.defined());
       body = MakePipeline(s, dom_map, body, debug_keep_trivial_loop);
     } else {
-      CHECK_EQ(attach_spec->attach_type, kScope);
-      CHECK(body.defined());
+      ICHECK_EQ(attach_spec->attach_type, kScope);
+      ICHECK(body.defined());
       InjectAttach mutator(s, attach_spec, dom_map, debug_keep_trivial_loop);
       body = mutator(std::move(body));
-      CHECK(mutator.found_attach) << "did not find attachment point for " << s << " in "
-                                  << attach_spec->attach_stage->op << " x "
-                                  << attach_spec->attach_ivar << ", body:\n"
-                                  << body;
+      ICHECK(mutator.found_attach)
+          << "did not find attachment point for " << s << " in " << attach_spec->attach_stage->op
+          << " x " << attach_spec->attach_ivar << ", body:\n"
+          << body;
     }
   }
   SchedulePostProc post_proc;
