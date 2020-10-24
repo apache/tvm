@@ -242,6 +242,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
+  /*!
+   * \brief Get the number of elements in the given vector value.
+   * \param vec The value, must be of a vector type.
+   */
+  inline int GetVectorNumElements(llvm::Value* vec);
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
@@ -348,6 +353,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   static std::unique_ptr<DebugInfo> CreateDebugInfo(llvm::Module* module);
 };
+
+inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
+#if TVM_LLVM_VERSION >= 120
+  return llvm::cast<llvm::FixedVectorType>(vec->getType())->getNumElements();
+#else
+  return llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
+#endif
+}
+
 }  // namespace codegen
 }  // namespace tvm
 #endif  // LLVM_VERSION
