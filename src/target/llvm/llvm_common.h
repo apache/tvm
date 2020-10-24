@@ -69,11 +69,6 @@
 #include <llvm/CodeGen/TargetLoweringObjectFileImpl.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
-#if TVM_LLVM_VERSION >= 80
-#include <llvm/Support/ARMTargetParser.h>
-#else
-#include <llvm/Support/TargetParser.h>
-#endif
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Host.h>
@@ -106,12 +101,11 @@ void InitializeLLVM();
  * \param target The TVM target
  * \param triple Target triple
  * \param mcpu cpu info
- * \param mfpu fpu info
  * \param options the options
  * \param mattr The attributes
  */
 void ParseLLVMTargetOptions(const Target& target, std::string* triple, std::string* mcpu,
-                            std::string* mfpu, std::string* mattr, llvm::TargetOptions* options);
+                            std::string* mattr, llvm::TargetOptions* options);
 
 /*!
  * \brief Get target machine from TVM target.

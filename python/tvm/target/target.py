@@ -233,7 +233,7 @@ def micro(model="unknown", options=None):
     """
     trans_table = {
         "host": ["-mcpu=native"],
-        "stm32f746xx": ["-mcpu=cortex-m7", "-mfpu=fpuv5-sp-d16"],
+        "stm32f746xx": ["-mcpu=cortex-m7"],
     }
     opts = _merge_opts(
         trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"], options
