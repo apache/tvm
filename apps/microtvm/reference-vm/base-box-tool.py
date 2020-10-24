@@ -70,7 +70,6 @@ VIRTUALBOX_VID_PID_RE = re.compile(r"0x([0-9A-Fa-f]{4}).*")
 def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
     usb_devices = parse_virtualbox_devices()
     for dev in usb_devices:
-        print('dev', dev)
         m = VIRTUALBOX_VID_PID_RE.match(dev["VendorId"])
         if not m:
             _LOG.warning("Malformed VendorId: %s", dev["VendorId"])
@@ -95,11 +94,16 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
                 "usbfilter",
                 "add",
                 "0",
-                "--action", "hold",
-                "--name", "test device",
-                "--target", uuid,
-                "--vendorid", vid_hex,
-                "--productid", pid_hex,
+                "--action",
+                "hold",
+                "--name",
+                "test device",
+                "--target",
+                uuid,
+                "--vendorid",
+                vid_hex,
+                "--productid",
+                pid_hex,
             ]
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
