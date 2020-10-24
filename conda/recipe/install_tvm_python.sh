@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,10 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-python:
-  - 3.5
-  - 3.6
-  - 3.7
+set -e
+set -u
 
-cuda:
-  - False
+cd ${SRC_DIR}/python
+${PYTHON} setup.py install --single-version-externally-managed --record=/tmp/record.txt
