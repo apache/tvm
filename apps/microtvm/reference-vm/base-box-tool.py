@@ -149,7 +149,14 @@ def generate_packer_config(file_path, providers):
         )
 
     with open(file_path, "w") as f:
-        json.dump({"builders": builders,}, f, sort_keys=True, indent=2)
+        json.dump(
+            {
+                "builders": builders,
+            },
+            f,
+            sort_keys=True,
+            indent=2,
+        )
 
 
 def build_command(args):

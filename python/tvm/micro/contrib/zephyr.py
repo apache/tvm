@@ -544,7 +544,9 @@ class ZephyrQemuTransport(Transport):
         os.mkfifo(self.write_pipe)
         os.mkfifo(self.read_pipe)
         self.proc = subprocess.Popen(
-            ["make", "run", f"QEMU_PIPE={self.pipe}"], cwd=self.base_dir, **self.kwargs,
+            ["make", "run", f"QEMU_PIPE={self.pipe}"],
+            cwd=self.base_dir,
+            **self.kwargs,
         )
         # NOTE: although each pipe is unidirectional, open both as RDWR to work around a select
         # limitation on linux. Without this, non-blocking I/O can't use timeouts because named
