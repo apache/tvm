@@ -623,7 +623,7 @@ void HexagonSimulator::Free(void* ptr) {
   LOG(INFO) << "HexagonSimulator::Free(ptr=" << std::hex << ptr << std::dec << ')';
   if (task_queuing_) {
     Message mf = {kFlush, 0, 0};
-    SendMsg(mf, 0, true);
+    SendMsg(mf, nullptr, true);
   }
   Message m = {kFree, sizeof(MsgPointer), 0u};
   MsgPointer mp = {p2va(ptr)};
@@ -661,7 +661,7 @@ void HexagonSimulator::CopyDeviceToHost(void* host_dst, const void* src, unsigne
             << ", len=" << len << ')';
   if (task_queuing_) {
     Message mf = {kFlush, 0, 0};
-    SendMsg(mf, 0, true);
+    SendMsg(mf, nullptr, true);
   }
   CopyFromV(host_dst, p2va(src), len);
 }
@@ -739,7 +739,7 @@ void HexagonSimulator::Call(void* func, uint32_t* scalar, unsigned sc_num, uint3
 
   if (!task_queuing_) {
     Message mf = {kFlush, 0, 0};
-    SendMsg(mf, 0, true);
+    SendMsg(mf, nullptr, true);
   }
 
   std::vector<uint8_t> rv(m.len);
