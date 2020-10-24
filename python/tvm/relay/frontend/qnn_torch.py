@@ -864,7 +864,7 @@ def _linear_dynamic():
         dense_out = _op.cast(dense, "float32") * dequant_scale
 
         if bias_var is not None:
-            return _op.nn.bias_add(dense_out, bias_var)
+            return dense_out + bias_var
 
         return dense_out
 
