@@ -27,6 +27,7 @@ from torch.quantization import QuantStub, DeQuantStub
 from torch.quantization import fuse_modules, QuantWrapper
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 
@@ -524,9 +525,7 @@ def test_quantize_dynamic():
     mod = LinearWrapper(16, 32)
 
     qspec = {nn.Linear: torch.quantization.per_channel_dynamic_qconfig}
-    qmod = torch.quantization.quantize_dynamic(
-        mod, qconfig_spec=qspec, dtype=torch.qint8
-    )
+    qmod = torch.quantization.quantize_dynamic(mod, qconfig_spec=qspec, dtype=torch.qint8)
 
     inp = torch.randn(16, 16)
     script_module = torch.jit.trace(qmod, inp).eval()
@@ -540,12 +539,4 @@ def test_quantize_dynamic():
     runtime.run()
     tvm_result = runtime.get_output(0).asnumpy()
 
-    max_abs_diff = np.max(np.abs(tvm_result - pt_result))
-    mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
-    num_identical = np.sum(tvm_result == pt_result)
-    match_ratio = num_identical / float(np.prod(tvm_result.shape))
-
-    print(max_abs_diff, mean_abs_diff, match_ratio)
-
-
-test_quantize_dynamic()
+    tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-5, atol=1e-5)

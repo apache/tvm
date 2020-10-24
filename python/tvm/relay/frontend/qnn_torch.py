@@ -827,15 +827,26 @@ def _mul_scalar():
 
 
 def _linear_dynamic():
+    def _calculate_qparam(inp):
+        mx = _op.max(inp)
+        mn = _op.min(inp)
+
+        scale = (mx - mn) / _expr.const(255.0)
+
+        zero_point_from_min = -(mn / scale)
+        zero_point = _op.cast(_op.round(_op.clip(zero_point_from_min, 0.0, 255.0)), "int32")
+
+        return scale, zero_point
+
     def _impl(inputs, _):
         weight = inputs[1][0]
         weight_scale = inputs[1][1]
         weight_zero_point = inputs[1][2]
 
-        input_scale = _expr.const(1.0)
-        input_zero_point = _expr.const(0)
+        inp = inputs[0]
 
-        qinp = relay.qnn.op.quantize(inputs[0], input_scale, input_zero_point)
+        input_scale, input_zero_point = _calculate_qparam(inp)
+        qinp = relay.qnn.op.quantize(inp, input_scale, input_zero_point, out_dtype="uint8")
 
         weight_shape = infer_shape(weight)
         dense = relay.qnn.op.dense(
@@ -849,7 +860,8 @@ def _linear_dynamic():
         )
         bias_var = inputs[1][3]
 
-        dense_out = _op.cast(dense, "float32")
+        dequant_scale = input_scale * weight_scale
+        dense_out = _op.cast(dense, "float32") * dequant_scale
 
         if bias_var is not None:
             return _op.nn.bias_add(dense_out, bias_var)
