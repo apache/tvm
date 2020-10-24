@@ -48,7 +48,7 @@ def render_dockerfile(version):
     )
     fname = os.path.join(condadir, "../docker/Dockerfile.conda_cuda" + version.replace(".", ""))
     with open(fname, "w") as f:
-        f.write(txt)
+        f.write(txt + "\n")
     return fname
 
 
