@@ -848,7 +848,13 @@ def _linear_dynamic():
         input_scale, input_zero_point = _calculate_qparam(inp)
         qinp = relay.qnn.op.quantize(inp, input_scale, input_zero_point, out_dtype="uint8")
 
+        data_shape = infer_shape(inp)
+
+        if len(data_shape) > 2:
+            qinp = _op.reverse_reshape(qinp, [-1, 0])
+
         weight_shape = infer_shape(weight)
+        units = weight_shape[0]
         dense = relay.qnn.op.dense(
             qinp,
             weight,
@@ -856,12 +862,17 @@ def _linear_dynamic():
             weight_zero_point,
             input_scale,
             weight_scale,
-            units=weight_shape[0],
+            units=units,
         )
         bias_var = inputs[1][3]
 
         dequant_scale = input_scale * weight_scale
         dense_out = _op.cast(dense, "float32") * dequant_scale
+
+        if len(data_shape) > 2:
+            new_shape = list(data_shape[:-1])
+            new_shape.append(units)
+            dense_out = _op.reshape(dense_out, new_shape)
 
         if bias_var is not None:
             return dense_out + bias_var
