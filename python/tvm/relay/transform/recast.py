@@ -26,13 +26,13 @@ from ..expr_functor import ExprMutator, Call
 class RecastMutator(ExprMutator):
     """Cast operations to the target type."""
 
-    def __init__(self, dtype, out_dtype, valid_ops, valid_op_count, skip_layers=None):
+    def __init__(self, dtype, out_dtype, valid_ops, valid_op_count, skip_layers):
         self.dtype = dtype
         self.out_dtype = out_dtype
         self.depth_count = 0
         self.valid_ops = [relay.op.get(op) for op in valid_ops]
         self.valid_op_count = valid_op_count
-        self.skip_layers = skip_layers if skip_layers is not None else []
+        self.skip_layers = skip_layers
         # Convert negative indices to positive ones.
         for i, layer in enumerate(skip_layers):
             if layer < 0:
@@ -92,7 +92,7 @@ class RecastMutator(ExprMutator):
         return Call(new_fn, args, call.attrs)
 
 
-def recast(expr, dtype, out_dtype, ops=["nn.conv2d"], skip_layers=None):
+def recast(expr, dtype, out_dtype, ops=None, skip_layers=None):
     """Convert the types of operations in a graph to a new value.
     Note that this is primarily useful for testing performance of individual
     operations at the new datatype. In a real setting, this pass will
@@ -127,6 +127,10 @@ def recast(expr, dtype, out_dtype, ops=["nn.conv2d"], skip_layers=None):
     if isinstance(expr, tvm.ir.IRModule):
         expr = expr["main"]
         return_mod = True
+    if ops is None:
+        ops = ["nn.conv2d"]
+    if skip_layers is None:
+        skip_layers = []
     layer_depth = count_layers(expr, ops)
     recast_pass = RecastMutator(dtype, out_dtype, ops, layer_depth, skip_layers)
     expr = recast_pass.visit(expr)
