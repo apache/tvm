@@ -165,10 +165,8 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   if (!IsConstScalar(input_zero_point)) {
     if (kernel_zero_point_int == 0) {
-      LOG(INFO) << "kernel zp is zero";
       return Subtract(term1, term3);
     }
-    LOG(INFO) << "kernel zp is non zero";
     auto term4 = DenseFourthTerm(input_zero_point, kernel_zero_point, reduction_dim_size);
     return DenseCombineTerms(term1, term2, term3, term4);
   }

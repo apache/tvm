@@ -42,12 +42,14 @@ def get_tvm_runtime(script_module, input_name, ishape):
 
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
-    print(mod["main"])
 
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
-        lib = relay.build(mod, target="llvm", params=params)
+        # opt_mod, opt_params = relay.optimize(mod, target="llvm -mcpu=cascadelake -libs=mkl", params=params)
+        # print(opt_mod["main"])
+        # lib = relay.build(mod, target="llvm -mcpu=cascadelake -libs=mkl", params=params)
+        lib = relay.build(mod, target="llvm -mcpu=cascadelake", params=params)
 
     runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
     return runtime
@@ -524,19 +526,32 @@ def test_quantize_dynamic():
 
     mod = LinearWrapper(16, 32)
 
-    qspec = {nn.Linear: torch.quantization.per_channel_dynamic_qconfig}
-    qmod = torch.quantization.quantize_dynamic(mod, qconfig_spec=qspec, dtype=torch.qint8)
+    for qconfig in [torch.quantization.per_channel_dynamic_qconfig,
+                    torch.quantization.default_dynamic_qconfig]:
+        for ishape in [(16, 16), (10, 16, 16)]:
+            qspec = {nn.Linear: qconfig}
+            qmod = torch.quantization.quantize_dynamic(mod, qconfig_spec=qspec, dtype=torch.qint8)
 
-    inp = torch.randn(16, 16)
-    script_module = torch.jit.trace(qmod, inp).eval()
+            inp = torch.randn(*ishape)
+            script_module = torch.jit.trace(qmod, inp).eval()
 
-    with torch.no_grad():
-        pt_result = script_module(inp.clone()).numpy()
+            with torch.no_grad():
+                pt_result = script_module(inp.clone()).numpy()
 
-    input_name = "input"
-    runtime = get_tvm_runtime(script_module, "input", inp.shape)
-    runtime.set_input(input_name, inp.numpy().copy())
-    runtime.run()
-    tvm_result = runtime.get_output(0).asnumpy()
+            input_name = "input"
+            runtime = get_tvm_runtime(script_module, "input", inp.shape)
+            runtime.set_input(input_name, inp.numpy().copy())
+            runtime.run()
+            tvm_result = runtime.get_output(0).asnumpy()
 
-    tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-5, atol=1e-5)
+            max_abs_diff = np.max(np.abs(tvm_result - pt_result))
+            mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
+            num_identical = np.sum(tvm_result == pt_result)
+            match_ratio = num_identical / float(np.prod(tvm_result.shape))
+
+            print(max_abs_diff, mean_abs_diff, match_ratio)
+
+            tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-4, atol=1e-4)
+
+
+test_quantize_dynamic()
