@@ -123,15 +123,15 @@ impl DiagnosticBuilder {
     }
 }
 
-//   /*! \brief Display diagnostics in a given display format.
-//    *
-//    * A diagnostic renderer is responsible for converting the
-//    * raw diagnostics into consumable output.
-//    *
-//    * For example the terminal renderer will render a sequence
-//    * of compiler diagnostics to std::out and std::err in
-//    * a human readable form.
-//    */
+/// \brief Display diagnostics in a given display format.
+///   
+/// A diagnostic renderer is responsible for converting the
+/// raw diagnostics into consumable output.
+///  
+/// For example the terminal renderer will render a sequence
+/// of compiler diagnostics to std::out and std::err in
+/// a human readable form.
+///
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "DiagnosticRenderer"]
