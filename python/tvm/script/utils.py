@@ -17,93 +17,29 @@
 """Helper functions in TVM Script Parser"""
 
 import inspect
-from tvm import IRModule
-
-from . import _ffi_api
-from .parser import from_source
 
 
-def create_module(functions=None):
-    """Construct a module from list of functions.
+def get_param_list(func):
+    """Get the parameter list from definition of function"""
+    full_arg_spec = inspect.getfullargspec(func)
 
-    Parameters
-    -----------
-    functions: Optional[dict].
-        Map of GlobalVar or str to PrimFunc
+    args, defaults = full_arg_spec.args, full_arg_spec.defaults
 
-    Returns
-    -------
-    mod : IRModule
-        An IRModule containing the passed definitions
-    """
+    if defaults is None:
+        defaults = tuple()
 
-    return IRModule(functions=functions)
+    if full_arg_spec.varkw is not None:
+        raise RuntimeError(
+            "TVM Script register error : variable keyword argument is not supported now"
+        )
+    if not len(full_arg_spec.kwonlyargs) == 0:
+        raise RuntimeError("TVM Script register error : keyword only argument is not supported now")
 
+    pos_only = list()
+    for arg in args[: len(args) - len(defaults)]:
+        pos_only.append(arg)
+    kwargs = list()
+    for default, arg in zip(defaults, args[len(args) - len(defaults) :]):
+        kwargs.append((arg, default))
 
-def asscript(input_ir, show_meta=False):
-    """Transform a PrimFunc or IRModule to python syntax script
-
-    Parameters
-    ----------
-    input_ir : Union[PrimFunc, IRModule]
-        The PrimFunc or IRModule to be dumped
-
-    show_meta : bool
-        Whether show meta
-
-    Returns
-    -------
-    script : str
-        The Python script
-    """
-
-    return _ffi_api.AsTVMScript(input_ir, show_meta)
-
-
-def tir(script_in):
-    """Decorate a python function or class as tvm script.
-
-    The tvm function or parsing support parsing to the internal TIR.
-
-    Returns
-    -------
-    output : Union[Function, Module]
-        The Function or Module in IR.
-    """
-
-    if inspect.isfunction(script_in):
-        return _parse(script_in)
-
-    if inspect.isclass(script_in):
-        return TVMScriptClass(script_in)
-
-    raise TypeError("Only function and class are supported")
-
-
-def module(script_in):
-    """Decorate a python function or class as tvm script.
-
-    Alias for tvm.script.tir for now.
-
-    Returns
-    -------
-    output : Union[Function, Module]
-        The Function or Module in IR.
-    """
-    return tir(script_in)
-
-
-class TVMScriptClass:
-    """Helper class for decorating a class"""
-
-    def __init__(self, script_in):
-        self.script = script_in
-
-    def __call__(self, *args, **kwargs):
-        # call the parser to transform tvm script into TIR
-        return _parse(self.script)
-
-
-def _parse(script_in):
-    """Helper function to parse TVM script into TIR"""
-    return from_source(inspect.getsource(script_in), inspect.getsourcelines(script_in)[1])
+    return pos_only, kwargs, full_arg_spec.varargs

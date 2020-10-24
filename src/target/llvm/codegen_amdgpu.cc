@@ -70,11 +70,11 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   void VisitStmt_(const AllocateNode* op) final {
-    CHECK(!is_zero(op->condition));
+    ICHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
 
     int32_t constant_size = op->constant_allocation_size();
-    CHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
+    ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
     StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
     if (constant_size % 4 == 0 && info.alignment == 0) {
@@ -99,7 +99,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
       buf = alloca;
     } else {
-      CHECK(info.scope.rank == runtime::StorageRank::kShared)
+      ICHECK(info.scope.rank == runtime::StorageRank::kShared)
           << "Can only allocate shared or local memory inside kernel";
       // Shared memory: address space  == 3
       const unsigned shared_address_space = 3;
@@ -120,7 +120,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
     buf = builder_->CreatePointerCast(
         buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
-    CHECK(!var_map_.count(op->buffer_var.get()));
+    ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
   }
@@ -144,7 +144,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           LOG(FATAL) << "unknown workitem idx";
       }
     } else {
-      CHECK_EQ(ts.rank, 0);
+      ICHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0:
           intrin_id = ::llvm::Intrinsic::amdgcn_workgroup_id_x;
@@ -207,7 +207,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false, false);
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
     auto f = Downcast<PrimFunc>(kv.second);
     cg->AddFunction(f);
   }
@@ -249,13 +249,13 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   llvm::legacy::PassManager pass;
 
 #if TVM_LLVM_VERSION <= 60
-  CHECK(tm->addPassesToEmitFile(pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+  ICHECK(tm->addPassesToEmitFile(pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #elif TVM_LLVM_VERSION <= 90
-  CHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #else
-  CHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
+  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #endif
   pass.run(*mObj);
@@ -263,21 +263,21 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
   llvm::legacy::PassManager passAsm;
 #if TVM_LLVM_VERSION <= 60
-  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #elif TVM_LLVM_VERSION <= 90
-  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
-                                llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
+                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #else
-  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
+  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
 
   const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
-  CHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
+  ICHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
   TVMByteArray arr;
   arr.data = &obj[0];

@@ -59,6 +59,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jared Roesch](https://github.com/jroesch) (PPMC): @jroesch - relay
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
+- [Junru Shao](https://github.com/junrushao1994) @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon9) (PPMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime

@@ -57,7 +57,7 @@ State EmptyPolicyNode::Search(int num_measure_trials, int early_stopping,
   // Measure is disabled if num_measure_trials <= 1
   if (num_measure_trials <= 1) {
     const auto& res = SearchOneRound();
-    CHECK_GT(res.size(), 0);
+    ICHECK_GT(res.size(), 0);
 
     return res[0];
   } else {

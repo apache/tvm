@@ -41,12 +41,12 @@ int PlaceholderOpNode::num_outputs() const { return 1; }
 Array<IterVar> PlaceholderOpNode::root_iter_vars() const { return {}; }
 
 DataType PlaceholderOpNode::output_dtype(size_t i) const {
-  CHECK_EQ(i, 0U);
+  ICHECK_EQ(i, 0U);
   return dtype;
 }
 
 Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
-  CHECK_EQ(i, 0U);
+  ICHECK_EQ(i, 0U);
   return shape;
 }
 

@@ -151,7 +151,7 @@ inline void GetPaddingWidth(const Array<IndexExpr>& padding, IndexExpr* pad_w) {
   } else if (padding.size() == 2) {
     *pad_w = padding[0] + padding[1];
   } else {
-    CHECK_EQ(padding.size(), 4) << " Expected padding size of 1 or 2, found " << padding.size();
+    ICHECK_EQ(padding.size(), 4) << " Expected padding size of 1 or 2, found " << padding.size();
   }
 }
 
@@ -168,7 +168,7 @@ inline void GetPaddingHeightWidth(const Array<IndexExpr>& padding, IndexExpr* pa
     *pad_h = padding[0] + padding[2];
     *pad_w = padding[1] + padding[3];
   } else {
-    CHECK_EQ(padding.size(), 4) << " Padding size should be 1, 2 or 4, but got " << padding.size();
+    ICHECK_EQ(padding.size(), 4) << " Padding size should be 1, 2 or 4, but got " << padding.size();
   }
 }
 
@@ -188,7 +188,7 @@ inline void GetPaddingDepthHeightWidth(const Array<IndexExpr>& padding, IndexExp
     *pad_h = padding[1] + padding[4];
     *pad_w = padding[2] + padding[5];
   } else {
-    CHECK_EQ(padding.size(), 6) << " Padding size should be 1, 3 or 6, but got " << padding.size();
+    ICHECK_EQ(padding.size(), 6) << " Padding size should be 1, 3 or 6, but got " << padding.size();
   }
 }
 

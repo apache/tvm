@@ -47,10 +47,10 @@ using namespace tvm::te;
  */
 inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight,
                              const tvm::te::Tensor& bias, const DataType& out_dtype) {
-  CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
-  CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
+  ICHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
+  ICHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
-    CHECK_EQ(bias->shape.size(), 1) << "dense requires 1-D bias";
+    ICHECK_EQ(bias->shape.size(), 1) << "dense requires 1-D bias";
   }
 
   auto batch = data->shape[0];

@@ -44,7 +44,6 @@ def test_mutate_tile_size():
 
         def predict(self, task, states):
             scores = []
-            found = False
             for state in states:
                 scores.append(1 if self.is_good_state(state) else 0)
             return scores
@@ -89,7 +88,6 @@ def test_mutate_parallel():
 
         def predict(self, task, states):
             scores = []
-            found = False
             for state in states:
                 scores.append(1 if self.is_good_state(state) else 0)
             return scores

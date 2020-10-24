@@ -20,9 +20,9 @@
  * \file src/runtime/object.cc
  * \brief Object type management system.
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <iostream>
 #include <mutex>
@@ -70,7 +70,7 @@ class TypeContext {
     if (child_tindex == parent_tindex) return true;
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      CHECK_LT(child_tindex, type_table_.size());
+      ICHECK_LT(child_tindex, type_table_.size());
       while (child_tindex > parent_tindex) {
         child_tindex = type_table_[child_tindex].parent_index;
       }
@@ -87,10 +87,10 @@ class TypeContext {
       return it->second;
     }
     // try to allocate from parent's type table.
-    CHECK_LT(parent_tindex, type_table_.size())
+    ICHECK_LT(parent_tindex, type_table_.size())
         << " skey= " << skey << "static_index=" << static_tindex;
     TypeInfo& pinfo = type_table_[parent_tindex];
-    CHECK_EQ(pinfo.index, parent_tindex);
+    ICHECK_EQ(pinfo.index, parent_tindex);
 
     // if parent cannot overflow, then this class cannot.
     if (!pinfo.child_slots_can_overflow) {
@@ -104,8 +104,8 @@ class TypeContext {
     if (static_tindex != TypeIndex::kDynamic) {
       // statically assigned type
       allocated_tindex = static_tindex;
-      CHECK_LT(static_tindex, type_table_.size());
-      CHECK_EQ(type_table_[allocated_tindex].allocated_slots, 0U)
+      ICHECK_LT(static_tindex, type_table_.size());
+      ICHECK_EQ(type_table_[allocated_tindex].allocated_slots, 0U)
           << "Conflicting static index " << static_tindex << " between "
           << type_table_[allocated_tindex].name << " and " << skey;
     } else if (pinfo.allocated_slots + num_slots <= pinfo.num_slots) {
@@ -114,15 +114,15 @@ class TypeContext {
       // update parent's state
       pinfo.allocated_slots += num_slots;
     } else {
-      CHECK(pinfo.child_slots_can_overflow)
+      ICHECK(pinfo.child_slots_can_overflow)
           << "Reach maximum number of sub-classes for " << pinfo.name;
       // allocate new entries.
       allocated_tindex = type_counter_;
       type_counter_ += num_slots;
-      CHECK_LE(type_table_.size(), type_counter_);
+      ICHECK_LE(type_table_.size(), type_counter_);
       type_table_.resize(type_counter_, TypeInfo());
     }
-    CHECK_GT(allocated_tindex, parent_tindex);
+    ICHECK_GT(allocated_tindex, parent_tindex);
     // initialize the slot.
     type_table_[allocated_tindex].index = allocated_tindex;
     type_table_[allocated_tindex].parent_index = parent_tindex;
@@ -138,21 +138,21 @@ class TypeContext {
 
   std::string TypeIndex2Key(uint32_t tindex) {
     std::lock_guard<std::mutex> lock(mutex_);
-    CHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
+    ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
         << "Unknown type index " << tindex;
     return type_table_[tindex].name;
   }
 
   size_t TypeIndex2KeyHash(uint32_t tindex) {
     std::lock_guard<std::mutex> lock(mutex_);
-    CHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
+    ICHECK(tindex < type_table_.size() && type_table_[tindex].allocated_slots != 0)
         << "Unknown type index " << tindex;
     return type_table_[tindex].name_hash;
   }
 
   uint32_t TypeKey2Index(const std::string& skey) {
     auto it = type_key2index_.find(skey);
-    CHECK(it != type_key2index_.end())
+    ICHECK(it != type_key2index_.end())
         << "Cannot find type " << skey
         << ". Did you forget to register the node by TVM_REGISTER_NODE_TYPE ?";
     return it->second;
@@ -229,7 +229,7 @@ TVM_REGISTER_GLOBAL("runtime.DumpTypeTable").set_body_typed([](int min_child_cou
 
 int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex) {
   API_BEGIN();
-  CHECK(obj != nullptr);
+  ICHECK(obj != nullptr);
   out_tindex[0] = static_cast<tvm::runtime::Object*>(obj)->type_index();
   API_END();
 }

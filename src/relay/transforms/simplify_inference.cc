@@ -34,7 +34,7 @@ namespace relay {
 Expr BatchNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Expr moving_mean,
                             Expr moving_var, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
-  CHECK(ttype);
+  ICHECK(ttype);
   const auto param = attrs.as<BatchNormAttrs>();
   Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr var_add_eps = Add(moving_var, epsilon);
@@ -62,9 +62,9 @@ Expr BatchNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta,
 
 Expr GroupNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
-  CHECK(ttype);
+  ICHECK(ttype);
   const auto param = attrs.as<GroupNormAttrs>();
-  CHECK(param);
+  ICHECK(param);
 
   int ndim = ttype->shape.size();
   int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
@@ -117,9 +117,9 @@ Expr GroupNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta,
 
 Expr LayerNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
-  CHECK(ttype);
+  ICHECK(ttype);
   const auto param = attrs.as<LayerNormAttrs>();
-  CHECK(param);
+  ICHECK(param);
 
   Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr mean = Mean(data, {param->axis}, true, false);
@@ -140,9 +140,9 @@ Expr LayerNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta,
 
 Expr InstanceNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr beta, Type tdata) {
   auto ttype = tdata.as<TensorTypeNode>();
-  CHECK(ttype);
+  ICHECK(ttype);
   const auto param = attrs.as<InstanceNormAttrs>();
-  CHECK(param);
+  ICHECK(param);
 
   int ndim = ttype->shape.size();
   int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
@@ -168,7 +168,7 @@ Expr InstanceNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr be
 
 Expr L2NormToInferUnpack(const Attrs attrs, Expr data) {
   const auto param = attrs.as<L2NormalizeAttrs>();
-  CHECK(param);
+  ICHECK(param);
 
   Expr epsilon = MakeConstantScalar(DataType::Float(32), static_cast<float>(param->eps));
 

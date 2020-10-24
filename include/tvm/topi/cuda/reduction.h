@@ -60,7 +60,7 @@ Schedule ScheduleReduce(const Target& target, Operation op, Schedule sch,
   }
 
   auto out_stage = sch[data_out];
-  CHECK_GT(out_stage->op.as<ComputeOpNode>()->reduce_axis.size(), 0)
+  ICHECK_GT(out_stage->op.as<ComputeOpNode>()->reduce_axis.size(), 0)
       << "reduce_axis must be greater than zero";
 
   bool all_reduce;
@@ -183,7 +183,7 @@ void TraverseAfterReduce(const Target& target, Schedule s, Operation op) {
  * \return A schedule for the given ops.
  */
 Schedule schedule_reduce(const Target& target, Array<Tensor> outs) {
-  CHECK_EQ(outs.size(), 1) << "outs must have size 1";
+  ICHECK_EQ(outs.size(), 1) << "outs must have size 1";
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

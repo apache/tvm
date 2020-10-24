@@ -37,15 +37,15 @@ namespace relay {
 template <typename AttrType>
 bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
               const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const AttrType* param = attrs.as<AttrType>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
-  CHECK(static_cast<int>(data->shape.size()) != 0);
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
 
   Array<tvm::PrimExpr> oshape = data->shape;
   if (param->units.defined()) {
@@ -62,9 +62,9 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     if (weight == nullptr) return false;
     Array<tvm::PrimExpr> wshape = weight->shape;
-    CHECK(static_cast<int>(weight->shape.size()) == 2);
+    ICHECK(static_cast<int>(weight->shape.size()) == 2);
     if (!data->shape.back().as<tir::AnyNode>()) {
-      CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
+      ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
           << "DenseRel: input dimension doesn't match,"
           << " data shape=" << data->shape << ", weight shape=" << weight->shape;
     }

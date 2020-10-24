@@ -41,10 +41,10 @@ namespace tvm {
 namespace runtime {
 
 /*! \brief macro to do C API call */
-#define TVM_CCALL(func)                    \
-  {                                        \
-    int ret = (func);                      \
-    CHECK_EQ(ret, 0) << TVMGetLastError(); \
+#define TVM_CCALL(func)                     \
+  {                                         \
+    int ret = (func);                       \
+    ICHECK_EQ(ret, 0) << TVMGetLastError(); \
   }
 
 /*! \brief Magic number for NDArray list file  */
@@ -192,13 +192,13 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     // JSON Loader
     void Load(dmlc::JSONReader* reader) {
       reader->BeginArray();
-      CHECK(reader->NextArrayItem()) << "invalid json format";
+      ICHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&node_id);
-      CHECK(reader->NextArrayItem()) << "invalid json format";
+      ICHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&index);
       if (reader->NextArrayItem()) {
         reader->Read(&version);
-        CHECK(!reader->NextArrayItem()) << "invalid json format";
+        ICHECK(!reader->NextArrayItem()) << "invalid json format";
       } else {
         version = 0;
       }
@@ -238,7 +238,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           bitmask |= 8;
         }
       }
-      CHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "invalid format";
+      ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "invalid format";
     }
     // JSON Loader
     void Load(dmlc::JSONReader* reader) {
@@ -263,7 +263,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      CHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
+      ICHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
     }
   };
   struct GraphAttr {
@@ -280,58 +280,58 @@ class TVM_DLL GraphRuntime : public ModuleNode {
       while (reader->NextObjectItem(&key)) {
         if (key == "dltype") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_str");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_str");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&dltype);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
           bitmask |= 1;
         } else if (key == "storage_id") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_int");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_int");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&storage_id);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
           bitmask |= 2;
         } else if (key == "shape") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_shape");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_shape");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&shape);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
           bitmask |= 4;
         } else if (key == "device_index") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_int");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_int");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&device_index);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
         } else {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
           if (type == "list_int") {
-            CHECK(reader->NextArrayItem());
+            ICHECK(reader->NextArrayItem());
             std::vector<int> temp;
             reader->Read(&temp);
           } else if (type == "size_t") {
-            CHECK(reader->NextArrayItem());
+            ICHECK(reader->NextArrayItem());
             size_t temp;
             reader->Read(&temp);
           } else {
             LOG(FATAL) << "cannot skip graph attr " << key;
           }
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
         }
       }
-      CHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
+      ICHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
     }
   };
   // The graph attribute fields.
@@ -361,7 +361,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
         LOG(FATAL) << "key " << key << " is not supported";
       }
     }
-    CHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
+    ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
   /*! \brief Setup the temporal storage */
   void SetupStorage();

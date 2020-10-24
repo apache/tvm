@@ -21,9 +21,9 @@
  * \file registry.cc
  * \brief The global registry of packed function.
  */
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <array>
 #include <memory>
@@ -65,7 +65,7 @@ Registry& Registry::Register(const std::string& name, bool can_override) {  // N
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex> lock(m->mutex);
   if (m->fmap.count(name)) {
-    CHECK(can_override) << "Global PackedFunc " << name << " is already registered";
+    ICHECK(can_override) << "Global PackedFunc " << name << " is already registered";
   }
 
   Registry* r = new Registry();

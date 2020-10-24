@@ -21,9 +21,9 @@
 #include "hexagon_stubapi.h"
 
 #include <dlfcn.h>
-#include <dmlc/logging.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <tvm/support/logging.h>
 
 #include "hexagon_target_log.h"
 
@@ -45,7 +45,7 @@ StubAPI::StubAPI() {
   constexpr auto nondomain_lib_name = "libtvm_remote_nd_stub.so";
 
   const char* lib_name = enable_domains_ ? domain_lib_name : nondomain_lib_name;
-  CHECK(lib_handle_ = dlopen(lib_name, RTLD_LAZY | RTLD_LOCAL));
+  ICHECK(lib_handle_ = dlopen(lib_name, RTLD_LAZY | RTLD_LOCAL));
 
 #define RESOLVE(fn) p##fn##_ = GetSymbol<fn##_t*>(#fn)
   if (enable_domains_) {

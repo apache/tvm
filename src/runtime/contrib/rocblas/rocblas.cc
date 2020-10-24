@@ -22,9 +22,9 @@
  */
 #include "rocblas.h"
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 namespace tvm {
 namespace contrib {
@@ -56,15 +56,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul").set_body([](TVMArgs args, TVMR
   bool transa = args[3];
   bool transb = args[4];
   // call gemm for simple compact code.
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
-  CHECK(C->strides == nullptr);
-  CHECK(B->strides == nullptr);
-  CHECK(A->strides == nullptr);
-  CHECK(TypeMatch(A->dtype, kDLFloat, 32));
-  CHECK(TypeMatch(B->dtype, kDLFloat, 32));
-  CHECK(TypeMatch(C->dtype, kDLFloat, 32));
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
+  ICHECK(C->strides == nullptr);
+  ICHECK(B->strides == nullptr);
+  ICHECK(A->strides == nullptr);
+  ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+  ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+  ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
   rocblas_handle handle;
   CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));
@@ -97,12 +97,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
       bool transa = args[3];
       bool transb = args[4];
       // call gemm for simple compact code.
-      CHECK_EQ(A->ndim, 3);
-      CHECK_EQ(B->ndim, 3);
-      CHECK_EQ(C->ndim, 3);
-      CHECK(TypeMatch(A->dtype, kDLFloat, 32));
-      CHECK(TypeMatch(B->dtype, kDLFloat, 32));
-      CHECK(TypeMatch(C->dtype, kDLFloat, 32));
+      ICHECK_EQ(A->ndim, 3);
+      ICHECK_EQ(B->ndim, 3);
+      ICHECK_EQ(C->ndim, 3);
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+      ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
       rocblas_handle handle;
       CHECK_ROCBLAS_ERROR(rocblas_create_handle(&handle));

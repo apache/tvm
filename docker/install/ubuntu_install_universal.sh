@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,48 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.8.dev0" %}
+set -e
+set -u
+set -o pipefail
 
-package:
-  name: tvm
-  version: {{ version }}
+git clone https://github.com/stillwater-sc/universal.git /opt/universal
 
-source:
-  path: ../..
-
-build:
-  number: 0
-
-requirements:
-  build:
-    - {{ compiler('cxx') }}
-  host:
-    - python {{ python }}
-    - cython
-    - numpy
-    - setuptools
-    - decorator
-    - tvm-libs {{ version }}
-  run:
-    - python {{ python }}
-    - {{ pin_compatible('numpy') }}
-    - decorator
-    - tvm-libs {{ version }}
-    - psutil
-
-test:
-  imports:
-    - tvm
-  requires:
-    - pytest
-    - scipy
-  source_files:
-    - tests/python
-  commands:
-    - python -m pytest -v tests/python/integration
-
-about:
-  home: https://github.com/apache/incubator-tvm
-  license: Apache-2.0
-  license_family: Apache
-  summary: a low level domain specific language for compiling tensor computation pipelines
+# Use specific versioning tag.
+(cd /opt/universal && git checkout e32899d551b53d758865fabd5fdd69eed35bfb0f)

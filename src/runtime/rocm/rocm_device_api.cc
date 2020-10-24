@@ -21,12 +21,12 @@
  * \file rocm_device_api.cc
  * \brief GPU specific API
  */
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include "rocm_common.h"
 
@@ -122,7 +122,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
     ROCM_CALL(hipSetDevice(ctx.device_id));
-    CHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
+    ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;
     ROCM_CALL(hipMalloc(&ret, nbytes));
     return ret;

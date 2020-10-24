@@ -108,7 +108,7 @@ class RPCSessTable {
   }
   // Get session from table
   std::shared_ptr<RPCSession> Get(int index) {
-    CHECK(index >= 0 && index < kMaxRPCSession);
+    ICHECK(index >= 0 && index < kMaxRPCSession);
     return tbl_[index].lock();
   }
   // Insert session into table.
@@ -137,7 +137,7 @@ std::shared_ptr<RPCSession> RPCSession::Get(int table_index) {
 }
 
 void RPCSession::InsertToSessionTable(std::shared_ptr<RPCSession> sess) {
-  CHECK_EQ(sess->table_index_, 0);
+  ICHECK_EQ(sess->table_index_, 0);
   sess->table_index_ = RPCSessTable::Global()->Insert(sess);
 }
 

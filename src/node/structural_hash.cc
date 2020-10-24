@@ -79,7 +79,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
 
   void MarkGraphNode() final {
     // need to push to pending tasks in this case
-    CHECK(!allow_push_to_stack_ && !task_stack_.empty());
+    ICHECK(!allow_push_to_stack_ && !task_stack_.empty());
     task_stack_.back().graph_node_hash = true;
   }
 
@@ -97,7 +97,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   }
 
   void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) final {
-    CHECK(!hash_memo_.count(GetRef<ObjectRef>(var)));
+    ICHECK(!hash_memo_.count(GetRef<ObjectRef>(var)));
     if (map_free_vars) {
       // use counter value.
       size_t value = std::hash<size_t>()(free_var_counter_++);
@@ -127,19 +127,19 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
   }
 
   size_t Hash(const ObjectRef& object, bool map_free_vars) {
-    CHECK_EQ(task_stack_.size(), 0U);
-    CHECK_EQ(pending_tasks_.size(), 0U);
-    CHECK_EQ(result_stack_.size(), 0U);
+    ICHECK_EQ(task_stack_.size(), 0U);
+    ICHECK_EQ(pending_tasks_.size(), 0U);
+    ICHECK_EQ(result_stack_.size(), 0U);
 
     this->SHashReduce(object, map_free_vars);
-    CHECK_EQ(pending_tasks_.size(), 1U);
-    CHECK(allow_push_to_stack_);
+    ICHECK_EQ(pending_tasks_.size(), 1U);
+    ICHECK(allow_push_to_stack_);
     task_stack_.emplace_back(std::move(pending_tasks_.back()));
     pending_tasks_.clear();
 
     this->RunTasks();
 
-    CHECK_EQ(result_stack_.size(), 1U);
+    ICHECK_EQ(result_stack_.size(), 1U);
     size_t ret = result_stack_.back();
     result_stack_.pop_back();
     return ret;
@@ -160,7 +160,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
    */
   size_t ReduceHash(const Task& task) {
     size_t stack_begin = task.result_stack_index;
-    CHECK_LE(stack_begin, result_stack_.size());
+    ICHECK_LE(stack_begin, result_stack_.size());
 
     // combine in the reverse order of the stack.
     size_t reduced_hash = task.reduced_hash;
@@ -210,7 +210,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           entry.children_expanded = true;
           entry.result_stack_index = result_stack_.size();
 
-          CHECK_EQ(pending_tasks_.size(), 0U);
+          ICHECK_EQ(pending_tasks_.size(), 0U);
           allow_push_to_stack_ = false;
           // dispatch hash, reduce to the current slot.
           this->DispatchSHash(entry.object, entry.map_free_vars);
@@ -227,7 +227,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
 
   // The default equal as registered in the structural equal vtable.
   void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
-    CHECK(object.defined());
+    ICHECK(object.defined());
     vtable_->SHashReduce(object.get(), SHashReducer(this, map_free_vars));
   }
 

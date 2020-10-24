@@ -131,8 +131,8 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator {
     auto* f = e.as<FunctionNode>();
     auto* transformed = this->Mutate(e).as<FunctionNode>();
 
-    CHECK(f);
-    CHECK(transformed);
+    ICHECK(f);
+    ICHECK(transformed);
 
     if (e.same_as(GetRef<Function>(transformed))) {
       return GetRef<Function>(transformed);

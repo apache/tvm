@@ -54,7 +54,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
   if (axis < 0) {
     axis = ndim + axis;
   }
-  CHECK_LT(axis, ndim) << "axis parameter should be less than input dim";
+  ICHECK_LT(axis, ndim) << "axis parameter should be less than input dim";
 
   auto k1 = tvm::te::reduce_axis(Range(0, input_shape[axis]), "k1");
   auto k2 = tvm::te::reduce_axis(Range(0, input_shape[axis]), "k2");
@@ -124,7 +124,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
  */
 inline Tensor log_softmax(const Tensor& x, std::string name = "tensor",
                           std::string tag = "log_softmax_output") {
-  CHECK_EQ(x->shape.size(), 2) << "Log softmax requires 2-D input";
+  ICHECK_EQ(x->shape.size(), 2) << "Log softmax requires 2-D input";
 
   PrimExpr m = x->shape[0];
   PrimExpr n = x->shape[1];

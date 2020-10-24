@@ -62,8 +62,8 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
     const auto* attrs_b = b->attrs.as<Conv2DAttrs>();
-    CHECK(attrs_a);
-    CHECK(attrs_b);
+    ICHECK(attrs_a);
+    ICHECK(attrs_b);
     const auto* tweight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* tweight_b = b->args[1]->type_as<TensorTypeNode>();
     const auto shape_a =
@@ -89,7 +89,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
 
     const CallNode* group_root = branches[0][0];
     const auto* attrs = group_root->attrs.as<Conv2DAttrs>();
-    CHECK(attrs);
+    ICHECK(attrs);
     const auto new_attrs = make_object<Conv2DAttrs>();
     new_attrs->strides = attrs->strides;
     new_attrs->padding = attrs->padding;
@@ -105,7 +105,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     const std::string& layout =
         new_attrs->out_layout == "" ? new_attrs->data_layout : new_attrs->out_layout;
     channel_pos_ = layout.find('C');
-    CHECK_NE(channel_pos_, std::string::npos);
+    ICHECK_NE(channel_pos_, std::string::npos);
 
     return Call(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
   }
@@ -198,7 +198,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     }
     auto index =
         branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.operator std::string().find('O');
-    CHECK_NE(index, std::string::npos);
+    ICHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(Tuple(weights), index),
                            tir::make_const(DataType::Int(32), num_filters));
   }

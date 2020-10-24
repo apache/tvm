@@ -99,12 +99,12 @@ Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType outp
 
 bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
   if (auto* t0 = types[0].as<TensorTypeNode>()) {
     if (auto* t1 = types[1].as<TensorTypeNode>()) {
-      CHECK_EQ(t0->dtype, t1->dtype);
+      ICHECK_EQ(t0->dtype, t1->dtype);
       reporter->Assign(
           types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1), t0->dtype));
       return true;
@@ -115,12 +115,12 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
   if (auto* t0 = types[0].as<TensorTypeNode>()) {
     if (auto* t1 = types[1].as<TensorTypeNode>()) {
-      CHECK_EQ(t0->dtype, t1->dtype);
+      ICHECK_EQ(t0->dtype, t1->dtype);
       reporter->Assign(types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1),
                                                    DataType::Bool()));
       return true;
@@ -149,13 +149,13 @@ Array<IndexExpr> RankShape(const Array<IndexExpr>& shape) {
 
 bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
-  CHECK_EQ(num_inputs, 1);
+  ICHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
   if (tt == nullptr) {
     return false;
   }
   const auto* param = attrs.as<ShapeOfAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   auto rank_shape = RankShape(tt->shape);
   reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
   return true;

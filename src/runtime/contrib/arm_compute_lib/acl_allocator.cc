@@ -29,7 +29,7 @@ namespace runtime {
 namespace contrib {
 
 void* ACLAllocator::allocate(size_t size, size_t alignment) {
-  CHECK_GT(size, 0) << "Cannot allocate size less than or equal to zero";
+  ICHECK_GT(size, 0) << "Cannot allocate size less than or equal to zero";
   return this->device_api_->AllocWorkspace(this->ctx_, size, {});
 }
 
