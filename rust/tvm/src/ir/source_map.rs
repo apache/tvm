@@ -34,22 +34,16 @@ use tvm_macros::Object;
 #[ref_name = "Source"]
 pub struct SourceNode {
     pub base: Object,
-    /// The source name. */
+    /// The source name.
     pub source_name: SourceName,
 
-    /// The raw source. */
+    /// The raw source.
     pub source: TString,
+
+    // TODO(@jroesch): Non-ABI compat field
     // A mapping of line breaks into the raw source.
     // std::vector<std::pair<int, int>> line_map;
 }
-
-//  class Source : public ObjectRef {
-//   public:
-//    TVM_DLL Source(SourceName src_name, std::string source);
-//    TVM_DLL tvm::String GetLine(int line);
-
-//    TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Source, ObjectRef, SourceNode);
-//  };
 
 /// A mapping from a unique source name to source fragments.
 #[repr(C)]
@@ -57,6 +51,7 @@ pub struct SourceNode {
 #[type_key = "SourceMap"]
 #[ref_name = "SourceMap"]
 pub struct SourceMapNode {
+    /// The base object.
     pub base: Object,
     /// The source mapping.
     pub source_map: Map<SourceName, Source>,
