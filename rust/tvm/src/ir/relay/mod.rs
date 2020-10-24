@@ -51,7 +51,7 @@ impl ExprNode {
             base: BaseExprNode::base::<T>(),
             span: ObjectRef::null(),
             checked_type: Type::from(TypeNode {
-                base: Object::base_object::<TypeNode>(),
+                base: Object::base::<TypeNode>(),
                 span: Span::empty(),
             }),
         }
@@ -84,7 +84,7 @@ pub struct IdNode {
 impl Id {
     fn new(name_hint: TString) -> Id {
         let node = IdNode {
-            base: Object::base_object::<IdNode>(),
+            base: Object::base::<IdNode>(),
             name_hint: name_hint,
         };
         Id(Some(ObjectPtr::new(node)))
@@ -352,7 +352,7 @@ pub struct PatternNode {
 impl PatternNode {
     pub fn base<T: IsObject>() -> PatternNode {
         PatternNode {
-            base: Object::base_object::<T>(),
+            base: Object::base::<T>(),
             span: ObjectRef::null(),
         }
     }
@@ -451,7 +451,7 @@ pub struct ClauseNode {
 impl Clause {
     pub fn new(lhs: Pattern, rhs: Expr, _span: ObjectRef) -> Clause {
         let node = ClauseNode {
-            base: Object::base_object::<ClauseNode>(),
+            base: Object::base::<ClauseNode>(),
             lhs,
             rhs,
         };

@@ -21,7 +21,7 @@ use crate::runtime::map::Map;
 use crate::runtime::object::Object;
 use crate::runtime::string::String as TString;
 
-use super::span::{SourceName, Span};
+use super::span::SourceName;
 
 use tvm_macros::Object;
 

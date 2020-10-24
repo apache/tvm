@@ -28,7 +28,7 @@ use std::sync::{Arc, Mutex};
 use codespan_reporting::diagnostic::{Diagnostic as CDiagnostic, Label, Severity};
 use codespan_reporting::files::SimpleFiles;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
-use codespan_reporting::term::{self, ColorArg};
+use codespan_reporting::term::{self};
 
 use super::*;
 use crate::ir::source_map::*;
@@ -36,6 +36,7 @@ use crate::ir::source_map::*;
 /// A representation of a TVM Span as a range of bytes in a file.
 struct ByteRange<FileId> {
     /// The file in which the range occurs.
+    #[allow(dead_code)]
     file_id: FileId,
     /// The range start.
     start_pos: usize,
@@ -46,6 +47,7 @@ struct ByteRange<FileId> {
 /// A mapping from Span to ByteRange for a single file.
 enum FileSpanToByteRange {
     AsciiSource(Vec<usize>),
+    #[allow(dead_code)]
     Utf8 {
         /// Map character regions which are larger then 1-byte to length.
         lengths: HashMap<isize, isize>,
@@ -57,8 +59,6 @@ enum FileSpanToByteRange {
 impl FileSpanToByteRange {
     /// Construct a span to byte range mapping from the program source.
     fn new(source: String) -> FileSpanToByteRange {
-        let mut last_index = 0;
-        let mut is_ascii = true;
         if source.is_ascii() {
             let line_lengths = source.lines().map(|line| line.len()).collect();
             FileSpanToByteRange::AsciiSource(line_lengths)

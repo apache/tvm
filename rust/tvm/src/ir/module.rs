@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-use std::io::Result as IOResult;
 use std::path::Path;
 
 use thiserror::Error;

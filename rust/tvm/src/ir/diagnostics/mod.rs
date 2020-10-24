@@ -20,7 +20,7 @@
 use super::module::IRModule;
 use super::span::*;
 use crate::runtime::function::Result;
-use crate::runtime::object::{Object, ObjectPtr, ObjectRef};
+use crate::runtime::object::{Object, ObjectPtr};
 use crate::runtime::{
     array::Array,
     function::{self, Function, ToFunction},
@@ -43,6 +43,9 @@ external! {
 
     #[name("diagnostics.Emit")]
     fn emit(ctx: DiagnosticContext, diagnostic: Diagnostic) -> ();
+
+    #[name("diagnostics.DiagnosticContextDefault")]
+    fn diagnostic_context_default(module: IRModule) -> DiagnosticContext;
 
     #[name("diagnostics.DiagnosticContextRender")]
     fn diagnostic_context_render(ctx: DiagnosticContext) -> ();
@@ -80,28 +83,34 @@ pub struct DiagnosticNode {
 }
 
 impl Diagnostic {
-    pub fn new(level: DiagnosticLevel, span: Span, message: TString) {
-        todo!()
+    pub fn new(level: DiagnosticLevel, span: Span, message: TString) -> Diagnostic {
+        let node = DiagnosticNode {
+            base: Object::base::<DiagnosticNode>(),
+            level,
+            span,
+            message,
+        };
+        ObjectPtr::new(node).into()
     }
 
     pub fn bug(span: Span) -> DiagnosticBuilder {
-        todo!()
+        DiagnosticBuilder::new(DiagnosticLevel::Bug, span)
     }
 
     pub fn error(span: Span) -> DiagnosticBuilder {
-        todo!()
+        DiagnosticBuilder::new(DiagnosticLevel::Error, span)
     }
 
     pub fn warning(span: Span) -> DiagnosticBuilder {
-        todo!()
+        DiagnosticBuilder::new(DiagnosticLevel::Warning, span)
     }
 
     pub fn note(span: Span) -> DiagnosticBuilder {
-        todo!()
+        DiagnosticBuilder::new(DiagnosticLevel::Note, span)
     }
 
     pub fn help(span: Span) -> DiagnosticBuilder {
-        todo!()
+        DiagnosticBuilder::new(DiagnosticLevel::Help, span)
     }
 }
 
@@ -119,19 +128,22 @@ pub struct DiagnosticBuilder {
 
 impl DiagnosticBuilder {
     pub fn new(level: DiagnosticLevel, span: Span) -> DiagnosticBuilder {
-        DiagnosticBuilder { level, span, message: "".into() }
+        DiagnosticBuilder {
+            level,
+            span,
+            message: "".into(),
+        }
     }
 }
 
-/// \brief Display diagnostics in a given display format.
-///   
+/// Display diagnostics in a given display format.
+///
 /// A diagnostic renderer is responsible for converting the
 /// raw diagnostics into consumable output.
-///  
+///
 /// For example the terminal renderer will render a sequence
 /// of compiler diagnostics to std::out and std::err in
 /// a human readable form.
-///
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "DiagnosticRenderer"]
@@ -181,7 +193,7 @@ impl DiagnosticContext {
     {
         let renderer = diagnostic_renderer(render_func.to_function()).unwrap();
         let node = DiagnosticContextNode {
-            base: Object::base_object::<DiagnosticContextNode>(),
+            base: Object::base::<DiagnosticContextNode>(),
             module,
             diagnostics: Array::from_vec(vec![]).unwrap(),
             renderer,
@@ -190,7 +202,7 @@ impl DiagnosticContext {
     }
 
     pub fn default(module: IRModule) -> DiagnosticContext {
-        todo!()
+        diagnostic_context_default(module).unwrap()
     }
 
     /// Emit a diagnostic.

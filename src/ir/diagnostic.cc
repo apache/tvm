@@ -168,6 +168,11 @@ DiagnosticContext DiagnosticContext::Default(const IRModule& module) {
   return DiagnosticContext(module, renderer);
 }
 
+TVM_REGISTER_GLOBAL("diagnostics.Default")
+    .set_body_typed([](const IRModule& module) {
+       return DiagnosticContext::Default(module);
+    });
+
 std::ostream& EmitDiagnosticHeader(std::ostream& out, const Span& span, DiagnosticLevel level,
                                    std::string msg) {
   rang::fg diagnostic_color = rang::fg::reset;
