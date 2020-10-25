@@ -109,7 +109,7 @@ class RPCWrappedFunc : public Object {
   // remove a remote session mask
   TVMContext RemoveSessMask(TVMContext ctx) const {
     int dev_type = ctx.device_type;
-    CHECK_EQ(dev_type / kRPCSessMask, sess_->table_index() + 1)
+    ICHECK_EQ(dev_type / kRPCSessMask, sess_->table_index() + 1)
         << "Can not pass in local context or context with a different remote session";
     ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
     return ctx;
@@ -145,7 +145,7 @@ class RPCWrappedFunc : public Object {
     data->dl_tensor.ctx.device_type = static_cast<DLDeviceType>(
         static_cast<int>(tensor->ctx.device_type) + kRPCSessMask * (sess_->table_index() + 1));
     // check strides.
-    CHECK(tensor->strides == nullptr);
+    ICHECK(tensor->strides == nullptr);
     // setup byteoffset
     data->dl_tensor.byte_offset = tensor->byte_offset;
     return ret;
@@ -190,7 +190,7 @@ class RPCModuleNode final : public ModuleNode {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass ctx by parts.
     int dev_type = ctx.device_type;
-    CHECK_EQ(dev_type / kRPCSessMask, sess_->table_index() + 1)
+    ICHECK_EQ(dev_type / kRPCSessMask, sess_->table_index() + 1)
         << "ValueError: Need to pass the matched remote context to RPCModule.GetTimeEvaluator";
     ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
 
@@ -224,7 +224,7 @@ class RPCModuleNode final : public ModuleNode {
   void InitRemoteFunc(FType* func, const std::string& name) {
     if (*func != nullptr) return;
     RPCSession::PackedFuncHandle handle = sess_->GetFunction(name);
-    CHECK(handle != nullptr) << "Cannot found remote function " << name;
+    ICHECK(handle != nullptr) << "Cannot found remote function " << name;
     *func = WrapRemoteFunc(handle);
   }
 
@@ -253,9 +253,9 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const TVMArgValue& arg) const {
   if (arg.type_code() == kTVMModuleHandle) {
     Module mod = arg;
     std::string tkey = mod->type_key();
-    CHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
+    ICHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
     auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
-    CHECK(rmod->sess() == sess_)
+    ICHECK(rmod->sess() == sess_)
         << "ValueError: Cannot pass in module into a different remote session";
     return rmod->module_handle();
   } else {
@@ -270,22 +270,22 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
 
   if (tcode == kTVMNullptr) return;
   if (tcode == kTVMPackedFuncHandle) {
-    CHECK_EQ(args.size(), 2);
+    ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
   } else if (tcode == kTVMModuleHandle) {
-    CHECK_EQ(args.size(), 2);
+    ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
   } else if (tcode == kTVMDLTensorHandle || tcode == kTVMNDArrayHandle) {
-    CHECK_EQ(args.size(), 3);
+    ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
     void* nd_handle = args[2];
     *rv = WrapRemoteNDArray(tensor, nd_handle);
   } else {
-    CHECK_EQ(args.size(), 2);
+    ICHECK_EQ(args.size(), 2);
     *rv = args[1];
   }
 }
@@ -298,7 +298,7 @@ Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess) {
 
 std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod) {
   std::string tkey = mod->type_key();
-  CHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
+  ICHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
   auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
   return rmod->sess();
 }
@@ -340,11 +340,11 @@ inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
 
 PackedFunc WrapTimeEvaluator(PackedFunc pf, TVMContext ctx, int number, int repeat,
                              int min_repeat_ms, PackedFunc f_preproc) {
-  CHECK(pf != nullptr);
+  ICHECK(pf != nullptr);
 
   if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
     auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
-    CHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
+    ICHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
     return (*get_micro_time_evaluator)(pf, ctx, number, repeat);
   }
 
@@ -414,7 +414,7 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
           PackedFunc f_preproc;
           if (!f_preproc_name.empty()) {
             auto* pf_preproc = runtime::Registry::Get(f_preproc_name);
-            CHECK(pf_preproc != nullptr)
+            ICHECK(pf_preproc != nullptr)
                 << "Cannot find " << f_preproc_name << " in the global function";
             f_preproc = *pf_preproc;
           }
@@ -423,11 +423,11 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
         }
       } else {
         auto* pf = runtime::Registry::Get(name);
-        CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
+        ICHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
         PackedFunc f_preproc;
         if (!f_preproc_name.empty()) {
           auto* pf_preproc = runtime::Registry::Get(f_preproc_name);
-          CHECK(pf_preproc != nullptr)
+          ICHECK(pf_preproc != nullptr)
               << "Cannot find " << f_preproc_name << " in the global function";
           f_preproc = *pf_preproc;
         }
@@ -452,20 +452,20 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.ModuleGetFunction")
 // functions to access an RPC module.
 TVM_REGISTER_GLOBAL("rpc.LoadRemoteModule").set_body_typed([](Module sess, std::string name) {
   std::string tkey = sess->type_key();
-  CHECK_EQ(tkey, "rpc");
+  ICHECK_EQ(tkey, "rpc");
   return static_cast<RPCModuleNode*>(sess.operator->())->LoadModule(name);
 });
 
 TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, Module child) {
   std::string tkey = parent->type_key();
-  CHECK_EQ(tkey, "rpc");
+  ICHECK_EQ(tkey, "rpc");
   static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
 });
 
 TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue* rv) {
   Module m = args[0];
   std::string tkey = m->type_key();
-  CHECK_EQ(tkey, "rpc");
+  ICHECK_EQ(tkey, "rpc");
   *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
 });
 

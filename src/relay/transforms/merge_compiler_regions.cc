@@ -64,14 +64,14 @@ class RegionMerger : public MixedModeVisitor {
 
       // Check the region target.
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
-      CHECK_EQ(region->GetTarget(), compiler_attrs->compiler);
+      ICHECK_EQ(region->GetTarget(), compiler_attrs->compiler);
 
       // Visit the unmerged parent regions.
       for (const auto& arg : region->GetInputs()) {
         // Region inputs must be begin annotation, and the region of
         // the begin annotation's argument is the parent region.
         auto begin = Downcast<Call>(arg);
-        CHECK_EQ(begin->op, CompilerBeginOp());
+        ICHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
 
         // Skip this region if it has been merged.
@@ -86,7 +86,7 @@ class RegionMerger : public MixedModeVisitor {
       std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> mergeable_regions;
       for (const auto& arg : region->GetInputs()) {
         auto begin = Downcast<Call>(arg);
-        CHECK_EQ(begin->op, CompilerBeginOp());
+        ICHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
         if (parent_region.defined()) {
           mergeable_regions.insert(parent_region);

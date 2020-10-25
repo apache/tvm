@@ -386,7 +386,7 @@ class Integer : public IntImm {
    * \brief convert to int64_t
    */
   operator int64_t() const {
-    CHECK(data_ != nullptr) << " Trying to reference a null Integer";
+    ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
   }
   // comparators
@@ -461,9 +461,9 @@ class Range : public ObjectRef {
 
 // implementataions
 inline const Type& RelayExprNode::checked_type() const {
-  CHECK(checked_type_.defined()) << "internal error: the type checker has "
-                                 << "not populated the checked_type "
-                                 << "field for " << GetRef<RelayExpr>(this);
+  ICHECK(checked_type_.defined()) << "internal error: the type checker has "
+                                  << "not populated the checked_type "
+                                  << "field for " << GetRef<RelayExpr>(this);
   return this->checked_type_;
 }
 
@@ -471,11 +471,11 @@ template <typename TTypeNode>
 inline const TTypeNode* RelayExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
                 "TType must be a special case of type");
-  CHECK(checked_type_.defined())
+  ICHECK(checked_type_.defined())
       << "Type inference for this Expr has not completed. Try to call infer_type pass.";
   const TTypeNode* node = checked_type_.as<TTypeNode>();
-  CHECK(node != nullptr) << "Expected type to be " << TTypeNode::_type_key << ", but get "
-                         << checked_type_->GetTypeKey();
+  ICHECK(node != nullptr) << "Expected type to be " << TTypeNode::_type_key << ", but get "
+                          << checked_type_->GetTypeKey();
   return node;
 }
 
@@ -522,7 +522,7 @@ struct PackedFuncValueConverter<tvm::Bool> {
     }
     if (val.type_code() == kTVMArgInt) {
       int v = val.operator int();
-      CHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
+      ICHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
       return Bool(static_cast<bool>(v));
     }
     return val.AsObjectRef<tvm::Bool>();

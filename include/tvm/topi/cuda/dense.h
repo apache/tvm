@@ -53,10 +53,10 @@ namespace cuda {
 inline tvm::te::Tensor dense_cuda(const Target& target, const tvm::te::Tensor& data,
                                   const tvm::te::Tensor& weight, const tvm::te::Tensor& bias,
                                   const DataType& out_dtype) {
-  CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
-  CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
+  ICHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
+  ICHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
-    CHECK_EQ(bias->shape.size(), 1) << "dense requires 1-D bias";
+    ICHECK_EQ(bias->shape.size(), 1) << "dense requires 1-D bias";
   }
 
   auto batch = data->shape[0];
@@ -64,7 +64,7 @@ inline tvm::te::Tensor dense_cuda(const Target& target, const tvm::te::Tensor& d
   auto out_dim = weight->shape[0];
 
   if (target->GetLibs().count("cublas")) {
-    CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
+    ICHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::cublas_matmul(data, weight, false, true);
     if (bias.defined()) {
       mm = tvm::te::compute(

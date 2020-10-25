@@ -20,9 +20,9 @@
 /*!
  * \file rpc_device_api.cc
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <utility>
 
@@ -71,7 +71,7 @@ class RPCDeviceAPI final : public DeviceAPI {
     int from_dev_type = ctx_from.device_type;
     int to_dev_type = ctx_to.device_type;
     if (from_dev_type > kRPCSessMask && to_dev_type > kRPCSessMask) {
-      CHECK(ctx_from.device_type == ctx_to.device_type)
+      ICHECK(ctx_from.device_type == ctx_to.device_type)
           << "Cannot copy across two different remote session";
       auto remote_ctx_from = RemoveSessMask(ctx_from);
       auto remote_ctx_to = RemoveSessMask(ctx_to);
@@ -104,7 +104,7 @@ class RPCDeviceAPI final : public DeviceAPI {
  private:
   std::shared_ptr<RPCSession> GetSess(TVMContext ctx) {
     int dev_type = ctx.device_type;
-    CHECK_GE(dev_type, kRPCSessMask);
+    ICHECK_GE(dev_type, kRPCSessMask);
     int tbl_index = dev_type / kRPCSessMask - 1;
     return RPCSession::Get(tbl_index);
   }

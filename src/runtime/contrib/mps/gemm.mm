@@ -31,19 +31,19 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
   bool transa = args[3];
   bool transb = args[4];
   // call gemm for simple compact code.
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
-  CHECK(C->strides == nullptr);
-  CHECK(B->strides == nullptr);
-  CHECK(A->strides == nullptr);
-  CHECK(TypeMatch(A->dtype, kDLFloat, 32));
-  CHECK(TypeMatch(B->dtype, kDLFloat, 32));
-  CHECK(TypeMatch(C->dtype, kDLFloat, 32));
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
+  ICHECK(C->strides == nullptr);
+  ICHECK(B->strides == nullptr);
+  ICHECK(A->strides == nullptr);
+  ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+  ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+  ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
   // Get Metal device API
   MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
-  // CHECK_EQ(A->ctx, B->ctx);
-  // CHECK_EQ(A->ctx, C->ctx);
+  // ICHECK_EQ(A->ctx, B->ctx);
+  // ICHECK_EQ(A->ctx, C->ctx);
   id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(A->ctx);
   id<MTLCommandQueue> queue = entry_ptr->metal_api->GetCommandQueue(A->ctx);
   id<MTLCommandBuffer> cb = [queue commandBuffer];
@@ -51,7 +51,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
   NSUInteger N = B->shape[1 - (transb ? 1 : 0)];
   NSUInteger K = B->shape[0 + (transb ? 1 : 0)];
 
-  CHECK_EQ(A->shape[1 - (transa ? 1 : 0)], K);
+  ICHECK_EQ(A->shape[1 - (transa ? 1 : 0)], K);
   // mps a
   MPSDataType dtype = MPSType::DLTypeToMPSType(A->dtype);
   MPSMatrixDescriptor* descA =
@@ -86,7 +86,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetVa
                                            interiorColumns:K
                                                      alpha:1.0f
                                                       beta:0.0f];
-  CHECK(sgemm != nil);
+  ICHECK(sgemm != nil);
   [sgemm encodeToCommandBuffer:cb leftMatrix:matrixA rightMatrix:matrixB resultMatrix:matrixC];
   [cb commit];
 });

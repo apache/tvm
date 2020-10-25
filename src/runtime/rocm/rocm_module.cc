@@ -70,7 +70,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     // note: llvm and asm formats are not laodable, so we don't save them
-    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
   }
@@ -121,7 +121,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
     size_t nbytes = 0;
 
     ROCM_DRIVER_CALL(hipModuleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str()));
-    CHECK_EQ(nbytes, expect_nbytes);
+    ICHECK_EQ(nbytes, expect_nbytes);
     return global;
   }
 
@@ -189,8 +189,8 @@ class ROCMWrappedFunc {
 
 PackedFunc ROCMModuleNode::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
-  CHECK_EQ(sptr_to_self.get(), this);
-  CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
+  ICHECK_EQ(sptr_to_self.get(), this);
+  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;

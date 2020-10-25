@@ -114,7 +114,7 @@ class AnnotatedRegion : public ObjectRef {
   /*! \return Mutable pointers to the node. */
   AnnotatedRegionNode* operator->() const {
     auto* ptr = get_mutable();
-    CHECK(ptr != nullptr);
+    ICHECK(ptr != nullptr);
     return static_cast<AnnotatedRegionNode*>(ptr);
   }
 };
@@ -216,39 +216,39 @@ class AnnotatedRegionSet : public ObjectRef {
   /*! \return The begin iterator. */
   iterator begin() {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->begin();
   }
   /*! \return The end iterator. */
   iterator end() {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->end();
   }
   /*! \return The begin iterator. */
   const_iterator begin() const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->begin();
   }
   /*! \return The end iterator. */
   const_iterator end() const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->end();
   }
 
   /*! \return mutable pointers to the node. */
   AnnotatedRegionSetNode* operator->() const {
     auto* ptr = get_mutable();
-    CHECK(ptr != nullptr);
+    ICHECK(ptr != nullptr);
     return static_cast<AnnotatedRegionSetNode*>(ptr);
   }
 
   /*! \return The region an expression belongs to. */
   AnnotatedRegion operator[](const Expr& expr) {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->GetRegion(expr);
   }
 

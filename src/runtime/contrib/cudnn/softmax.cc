@@ -39,7 +39,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
       int ndim = x->ndim;
       int64_t* shape = x->shape;
       if (axis < 0) axis += ndim;
-      CHECK(axis >= 0 && axis < ndim);
+      ICHECK(axis >= 0 && axis < ndim);
 
       CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
       entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);

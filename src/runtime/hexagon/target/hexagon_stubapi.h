@@ -22,9 +22,9 @@
 
 #ifdef __ANDROID__
 #include <AEEStdErr.h>
-#include <dmlc/logging.h>
 #include <rpcmem.h>
 #include <stdint.h>
+#include <tvm/support/logging.h>
 
 #include <tuple>
 

@@ -55,9 +55,9 @@ PackedFunc GraphRuntimeFactory::GetFunction(
     });
   } else if (name == "debug_create") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK_GE(args.size(), 2);
+      ICHECK_GE(args.size(), 2);
       std::string module_name = args[0].operator String();
-      CHECK(module_name == module_name_) << "Currently we only support single model for now.";
+      ICHECK(module_name == module_name_) << "Currently we only support single model for now.";
       std::vector<TVMContext> contexts;
       for (int i = 1; i < args.num_args; ++i) {
         contexts.emplace_back(args[i].operator TVMContext());
@@ -86,7 +86,7 @@ void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
     arrays.emplace_back(const_cast<DLTensor*>(v.second.operator->()));
   }
   uint64_t sz = arrays.size();
-  CHECK(sz == names.size());
+  ICHECK(sz == names.size());
   stream->Write(sz);
   stream->Write(names);
   for (size_t i = 0; i < sz; ++i) {
@@ -105,8 +105,8 @@ Module GraphRuntimeFactory::RuntimeCreate(const std::vector<TVMContext>& ctxs) {
 
 Module GraphRuntimeFactory::DebugRuntimeCreate(const std::vector<TVMContext>& ctxs) {
   const PackedFunc* pf = tvm::runtime::Registry::Get("tvm.graph_runtime_debug.create");
-  CHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_debug.create in registry. "
-                          "Do you enable debug graph runtime build?";
+  ICHECK(pf != nullptr) << "Cannot find function tvm.graph_runtime_debug.create in registry. "
+                           "Do you enable debug graph runtime build?";
   // Debug runtime create packed function will call GetAllContexs, so we unpack the ctxs.
   std::vector<int> unpacked_ctxs;
   for (const auto& ctx : ctxs) {
@@ -135,29 +135,29 @@ Module GraphRuntimeFactoryModuleLoadBinary(void* strm) {
   std::string graph_json;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
   std::string module_name;
-  CHECK(stream->Read(&graph_json));
+  ICHECK(stream->Read(&graph_json));
   uint64_t sz;
-  CHECK(stream->Read(&sz));
+  ICHECK(stream->Read(&sz));
   std::vector<std::string> names;
-  CHECK(stream->Read(&names));
-  CHECK(sz == names.size());
+  ICHECK(stream->Read(&names));
+  ICHECK(sz == names.size());
   for (size_t i = 0; i < sz; ++i) {
     tvm::runtime::NDArray temp;
     temp.Load(stream);
     params[names[i]] = temp;
   }
-  CHECK(stream->Read(&module_name));
+  ICHECK(stream->Read(&module_name));
   auto exec = make_object<GraphRuntimeFactory>(graph_json, params, module_name);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CHECK_GE(args.num_args, 3) << "The expected number of arguments for "
-                                "graph_runtime_factory.create needs at least 3, "
-                                "but it has "
-                             << args.num_args;
+  ICHECK_GE(args.num_args, 3) << "The expected number of arguments for "
+                                 "graph_runtime_factory.create needs at least 3, "
+                                 "but it has "
+                              << args.num_args;
   // The argument order is graph_json, module, module_name, params.
-  CHECK_EQ((args.size() - 3) % 2, 0);
+  ICHECK_EQ((args.size() - 3) % 2, 0);
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
   for (size_t i = 3; i < static_cast<size_t>(args.size()); i += 2) {
     std::string name = args[i].operator String();

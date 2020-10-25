@@ -58,13 +58,13 @@ template <typename T>
 inline void DispatchPureExtern(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   const CallNode* call = e.as<CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   // Use string based dispatch to extern for backward compact
   // TODO(tvm-team) replace once the new dispatching system is inplace.
   const OpNode* op = call->op.as<OpNode>();
-  CHECK(op != nullptr);
+  ICHECK(op != nullptr);
   std::string name = op->name;
-  CHECK_EQ(name.substr(0, 4), "tir.");
+  ICHECK_EQ(name.substr(0, 4), "tir.");
   name = T()(call->dtype, name.substr(4));
 
   if (name.length() != 0) {

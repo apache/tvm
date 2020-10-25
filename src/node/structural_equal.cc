@@ -90,7 +90,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
 
   void MarkGraphNode() final {
     // need to push to pending tasks in this case
-    CHECK(!allow_push_to_stack_ && !task_stack_.empty());
+    ICHECK(!allow_push_to_stack_ && !task_stack_.empty());
     task_stack_.back().graph_equal = true;
   }
 
@@ -108,8 +108,8 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
     equal_map_lhs_.clear();
     equal_map_rhs_.clear();
     if (!SEqualReduce(lhs, rhs, map_free_vars)) return false;
-    CHECK_EQ(pending_tasks_.size(), 1U);
-    CHECK(allow_push_to_stack_);
+    ICHECK_EQ(pending_tasks_.size(), 1U);
+    ICHECK(allow_push_to_stack_);
     task_stack_.emplace_back(std::move(pending_tasks_.back()));
     pending_tasks_.clear();
     return RunTasks();
@@ -141,7 +141,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
         // We can safely mark lhs and rhs as equal to each other.
         auto it = equal_map_lhs_.find(entry.lhs);
         if (it != equal_map_lhs_.end()) {
-          CHECK(it->second.same_as(entry.rhs));
+          ICHECK(it->second.same_as(entry.rhs));
         }
         // create the map if the quality is graph equal.
         if (entry.graph_equal) {
@@ -156,7 +156,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
         // Expand the objects
         // The SEqual of the object can call into this->SEqualReduce
         // which populates the pending tasks.
-        CHECK_EQ(pending_tasks_.size(), 0U);
+        ICHECK_EQ(pending_tasks_.size(), 0U);
         allow_push_to_stack_ = false;
         if (!DispatchSEqualReduce(entry.lhs, entry.rhs, entry.map_free_vars)) return false;
         allow_push_to_stack_ = true;
@@ -174,7 +174,7 @@ class RemapVarSEqualHandler : public SEqualReducer::Handler {
   // The default equal as registered in the structural equal vtable.
   bool DispatchSEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
     auto compute = [=]() {
-      CHECK(lhs.defined() && rhs.defined() && lhs->type_index() == rhs->type_index());
+      ICHECK(lhs.defined() && rhs.defined() && lhs->type_index() == rhs->type_index());
       // skip entries that already have equality maps.
       auto it = equal_map_lhs_.find(lhs);
       if (it != equal_map_lhs_.end()) {

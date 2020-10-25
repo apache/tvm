@@ -100,7 +100,7 @@ struct Tokenizer {
   bool More() { return this->pos < this->source.size(); }
 
   char Peek() {
-    CHECK(pos < this->source.size());
+    ICHECK(pos < this->source.size());
     return this->source.at(this->pos);
   }
 
@@ -170,7 +170,7 @@ struct Tokenizer {
   }
 
   Token ParseNumber(bool is_pos, bool is_float, std::string number) {
-    CHECK(number.size() > 0) << "an empty string is an invalid number";
+    ICHECK(number.size() > 0) << "an empty string is an invalid number";
 
     try {
       if (is_float) {
@@ -231,22 +231,22 @@ struct Tokenizer {
     int line = this->line;
     int column = this->col;
 
-    CHECK_EQ(Peek(), '[');
+    ICHECK_EQ(Peek(), '[');
     Next();
     std::stringstream type_key;
     while (More() && Peek() != ']') {
       type_key << Next();
     }
-    CHECK_EQ(Peek(), ']');
+    ICHECK_EQ(Peek(), ']');
     Next();
 
-    CHECK_EQ(Peek(), '[');
+    ICHECK_EQ(Peek(), '[');
     Next();
     std::stringstream str_index;
     while (More() && Peek() != ']') {
       str_index << Next();
     }
-    CHECK_EQ(Peek(), ']');
+    ICHECK_EQ(Peek(), ']');
     Next();
     // todo: add error handling around bad indices
     auto index = ParseNumber(true, false, str_index.str()).ToNumber();
@@ -266,7 +266,7 @@ struct Tokenizer {
         raw_attribute << Next();
       }
 
-      CHECK_EQ(Next(), ']');
+      ICHECK_EQ(Next(), ']');
 
       auto attribute = raw_attribute.str();
       // Clean up the white-space on both sides.
@@ -537,7 +537,7 @@ struct Tokenizer {
     DLOG(INFO) << "tvm::parser::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
-      CHECK(token.defined());
+      ICHECK(token.defined());
       this->tokens.push_back(token);
     }
     this->tokens.push_back(NewToken(TokenType::kEndOfFile));
@@ -576,15 +576,15 @@ std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
           i += 1;
           // TODO(@jroesch): merge spans
           auto tok = Token(current->span, TokenType::kLocal, next->data);
-          CHECK(tok.defined());
+          ICHECK(tok.defined());
           out.push_back(tok);
         } else if (next->token_type == TokenType::kInteger) {
           i += 1;
           auto tok = Token(current->span, TokenType::kGraph, next->data);
-          CHECK(tok.defined());
+          ICHECK(tok.defined());
           out.push_back(tok);
         } else {
-          CHECK(current.defined());
+          ICHECK(current.defined());
           out.push_back(current);
         }
         continue;
@@ -596,10 +596,10 @@ std::vector<Token> Condense(const std::vector<Token>& tokens, Token* table) {
           i += 1;
           // TODO(@jroesch): merge spans
           auto tok = Token(current->span, TokenType::kGlobal, next->data);
-          CHECK(tok.defined());
+          ICHECK(tok.defined());
           out.push_back(tok);
         } else {
-          CHECK(current.defined());
+          ICHECK(current.defined());
           out.push_back(current);
         }
         continue;
@@ -638,7 +638,7 @@ std::pair<std::vector<Token>, Token> Tokenize(const DiagnosticContext& ctx, cons
   Token meta_table(Span(), TokenType::kUnknown, ObjectRef());
   auto tokens = Condense(tokenizer.tokens, &meta_table);
   for (auto token : tokens) {
-    CHECK(token.defined());
+    ICHECK(token.defined());
   }
   return {tokens, meta_table};
 }

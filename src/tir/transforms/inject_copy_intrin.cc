@@ -47,7 +47,7 @@ class CopyIntrinInjector : public StmtMutator {
       storage_scope_[buf] = op->value.as<StringImmNode>()->value;
     } else if (op->attr_key == pragma_key_) {
       Stmt ret;
-      CHECK(MatchCopyPattern(op->body, &ret)) << "Cannot match copy pattern of " << op->body;
+      ICHECK(MatchCopyPattern(op->body, &ret)) << "Cannot match copy pattern of " << op->body;
       return ret;
     }
     return StmtMutator::VisitStmt_(op);
@@ -76,7 +76,7 @@ class CopyIntrinInjector : public StmtMutator {
     const CastNode* cast = store->value.as<CastNode>();
     const LoadNode* load = store->value.as<LoadNode>();
     if (0 == loops.size()) {
-      CHECK(!has_cond);
+      ICHECK(!has_cond);
     }
     // for now only support true condition matching
     if (has_cond) {
@@ -112,8 +112,8 @@ class CopyIntrinInjector : public StmtMutator {
       Array<PrimExpr> clip_bound = arith::DetectClipBound(sel_cond.Eval(), loop_vars);
       pad_value = sel_false_value.Eval();
       if (clip_bound.size() == 0) return false;
-      CHECK_EQ(src_shape.size(), loop_vars.size());
-      CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
+      ICHECK_EQ(src_shape.size(), loop_vars.size());
+      ICHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
       for (size_t i = 0; i < src_shape.size(); ++i) {
         PrimExpr min_value = clip_bound[2 * i];
         PrimExpr max_value = clip_bound[2 * i + 1];
@@ -139,8 +139,8 @@ class CopyIntrinInjector : public StmtMutator {
       }
       src_elem_offset = analyzer_.Simplify(src_elem_offset);
     }
-    CHECK_EQ(load_strides.size(), store_strides.size());
-    CHECK_EQ(load_strides.size(), loop_var_size + 1);
+    ICHECK_EQ(load_strides.size(), store_strides.size());
+    ICHECK_EQ(load_strides.size(), loop_var_size + 1);
     Array<PrimExpr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<PrimExpr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     if (loop_var_size == 0) {
@@ -154,7 +154,7 @@ class CopyIntrinInjector : public StmtMutator {
                         load->buffer_var->name_hint, GetStorageScope(load->buffer_var.get()), 0, 0,
                         kDefault);
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
-    CHECK(out->defined()) << "flower function did not return correct stmt";
+    ICHECK(out->defined()) << "flower function did not return correct stmt";
     return true;
   }
   // Get storage scope

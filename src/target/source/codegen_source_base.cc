@@ -70,7 +70,7 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
 }
 
 std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
-  CHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
+  ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
   std::string key = v->name_hint;
   std::string vid = GetUniqueName(key);
   var_idmap_[v] = vid;
@@ -79,7 +79,7 @@ std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
 
 std::string CodeGenSourceBase::GetVarID(const tir::VarNode* v) const {
   auto it = var_idmap_.find(v);
-  CHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
+  ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
   return it->second;
 }
 
@@ -97,7 +97,7 @@ void CodeGenSourceBase::MarkConst(std::string vid) {
     e.scope_id = 0;
     ssa_assign_map_[vid] = e;
   } else {
-    CHECK_EQ(it->second.vid, vid);
+    ICHECK_EQ(it->second.vid, vid);
   }
 }
 

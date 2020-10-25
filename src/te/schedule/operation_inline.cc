@@ -48,9 +48,9 @@ class OperationInliner final : public StmtExprMutator {
     auto tensor = Downcast<Tensor>(op->producer);
 
     if (tensor->op.same_as(operation_)) {
-      CHECK_EQ(tensor->value_index, 0);
+      ICHECK_EQ(tensor->value_index, 0);
       expr = body_;
-      CHECK_EQ(args_.size(), op->indices.size());
+      ICHECK_EQ(args_.size(), op->indices.size());
 
       bool has_side_effect = false;
       for (size_t i = 0; i < op->indices.size(); ++i) {
@@ -81,7 +81,7 @@ class OperationInliner final : public StmtExprMutator {
 };
 
 Stmt Inline(Stmt stmt, Operation f, Array<Var> args, PrimExpr body) {
-  CHECK_EQ(f->num_outputs(), 1) << "can only inline output single value operation";
+  ICHECK_EQ(f->num_outputs(), 1) << "can only inline output single value operation";
   Stmt ret = OperationInliner(f, args, body)(std::move(stmt));
   if (ret.same_as(stmt)) return ret;
   return ConvertSSA(ret);

@@ -47,7 +47,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp10")
       using tir::make_zero;
       PrimExpr e = targs[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
       PrimExpr ret = exp(x * ln10);
@@ -93,7 +93,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
       using tir::make_zero;
       PrimExpr e = targs[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr one = make_const(x.dtype(), 1);
       PrimExpr two = make_const(x.dtype(), 2);
@@ -116,7 +116,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.popcount")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tan").set_body([](const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
   PrimExpr tan_x = sin(x) / cos(x);
   *rv = tan_x;
@@ -131,7 +131,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.cosh")
       using tir::make_zero;
       PrimExpr e = targs[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_one = make_const(x.dtype(), -1);
@@ -150,7 +150,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sinh")
       using tir::make_zero;
       PrimExpr e = targs[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
       PrimExpr two = make_const(x.dtype(), 2);
       PrimExpr neg_one = make_const(x.dtype(), -1);

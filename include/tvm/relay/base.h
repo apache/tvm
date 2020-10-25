@@ -42,18 +42,18 @@ namespace tvm {
  */
 namespace relay {
 
-#define RELAY_DEBUG(...)                                               \
-  {                                                                    \
-    auto fdebug = runtime::Registry::Get("relay.debug");               \
-    CHECK(fdebug) << "Could not find Relay Python debugger function."; \
-    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);         \
+#define RELAY_DEBUG(...)                                                \
+  {                                                                     \
+    auto fdebug = runtime::Registry::Get("relay.debug");                \
+    ICHECK(fdebug) << "Could not find Relay Python debugger function."; \
+    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);          \
   }
 
-#define RELAY_DEBUG_INTERP(...)                                        \
-  {                                                                    \
-    auto fdebug = runtime::Registry::Get("relay.debug_interp");        \
-    CHECK(fdebug) << "Could not find Relay Python debugger function."; \
-    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);         \
+#define RELAY_DEBUG_INTERP(...)                                         \
+  {                                                                     \
+    auto fdebug = runtime::Registry::Get("relay.debug_interp");         \
+    ICHECK(fdebug) << "Could not find Relay Python debugger function."; \
+    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);          \
   }
 
 /*!

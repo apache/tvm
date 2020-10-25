@@ -358,9 +358,9 @@ std::unordered_map<const Object*, size_t> GetExprRefCount(const Expr& body) {
 
 template <typename T>
 bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
-  CHECK_EQ(tensor->ctx.device_type, kDLCPU);
-  CHECK(tensor->strides == nullptr);
-  CHECK_EQ(tensor->byte_offset, 0);
+  ICHECK_EQ(tensor->ctx.device_type, kDLCPU);
+  ICHECK(tensor->strides == nullptr);
+  ICHECK_EQ(tensor->byte_offset, 0);
   const T* data = static_cast<const T*>(tensor->data);
   int64_t num_elems = 1;
   for (int i = 0; i < tensor->ndim; ++i) {
@@ -446,10 +446,10 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
    private:
     const tvm::Map<TypeVar, Type>& subst_map_;
   };
-  CHECK(WellFormed(expr));
+  ICHECK(WellFormed(expr));
   auto ret = TypeSubstMutator(subst_map).VisitExpr(expr);
-  CHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
-  CHECK(WellFormed(ret));
+  ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
+  ICHECK(WellFormed(ret));
   return ret;
 }
 

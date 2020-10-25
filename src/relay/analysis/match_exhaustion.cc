@@ -68,7 +68,7 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
     }
 
     // now check that subpatterns match
-    CHECK_EQ(op->patterns.size(), ctor_cand->patterns.size());
+    ICHECK_EQ(op->patterns.size(), ctor_cand->patterns.size());
     bool unspecified = false;
     for (size_t i = 0; i < op->patterns.size(); i++) {
       MatchResult submatch = this->Check(op->patterns[i], ctor_cand->patterns[i]);
@@ -95,7 +95,7 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
     }
 
     // now check that subpatterns match
-    CHECK_EQ(op->patterns.size(), tuple_cand->patterns.size());
+    ICHECK_EQ(op->patterns.size(), tuple_cand->patterns.size());
     bool unspecified = false;
     for (size_t i = 0; i < op->patterns.size(); i++) {
       MatchResult submatch = this->Check(op->patterns[i], tuple_cand->patterns[i]);
@@ -126,7 +126,7 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
 
 // Returns list of arrays corresponding to Cartesian product of input list
 Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
-  CHECK_NE(fields.size(), 0);
+  ICHECK_NE(fields.size(), 0);
   Array<Pattern> field_vals = fields[fields.size() - 1];
   Array<Array<Pattern>> ret;
 

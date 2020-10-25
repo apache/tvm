@@ -38,10 +38,10 @@ TVM_REGISTER_NODE_TYPE(SparseDenseAttrs);
 
 bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 5);
+  ICHECK_EQ(types.size(), 5);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight_data = types[1].as<TensorTypeNode>();
-  CHECK(weight_data->shape.size() == 1 || weight_data->shape.size() == 3);
+  ICHECK(weight_data->shape.size() == 1 || weight_data->shape.size() == 3);
   const auto* weight_indptr = types[3].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
@@ -131,11 +131,11 @@ TVM_REGISTER_NODE_TYPE(SparseTransposeAttrs);
 
 bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                         const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4);
+  ICHECK_EQ(types.size(), 4);
   const auto* sparse_data = types[0].as<TensorTypeNode>();
-  CHECK_EQ(sparse_data->shape.size(), 1);
+  ICHECK_EQ(sparse_data->shape.size(), 1);
   const auto* sparse_indices = types[1].as<TensorTypeNode>();
-  CHECK_EQ(sparse_indices->shape.size(), 1);
+  ICHECK_EQ(sparse_indices->shape.size(), 1);
   const auto* sparse_indptr = types[2].as<TensorTypeNode>();
 
   std::vector<Type> output_types;

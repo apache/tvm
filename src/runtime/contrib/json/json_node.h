@@ -73,13 +73,13 @@ class JSONGraphNodeEntry {
    */
   void Load(dmlc::JSONReader* reader) {
     reader->BeginArray();
-    CHECK(reader->NextArrayItem()) << "invalid json format";
+    ICHECK(reader->NextArrayItem()) << "invalid json format";
     reader->Read(&id_);
-    CHECK(reader->NextArrayItem()) << "invalid json format";
+    ICHECK(reader->NextArrayItem()) << "invalid json format";
     reader->Read(&index_);
     if (reader->NextArrayItem()) {
       reader->Read(&version_);
-      CHECK(!reader->NextArrayItem()) << "invalid json format";
+      ICHECK(!reader->NextArrayItem()) << "invalid json format";
     } else {
       version_ = 0;
     }
@@ -145,27 +145,27 @@ class JSONGraphNode {
       } else if (key == "dtype") {
         std::vector<std::string> tmp;
         reader->BeginArray();
-        CHECK(reader->NextArrayItem());
+        ICHECK(reader->NextArrayItem());
         reader->Read(&tmp);
-        CHECK(!reader->NextArrayItem());
+        ICHECK(!reader->NextArrayItem());
         for (const auto& it : tmp) {
           dtype_.push_back(tvm::runtime::String2DLDataType(it));
         }
       } else if (key == "shape") {
         reader->BeginArray();
-        CHECK(reader->NextArrayItem());
+        ICHECK(reader->NextArrayItem());
         reader->Read(&shape_);
-        CHECK(!reader->NextArrayItem());
+        ICHECK(!reader->NextArrayItem());
       } else {
         reader->BeginArray();
-        CHECK(reader->NextArrayItem());
+        ICHECK(reader->NextArrayItem());
         std::vector<std::string> tmp;
         reader->Read(&tmp);
         attrs_[key] = tmp;
-        CHECK(!reader->NextArrayItem());
+        ICHECK(!reader->NextArrayItem());
       }
     }
-    CHECK_EQ(shape_.size(), dtype_.size());
+    ICHECK_EQ(shape_.size(), dtype_.size());
   }
 
   /*!
@@ -256,7 +256,7 @@ class JSONGraphNode {
    */
   template <typename T>
   T GetAttr(const std::string& key) const {
-    CHECK_GT(attrs_.count(key), 0U) << "Key: " << key << "is not found";
+    ICHECK_GT(attrs_.count(key), 0U) << "Key: " << key << "is not found";
     return dmlc::get<T>(attrs_.at(key));
   }
 

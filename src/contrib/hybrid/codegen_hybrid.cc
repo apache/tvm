@@ -65,14 +65,14 @@ std::string CodeGenHybrid::Finish() { return stream.str(); }
 void CodeGenHybrid::PrintType(DataType t, std::ostream& os) {
   if (t.is_float()) {
     os << "float";
-    CHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+    ICHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   } else if (t.is_int()) {
     os << "int";
-    CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+    ICHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   } else {
-    CHECK(t.is_uint()) << "Unsupported type " << t;
+    ICHECK(t.is_uint()) << "Unsupported type " << t;
     os << "uint";
-    CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+    ICHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   }
   os << t.bits();
 }
@@ -93,7 +93,7 @@ template <typename T>
 inline void PrintBinaryExpr(const T* op, const char* opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenHybrid* p) {
-  CHECK(op->dtype.lanes() == 1) << "vec bin op not implemented";
+  ICHECK(op->dtype.lanes() == 1) << "vec bin op not implemented";
   if (isalpha(opstr[0])) {
     os << opstr << '(';
     p->PrintExpr(op->a, os);
@@ -114,8 +114,8 @@ inline void PrintBinaryExpr(const T* op, const char* opstr,
 inline void PrintBinaryIntrinsitc(const CallNode* op, const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
-  CHECK(op->dtype.lanes() == 1) << "vec bin intrin not implemented";
-  CHECK_EQ(op->args.size(), 2U);
+  ICHECK(op->dtype.lanes() == 1) << "vec bin intrin not implemented";
+  ICHECK_EQ(op->args.size(), 2U);
   os << '(';
   p->PrintExpr(op->args[0], os);
   os << opstr;
@@ -228,7 +228,7 @@ void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
   } else if (op->op.same_as(builtin::shift_right())) {
     PrintBinaryIntrinsitc(op, ">>", os, this);
   } else if (op->op.same_as(builtin::bitwise_not())) {
-    CHECK_EQ(op->args.size(), 1U);
+    ICHECK_EQ(op->args.size(), 1U);
     os << "(~";
     PrintExpr(op->args[0], os);
     os << ')';
@@ -251,9 +251,9 @@ void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     os << ")";
   } else {
     auto* ptr_op = op->op.as<OpNode>();
-    CHECK(ptr_op != nullptr);
+    ICHECK(ptr_op != nullptr);
     std::string name = ptr_op->name;
-    CHECK_EQ(name.compare(0, 4, "tir."), 0);
+    ICHECK_EQ(name.compare(0, 4, "tir."), 0);
     os << name.substr(4) << "(";
     for (size_t i = 0; i < op->args.size(); i++) {
       PrintExpr(op->args[i], os);
@@ -305,7 +305,7 @@ void CodeGenHybrid::VisitStmt_(const LetStmtNode* op) {
 void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     auto iter_var = op->node.as<IterVarNode>();
-    CHECK(iter_var);
+    ICHECK(iter_var);
     binds_[iter_var->var.get()] = dot_to_underscore(iter_var->var->name_hint);
     PrintIndent();
     stream << "for " << binds_[iter_var->var.get()] << " in bind('" << iter_var->var->name_hint
@@ -327,7 +327,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenHybrid::VisitStmt_(const ProducerRealizeNode* op) {
   auto tensor = Downcast<Tensor>(op->producer);
-  CHECK(alloc_storage_scope_.count(tensor->op));
+  ICHECK(alloc_storage_scope_.count(tensor->op));
   if (!alloc_storage_scope_[tensor->op].empty()) {
     PrintIndent();
     stream << GetTensorID(tensor) << " = allocate((";
@@ -493,7 +493,7 @@ void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
       stream << GetTensorID(GetRef<Tensor>(tensor));
     } else {
       auto var = inputs[i].as<VarNode>();
-      CHECK(var) << "Input should either be a tensor or a variable!";
+      ICHECK(var) << "Input should either be a tensor or a variable!";
       stream << GetVarID(var);
     }
   }

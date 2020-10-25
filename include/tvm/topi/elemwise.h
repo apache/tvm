@@ -327,7 +327,7 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
  */
 inline Tensor elemwise_sum(const Array<Tensor>& xs, std::string name = "T_elemwise_sum",
                            std::string tag = kElementWise) {
-  CHECK_GT(xs.size(), 0) << "elemwise sum must have at least one input tensor.";
+  ICHECK_GT(xs.size(), 0) << "elemwise sum must have at least one input tensor.";
   return compute(
       xs[0]->shape,
       [&](const Array<Var>& i) {

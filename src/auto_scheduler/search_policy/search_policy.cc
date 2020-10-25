@@ -39,7 +39,7 @@ void SearchPolicyNode::PreloadMeasuredStates(const String& log_file) {
   RecordReader reader = RecordReader(log_file);
   const auto& res = reader->ReadLines(-1);
   size_t log_size = res.first.size();
-  CHECK_EQ(log_size, res.second.size());
+  ICHECK_EQ(log_size, res.second.size());
   if (log_size) {
     Array<State> measured_states;
     std::vector<float> measured_throughputs;

@@ -41,7 +41,7 @@ namespace dyn {
 bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
   // types = [data_type, scale_h_type, scale_w_type, ret_type]
-  CHECK_EQ(types.size(), 4);
+  ICHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* scale_h = types[1].as<TensorTypeNode>();
   const auto* scale_w = types[2].as<TensorTypeNode>();
@@ -49,16 +49,16 @@ bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (scale_h == nullptr) return false;
   if (scale_w == nullptr) return false;
 
-  CHECK_EQ(scale_h->shape.size(), 0);
-  CHECK_EQ(scale_w->shape.size(), 0);
+  ICHECK_EQ(scale_h->shape.size(), 0);
+  ICHECK_EQ(scale_w->shape.size(), 0);
   static const Layout kNCHW("NCHW");
 
   const UpSamplingAttrs* param = attrs.as<UpSamplingAttrs>();
-  CHECK(param);
+  ICHECK(param);
   const Layout in_layout(param->layout);
 
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "UpSampling only supports input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 
@@ -122,18 +122,18 @@ RELAY_REGISTER_OP("dyn.nn.upsampling")
 bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
   // types = [data_type, scale_d_type, scale_h_type, scale_w_type, ret_type]
-  CHECK_EQ(types.size(), 5);
+  ICHECK_EQ(types.size(), 5);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCDHW("NCDHW");
 
   const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "UpSampling3D only support input layouts that are convertible from NCDHW."
       << " But got " << in_layout;
 
