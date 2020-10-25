@@ -193,6 +193,12 @@ def test_where():
 
     verify(x_np, y_np, cond_np)
 
+    x_np = np.arange(10).astype(dtype)
+    y_np = 10 * x_np
+    cond_np = x_np < 5
+
+    verify(x_np, y_np, cond_np)
+
     x_np = np.array([[1, 2], [3, 4]], dtype)
     y_np = np.array([[5, 6], [7, 8]], dtype)
     cond_np = np.array([[1], [0]], dtype=np.bool)
@@ -205,6 +211,11 @@ def test_where():
     cond_np = np.random.randn(1, 1, 8, 8) > 0
 
     verify(x_np, y_np, cond_np)
+
+    x_np, y_np = np.ogrid[:3, :4]
+    cond_np = np.where(x_np < y_np, x_np, 10 + y_np).astype(np.bool)
+
+    verify(x_np.astype(dtype), y_np.astype(dtype), cond_np)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
