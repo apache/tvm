@@ -49,8 +49,8 @@ Page PageCreate(uint8_t* memory_pool, size_t page_size_bytes, tvm_index_t ptable
 }
 
 void PageTable_Resize(struct PageTable* ptable, size_t new_size, Page* page) {
-  ICHECK_LE(ptable->num_pages, new_size, "size value (%zu) is smaller than expected (%zu).",
-            new_size, ptable->num_pages);
+  CHECK_LE(ptable->num_pages, new_size, "size value (%zu) is smaller than expected (%zu).",
+           new_size, ptable->num_pages);
   for (uint32_t idx = ptable->num_pages; idx < new_size; idx++) {
     ptable->page[idx] = *page;
   }
@@ -110,7 +110,7 @@ void MultiMap_Erase(struct MultiMap* map, IndexedEntry* entry) {
 }
 
 void MultiMap_Insert(struct MultiMap* map, uint32_t npage, Page* p) {
-  ICHECK_LE(map->num_entries + 1, map->max_entries, "invalid number of free pages.");
+  CHECK_LE(map->num_entries + 1, map->max_entries, "invalid number of free pages.");
   for (uint32_t idx = map->num_entries; idx < (map->num_entries + npage); idx++) {
     map->entries[map->num_entries].index = npage;
     map->entries[map->num_entries].page = *p;
@@ -139,9 +139,9 @@ void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
     npage = p.num_pages;
   } else {
     start = ptable->num_pages;
-    ICHECK_LE((unsigned)(start + npage), ptable->max_pages,
-              "insufficient memory, start=%" PRId32 ", npage=%" PRId32 ", total=%" PRId32 " / %zu",
-              (int32_t)start, (int32_t)npage, (int32_t)(start + npage), mgr->pmap.max_pages);
+    CHECK_LE((unsigned)(start + npage), ptable->max_pages,
+             "insufficient memory, start=%" PRId32 ", npage=%" PRId32 ", total=%" PRId32 " / %zu",
+             (int32_t)start, (int32_t)npage, (int32_t)(start + npage), mgr->pmap.max_pages);
     /* insert page entry */
     Page p = PageCreate(ptable->memory_pool, ptable->page_size_bytes, start, npage);
     ptable->resize(ptable, start + npage, &p);
@@ -172,9 +172,9 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
   tvm_index_t npage = (size + ptable->page_size_bytes - 1) / ptable->page_size_bytes;
   if (ptr) {
     // get page size for given pointer
-    ICHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
+    CHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
     PageEntry* entry = pmap->find(pmap, (uint8_t*)ptr);  // NOLINT(*)
-    ICHECK_NE(entry, 0, "no valid page entry found.");
+    CHECK_NE(entry, 0, "no valid page entry found.");
     Page* pptr = &(entry->page);
     // if the page size is smaller than target page size,
     // try allocate new space
@@ -190,9 +190,9 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
         free_map->erase(free_map, it);
       } else {
         start = ptable->num_pages;
-        ICHECK_LE((unsigned)(start + npage), ptable->max_pages,
-                  "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
-                  start, npage, start + npage);
+        CHECK_LE((unsigned)(start + npage), ptable->max_pages,
+                 "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
+                 start, npage, start + npage);
         Page p = PageCreate(mgr->ptable.memory_pool, mgr->ptable.page_size_bytes, start, npage);
         ptable->resize(ptable, start + npage, &p);
         data = p.data;
@@ -216,9 +216,9 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
     } else {
       PageTable* ptable = &(mgr->ptable);
       start = ptable->num_pages;
-      ICHECK_LE((unsigned)(start + npage), ptable->max_pages,
-                "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
-                start, npage, start + npage);
+      CHECK_LE((unsigned)(start + npage), ptable->max_pages,
+               "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
+               start, npage, start + npage);
       /* insert page entry */
       Page p = PageCreate(mgr->ptable.memory_pool, mgr->ptable.page_size_bytes, start, npage);
       ptable->resize(ptable, start + npage, &p);
@@ -243,9 +243,9 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
  */
 void MemoryManager_Free(MemoryManager* mgr, void* ptr) {
   TLB* pmap = &(mgr->pmap);
-  ICHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
+  CHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
   PageEntry* entry = pmap->find(pmap, (uint8_t*)ptr);  // NOLINT(*)
-  ICHECK_NE(entry, 0, "no valid page entry found.");
+  CHECK_NE(entry, 0, "no valid page entry found.");
   Page* p = &(entry->page);
   MultiMap* free_map = &(mgr->free_map);
   free_map->insert(free_map, p->num_pages, p);

@@ -555,7 +555,7 @@ int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name) {
       break;
     }
   }
-  ICHECK_GE(rv, 0, "cannot find '%s' among input.", name);
+  CHECK_GE(rv, 0, "cannot find '%s' among input.", name);
   return rv;
 }
 
@@ -626,8 +626,8 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
 
   for (idx = 0; idx < size; idx++) {
     int32_t in_idx = TVMGraphRuntime_GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
-    ICHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
-              names + TVM_CRT_STRLEN_NAME * idx);
+    CHECK_GT(in_idx, 0, "Found param for non-existent input: %s\n",
+             names + TVM_CRT_STRLEN_NAME * idx);
     uint32_t eid = TVMGraphRuntime_GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
       fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n", eid,
@@ -737,8 +737,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     DLDataType dtype = {kDLFloat, 32, 1};
     shape[0] = (pit.size + 3) / 4;
     runtime->storage_pool[runtime->storage_pool_count] = TVMNDArray_Empty(1, shape, dtype, ctx);
-    ICHECK_NE(runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data, 0,
-              "fail to create storage_pool with idx=%d\n", idx);
+    CHECK_NE(runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data, 0,
+             "fail to create storage_pool with idx=%d\n", idx);
     runtime->storage_pool_count++;
   }
 
@@ -753,8 +753,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     runtime->data_entry[idx] =
         TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
                               attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx], vtype[idx]);
-    ICHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
-              "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
+    CHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
+             "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
   }
 
   // Release memory
@@ -875,7 +875,7 @@ void TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, cons
 
 TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const TVMModule* m,
                                         const TVMContext* ctxs) {
-  ICHECK_EQ(vleak_size, 1, "memory leak checking won't work with concurrent CRT use");
+  CHECK_EQ(vleak_size, 1, "memory leak checking won't work with concurrent CRT use");
   TVMGraphRuntime* runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(TVMGraphRuntime));
   // init
@@ -910,5 +910,5 @@ void TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
     g_fexecs = 0;
   }
 
-  ICHECK_EQ(vleak_size, 1, "found memory leak, leak size=%d", vleak_size - 1);
+  CHECK_EQ(vleak_size, 1, "found memory leak, leak size=%d", vleak_size - 1);
 }
