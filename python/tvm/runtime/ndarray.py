@@ -30,8 +30,10 @@ try:
         raise ImportError()
     from tvm._ffi._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
     from tvm._ffi._cy3.core import NDArrayBase
-except (RuntimeError, ImportError):
+except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position
+    if _FFI_MODE == "cython":
+        raise error
     from tvm._ffi._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
     from tvm._ffi._ctypes.ndarray import NDArrayBase
 
