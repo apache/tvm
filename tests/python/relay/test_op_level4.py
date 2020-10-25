@@ -522,12 +522,12 @@ def test_strided_set():
 
 
 if __name__ == "__main__":
-    # test_strided_slice()
-    # test_strided_set()
-    # test_binary_op()
-    # test_cmp_type()
-    # test_binary_int_broadcast_1()
-    # test_binary_int_broadcast_2()
+    test_strided_slice()
+    test_strided_set()
+    test_binary_op()
+    test_cmp_type()
+    test_binary_int_broadcast_1()
+    test_binary_int_broadcast_2()
     test_where()
-    # test_reduce_functions()
-    # test_mean_var_std()
+    test_reduce_functions()
+    test_mean_var_std()
