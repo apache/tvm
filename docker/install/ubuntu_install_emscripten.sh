@@ -23,5 +23,5 @@ set -o pipefail
 cd /
 git clone https://github.com/emscripten-core/emsdk.git
 cd emsdk
-./emsdk install latest
-./emsdk activate latest
+./emsdk install 2.0.7
+./emsdk activate 2.0.7
