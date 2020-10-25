@@ -137,9 +137,9 @@ def _default_batch_matmul_config(cfg, M, N, K):
     cfg["tile_y"] = SplitEntity([M // y_bn, y_bn])
 
 
-def batch_matmul_common(cfg, x, y, out_shape, lib):
+def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch.
+    data in batch, using one of BLAS libraries.
 
     Parameters
     ----------
@@ -172,19 +172,23 @@ def batch_matmul_common(cfg, x, y, out_shape, lib):
 
 @autotvm.register_topi_compute("batch_matmul_cblas.x86")
 def batch_matmul_cblas(cfg, x, y, out_shape=None):
-    return batch_matmul_common(cfg, x, y, out_shape, cblas)
+    """Compute batch_matmul using cblas"""
+    return batch_matmul_blas_common(cfg, x, y, out_shape, cblas)
 
 
 @autotvm.register_topi_schedule("batch_matmul_cblas.x86")
 def schedule_batch_matmul_cblas(_, outs):
+    """Create schedule for batch_matmul_cblas"""
     return generic.schedule_extern(outs)
 
 
 @autotvm.register_topi_compute("batch_matmul_mkl.x86")
 def batch_matmul_mkl(cfg, x, y, out_shape=None):
-    return batch_matmul_common(cfg, x, y, out_shape, mkl)
+    """Compute batch_matmul using mkl"""
+    return batch_matmul_blas_common(cfg, x, y, out_shape, mkl)
 
 
 @autotvm.register_topi_schedule("batch_matmul_mkl.x86")
 def schedule_batch_matmul_mkl(_, outs):
+    """Create schedule for batch_matmul_mul"""
     return generic.schedule_extern(outs)
