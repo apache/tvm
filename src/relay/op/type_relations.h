@@ -57,6 +57,8 @@ bool IdentityRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter);
 
+Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType output_dtype);
+
 /*!
  * \brief The broadcast type relation, implements the broadcasting
  *  rule over the two input types producing the broadcasted type.

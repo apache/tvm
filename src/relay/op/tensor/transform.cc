@@ -45,6 +45,7 @@
 #include "../../transforms/pattern_utils.h"
 #include "../make_op.h"
 #include "../op_common.h"
+#include "../type_relations.h"
 
 namespace tvm {
 namespace relay {
@@ -1685,30 +1686,16 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  const auto& cond_shape = condition->shape;
-  const auto& x_shape = x->shape;
-  const auto& y_shape = y->shape;
-  ICHECK(x_shape.size() == y_shape.size()) << "x and y must have the same size";
+  CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
+                               << y->dtype;
 
-  if (cond_shape.size() != x_shape.size()) {
-    ICHECK_EQ(cond_shape.size(), 1) << "Shape of condition " << condition->shape
-                                    << " must be either equal to x or has dimension of 1.";
-  }
-  for (size_t i = 0; i < x_shape.size(); i++) {
-    ICHECK(reporter->AssertEQ(x_shape[i], y_shape[i]))
-        << "x and y must have the same shape: " << x_shape << " vs " << y_shape;
+  auto b_ty = Downcast<TensorType>(
+      ConcreteBroadcast(GetRef<TensorType>(x), GetRef<TensorType>(y), x->dtype));
+  auto ret_ty = ConcreteBroadcast(GetRef<TensorType>(condition), b_ty, b_ty->dtype);
 
-    if (i < cond_shape.size()) {
-      ICHECK(reporter->AssertEQ(cond_shape[i], x_shape[i]))
-          << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
-    }
-  }
-  if (x_shape.size() == 0) {
-    // if x and y are scalar, the condition shape becomes the output shape
-    reporter->Assign(types[3], TensorType(cond_shape, x->dtype));
-  } else {
-    reporter->Assign(types[3], TensorType(x_shape, x->dtype));
-  }
+  LOG(INFO) << "where broadcast type:" << ret_ty;
+  reporter->Assign(types[3], ret_ty);
+
   return true;
 }
 
