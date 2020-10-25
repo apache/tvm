@@ -1719,17 +1719,10 @@ Return the elements, either from x or y, depending on the condition.
 
 Given three ndarrays, condition, x, and y, return an ndarray with the elements
 from x or y, depending on the elements from condition are true or false.
-x and y must have the same shape. If condition has the same shape as x,
-each element in the output array is from x if the corresponding element
-in the condition is true, and from y if false.
 
-If condition does not have the same shape as x, it must be a 1D array whose
-size is the same as x’s first dimension size. Each row of the output array
-is from x’s row if the corresponding element from condition is true, and
-from y’s row if false.
-
-When x and y are scalars, condition must be an 1D array. The output shape
-is the same as condition's shape.
+Shapes of condition, x, and y must be broadcastable to a common shape, which
+is the output shape of this op. Semantics follow numpy where function.
+https://numpy.org/doc/stable/reference/generated/numpy.where.html
 
 Note that all non-zero values are interpreted as True in condition.
 
@@ -1741,7 +1734,7 @@ Examples::
   where(cond, x, y) = [[5, 2], [3, 8]]
 
 
-  cond = [1, 0]
+  cond = [[1], [0]]
   where(cond, x, y) = [[1, 2], [7, 8]]
 
   cond = [0, 1]
