@@ -151,6 +151,8 @@ def batch_matmul_blas_common(cfg, x, y, out_shape, lib):
         3-D with shape [batch, N, K]
     out_shape : tuple or None
         Shape of the output
+    lib : A contrib module which implements batch_matmul funtion
+        cblas and mkl are supported
 
     Returns
     -------
