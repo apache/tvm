@@ -522,22 +522,30 @@ class TVMArgValue : public TVMPODValue_ {
  *
  * \note For internal development purpose only.
  */
-class TVMMovableArgValue_ : public TVMArgValue {
+class TVMMovableArgValue_ : public TVMPODValue_ {
  public:
-  TVMMovableArgValue_(TVMValue value, int type_code) : TVMArgValue(value, type_code) {}
+  TVMMovableArgValue_(TVMValue value, int type_code) : TVMPODValue_(value, type_code) {}
   // reuse converter from parent
-  using TVMArgValue::operator double;
-  using TVMArgValue::operator int64_t;
-  using TVMArgValue::operator uint64_t;
-  using TVMArgValue::operator int;
-  using TVMArgValue::operator bool;
-  using TVMArgValue::operator void*;
-  using TVMArgValue::operator DLTensor*;
-  using TVMArgValue::operator TVMContext;
-  using TVMArgValue::operator std::string;
-  using TVMArgValue::operator DLDataType;
-  using TVMArgValue::operator DataType;
-  using TVMArgValue::operator PackedFunc;
+  using TVMPODValue_::operator double;
+  using TVMPODValue_::operator int64_t;
+  using TVMPODValue_::operator uint64_t;
+  using TVMPODValue_::operator int;
+  using TVMPODValue_::operator bool;
+  using TVMPODValue_::operator void*;
+  using TVMPODValue_::operator DLTensor*;
+  using TVMPODValue_::operator NDArray;
+  using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Module;
+  // reuse conversion rule from ArgValue.
+  operator std::string() const { return AsArgValue().operator std::string(); }
+  operator PackedFunc() const { return AsArgValue().operator PackedFunc(); }
+  template <typename FType>
+  operator TypedPackedFunc<FType>() const {
+    return TypedPackedFunc<FType>(operator PackedFunc());
+  }
+  operator DLDataType() const { return AsArgValue().operator DLDataType(); }
+  operator DataType() const { return AsArgValue().operator DataType(); }
+  operator TVMArgValue() const { return AsArgValue(); }
   /*!
    * \brief Helper converter function.
    *  Try to move out an argument if possible,
@@ -546,6 +554,10 @@ class TVMMovableArgValue_ : public TVMArgValue {
   template <typename T,
             typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type>
   inline operator T() const;
+
+ private:
+  /*! \return The arg value repr of the value. */
+  TVMArgValue AsArgValue() const { return TVMArgValue(value_, type_code_); }
 };
 
 /*!
@@ -1450,7 +1462,7 @@ inline TVMMovableArgValue_::operator T() const {
     }
   }
   // fallback
-  return PackedFuncValueConverter<T>::From(*this);
+  return PackedFuncValueConverter<T>::From(AsArgValue());
 }
 
 template <typename T, typename>
