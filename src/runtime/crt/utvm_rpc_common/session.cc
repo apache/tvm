@@ -81,7 +81,7 @@ tvm_crt_error_t Session::SendBodyChunk(const uint8_t* chunk, size_t chunk_size_b
 tvm_crt_error_t Session::FinishMessage() { return framer_->FinishPacket(); }
 
 tvm_crt_error_t Session::StartSession() {
-  CHECK_NE(state_, State::kReset, "must call Initialize");
+  ICHECK_NE(state_, State::kReset, "must call Initialize");
 
   RegenerateNonce();
   SetSessionId(local_nonce_, 0);
@@ -183,7 +183,7 @@ void Session::SendSessionStartReply(const SessionHeader& header) {
   tvm_crt_error_t to_return = SendInternal(MessageType::kStartSessionReply,
                                            reinterpret_cast<uint8_t*>(&payload), sizeof(payload));
   state_ = State::kSessionEstablished;
-  CHECK_EQ(to_return, kTvmErrorNoError, "SendSessionStartReply");
+  ICHECK_EQ(to_return, kTvmErrorNoError, "SendSessionStartReply");
   OnSessionEstablishedMessage();
 }
 
