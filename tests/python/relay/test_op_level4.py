@@ -152,35 +152,59 @@ def test_where():
                 op_res = intrp.evaluate(func)(*inputs)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    shape = (3, 4)
     dtype = "float32"
-    cond = relay.var("cond", relay.TensorType(shape, dtype))
-    x = relay.var("x", relay.TensorType(shape, dtype))
-    y = relay.var("y", relay.TensorType(shape, dtype))
-    z = relay.where(cond, x, y)
-    zz = run_infer_type(z)
-    assert zz.checked_type == relay.TensorType(shape, dtype)
+    # shape = (3, 4)
+    # cond = relay.var("cond", relay.TensorType(shape, dtype))
+    # x = relay.var("x", relay.TensorType(shape, dtype))
+    # y = relay.var("y", relay.TensorType(shape, dtype))
+    # z = relay.where(cond, x, y)
+    # zz = run_infer_type(z)
+    # assert zz.checked_type == relay.TensorType(shape, dtype)
 
-    func = relay.Function([cond, x, y], z)
-    condition = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
-    x = np.random.uniform(size=shape).astype(dtype)
-    y = np.random.uniform(size=shape).astype(dtype)
-    ref_res = np.where(condition, x, y)
+    # func = relay.Function([cond, x, y], z)
+    # condition = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
+    # x = np.random.uniform(size=shape).astype(dtype)
+    # y = np.random.uniform(size=shape).astype(dtype)
+    # ref_res = np.where(condition, x, y)
 
-    run(func, [condition, x, y], ref_res)
+    # run(func, [condition, x, y], ref_res)
 
-    x = relay.const(1)
-    y = relay.const(-1)
-    shape = (3,)
-    dtype = "float32"
-    cond = relay.var("cond", relay.TensorType(shape, "bool"))
-    z = relay.where(cond, x, y)
+    # x = relay.const(1)
+    # y = relay.const(-1)
+    # shape = (3,)
+    # dtype = "float32"
+    # cond = relay.var("cond", relay.TensorType(shape, "bool"))
+    # z = relay.where(cond, x, y)
 
-    func = relay.Function([cond], z)
-    condition = np.array([1, 0, 1], dtype=np.bool)
-    ref_res = np.where(condition, 1, -1)
+    # func = relay.Function([cond], z)
+    # condition = np.array([1, 0, 1], dtype=np.bool)
+    # ref_res = np.where(condition, 1, -1)
 
-    run(func, [condition], ref_res)
+    # run(func, [condition], ref_res)
+
+    def verify(x_np, y_np, cond_np):
+        ref_res = np.where(cond_np, x_np, y_np)
+
+        cond = relay.var("cond", relay.TensorType(cond_np.shape, "bool"))
+        x = relay.var("x", relay.TensorType(x_np.shape, dtype))
+        y = relay.var("y", relay.TensorType(y_np.shape, dtype))
+        z = relay.where(cond, x, y)
+        func = relay.Function([cond, x, y], z)
+
+        run(func, [cond_np, x_np, y_np], ref_res)
+
+    x_np = np.array([[1, 2], [3, 4]], dtype)
+    y_np = np.array([[5, 6], [7, 8]], dtype)
+    cond_np = np.array([[1], [0]], "bool")
+
+    # verify(x_np, y_np, cond_np)
+    # verify(x_np, y_np, cond_np.T)
+
+    x_np = np.random.randn(1, 12, 8, 8).astype(dtype)
+    y_np = np.array(-1., dtype)
+    cond_np = np.random.randn(1, 1, 8, 8) > 0
+
+    verify(x_np, y_np, cond_np)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
@@ -498,12 +522,12 @@ def test_strided_set():
 
 
 if __name__ == "__main__":
-    test_strided_slice()
-    test_strided_set()
-    test_binary_op()
-    test_cmp_type()
-    test_binary_int_broadcast_1()
-    test_binary_int_broadcast_2()
+    # test_strided_slice()
+    # test_strided_set()
+    # test_binary_op()
+    # test_cmp_type()
+    # test_binary_int_broadcast_1()
+    # test_binary_int_broadcast_2()
     test_where()
-    test_reduce_functions()
-    test_mean_var_std()
+    # test_reduce_functions()
+    # test_mean_var_std()

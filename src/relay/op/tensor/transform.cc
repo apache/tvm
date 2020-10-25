@@ -1689,13 +1689,14 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
                                << y->dtype;
 
-  auto b_ty = Downcast<TensorType>(
-      ConcreteBroadcast(GetRef<TensorType>(x), GetRef<TensorType>(y), x->dtype));
-  auto ret_ty = ConcreteBroadcast(GetRef<TensorType>(condition), b_ty, b_ty->dtype);
+  auto tensor_ty_condition = GetRef<TensorType>(condition);
+  auto tensor_ty_x = GetRef<TensorType>(x);
+  auto tensor_ty_y = GetRef<TensorType>(y);
 
-  LOG(INFO) << "where broadcast type:" << ret_ty;
+  auto b_ty = ConcreteBroadcast(tensor_ty_x, tensor_ty_y, x->dtype);
+  auto ret_ty = ConcreteBroadcast(tensor_ty_condition, b_ty, b_ty->dtype);
+
   reporter->Assign(types[3], ret_ty);
-
   return true;
 }
 
