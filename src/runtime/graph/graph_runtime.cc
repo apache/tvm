@@ -269,7 +269,6 @@ void GraphRuntime::SetupStorage() {
     DLDataType t = vtype[i];
     size_t bits = t.bits * t.lanes;
     ICHECK(bits % 8U == 0U || bits == 1U || bits == 4U);
-
     size_t bytes = ((bits + 7U) / 8U) * size;
 
     uint32_t sid = static_cast<uint32_t>(storage_id);
