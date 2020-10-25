@@ -336,13 +336,6 @@ class IterMapRewriter : public ExprMutator {
     return analyzer_->CanProve(lhs - rhs == 0);
   }
 
-  bool CanProveLess(PrimExpr lhs, PrimExpr rhs) {
-    const auto* clhs = lhs.as<IntImmNode>();
-    const auto* crhs = rhs.as<IntImmNode>();
-    if (clhs && crhs) return clhs->value < crhs->value;
-    return analyzer_->CanProve(lhs - rhs < 0);
-  }
-
   /*!
    * \brief Create a IterSumExpr from expr.
    * \param expr The input expr.
@@ -375,11 +368,13 @@ class IterMapRewriter : public ExprMutator {
     iters.reserve(expr->args.size());
     // canonicalize the expression
     // find the base scale first
-    PrimExpr base_scale(nullptr);
-    for (const auto& arg : expr->args) {
-      if (is_const_int(arg->scale)) {
-        if (!base_scale.defined() || (CanProveLess(arg->scale, base_scale))) {
-          base_scale = arg->scale;
+    IntImm base_scale(nullptr);
+    size_t base_index = 0;
+    for (size_t i = 0; i < expr->args.size(); ++i) {
+      if (const auto* op = expr->args[i]->scale.as<IntImmNode>()) {
+        if (!base_scale.defined() || op->value < base_scale->value) {
+          base_scale = GetRef<IntImm>(op);
+          base_index = i;
         }
       }
     }
@@ -387,7 +382,7 @@ class IterMapRewriter : public ExprMutator {
     // check if it can be remapped into a fused pattern.
     PrimExpr expected_scale = base_scale;
     for (size_t i = 0; i < expr->args.size(); ++i) {
-      size_t j = 0;
+      size_t j = i == 0 ? base_index : 0;
       for (; j < expr->args.size(); ++j) {
         if (!visited[j] && CanProveEqual(expr->args[j]->scale, expected_scale)) break;
       }
