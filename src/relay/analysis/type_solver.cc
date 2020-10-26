@@ -615,7 +615,7 @@ bool TypeSolver::Solve() {
 
       rnode->resolved = resolved;
     } catch (const Error& err) {
-      this->diag_ctx_.Emit(Diagnostic::Error(rnode->span) << "err");
+      this->diag_ctx_.Emit(Diagnostic::Error(rnode->span) << err.what());
       rnode->resolved = false;
     } catch (const dmlc::Error& e) {
       ICHECK(false) << e.what();
