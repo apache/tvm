@@ -69,6 +69,7 @@ inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
   return tvm::te::compute(oshape, l, name, tag);
 }
 
+// This is used in the shape func of where op
 inline tvm::te::Tensor broadcast_shape_tensors(const tvm::te::Tensor& shape_tensor1,
                                                const tvm::te::Tensor& shape_tensor2,
                                                std::string name = "T_broadcast_shape_tensors",
@@ -95,11 +96,6 @@ inline tvm::te::Tensor broadcast_shape_tensors(const tvm::te::Tensor& shape_tens
     auto index = ovars[0];
     PrimExpr dim1 = select_dim(shape_tensor1, rank1, index);
     PrimExpr dim2 = select_dim(shape_tensor2, rank2, index);
-    if (topi::detail::EqualCheck(one, dim1)) {
-      return dim2;
-    } else if (topi::detail::EqualCheck(one, dim2)) {
-      return dim1;
-    }
     return tvm::max(dim1, dim2);
   };
 
