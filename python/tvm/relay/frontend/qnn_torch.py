@@ -828,14 +828,20 @@ def _mul_scalar():
 
 def _linear_dynamic():
     def _calculate_qparam(inp):
-        mx = _op.max(inp)
+        # reference ATen/native/quantized/cpu/qlinear_dynamic.cpp
+        # ChooseQuantizationParams function
         mn = _op.min(inp)
+        mx = _op.max(inp)
+
+        # Ensure that the interval contains 0
+        mn = _op.minimum(mn, _op.const(0., dtype="float32"))
+        mx = _op.maximum(mx, _op.const(0., dtype="float32"))
 
         qmax = 255
 
         # reduce_range became True in v1.6
         if is_version_greater_than("1.5.0"):
-            qmax /= 2
+            qmax = 127
 
         scale = (mx - mn) / _expr.const(qmax, dtype="float32")
 

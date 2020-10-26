@@ -524,6 +524,7 @@ def test_quantize_dynamic():
         def forward(self, inp):
             return self.linear(inp)
 
+    torch.manual_seed(0)
     mod = LinearWrapper(16, 32)
 
     for qconfig in [torch.quantization.per_channel_dynamic_qconfig,
@@ -543,13 +544,6 @@ def test_quantize_dynamic():
             runtime.set_input(input_name, inp.numpy().copy())
             runtime.run()
             tvm_result = runtime.get_output(0).asnumpy()
-
-            max_abs_diff = np.max(np.abs(tvm_result - pt_result))
-            mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
-            num_identical = np.sum(tvm_result == pt_result)
-            match_ratio = num_identical / float(np.prod(tvm_result.shape))
-
-            print(max_abs_diff, mean_abs_diff, match_ratio)
 
             tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-4, atol=1e-4)
 
