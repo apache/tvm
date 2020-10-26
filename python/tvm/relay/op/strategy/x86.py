@@ -377,6 +377,13 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
             name="batch_matmul_cblas.x86",
             plevel=15,
         )
+    if "mkl" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_batch_matmul(topi.x86.batch_matmul_mkl),
+            wrap_topi_schedule(topi.x86.schedule_batch_matmul_mkl),
+            name="batch_matmul_mkl.x86",
+            plevel=15,
+        )
     return strategy
 
 
