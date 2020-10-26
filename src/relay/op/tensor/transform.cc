@@ -1686,8 +1686,8 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
-                               << y->dtype;
+  ICHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
+                                << y->dtype;
 
   auto tensor_ty_condition = GetRef<TensorType>(condition);
   auto tensor_ty_x = GetRef<TensorType>(x);

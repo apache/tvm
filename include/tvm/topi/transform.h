@@ -889,8 +889,8 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int axis, std::string
  */
 inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
                     std::string name = "T_where", std::string tag = kBroadcast) {
-  CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
-                               << y->dtype;
+  ICHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
+                                << y->dtype;
   auto get_out_shape = [&]() {
     auto bh1 = detail::BroadcastShape(x->shape, y->shape);
     Array<PrimExpr> common_shape1(bh1.common_shape.begin(), bh1.common_shape.end());
