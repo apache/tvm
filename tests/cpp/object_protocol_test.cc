@@ -72,28 +72,28 @@ TEST(ObjectHierachy, Basic) {
   using namespace tvm::test;
 
   ObjectRef refA(make_object<ObjA>());
-  CHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
-  CHECK(refA.as<Object>() != nullptr);
-  CHECK(refA.as<ObjA>() != nullptr);
-  CHECK(refA.as<ObjBase>() != nullptr);
-  CHECK(refA.as<ObjB>() == nullptr);
-  CHECK(refA.as<ObjAA>() == nullptr);
+  ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
+  ICHECK(refA.as<Object>() != nullptr);
+  ICHECK(refA.as<ObjA>() != nullptr);
+  ICHECK(refA.as<ObjBase>() != nullptr);
+  ICHECK(refA.as<ObjB>() == nullptr);
+  ICHECK(refA.as<ObjAA>() == nullptr);
 
   ObjectRef refAA(make_object<ObjAA>());
-  CHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
-  CHECK(refAA.as<Object>() != nullptr);
-  CHECK(refAA.as<ObjBase>() != nullptr);
-  CHECK(refAA.as<ObjA>() != nullptr);
-  CHECK(refAA.as<ObjAA>() != nullptr);
-  CHECK(refAA.as<ObjB>() == nullptr);
+  ICHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
+  ICHECK(refAA.as<Object>() != nullptr);
+  ICHECK(refAA.as<ObjBase>() != nullptr);
+  ICHECK(refAA.as<ObjA>() != nullptr);
+  ICHECK(refAA.as<ObjAA>() != nullptr);
+  ICHECK(refAA.as<ObjB>() == nullptr);
 
   ObjectRef refB(make_object<ObjB>());
-  CHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
-  CHECK(refB.as<Object>() != nullptr);
-  CHECK(refB.as<ObjBase>() != nullptr);
-  CHECK(refB.as<ObjA>() == nullptr);
-  CHECK(refB.as<ObjAA>() == nullptr);
-  CHECK(refB.as<ObjB>() != nullptr);
+  ICHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
+  ICHECK(refB.as<Object>() != nullptr);
+  ICHECK(refB.as<ObjBase>() != nullptr);
+  ICHECK(refB.as<ObjA>() == nullptr);
+  ICHECK(refB.as<ObjAA>() == nullptr);
+  ICHECK(refB.as<ObjB>() != nullptr);
 }
 
 int main(int argc, char** argv) {

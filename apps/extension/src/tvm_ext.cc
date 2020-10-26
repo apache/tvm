@@ -75,12 +75,12 @@ class NDSubClass : public tvm::runtime::NDArray {
   NDSubClass AddWith(const NDSubClass& other) const {
     SubContainer* a = static_cast<SubContainer*>(get_mutable());
     SubContainer* b = static_cast<SubContainer*>(other.get_mutable());
-    CHECK(a != nullptr && b != nullptr);
+    ICHECK(a != nullptr && b != nullptr);
     return NDSubClass(a->additional_info_ + b->additional_info_);
   }
   int get_additional_info() const {
     SubContainer* self = static_cast<SubContainer*>(get_mutable());
-    CHECK(self != nullptr);
+    ICHECK(self != nullptr);
     return self->additional_info_;
   }
   using ContainerType = SubContainer;
@@ -146,7 +146,7 @@ TVM_REGISTER_GLOBAL("device_api.ext_dev").set_body([](TVMArgs args, TVMRetValue*
 TVM_REGISTER_GLOBAL("tvm_ext.nd_create").set_body([](TVMArgs args, TVMRetValue* rv) {
   int additional_info = args[0];
   *rv = NDSubClass(additional_info);
-  CHECK_EQ(rv->type_code(), kTVMNDArrayHandle);
+  ICHECK_EQ(rv->type_code(), kTVMNDArrayHandle);
 });
 
 TVM_REGISTER_GLOBAL("tvm_ext.nd_add_two").set_body([](TVMArgs args, TVMRetValue* rv) {
