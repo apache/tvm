@@ -22,19 +22,102 @@ This script runs and update all the locations that related to versions
 List of affected files:
 - tvm-root/python/tvm/_ffi/libinfo.py
 - tvm-root/include/tvm/runtime/c_runtime_api.h
-- tvm-root/conda/tvm/meta.yaml
-- tvm-root/conda/tvm-libs/meta.yaml
+- tvm-root/conda/recipe/meta.yaml
+- tvm-root/web/package.json
 """
 import os
 import re
+import argparse
+import logging
+import subprocess
 
-# current version
+# Modify the following two settings during release
+# ---------------------------------------------------
+# Current version
 # We use the version of the incoming release for code
 # that is under development
 __version__ = "0.8.dev0"
 
+# Most recent tag, used for git describe validation
+# set this value to be the most recent release tag
+# before this development cycle.
+__most_recent_tag__ = "v0.7.0"
+# ---------------------------------------------------
+
+
+def py_str(cstr):
+    return cstr.decode("utf-8")
+
+
+def git_describe_version():
+    """Get PEP-440 compatible public and local version using git describe.
+
+    Returns
+    -------
+    pub_ver: str
+        Public version.
+
+    local_ver: str
+        Local version (with additional label appended to pub_ver).
+
+    Note
+    ----
+    We follow PEP 440's convention of public version
+    and local versions.
+
+    Here are some examples:
+
+    - pub_ver = '0.7.0', local_ver = '0.7.0':
+      We are at the 0.7.0 release.
+    - pub_ver =  '0.8.dev94', local_ver = '0.8.dev94+g0d07a329e':
+      We are at the the 0.8 development cycle.
+      The current source contains 94 additional commits
+      after the most recent tag(v0.7.0),
+      the git short hash tag of the current commit is 0d07a329e.
+    """
+    cmd = ["git", "describe", "--tags"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+
+    if proc.returncode != 0:
+        msg = py_str(out)
+        if msg.find("not a git repository") != -1:
+            return __version__, __version__
+        logging.warning("git describe error: %", msg)
+        return __version__, __version__
+    describe = py_str(out).strip()
+    arr_info = describe.split("-")
+
+    if not arr_info[0].endswith(__most_recent_tag__):
+        logging.warning(
+            "%s does not match most recent tag %s, fallback to %s",
+            describe,
+            __most_recent_tag__,
+            __version__,
+        )
+        return __version__, __version__
+
+    # Remove the v prefix, mainly to be robust
+    # to the case where v is not presented as well.
+    if arr_info[0].startswith("v"):
+        arr_info[0] = arr_info[0][1:]
+
+    # hit the exact tag
+    if len(arr_info) == 1:
+        return arr_info[0], arr_info[0]
+
+    if len(arr_info) != 3:
+        logging.warning("Invalid output from git describe %s", describe)
+        return __version__, __version__
+
+    dev_pos = __version__.find(".dev")
+    pub_ver = "%s.dev%s" % (__version__[:dev_pos], arr_info[1])
+    local_ver = "%s+%s" % (pub_ver, arr_info[2])
+    return pub_ver, local_ver
+
+
 # Implementations
-def update(file_name, pattern, repl):
+def update(file_name, pattern, repl, dry_run=False):
     update = []
     hit_counter = 0
     need_update = False
@@ -46,7 +129,7 @@ def update(file_name, pattern, repl):
             if result[0] != repl:
                 l = re.sub(pattern, repl, l)
                 need_update = True
-                print("%s: %s->%s" % (file_name, result[0], repl))
+                print("%s: %s -> %s" % (file_name, result[0], repl))
             else:
                 print("%s: version is already %s" % (file_name, repl))
 
@@ -54,33 +137,74 @@ def update(file_name, pattern, repl):
     if hit_counter != 1:
         raise RuntimeError("Cannot find version in %s" % file_name)
 
-    if need_update:
+    if need_update and not dry_run:
         with open(file_name, "w") as output_file:
             for l in update:
                 output_file.write(l)
 
 
-def main():
+def sync_version(pub_ver, local_ver, dry_run):
+    """Synchronize version."""
     proj_root = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    # python path
+
+    # python uses the PEP-440: local version
     update(
         os.path.join(proj_root, "python", "tvm", "_ffi", "libinfo.py"),
-        r"(?<=__version__ = \")[.0-9a-z]+",
-        __version__,
+        r"(?<=__version__ = \")[.0-9a-z\+]+",
+        local_ver,
+        dry_run,
     )
+    # Use public version for other parts for now
+    # Note that full git hash is already available in libtvm
     # C++ header
     update(
         os.path.join(proj_root, "include", "tvm", "runtime", "c_runtime_api.h"),
-        '(?<=TVM_VERSION ")[.0-9a-z]+',
-        __version__,
+        r'(?<=TVM_VERSION ")[.0-9a-z\+]+',
+        pub_ver,
+        dry_run,
     )
     # conda
-    for path in ["recipe"]:
-        update(
-            os.path.join(proj_root, "conda", path, "meta.yaml"),
-            "(?<=version = ')[.0-9a-z]+",
-            __version__,
-        )
+    update(
+        os.path.join(proj_root, "conda", "recipe", "meta.yaml"),
+        r"(?<=version = ')[.0-9a-z\+]+",
+        pub_ver,
+        dry_run,
+    )
+    # web
+    # change to pre-release convention by npm
+    dev_pos = pub_ver.find(".dev")
+    npm_ver = pub_ver if dev_pos == -1 else "%s.0-%s" % (pub_ver[:dev_pos], pub_ver[dev_pos + 1 :])
+    update(
+        os.path.join(proj_root, "web", "package.json"),
+        r'(?<="version": ")[.0-9a-z\+]+',
+        npm_ver,
+        dry_run,
+    )
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    parser = argparse.ArgumentParser(description="Detect and sychnronize version.")
+    parser.add_argument(
+        "--print-version",
+        action="store_true",
+        help="Print version to the command line. No changes is applied to files.",
+    )
+    parser.add_argument(
+        "--git-describe",
+        action="store_true",
+        help="Use git describe to generate development version.",
+    )
+    parser.add_argument("--dry-run", action="store_true")
+
+    opt = parser.parse_args()
+    pub_ver, local_ver = __version__, __version__
+    if opt.git_describe:
+        pub_ver, local_ver = git_describe_version()
+    if opt.print_version:
+        print(local_ver)
+    else:
+        sync_version(pub_ver, local_ver, opt.dry_run)
 
 
 if __name__ == "__main__":
