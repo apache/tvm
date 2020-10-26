@@ -139,7 +139,7 @@ def main():
         models = [args.model]
     for model_name in models:
         img_size = 299 if model_name == 'inceptionv3' else 224
-        postprocess = ignore_first if 'resnet' not in model_name else None
+        postprocess = ignore_first if 'resnet50' not in model_name else None
         val_data, batch_fn = get_val_data(img_size, val_path, batch_size)
 
         # Original
@@ -150,13 +150,16 @@ def main():
                            postprocess=postprocess)
             print("fp32_accuracy", model_name, acc, sep=',')
 
-        # Quantize
-        calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name='data')
-        fp32_mod, params = get_model(model_name)
-        quantized_func = quantize_hago(fp32_mod, params, calib_dataset)
-        acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name='data', target=target,
-                       ctx=ctx, postprocess=postprocess)
-        print("quantized_accuracy", model_name, acc, sep=',')
+        for is_per_channel in [False, True]:
+            # Quantize
+            calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name='data')
+            fp32_mod, params = get_model(model_name)
+            qconfig = hago.qconfig(use_channel_quantize=is_per_channel, log_file='temp.log')
+            quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig)
+            acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name='data', target=target,
+                           ctx=ctx, postprocess=postprocess)
+            channel_or_tensor = "per_channel" if is_per_channel else "per_tensor"
+            print("quantized_accuracy", model_name, channel_or_tensor, acc, sep=',')
 
 
 if __name__ == '__main__':

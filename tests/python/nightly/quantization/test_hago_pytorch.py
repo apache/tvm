@@ -125,19 +125,22 @@ def main():
 
         val_data, batch_fn = get_val_data(height, val_path, batch_size)
 
-        # Original 
+        # Original
         if not args.skip_fp32:
             fp32_mod, params = get_model(model_name)
             func = hago.prerequisite_optimize(fp32_mod['main'], params=params)
             acc = eval_acc(func, val_data, batch_fn, args, var_name=input_names[0], target=target, ctx=ctx)
             print("fp32_accuracy", model_name, acc, sep=',')
-        
-        # Quantize 
-        calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name=input_names[0])
-        fp32_mod, params = get_model(model_name)
-        quantized_func = quantize_hago(fp32_mod, params, calib_dataset)
-        acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name=input_names[0], target=target, ctx=ctx)
-        print("quantized_accuracy", model_name, acc, sep=',')
+
+        for is_per_channel in [False, True]:
+            # Quantize
+            fp32_mod, params = get_model(model_name)
+            calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name=input_names[0])
+            qconfig = hago.qconfig(use_channel_quantize=is_per_channel, log_file='temp.log')
+            quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig)
+            acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name=input_names[0], target=target, ctx=ctx)
+            channel_or_tensor = "per_channel" if is_per_channel else "per_tensor"
+            print("quantized_accuracy", model_name, channel_or_tensor, acc, sep=',')
 
 
 if __name__ == '__main__':

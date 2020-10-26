@@ -37,6 +37,7 @@ class Topology(object):
         self._edge2idx = self._build_edge_index()
         self._node2edges = self._build_node2edges()
         self._node2kind = self._build_node2kind()
+        self._node2layout, self._node2channel_axis = self._build_node2layoutinfo()
 
     def is_quantized_node(self, node):
         assert self.hardware is not None
@@ -57,6 +58,12 @@ class Topology(object):
 
     def node2kind(self):
         return self._node2kind
+
+    def node2layout(self):
+        return self._node2layout
+
+    def node2channel_axis(self):
+        return self._node2channel_axis
 
     def analyze(self, hardware):
         self.hardware = hardware
@@ -148,8 +155,8 @@ class Topology(object):
         in_scale_shape = [()] * len(edge2idx)
         out_scale_shape = [()] * len(edge2idx)
         qconfig = current_qconfig()
-        axis = qconfig.per_channel_scale_axis
-        if axis is None:
+        use_channel_quantized = qconfig.use_channel_quantize
+        if not use_channel_quantized:
             return list(zip(in_scale_shape, out_scale_shape))
 
         node2shape = OrderedDict()
@@ -159,15 +166,30 @@ class Topology(object):
         relay.analysis.post_order_visit(self.graph, fvisit)
 
         for (src, node), idx in edge2idx.items():
-            if isinstance(src, relay.Constant) and  \
-                node.op.name in qconfig.per_channel_ops():
-                out_scale_shape[idx] = (node2shape[src][axis],)
-                # (node, dst)
-                out_edges = self.node2edges()[node]
-                for oedge in out_edges:
-                    in_scale_shape[edge2idx[oedge]] = (node2shape[oedge[0]][axis],)
-        print(in_scale_shape)
-        print(out_scale_shape)
+            if isinstance(src, relay.Constant) and node.op.name in qconfig.per_channel_ops():
+
+                if not self.is_quantized_node(node):
+                    out_scale_shape[idx] = ()
+                    out_edges = self.node2edges()[node]
+                    for oedge in out_edges:
+                        assert oedge[0] == node
+                        in_scale_shape[edge2idx[oedge]] = ()
+                else:
+                    # Find the output scale size
+                    src_layout = self._node2layout[src]
+                    assert src_layout in ('OIHW', 'HWIO'), src_layout
+                    axis = src_layout.find('O')
+                    out_scale_shape[idx] = (node2shape[src][axis],)
+
+                    # Find the input scale size for fan outs
+                    out_edges = self.node2edges()[node]
+                    node_layout = self._node2layout[node]
+                    assert node_layout in ('NCHW', 'NHWC'), node_layout
+                    axis = node_layout.find('C')
+                    for oedge in out_edges:
+                        assert oedge[0] == node
+                        in_scale_shape[edge2idx[oedge]] = (node2shape[node][axis],)
+
         return list(zip(in_scale_shape, out_scale_shape))
 
     def _build_node_index(self):
@@ -214,6 +236,53 @@ class Topology(object):
                 node2kind[node] = NodeKind.Activation
         relay.analysis.post_order_visit(self.graph, fvisit)
         return node2kind
+
+    def _build_node2layoutinfo(self):
+        node2layout = OrderedDict()
+        node2channel_axis = OrderedDict()
+        def _find_output_axis(layout):
+            assert layout in ("OIHW", "HWIO", "NHWC", "NCHW")
+            if 'O' in layout:
+                return layout.find('O')
+            return layout.find('C')
+
+        def fvisit(node):
+            if isinstance(node, relay.Var):
+                node2layout[node] = "Undef"
+                node2channel_axis[node] = -1
+            elif isinstance(node, relay.Constant):
+                node2layout[node] = "Undef"
+                node2channel_axis[node] = -1
+            elif isinstance(node, relay.Call):
+                if node.op.name == 'nn.conv2d':
+                    # Conv2D
+                    data_layout = node.attrs.data_layout
+                    kernel_layout = node.attrs.kernel_layout
+                    out_layout = node.attrs.out_layout
+                    out_layout = data_layout if out_layout == "" else out_layout
+                    node2layout[node.args[0]] = data_layout
+                    node2layout[node.args[1]] = kernel_layout
+                    node2layout[node] = out_layout
+
+                    node2channel_axis[node.args[0]] = _find_output_axis(data_layout)
+                    node2channel_axis[node.args[1]] = _find_output_axis(kernel_layout)
+                    node2channel_axis[node] = _find_output_axis(out_layout)
+                elif node.op.name == 'add':
+                    # BiasAdd
+                    data_layout = node2layout[node.args[0]]
+                    if data_layout != "Undef":
+                        node2layout[node.args[1]] = data_layout
+                        node2layout[node] = data_layout
+                        node2channel_axis[node.args[1]] = _find_output_axis(data_layout)
+                        node2channel_axis[node] = _find_output_axis(data_layout)
+                    else:
+                        node2layout[node] = "Undef"
+                        node2channel_axis[node] = -1
+                else:
+                    node2layout[node] = "Undef"
+                    node2channel_axis[node] = -1
+        relay.analysis.post_order_visit(self.graph, fvisit)
+        return (node2layout, node2channel_axis)
 
     def build_node_info(self, alist):
         ret = OrderedDict()

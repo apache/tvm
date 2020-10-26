@@ -30,19 +30,23 @@ from itertools import islice
 from collections import OrderedDict
 
 class Stats(object):
-    def __init__(self, topology, data):
+    def __init__(self, topology, data, nodes):
         """
         data: [num of intermediate data][number of batch][tensor]
         """
         self.topology = topology
-        self.node_kinds = list(topology.node2kind().values())
-        self.node_edges = list(topology.node2edges().values())
-        print(self.node_kinds)
+        self.nodes = nodes
+        self.node2kinds = topology.node2kind()
+        self.node2layouts = topology.node2layout()
+        self.node2channel_axis = topology.node2channel_axis()
+        self.node2edges = topology.node2edges()
         self.data = []
-        for idx, batched_data in enumerate(data):
-            if self.node_kinds[idx] in (NodeKind.Input, NodeKind.Activation):
-                flatten_data = np.concatenate(batched_data)
-            elif self.node_kinds[idx] == NodeKind.Weight:
+        for idx, node in enumerate(nodes):
+            batched_data = data[idx]
+            node_kind = self.node2kinds[node]
+            if node_kind in (NodeKind.Input, NodeKind.Activation):
+                flatten_data = batched_data
+            elif node_kind == NodeKind.Weight:
                 flatten_data = batched_data[0]
             else:
                 raise ValueError
@@ -57,8 +61,11 @@ class Stats(object):
         return self.data[idx]
 
     def _calculate_avg_range(self, arr):
-        num_samples = arr.shape[0]
-        arr = np.reshape(arr, (num_samples, -1))
+        # TODO - For some reason, averaging across different batches gives better accuracy compared
+        # to averaging across all the images. One reason might be that there might be an outlier
+        # causing the avg numbers to go up, but that might be absent in averaging across batches.
+        samples = len(arr)
+        arr = np.concatenate(arr).reshape(samples, -1)
         avg_min = np.average(np.min(arr, axis=1))
         avg_max = np.average(np.max(arr, axis=1))
         arange = np.amax([np.abs(avg_min), np.abs(avg_max)])
@@ -69,23 +76,27 @@ class Stats(object):
         if self._avg_range is None:
             self._avg_range = []
             for idx, arr in enumerate(self.data):
-                if self.node_kinds[idx] in (NodeKind.Input, NodeKind.Activation):
+                node = self.nodes[idx]
+                if self.node2kinds[node] in (NodeKind.Input, NodeKind.Activation):
                     arange = self._calculate_avg_range(arr)
-                elif self.node_kinds[idx] == NodeKind.Weight:
-                    axis = current_qconfig().per_channel_scale_axis
-                    out_edges = self.node_edges[idx]
+                elif self.node2kinds[node] == NodeKind.Weight:
+                    use_channel_quantized = current_qconfig().use_channel_quantize
+                    out_edges = self.node2edges[node]
                     assert len(out_edges) == 1
                     op_node = out_edges[0][1]
-                    print(op_node.op.name)
-                    if axis is not None and op_node.op.name in ['nn.dense', 'nn.conv2d']:
+                    if use_channel_quantized and op_node.op.name in ['nn.conv2d']:
                         # per channel scales
-                        axis = current_qconfig().per_channel_scale_axis
+                        layout = self.node2layouts[node]
+                        assert layout in ("OIHW", "HWIO")
+                        axis = self.node2channel_axis[node]
                         arr = np.moveaxis(arr, axis, 0)
                         num_scales = arr.shape[0]
                         arr = np.reshape(arr, (num_scales, -1))
                         arange = np.amax(np.abs(arr), axis=1)
                     else:
                         arange = np.amax(np.abs(arr))
+                else:
+                    raise ValueError
                 self._avg_range.append(arange)
         return self._avg_range
 
@@ -95,8 +106,6 @@ class Stats(object):
     def variance(self, idx):
         pass
 
-
-
 def collect_stats(graph, topology, dataset, ctx, target):
     assert isinstance(graph, relay.Function)
     assert graph == topology.graph
@@ -105,11 +114,12 @@ def collect_stats(graph, topology, dataset, ctx, target):
     def fvisit(node):
         if isinstance(node, (relay.Var, relay.Constant, relay.Call)):
             nodes.append(node)
+
     relay.analysis.post_order_visit(graph, fvisit)
     out = relay.Tuple(nodes)
     func = relay.Function(graph.params, out)
     outputs = evaluate(func, dataset, ctx, target)
-    stats = Stats(topology, outputs)
+    stats = Stats(topology, outputs, nodes)
     logging.info("statistics collected")
     return stats
 
@@ -161,8 +171,6 @@ def inspect_graph_statistic(func, hardware, strategy, dataset, ctx, target):
     data_batch = [dataset[0]]
 
     for graph, sub_bits in funcs:
-        print(graph)
-        
         topology = analyze_topology(graph, hardware)
         node2idx = topology.node2idx()
         edge2idx = topology.edge2idx()

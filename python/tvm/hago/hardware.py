@@ -102,7 +102,6 @@ class OpDesc(object):
 
 class Hardware(object):
     def __init__(self):
-        self.fcallback_select_desc = None 
         self._op_descs = defaultdict(list)
 
     def add_op_desc(self, op_name, desc):
@@ -122,8 +121,13 @@ class Hardware(object):
     def list_descs(self, node):
         """list feasible descriptor for this node"""
         descs = self.op_descs(node.op.name)
-        if self.fcallback_select_desc is not None:
-            return self.fcallback_select_desc(node, descs)
+        fselect_desc = node.op.get_attr('FHagoSelectDesc')
+        if fselect_desc is not None:
+            dtypes = fselect_desc(node)
+            if dtypes is not None:
+                in_dtype, out_dtype = dtypes
+                descs = [OpDesc(in_dtypes=in_dtype, out_dtypes=out_dtype)]
+                return descs
         return descs
 
     def list_integer_descs(self, node):
@@ -137,9 +141,9 @@ class Hardware(object):
 
 def create_accelerator_description():
     hardware = Hardware()
-    hardware.add_op_desc('add', OpDesc(in_dtypes='float32', out_dtypes='float32'))
-    # hardware.add_op_desc('add', OpDesc(in_dtypes='int8', out_dtypes='int16'))
     hardware.add_op_desc('add', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    # hardware.add_op_desc('add', OpDesc(in_dtypes='int8', out_dtypes='int16'))
+    # hardware.add_op_desc('add', OpDesc(in_dtypes='int32', out_dtypes='int32'))
     # hardware.add_op_desc('nn.conv2d', OpDesc(in_dtypes='int8', out_dtypes='int16'))
     hardware.add_op_desc('nn.conv2d', OpDesc(in_dtypes='int8', out_dtypes='int32'))
 
@@ -147,6 +151,7 @@ def create_accelerator_description():
 
     hardware.add_op_desc('nn.relu', OpDesc(in_dtypes='int32', out_dtypes='int32'))
     hardware.add_op_desc('clip', OpDesc(in_dtypes='int32', out_dtypes='int32'))
+    # hardware.add_op_desc('clip', OpDesc(in_dtypes='float32', out_dtypes='float32'))
     hardware.add_op_desc('nn.avg_pool2d', OpDesc(in_dtypes='float32', out_dtypes='float32'))
     hardware.add_op_desc('nn.max_pool2d', OpDesc(in_dtypes='int32', out_dtypes='int32'))
     hardware.add_op_desc('nn.batch_flatten', OpDesc(in_dtypes='float32', out_dtypes='float32'))

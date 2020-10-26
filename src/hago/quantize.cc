@@ -52,6 +52,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   CHECK(data != nullptr);
   // CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
+  // FIXME - Use axis to do type checking for scale
   // Skip for supporting per-channel scales
   // reporter->Assign(types[1], TensorType({}, DataType::Float(32)));     // in_scale
   // reporter->Assign(types[2], TensorType({}, DataType::Float(32)));     // out_scale

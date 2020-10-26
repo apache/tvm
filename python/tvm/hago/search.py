@@ -311,7 +311,7 @@ def _group_same_graph(graph, hardware, topology, bits_list):
     groups = []
     for cstrs, grouped_guesses in constraints:
         simulator = qtz.Simulator(graph, topology, cstrs)
-        print(simulator.simulated_graph)
+        print("Simulated graph", simulator.simulated_graph)
         groups.append((simulator, grouped_guesses))
     return groups
 
@@ -344,10 +344,10 @@ class Tuner(object):
         self.graph = graph
         self.hardware = hardware
         self.model_hash = tvm.ir.structural_hash(graph)
-        self.topology = analyze_topology(graph, hardware)
         self.dataset = dataset
         self.ctx = ctx
         self.target = target
+        self.topology = analyze_topology(graph, hardware)
         self.stats = analysis.collect_stats(graph, self.topology,
             dataset, ctx, target)
 

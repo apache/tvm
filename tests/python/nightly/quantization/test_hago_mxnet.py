@@ -67,11 +67,10 @@ def get_model(model_name):
     return mod, params
 
 def main():
-    # val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
-    val_path = "~/datasets1/imagenet/rec/val.rec"
+    val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
     if args.run_all:
         models = ['resnet50_v1', 'inceptionv3', 'mobilenetv2_1.0', 'mobilenet1.0', 'resnet18_v1',
-                  'densenet161', 'vgg16']
+                  'vgg16', 'densenet161']
     else:
         models = [args.model]
     for model_name in models:
@@ -84,14 +83,15 @@ def main():
             acc = eval_acc(func, val_data, batch_fn, args, var_name='data', target=target, ctx=ctx)
             print("fp32_accuracy", model_name, acc, sep=',')
 
-        # Quantize
-        calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name='data')
-        fp32_mod, params = get_model(model_name)
-        qconfig = hago.qconfig(round_scale_to_pot=True,
-                               log_file='temp.log')
-        quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig)
-        acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name='data', target=target, ctx=ctx)
-        print("quantized_accuracy", model_name, acc, sep=',')
+        for is_per_channel in [False, True]:
+            # Quantize
+            calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name='data')
+            fp32_mod, params = get_model(model_name)
+            qconfig = hago.qconfig(use_channel_quantize=is_per_channel, log_file='temp.log')
+            quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig)
+            acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name='data', target=target, ctx=ctx)
+            channel_or_tensor = "per_channel" if is_per_channel else "per_tensor"
+            print("quantized_accuracy", model_name, channel_or_tensor, acc, sep=',')
 
 
 if __name__ == '__main__':
