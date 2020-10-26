@@ -65,21 +65,21 @@ TEST(Attrs, Basic) {
     LOG(FATAL) << "bad";
   } catch (const tvm::AttrError& e) {
     std::string what = e.what();
-    CHECK(what.find("expr : PrimExpr, default=1") != std::string::npos);
-    CHECK(what.find("axisx") != std::string::npos);
+    ICHECK(what.find("expr : PrimExpr, default=1") != std::string::npos);
+    ICHECK(what.find("axisx") != std::string::npos);
   }
   n->InitBySeq("learning_rate", PrimExpr(1), "expr", 128, "name", "xx");
-  CHECK_EQ(n->learning_rate, 1.0);
+  ICHECK_EQ(n->learning_rate, 1.0);
 
   n->InitBySeq("name", "xxx", "expr", 128);
-  CHECK_EQ(n->name, "xxx");
-  CHECK_EQ(n->axis, 10);
-  CHECK_EQ(n->expr.as<tvm::tir::IntImmNode>()->value, 128);
+  ICHECK_EQ(n->name, "xxx");
+  ICHECK_EQ(n->axis, 10);
+  ICHECK_EQ(n->expr.as<tvm::tir::IntImmNode>()->value, 128);
   // Check docstring
   std::ostringstream os;
   n->PrintDocString(os);
   LOG(INFO) << "docstring\n" << os.str();
-  CHECK(os.str().find("expr : PrimExpr, default=1") != std::string::npos);
+  ICHECK(os.str().find("expr : PrimExpr, default=1") != std::string::npos);
 }
 
 int main(int argc, char** argv) {

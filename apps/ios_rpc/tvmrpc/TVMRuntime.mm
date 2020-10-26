@@ -118,7 +118,7 @@ void LaunchSyncServer() {
   std::ifstream fs(name, std::ios::in);
   std::string url, key;
   int port;
-  CHECK(fs >> url >> port >> key) << "Invalid RPC config file " << name;
+  ICHECK(fs >> url >> port >> key) << "Invalid RPC config file " << name;
   RPCConnect(url, port, "server:" + key, TVMArgs(nullptr, nullptr, 0))->ServerLoop();
 }
 

@@ -19,6 +19,7 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/support/logging.h>
 #include <tvm/support/parallel_for.h>
 
 #include <vector>
@@ -34,7 +35,7 @@ TEST(ParallelFor, Basic) {
   }
   parallel_for(0, 10, [&b](int i) { b[i] = i; });
   for (int i = 0; i < 10; i++) {
-    CHECK_EQ(a[i], b[i]);
+    ICHECK_EQ(a[i], b[i]);
   }
 
   // Check for a large size of parallel
@@ -43,7 +44,7 @@ TEST(ParallelFor, Basic) {
   }
   parallel_for(0, 1000, [&b](int i) { b[i] = i; });
   for (int i = 0; i < 1000; i++) {
-    CHECK_EQ(a[i], b[i]);
+    ICHECK_EQ(a[i], b[i]);
   }
 
   // Check for step != 1
@@ -53,7 +54,7 @@ TEST(ParallelFor, Basic) {
   parallel_for(
       0, 1000, [&b](int i) { b[i] *= 2; }, 2);
   for (int i = 0; i < 1000; i++) {
-    CHECK_EQ(a[i], b[i]);
+    ICHECK_EQ(a[i], b[i]);
   }
 }
 
@@ -75,7 +76,7 @@ TEST(ParallelFor, NestedWithNormalForLoop) {
   });
   for (int i = 0; i < 500; i++) {
     for (int j = 0; j < 500; j++) {
-      CHECK_EQ(a[i][j], b[i][j]);
+      ICHECK_EQ(a[i][j], b[i][j]);
     }
   }
 
@@ -84,7 +85,7 @@ TEST(ParallelFor, NestedWithNormalForLoop) {
   }
   for (int i = 0; i < 500; i++) {
     for (int j = 0; j < 500; j++) {
-      CHECK_EQ(a[i][j], c[i][j]);
+      ICHECK_EQ(a[i][j], c[i][j]);
     }
   }
 }
@@ -103,7 +104,7 @@ TEST(Parallelfor, NestedWithParallelFor) {
   } catch (const std::exception& e) {
     exception = true;
   }
-  CHECK(exception);
+  ICHECK(exception);
 }
 
 TEST(ParallelFor, Exception) {
@@ -115,7 +116,7 @@ TEST(ParallelFor, Exception) {
   } catch (const std::exception& e) {
     exception = true;
   }
-  CHECK(exception);
+  ICHECK(exception);
 }
 
 int main(int argc, char** argv) {

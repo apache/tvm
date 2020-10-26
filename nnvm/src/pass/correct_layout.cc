@@ -64,7 +64,7 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
     if (new_node->is_variable()) {
       // Variable node. No operator. Only one output entry.
       auto input_iter = std::find(idx.input_nodes().cbegin(), idx.input_nodes().cend(), nid);
-      CHECK(input_iter != idx.input_nodes().cend());
+      ICHECK(input_iter != idx.input_nodes().cend());
       int64_t input_id = std::distance(idx.input_nodes().cbegin(), input_iter);
       if (src.HasAttr("layout_inputs")) {
         new_layouts[new_node.get()] = {
@@ -83,11 +83,11 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
     for (size_t i = 0; i < num_inputs; ++i) {
       const IndexedGraph::NodeEntry& input_entry = inode.inputs[i];
       const ObjectPtr& new_input_node = mirror_vec[input_entry.node_id];
-      CHECK(new_input_node != nullptr);
+      ICHECK(new_input_node != nullptr);
 
       // fill inputs by previous node (DFS order) inferred layouts.
       const auto& layouts_iter = new_layouts.find(new_input_node.get());
-      CHECK(layouts_iter != new_layouts.end());
+      ICHECK(layouts_iter != new_layouts.end());
       request_ilayouts[i] = layouts_iter->second[input_entry.index];
     }
     // layouts produced by previous node.
@@ -108,10 +108,10 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
 
     if (op_correct_layout.count(new_node->op())) {
       const auto& flayout = op_correct_layout[new_node->op()];
-      CHECK(flayout(new_node->attrs, &request_ilayouts, &last_request_ilayouts, &produce_olayouts))
+      ICHECK(flayout(new_node->attrs, &request_ilayouts, &last_request_ilayouts, &produce_olayouts))
           << "Layout infer fail";
-      CHECK_EQ(request_ilayouts.size(), num_inputs);
-      CHECK_EQ(produce_olayouts.size(), num_outputs);
+      ICHECK_EQ(request_ilayouts.size(), num_inputs);
+      ICHECK_EQ(produce_olayouts.size(), num_outputs);
     }
 
     // update new layouts

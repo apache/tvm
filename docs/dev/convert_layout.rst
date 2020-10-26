@@ -157,7 +157,7 @@ First example is for layout agnostic operators. These operators do not have any 
       Layout ret;
 
       if (new_in_layouts.defined()) {
-        CHECK_GE(new_in_layouts.size(), 1);
+        ICHECK_GE(new_in_layouts.size(), 1);
         ret = new_in_layouts[0];
       } else {
         for (size_t i = 0; i < old_in_layouts.size(); ++i) {
