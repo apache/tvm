@@ -831,10 +831,16 @@ def _linear_dynamic():
         mx = _op.max(inp)
         mn = _op.min(inp)
 
-        scale = (mx - mn) / _expr.const(255.0)
+        qmax = 255
+
+        # reduce_range became True in v1.6
+        if is_version_greater_than("1.5.0"):
+            qmax /= 2
+
+        scale = (mx - mn) / _expr.const(qmax, dtype="float32")
 
         zero_point_from_min = -(mn / scale)
-        zero_point = _op.cast(_op.round(_op.clip(zero_point_from_min, 0.0, 255.0)), "int32")
+        zero_point = _op.cast(_op.round(_op.clip(zero_point_from_min, 0.0, qmax)), "int32")
 
         return scale, zero_point
 
