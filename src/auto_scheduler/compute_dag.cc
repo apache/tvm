@@ -796,8 +796,8 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
   return orig_layout;
 }
 
-std::string GetNewLayout(const State& state, const int stage_id,
-                         const Stage& stage, const te::Operation& op, const te::Tensor& placeholder,
+std::string GetNewLayout(const State& state, const int stage_id, const Stage& stage,
+                         const te::Operation& op, const te::Tensor& placeholder,
                          const std::set<std::string>& placeholder_axis_names) {
   std::ostringstream os;
   Array<Iterator> stage_iters;
@@ -911,8 +911,8 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
       std::vector<std::string> origin_axes;
       ParseKernelLayout(origin_layout, &origin_shape, &origin_axes);
 
-      std::string new_layout = GetNewLayout(state, stage_id, stage, op, placeholder,
-                                            placeholder_axis_names);
+      std::string new_layout =
+          GetNewLayout(state, stage_id, stage, op, placeholder, placeholder_axis_names);
       Array<PrimExpr> new_shape;
       std::vector<std::string> new_axes;
       ParseKernelLayout(new_layout, &new_shape, &new_axes);
@@ -935,9 +935,10 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
         }
 
         // Add extra layout transpose stage
-        const auto& layout_transform_tensor = te::compute(new_shape,
-            [&new_stride, &placeholder_op, &origin_shape, &new_shape, &origin_axes, &new_axes]
-              (const tvm::runtime::Array<tvm::tir::Var>& indices) -> tvm::PrimExpr {
+        const auto& layout_transform_tensor = te::compute(
+            new_shape,
+            [&new_stride, &placeholder_op, &origin_shape, &new_shape, &origin_axes,
+             &new_axes](const tvm::runtime::Array<tvm::tir::Var>& indices) -> tvm::PrimExpr {
               Array<PrimExpr> access_indices;
               for (size_t indice_index = 0; indice_index < origin_shape.size(); indice_index++) {
                 PrimExpr temp = Integer(0);
@@ -949,7 +950,8 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
                 access_indices.push_back(temp);
               }
               return placeholder_op.output(0)(access_indices);
-            }, "auto_schedule_layout_transpose");
+            },
+            "auto_schedule_layout_transpose");
         new_op_to_update = layout_transform_tensor->op;
 
         // Update the transform steps
