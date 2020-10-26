@@ -1236,5 +1236,36 @@ def test_any_stack():
     verify_any_stack(any_dims(4), (2, 1, 1, 4), 2, 2)
 
 
+def verify_any_where(cond_shape, x_shape, y_shape, cond_np_shape, x_np_shape, y_np_shape):
+    dtype = "float32"
+    cond = relay.var("cond", shape=cond_shape, dtype="bool")
+    x = relay.var("x", shape=x_shape, dtype=dtype)
+    y = relay.var("y", shape=y_shape, dtype=dtype)
+    z = relay.where(cond, x, y)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([cond, x, y], z)
+
+    cond_np = np.random.randn(*cond_np_shape) > 0
+    x_np = np.random.randn(*x_np_shape).astype(dtype)
+    y_np = np.random.randn(*y_np_shape).astype(dtype)
+    expected = np.where(cond_np, x_np, y_np)
+
+    check_result([cond_np, x_np, y_np], mod, expected)
+
+
+@tvm.testing.uses_gpu
+def test_any_where():
+    verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), any_dims(1), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (5,), (5,))
+    verify_any_where((5,), any_dims(1), any_dims(1), (5,), (5,), (5,))
+
+    # where with broadcast
+    verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (1,), (5,))
+    verify_any_where(any_dims(1), any_dims(2), any_dims(2), (5,), (5, 5), (5, 5))
+    verify_any_where(any_dims(1), any_dims(1), any_dims(2), (5,), (5,), (5, 5))
+    verify_any_where(any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

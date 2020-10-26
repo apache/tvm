@@ -817,6 +817,8 @@ def where_shape_func(attrs, inputs, _):
     """
     cond_shape = inputs[0]
     x_shape = inputs[1]
-    out_shape = x_shape if x_shape.shape else cond_shape
+    y_shape = inputs[2]
+    bcast_shape = topi.broadcast.broadcast_shape_tensors(x_shape, y_shape)
+    out_shape = topi.broadcast.broadcast_shape_tensors(bcast_shape, cond_shape)
 
-    return [topi.math.identity(out_shape)]
+    return [out_shape]
