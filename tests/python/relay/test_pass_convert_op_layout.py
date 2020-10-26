@@ -1162,6 +1162,78 @@ def test_no_desired_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_convert_with_config():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.nn.relu(y)
+
+        weight2 = relay.var("weight2", shape=(3, 3, 64, 64))
+        y2 = relay.nn.conv2d(
+            y,
+            weight2,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y2 = relay.nn.relu(y2)
+
+        out = relay.Function([x, weight, weight2], y2)
+        return out
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+
+        weight2 = relay.var("weight2", shape=(3, 3, 64, 64))
+        weight2 = relay.layout_transform(weight2, "HWIO", "HWOI")
+
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NHWC", "HWNC")
+
+        y2 = relay.nn.conv2d(
+            y,
+            weight2,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="HWNC",
+            kernel_layout="HWOI",
+        )
+        y2 = relay.nn.relu(y2)
+
+        y2 = relay.layout_transform(y2, "HWNC", "NHWC")
+        output = relay.Function(relay.analysis.free_vars(y2), y2)
+        return output
+
+    a = before()
+    layout_config = relay.transform.LayoutConfig(skip_layers=[0])
+    with layout_config:
+        a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["HWNC", "default"]}))
+    b = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_qnn_binary_no_convert_layout()
     test_no_convert_layout()
@@ -1185,3 +1257,4 @@ if __name__ == "__main__":
     test_default_keyword()
     test_different_ops_convert_layout()
     test_no_desired_layout()
+    test_convert_with_config()
