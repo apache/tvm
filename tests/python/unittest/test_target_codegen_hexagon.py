@@ -63,6 +63,21 @@ def test_basic():
     check_add(False)
 
 
+def test_llvm_target_features():
+    if not check_prereq_and_setup():
+        return
+    target = tvm.target.hexagon("v66", hvx=128)
+    # Define some trivial compute
+    A = tvm.te.placeholder((128,), dtype="uint8", name="A")
+    C = tvm.te.compute((128,), lambda i: A[i] + 1, name="C")
+    s = tvm.te.create_schedule(C.op)
+    m = tvm.build(s, [C, A], target=target, target_host=target, name="add_one")
+    llvm_ir = m.get_source("ll")
+    # Make sure we find +hvx-length128b in "attributes".
+    fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
+    assert fs  # Check that it's non-empty
+
+
 def test_alloc_vtcm():
     if not check_prereq_and_setup():
         return
@@ -92,4 +107,5 @@ def test_alloc_vtcm():
 
 if __name__ == "__main__":
     test_basic()
+    test_llvm_target_features()
     test_alloc_vtcm()

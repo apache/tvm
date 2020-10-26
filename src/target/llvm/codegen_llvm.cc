@@ -172,6 +172,11 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
 #endif
 
+  llvm::StringRef fs = target_machine_->getTargetFeatureString();
+  if (!fs.empty()) {
+    function_->addFnAttr("target-features", fs);
+  }
+
   if (ret_void) {
     builder_->CreateRetVoid();
   } else {
