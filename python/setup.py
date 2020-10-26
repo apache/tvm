@@ -60,7 +60,19 @@ def get_lib_path():
     return libs, version
 
 
+def git_describe_version(original_version):
+    """Get git describe version."""
+    ver_py = os.path.join(CURRENT_DIR, "..", "version.py")
+    libver = {"__file__": ver_py}
+    exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
+    _, gd_version = libver["git_describe_version"]()
+    if gd_version != original_version and "--inplace" not in sys.argv:
+        print("Use git describe based version %s" % gd_version)
+    return gd_version
+
+
 LIB_LIST, __version__ = get_lib_path()
+__version__ = git_describe_version(__version__)
 
 
 def config_cython():
