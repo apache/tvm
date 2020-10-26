@@ -21,20 +21,21 @@ set -u
 set -o pipefail
 
 # install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
+# apt-get update
 apt-get install -y python-dev
 
 # python 3.6
 apt-get install -y software-properties-common
 
 add-apt-repository -y ppa:deadsnakes/ppa
-apt-get update
-apt-get install -y python-pip python-dev python3.6 python3.6-dev
+# apt-get update
+# apt-get install -y python-pip python-dev python3.6 python3.6-dev
+apt-get install -y python-pip python-dev python3 python3-dev
 
-rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
+# rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
 
 # Install pip
-cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python2 get-pip.py && python3.6 get-pip.py
+cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python2 get-pip.py && python3 get-pip.py
 
 # Pin pip version
 pip3 install pip==19.3.1
