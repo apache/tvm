@@ -41,8 +41,8 @@ def broadcast_to(data, shape):
 
 
 def broadcast_shape_tensors(shape_tensor1, shape_tensor2):
-    """ Compute a shape tensor whose values represents the broadcasted shape
-        of two input shape tensors
+    """Compute a shape tensor whose values represents the broadcasted shape
+       of two input shape tensors
 
     Parameters
     ----------
