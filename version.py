@@ -75,10 +75,10 @@ def main():
         __version__,
     )
     # conda
-    for path in ["tvm", "tvm-libs"]:
+    for path in ["recipe"]:
         update(
             os.path.join(proj_root, "conda", path, "meta.yaml"),
-            '(?<=version = ")[.0-9a-z]+',
+            "(?<=version = ')[.0-9a-z]+",
             __version__,
         )
 

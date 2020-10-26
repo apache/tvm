@@ -38,7 +38,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto* f = runtime::Registry::Get(name);
-  CHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
+  ICHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
   ObjectPtr<EnvFuncNode> n = make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
@@ -51,7 +51,7 @@ TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
 
 TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body([](TVMArgs args, TVMRetValue* rv) {
   EnvFunc env = args[0];
-  CHECK_GE(args.size(), 1);
+  ICHECK_GE(args.size(), 1);
   env->func.CallPacked(TVMArgs(args.values + 1, args.type_codes + 1, args.size() - 1), rv);
 });
 

@@ -44,7 +44,7 @@ class PrefetchInjector : public StmtMutator {
     op = ret.as<AttrStmtNode>();
     if (op && op->attr_key == attr::prefetch_scope) {
       Buffer buffer = Downcast<Buffer>(op->node);
-      CHECK_NE(loop_nest_.size(), 0U);
+      ICHECK_NE(loop_nest_.size(), 0U);
       Region domain = DomainTouched(op->body, buffer, true, false);
       Region region;
 

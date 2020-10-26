@@ -43,10 +43,10 @@ namespace runtime {
     }                                                                                          \
   }
 
-#define ROCM_CALL(func)                                             \
-  {                                                                 \
-    hipError_t e = (func);                                          \
-    CHECK(e == hipSuccess) << "ROCM HIP: " << hipGetErrorString(e); \
+#define ROCM_CALL(func)                                              \
+  {                                                                  \
+    hipError_t e = (func);                                           \
+    ICHECK(e == hipSuccess) << "ROCM HIP: " << hipGetErrorString(e); \
   }
 
 /*! \brief Thread local workspace */

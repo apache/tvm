@@ -86,7 +86,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (op == nullptr) return ret;
     int shift;
     const DataType& dtype = op->dtype;
-    CHECK(dtype.is_int() || dtype.is_uint());
+    ICHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
@@ -138,7 +138,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     // Lower floordiv to native truncdiv.
     int shift;
     const DataType& dtype = op->dtype;
-    CHECK(dtype.is_int() || dtype.is_uint());
+    ICHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
@@ -281,7 +281,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // if pattern exists.
       if (f != nullptr) {
         PrimExpr r = (*f)(e);
-        CHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+        ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
         if (!r.same_as(e)) {
           return this->VisitExpr(r);
         }
@@ -307,7 +307,7 @@ Pass LowerIntrin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    CHECK(target.defined()) << "LowerIntrin: Require the target attribute";
+    ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
     auto mtriple = target.value()->GetAttr<runtime::String>("mtriple", "");
     n->body =

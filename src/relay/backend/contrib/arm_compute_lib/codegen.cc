@@ -87,7 +87,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     }
     auto fn = cn->op.as<FunctionNode>();
     auto comp = fn->GetAttr<String>(attr::kComposite);
-    CHECK(comp.defined()) << "Arm Compute Library JSON runtime only supports composite functions.";
+    ICHECK(comp.defined()) << "Arm Compute Library JSON runtime only supports composite functions.";
     const std::string name = comp.value();
     std::shared_ptr<JSONGraphNode> json_node;
     if (name == "arm_compute_lib.conv2d" || name == "arm_compute_lib.qnn_conv2d") {
@@ -114,7 +114,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   static CompositeConvNode UnpackCompositeConvolution(const CallNode* cn) {
     CompositeConvNode nodes{};
     const auto* fn = cn->op.as<FunctionNode>();
-    CHECK(fn);
+    ICHECK(fn);
 
     // Traverse composite convolution function from child to parent
     const auto* current_call = fn->body.as<CallNode>();
@@ -132,9 +132,9 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     }
     // Enforce a convolution node exists at this point during traversal
     if (nodes.requantize) {
-      CHECK(backend::IsOp(current_call, "qnn.conv2d"));
+      ICHECK(backend::IsOp(current_call, "qnn.conv2d"));
     } else {
-      CHECK(backend::IsOp(current_call, "nn.conv2d"));
+      ICHECK(backend::IsOp(current_call, "nn.conv2d"));
     }
     nodes.conv = current_call;
     if (!current_call->args.empty() && current_call->args[0]->IsInstance<CallNode>()) {
@@ -157,8 +157,8 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     std::string name = "nn.conv2d";
 
     const auto* conv_attr = nodes.conv->attrs.as<Conv2DAttrs>();
-    CHECK(conv_attr);
-    CHECK(conv_attr->kernel_layout == "OHWI")
+    ICHECK(conv_attr);
+    ICHECK(conv_attr->kernel_layout == "OHWI")
         << "Kernel layout must be OHWI, has the module been pre-processed correctly?";
 
     // Inputs must be added in the same order they appear in the relay graph.
@@ -186,7 +186,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     // Override attributes
     if (nodes.pad) {
       const auto* pad_attr = nodes.pad->attrs.as<PadAttrs>();
-      CHECK(pad_attr);
+      ICHECK(pad_attr);
       auto p = pad_attr->pad_width;
       // Convert to TVM layout for now, conversion to ACL layout takes place in runtime.
       // Standard convolution pad layout for TVM: top, left, bottom, right.
@@ -216,7 +216,7 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   static CompositeDenseNode UnpackCompositeDense(const CallNode* cn) {
     CompositeDenseNode nodes{};
     const auto* fn = cn->op.as<FunctionNode>();
-    CHECK(fn);
+    ICHECK(fn);
 
     // Traverse composite dense function from child to parent
     const auto* current_call = fn->body.as<CallNode>();
@@ -230,9 +230,9 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
     }
     // Enforce a dense node exists at this point during traversal
     if (nodes.requantize) {
-      CHECK(backend::IsOp(current_call, "qnn.dense"));
+      ICHECK(backend::IsOp(current_call, "qnn.dense"));
     } else {
-      CHECK(backend::IsOp(current_call, "nn.dense"));
+      ICHECK(backend::IsOp(current_call, "nn.dense"));
     }
     nodes.dense = current_call;
     return nodes;
@@ -282,13 +282,13 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
    */
   std::shared_ptr<JSONGraphNode> CreateCompositeAvgPool2DJSONNode(const CallNode* cn) {
     const auto* fn = cn->op.as<FunctionNode>();
-    CHECK(fn);
+    ICHECK(fn);
     const auto* cast = fn->body.as<CallNode>();
-    CHECK(cast);
+    ICHECK(cast);
     const auto* avg_pool = cast->args[0].as<CallNode>();
-    CHECK(avg_pool);
+    ICHECK(avg_pool);
     const auto* avg_pool_op = avg_pool->op.as<OpNode>();
-    CHECK(avg_pool_op);
+    ICHECK(avg_pool_op);
     const std::string name = avg_pool_op->name;
 
     std::vector<JSONGraphNodeEntry> inputs;
@@ -310,16 +310,16 @@ class ACLJSONSerializer : public backend::contrib::JSONSerializer {
   std::shared_ptr<JSONGraphNode> CreateCompositeL2Pool2DJSONNode(const CallNode* cn) {
     const std::string name = "nn.l2_pool2d";
     const auto* fn = cn->op.as<FunctionNode>();
-    CHECK(fn);
+    ICHECK(fn);
     const auto* sqrt = fn->body.as<CallNode>();
-    CHECK(sqrt);
+    ICHECK(sqrt);
     const auto* avg_pool = sqrt->args[0].as<CallNode>();
-    CHECK(avg_pool);
+    ICHECK(avg_pool);
     const auto* pow = avg_pool->args[0].as<CallNode>();
-    CHECK(pow);
+    ICHECK(pow);
     const auto* exponent = pow->args[1].as<ConstantNode>();
-    CHECK(exponent);
-    CHECK_EQ(*static_cast<float*>(exponent->data->data), 2) << "Exponent must be 2 for L2 pooling";
+    ICHECK(exponent);
+    ICHECK_EQ(*static_cast<float*>(exponent->data->data), 2) << "Exponent must be 2 for L2 pooling";
 
     std::vector<JSONGraphNodeEntry> inputs;
     inputs.push_back(VisitExpr(cn->args[0])[0]);
@@ -363,7 +363,7 @@ TVM_REGISTER_GLOBAL("relay.ext.arm_compute_lib.optimize").set_body_typed(PreProc
  * \return A runtime module.
  */
 runtime::Module ACLCompiler(const ObjectRef& ref) {
-  CHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
+  ICHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
   Function func = Downcast<Function>(ref);
   std::string func_name = backend::GetExtSymbol(func);
 
@@ -372,7 +372,7 @@ runtime::Module ACLCompiler(const ObjectRef& ref) {
   std::string graph_json = serializer.GetJSON();
   auto param_names = serializer.GetParams();
   const auto* pf = runtime::Registry::Get("runtime.arm_compute_lib_runtime_create");
-  CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
+  ICHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
   runtime::Module lib = (*pf)(func_name, graph_json, param_names);
   return lib;
 }

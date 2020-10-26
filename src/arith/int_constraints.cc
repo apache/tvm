@@ -43,9 +43,9 @@ Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGrou
   Array<PrimExpr> res;
   // use variables to keep the order of iteration
   // so as to get rid of any non-determinism.
-  CHECK_EQ(variables.size(), bounds.size());
+  ICHECK_EQ(variables.size(), bounds.size());
   for (const auto v : variables) {
-    CHECK(bounds.count(v));
+    ICHECK(bounds.count(v));
     const auto& bnds = bounds[v];
     PrimExpr lhs = bnds->coef * v;
     for (const PrimExpr& rhs : bnds->equal) {
@@ -66,7 +66,7 @@ Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGrou
 
 IntGroupBounds::IntGroupBounds(PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
                                Array<PrimExpr> upper) {
-  CHECK(coef.dtype().is_int() || coef.dtype().is_uint())
+  ICHECK(coef.dtype().is_int() || coef.dtype().is_uint())
       << "Coefficient in IntGroupBounds must be integers";
   ObjectPtr<IntGroupBoundsNode> node = make_object<IntGroupBoundsNode>();
   node->coef = std::move(coef);
@@ -178,7 +178,7 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
   }
 
   if (!best_lower.defined()) {
-    CHECK(!best_diff_over.defined());
+    ICHECK(!best_diff_over.defined());
     return Range();
   }
   return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
@@ -196,7 +196,7 @@ TVM_REGISTER_GLOBAL("arith.IntGroupBounds_from_range").set_body_typed(IntGroupBo
 
 TVM_REGISTER_GLOBAL("arith.IntGroupBounds_FindBestRange")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
-      CHECK(args.size() == 1 || args.size() == 2);
+      ICHECK(args.size() == 1 || args.size() == 2);
       IntGroupBounds bounds = args[0];
       if (args.size() == 1) {
         *ret = bounds.FindBestRange();
@@ -221,9 +221,9 @@ IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
   if (!ranges.defined()) {
     ranges = Map<Var, Range>();
   }
-  CHECK(relations.defined());
+  ICHECK(relations.defined());
   for (const auto& var : variables) {
-    CHECK(var.dtype().is_int() || var.dtype().is_uint())
+    ICHECK(var.dtype().is_int() || var.dtype().is_uint())
         << "Variables in IntConstraints must be integers";
   }
   node->variables = std::move(variables);
@@ -259,7 +259,7 @@ IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstrai
 
 IntConstraintsTransform IntConstraintsTransform::operator+(
     const IntConstraintsTransform& other) const {
-  CHECK(other->src.same_as(operator->()->dst));
+  ICHECK(other->src.same_as(operator->()->dst));
   Map<Var, PrimExpr> dst_to_src;
   Map<Var, PrimExpr> src_to_dst;
 

@@ -188,9 +188,9 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void AddNode(const tvm::Object* key) {
     auto it = graph_.node_map.find(key);
-    CHECK(it != graph_.node_map.end()) << "Cannot find node " << GetRef<ObjectRef>(key);
+    ICHECK(it != graph_.node_map.end()) << "Cannot find node " << GetRef<ObjectRef>(key);
     IndexedForwardGraph::Node* node = it->second;
-    CHECK(node->ref == nullptr);
+    ICHECK(node->ref == nullptr);
     node->ref = key;
     node->index = graph_.post_dfs_order.size();
     graph_.post_dfs_order.push_back(node);
@@ -226,7 +226,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    CHECK(graph_.node_map.count(call));
+    ICHECK(graph_.node_map.count(call));
     Node* node = graph_.node_map.at(call);
     static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
     // Now we set the pattern of this call.
@@ -270,7 +270,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 
   void VisitExpr_(const TupleNode* op) final {
-    CHECK(graph_.node_map.count(op));
+    ICHECK(graph_.node_map.count(op));
     Node* tuple_node = graph_.node_map.at(op);
     tuple_node->pattern = kTuple;
     for (const Expr& field : op->fields) {
@@ -286,7 +286,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void VisitExpr_(const TupleGetItemNode* op) final {
     auto tuple_type = op->tuple->checked_type().as<TupleTypeNode>();
-    CHECK(tuple_type);
+    ICHECK(tuple_type);
     // When TVM lowers a fused function, it expects all arguments to be a Tensor or
     // a tuple containing only Tensors. But this tuple may contain a reference or
     // another tuple. To avoid modifying codegen logic, we do not allow fusing through this node
@@ -302,7 +302,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     if (has_non_tensor) {
       this->Update(op->tuple, nullptr, kOpaque);
     } else {
-      CHECK(graph_.node_map.count(op));
+      ICHECK(graph_.node_map.count(op));
       Node* node = graph_.node_map.at(op);
       node->pattern = kInjective;
       this->Update(op->tuple, node, kInjective);
@@ -443,9 +443,9 @@ class DominatorTree {
     }
     auto get_node = [&](const IndexedForwardGraph::Edge& edge) {
       size_t oindex = edge.node->index;
-      CHECK_LT(oindex, nodes.size());
+      ICHECK_LT(oindex, nodes.size());
       Node* onode = nodes[oindex];
-      CHECK(onode != nullptr);
+      ICHECK(onode != nullptr);
       return onode;
     };
     Node* parent = get_node(link->value);
@@ -563,7 +563,7 @@ class GraphPartitioner {
     if (visited_.count(src)) return true;
     visited_.insert(src);
     Group* gnode = groups_[src->index];
-    CHECK(gnode != nullptr);
+    ICHECK(gnode != nullptr);
     gnode = gnode->FindRoot();
     if (!fcond(gnode->pattern, src == sink)) return false;
     if (src == sink) return true;
@@ -586,9 +586,9 @@ class GraphPartitioner {
    */
   template <typename F>
   bool CheckPath(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink, F fcond) {
-    CHECK(!src->extern_ref);
+    ICHECK(!src->extern_ref);
     visited_.clear();
-    CHECK(src != sink);
+    ICHECK(src != sink);
     for (auto link = src->outputs.head; link != nullptr; link = link->next) {
       if (!CheckPath_(link->value.node, sink, fcond)) return false;
     }
@@ -616,7 +616,7 @@ class GraphPartitioner {
     child->parent = parent;
     // update anchor ref and pattern
     if (child->anchor_ref != nullptr) {
-      CHECK(parent->anchor_ref == nullptr);
+      ICHECK(parent->anchor_ref == nullptr);
       parent->anchor_ref = child->anchor_ref;
       parent->pattern = CombinePattern(child->pattern, parent->pattern);
     }
@@ -627,7 +627,7 @@ class GraphPartitioner {
     if (visited_.count(src)) return;
     visited_.insert(src);
     Group* gnode = groups_[src->index];
-    CHECK(gnode != nullptr);
+    ICHECK(gnode != nullptr);
     // merge the current group to the parent if possible.
     MergeFromTo(gnode, target);
     for (auto link = src->outputs.head; link != nullptr; link = link->next) {
@@ -643,7 +643,7 @@ class GraphPartitioner {
   void CommitFuse(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink) {
     Group* target = groups_[sink->index];
     visited_.clear();
-    CHECK(src != sink);
+    ICHECK(src != sink);
     CommitFuse_(src, sink, target);
   }
 
@@ -651,7 +651,7 @@ class GraphPartitioner {
     if (src == sink || visited_.count(src)) return 0;
     visited_.insert(src);
     Group* gnode = groups_[src->index];
-    CHECK(gnode != nullptr);
+    ICHECK(gnode != nullptr);
     auto sum = gnode->num_nodes;
     for (auto link = src->outputs.head; link != nullptr; link = link->next) {
       sum += CountNodesUptoSink_(link->value.node, sink);
@@ -669,7 +669,7 @@ class GraphPartitioner {
                                      IndexedForwardGraph::Node* dom_parent) {
     Group* target = groups_[dom_parent->index];
     visited_.clear();
-    CHECK(child != dom_parent);
+    ICHECK(child != dom_parent);
     return target->FindRoot()->num_nodes + CountNodesUptoSink_(child, dom_parent);
   }
 
@@ -696,12 +696,12 @@ class GraphPartitioner {
       auto* graph_node = graph.post_dfs_order[nid];
       auto* dom_node = post_dom_tree.nodes[nid];
       Group* group_node = groups_[nid];
-      CHECK(group_node != nullptr);
+      ICHECK(group_node != nullptr);
       // no actions for opaque nodes
       if (group_node->pattern == kOpaque) continue;
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
-      CHECK(!graph_node->extern_ref);
+      ICHECK(!graph_node->extern_ref);
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
 
       // refuse the fusion if too many ops are going to be fused together
@@ -740,7 +740,7 @@ class GraphPartitioner {
         // Path for OutEWiseFusable: conv2d
         // Check if the dominator relation is elemwise.
         if (dom_node->parent != nullptr && dom_node->pattern == kElemWise) {
-          CHECK(dom_node->parent->gnode != nullptr);
+          ICHECK(dom_node->parent->gnode != nullptr);
           // The fuse can be executed if all the intermediate ops are still broadcast.
           auto fcond = [](OpPatternKind kind, bool is_sink) { return kind <= kBroadcast; };
           if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
@@ -778,7 +778,7 @@ class GraphPartitioner {
         }
       } else {
         // do nothing.
-        CHECK(group_node->pattern == kCommReduce);
+        ICHECK(group_node->pattern == kCommReduce);
       }
     }
   }
@@ -805,7 +805,7 @@ class FuseMutator : private ExprMutator {
     auto graph = IndexedForwardGraph::Create(&arena_, body);
     auto groups = GraphPartitioner(&arena_, fuse_opt_level, max_fuse_depth).Partition(graph);
     for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
-      CHECK(graph.post_dfs_order[nid]->ref != nullptr);
+      ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
       gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
     }
     // The following line can be used for debug.
@@ -863,7 +863,7 @@ class FuseMutator : private ExprMutator {
 
       // If it is a primitive op call
       // then we must have a group assignment for it already.
-      CHECK(gmap_.count(call));
+      ICHECK(gmap_.count(call));
       if (call->op == stop_fusion_op) {
         return ExprMutator::VisitExpr(call->args[0]);
       }

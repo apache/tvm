@@ -110,7 +110,7 @@ class ConstantFolder : public MixedModeMutator {
   bool inside_primitive = false;
   Expr VisitExpr_(const FunctionNode* op) final {
     if (op->HasNonzeroAttr(attr::kPrimitive)) {
-      CHECK_EQ(inside_primitive, false);
+      ICHECK_EQ(inside_primitive, false);
       inside_primitive = true;
       auto ret = ExprMutator::VisitExpr_(op);
       inside_primitive = false;
@@ -151,9 +151,12 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // We should think about potentially constant evaluation over these ops too.
-    if (call->op == invoke_tvm_op_ || call->op == shape_func_op_ || call->op == alloc_tensor_op_ ||
-        call->op == alloc_storage_op_ || call->op == device_copy_op_) {
-      return GetRef<Call>(call);
+    static auto fnoncomputational = Op::GetAttrMap<TNonComputational>("TNonComputational");
+    if (const auto* call_node = call->op.as<OpNode>()) {
+      Op op = GetRef<Op>(call_node);
+      if ((fnoncomputational.count(op) && fnoncomputational[op]) || (call->op == device_copy_op_)) {
+        return GetRef<Call>(call);
+      }
     }
 
     bool all_const_args = true;
@@ -250,7 +253,7 @@ class ConstantFolder : public MixedModeMutator {
   Expr EvaluateShapeOf(Expr expr, Array<Expr> args, Attrs attrs) {
     Expr input = args[0];
     const auto* param = attrs.as<ShapeOfAttrs>();
-    CHECK(param != nullptr);
+    ICHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
     if (auto opt = GetConstantShape(input)) {
@@ -268,7 +271,7 @@ class ConstantFolder : public MixedModeMutator {
     if (ishape.size() == 0) {
       value = runtime::NDArray::Empty({}, cdtype, ctx);
     } else {
-      CHECK_NE(ishape.size(), 0);
+      ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
       value = runtime::NDArray::Empty(cshape, cdtype, ctx);
       int32_t* dims = static_cast<int32_t*>(value->data);
@@ -297,7 +300,7 @@ class ConstantFolder : public MixedModeMutator {
   Expr EvaluateNdarraySize(Expr expr, Array<Expr> args, Attrs attrs) {
     Expr input = args[0];
     const auto* param = attrs.as<NdarraySizeAttrs>();
-    CHECK(param != nullptr);
+    ICHECK(param != nullptr);
 
     tvm::Array<IndexExpr> ishape;
     if (auto opt = GetConstantShape(input)) {

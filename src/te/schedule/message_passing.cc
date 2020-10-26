@@ -40,9 +40,9 @@ void Update(std::unordered_map<IterVar, Range>* p_state, const IterVar& iv, Rang
   } else {
     bool match =
         is_zero(it->second->min) && analyzer->CanProve(r->extent - it->second->extent == 0);
-    CHECK(match) << iv << " domain already inferred,"
-                 << " cannot prove their extents are the same " << it->second->extent << " vs "
-                 << r->extent;
+    ICHECK(match) << iv << " domain already inferred,"
+                  << " cannot prove their extents are the same " << it->second->extent << " vs "
+                  << r->extent;
   }
 }
 
@@ -109,10 +109,10 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* r = rel.as<SplitNode>()) {
       if (!state.count(r->parent)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
-      CHECK(!state.count(r->inner));
+      ICHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       // Tighten iv's extent to min(parent_extent, factor_or_nparts), only if all of the
       // following conditions are met:
@@ -143,7 +143,7 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       }
     } else if (const FuseNode* r = rel.as<FuseNode>()) {
       if (!state.count(r->outer) || !state.count(r->inner)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       const Range& range_outer = state.at(r->outer);
@@ -151,7 +151,7 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       state[r->fused] = Range::FromMinExtent(0, range_outer->extent * range_inner->extent);
     } else if (const RebaseNode* r = rel.as<RebaseNode>()) {
       if (!state.count(r->parent)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       Update(p_state, r->rebased, Range::FromMinExtent(0, state.at(r->parent)->extent), actx);
@@ -164,7 +164,7 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
   // update the extents of binded threads.
   for (auto kv : stage->iter_var_attrs) {
     if (kv.second->bind_thread.defined()) {
-      CHECK(state.count(kv.first));
+      ICHECK(state.count(kv.first));
       Update(p_state, kv.second->bind_thread, state.at(kv.first), actx);
     }
   }
@@ -177,7 +177,7 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
     IterVarRelation rel = stage->relations[i - 1];
     if (const SplitNode* s = rel.as<SplitNode>()) {
       if (!state.count(s->outer) || !state.count(s->inner)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       PrimExpr outer = state.at(s->outer);
@@ -191,7 +191,7 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       }
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->fused)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       PrimExpr value = state.at(s->fused);
@@ -213,7 +213,7 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       state[s->inner] = cast(s->inner->var.dtype(), state[s->inner]);
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       if (!state.count(s->rebased)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       PrimExpr value = state.at(s->rebased);
@@ -237,18 +237,18 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* s = rel.as<SplitNode>()) {
       if (!state.count(s->parent)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       Range r = dom_map.at(s->inner);
-      CHECK(is_zero(r->min));
+      ICHECK(is_zero(r->min));
       PrimExpr parent = state.at(s->parent);
       PrimExpr factor = r->extent;
       state[s->outer] = indexdiv(parent, factor);
       state[s->inner] = indexmod(parent, factor);
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->inner) && !state.count(s->outer)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       PrimExpr factor = dom_map.at(s->inner)->extent;
@@ -256,17 +256,17 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       PrimExpr inner_min = dom_map.at(s->inner)->min;
       PrimExpr inner = state.at(s->inner);
       PrimExpr outer = state.at(s->outer);
-      CHECK(is_zero(outer_min));
-      CHECK(is_zero(inner_min));
+      ICHECK(is_zero(outer_min));
+      ICHECK(is_zero(inner_min));
       state[s->fused] = outer * factor + inner;
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       if (!state.count(s->rebased)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       PrimExpr value = state.at(s->parent);
       PrimExpr parent_min = dom_map.at(s->parent)->min;
-      CHECK(is_zero(parent_min));
+      ICHECK(is_zero(parent_min));
       state[s->rebased] = value;
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
       state[s->iter] = make_zero(s->iter->var.dtype());
@@ -286,18 +286,18 @@ void PassUpDomain(const SplitNode* s, const std::unordered_map<IterVar, Range>& 
   }
   PrimExpr factor = dom_map.at(s->inner)->extent;
   PrimExpr parent_min = dom_map.at(s->parent)->min;
-  CHECK(outer.defined());
-  CHECK(inner.defined());
-  CHECK(factor.defined());
+  ICHECK(outer.defined());
+  ICHECK(inner.defined());
+  ICHECK(factor.defined());
   *parent = arith::EvalSet(s->outer->var * factor + s->inner->var + parent_min,
                            {{s->outer, outer}, {s->inner, inner}});
 }
 
 void PassUpDomain(const FuseNode* s, const std::unordered_map<IterVar, Range>& dom_map,
                   const IntSet& fused, IntSet* outer, IntSet* inner) {
-  CHECK(dom_map.count(s->outer));
-  CHECK(dom_map.count(s->inner));
-  CHECK(dom_map.count(s->fused));
+  ICHECK(dom_map.count(s->outer));
+  ICHECK(dom_map.count(s->inner));
+  ICHECK(dom_map.count(s->fused));
   arith::Analyzer ana;
 
   if (fused.MatchRange(dom_map.at(s->fused))) {
@@ -342,7 +342,7 @@ void PassUpDomain(const FuseNode* s, const std::unordered_map<IterVar, Range>& d
 
 void PassUpDomain(const RebaseNode* s, const std::unordered_map<IterVar, Range>& dom_map,
                   const IntSet& rebased, IntSet* parent) {
-  CHECK(dom_map.count(s->parent));
+  ICHECK(dom_map.count(s->parent));
   if (rebased.MatchRange(dom_map.at(s->rebased))) {
     *parent = IntSet::FromRange(dom_map.at(s->parent));
     return;
@@ -384,7 +384,7 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
     IterVarRelation rel = stage->relations[i - 1];
     if (const SplitNode* s = rel.as<SplitNode>()) {
       if (!state.count(s->inner) && !state.count(s->outer)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       int res = 0;
@@ -394,7 +394,7 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
       state[s->parent] = res;
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->fused)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       if (!state.count(s->outer)) {
@@ -409,7 +409,7 @@ void PassUpBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_sta
       }
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       if (!state.count(s->rebased)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       if (!state.count(s->parent)) {
@@ -430,7 +430,7 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* s = rel.as<SplitNode>()) {
       if (!state.count(s->parent)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       if (!state.count(s->outer)) {
@@ -445,7 +445,7 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
       }
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->outer) && !state.count(s->inner)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       int res = 0;
@@ -455,7 +455,7 @@ void PassDownBitMaskOr(const Stage& stage, std::unordered_map<IterVar, int>* p_s
       state[s->fused] = res;
     } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       if (!state.count(s->parent)) {
-        CHECK(allow_missing);
+        ICHECK(allow_missing);
         continue;
       }
       if (!state.count(s->rebased)) {
@@ -561,7 +561,7 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
   for (const IterVar& iv : stage->op->root_iter_vars()) {
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
     Range dom = dom_map.at(iv);
-    CHECK(iv->dom.defined());
+    ICHECK(iv->dom.defined());
     if (!skip_ivar_domain && !IsRangeSame(iv->dom, dom)) {
       PrimExpr value = value_map.at(iv) - iv->dom->min;
       IntSet s = analyzer.int_set(value, iset_dmap);

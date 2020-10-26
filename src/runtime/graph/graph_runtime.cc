@@ -99,7 +99,7 @@ int GraphRuntime::GetInputIndex(const std::string& name) {
  * \param data_in The input data.
  */
 void GraphRuntime::SetInput(int index, DLTensor* data_in) {
-  CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+  ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
 }
@@ -109,18 +109,18 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
  * \param data_ref The input data that is referred.
  */
 void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
-  CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+  ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   const DLTensor* old_t = data_entry_[eid].operator->();
 
   // check the consistency of input
-  CHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
-  CHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
-  CHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
-  CHECK_EQ(old_t->ctx.device_type, data_ref->ctx.device_type);
-  CHECK_EQ(old_t->ctx.device_id, data_ref->ctx.device_id);
+  ICHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_ref));
+  ICHECK_EQ(reinterpret_cast<size_t>(data_ref->data) % kAllocAlignment, 0);
+  ICHECK_EQ(old_t->ndim, static_cast<size_t>(data_ref->ndim));
+  ICHECK_EQ(old_t->ctx.device_type, data_ref->ctx.device_type);
+  ICHECK_EQ(old_t->ctx.device_id, data_ref->ctx.device_id);
   for (auto i = 0; i < data_ref->ndim; ++i) {
-    CHECK_EQ(old_t->shape[i], data_ref->shape[i]);
+    ICHECK_EQ(old_t->shape[i], data_ref->shape[i]);
   }
 
   // Update the data pointer for each argument of each op
@@ -147,7 +147,7 @@ int GraphRuntime::NumInputs() const { return input_nodes_.size(); }
  * \return NDArray corresponding to given input node index.
  */
 NDArray GraphRuntime::GetInput(int index) const {
-  CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+  ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   return data_entry_[eid];
 }
@@ -158,7 +158,7 @@ NDArray GraphRuntime::GetInput(int index) const {
  * \return NDArray corresponding to given output node index.
  */
 NDArray GraphRuntime::GetOutput(int index) const {
-  CHECK_LT(static_cast<size_t>(index), outputs_.size());
+  ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
   return data_entry_[eid];
 }
@@ -168,14 +168,14 @@ NDArray GraphRuntime::GetOutput(int index) const {
  * \param data_out the output data.
  */
 void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
-  CHECK_LT(static_cast<size_t>(index), outputs_.size());
+  ICHECK_LT(static_cast<size_t>(index), outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
 
   // Check the shapes to avoid receiving in different dimension but same size.
   const NDArray& data = data_entry_[eid];
-  CHECK_EQ(data->ndim, data_out->ndim);
+  ICHECK_EQ(data->ndim, data_out->ndim);
   for (int32_t j = 0; j < data->ndim; ++j) {
-    CHECK_EQ(data->shape[j], data_out->shape[j]);
+    ICHECK_EQ(data->shape[j], data_out->shape[j]);
   }
 
   data_entry_[eid].CopyTo(data_out);
@@ -192,16 +192,16 @@ void GraphRuntime::LoadParams(const std::string& param_blob) {
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   uint64_t header, reserved;
-  CHECK(strm->Read(&header)) << "Invalid parameters file format";
-  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
-  CHECK(strm->Read(&reserved)) << "Invalid parameters file format";
+  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
+  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
+  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
 
   std::vector<std::string> names;
-  CHECK(strm->Read(&names)) << "Invalid parameters file format";
+  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
   uint64_t sz;
   strm->Read(&sz);
   size_t size = static_cast<size_t>(sz);
-  CHECK(size == names.size()) << "Invalid parameters file format";
+  ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(names[i]);
     if (in_idx < 0) {
@@ -210,7 +210,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
       continue;
     }
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
-    CHECK_LT(eid, data_entry_.size());
+    ICHECK_LT(eid, data_entry_.size());
 
     // The data_entry is allocated on device, NDArray.load always load the array into CPU.
     NDArray temp;
@@ -221,23 +221,23 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
 
 void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
   uint64_t header, reserved;
-  CHECK(strm->Read(&header)) << "Invalid parameters file format";
-  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
-  CHECK(strm->Read(&reserved)) << "Invalid parameters file format";
+  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
+  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
+  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
   std::vector<std::string> names;
-  CHECK(strm->Read(&names)) << "Invalid parameters file format";
+  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
   uint64_t sz;
   strm->Read(&sz);
   size_t size = static_cast<size_t>(sz);
-  CHECK(size == names.size()) << "Invalid parameters file format";
+  ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(names[i]);
     if (in_idx < 0) continue;
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
-    CHECK_LT(eid, data_entry_.size());
-    CHECK_EQ(data_entry_[eid].use_count(), 1);
+    ICHECK_LT(eid, data_entry_.size());
+    ICHECK_EQ(data_entry_[eid].use_count(), 1);
     data_entry_[eid] = other.GetInput(GetInputIndex(names[i]));
-    CHECK_GT(data_entry_[eid].use_count(), 1);
+    ICHECK_GT(data_entry_[eid].use_count(), 1);
     const DLTensor* tmp = data_entry_[eid].operator->();
     data_alignment_[eid] = details::GetDataAlignment(*tmp);
   }
@@ -265,17 +265,17 @@ void GraphRuntime::SetupStorage() {
     for (int64_t sz : attrs_.shape[i]) {
       size *= static_cast<size_t>(sz);
     }
-    CHECK_GE(storage_id, 0) << "Do not support runtime shape op";
+    ICHECK_GE(storage_id, 0) << "Do not support runtime shape op";
     DLDataType t = vtype[i];
     size_t bits = t.bits * t.lanes;
-    CHECK(bits % 8U == 0U || bits == 1U);
+    ICHECK(bits % 8U == 0U || bits == 1U);
     size_t bytes = ((bits + 7U) / 8U) * size;
 
     uint32_t sid = static_cast<uint32_t>(storage_id);
     if (sid >= pool_entry.size()) {
       pool_entry.resize(sid + 1, {0, -1});
     } else {
-      CHECK(pool_entry[sid].device_type == -1 || pool_entry[sid].device_type == device_type)
+      ICHECK(pool_entry[sid].device_type == -1 || pool_entry[sid].device_type == device_type)
           << "The same pool entry cannot be assigned to multiple devices";
     }
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
@@ -302,7 +302,7 @@ void GraphRuntime::SetupStorage() {
   data_alignment_.resize(num_node_entries());
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
-    CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
+    ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
     data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = details::GetDataAlignment(*tmp);
@@ -331,7 +331,7 @@ void GraphRuntime::SetupOpExecs() {
       uint32_t eid = this->entry_id(nid, index);
       args.push_back(*(data_entry_[eid].operator->()));
     }
-    CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
+    ICHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
     std::shared_ptr<OpArgs> op_args = nullptr;
     std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args, inode.inputs.size());
@@ -384,7 +384,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   // Get compiled function from the module that contains both host and device
   // code.
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
-  CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
+  ICHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
   auto fexec = [arg_ptr, pf]() {
     TVMRetValue rv;
@@ -451,7 +451,7 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
   } else if (name == "share_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       const auto& module = args[0].operator Module();
-      CHECK_EQ(module.operator->()->type_key(), "GraphRuntime");
+      ICHECK_EQ(module.operator->()->type_key(), "GraphRuntime");
       const auto& param_blob = args[1].operator std::string();
       dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
       this->ShareParams(dynamic_cast<const GraphRuntime&>(*module.operator->()), &strm);
@@ -488,9 +488,9 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
 // be passed in. The third one is the number of devices.
 // Eventually, we will only probably pass TVMContext for all the languages.
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
-                                "at least 4, but it has "
-                             << args.num_args;
+  ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
+                                 "at least 4, but it has "
+                              << args.num_args;
   const auto& contexts = GetAllContext(args);
   *rv = GraphRuntimeCreate(args[0], args[1], contexts);
 });

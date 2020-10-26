@@ -35,6 +35,8 @@ else:
     from setuptools.extension import Extension
 
 CURRENT_DIR = os.path.dirname(__file__)
+FFI_MODE = os.environ.get("TVM_FFI", "auto")
+CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
 
 
 def get_lib_path():
@@ -45,7 +47,7 @@ def get_lib_path():
     libinfo = {"__file__": libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
     version = libinfo["__version__"]
-    if not os.getenv("CONDA_BUILD"):
+    if not CONDA_BUILD:
         lib_path = libinfo["find_lib_path"]()
         libs = [lib_path[0]]
         if libs[0].find("runtime") == -1:
@@ -63,14 +65,14 @@ LIB_LIST, __version__ = get_lib_path()
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
-    if os.name == "nt":
-        print("WARNING: Cython is not supported on Windows, will compile without cython module")
-        return []
-    sys_cflags = sysconfig.get_config_var("CFLAGS")
-
-    if "i386" in sys_cflags and "x86_64" in sys_cflags:
-        print("WARNING: Cython library may not be compiled correctly with both i386 and x64")
-        return []
+    if FFI_MODE not in ("cython"):
+        if os.name == "nt" and not CONDA_BUILD:
+            print("WARNING: Cython is not supported on Windows, will compile without cython module")
+            return []
+        sys_cflags = sysconfig.get_config_var("CFLAGS")
+        if sys_cflags and "i386" in sys_cflags and "x86_64" in sys_cflags:
+            print("WARNING: Cython library may not be compiled correctly with both i386 and x64")
+            return []
     try:
         from Cython.Build import cythonize
 
@@ -81,12 +83,18 @@ def config_cython():
             subdir = "_cy2"
         ret = []
         path = "tvm/_ffi/_cython"
+        extra_compile_args = ["-std=c++14"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
-            libraries = ["libtvm"]
+            libraries = ["tvm"]
+            extra_compile_args = None
+            # library is available via conda env.
+            if CONDA_BUILD:
+                library_dirs = [os.environ["LIBRARY_LIB"]]
         else:
             library_dirs = None
             libraries = None
+
         for fn in os.listdir(path):
             if not fn.endswith(".pyx"):
                 continue
@@ -99,14 +107,16 @@ def config_cython():
                         "../3rdparty/dmlc-core/include",
                         "../3rdparty/dlpack/include",
                     ],
-                    extra_compile_args=["-std=c++14"],
+                    extra_compile_args=extra_compile_args,
                     library_dirs=library_dirs,
                     libraries=libraries,
                     language="c++",
                 )
             )
         return cythonize(ret, compiler_directives={"language_level": 3})
-    except ImportError:
+    except ImportError as error:
+        if FFI_MODE == "cython":
+            raise error
         print("WARNING: Cython is not installed, will compile without cython module")
         return []
 
@@ -121,7 +131,7 @@ class BinaryDistribution(Distribution):
 
 include_libs = False
 wheel_include_libs = False
-if not os.getenv("CONDA_BUILD"):
+if not CONDA_BUILD:
     if "bdist_wheel" in sys.argv:
         wheel_include_libs = True
     else:

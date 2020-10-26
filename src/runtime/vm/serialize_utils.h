@@ -79,8 +79,8 @@ struct VMFunctionSerializer {
   bool Load(dmlc::Stream* strm) {
     std::vector<std::string> func_info;
     if (!strm->Read(&func_info)) return false;
-    CHECK_EQ(func_info.size(), 3U) << "Failed to decode the vm function."
-                                   << "\n";
+    ICHECK_EQ(func_info.size(), 3U) << "Failed to decode the vm function."
+                                    << "\n";
     name = func_info[0];
     register_file_size = std::stoll(func_info[1]);
     // Get the number of instructions.
@@ -135,7 +135,7 @@ struct VMInstructionSerializer {
   bool Load(dmlc::Stream* strm) {
     std::vector<Index> instr;
     if (!strm->Read(&instr)) return false;
-    CHECK_GE(instr.size(), 2U);
+    ICHECK_GE(instr.size(), 2U);
     Index loaded_hash = instr[0];
     opcode = instr[1];
 
@@ -144,7 +144,7 @@ struct VMInstructionSerializer {
     }
 
     Index hash = Hash();
-    CHECK_EQ(loaded_hash, hash) << "Found mismatch in hash for opcode: " << opcode << "\n";
+    ICHECK_EQ(loaded_hash, hash) << "Found mismatch in hash for opcode: " << opcode << "\n";
     return true;
   }
 

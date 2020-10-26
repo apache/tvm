@@ -73,7 +73,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const Array<NDArray>& consts) override {
-    CHECK_EQ(consts.size(), const_idx_.size())
+    ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
     if (GetCachedEnginesFromDisk()) return;
@@ -118,7 +118,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
           uint32_t eid = EntryID(nid, j);
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
-          CHECK_NE(binding_index, -1);
+          ICHECK_NE(binding_index, -1);
           bindings[binding_index] = data_entry_[eid]->data;
         }
       }
@@ -128,18 +128,18 @@ class TensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
-      CHECK_NE(binding_index, -1);
+      ICHECK_NE(binding_index, -1);
       bindings[binding_index] = data_entry_[eid]->data;
     }
 
 #if TRT_VERSION_GE(6, 0, 1)
     if (use_implicit_batch_) {
-      CHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
+      ICHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
     } else {
-      CHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
+      ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
     }
 #else
-    CHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
+    ICHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
 #endif
   }
 
@@ -162,7 +162,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "input") {
         builder.AddInput(nid, node);
       } else {
-        CHECK_EQ(node.GetOpType(), "const");
+        ICHECK_EQ(node.GetOpType(), "const");
         uint32_t eid = EntryID(nid, 0);
         builder.AddConstant(nid, data_entry_[eid]);
       }

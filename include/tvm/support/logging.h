@@ -125,13 +125,13 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 #define ICHECK_BINARY_OP(name, op, x, y)                           \
   if (dmlc::LogCheckError _check_err = dmlc::LogCheck##name(x, y)) \
   dmlc::LogMessageFatal(__FILE__, __LINE__).stream()               \
-      << kTVM_INTERNAL_ERROR_MESSAGE << std::endl                  \
+      << tvm::kTVM_INTERNAL_ERROR_MESSAGE << std::endl             \
       << ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << *(_check_err.str) << ": "
 
 #define ICHECK(x)                                    \
   if (!(x))                                          \
   dmlc::LogMessageFatal(__FILE__, __LINE__).stream() \
-      << kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << " == false: "
+      << tvm::kTVM_INTERNAL_ERROR_MESSAGE << ICHECK_INDENT << "Check failed: " #x << " == false: "
 
 #define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
 #define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
@@ -139,10 +139,10 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 #define ICHECK_GE(x, y) ICHECK_BINARY_OP(_GE, >=, x, y)
 #define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
 #define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
-#define ICHECK_NOTNULL(x)                                                                   \
-  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                      \
-                        << kTVM_INTERNAL_ERROR_MESSAGE << __INDENT << "Check not null: " #x \
-                        << ' ',                                                             \
+#define ICHECK_NOTNULL(x)                                                                        \
+  ((x) == nullptr ? dmlc::LogMessageFatal(__FILE__, __LINE__).stream()                           \
+                        << tvm::kTVM_INTERNAL_ERROR_MESSAGE << __INDENT << "Check not null: " #x \
+                        << ' ',                                                                  \
    (x) : (x))  // NOLINT(*)
 
 /*! \brief The diagnostic level, controls the printing of the message. */

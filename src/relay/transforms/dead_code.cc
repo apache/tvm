@@ -46,7 +46,7 @@ class FindDef : private ExprVisitor {
   VarMap<Expr> expr_map_;
 
   void VisitExpr_(const LetNode* l) final {
-    CHECK_EQ(expr_map_.count(l->var), 0);
+    ICHECK_EQ(expr_map_.count(l->var), 0);
     expr_map_[l->var] = l->value;
     VisitExpr(l->value);
     VisitExpr(l->body);

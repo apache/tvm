@@ -148,7 +148,7 @@ Pass VerifySSA() {
     for (auto kv : mod->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         auto func = GetRef<PrimFunc>(n);
-        CHECK(VerifySSA(func)) << "RuntimeError: IR is not in SSA form" << func;
+        ICHECK(VerifySSA(func)) << "RuntimeError: IR is not in SSA form" << func;
       }
     }
     return mod;

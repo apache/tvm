@@ -37,7 +37,7 @@ namespace relay {
 using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.relay._save_param_dict").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CHECK_EQ(args.size() % 2, 0u);
+  ICHECK_EQ(args.size() % 2, 0u);
   // `args` is in the form "key, value, key, value, ..."
   size_t num_params = args.size() / 2;
   std::vector<std::string> names;
@@ -74,14 +74,14 @@ TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict").set_body([](TVMArgs args, TVMR
   dmlc::MemoryStringStream memstrm(&bytes);
   dmlc::Stream* strm = &memstrm;
   uint64_t header, reserved;
-  CHECK(strm->Read(&header)) << "Invalid parameters file format";
-  CHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
-  CHECK(strm->Read(&reserved)) << "Invalid parameters file format";
-  CHECK(strm->Read(&names)) << "Invalid parameters file format";
+  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
+  ICHECK(header == kTVMNDArrayListMagic) << "Invalid parameters file format";
+  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
+  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
   uint64_t sz;
   strm->Read(&sz, sizeof(sz));
   size_t size = static_cast<size_t>(sz);
-  CHECK(size == names.size()) << "Invalid parameters file format";
+  ICHECK(size == names.size()) << "Invalid parameters file format";
   tvm::Array<NamedNDArray> ret;
   for (size_t i = 0; i < size; ++i) {
     tvm::runtime::NDArray temp;

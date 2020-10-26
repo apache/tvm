@@ -174,7 +174,7 @@ AttachPath CreateAttachPath(Schedule sch) {
     std::unordered_set<const Object*> visited;
     Array<IterVar> path;
     for (Stage s = stage; s.defined();) {
-      CHECK(!visited.count(s.get())) << "Find loop in compute_at attach group";
+      ICHECK(!visited.count(s.get())) << "Find loop in compute_at attach group";
       visited.insert(s.get());
       Stage spec = s.GetAttachSpec();
       bool start_attach;
@@ -183,14 +183,14 @@ AttachPath CreateAttachPath(Schedule sch) {
         attach_ivar = spec->attach_ivar;
         s = spec->attach_stage;
         start_attach = false;
-        CHECK(attach_ivar.defined());
+        ICHECK(attach_ivar.defined());
       } else if (spec->attach_type == kScanUpdate) {
         s = spec->attach_stage;
         start_attach = true;
       } else {
         break;
       }
-      CHECK(s.defined());
+      ICHECK(s.defined());
       for (size_t i = s->leaf_iter_vars.size(); i != 0; --i) {
         IterVar iv = s->leaf_iter_vars[i - 1];
         if (!start_attach && iv.same_as(attach_ivar)) {
@@ -198,8 +198,8 @@ AttachPath CreateAttachPath(Schedule sch) {
         }
         if (start_attach) path.push_back(iv);
       }
-      CHECK(start_attach) << "Invalid Schedule: cannot find attach point " << attach_ivar
-                          << " in the schedule of " << s->op;
+      ICHECK(start_attach) << "Invalid Schedule: cannot find attach point " << attach_ivar
+                           << " in the schedule of " << s->op;
     }
     if (!ret.count(stage->op)) {
       ret.Set(stage->op, path);

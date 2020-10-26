@@ -85,7 +85,7 @@ class NodeIndexer : public AttrVisitor {
   void Visit(const char* key, runtime::NDArray* value) final {
     DLTensor* ptr = const_cast<DLTensor*>((*value).operator->());
     if (tensor_index_.count(ptr)) return;
-    CHECK_EQ(tensor_index_.size(), tensor_list_.size());
+    ICHECK_EQ(tensor_index_.size(), tensor_list_.size());
     tensor_index_[ptr] = tensor_list_.size();
     tensor_list_.push_back(ptr);
   }
@@ -97,10 +97,10 @@ class NodeIndexer : public AttrVisitor {
   // make index of all the children of node
   void MakeIndex(Object* node) {
     if (node == nullptr) return;
-    CHECK(node->IsInstance<Object>());
+    ICHECK(node->IsInstance<Object>());
 
     if (node_index_.count(node)) return;
-    CHECK_EQ(node_index_.size(), node_list_.size());
+    ICHECK_EQ(node_index_.size(), node_list_.size());
     node_index_[node] = node_list_.size();
     node_list_.push_back(node);
 
@@ -195,7 +195,7 @@ struct JSONNode {
     helper.ReadAllFields(reader);
 
     if (repr_str.size() != 0) {
-      CHECK_EQ(repr_b64.size(), 0U);
+      ICHECK_EQ(repr_b64.size(), 0U);
       repr_bytes = std::move(repr_str);
     } else if (repr_b64.size() != 0) {
       repr_bytes = Base64Decode(repr_b64);
@@ -388,13 +388,13 @@ class JSONAttrSetter : public AttrVisitor {
   void Visit(const char* key, runtime::NDArray* value) final {
     size_t index;
     ParseValue(key, &index);
-    CHECK_LE(index, tensor_list_->size());
+    ICHECK_LE(index, tensor_list_->size());
     *value = tensor_list_->at(index);
   }
   void Visit(const char* key, ObjectRef* value) final {
     size_t index;
     ParseValue(key, &index);
-    CHECK_LE(index, node_list_->size());
+    ICHECK_LE(index, node_list_->size());
     *value = ObjectRef(node_list_->at(index));
   }
   // set node to be current JSONNode
@@ -421,13 +421,13 @@ class JSONAttrSetter : public AttrVisitor {
     if (jnode->type_key == MapNode::_type_key) {
       std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> container;
       if (jnode->keys.empty()) {
-        CHECK_EQ(jnode->data.size() % 2, 0U);
+        ICHECK_EQ(jnode->data.size() % 2, 0U);
         for (size_t i = 0; i < jnode->data.size(); i += 2) {
           container[ObjectRef(node_list_->at(jnode->data[i]))] =
               ObjectRef(node_list_->at(jnode->data[i + 1]));
         }
       } else {
-        CHECK_EQ(jnode->data.size(), jnode->keys.size());
+        ICHECK_EQ(jnode->data.size(), jnode->keys.size());
         for (size_t i = 0; i < jnode->data.size(); ++i) {
           container[String(jnode->keys[i])] = ObjectRef(node_list_->at(jnode->data[i]));
         }
@@ -530,7 +530,7 @@ struct JSONGraph {
         }
       }
     }
-    CHECK_EQ(topo_order.size(), n_nodes) << "Cyclic reference detected in JSON file";
+    ICHECK_EQ(topo_order.size(), n_nodes) << "Cyclic reference detected in JSON file";
     std::reverse(std::begin(topo_order), std::end(topo_order));
     return topo_order;
   }
@@ -562,7 +562,7 @@ ObjectRef LoadJSON(std::string json_str) {
       support::Base64InStream b64strm(&mstrm);
       b64strm.InitPosition();
       runtime::NDArray temp;
-      CHECK(temp.Load(&b64strm));
+      ICHECK(temp.Load(&b64strm));
       tensors.emplace_back(std::move(temp));
     }
   }

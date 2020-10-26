@@ -3525,6 +3525,36 @@ def test_resize():
     verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
 
+    def verify_opset_10(ishape, scales, mode):
+        nodes = [
+            make_constant_node("scales", onnx.TensorProto.FLOAT, (len(scales),), scales),
+        ]
+        input_names = ["X", "scales"]
+        nodes.append(
+            helper.make_node(
+                "Resize",
+                inputs=input_names,
+                outputs=["Y"],
+                mode=mode,
+            )
+        )
+
+        oshape = [round(dim * scale) for (dim, scale) in zip(ishape, scales)]
+        graph = helper.make_graph(
+            nodes,
+            "resize_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, ishape)],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, oshape)],
+        )
+
+        model = helper.make_model(graph, producer_name="resize_test")
+        model.opset_import[0].version = 10
+
+        verify_with_ort(model, [ishape], oshape, use_vm=True, freeze_params=True)
+
+    verify_opset_10([1, 16, 32, 32], [1, 1, 2, 2], "nearest")
+    verify_opset_10([1, 16, 32, 32], [1, 1, 0.5, 0.5], "linear")
+
 
 @tvm.testing.uses_gpu
 def test_nonzero():

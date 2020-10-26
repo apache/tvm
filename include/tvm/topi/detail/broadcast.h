@@ -59,7 +59,7 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else if (topi::detail::EqualCheck(one, shape1[s1_size - i])) {
-      CHECK(!topi::detail::EqualCheck(one, shape2[s2_size - i]));
+      ICHECK(!topi::detail::EqualCheck(one, shape2[s2_size - i]));
       bh.common_shape.push_front(shape2[s2_size - i]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else if (topi::detail::EqualCheck(one, shape2[s2_size - i])) {
@@ -78,10 +78,10 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
     } else {
-      CHECK(false) << "Incompatible broadcast dims: " << shape1[s1_size - i] << " and "
-                   << shape2[s2_size - i]
-                   << " in: " << tvm::Array<tvm::PrimExpr>(shape1.begin(), shape1.end()) << " and "
-                   << tvm::Array<tvm::PrimExpr>(shape2.begin(), shape2.end());
+      ICHECK(false) << "Incompatible broadcast dims: " << shape1[s1_size - i] << " and "
+                    << shape2[s2_size - i]
+                    << " in: " << tvm::Array<tvm::PrimExpr>(shape1.begin(), shape1.end()) << " and "
+                    << tvm::Array<tvm::PrimExpr>(shape2.begin(), shape2.end());
     }
   }
   // Remaining dimensions whether on shape1 or shape2 can always be completed
@@ -100,7 +100,7 @@ inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     const tvm::Array<tvm::tir::Var>& ovars, const tvm::te::Tensor& T,
     const std::deque<tvm::tir::Var>& my_vars, const std::deque<tvm::tir::Var>& all_vars) {
   tvm::Array<tvm::PrimExpr> ivars;
-  CHECK_EQ(ovars.size(), all_vars.size());
+  ICHECK_EQ(ovars.size(), all_vars.size());
   // N^2, could use a map but NBD.
   size_t expected_dims = T->shape.size();
   for (size_t i = 0; i < ovars.size(); ++i) {
@@ -118,7 +118,7 @@ inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
       ivars.push_back(tvm::tir::make_zero(ovars[i].dtype()));
     }
   }
-  CHECK(expected_dims == ivars.size());
+  ICHECK(expected_dims == ivars.size());
   return ivars;
 }
 

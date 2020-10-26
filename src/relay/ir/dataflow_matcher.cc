@@ -85,7 +85,7 @@ void DFPatternMatcher::ClearMap(size_t watermark) {
 
 bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr) {
   if (memoize_ && memo_.count(pattern)) {
-    CHECK_EQ(memo_[pattern].size(), 1);
+    ICHECK_EQ(memo_[pattern].size(), 1);
     return expr.same_as(memo_[pattern][0]);
   } else {
     auto watermark = matched_nodes_.size();
@@ -133,7 +133,7 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
       }
       break;
     default:
-      CHECK(false) << "Unsupported type code in Pattern Node " << rhs.type_code();
+      ICHECK(false) << "Unsupported type code in Pattern Node " << rhs.type_code();
   }
   return false;
 }
@@ -644,7 +644,7 @@ class PatternGrouper {
     auto body = extractor.Mutate(expr);
 
     // Verify the pattern still holds
-    CHECK(DFPatternMatcher(body).Match(pattern_, body));
+    ICHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
     // Check to make sure we aren't overlapping with another group or creating an invalid fusion
@@ -765,7 +765,7 @@ class PatternRewriter : protected MixedModeMutator {
     int count = 0;
     bool equal = true;
     static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
-    CHECK(structural_equal) << "node.StructuralEqual is not registered.";
+    ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
     do {
       last = post;
       for (auto callback : callbacks) {

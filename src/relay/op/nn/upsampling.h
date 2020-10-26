@@ -43,7 +43,7 @@ Array<Array<Layout> > UpsamplingInferCorrectLayout(const Attrs& attrs,
   T* params = const_cast<T*>(attrs.as<T>());
 
   if (new_in_layouts.defined()) {
-    CHECK_EQ(new_in_layouts.size(), 1);
+    ICHECK_EQ(new_in_layouts.size(), 1);
 
     Layout raw_layout(params->layout);
     Layout input = new_in_layouts[0];

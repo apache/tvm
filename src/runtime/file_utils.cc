@@ -23,8 +23,8 @@
 #include "file_utils.h"
 
 #include <dmlc/json.h>
-#include <dmlc/logging.h>
 #include <tvm/runtime/serializer.h>
+#include <tvm/support/logging.h>
 
 #include <fstream>
 #include <unordered_map>
@@ -114,7 +114,7 @@ std::string GetMetaFilePath(const std::string& file_name) {
 
 void LoadBinaryFromFile(const std::string& file_name, std::string* data) {
   std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-  CHECK(!fs.fail()) << "Cannot open " << file_name;
+  ICHECK(!fs.fail()) << "Cannot open " << file_name;
   // get its size:
   fs.seekg(0, std::ios::end);
   size_t size = static_cast<size_t>(fs.tellg());
@@ -125,7 +125,7 @@ void LoadBinaryFromFile(const std::string& file_name, std::string* data) {
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
-  CHECK(!fs.fail()) << "Cannot open " << file_name;
+  ICHECK(!fs.fail()) << "Cannot open " << file_name;
   fs.write(&data[0], data.length());
 }
 
@@ -133,7 +133,7 @@ void SaveMetaDataToFile(const std::string& file_name,
                         const std::unordered_map<std::string, FunctionInfo>& fmap) {
   std::string version = "0.1.0";
   std::ofstream fs(file_name.c_str());
-  CHECK(!fs.fail()) << "Cannot open file " << file_name;
+  ICHECK(!fs.fail()) << "Cannot open file " << file_name;
   dmlc::JSONWriter writer(&fs);
   writer.BeginObject();
   writer.WriteObjectKeyValue("tvm_version", version);
@@ -145,7 +145,7 @@ void SaveMetaDataToFile(const std::string& file_name,
 void LoadMetaDataFromFile(const std::string& file_name,
                           std::unordered_map<std::string, FunctionInfo>* fmap) {
   std::ifstream fs(file_name.c_str());
-  CHECK(!fs.fail()) << "Cannot open file " << file_name;
+  ICHECK(!fs.fail()) << "Cannot open file " << file_name;
   std::string version;
   dmlc::JSONReader reader(&fs);
   dmlc::JSONObjectReadHelper helper;

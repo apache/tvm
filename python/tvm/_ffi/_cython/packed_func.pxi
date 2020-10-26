@@ -43,6 +43,7 @@ cdef int tvm_callback(TVMValue* args,
         if (tcode == kTVMObjectHandle or
             tcode == kTVMPackedFuncHandle or
             tcode == kTVMModuleHandle or
+            tcode == kTVMNDArrayHandle or
             tcode == kTVMObjectRefArg or
             tcode > kTVMExtBegin):
             CALL(TVMCbArgToReturn(&value, &tcode))

@@ -82,7 +82,7 @@ class JacobianMutator : public ExprMutator {
     auto tensor = Downcast<te::Tensor>(op->producer);
     if (input_.get() && tensor == input_) {
       // Tensor(indices)
-      CHECK_EQ(indices_.size(), op->indices.size());
+      ICHECK_EQ(indices_.size(), op->indices.size());
       PrimExpr condition = const_true();
       for (size_t i = 0; i < input_.ndim(); ++i) {
         condition = And(condition, EQ(indices_[i], op->indices[i]));
@@ -181,7 +181,8 @@ class JacobianMutator : public ExprMutator {
     PrimExpr expr_with_new_axes = te::CloneReduction(GetRef<PrimExpr>(op));
     const ReduceNode* new_op = expr_with_new_axes.as<ReduceNode>();
 
-    CHECK(new_op->init.empty()) << "Derivative of Reduction with initialization is not implemented";
+    ICHECK(new_op->init.empty())
+        << "Derivative of Reduction with initialization is not implemented";
 
     // New lhs and rhs variables of the new combiner consist of
     // variables representing derivatives (which are later derived from new_op->source)
@@ -303,7 +304,7 @@ PrimExpr Jacobian(const PrimExpr& expr, const Tensor& input, const Array<PrimExp
 
 Tensor Jacobian(const Tensor& output, const Tensor& input) {
   const ComputeOpNode* op = output->op.as<ComputeOpNode>();
-  CHECK(op) << "Derivative of this operation is not implemented: " << output->op;
+  ICHECK(op) << "Derivative of this operation is not implemented: " << output->op;
   bool is_input_tensor = false;
   for (const Tensor& child : op->InputTensors()) {
     if (input == child) {
@@ -311,8 +312,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
       break;
     }
   }
-  CHECK(is_input_tensor) << "Jacobian is called on a pair of tensors such that the output "
-                         << "does not directly depend on the input.";
+  ICHECK(is_input_tensor) << "Jacobian is called on a pair of tensors such that the output "
+                          << "does not directly depend on the input.";
 
   // We have to clone the iteration axes because otherwise the original expression
   // cannot be used together with the derivative (it will lead to errors during lowering)

@@ -123,7 +123,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       for (PrimExpr e : op->extents) {
         new_extents.push_back(e);
       }
-      CHECK(it->second.loop != nullptr);
+      ICHECK(it->second.loop != nullptr);
       auto& alloc_nest = loop_allocs_[it->second.loop];
       alloc_nest.emplace_back(
           AttrStmt(op->buffer_var, attr::storage_scope, StringImm(it->second.scope), Evaluate(0)));
@@ -143,9 +143,9 @@ class DoubleBufferInjector : public StmtExprMutator {
       const ForNode* old_loop = stmt.as<ForNode>();
       if (split_loop_ != 0) {
         // Explicitly unroll the loop
-        CHECK(split_loop_ % 2 == 0 || split_loop_ == 1)
+        ICHECK(split_loop_ % 2 == 0 || split_loop_ == 1)
             << "It is better to split with multiple of 2";
-        CHECK(is_zero(old_loop->min));
+        ICHECK(is_zero(old_loop->min));
         PrimExpr zero = old_loop->min;
         PrimExpr new_ext = old_loop->extent - make_const(old_loop->loop_var.dtype(), 1);
         PrimExpr factor = make_const(new_ext.dtype(), split_loop_);
@@ -186,8 +186,8 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      CHECK(in_double_buffer_scope_);
-      CHECK(e.stride.defined());
+      ICHECK(in_double_buffer_scope_);
+      ICHECK(e.stride.defined());
       return Store(op->buffer_var, op->value, e.switch_write_var * e.stride + op->index,
                    op->predicate);
     } else {
@@ -201,8 +201,8 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      CHECK(e.stride.defined());
-      CHECK(e.switch_read_var.defined());
+      ICHECK(e.stride.defined());
+      ICHECK(e.switch_read_var.defined());
       return Load(op->dtype, op->buffer_var, e.switch_read_var * e.stride + op->index,
                   op->predicate);
     } else {
@@ -211,14 +211,14 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    CHECK(!dbuffer_info_.count(op));
+    ICHECK(!dbuffer_info_.count(op));
     return GetRef<PrimExpr>(op);
   }
 
  private:
   Stmt MakeProducer(const AttrStmtNode* op) {
     const Var buffer = Downcast<Var>(op->node);
-    CHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
+    ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
     if (it == dbuffer_info_.end()) {
       LOG(WARNING) << "Skip double buffer scope " << op->node;

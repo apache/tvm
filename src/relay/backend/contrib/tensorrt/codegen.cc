@@ -109,7 +109,7 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
 
   void SetPadNodeAttribute(std::shared_ptr<JSONGraphNode> node, const CallNode* cn) {
     const auto* pad_attr = cn->attrs.as<PadAttrs>();
-    CHECK(pad_attr);
+    ICHECK(pad_attr);
     auto p = pad_attr->pad_width;
     const int dim_h = (p.size() == 5) ? 3 : 2;
     const int dim_w = (p.size() == 5) ? 4 : 3;
@@ -124,7 +124,7 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
 
   void SetStridedSliceNodeAttribute(std::shared_ptr<JSONGraphNode> node, const CallNode* cn) {
     const auto* attrs = cn->attrs.as<StridedSliceAttrs>();
-    CHECK(attrs && attrs->begin && attrs->end && attrs->strides)
+    ICHECK(attrs && attrs->begin && attrs->end && attrs->strides)
         << "StridedSlice must have static begin, end, and strides.";
     const bool default_strides =
         !attrs->strides.value().defined() || attrs->strides.value().size() == 0;
@@ -145,10 +145,10 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
                                 !attrs->strides.value()[i].defined())
                                    ? 1
                                    : attrs->strides.value()[i].as<IntImmNode>()->value;
-      CHECK_GT(stride_value, 0);
+      ICHECK_GT(stride_value, 0);
       const int size_value = (end_value - begin_value + stride_value - 1) / stride_value;
-      CHECK_GE(begin_value, 0);
-      CHECK_GT(size_value, 0);
+      ICHECK_GE(begin_value, 0);
+      ICHECK_GT(size_value, 0);
       start.push_back(std::to_string(begin_value));
       size.push_back(std::to_string(size_value));
       strides.push_back(std::to_string(stride_value));
@@ -168,7 +168,7 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
     }
-    CHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
+    ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
     std::vector<std::string> tensorrt_version = {std::to_string(cfg.value()->tensorrt_version[0]),
                                                  std::to_string(cfg.value()->tensorrt_version[1]),
                                                  std::to_string(cfg.value()->tensorrt_version[2])};
@@ -190,7 +190,7 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
  * \return A runtime module.
  */
 runtime::Module TensorRTCompiler(const ObjectRef& ref) {
-  CHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
+  ICHECK(ref->IsInstance<FunctionNode>()) << "The input ref is expected to be a Relay function.";
   Function func = Downcast<Function>(ref);
   std::string func_name = backend::GetExtSymbol(func);
 
@@ -199,7 +199,7 @@ runtime::Module TensorRTCompiler(const ObjectRef& ref) {
   std::string graph_json = serializer.GetJSON();
   auto param_names = serializer.GetParams();
   const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
-  CHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+  ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
   runtime::Module lib = (*pf)(func_name, graph_json, param_names);
   return lib;
 }

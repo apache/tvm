@@ -35,21 +35,21 @@ TVM_REGISTER_NODE_TYPE(AffineGridAttrs);
 
 bool AffineGridRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   auto batch_size = data->shape[0];
 
   const AffineGridAttrs* param = attrs.as<AffineGridAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   Array<IndexExpr> oshape;
 
-  CHECK(data->shape.size() == 3U && reporter->AssertEQ(data->shape[1], 2) &&
-        reporter->AssertEQ(data->shape[2], 3))
+  ICHECK(data->shape.size() == 3U && reporter->AssertEQ(data->shape[1], 2) &&
+         reporter->AssertEQ(data->shape[2], 3))
       << "data should be an"
          "affine matrix with shape [batch_size, 2, 3]";
-  CHECK(param->target_shape.defined() && param->target_shape.size() == 2)
+  ICHECK(param->target_shape.defined() && param->target_shape.size() == 2)
       << "target_shape should be 2D";
   oshape.push_back(batch_size);
   oshape.push_back(2);
@@ -97,12 +97,12 @@ TVM_REGISTER_NODE_TYPE(GridSampleAttrs);
 
 bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* grid = types[1].as<TensorTypeNode>();
   if (!data || !grid) return false;
   const auto* param = attrs.as<GridSampleAttrs>();
-  CHECK(param);
+  ICHECK(param);
   static const Layout kNCHW("NCHW");
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);

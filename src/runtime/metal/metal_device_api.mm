@@ -43,7 +43,7 @@ void MetalWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* r
     *rv = int(index < devices.size());
     return;
   }
-  CHECK_LT(index, devices.size()) << "Invalid device id " << index;
+  ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
   switch (kind) {
     case kMaxThreadsPerBlock: {
       *rv = static_cast<int>([devices[ctx.device_id] maxThreadsPerThreadgroup].width);
@@ -101,11 +101,11 @@ int GetWarpSize(id<MTLDevice> dev) {
   id<MTLLibrary> lib = [dev newLibraryWithSource:[NSString stringWithUTF8String:kDummyKernel]
                                          options:nil
                                            error:&error_msg];
-  CHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
+  ICHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
   id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:"CopyKernel"]];
-  CHECK(f != nil);
+  ICHECK(f != nil);
   id<MTLComputePipelineState> state = [dev newComputePipelineStateWithFunction:f error:&error_msg];
-  CHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
+  ICHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
   return static_cast<int>(state.threadExecutionWidth);
 }
 
@@ -159,7 +159,7 @@ void* MetalWorkspace::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t align
   #endif
   */
   id<MTLBuffer> buf = [dev newBufferWithLength:nbytes options:storage_mode];
-  CHECK(buf != nil);
+  ICHECK(buf != nil);
   return (void*)(CFBridgingRetain(buf));
 }
 
@@ -176,7 +176,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
                                     TVMContext ctx_to, DLDataType type_hint,
                                     TVMStreamHandle stream) {
   this->Init();
-  CHECK(stream == nullptr);
+  ICHECK(stream == nullptr);
   TVMContext ctx = ctx_from;
   if (ctx_from.device_type == kDLCPU) ctx = ctx_to;
   id<MTLCommandQueue> queue = GetCommandQueue(ctx);
@@ -185,7 +185,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
   int to_dev_type = static_cast<int>(ctx_to.device_type);
 
   if (from_dev_type == kDLMetal && to_dev_type == kDLMetal) {
-    CHECK_EQ(ctx_from.device_id, ctx_to.device_id) << "Metal disallow cross device copy.";
+    ICHECK_EQ(ctx_from.device_id, ctx_to.device_id) << "Metal disallow cross device copy.";
     id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
     [encoder copyFromBuffer:(__bridge id<MTLBuffer>)(from)
                sourceOffset:from_offset
@@ -237,7 +237,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
 }
 
 void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
-  CHECK(stream == nullptr);
+  ICHECK(stream == nullptr);
   // commit an empty command buffer and wait until it completes.
   id<MTLCommandQueue> queue = GetCommandQueue(ctx);
   id<MTLCommandBuffer> cb = [queue commandBuffer];

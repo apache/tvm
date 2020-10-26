@@ -148,10 +148,11 @@ class SketchPolicy(SearchPolicy):
     DEFAULT_PARAMS = {
         "eps_greedy": 0.05,
         "retry_search_one_round_on_empty": 10,
+        "sample_init_population": 50,
+        "sample_init_use_measured_ratio": 0.2,
         "evolutionary_search_population": 2048,
         "evolutionary_search_num_iters": 10,
         "evolutionary_search_mutation_prob": 0.85,
-        "evolutionary_search_use_measured_ratio": 0.2,
         "cpu_multi_level_tiling_structure": "SSRSRS",
         "gpu_multi_level_tiling_structure": "SSSRRSRS",
         # Notice: the default thread bind policy of GPU assumes the tiling structure to have at

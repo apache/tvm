@@ -114,14 +114,14 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     if (lhs->resolved_type.as<IncompleteTypeNode>()) {
-      CHECK(!OccursCheck(lhs, rhs->resolved_type))
+      ICHECK(!OccursCheck(lhs, rhs->resolved_type))
           << "Incomplete type " << lhs->resolved_type << " occurs in " << rhs->resolved_type
           << ", cannot unify";
 
       solver_->MergeFromTo(lhs, rhs);
       return rhs->resolved_type;
     } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
-      CHECK(!OccursCheck(rhs, lhs->resolved_type))
+      ICHECK(!OccursCheck(rhs, lhs->resolved_type))
           << "Incomplete type " << rhs->resolved_type << " occurs in " << lhs->resolved_type
           << ", cannot unify";
       solver_->MergeFromTo(rhs, lhs);
@@ -242,7 +242,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     std::vector<std::tuple<size_t, IndexExpr, IndexExpr>> mismatches;
 
-    CHECK_EQ(tt1->shape.size(), tt2->shape.size());
+    ICHECK_EQ(tt1->shape.size(), tt2->shape.size());
     for (size_t i = 0; i < tt1->shape.size(); i++) {
       auto dim = UnifyDim(tt1->shape[i], tt2->shape[i]);
       if (!dim.defined()) {
@@ -328,8 +328,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     for (size_t i = 0; i < ft1->type_constraints.size(); ++i) {
       Type unified_constraint = Unify(ft1->type_constraints[i], ft2->type_constraints[i]);
       const auto* tcn = unified_constraint.as<TypeConstraintNode>();
-      CHECK(tcn) << "Two type constraints unified into a non-constraint?"
-                 << ft1->type_constraints[i] << " and " << ft2->type_constraints[i];
+      ICHECK(tcn) << "Two type constraints unified into a non-constraint?"
+                  << ft1->type_constraints[i] << " and " << ft2->type_constraints[i];
       type_constraints.push_back(GetRef<TypeConstraint>(tcn));
     }
 
@@ -527,7 +527,7 @@ TypeSolver::TypeSolver(const GlobalVar& current_func, DiagnosticContext diag_ctx
       current_func(current_func),
       diag_ctx_(diag_ctx),
       module_(diag_ctx->module) {
-  CHECK(module_.defined());
+  ICHECK(module_.defined());
 }
 
 // destructor
@@ -593,12 +593,12 @@ bool TypeSolver::Solve() {
     RelationNode* rnode = update_queue_.front();
     const auto& rel = rnode->rel;
     update_queue_.pop();
-    CHECK(!rnode->resolved);
+    ICHECK(!rnode->resolved);
     // update the relation with given evidence.
     Array<Type> args;
     for (auto* tlink = rnode->type_list.head; tlink != nullptr; tlink = tlink->next) {
       args.push_back(Resolve(tlink->value->FindRoot()->resolved_type));
-      CHECK_LE(args.size(), rel->args.size());
+      ICHECK_LE(args.size(), rel->args.size());
     }
 
     // We need to set this in order to understand where unification

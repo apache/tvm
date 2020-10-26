@@ -34,53 +34,55 @@ jobs:
   Build:
     strategy:
       matrix:
-        os: [windows-latest, macOS-latest]
+        os: [windows-2016, macOS-latest]
 
     runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
-    - name: Lint Python
-      if: matrix.os == 'macOS-latest'
-      run: |
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7 --show-source --statistics
     - name: Initialize submodules
       run: git submodule update --recursive --init
-
-    - name: Make Build Directory
-      run: cmake -E make_directory build.common
-
-    # configuration for Windows
-    - name: CMake@Win
-      if: matrix.os == 'windows-latest'
-      working-directory: build.common
+    - name: Lint Python
+      if: startsWith(matrix.os, 'macOS')
+      run: |
+        python3 -m pip install flake8
+        python3 -m flake8 . --count --select=E9,F63,F7 --show-source --statistics
+    - uses: actions/cache@v1
+      env:
+        CACHE_NUMBER: 0
+      with:
+        path: ~/conda_pkgs_dir
+        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('conda/build-environment.yaml') }}
+    - uses: conda-incubator/setup-miniconda@v1
+      with:
+        activate-environment: tvm-build
+        channel-priority: strict
+        environment-file: conda/build-environment.yaml
+        auto-activate-base: false
+        use-only-tar-bz2: true
+    - name: Conda info
+      run: |
+        conda info
+        conda list
+    - name: Conda-Build@Win
+      if: startsWith(matrix.os, 'windows')
+      shell: cmd /C call {0}
       run: >-
-        cmake
-        -DUSE_SORT=ON
-        -DUSE_RPC=ON
-        -DUSE_GRAPH_RUNTIME=ON
-        -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_CONFIGURATION_TYPES="Release"
-        ..
-
-    # configuration for Mac
-    - name: CMake@MacOS
-      if: matrix.os  == 'macOS-latest'
-      working-directory: build.common
+        conda build --output-folder=conda/pkg conda/recipe &&
+        conda install tvm -c ./conda/pkg
+    - name: Conda-Build@MacOS
+      if: startsWith(matrix.os, 'macOS')
+      shell: bash -l {0}
       run: >-
-        cmake
-        "-DUSE_SORT=ON"
-        "-DUSE_RPC=ON"
-        "-DUSE_GRAPH_RUNTIME=ON"
-        "-DUSE_METAL=ON"
-        ..
-
-    - name: Build@Win
-      if: matrix.os == 'windows-latest'
-      run: cmake --build build.common --config Release -- /m
-
-    - name: Build@MacOS
-      if: matrix.os == 'macOS-latest'
-      run: cmake --build build.common --config Release -j3
+        conda build --output-folder=conda/pkg  conda/recipe &&
+        conda install tvm -c ./conda/pkg
+    - name: Test@Win
+      if: startsWith(matrix.os, 'windows')
+      shell: cmd /C call {0}
+      run: >-
+        python -m pytest -v tests/python/all-platform-minimal-test
+    - name: Test@MacOS
+      if: startsWith(matrix.os, 'macOS')
+      shell: bash -l {0}
+      run: >-
+        python -m pytest -v tests/python/all-platform-minimal-test
