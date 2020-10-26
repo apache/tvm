@@ -71,6 +71,8 @@ def test_basic_functionality():
 
 @tvm.testing.requires_micro
 def test_archive():
+    from tvm.micro import artifact
+
     temp_dir = util.tempdir()
     art = build_artifact(temp_dir.relpath("foo"))
 
@@ -106,6 +108,8 @@ def test_archive():
 
 @tvm.testing.requires_micro
 def test_metadata_only():
+    from tvm.micro import artifact
+
     temp_dir = util.tempdir()
     base_dir = temp_dir.relpath("foo")
     art = build_artifact(base_dir)
