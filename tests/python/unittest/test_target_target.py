@@ -168,6 +168,7 @@ def test_composite_target():
 
 if __name__ == "__main__":
     test_target_dispatch()
+    test_target_dispatch_native_generic_function()
     test_target_string_parse()
     test_target_create()
     test_target_config()
