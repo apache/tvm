@@ -2738,6 +2738,7 @@ def _get_convert_map(prelude, default_dtype):
 
 def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
+    # pylint: disable=c-extension-no-member
     import torch
 
     if is_version_greater_than("1.5.0"):
