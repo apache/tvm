@@ -48,7 +48,9 @@
 #ifndef TVM_ARITH_ITER_AFFINE_MAP_H_
 #define TVM_ARITH_ITER_AFFINE_MAP_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/expr.h>
+#include <tvm/tir/var.h>
 
 namespace tvm {
 namespace arith {
@@ -187,6 +189,12 @@ class IterSplitExpr : public IterMapExpr {
    * \param source The source expression.
    */
   TVM_DLL explicit IterSplitExpr(IterMark source);
+  /*!
+   * \brief constructor from just source.
+   * \param source The source expression.
+   * \param scale The additional scaling factor.
+   */
+  TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr scale);
   /*!
    * \brief constructor
    * \param source The source expression.
