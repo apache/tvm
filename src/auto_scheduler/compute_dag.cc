@@ -905,24 +905,28 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
       }
       handled_ops.insert(placeholder_op);
 
+      // Process original layout
       std::set<std::string> placeholder_axis_names;
       std::string origin_layout = GetOrigLayout(&placeholder_axis_names, op, placeholder);
       Array<PrimExpr> origin_shape;
       std::vector<std::string> origin_axes;
       ParseKernelLayout(origin_layout, &origin_shape, &origin_axes);
 
+      // Process new layout
       std::string new_layout =
           GetNewLayout(state, stage_id, stage, op, placeholder, placeholder_axis_names);
       Array<PrimExpr> new_shape;
       std::vector<std::string> new_axes;
       ParseKernelLayout(new_layout, &new_shape, &new_axes);
 
+      // Process op updates
       te::Operation new_op_to_update;
       if (layout_rewrite == LayoutRewriteOption::RewriteWithPlaceholder) {
         // Create new placeholder
         new_op_to_update = te::PlaceholderOp(placeholder_op->name, new_shape,
                                              placeholder_op.as<te::PlaceholderOpNode>()->dtype);
       } else if (layout_rewrite == LayoutRewriteOption::RewriteWithPreTranspose) {
+        // Process index strides
         std::unordered_map<std::string, PrimExpr> axes_stride;
         for (const auto& i : origin_axes) {
           axes_stride[i] = Integer(1);
@@ -980,12 +984,10 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
         LOG(FATAL) << "Call ComputeDAG::RewriteLayout with NoRewrite.";
       }
 
-      Array<te::Operation> original_ops = p_dag->ops;
-
       te::Operation new_compute_op, original_compute_op;
       Array<PrimExpr> new_body;
       IndexRewriter index_rewriter(placeholder_op, new_layout);
-      for (auto& op : original_ops) {
+      for (const auto& op : p_dag->ops) {
         if (auto* pop = op.as<te::ComputeOpNode>()) {
           bool need_update = false;
           for (auto& t : op->InputTensors()) {
@@ -995,7 +997,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             }
           }
           if (need_update) {
-            for (auto& body : pop->body) {
+            for (const auto& body : pop->body) {
               new_body.push_back(index_rewriter.Rewrite(body));
             }
             original_compute_op = op;
@@ -1008,6 +1010,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
       // construct the map from original_op to new_op
       std::unordered_map<te::Operation, te::Operation> updated_ops;
 
+      Array<te::Operation> original_ops = p_dag->ops;
       p_dag->ops.clear();
       for (size_t i = 0; i < original_ops.size(); ++i) {
         const auto& original_op = original_ops[i];
@@ -1057,7 +1060,6 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
 
       Array<te::Tensor> old_tensors = p_dag->tensors;
       ArrayNode* p_tensors = p_dag->tensors.CopyOnWrite();
-
       for (size_t i = 0; i < old_tensors.size(); ++i) {
         const auto& old_tensor = old_tensors[i];
         if (layout_rewrite != LayoutRewriteOption::RewriteWithPlaceholder &&

@@ -134,7 +134,7 @@ class IteratorNode : public Object {
   }
 
   static constexpr const char* _type_key = "auto_scheduler.Iterator";
-  TVM_DECLARE_BASE_OBJECT_INFO(IteratorNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IteratorNode, Object);
 };
 
 /*!
@@ -182,6 +182,20 @@ class StepNode : public Object {
  */
 class Step : public ObjectRef {
  public:
+  /*!
+   * \brief CopyOnWrite function for Step.
+   * This works almost the same as a normal ObjectRef.CopyOnWrite(), but can dispatch to different
+   * steps.
+   * \return A base StepNode pointer, need to cast to its real StepNode type before doing any
+   * modifies.
+   * \code
+   *
+   *  SplitStep ref;
+   *  StepNode* mutable_ref = ref.CopyOnWrite();
+   *  dynamic_cast<SplitStepNode*>(mutable_ref)->... = ...;
+   *
+   * \endcode
+   */
   StepNode* CopyOnWrite();
 
   TVM_DEFINE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);

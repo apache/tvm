@@ -230,6 +230,8 @@ class ComputeDAG : public ObjectRef {
    * \brief Rewrite the layout of placeholder specified by attr `layout_free_placeholders`
    * according to the loop nest derived with `transform_steps`.
    * \param transform_steps Transform steps of a state.
+   * \param layout_rewrite Different options in layout rewrite.
+   * \return The updated ComputeDAG after layout rewrite.
    */
   ComputeDAG RewriteLayout(Array<Step>* transform_steps, LayoutRewriteOption layout_rewrite) const;
 
@@ -241,7 +243,7 @@ class ComputeDAG : public ObjectRef {
    * \param stage_to_axes The map that stores all axes for one stage.
    * Pass a valid pointer if this information needs to be used outside this function.
    * \param layout_rewrite Rewrite the layout of placeholders specified by
-   * attr `layout_free_placeholders`
+   * attr `layout_free_placeholders`.
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
