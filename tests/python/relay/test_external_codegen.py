@@ -220,6 +220,11 @@ def test_extern_gcc():
 
 
 def test_extern_gcc_consts():
+    @tvm._ffi.register_func("relay.ext.ccompiler.constant_updater")
+    def constant_updater(expr, symbol):
+        """A dummy constant updater just to test that a custom one works."""
+        return {"ccompiler_0_p0": tvm.nd.array(y0_data)}
+
     x = relay.var("x", shape=(8, 8))
     y0_data = np.random.uniform(0, 1, (8, 8)).astype("float32")
 

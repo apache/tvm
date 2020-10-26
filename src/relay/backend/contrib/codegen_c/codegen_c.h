@@ -334,7 +334,7 @@ class CodegenCBase {
    * \return The created variable name
    */
   std::string CreateConstVar(const std::string& symbol, int const_id) const {
-    return symbol + "_p" + std::to_string(const_id++);
+    return symbol + "_const_" + std::to_string(const_id++);
   }
 
   /*! \brief The external function source code stream. */
