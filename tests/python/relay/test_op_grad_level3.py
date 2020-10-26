@@ -118,5 +118,4 @@ def test_arange_grad():
 
 
 if __name__ == "__main__":
-    # pytest.main()
-    test_take_grad()
+    pytest.main()
