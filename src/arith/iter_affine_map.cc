@@ -368,19 +368,19 @@ class IterMapRewriter : public ExprMutator {
     iters.reserve(expr->args.size());
     // canonicalize the expression
     // find the base scale first
-    IntImm base_scale(nullptr);
+    Optional<IntImm> base_scale = NullOpt;
     size_t base_index = 0;
     for (size_t i = 0; i < expr->args.size(); ++i) {
       if (const auto* op = expr->args[i]->scale.as<IntImmNode>()) {
-        if (!base_scale.defined() || op->value < base_scale->value) {
+        if (!base_scale || op->value < base_scale.value()->value) {
           base_scale = GetRef<IntImm>(op);
           base_index = i;
         }
       }
     }
-    if (!base_scale.defined()) return NullOpt;
+    if (!base_scale) return NullOpt;
     // check if it can be remapped into a fused pattern.
-    PrimExpr expected_scale = base_scale;
+    PrimExpr expected_scale = base_scale.value();
     for (size_t i = 0; i < expr->args.size(); ++i) {
       size_t j = i == 0 ? base_index : 0;
       for (; j < expr->args.size(); ++j) {
@@ -391,7 +391,7 @@ class IterMapRewriter : public ExprMutator {
       }
       visited[j] = true;
       auto arg = expr->args[j];
-      arg.CopyOnWrite()->scale = div(expr->args[j]->scale, base_scale);
+      arg.CopyOnWrite()->scale = div(expr->args[j]->scale, base_scale.value());
       iters.push_back(arg);
       expected_scale *= expr->args[j]->extent;
     }
@@ -399,8 +399,8 @@ class IterMapRewriter : public ExprMutator {
     expr.CopyOnWrite()->args = Array<IterSplitExpr>(iters.rbegin(), iters.rend());
     auto it = sum_fuse_map_.find(expr);
     if (it != sum_fuse_map_.end()) return it->second;
-    auto mark = IterMark(expr, div(expected_scale, base_scale));
-    IterSplitExpr split(mark, base_scale);
+    auto mark = IterMark(expr, div(expected_scale, base_scale.value()));
+    IterSplitExpr split(mark, base_scale.value());
     sum_fuse_map_[expr] = split;
     return split;
   }
