@@ -3841,10 +3841,10 @@ def test_loop():
     verify_count_loop()
 
 
+@tvm.testing.uses_gpu
 def test_if():
     # Given a bool scalar input cond.
     # return constant tensor x if cond is True, otherwise return constant tensor y.
-
     then_out = onnx.helper.make_tensor_value_info("then_out", onnx.TensorProto.FLOAT, [5])
     else_out = onnx.helper.make_tensor_value_info("else_out", onnx.TensorProto.FLOAT, [5])
 
