@@ -28,6 +28,7 @@ from .. import strategy
 from ..op import OpPattern
 from .._tensor import elemwise_shape_func
 from ..strategy.generic import is_depthwise_conv2d
+from ...transform import LayoutConfig
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -164,6 +165,16 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     from tvm import relay
 
     data, weight = inputs
+
+    # First check if there is a LayoutConfig scope, and if so, whether
+    # it indicates we should ignore this layer or not.
+    layout_config = LayoutConfig.current
+    if layout_config is not None:
+        skip_layer = layout_config.check_skip()
+        if skip_layer:
+            return relay.nn.conv2d(data, weight, **attrs)
+
+    # Prepare new layout.
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
@@ -191,6 +202,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
             new_attrs["kernel_layout"] = "HWOI"
         else:
             new_attrs["kernel_layout"] = "HWIO"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+    elif desired_data_layout == "HWNC":
+        new_attrs["kernel_layout"] = "HWOI"
         return relay.nn.conv2d(data, weight, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)
