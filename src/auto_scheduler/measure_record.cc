@@ -271,7 +271,7 @@ namespace auto_scheduler {
 TVM_REGISTER_OBJECT_TYPE(RecordToFileNode);
 TVM_REGISTER_OBJECT_TYPE(RecordReaderNode);
 
-const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.2";  // NOLINT(*)
+const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.3";  // NOLINT(*)
 
 RecordToFile::RecordToFile(String filename) {
   auto node = make_object<RecordToFileNode>();

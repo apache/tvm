@@ -144,6 +144,7 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 
 def _func_wrapper(que, func, args, kwargs):
+    """Call function and return the result over the queue."""
     if kwargs:
         que.put(func(*args, **kwargs))
     else:

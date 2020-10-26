@@ -57,7 +57,7 @@ from .utils import (
 )
 from .compute_dag import ComputeDAG
 from .search_task import SearchTask
-from .workload_registry import workload_name, get_workload
+from .workload_registry import workload_func_name, get_workload_func
 
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
@@ -82,7 +82,6 @@ def recover_measure_input(inp, rebuild_state=False):
         The fully recovered MeasureInput with all fields rebuilt.
     """
     task = inp.task
-    print(task.hardware_params)
     new_task = SearchTask(
         ComputeDAG(task.workload_key),
         task.workload_key,
@@ -121,13 +120,20 @@ class MeasureInput(Object):
         self.__init_handle_by_constructor__(_ffi_api.MeasureInput, task, state)
 
     def serialize(self):
+        """Custom serialization to workaround MeasureInput not exposing all its
+        members to the TVM ffi interface.
+
+        Note that we do not implement __getstate__ as it does not seem to work
+        with initialization of the workload registry (maybe because of
+        initialization order?).
+        """
         serialize = tvm.get_global_func("auto_scheduler.SerializeMeasureInput", True)
         assert serialize
         # We serialize the workload function so that it can be used on the deserialized side.
         return {
             "measureinput": serialize(self),
-            "name": workload_name(self.task.workload_key),
-            "func": get_workload(self.task),
+            "name": workload_func_name(self.task.workload_key),
+            "func": get_workload_func(self.task),
         }
 
     @staticmethod

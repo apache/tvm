@@ -175,7 +175,7 @@ def workload_key_to_tensors(workload_key):
     return lookup(*args)
 
 
-def get_workload(task):
+def get_workload_func(task):
     """Get the workload function for a given task
 
     Parameters
@@ -188,13 +188,13 @@ def get_workload(task):
     workload : callable
         The registered workload function.
     """
-    name = workload_name(task.workload_key)
+    name = workload_func_name(task.workload_key)
     lookup = WORKLOAD_FUNC_REGISTRY[name]
     assert callable(lookup)
     return lookup
 
 
-def workload_name(workload_key):
+def workload_func_name(workload_key):
     """Decode a workload key to the registered function name.
 
     Parameters
