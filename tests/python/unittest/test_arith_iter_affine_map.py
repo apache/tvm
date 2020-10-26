@@ -78,6 +78,9 @@ def test_fuse():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
     c = tvm.tir.SizeVar("c", "int32")
+    c0 = tvm.tir.SizeVar("c0", "int32")
+    c1 = tvm.tir.SizeVar("c1", "int32")
+    c2 = tvm.tir.SizeVar("c1", "int32")
 
     res = tvm.arith.detect_iter_map([y * 3 + 1 + c + x], var_dom([(x, 3), (y, 4)]))
     assert len(res) == 1
@@ -103,6 +106,16 @@ def test_fuse():
     # factor mismatch
     res = tvm.arith.detect_iter_map([y * 4 + x], var_dom([(x, 3), (y, 4)]))
     assert len(res) == 0
+
+    # simple stride pattern
+    res = tvm.arith.detect_iter_map([x * 4 + y * 2], var_dom([(x, 3), (y, 2)]))
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 6, 0, scale=2)
+
+    # simple stride pattern with symbolic
+    res = tvm.arith.detect_iter_map([x * 2 * c0 + y * 2], var_dom([(x, 3), (y, c0)]))
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 3 * c0, 0, scale=2)
 
 
 def test_split():
@@ -136,6 +149,17 @@ def test_split():
     assert len(res) == 2
     assert_iter_sum_pattern(res[0], c1, 0)
     assert_iter_sum_pattern(res[1], c0, 0)
+
+    res = tvm.arith.detect_iter_map([fld(x * 2, 4), flm(x * 2, 4)], var_dom([(x, 8)]))
+
+    assert len(res) == 2
+    assert_iter_sum_pattern(res[0], 4, 0, scale=1)
+    assert_iter_sum_pattern(res[1], 2, 0, scale=2)
+
+    res = tvm.arith.detect_iter_map([fld(x * 2, 4) * 4 + flm(x * 2, 4)], var_dom([(x, 8)]))
+
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 8, 0, scale=2)
 
 
 def test_compound():
