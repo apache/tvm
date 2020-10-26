@@ -22,8 +22,8 @@ This script runs and update all the locations that related to versions
 List of affected files:
 - tvm-root/python/tvm/_ffi/libinfo.py
 - tvm-root/include/tvm/runtime/c_runtime_api.h
-- tvm-root/conda/tvm/meta.yaml
-- tvm-root/conda/tvm-libs/meta.yaml
+- tvm-root/conda/recipe/meta.yaml
+- tvm-root/web/package.json
 """
 import os
 import re
@@ -31,12 +31,18 @@ import argparse
 import logging
 import subprocess
 
-# current version
+# Modify the following two settings during release
+# ---------------------------------------------------
+# Current version
 # We use the version of the incoming release for code
 # that is under development
 __version__ = "0.8.dev0"
-# most recent tag, used for git describe validation
+
+# Most recent tag, used for git describe validation
+# set this value to be the most recent release tag
+# before this development cycle.
 __most_recent_tag__ = "v0.7.0"
+# ---------------------------------------------------
 
 
 def py_str(cstr):
@@ -44,7 +50,7 @@ def py_str(cstr):
 
 
 def git_describe_version():
-    """Get the suffix by git describe.
+    """Get PEP-440 compatible public and local version using git describe.
 
     Returns
     -------
@@ -52,7 +58,22 @@ def git_describe_version():
         Public version.
 
     local_ver: str
-        Local version(with additional label).
+        Local version (with additional label appended to pub_ver).
+
+    Note
+    ----
+    We follow PEP 440's convention of public version
+    and local versions.
+
+    Here are some examples:
+
+    - pub_ver = '0.7.0', local_ver = '0.7.0':
+      We are at the 0.7.0 release.
+    - pub_ver =  '0.8.dev94', local_ver = '0.8.dev94+g0d07a329e':
+      We are at the the 0.8 development cycle.
+      The current source contains 94 additional commits
+      after the most recent tag(v0.7.0),
+      the git short hash tag of the current commit is 0d07a329e.
     """
     cmd = ["git", "describe", "--tags"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -62,15 +83,22 @@ def git_describe_version():
         msg = py_str(out)
         if msg.find("not a git repository") != -1:
             return __version__, __version__
-        logging.warning("git describ error: %", msg)
+        logging.warning("git describe error: %", msg)
         return __version__, __version__
     describe = py_str(out).strip()
     arr_info = describe.split("-")
 
     if not arr_info[0].endswith(__most_recent_tag__):
-        logging.warning("%s does not match most recent tag %s", describe, __most_recent_tag__)
+        logging.warning(
+            "%s does not match most recent tag %s, fallback to %s",
+            describe,
+            __most_recent_tag__,
+            __version__,
+        )
         return __version__, __version__
 
+    # Remove the v prefix, mainly to be robust
+    # to the case where v is not presented as well.
     if arr_info[0].startswith("v"):
         arr_info[0] = arr_info[0][1:]
 
@@ -119,7 +147,7 @@ def sync_version(pub_ver, local_ver, dry_run):
     """Synchronize version."""
     proj_root = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 
-    # python uses the PEP440: local version
+    # python uses the PEP-440: local version
     update(
         os.path.join(proj_root, "python", "tvm", "_ffi", "libinfo.py"),
         r"(?<=__version__ = \")[.0-9a-z\+]+",
@@ -143,6 +171,7 @@ def sync_version(pub_ver, local_ver, dry_run):
         dry_run,
     )
     # web
+    # change to pre-release convention by npm
     dev_pos = pub_ver.find(".dev")
     npm_ver = pub_ver if dev_pos == -1 else "%s.0-%s" % (pub_ver[:dev_pos], pub_ver[dev_pos + 1 :])
     update(
@@ -157,7 +186,9 @@ def main():
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description="Detect and sychnronize version.")
     parser.add_argument(
-        "--print-version", action="store_true", help="Print version to the command line."
+        "--print-version",
+        action="store_true",
+        help="Print version to the command line. No changes is applied to files.",
     )
     parser.add_argument(
         "--git-describe",
