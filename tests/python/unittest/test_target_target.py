@@ -17,7 +17,19 @@
 import json
 import tvm
 from tvm import te
-from tvm.target import cuda, rocm, mali, intel_graphics, arm_cpu, vta, bifrost, hexagon
+from tvm.target import (
+    cuda,
+    rocm,
+    mali,
+    intel_graphics,
+    arm_cpu,
+    vta,
+    bifrost,
+    hexagon,
+    get_native_generic_func,
+    override_native_generic_func,
+    extend_native_generic_func,
+)
 
 
 @tvm.target.generic_func
@@ -56,6 +68,29 @@ def test_target_dispatch():
 
     with tvm.target.Target("metal"):
         assert mygeneric(1) == 3
+
+    assert tvm.target.Target.current() is None
+
+
+@override_native_generic_func("tests.my_native_generic")
+def my_native_generic(data):
+    # default generic function
+    return data + 1
+
+
+@extend_native_generic_func("tests.my_native_generic", "cuda")
+def my_native_generic_cuda(data):
+    return data + 2
+
+
+def test_target_dispatch_native_generic_function():
+    func = get_native_generic_func("tests.my_native_generic")
+
+    with tvm.target.cuda():
+        assert func(1) == 3
+
+    with tvm.target.arm_cpu():
+        assert func(1) == 2
 
     assert tvm.target.Target.current() is None
 

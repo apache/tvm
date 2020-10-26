@@ -195,6 +195,67 @@ def override_native_generic_func(func_name):
     return fdecorate
 
 
+def extend_native_generic_func(func_name, key, override=True):
+    """Extend a generic function defined in C++
+
+    Generic function allows registration of further functions
+    that can be dispatched on current target context.
+
+    Parameters
+    ----------
+    func_name : string
+        The name of the generic func to be extended.
+
+    key : str or list of str
+        The key to be registered.
+
+    override : bool, optional
+        Whether to override existing registration.
+
+    Returns
+    -------
+    fregister : function
+        A decorator function for registering the decorated function as a specialization
+        for the provided generic function
+
+    Example
+    -------
+    .. code-block:: python
+
+      import tvm
+      # register a specialization of a native generic function "my_func"
+      @tvm.target.extend_native_generic_func("my_func", "cuda")
+      def my_func_cuda(a):
+          return a + 1
+      # retrieve generic func
+      my_func = tvm.target.get_native_generic_func("my_func")
+      # displays result of the native generic function (possibly registered in C++)
+      print(my_func(2))
+      # displays 3, because my_func_cuda is called
+      with tvm.target.cuda():
+          print(my_func(2))
+    """
+    generic_func_node = get_native_generic_func(func_name)
+
+    def fregister(func):
+        """Register function as a specialization of a native generic function
+
+        Parameters
+        ----------
+        func : function
+            The function to be registered.
+
+        Returns
+        -------
+        func : function
+            The provided function.
+        """
+        generic_func_node.register(func, key, override)
+        return func
+
+    return fregister
+
+
 def generic_func(fdefault):
     """Wrap a target generic function.
 
@@ -266,7 +327,7 @@ def generic_func(fdefault):
         return _do_reg
 
     def dispatch_func(func, *args, **kwargs):
-        """The wrapped dispath function"""
+        """The wrapped dispatch function"""
         target = Target.current()
         if target is None:
             return func(*args, **kwargs)

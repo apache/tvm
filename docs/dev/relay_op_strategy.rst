@@ -253,6 +253,15 @@ so. You can find more examples in ``vta/python/vta/top/op.py``.
     def conv2d_strategy_mytarget(attrs, inputs, out_type, target):
         ...
 
+Additionally, you can extend a native (C++) strategy.
+
+.. code:: python
+
+    @tvm.target.extend_native_generic_func("add_strategy", "mytarget")
+    def add_strategy_mytarget(attrs, inputs, out_type, target):
+        # Adds a specialization of the addition strategy for 'mytarget'
+        ...
+
 
 Select Implementation from Op Strategy
 --------------------------------------

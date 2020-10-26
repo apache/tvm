@@ -58,7 +58,12 @@ from .target import Target, create
 from .target import cuda, rocm, mali, intel_graphics, arm_cpu, rasp, vta, bifrost, hexagon
 from .tag import list_tags
 from .generic_func import GenericFunc
-from .generic_func import generic_func, get_native_generic_func, override_native_generic_func
+from .generic_func import (
+    generic_func,
+    get_native_generic_func,
+    override_native_generic_func,
+    extend_native_generic_func,
+)
 from . import datatype
 from . import codegen
 from .intrin import register_intrin_rule
