@@ -47,7 +47,7 @@
 ci_lint = "tlcpack/ci-lint:v0.62"
 ci_gpu = "tlcpack/ci-gpu:v0.70"
 ci_cpu = "tlcpack/ci-cpu:v0.70"
-ci_wasm = "tlcpack/ci-wasm:v0.60"
+ci_wasm = "tlcpack/ci-wasm:v0.70"
 ci_i386 = "tlcpack/ci-i386:v0.70"
 ci_qemu = "tlcpack/ci-qemu:v0.01"
 // <--- End of regex-scanned config.
