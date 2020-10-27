@@ -66,7 +66,7 @@ bool NeedRelax(const IterVar& iv, bool found_attach,
   if (scope.rank == StorageRank::kWarp && ts.rank == 1 && ts.dim_index == 0) {
     return true;
   }
-  return static_cast<int>(scope.rank) <= ts.rank;
+  return static_cast<int>(scope.rank) <= ts.rank || scope.rank == StorageRank::kTexture;
 }
 
 // infer storage scope, if not given

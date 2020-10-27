@@ -59,6 +59,8 @@ enum class StorageRank {
   kWMMAMatrixB = 5,
   /*! \brief wmma scope memory of accumulator */
   kWMMAAccumulator = 6,
+  /*! \brief global scope texture memory */
+  kTexture = 7,
 };
 
 /*!
@@ -108,6 +110,8 @@ struct StorageScope {
         return "wmma.matrix_b" + tag;
       case StorageRank::kWMMAAccumulator:
         return "wmma.accumulator" + tag;
+      case StorageRank::kTexture:
+        return "texture" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
         return "";
@@ -143,6 +147,9 @@ struct StorageScope {
     } else if (s.compare(0, 16, "wmma.accumulator") == 0) {
       r.rank = StorageRank::kWMMAAccumulator;
       r.tag = s.substr(16, std::string::npos);
+    } else if (s.compare(0, 7, "texture") == 0) {
+      r.rank = StorageRank::kTexture;
+      r.tag = s.substr(7, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
     }
