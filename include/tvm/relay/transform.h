@@ -377,7 +377,7 @@ TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
  *
  * \return The pass.
  */
-TVM_DLL Pass PartitionGraph();
+TVM_DLL Pass PartitionGraph(runtime::PackedFunc foptimize = nullptr);
 
 /*!
  * \brief Inline the global functions marked as `inline` in a given Relay

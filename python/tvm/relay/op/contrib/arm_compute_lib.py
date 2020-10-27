@@ -54,6 +54,16 @@ def partition_for_arm_compute_lib(mod, params=None):
     -------
     ret : annotated and partitioned module.
     """
+
+    def optimize(mod):
+        foptimize = tvm._ffi.get_global_func("relay.ext.arm_compute_lib.optimize")
+        if foptimize is None:
+            raise RuntimeError(
+                "Failed to get the Arm compute library optimization pass. "
+                "Did you build with USE_ARM_COMPUTE_LIB=ON?"
+            )
+        return foptimize(mod)
+
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
@@ -62,7 +72,7 @@ def partition_for_arm_compute_lib(mod, params=None):
             transform.InferType(),
             transform.MergeComposite(arm_compute_lib_pattern_table()),
             transform.AnnotateTarget("arm_compute_lib"),
-            transform.PartitionGraph(),
+            transform.PartitionGraph(optimize),
         ]
     )
 

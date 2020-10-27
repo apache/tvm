@@ -1327,8 +1327,6 @@ def test_extern_opt():
     def Optimize(mod):
         return relay.transform.FoldConstant()(mod)
 
-    tvm.register_func("relay.ext.test_target.optimize", Optimize)
-
     x = relay.var("x", shape=(2, 2))
     y0 = relay.var("y0", shape=(2, 2))
     y1 = relay.var("y1", shape=(2, 2))
@@ -1342,7 +1340,7 @@ def test_extern_opt():
     mod = tvm.IRModule()
     mod["main"] = f
     mod = transform.InferType()(mod)
-    mod = transform.PartitionGraph()(mod)
+    mod = transform.PartitionGraph(Optimize)(mod)
 
     try:
         t0 = mod["test_target_0"]

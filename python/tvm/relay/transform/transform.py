@@ -681,16 +681,21 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph():
+def PartitionGraph(foptimize=None):
     """Partition a Relay program into regions that can be executed on different
     backends.
+
+    Parameters
+    ----------
+    foptimize: Callable
+        The callback function that optimizes the partitioned Relay functions.
 
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that partitions the Relay program.
     """
-    return _ffi_api.PartitionGraph()
+    return _ffi_api.PartitionGraph(foptimize)
 
 
 def AnnotateTarget(targets):

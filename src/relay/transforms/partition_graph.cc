@@ -113,7 +113,8 @@ struct RegionFuncMetadata {
 
 class Partitioner : public MixedModeMutator {
  public:
-  explicit Partitioner(const IRModule& module) : module_(module) {
+  explicit Partitioner(const IRModule& module, runtime::PackedFunc foptimize)
+      : module_(module), foptimize_(foptimize) {
     for (auto f : module->functions) {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
@@ -308,12 +309,12 @@ class Partitioner : public MixedModeMutator {
     if (!params_bind.empty()) {
       global_region_func = Downcast<Function>(relay::Bind(global_region_func, params_bind));
     }
-    std::string ext_opt = "relay.ext." + target + ".optimize";
-    auto pf = tvm::runtime::Registry::Get(ext_opt);
-    if (pf != nullptr) {
+
+    // Optimize the partitioned function using user-specified optimization pass.
+    if (foptimize_ != nullptr) {
       auto mod = IRModule::FromExpr(global_region_func);
       mod = transform::InferType()(mod);
-      mod = (*pf)(mod);
+      mod = foptimize_(mod);
       global_region_func = Downcast<Function>(mod->Lookup("main"));
     }
 
@@ -392,6 +393,8 @@ class Partitioner : public MixedModeMutator {
 
   /*!\brief The IRModule used for partitioning. */
   IRModule module_;
+  /*!\brief The optimize pass for the partitioned functions. */
+  const PackedFunc foptimize_;
 };
 
 IRModule RemoveDefaultAnnotations(IRModule module) {
@@ -484,7 +487,7 @@ IRModule FlattenTupleOutputs(IRModule module) {
 
 namespace transform {
 
-Pass PartitionGraph() {
+Pass PartitionGraph(PackedFunc foptimize) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> flatten_tuples = [=](IRModule m,
                                                                                  PassContext pc) {
     // There could be compiler_end annotations on tuples
@@ -503,8 +506,10 @@ Pass PartitionGraph() {
     return partitioning::RemoveDefaultAnnotations(m);
   };
 
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func = [=](IRModule m,
+                                                                            PassContext pc) {
+    return partitioning::Partitioner(m, foptimize).Partition();
+  };
 
   auto flatten_tuples_pass = CreateModulePass(flatten_tuples, 0, "FlattenNestedTuples", {});
   auto remove_default_pass = CreateModulePass(remove_defaults, 0, "RemoveDefaultAnnotations", {});
