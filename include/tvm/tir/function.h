@@ -143,7 +143,7 @@ class PrimFunc : public BaseFunc {
    */
   TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
                    Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
-                   DictAttrs attrs = NullValue<DictAttrs>());
+                   DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);

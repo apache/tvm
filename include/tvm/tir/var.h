@@ -92,13 +92,14 @@ class Var : public PrimExpr {
    * \param name_hint variable name
    * \param dtype data type
    */
-  TVM_DLL explicit Var(String name_hint = "v", DataType dtype = DataType::Int(32));
+  TVM_DLL explicit Var(String name_hint = "v", DataType dtype = DataType::Int(32),
+                       Span span = Span());
   /*!
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
    * \param type_annotation The type annotation.
    */
-  TVM_DLL explicit Var(String name_hint, Type type_annotation);
+  TVM_DLL explicit Var(String name_hint, Type type_annotation, Span span = Span());
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
@@ -139,7 +140,8 @@ class SizeVar : public Var {
    * \param name_hint variable name
    * \param t data type
    */
-  TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32));
+  TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32),
+                           Span span = Span());
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -246,6 +248,11 @@ class IterVarNode : public Object {
    *  set this if this is binded already to a known thread tag.
    */
   String thread_tag;
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
@@ -278,7 +285,8 @@ class IterVarNode : public Object {
  */
 class IterVar : public ObjectRef {
  public:
-  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, String thread_tag = "");
+  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, String thread_tag = "",
+                  Span span = Span());
   /*!
    * \return the corresponding var in the IterVar.
    */
