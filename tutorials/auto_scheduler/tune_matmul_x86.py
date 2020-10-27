@@ -82,12 +82,9 @@ print(task.compute_dag)
 #   and do more analyses later.
 # * see :any:`auto_scheduler.TuningOptions` for more parameters
 
-if not os.path.exists("./logs"):
-    os.mkdir("./logs")
-
-logfile = os.path.join("./logs", "matmul.json")
+log_file = "matmul.json"
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile(logfile)]
+    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
 )
 
 ######################################################################
@@ -147,7 +144,7 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best(logfile, task.workload_key)
+inp, res = auto_scheduler.load_best(log_file, task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
@@ -166,19 +163,21 @@ func = tvm.build(sch, args)
 # In the example below we resume the status and do more 5 trials.
 
 
-def resume_search(task, logfile_name):
+def resume_search(task, log_file_name):
     cost_model = auto_scheduler.XGBModel()
-    cost_model.update_from_file(logfile_name)
+    cost_model.update_from_file(log_file_name)
     search_policy = auto_scheduler.SketchPolicy(
-        task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(logfile_name)]
+        task,
+        cost_model,
+        init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file_name)],
     )
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(logfile_name)]
+        num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file_name)]
     )
     sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
 
-# resume_search(task, logfile)
+# resume_search(task, log_file)
 
 ######################################################################
 # .. note::
