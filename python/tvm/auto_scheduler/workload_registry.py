@@ -35,6 +35,8 @@ import json
 import tvm._ffi
 from .utils import serialize_args, deserialize_args, get_func_name
 
+
+# Global workload function and hash key registry
 WORKLOAD_FUNC_REGISTRY = {}
 
 
@@ -125,32 +127,6 @@ def make_workload_key(func, args):
     return json.dumps((func_name,) + args)
 
 
-def decode_workload_key_to_func_args(workload_key):
-    """Decode a workload key to the registered function name and its corresponding args.
-
-    Parameters
-    ----------
-    workload_key : str
-        The input workload key.
-
-    Returns
-    -------
-    name : str
-        The function name of this workload key.
-    args : List[Tensor]
-        The args of the generation function.
-    """
-    global WORKLOAD_FUNC_REGISTRY
-
-    workload = json.loads(workload_key)
-    if not workload[0] in WORKLOAD_FUNC_REGISTRY:
-        raise ValueError(
-            "%s is not registered. " % workload[0]
-            + "Please register it with @auto_scheduler.register_workload"
-        )
-    return workload[0], deserialize_args(workload[1:])
-
-
 @tvm._ffi.register_func("auto_scheduler.workload_key_to_tensors")
 def workload_key_to_tensors(workload_key):
     """Get the input/output tensors from the workload key.
@@ -169,10 +145,35 @@ def workload_key_to_tensors(workload_key):
     """
     global WORKLOAD_FUNC_REGISTRY
 
-    name, args = decode_workload_key_to_func_args(workload_key)
+    workload = json.loads(workload_key)
+    name = workload[0]
     lookup = WORKLOAD_FUNC_REGISTRY[name]
-    assert callable(lookup)
-    return lookup(*args)
+
+    if callable(lookup):
+        args = deserialize_args(workload[1:])
+        return lookup(*args)
+    return lookup
+
+
+def register_workload_tensors(tensors):
+    """Register a workload by provding input/output tensors
+
+    Parameters
+    ----------
+    tensors: List[Tensor]
+        The input/output tensors of a compute DAG
+
+    Returns
+    -------
+    key: str
+        The workload key
+    """
+    # pylint: disable=import-outside-toplevel
+    from .compute_dag import ComputeDAG
+
+    key = ComputeDAG(tensors).hash_key()
+    WORKLOAD_FUNC_REGISTRY[key] = tensors
+    return json.dumps((key,))
 
 
 def get_workload_func(task):
