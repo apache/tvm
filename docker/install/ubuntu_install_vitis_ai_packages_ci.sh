@@ -25,5 +25,5 @@ mkdir "$PYXIR_HOME"
 
 pip3 install progressbar
 
-git clone --recursive --branch v0.1.2 https://github.com/Xilinx/pyxir.git "${PYXIR_HOME}"
+git clone --recursive --branch v0.1.3 https://github.com/Xilinx/pyxir.git "${PYXIR_HOME}"
 cd "${PYXIR_HOME}" && python3 setup.py install
