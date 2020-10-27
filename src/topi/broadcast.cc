@@ -76,9 +76,5 @@ TVM_REGISTER_GLOBAL("topi.broadcast_to").set_body([](TVMArgs args, TVMRetValue* 
   *rv = broadcast_to(args[0], args[1]);
 });
 
-TVM_REGISTER_GLOBAL("topi.broadcast_shape_tensors").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = broadcast_shape_tensors(args[0], args[1]);
-});
-
 }  // namespace topi
 }  // namespace tvm

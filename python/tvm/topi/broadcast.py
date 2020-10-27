@@ -22,7 +22,7 @@ from . import cpp as _cpp
 def broadcast_to(data, shape):
     """Broadcast the src to the target shape
 
-    We follow the numpy broadcasting rule.
+    We follows the numpy broadcasting rule.
     See also https://docs.scipy.org/doc/numpy/user/basics.broadcasting.html
 
     Parameters
@@ -38,26 +38,6 @@ def broadcast_to(data, shape):
     ret : tvm.te.Tensor
     """
     return _cpp.broadcast_to(data, shape)
-
-
-def broadcast_shape_tensors(shape_tensor1, shape_tensor2):
-    """Compute a shape tensor whose values represents the broadcasted shape
-       of two input shape tensors
-
-    Parameters
-    ----------
-    shape_tensor1 : tvm.te.Tensor
-        One of input shape tensors
-
-    shape_tensor2 : tvm.te.Tensor
-        One of input shape tensors
-
-    Returns
-    -------
-    ret : tvm.te.Tensor
-        A shape tensor whose values represents the  broadcasted shape
-    """
-    return _cpp.broadcast_shape_tensors(shape_tensor1, shape_tensor2)
 
 
 def add(lhs, rhs):
