@@ -30,7 +30,7 @@ from .task import ApplyHistoryBest
 from ..target import Target
 from ..contrib.download import download
 from .record import load_from_file
-from .util import EmptyContext
+from .utils import EmptyContext
 
 # environment variable to read TopHub location
 AUTOTVM_TOPHUB_LOC_VAR = "TOPHUB_LOCATION"

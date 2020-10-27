@@ -422,7 +422,7 @@ def ConvertLayout(desired_layouts):
     parser and relay.build call. This is very helpful for hardware backends that support/prefer only
     type of data layout.
 
-    RFC - https://discuss.tvm.ai/t/layout-conversion-pass/4009
+    RFC - https://discuss.tvm.apache.org/t/layout-conversion-pass/4009
 
     This pass uses most of the AlterOpLayout and InferCorrectLayout infrastructure. We can define
     new layouts for conv2d ops for now. Most of the other operators try to adapt to their input

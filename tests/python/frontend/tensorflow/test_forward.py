@@ -2848,11 +2848,11 @@ def test_forward_inception_v1():
 
         # Build an image from random data.
         from PIL import Image
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
         img_array = np.random.uniform(size=(1, 600, 600, 3)).astype("uint8")
         img = Image.frombuffer("RGB", (600, 600), img_array.tostring(), "raw", "RGB", 0, 1)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         img_path = temp.relpath("tf-test.jpg")
         img.save(img_path)
 

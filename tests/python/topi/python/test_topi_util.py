@@ -20,7 +20,7 @@ from tvm import topi
 
 
 def verify_get_shape(src_shape, src_layout, dst_layout, expect_shape):
-    dst_shape = topi.util.get_shape(src_shape, src_layout, dst_layout)
+    dst_shape = topi.utils.get_shape(src_shape, src_layout, dst_layout)
     assert dst_shape == expect_shape, "Shape mismatch: expecting %s but got %s" % (
         expect_shape,
         dst_shape,

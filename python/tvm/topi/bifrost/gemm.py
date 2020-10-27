@@ -19,7 +19,7 @@
 from tvm import te
 
 from .transforms import tile_and_bind, tile_and_bind3d, interleave_transpose, transpose_interleave
-from .. import util
+from .. import utils
 
 
 def decl_gemm(cfg, A, B):
@@ -50,10 +50,10 @@ def decl_gemm(cfg, A, B):
     cfg.define_knob("split_k_factor", [1, 4, 16])
 
     # Mutual k axis must be of equal extent
-    assert util.get_const_int(A.shape[1]) == util.get_const_int(B.shape[0])
+    assert utils.get_const_int(A.shape[1]) == utils.get_const_int(B.shape[0])
     n = A.shape[0]
     m = B.shape[1]
-    k_size = util.get_const_int(A.shape[1])
+    k_size = utils.get_const_int(A.shape[1])
     unroll_gemm = cfg["split_k_factor"].val
     if unroll_gemm == 1:
         # No unrolling case must have the same set of tensors to keep scheduling consistent
@@ -120,8 +120,8 @@ def decl_batched_gemm(cfg, A, B):
 
     """
     # Mutual b and k axis must be of equal extent
-    assert util.get_const_int(A.shape[2]) == util.get_const_int(B.shape[1])
-    assert util.get_const_int(A.shape[0]) == util.get_const_int(B.shape[0])
+    assert utils.get_const_int(A.shape[2]) == utils.get_const_int(B.shape[1])
+    assert utils.get_const_int(A.shape[0]) == utils.get_const_int(B.shape[0])
 
     cfg.define_knob("work_group_x", [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 64])
     cfg.define_knob("work_group_y", [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 64])
@@ -131,8 +131,8 @@ def decl_batched_gemm(cfg, A, B):
 
     n = A.shape[1]
     m = B.shape[2]
-    k_size = util.get_const_int(A.shape[2])
-    b_size = util.get_const_int(A.shape[0])
+    k_size = utils.get_const_int(A.shape[2])
+    b_size = utils.get_const_int(A.shape[0])
 
     # Declare a batched GEMM
     k = te.reduce_axis((0, k_size), name="k")
@@ -163,9 +163,9 @@ def decl_winograd_gemm(cfg, A, B):
     -------
 
     """
-    alpha = util.get_const_int(A.shape[0])
-    n = util.get_const_int(A.shape[2])
-    k = util.get_const_int(A.shape[3])
+    alpha = utils.get_const_int(A.shape[0])
+    n = utils.get_const_int(A.shape[2])
+    k = utils.get_const_int(A.shape[3])
 
     A_3D = te.compute(
         (alpha * alpha, n, k), lambda b, i, j: A[b // alpha][b % alpha][i][j], name="A_3D"

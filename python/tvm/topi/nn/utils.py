@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 
 import tvm
-from ..util import get_const_int
+from ..utils import get_const_int
 
 
 def infer_pad(data, data_pad):

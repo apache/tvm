@@ -21,7 +21,7 @@ import tvm
 
 from tvm.te import hybrid
 from ..tensor import full
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 @hybrid.script

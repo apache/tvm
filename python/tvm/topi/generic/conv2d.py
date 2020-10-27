@@ -20,7 +20,7 @@
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):

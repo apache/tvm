@@ -19,7 +19,7 @@
 import os
 import subprocess
 import tvm._ffi
-from . import util
+from . import utils
 
 # TODO does this file still belong in `contrib`. is it too µTVM-specific?
 
@@ -217,7 +217,7 @@ def tvm_callback_relocate_binary(
         stack_pointer_init=stack_pointer_init,
     )
 
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     rel_obj_path = tmp_dir.relpath("relocated.obj")
     rel_ld_script_path = tmp_dir.relpath("relocate.lds")
     with open(rel_ld_script_path, "w") as f:
@@ -265,7 +265,7 @@ def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     section_bin : bytearray
         contents of the read section
     """
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_bin = tmp_dir.relpath("temp.bin")
     tmp_section = tmp_dir.relpath("tmp_section.bin")
     with open(tmp_bin, "wb") as out_file:
@@ -306,7 +306,7 @@ def tvm_callback_get_symbol_map(binary, toolchain_prefix):
         map of defined symbols to addresses, encoded as a series of
         alternating newline-separated keys and values
     """
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_obj = tmp_dir.relpath("tmp_obj.bin")
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))

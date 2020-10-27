@@ -42,7 +42,7 @@ import tvm._ffi
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
-from tvm.contrib import util
+from tvm.contrib import utils
 from . import _ffi_api
 from . import base
 from .base import TrackerCode
@@ -55,7 +55,7 @@ def _server_env(load_library, work_path=None):
     if work_path:
         temp = work_path
     else:
-        temp = util.tempdir()
+        temp = utils.tempdir()
 
     # pylint: disable=unused-variable
     @tvm._ffi.register_func("tvm.rpc.server.workpath", override=True)
@@ -89,7 +89,7 @@ def _server_env(load_library, work_path=None):
             # Extra dependencies during runtime.
             from tvm.contrib import cc as _cc, tar as _tar
 
-            tar_temp = util.tempdir(custom_path=path.replace(".tar", ""))
+            tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)
             files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
             _cc.create_shared(path + ".so", files, cc=cc)
@@ -230,7 +230,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             raise exc
 
         # step 3: serving
-        work_path = util.tempdir()
+        work_path = utils.tempdir()
         logger.info("connection from %s", addr)
         server_proc = multiprocessing.Process(
             target=_serve_loop, args=(conn, addr, load_library, work_path)

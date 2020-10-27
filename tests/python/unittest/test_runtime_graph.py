@@ -20,7 +20,7 @@ from tvm import te
 import numpy as np
 import json
 from tvm import rpc
-from tvm.contrib import util, graph_runtime
+from tvm.contrib import utils, graph_runtime
 
 
 @tvm.testing.requires_llvm
@@ -68,7 +68,7 @@ def test_graph_simple():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         ctx = remote.cpu(0)
         path_dso = temp.relpath("dev_lib.so")
         mlib.export_library(path_dso)

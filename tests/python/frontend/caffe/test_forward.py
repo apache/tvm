@@ -36,7 +36,7 @@ from caffe.proto import caffe_pb2 as pb
 
 import tvm
 from tvm import relay
-from tvm.contrib import util, graph_runtime
+from tvm.contrib import utils, graph_runtime
 from tvm.contrib.download import download_testdata
 
 CURRENT_DIR = os.path.join(os.path.expanduser("~"), ".tvm_test_data", "caffe_test")

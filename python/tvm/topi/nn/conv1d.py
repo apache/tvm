@@ -18,8 +18,8 @@
 """1D convolution operators."""
 from tvm import te
 from .pad import pad
-from ..util import simplify
-from .util import get_pad_tuple1d
+from ..utils import simplify
+from .utils import get_pad_tuple1d
 
 
 def conv1d(data, kernel, strides=1, padding="VALID", dilation=1, layout="NCW", out_dtype=None):

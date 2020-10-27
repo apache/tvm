@@ -19,9 +19,9 @@
 """Dilation2D operators"""
 from __future__ import absolute_import as _abs
 from tvm import te
-from tvm.topi.util import simplify
+from tvm.topi.utils import simplify
 from ..nn.pad import pad
-from ..nn.util import get_pad_tuple
+from ..nn.utils import get_pad_tuple
 
 
 def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):

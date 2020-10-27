@@ -22,11 +22,11 @@ from tvm import te
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.pad import pad
-from ..nn.util import get_pad_tuple
+from ..nn.utils import get_pad_tuple
 from ..generic import conv2d as conv2d_generic
-from ..util import get_const_tuple, simplify
+from ..utils import get_const_tuple, simplify
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32
-from .util import get_fp32_len
+from .utils import get_fp32_len
 
 
 def _fallback_schedule(cfg, wkl):

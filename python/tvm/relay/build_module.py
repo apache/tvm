@@ -253,7 +253,7 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(list(target.values()))
     else:
-        tophub_context = autotvm.util.EmptyContext()
+        tophub_context = autotvm.utils.EmptyContext()
 
     with tophub_context:
         bld_mod = BuildModule()
@@ -307,7 +307,7 @@ def optimize(mod, target=None, params=None):
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(list(target.values()))
     else:
-        tophub_context = autotvm.util.EmptyContext()
+        tophub_context = autotvm.utils.EmptyContext()
 
     with tophub_context:
         bld_mod = BuildModule()

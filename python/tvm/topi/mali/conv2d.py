@@ -22,7 +22,7 @@ from tvm import relay
 from tvm import autotvm
 from tvm.autotvm.task.space import get_factors
 
-from ..util import traverse_inline, get_const_int, get_const_tuple
+from ..utils import traverse_inline, get_const_int, get_const_tuple
 from .. import nn
 from ..nn.winograd_util import winograd_transform_matrices
 

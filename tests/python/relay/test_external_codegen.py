@@ -25,7 +25,7 @@ import tvm.relay.testing
 import tvm.relay.transform
 from tvm import relay
 from tvm import runtime
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu()):
@@ -40,7 +40,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ct
 
         kwargs = {}
         kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = util.tempdir()
+        tmp_path = utils.tempdir()
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)

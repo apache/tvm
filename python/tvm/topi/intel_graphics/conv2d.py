@@ -25,8 +25,8 @@ from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from .. import nn
-from .. import util
-from ..util import simplify, get_const_tuple, traverse_inline
+from .. import utils
+from ..utils import simplify, get_const_tuple, traverse_inline
 
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
@@ -487,8 +487,8 @@ def schedule_conv2d_nchw(outs):
 
 
 def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype="float16"):
-    batch, in_channel, in_height, in_width = [util.get_const_int(x) for x in data.shape]
-    num_filter, channel, kernel_h, kernel_w = [util.get_const_int(x) for x in kernel.shape]
+    batch, in_channel, in_height, in_width = [utils.get_const_int(x) for x in data.shape]
+    num_filter, channel, kernel_h, kernel_w = [utils.get_const_int(x) for x in kernel.shape]
     pad_top, pad_left, pad_down, pad_right = nn.get_pad_tuple(padding, (kernel_h, kernel_w))
 
     if isinstance(stride, (tuple, list)):
@@ -574,7 +574,7 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype="float16"):
 
 def _schedule_cl_spatialpack(s, op):
     output = op.output(0)
-    _, _, out_height, out_width = [util.get_const_int(x) for x in output.shape]
+    _, _, out_height, out_width = [utils.get_const_int(x) for x in output.shape]
 
     conv = op.input_tensors[0]
     temp = s[conv].op.input_tensors[0]
@@ -584,7 +584,7 @@ def _schedule_cl_spatialpack(s, op):
     conv_L = s.cache_write(conv, "local")
 
     kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
-    _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
+    _, in_channel, temp_h, temp_w = [utils.get_const_int(x) for x in temp.shape]
 
     attrs = s[conv].op.attrs
     OUTPUT_BLOCK_HEIGHT = attrs["block_h"]

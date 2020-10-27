@@ -29,7 +29,7 @@ except ImportError:
     xgb = None
 
 from .. import feature
-from ..util import get_rank
+from ..utils import get_rank
 from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
 

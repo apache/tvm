@@ -22,7 +22,7 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 
 _conv3d_transpose_ncdhw_implement = {

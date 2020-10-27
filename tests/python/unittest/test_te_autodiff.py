@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 from tvm.testing import assert_allclose
 from tvm import topi
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 import pytest
 
 import numpy as np

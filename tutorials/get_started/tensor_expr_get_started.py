@@ -210,9 +210,9 @@ else:
 # - cc.create_shared calls a compiler (gcc) to create a shared library
 #
 from tvm.contrib import cc
-from tvm.contrib import util
+from tvm.contrib import utils
 
-temp = util.tempdir()
+temp = utils.tempdir()
 fadd.save(temp.relpath("myadd.o"))
 if tgt == "cuda":
     fadd.imported_modules[0].save(temp.relpath("myadd.ptx"))
