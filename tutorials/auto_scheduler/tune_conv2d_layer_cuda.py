@@ -56,6 +56,7 @@ def conv2d_layer(N, H, W, CO, CI, KH, KW, stride, padding):
     out = topi.nn.relu(conv + bias)
     return [data, kernel, bias, out]
 
+
 if __name__ == "__main__":
     ######################################################################
     # Create the search task
@@ -66,7 +67,9 @@ if __name__ == "__main__":
 
     # Use the last layer in ResNet-50
     N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
-    task = auto_scheduler.create_task(conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target)
+    task = auto_scheduler.create_task(
+        conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target
+    )
 
     # Inspect the computational graph
     print(task.compute_dag)
@@ -177,7 +180,6 @@ if __name__ == "__main__":
     # In this case, we need to create the search policy and cost model by ourselves
     # and resume the status of search policy and cost model with the log file.
     # In the example below we resume the status and do more 5 trials.
-
 
     cost_model = auto_scheduler.XGBModel()
     cost_model.update_from_file(log_file)

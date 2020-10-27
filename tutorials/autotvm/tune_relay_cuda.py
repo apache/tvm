@@ -213,10 +213,8 @@ if __name__ == "__main__":
         autotvm.record.pick_best(tmp_log_file, log_filename)
         os.remove(tmp_log_file)
 
-
     ########################################################################
     # Finally, we launch tuning jobs and evaluate the end-to-end performance.
-
 
     def tune_and_evaluate(tuning_opt):
         # extract workloads from relay program
@@ -255,7 +253,6 @@ if __name__ == "__main__":
                 "Mean inference time (std dev): %.2f ms (%.2f ms)"
                 % (np.mean(prof_res), np.std(prof_res))
             )
-
 
     # We do not run the tuning in our webpage server since it takes too long.
     # Uncomment the following line to run it by yourself.
@@ -315,7 +312,6 @@ if __name__ == "__main__":
     #      logging.getLogger('autotvm').setLevel(logging.DEBUG)
     #
     #   Finally, always feel free to ask our community for help on https://discuss.tvm.ai
-
 
     #################################################################
     # Scale up measurement by using multiple devices

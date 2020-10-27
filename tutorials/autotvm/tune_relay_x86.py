@@ -111,7 +111,6 @@ if __name__ == "__main__":
     num_threads = 1
     os.environ["TVM_NUM_THREADS"] = str(num_threads)
 
-
     #################################################################
     # Configure tensor tuning settings and create tasks
     # -------------------------------------------------
@@ -141,7 +140,6 @@ if __name__ == "__main__":
             ),
         ),
     }
-
 
     # You can skip the implementation of this function for this tutorial.
     def tune_kernels(
@@ -175,7 +173,6 @@ if __name__ == "__main__":
                 ],
             )
 
-
     # Use graph tuner to achieve graph level optimal schedules
     # Set use_DP=False if it takes too long to finish.
     def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
@@ -188,10 +185,8 @@ if __name__ == "__main__":
         executor.run()
         executor.write_opt_sch2record_file(opt_sch_file)
 
-
     ########################################################################
     # Finally, we launch tuning jobs and evaluate the end-to-end performance.
-
 
     def tune_and_evaluate(tuning_opt):
         # extract workloads from relay program
@@ -225,7 +220,6 @@ if __name__ == "__main__":
                 "Mean inference time (std dev): %.2f ms (%.2f ms)"
                 % (np.mean(prof_res), np.std(prof_res))
             )
-
 
     # We do not run the tuning in our webpage server since it takes too long.
     # Uncomment the following line to run it by yourself.

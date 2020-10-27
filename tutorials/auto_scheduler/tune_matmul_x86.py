@@ -132,7 +132,6 @@ if __name__ == "__main__":
         % (np.median(evaluator(a_tvm, b_tvm, c_tvm, out_tvm).results) * 1000)
     )
 
-
     ######################################################################
     # Using the record file
     # ^^^^^^^^^^^^^^^^^^^^^
@@ -163,7 +162,6 @@ if __name__ == "__main__":
     # and resume the status of search policy and cost model with the log file.
     # In the example below we resume the status and do more 5 trials.
 
-
     def resume_search(task, log_file_name):
         cost_model = auto_scheduler.XGBModel()
         cost_model.update_from_file(log_file_name)
@@ -176,7 +174,6 @@ if __name__ == "__main__":
             num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file_name)]
         )
         sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
-
 
     # resume_search(task, log_file)
 

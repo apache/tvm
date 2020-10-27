@@ -186,7 +186,9 @@ if __name__ == "__main__":
     # the last layer in resnet
     N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
     task = autotvm.task.create(
-        "tutorial/conv2d_no_batching", args=(N, H, W, CO, CI, KH, KW, strides, padding), target="cuda"
+        "tutorial/conv2d_no_batching",
+        args=(N, H, W, CO, CI, KH, KW, strides, padding),
+        target="cuda",
     )
     print(task.config_space)
 
