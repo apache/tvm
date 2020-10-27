@@ -263,7 +263,8 @@ class ConstIntBoundAnalyzer::Impl
       // and we just use the simpliest rule.
       int64_t b_min_cap = InfAwareAdd(b.min_value, 1);
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
-      return Intersect(MakeBound(std::min(0ll, b_min_cap), std::max(0ll, b_max_cap)),
+      return Intersect(MakeBound(std::min(static_cast<int64_t>(0), b_min_cap),
+                                 std::max(static_cast<int64_t>(0), b_max_cap)),
                        Everything(op->dtype));
     }
   }
