@@ -31,19 +31,22 @@ def test_apply_steps_with_layout_rewrite():
     _, bufs = dag.apply_steps_from_state(s)
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
-    _, bufs = dag.apply_steps_from_state(s,
-        layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPlaceholder"])
+    _, bufs = dag.apply_steps_from_state(
+        s, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
+    )
     assert bufs[1].shape[0] == 4
     assert bufs[1].shape[1] == 8
     assert bufs[1].shape[2] == 4
     assert bufs[1].shape[3] == 4
     assert bufs[1].shape[4] == 512
-    _, bufs = dag.apply_steps_from_state(s,
-        layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPreTranspose"])
+    _, bufs = dag.apply_steps_from_state(
+        s, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
+    )
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
 
 
+@tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_with_placeholder():
     N = 128
     target = tvm.target.Target("llvm")
@@ -64,8 +67,9 @@ def test_correctness_layout_rewrite_with_placeholder():
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
-        s, bufs = dag.apply_steps_from_state(inp.state,
-            layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPlaceholder"])
+        s, bufs = dag.apply_steps_from_state(
+            inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
+        )
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
         np_args_ref = [np.array(x) for x in np_args]
@@ -109,8 +113,10 @@ def test_correctness_layout_rewrite_with_placeholder():
 
         np.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
         np.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
+        del measure_ctx
 
 
+@tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_with_pre_transpose():
     N = 128
     target = tvm.target.Target("llvm")
@@ -131,8 +137,9 @@ def test_correctness_layout_rewrite_with_pre_transpose():
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
-        s, bufs = dag.apply_steps_from_state(inp.state,
-            layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.LAYOUT_REWRITE_TABLE["RewriteWithPreTranspose"])
+        s, bufs = dag.apply_steps_from_state(
+            inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
+        )
 
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
@@ -154,6 +161,7 @@ def test_correctness_layout_rewrite_with_pre_transpose():
         np.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
         np.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy())
         np.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
+        del measure_ctx
 
 
 if __name__ == "__main__":

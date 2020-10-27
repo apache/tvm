@@ -195,19 +195,21 @@ class ComputeDAGNode : public Object {
 };
 
 /*!
- * \brief Several options for applying layout rewrite.
- * This is a optimization to rewrite the shape of input tensor according to the schedule we get.
+ * \brief Options for applying layout rewrite.
+ * This is an optimization to rewrite the layout of input tensors according to the schedule we get.
  */
 enum class LayoutRewriteOption : int {
   /*! \brief Do not process layout rewrite. */
   NoRewrite = 0,
+  /*! \brief Insert layout transformation stages for input placeholders in the compute DAG */
+  InsertTransformStage = 1,
   /*!
-   * \brief Modify the placeholder to suit the schedule.
-   * \note This should be used along with the graph optimization in Relay.
+   * \brief Do not insert layout transformation stages and assume the input placeholders
+   * are pre-transformed.
+   * \note The lowered function with this option does not accept the origial input shapes,
+   * so this option must be used along with a layout conversion pass in Relay.
    */
-  RewriteWithPlaceholder = 1,
-  /*! \brief Insert a pre-transpose stage between placeholer and compute op to suit the schedule. */
-  RewriteWithPreTranspose = 2
+  RewriteForPreTransformed = 2,
 };
 
 /*!

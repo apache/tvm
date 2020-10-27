@@ -863,6 +863,8 @@ std::string GetNewLayout(const State& state, const int stage_id, const Stage& st
 
 ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
                                      LayoutRewriteOption layout_rewrite) const {
+  CHECK(layout_rewrite != LayoutRewriteOption::NoRewrite)
+      << "Call ComputeDAG::RewriteLayout with NoRewrite.";
   ComputeDAG new_dag = *this;
   ComputeDAGNode* p_dag = new_dag.CopyOnWrite();
 
@@ -921,11 +923,11 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
 
       // Process op updates
       te::Operation new_op_to_update;
-      if (layout_rewrite == LayoutRewriteOption::RewriteWithPlaceholder) {
+      if (layout_rewrite == LayoutRewriteOption::RewriteForPreTransformed) {
         // Create new placeholder
         new_op_to_update = te::PlaceholderOp(placeholder_op->name, new_shape,
                                              placeholder_op.as<te::PlaceholderOpNode>()->dtype);
-      } else if (layout_rewrite == LayoutRewriteOption::RewriteWithPreTranspose) {
+      } else if (layout_rewrite == LayoutRewriteOption::InsertTransformStage) {
         // Process index strides
         std::unordered_map<std::string, PrimExpr> axes_stride;
         for (const auto& i : origin_axes) {
@@ -980,8 +982,6 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
         }
         transform_steps->push_back(FuseStep(stage_id, to_fuse));
         transform_steps->push_back(AnnotationStep(stage_id, 0, IteratorAnnotation::kParallel));
-      } else {
-        LOG(FATAL) << "Call ComputeDAG::RewriteLayout with NoRewrite.";
       }
 
       te::Operation new_compute_op, original_compute_op;
@@ -1015,7 +1015,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
       for (size_t i = 0; i < original_ops.size(); ++i) {
         const auto& original_op = original_ops[i];
         if (original_op == placeholder_op) {
-          if (layout_rewrite == LayoutRewriteOption::RewriteWithPreTranspose) {
+          if (layout_rewrite == LayoutRewriteOption::InsertTransformStage) {
             p_dag->ops.push_back(placeholder_op);
           }
           p_dag->ops.push_back(new_op_to_update);
@@ -1062,7 +1062,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
       ArrayNode* p_tensors = p_dag->tensors.CopyOnWrite();
       for (size_t i = 0; i < old_tensors.size(); ++i) {
         const auto& old_tensor = old_tensors[i];
-        if (layout_rewrite != LayoutRewriteOption::RewriteWithPlaceholder &&
+        if (layout_rewrite != LayoutRewriteOption::RewriteForPreTransformed &&
             old_tensor->op->IsInstance<te::PlaceholderOpNode>()) {
           continue;
         }

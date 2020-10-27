@@ -187,7 +187,7 @@ class Step : public ObjectRef {
    * This works almost the same as a normal ObjectRef.CopyOnWrite(), but can dispatch to different
    * steps.
    * \return A base StepNode pointer, need to cast to its real StepNode type before doing any
-   * modifies.
+   * modifications.
    * \code
    *
    *  SplitStep ref;
