@@ -23,6 +23,10 @@ Auto-tuning a convolutional network for x86 CPU
 
 This is a tutorial about how to tune convolution neural network
 for x86 CPU.
+
+Note that this tutorial will not run on Windows or recent versions of macOS. To
+get it to run, you will need to wrap the body of this tutorial in a :code:`if
+__name__ == "__main__":` block.
 """
 import os
 import numpy as np

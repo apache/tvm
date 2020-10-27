@@ -23,15 +23,14 @@ registers the standard task.
 """
 import numpy as np
 
-from tvm.target import Target
 from tvm import runtime
 from tvm.ir import container
+from tvm.target import Target
+from tvm.te import placeholder, tensor
 from tvm.tir import expr
-from tvm.te import tensor, placeholder
-
 
 from ..util import get_const_int, get_const_tuple
-from .dispatcher import DispatchContext, ApplyConfig
+from .dispatcher import ApplyConfig, DispatchContext
 from .space import ConfigSpace
 
 
@@ -173,6 +172,8 @@ class Task(object):
         # some unpickable local task functions.
         # So we only pickle the name of the function
         # and restore the function by name when unpickling it.
+        import cloudpickle  # pylint: disable=import-outside-toplevel
+
         return {
             "name": self.name,
             "args": self.args,
@@ -181,14 +182,17 @@ class Task(object):
             "flop": self.flop,
             "target": self.target,
             "target_host": self.target_host,
+            "func": cloudpickle.dumps(self.func),
         }
 
     def __setstate__(self, state):
+        import cloudpickle  # pylint: disable=import-outside-toplevel
+
         self.name = state["name"]
         self.args = state["args"]
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
-        self.func = _lookup_task(state["name"])
+        self.func = cloudpickle.loads(state["func"])
         self.flop = state["flop"]
         self.target = state["target"]
         self.target_host = state["target_host"]
