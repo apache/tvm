@@ -487,7 +487,7 @@ IRModule FlattenTupleOutputs(IRModule module) {
 
 namespace transform {
 
-Pass PartitionGraph(PackedFunc foptimize) {
+Pass PartitionGraph(const PackedFunc foptimize) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> flatten_tuples = [=](IRModule m,
                                                                                  PassContext pc) {
     // There could be compiler_end annotations on tuples

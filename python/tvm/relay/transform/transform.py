@@ -627,7 +627,7 @@ def EliminateCommonSubexpr(fskip=None):
 
     Parameters
     ----------
-    fskip: Callable
+    fskip: Optional[Callable]
         The callback function that decides whether an expression should be
         skipped.
 
@@ -687,7 +687,7 @@ def PartitionGraph(foptimize=None):
 
     Parameters
     ----------
-    foptimize: Callable
+    foptimize: Optional[Callable]
         The callback function that optimizes the partitioned Relay functions.
 
     Returns
