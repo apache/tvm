@@ -44,6 +44,8 @@ __version__ = "0.8.dev0"
 __most_recent_tag__ = "v0.7.0"
 # ---------------------------------------------------
 
+PROJ_ROOT = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+
 
 def py_str(cstr):
     return cstr.decode("utf-8")
@@ -76,7 +78,7 @@ def git_describe_version():
       the git short hash tag of the current commit is 0d07a329e.
     """
     cmd = ["git", "describe", "--tags"]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=PROJ_ROOT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:
@@ -145,11 +147,9 @@ def update(file_name, pattern, repl, dry_run=False):
 
 def sync_version(pub_ver, local_ver, dry_run):
     """Synchronize version."""
-    proj_root = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-
     # python uses the PEP-440: local version
     update(
-        os.path.join(proj_root, "python", "tvm", "_ffi", "libinfo.py"),
+        os.path.join(PROJ_ROOT, "python", "tvm", "_ffi", "libinfo.py"),
         r"(?<=__version__ = \")[.0-9a-z\+]+",
         local_ver,
         dry_run,
@@ -158,14 +158,14 @@ def sync_version(pub_ver, local_ver, dry_run):
     # Note that full git hash is already available in libtvm
     # C++ header
     update(
-        os.path.join(proj_root, "include", "tvm", "runtime", "c_runtime_api.h"),
+        os.path.join(PROJ_ROOT, "include", "tvm", "runtime", "c_runtime_api.h"),
         r'(?<=TVM_VERSION ")[.0-9a-z\+]+',
         pub_ver,
         dry_run,
     )
     # conda
     update(
-        os.path.join(proj_root, "conda", "recipe", "meta.yaml"),
+        os.path.join(PROJ_ROOT, "conda", "recipe", "meta.yaml"),
         r"(?<=version = ')[.0-9a-z\+]+",
         pub_ver,
         dry_run,
@@ -175,8 +175,8 @@ def sync_version(pub_ver, local_ver, dry_run):
     dev_pos = pub_ver.find(".dev")
     npm_ver = pub_ver if dev_pos == -1 else "%s.0-%s" % (pub_ver[:dev_pos], pub_ver[dev_pos + 1 :])
     update(
-        os.path.join(proj_root, "web", "package.json"),
-        r'(?<="version": ")[.0-9a-z\+]+',
+        os.path.join(PROJ_ROOT, "web", "package.json"),
+        r'(?<="version": ")[.0-9a-z\-\+]+',
         npm_ver,
         dry_run,
     )
