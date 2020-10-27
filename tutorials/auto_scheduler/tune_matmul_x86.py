@@ -167,7 +167,9 @@ def resume_search(task, log_file_name):
     cost_model = auto_scheduler.XGBModel()
     cost_model.update_from_file(log_file_name)
     search_policy = auto_scheduler.SketchPolicy(
-        task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file_name)]
+        task,
+        cost_model,
+        init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file_name)],
     )
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file_name)]
