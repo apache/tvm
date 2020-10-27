@@ -45,7 +45,7 @@ using namespace tvm::te;
  * \return The logical conjunction expression
  */
 PrimExpr all(Array<PrimExpr> args) {
-  CHECK_GT(args.size(), 0) << "all requires at least one argument";
+  ICHECK_GT(args.size(), 0) << "all requires at least one argument";
 
   PrimExpr ret = args[0];
   for (size_t i = 1; i < args.size(); ++i) {
@@ -70,8 +70,8 @@ PrimExpr all(Array<PrimExpr> args) {
 inline Tensor dilate(const Tensor& x, Array<PrimExpr> strides, double dilation_value,
                      std::string name = "tensor", std::string tag = kInjective) {
   auto n = x->shape.size();
-  CHECK_EQ(n, strides.size()) << "strides size (" << strides.size()
-                              << ") must match dimension of x (" << n << ")";
+  ICHECK_EQ(n, strides.size()) << "strides size (" << strides.size()
+                               << ") must match dimension of x (" << n << ")";
 
   Array<PrimExpr> out_shape;
   arith::Analyzer analyzer;

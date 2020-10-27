@@ -78,8 +78,8 @@ class PipeChannel final : public RPCChannel {
 Module CreatePipeClient(std::vector<std::string> cmd) {
   int parent2child[2];
   int child2parent[2];
-  CHECK_EQ(pipe(parent2child), 0);
-  CHECK_EQ(pipe(child2parent), 0);
+  ICHECK_EQ(pipe(parent2child), 0);
+  ICHECK_EQ(pipe(child2parent), 0);
 
   int parent_read = child2parent[0];
   int parent_write = parent2child[1];

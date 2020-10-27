@@ -29,8 +29,10 @@ try:
     from ._cy3.core import _register_object
     from ._cy3.core import _reg_extension
     from ._cy3.core import convert_to_tvm_func, _get_global_func, PackedFuncBase
-except (RuntimeError, ImportError):
+except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position,unused-import
+    if _FFI_MODE == "cython":
+        raise error
     from ._ctypes.object import _register_object
     from ._ctypes.ndarray import _reg_extension
     from ._ctypes.packed_func import convert_to_tvm_func, _get_global_func, PackedFuncBase

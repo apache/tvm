@@ -108,7 +108,7 @@ inline Array<Array<Layout>> ElemwiseArbitraryLayout(const Attrs& attrs,
   Layout ret;
 
   if (new_in_layouts.defined()) {
-    CHECK_GE(new_in_layouts.size(), 1);
+    ICHECK_GE(new_in_layouts.size(), 1);
     ret = new_in_layouts[0];
   } else {
     for (size_t i = 0; i < old_in_layouts.size(); ++i) {
@@ -130,7 +130,7 @@ inline Array<Array<Layout>> BinaryBroadcastLayout(const Attrs& attrs,
   Array<Layout> layouts;
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
-    CHECK(old_in_t.as<TensorTypeNode>());
+    ICHECK(old_in_t.as<TensorTypeNode>());
     old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
   }
 
@@ -217,7 +217,7 @@ static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts
   if (finfer_layout.count(op)) {
     Array<Array<Layout>> inferred_layouts;
     inferred_layouts = finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
-    CHECK_EQ(inferred_layouts.size(), 2)
+    ICHECK_EQ(inferred_layouts.size(), 2)
         << "FInferCorrectLayout should return an array with size of 2";
     for (auto x : inferred_layouts) {
       for (auto y : x) {

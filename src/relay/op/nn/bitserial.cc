@@ -50,9 +50,9 @@ Array<Array<Layout>> BinaryConv2DInferCorrectLayout(const Attrs& attrs,
 bool BitPackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   const BitPackAttrs* param = attrs.as<BitPackAttrs>();
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data);
+  ICHECK(data);
   int ndim = data->shape.size();
   int bits = param->bits;
   int pack_axis = param->pack_axis;
@@ -120,20 +120,20 @@ TVM_REGISTER_NODE_TYPE(BinaryConv2DAttrs);
 
 bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const BinaryConv2DAttrs* param = attrs.as<BinaryConv2DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   static const Layout kNCHW("NCHW");
 
   const Layout in_layout(param->data_layout);
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
-  CHECK(param->channels.defined());
-  CHECK(param->kernel_size.defined());
+  ICHECK(param->channels.defined());
+  ICHECK(param->kernel_size.defined());
   Array<IndexExpr> oshape({dshape_nchw[0], param->channels, 0, 0});
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
@@ -199,15 +199,15 @@ TVM_REGISTER_NODE_TYPE(BinaryDenseAttrs);
 
 bool BinaryDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const BinaryDenseAttrs* param = attrs.as<BinaryDenseAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
-  CHECK(static_cast<int>(data->shape.size()) != 0);
-  CHECK(param->units.defined());
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
+  ICHECK(param->units.defined());
 
   Array<tvm::PrimExpr> oshape = data->shape;
   oshape.Set((oshape.size() - 1), param->units);

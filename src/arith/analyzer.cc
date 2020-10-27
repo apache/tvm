@@ -47,7 +47,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
-  CHECK(range.defined());
+  ICHECK(range.defined());
   if (tir::is_one(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
@@ -64,7 +64,7 @@ void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
 }
 
 void ConstraintContext::EnterWithScope() {
-  CHECK(exit_ == nullptr);
+  ICHECK(exit_ == nullptr);
   // entering the scope.
   auto f0 = analyzer_->const_int_bound.EnterConstraint(constraint_);
   auto f1 = analyzer_->modular_set.EnterConstraint(constraint_);
@@ -78,7 +78,7 @@ void ConstraintContext::EnterWithScope() {
 }
 
 void ConstraintContext::ExitWithScope() {
-  CHECK(exit_ != nullptr);
+  ICHECK(exit_ != nullptr);
   exit_();
 }
 

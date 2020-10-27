@@ -16,5 +16,4 @@
 # under the License.
 """TVM Script APIs of TVM Python Package, aimed to support TIR"""
 
-from .utils import create_module, asscript, tir, module
-from .parser import from_source
+from .parser import from_source, create_module, asscript, tir, module

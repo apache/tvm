@@ -27,6 +27,7 @@
 #include <tvm/auto_scheduler/loop_state.h>
 #include <tvm/auto_scheduler/transform_step.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 #include <tvm/te/operation.h>
 
 #include <string>
@@ -43,7 +44,7 @@ struct Handler<::tvm::Array<::tvm::Integer>> {
   inline static void Write(dmlc::JSONWriter* writer, const ::tvm::Array<::tvm::Integer>& array) {
     writer->BeginArray(false);
     for (const auto& i : array) {
-      CHECK(i.defined());
+      ICHECK(i.defined());
       writer->WriteArrayItem(i->value);
     }
     writer->EndArray();
@@ -65,7 +66,7 @@ struct Handler<::tvm::Array<::tvm::Optional<::tvm::Integer>>> {
                            const ::tvm::Array<::tvm::Optional<::tvm::Integer>>& array) {
     writer->BeginArray(false);
     for (const auto& i : array) {
-      CHECK(i);
+      ICHECK(i);
       writer->WriteArrayItem(i.value()->value);
     }
     writer->EndArray();
@@ -125,7 +126,7 @@ Step StepReadFromRecord(dmlc::JSONReader* reader) {
   std::string name;
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&name);
   if (name == AnnotationStepNode::record_prefix_str) {
     return AnnotationStep(reader);
@@ -283,13 +284,13 @@ AnnotationStep::AnnotationStep(dmlc::JSONReader* reader) {
   auto node = make_object<AnnotationStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   int int_val;
   reader->Read(&int_val);
   node->annotation = IteratorAnnotation(int_val);
@@ -308,7 +309,7 @@ Iterator AnnotationStepNode::ApplyToState(State* state) const {
   const Stage& stage = (*state)->stages[stage_id];
   Iterator it = stage->iters[iter_id];
 
-  CHECK(it->annotation == IteratorAnnotation::kNone);
+  ICHECK(it->annotation == IteratorAnnotation::kNone);
   Iterator new_it = Iterator(it->name, it->range, it->iter_kind, annotation, &it->orig_iters);
   Stage new_stage = stage;
   new_stage.CopyOnWrite()->iters.Set(iter_id, new_it);
@@ -410,7 +411,7 @@ FuseStep::FuseStep(int stage_id, const Array<Integer>& fused_ids) {
   auto node = make_object<FuseStepNode>();
   node->stage_id = stage_id;
   for (const auto& x : fused_ids) {
-    CHECK(x->IsInstance<IntImmNode>());
+    ICHECK(x->IsInstance<IntImmNode>());
   }
   node->fused_ids = fused_ids;
   data_ = std::move(node);
@@ -420,10 +421,10 @@ FuseStep::FuseStep(dmlc::JSONReader* reader) {
   auto node = make_object<FuseStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->fused_ids);
   data_ = std::move(node);
 }
@@ -446,7 +447,7 @@ Iterator FuseStepNode::ApplyToState(State* state) const {
 
   for (size_t i = 0; i < fused_ids.size(); ++i) {
     if (i > 0) {
-      CHECK_EQ(fused_ids[i]->value, fused_ids[i - 1]->value + 1);
+      ICHECK_EQ(fused_ids[i]->value, fused_ids[i - 1]->value + 1);
     }
 
     if (i != fused_ids.size() - 1) {
@@ -574,13 +575,13 @@ PragmaStep::PragmaStep(dmlc::JSONReader* reader) {
   auto node = make_object<PragmaStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   std::string string_value;
   reader->Read(&string_value);
   node->pragma_type = std::move(string_value);
@@ -609,7 +610,7 @@ void PragmaStepNode::ApplyToState(State* state) const {
         break;
       }
     }
-    CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
+    ICHECK_LT(pos, pragma_type.size()) << "max step value not found.";
     stage.CopyOnWrite()->attrs.auto_unroll_max_step = atoi(pragma_type.c_str() + pos + 1);
     pstate->stages.Set(stage_id, std::move(stage));
   } else {
@@ -628,7 +629,7 @@ void PragmaStepNode::ApplyToSchedule(Array<te::Stage>* stages,
         break;
       }
     }
-    CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
+    ICHECK_LT(pos, pragma_type.size()) << "max step value not found.";
     int value = atoi(pragma_type.c_str() + pos + 1);
     stage.pragma(axes[iter_id], "auto_unroll_max_step", value);
     stage.pragma(axes[iter_id], "unroll_explicit", true);
@@ -651,7 +652,7 @@ String PragmaStepNode::PrintAsPythonAPI(Array<te::Stage>* stages,
         break;
       }
     }
-    CHECK_LT(pos, pragma_type.size()) << "max step value not found.";
+    ICHECK_LT(pos, pragma_type.size()) << "max step value not found.";
     int value = atoi(pragma_type.c_str() + pos + 1);
     ss << "s[" << op_name << "].pragma("
        << CleanName((*stage_to_axes)[stage][iter_id]->var->name_hint, op_name)
@@ -674,7 +675,7 @@ ReorderStep::ReorderStep(int stage_id, const Array<Integer>& after_ids) {
   auto node = make_object<ReorderStepNode>();
   node->stage_id = stage_id;
   for (const auto& x : after_ids) {
-    CHECK(x->IsInstance<IntImmNode>());
+    ICHECK(x->IsInstance<IntImmNode>());
   }
   node->after_ids = after_ids;
   data_ = std::move(node);
@@ -684,10 +685,10 @@ ReorderStep::ReorderStep(dmlc::JSONReader* reader) {
   auto node = make_object<ReorderStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->after_ids);
   data_ = std::move(node);
 }
@@ -713,7 +714,7 @@ void ReorderStepNode::ApplyToSchedule(Array<te::Stage>* stages,
                                       StageToAxesMap* stage_to_axes) const {
   auto stage = (*stages)[stage_id];
   const Array<IterVar>& axes = stage_to_axes->at(stage);
-  CHECK_EQ(after_ids.size(), axes.size());
+  ICHECK_EQ(after_ids.size(), axes.size());
 
   Array<IterVar> new_axes;
   new_axes.reserve(axes.size());
@@ -879,7 +880,7 @@ String PrintSplitAsPythonAPI(Array<te::Stage>* stages, StageToAxesMap* stage_to_
   const auto& func_name = CleanName(stage->op->name);
   const auto& outs =
       ApplySplitToSchedule(stages, stage_to_axes, stage_id, iter_id, lengths, inner_to_outer);
-  CHECK_EQ(outs.size(), lengths.size() + 1);
+  ICHECK_EQ(outs.size(), lengths.size() + 1);
 
   std::stringstream ss;
   int size = static_cast<int>(lengths.size());
@@ -921,23 +922,23 @@ SplitStep::SplitStep(dmlc::JSONReader* reader) {
   auto node = make_object<SplitStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   int int_val;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&int_val);
   if (int_val) {
     node->extent = Integer(int_val);
   }
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->lengths);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->inner_to_outer);
   data_ = std::move(node);
 }
@@ -988,14 +989,14 @@ void FollowSplitStepNode::WriteToRecord(dmlc::JSONWriter* writer) const {
 Array<Optional<Integer>> FollowSplitStepNode::ExtractSplitLengths(
     const Array<Step>& transform_steps) const {
   // Make sure src_step_id is within the range of transform_steps.
-  CHECK_LT(src_step_id, transform_steps.size());
+  ICHECK_LT(src_step_id, transform_steps.size());
   auto ps = transform_steps[src_step_id].as<SplitStepNode>();
-  CHECK(ps != nullptr);
+  ICHECK(ps != nullptr);
 
   // Make sure the size of ps->lengths is not smaller than n_split-1.
   // Note that the number of actual splitting factors of src_step is ps->lengths.size()+1.
-  CHECK_LE(n_split, ps->lengths.size() + 1);
-  CHECK(ps != nullptr);
+  ICHECK_LE(n_split, ps->lengths.size() + 1);
+  ICHECK(ps != nullptr);
 
   Array<Optional<Integer>> lengths;
   lengths.reserve(n_split);
@@ -1029,16 +1030,16 @@ FollowSplitStep::FollowSplitStep(dmlc::JSONReader* reader) {
   auto node = make_object<FollowSplitStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->src_step_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->n_split);
   data_ = std::move(node);
 }
@@ -1079,19 +1080,19 @@ FollowFusedSplitStep::FollowFusedSplitStep(dmlc::JSONReader* reader) {
   auto node = make_object<FollowFusedSplitStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->src_step_ids);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->level);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->factor_or_nparts);
   data_ = std::move(node);
 }
@@ -1112,9 +1113,9 @@ Optional<Integer> FollowFusedSplitStepNode::ExtractSplitLength(
 
   for (int src_step_id : src_step_ids) {
     // Make sure the src_step_id is within the range of transform_steps.
-    CHECK_LT(src_step_id, transform_steps.size());
+    ICHECK_LT(src_step_id, transform_steps.size());
     auto ps = transform_steps[src_step_id].as<SplitStepNode>();
-    CHECK(ps != nullptr);
+    ICHECK(ps != nullptr);
     // Multiple the splitting factor on corresponding splitting level of src_steps.
     if (ps->lengths[level] && ret.defined()) {
       ret *= ps->lengths[level].value();
@@ -1158,16 +1159,16 @@ StorageAlignStep::StorageAlignStep(dmlc::JSONReader* reader) {
   auto node = make_object<StorageAlignStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->factor);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->offset);
   data_ = std::move(node);
 }
@@ -1224,13 +1225,13 @@ ComputeAtStep::ComputeAtStep(dmlc::JSONReader* reader) {
   auto node = make_object<ComputeAtStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->target_stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->target_iter_id);
   data_ = std::move(node);
 }
@@ -1295,7 +1296,7 @@ ComputeInlineStep::ComputeInlineStep(dmlc::JSONReader* reader) {
   auto node = make_object<ComputeInlineStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   data_ = std::move(node);
 }
@@ -1311,7 +1312,7 @@ void ComputeInlineStepNode::ApplyToState(State* state) const {
 
   // Check the validity of compute_inline
   for (size_t i = 0; i < stage->iters.size(); ++i) {
-    CHECK_EQ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, i)), 0)
+    ICHECK_EQ((*state)->attach_map->iter_to_attached_stages.count(std::make_pair(stage_id, i)), 0)
         << "Invalid compute_inline: There are some other stages that are attached to the "
         << "target stage";
   }
@@ -1351,7 +1352,7 @@ ComputeRootStep::ComputeRootStep(dmlc::JSONReader* reader) {
   auto node = make_object<ComputeRootStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   data_ = std::move(node);
 }
@@ -1418,10 +1419,10 @@ Array<Step> GetFormerStageModifiableSteps(Step current_step, const Array<Step>& 
         }
       }
       // add SplitStepNode required by rfactor
-      CHECK_GE(i, 1);
-      CHECK(transform_steps[i - 1]->IsInstance<SplitStepNode>());
+      ICHECK_GE(i, 1);
+      ICHECK(transform_steps[i - 1]->IsInstance<SplitStepNode>());
       const Step& split_step = transform_steps[i - 1];
-      CHECK_EQ(split_step->stage_id, step->stage_id);
+      ICHECK_EQ(split_step->stage_id, step->stage_id);
       ret_steps.push_back(split_step);
       // add RfactorStepNode
       ret_steps.push_back(step);
@@ -1449,15 +1450,15 @@ CacheReadStep::CacheReadStep(dmlc::JSONReader* reader) {
   auto node = make_object<CacheReadStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   std::string string_value;
   reader->Read(&string_value);
   node->scope_name = std::move(string_value);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->reader_stage_ids);
   data_ = std::move(node);
 }
@@ -1560,10 +1561,10 @@ CacheWriteStep::CacheWriteStep(dmlc::JSONReader* reader) {
   auto node = make_object<CacheWriteStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   std::string string_value;
   reader->Read(&string_value);
   node->scope_name = std::move(string_value);
@@ -1587,7 +1588,7 @@ int CacheWriteStepNode::ApplyToState(State* state, const ComputeDAG& dag) const 
       GetFormerStageModifiableSteps(GetRef<Step>(this), (*state)->transform_steps));
   int added_ops = current_compute_dag->ops.size() - last_dag_op_size;
   // TODO(jcf94): Update this check to equal after fixing the cache write bug in TVM
-  CHECK_GE(added_ops, 1);
+  ICHECK_GE(added_ops, 1);
 
   // target_stage -> cache_write_stage + target_stage
   // Assume no step has been applied to the target stage before cache write.
@@ -1691,13 +1692,13 @@ RfactorStep::RfactorStep(dmlc::JSONReader* reader) {
   auto node = make_object<RfactorStepNode>();
   bool s;
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->stage_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->iter_id);
   s = reader->NextArrayItem();
-  CHECK(s);
+  ICHECK(s);
   reader->Read(&node->factor_iter_id);
   data_ = std::move(node);
 }

@@ -20,9 +20,9 @@
 /*!
  * \file Use external cblas library call.
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
@@ -152,19 +152,19 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
   int lda = M * K / (roundoff(K, 32) / 32);
   int ldb = K * N / (roundoff(K, 32) / 32);
   int ldc = M * N_out / (roundoff(N_out, 32) / 32);
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
 
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
 
-  CHECK(TypeEqual(A->dtype, B->dtype));
-  CHECK(TypeMatch(A->dtype, kDLInt, 8));
-  CHECK(TypeMatch(C->dtype, kDLInt, 32));
+  ICHECK(TypeEqual(A->dtype, B->dtype));
+  ICHECK(TypeMatch(A->dtype, kDLInt, 8));
+  ICHECK(TypeMatch(C->dtype, kDLInt, 32));
 
-  CHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
   int32_t alpha = args.size() > 5 ? args[5] : 1;
   int32_t beta = args.size() > 6 ? args[6] : 0;
   cublasLtMatrixLayout_t Adesc = NULL, Bdesc = NULL, Cdesc = NULL;
@@ -214,27 +214,27 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
   DLTensor* C = args[2];
   bool transa = args[3];
   bool transb = args[4];
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
 
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
 
-  CHECK(TypeEqual(A->dtype, B->dtype));
+  ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed(C));
+  ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
-  CHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
+  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  CHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
+  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
@@ -272,29 +272,29 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
   DLTensor* C = args[2];
   bool transa = args[3];
   bool transb = args[4];
-  CHECK_EQ(A->ndim, 3);
-  CHECK_EQ(B->ndim, 3);
-  CHECK_EQ(C->ndim, 3);
+  ICHECK_EQ(A->ndim, 3);
+  ICHECK_EQ(B->ndim, 3);
+  ICHECK_EQ(C->ndim, 3);
   int batch_size = BatchCount3D(A);
-  CHECK_EQ(BatchCount3D(B), batch_size);
-  CHECK_EQ(BatchCount3D(C), batch_size);
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(BatchCount3D(B), batch_size);
+  ICHECK_EQ(BatchCount3D(C), batch_size);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
 
-  CHECK(TypeEqual(A->dtype, B->dtype));
+  ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed(C));
+  ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(CheckMixPrecisionType(A->dtype, C->dtype, false)) << "Unsupported data type";
-  CHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
+  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, false)) << "Unsupported data type";
+  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  CHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
+  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
@@ -339,8 +339,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul").set_body([](TVMArgs args, TVMRe
   CUBLASTryEnableTensorCore(entry_ptr->handle);
 
   if (TypeEqual(A->dtype, C->dtype)) {
-    CHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-          TypeMatch(A->dtype, kDLFloat, 64));
+    ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+           TypeMatch(A->dtype, kDLFloat, 64));
 
     if (TypeMatch(A->dtype, kDLFloat, 16))
       CallGemm(args, ret, CublasHgemmOp(entry_ptr->handle));
@@ -361,7 +361,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul").set_body([](TVMArgs args, TVM
 
   CUBLASTryEnableTensorCore(entry_ptr->handle);
 
-  CHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
+  ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
   cublasLtHandle_t ltHandle;
   CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
   CallLtIgemm(args, ret, ltHandle);
@@ -377,8 +377,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul").set_body([](TVMArgs args,
 
   CUBLASTryEnableTensorCore(entry_ptr->handle);
   if (TypeEqual(A->dtype, C->dtype)) {
-    CHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-          TypeMatch(A->dtype, kDLFloat, 64));
+    ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+           TypeMatch(A->dtype, kDLFloat, 64));
 
     if (TypeMatch(A->dtype, kDLFloat, 16))
       CallBatchGemm(args, ret, CublasHgemmBatchOp(entry_ptr->handle));

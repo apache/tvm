@@ -30,9 +30,9 @@ namespace tir {
 
 // LetStmt
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body) {
-  CHECK(value.defined());
-  CHECK(body.defined());
-  CHECK_EQ(value.dtype(), var.dtype());
+  ICHECK(value.defined());
+  ICHECK(body.defined());
+  ICHECK_EQ(value.dtype(), var.dtype());
 
   ObjectPtr<LetStmtNode> node = make_object<LetStmtNode>();
   node->var = std::move(var);
@@ -88,8 +88,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body) {
-  CHECK(condition.defined());
-  CHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>())
+  ICHECK(condition.defined());
+  ICHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>())
       << "TypeError: AssertStmt message must be an int or string:" << message << "\n";
 
   ObjectPtr<AssertStmtNode> node = make_object<AssertStmtNode>();
@@ -126,12 +126,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // For
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
          Stmt body) {
-  CHECK(min.defined());
-  CHECK(extent.defined());
-  CHECK(min.dtype().is_scalar());
-  CHECK(extent.dtype().is_scalar());
-  CHECK(loop_var.dtype().is_scalar());
-  CHECK(body.defined());
+  ICHECK(min.defined());
+  ICHECK(extent.defined());
+  ICHECK(min.dtype().is_scalar());
+  ICHECK(extent.dtype().is_scalar());
+  ICHECK(loop_var.dtype().is_scalar());
+  ICHECK(body.defined());
 
   ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
@@ -189,11 +189,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Store
 Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate) {
-  CHECK(value.defined());
-  CHECK(index.defined());
-  CHECK(predicate.defined());
-  CHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
-  CHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
+  ICHECK(value.defined());
+  ICHECK(index.defined());
+  ICHECK(predicate.defined());
+  ICHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
+  ICHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
 
   ObjectPtr<StoreNode> node = make_object<StoreNode>();
   node->buffer_var = std::move(buffer_var);
@@ -267,12 +267,12 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   // IsPointerPType(buffer_var->type_annotation, dtype)
   // once we fix the allocate tvm script printing.
   for (size_t i = 0; i < extents.size(); ++i) {
-    CHECK(extents[i].defined());
-    CHECK(extents[i].dtype().is_scalar());
+    ICHECK(extents[i].defined());
+    ICHECK(extents[i].dtype().is_scalar());
   }
-  CHECK(body.defined());
-  CHECK(condition.defined());
-  CHECK(condition.dtype().is_bool());
+  ICHECK(body.defined());
+  ICHECK(condition.defined());
+  ICHECK(condition.dtype().is_bool());
 
   ObjectPtr<AllocateNode> node = make_object<AllocateNode>();
   node->buffer_var = std::move(buffer_var);
@@ -326,14 +326,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition,
                                  Stmt body) {
   for (size_t i = 0; i < bounds.size(); ++i) {
-    CHECK(bounds[i]->min.defined());
-    CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.dtype().is_scalar());
-    CHECK(bounds[i]->extent.dtype().is_scalar());
+    ICHECK(bounds[i]->min.defined());
+    ICHECK(bounds[i]->extent.defined());
+    ICHECK(bounds[i]->min.dtype().is_scalar());
+    ICHECK(bounds[i]->extent.dtype().is_scalar());
   }
-  CHECK(body.defined());
-  CHECK(condition.defined());
-  CHECK(condition.dtype().is_bool());
+  ICHECK(body.defined());
+  ICHECK(condition.defined());
+  ICHECK(condition.dtype().is_bool());
 
   ObjectPtr<ProducerRealizeNode> node = make_object<ProducerRealizeNode>();
   node->producer = std::move(producer);
@@ -428,8 +428,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // IfThenElse
 IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, Stmt else_case) {
-  CHECK(condition.defined());
-  CHECK(then_case.defined());
+  ICHECK(condition.defined());
+  ICHECK(then_case.defined());
   // else_case may be null.
   ObjectPtr<IfThenElseNode> node = make_object<IfThenElseNode>();
   node->condition = std::move(condition);
@@ -478,7 +478,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Evaluate
 Evaluate::Evaluate(PrimExpr value) {
-  CHECK(value.defined());
+  ICHECK(value.defined());
 
   ObjectPtr<EvaluateNode> node = make_object<EvaluateNode>();
   node->value = std::move(value);

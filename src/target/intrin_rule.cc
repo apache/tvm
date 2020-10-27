@@ -81,7 +81,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.rsqrt")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       PrimExpr e = args[0];
       const CallNode* call = e.as<CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
 
       auto one = make_const(call->args[0].dtype(), 1);
       *rv = one / sqrt(call->args[0]);
@@ -93,7 +93,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       PrimExpr e = args[0];
       const CallNode* call = e.as<CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
 
       auto one = make_const(call->args[0].dtype(), 1);
       *rv = one / (one + exp(-call->args[0]));
@@ -103,7 +103,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isfinite")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       PrimExpr e = args[0];
       const CallNode* call = e.as<CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
       *rv = isfinite(call->args[0]);
     });
 
@@ -111,7 +111,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
     .set_body([](const TVMArgs& args, TVMRetValue* rv) {
       PrimExpr e = args[0];
       const CallNode* call = e.as<CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
       *rv = isinf(call->args[0]);
     });
 
@@ -121,7 +121,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
 
       PrimExpr e = args[0];
       const tir::CallNode* call = e.as<tir::CallNode>();
-      CHECK(call != nullptr);
+      ICHECK(call != nullptr);
 
       PrimExpr x = call->args[0];
       PrimExpr y = call->args[1];
@@ -129,8 +129,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
       PrimExpr s = call->args[3];
 
       // Only int32 types are supported (any number of lanes is allowed)
-      CHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
-      CHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
+      ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
+      ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
       DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
       DataType lp_dtype = DataType::Int(32, x.dtype().lanes());

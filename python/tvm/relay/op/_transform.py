@@ -778,6 +778,9 @@ def repeat_shape_func(attrs, inputs, _):
 
 @_reg.register_shape_func("broadcast_to_like", False)
 def broadcast_to_like_shape_func(attrs, inputs, _):
+    """
+    Shape func for broadcast_to_like.
+    """
     return [topi.math.identity(inputs[1])]
 
 
@@ -798,7 +801,22 @@ def _stack_shape_func(data_shape, axis, num_inputs):
 
 @_reg.register_shape_func("stack", False)
 def stack_shape_func(attrs, inputs, _):
+    """
+    Shape func for stack.
+    """
     axis = get_const_int(attrs.axis)
     if axis < 0:
         axis += inputs[0].shape[0] + 1
     return [_stack_shape_func(inputs[0], convert(axis), convert(len(inputs)))]
+
+
+@_reg.register_shape_func("where", False)
+def where_shape_func(attrs, inputs, _):
+    """
+    Shape func for where.
+    """
+    cond_shape = inputs[0]
+    x_shape = inputs[1]
+    out_shape = x_shape if x_shape.shape else cond_shape
+
+    return [topi.math.identity(out_shape)]

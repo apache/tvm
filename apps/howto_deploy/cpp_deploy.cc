@@ -31,7 +31,7 @@
 void Verify(tvm::runtime::Module mod, std::string fname) {
   // Get the function from the module.
   tvm::runtime::PackedFunc f = mod.GetFunction(fname);
-  CHECK(f != nullptr);
+  ICHECK(f != nullptr);
   // Allocate the DLPack data structures.
   //
   // Note that we use TVM runtime API to allocate the DLTensor in this example.
@@ -64,7 +64,7 @@ void Verify(tvm::runtime::Module mod, std::string fname) {
   f(x, y);
   // Print out the output
   for (int i = 0; i < shape[0]; ++i) {
-    CHECK_EQ(static_cast<float*>(y->data)[i], i + 1.0f);
+    ICHECK_EQ(static_cast<float*>(y->data)[i], i + 1.0f);
   }
   LOG(INFO) << "Finish verification...";
   TVMArrayFree(x);
@@ -112,7 +112,7 @@ void DeployGraphRuntime() {
 
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 2; ++j) {
-      CHECK_EQ(static_cast<float*>(y->data)[i * 2 + j], i * 2 + j + 1);
+      ICHECK_EQ(static_cast<float*>(y->data)[i * 2 + j], i * 2 + j + 1);
     }
   }
 }

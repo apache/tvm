@@ -25,18 +25,18 @@
 #define TVM_RUNTIME_CONTRIB_CUDNN_CUDNN_UTILS_H_
 
 #include <cudnn.h>
-#include <dmlc/logging.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/logging.h>
 
 #include "../../cuda/cuda_common.h"
 
 namespace tvm {
 namespace contrib {
 
-#define CUDNN_CALL(func)                                                      \
-  {                                                                           \
-    cudnnStatus_t e = (func);                                                 \
-    CHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
+#define CUDNN_CALL(func)                                                       \
+  {                                                                            \
+    cudnnStatus_t e = (func);                                                  \
+    ICHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
   }
 
 /*! breif Convert DLTensor type to CuDNN type */

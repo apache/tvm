@@ -62,7 +62,7 @@ Expr MakeDilation2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<Inde
 template <typename AttrType>
 bool Dilation2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
@@ -70,23 +70,23 @@ bool Dilation2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   static const Layout kOIHW("IHW");
 
   const AttrType* param = attrs.as<AttrType>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
-  CHECK(trans_in_layout.defined())
+  ICHECK(trans_in_layout.defined())
       << "Dilation2D only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
-  CHECK(trans_kernel_layout.defined())
+  ICHECK(trans_kernel_layout.defined())
       << "Dilation2D only support kernel layouts that are convertible from OIHW."
       << " But got " << kernel_layout;
 
   Layout out_layout(param->data_layout);
   const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
-  CHECK(trans_out_layout.defined())
+  ICHECK(trans_out_layout.defined())
       << "Dilation2D only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
 

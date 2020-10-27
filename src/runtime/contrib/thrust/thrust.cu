@@ -130,7 +130,7 @@ void thrust_sort_common(DLTensor* input,
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort_nms")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_GE(args.num_args, 5);
+  ICHECK_GE(args.num_args, 5);
   DLTensor* input = args[0];
   DLTensor* valid_count = args[1];
   DLTensor* values_out = args[2];
@@ -149,7 +149,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort_nms")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_GE(args.num_args, 4);
+  ICHECK_GE(args.num_args, 4);
   DLTensor* input = args[0];
   DLTensor* values_out = args[1];
   DLTensor* indices_out = args[2];

@@ -49,20 +49,20 @@ Registry* Registry::Global() {
 }
 
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
-  CHECK(type_code >= DataType::kCustomBegin)
+  ICHECK(type_code >= DataType::kCustomBegin)
       << "Please choose a type code >= DataType::kCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
   name_to_code_[type_name] = type_code;
 }
 
 uint8_t Registry::GetTypeCode(const std::string& type_name) {
-  CHECK(name_to_code_.find(type_name) != name_to_code_.end())
+  ICHECK(name_to_code_.find(type_name) != name_to_code_.end())
       << "Type name " << type_name << " not registered";
   return name_to_code_[type_name];
 }
 
 std::string Registry::GetTypeName(uint8_t type_code) {
-  CHECK(code_to_name_.find(type_code) != code_to_name_.end())
+  ICHECK(code_to_name_.find(type_code) != code_to_name_.end())
       << "Type code " << static_cast<unsigned>(type_code) << " not registered";
   return code_to_name_[type_code];
 }

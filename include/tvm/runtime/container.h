@@ -146,7 +146,7 @@ class InplaceArrayBase {
    */
   const ElemType& operator[](size_t idx) const {
     size_t size = Self()->GetSize();
-    CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
+    ICHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
 
@@ -157,7 +157,7 @@ class InplaceArrayBase {
    */
   ElemType& operator[](size_t idx) {
     size_t size = Self()->GetSize();
-    CHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
+    ICHECK_LT(idx, size) << "Index " << idx << " out of bounds " << size << "\n";
     return *(reinterpret_cast<ElemType*>(AddressOf(idx)));
   }
 
@@ -361,7 +361,7 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
    */
   static ObjectPtr<ArrayNode> CopyFrom(int64_t cap, ArrayNode* from) {
     int64_t size = from->size_;
-    CHECK_GE(cap, size) << "ValueError: not enough capacity";
+    ICHECK_GE(cap, size) << "ValueError: not enough capacity";
     ObjectPtr<ArrayNode> p = ArrayNode::Empty(cap);
     ObjectRef* write = p->MutableBegin();
     ObjectRef* read = from->MutableBegin();
@@ -380,7 +380,7 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
    */
   static ObjectPtr<ArrayNode> MoveFrom(int64_t cap, ArrayNode* from) {
     int64_t size = from->size_;
-    CHECK_GE(cap, size) << "ValueError: not enough capacity";
+    ICHECK_GE(cap, size) << "ValueError: not enough capacity";
     ObjectPtr<ArrayNode> p = ArrayNode::Empty(cap);
     ObjectRef* write = p->MutableBegin();
     ObjectRef* read = from->MutableBegin();
@@ -429,7 +429,7 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
    * \return Ref-counted ArrayNode requested
    */
   static ObjectPtr<ArrayNode> Empty(int64_t n = kInitSize) {
-    CHECK_GE(n, 0);
+    ICHECK_GE(n, 0);
     ObjectPtr<ArrayNode> p = make_inplace_array_object<ArrayNode, ObjectRef>(n);
     p->capacity_ = n;
     p->size_ = 0;
@@ -679,9 +679,9 @@ class Array : public ObjectRef {
    */
   const T operator[](int64_t i) const {
     ArrayNode* p = GetArrayNode();
-    CHECK(p != nullptr) << "ValueError: cannot index a null array";
-    CHECK(0 <= i && i < p->size_) << "IndexError: indexing " << i << " on an array of size "
-                                  << p->size_;
+    ICHECK(p != nullptr) << "ValueError: cannot index a null array";
+    ICHECK(0 <= i && i < p->size_)
+        << "IndexError: indexing " << i << " on an array of size " << p->size_;
     return DowncastNoCheck<T>(*(p->begin() + i));
   }
 
@@ -703,16 +703,16 @@ class Array : public ObjectRef {
   /*! \return The first element of the array */
   const T front() const {
     ArrayNode* p = GetArrayNode();
-    CHECK(p != nullptr) << "ValueError: cannot index a null array";
-    CHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
+    ICHECK(p != nullptr) << "ValueError: cannot index a null array";
+    ICHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
     return DowncastNoCheck<T>(*(p->begin()));
   }
 
   /*! \return The last element of the array */
   const T back() const {
     ArrayNode* p = GetArrayNode();
-    CHECK(p != nullptr) << "ValueError: cannot index a null array";
-    CHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
+    ICHECK(p != nullptr) << "ValueError: cannot index a null array";
+    ICHECK_GT(p->size_, 0) << "IndexError: cannot index an empty array";
     return DowncastNoCheck<T>(*(p->end() - 1));
   }
 
@@ -734,7 +734,7 @@ class Array : public ObjectRef {
    * \param val The element to insert
    */
   void insert(iterator position, const T& val) {
-    CHECK(data_ != nullptr) << "ValueError: cannot insert a null array";
+    ICHECK(data_ != nullptr) << "ValueError: cannot insert a null array";
     int64_t idx = std::distance(begin(), position);
     int64_t size = GetArrayNode()->size_;
     auto addr = CopyOnWrite(1)                               //
@@ -755,7 +755,7 @@ class Array : public ObjectRef {
     if (first == last) {
       return;
     }
-    CHECK(data_ != nullptr) << "ValueError: cannot insert a null array";
+    ICHECK(data_ != nullptr) << "ValueError: cannot insert a null array";
     int64_t idx = std::distance(begin(), position);
     int64_t size = GetArrayNode()->size_;
     int64_t numel = std::distance(first, last);
@@ -767,9 +767,9 @@ class Array : public ObjectRef {
 
   /*! \brief Remove the last item of the list */
   void pop_back() {
-    CHECK(data_ != nullptr) << "ValueError: cannot pop_back because array is null";
+    ICHECK(data_ != nullptr) << "ValueError: cannot pop_back because array is null";
     int64_t size = GetArrayNode()->size_;
-    CHECK_GT(size, 0) << "ValueError: cannot pop_back because array is empty";
+    ICHECK_GT(size, 0) << "ValueError: cannot pop_back because array is empty";
     CopyOnWrite()->ShrinkBy(1);
   }
 
@@ -778,11 +778,11 @@ class Array : public ObjectRef {
    * \param position An iterator pointing to the element to be erased
    */
   void erase(iterator position) {
-    CHECK(data_ != nullptr) << "ValueError: cannot erase a null array";
+    ICHECK(data_ != nullptr) << "ValueError: cannot erase a null array";
     int64_t st = std::distance(begin(), position);
     int64_t size = GetArrayNode()->size_;
-    CHECK(0 <= st && st < size) << "ValueError: cannot erase at index " << st
-                                << ", because Array size is " << size;
+    ICHECK(0 <= st && st < size) << "ValueError: cannot erase at index " << st
+                                 << ", because Array size is " << size;
     CopyOnWrite()                             //
         ->MoveElementsLeft(st, st + 1, size)  //
         ->ShrinkBy(1);
@@ -797,12 +797,12 @@ class Array : public ObjectRef {
     if (first == last) {
       return;
     }
-    CHECK(data_ != nullptr) << "ValueError: cannot erase a null array";
+    ICHECK(data_ != nullptr) << "ValueError: cannot erase a null array";
     int64_t size = GetArrayNode()->size_;
     int64_t st = std::distance(begin(), first);
     int64_t ed = std::distance(begin(), last);
-    CHECK_LT(st, ed) << "ValueError: cannot erase array in range [" << st << ", " << ed << ")";
-    CHECK(0 <= st && st <= size && 0 <= ed && ed <= size)
+    ICHECK_LT(st, ed) << "ValueError: cannot erase array in range [" << st << ", " << ed << ")";
+    ICHECK(0 <= st && st <= size && 0 <= ed && ed <= size)
         << "ValueError: cannot erase array in range [" << st << ", " << ed << ")"
         << ", because array size is " << size;
     CopyOnWrite()                         //
@@ -815,7 +815,7 @@ class Array : public ObjectRef {
    * \param n The new size.
    */
   void resize(int64_t n) {
-    CHECK_GE(n, 0) << "ValueError: cannot resize an Array to negative size";
+    ICHECK_GE(n, 0) << "ValueError: cannot resize an Array to negative size";
     if (data_ == nullptr) {
       SwitchContainer(n);
       return;
@@ -856,8 +856,8 @@ class Array : public ObjectRef {
    */
   void Set(int64_t i, T value) {
     ArrayNode* p = this->CopyOnWrite();
-    CHECK(0 <= i && i < p->size_) << "IndexError: indexing " << i << " on an array of size "
-                                  << p->size_;
+    ICHECK(0 <= i && i < p->size_)
+        << "IndexError: indexing " << i << " on an array of size " << p->size_;
     *(p->MutableBegin() + i) = std::move(value);
   }
 
@@ -923,7 +923,7 @@ class Array : public ObjectRef {
   template <typename IterType>
   void Assign(IterType first, IterType last) {
     int64_t cap = std::distance(first, last);
-    CHECK_GE(cap, 0) << "ValueError: cannot construct an Array of negative size";
+    ICHECK_GE(cap, 0) << "ValueError: cannot construct an Array of negative size";
     ArrayNode* p = GetArrayNode();
     if (p != nullptr && data_.unique() && p->capacity_ >= cap) {
       // do not have to make new space
@@ -1565,8 +1565,8 @@ struct NullOptType {};
  *
  *  Optional<String> opt0 = nullptr;
  *  Optional<String> opt1 = String("xyz");
- *  CHECK(opt0 == nullptr);
- *  CHECK(opt1 == "xyz");
+ *  ICHECK(opt0 == nullptr);
+ *  ICHECK(opt1 == "xyz");
  *
  * \endcode
  */
@@ -1613,7 +1613,7 @@ class Optional : public ObjectRef {
    * \note This function performs not-null checking.
    */
   T value() const {
-    CHECK(data_ != nullptr);
+    ICHECK(data_ != nullptr);
     return T(data_);
   }
   /*!

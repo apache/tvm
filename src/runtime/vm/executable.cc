@@ -43,9 +43,9 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-#define STREAM_CHECK(val, section)                                         \
-  CHECK(val) << "Invalid VM file format in the " << section << " section." \
-             << "\n";
+#define STREAM_CHECK(val, section)                                          \
+  ICHECK(val) << "Invalid VM file format in the " << section << " section." \
+              << "\n";
 
 // Helper to serialize a vm instruction.
 VMInstructionSerializer SerializeInstruction(const Instruction& instr);
@@ -527,7 +527,7 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
   // Load the const to device mapping.
   std::vector<size_t> const_device_type;
   STREAM_CHECK(strm->Read(&const_device_type), "constant");
-  CHECK_EQ(size, const_device_type.size());
+  ICHECK_EQ(size, const_device_type.size());
   for (auto dev : const_device_type) {
     this->const_device_type.push_back(static_cast<Index>(dev));
   }
@@ -545,7 +545,7 @@ void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
 // `instr_fields`.
 inline std::vector<Index> ExtractFields(const std::vector<Index>& instr_fields, Index start,
                                         Index cnt) {
-  CHECK_LE(static_cast<size_t>(start + cnt), instr_fields.size());
+  ICHECK_LE(static_cast<size_t>(start + cnt), instr_fields.size());
   std::vector<Index> ret;
   for (auto i = start; i < start + cnt; i++) {
     ret.push_back(instr_fields[i]);
@@ -765,8 +765,8 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
     VMFunction vm_func = VMFunction(loaded_func.name, loaded_func.params, instructions,
                                     loaded_func.register_file_size, loaded_func.params_device_type);
     auto it = this->global_map.find(loaded_func.name);
-    CHECK(it != this->global_map.end());
-    CHECK_LE(it->second, this->global_map.size());
+    ICHECK(it != this->global_map.end());
+    ICHECK_LE(it->second, this->global_map.size());
     this->functions[it->second] = vm_func;
   }
 }
@@ -774,14 +774,14 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
 TVM_REGISTER_GLOBAL("runtime.GetNumOfGlobals").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  CHECK(exec);
+  ICHECK(exec);
   *rv = static_cast<int>(exec->global_map.size());
 });
 
 TVM_REGISTER_GLOBAL("runtime.GetGlobalFields").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  CHECK(exec);
+  ICHECK(exec);
   int idx = args[1];
   std::vector<std::pair<std::string, Index> > globals(exec->global_map.begin(),
                                                       exec->global_map.end());
@@ -789,24 +789,24 @@ TVM_REGISTER_GLOBAL("runtime.GetGlobalFields").set_body([](TVMArgs args, TVMRetV
     return a.second < b.second;
   };
   std::sort(globals.begin(), globals.end(), comp);
-  CHECK_LT(idx, globals.size());
+  ICHECK_LT(idx, globals.size());
   *rv = globals[idx].first;
 });
 
 TVM_REGISTER_GLOBAL("runtime.GetNumOfPrimitives").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  CHECK(exec);
+  ICHECK(exec);
   *rv = static_cast<int>(exec->primitive_map.size());
 });
 
 TVM_REGISTER_GLOBAL("runtime.GetPrimitiveFields").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  CHECK(exec);
+  ICHECK(exec);
   int idx = args[1];
-  CHECK_GE(idx, 0);
-  CHECK_LT(idx, exec->primitive_map.size());
+  ICHECK_GE(idx, 0);
+  ICHECK_LT(idx, exec->primitive_map.size());
 
   for (const auto& it : exec->primitive_map) {
     if (idx == static_cast<int>(it.second)) {

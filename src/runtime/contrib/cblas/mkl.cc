@@ -20,9 +20,9 @@
 /*!
  * \file Use external mkl library call.
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 extern "C" {
 #include <mkl_cblas.h>
@@ -156,7 +156,7 @@ struct MKLDgemmBatchIterativeOp {
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
-  CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+  ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
   if (TypeMatch(A->dtype, kDLFloat, 32))
     CallGemm(args, ret, MKLSgemmOp());
@@ -169,15 +169,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul_u8s8s32").set_body([](TVMArgs args, 
   DLTensor* A = args[0];
   DLTensor* B = args[1];
   DLTensor* C = args[2];
-  CHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
-        TypeMatch(C->dtype, kDLInt, 32));
+  ICHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
+         TypeMatch(C->dtype, kDLInt, 32));
 
   CallU8S8S32Gemm(args, ret, MKLGemmU8S8S32Op());
 });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
-  CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+  ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
   if (TypeMatch(A->dtype, kDLFloat, 32)) {
     CallBatchGemm(args, ret, MKLSgemmBatchOp());
   } else {
@@ -188,7 +188,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul").set_body([](TVMArgs args, TV
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul_iterative")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       DLTensor* A = args[0];
-      CHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {
         CallBatchGemm(args, ret, MKLSgemmBatchIterativeOp());
       } else {

@@ -126,7 +126,7 @@ else:
 os.makedirs(TEST_DATA_ROOT_PATH, exist_ok=True)
 
 
-def download_testdata(url, relpath, module=None):
+def download_testdata(url, relpath, module=None, overwrite=False):
     """Downloads the test data from the internet.
 
     Parameters
@@ -155,5 +155,5 @@ def download_testdata(url, relpath, module=None):
     else:
         raise ValueError("Unsupported module: " + module)
     abspath = os.path.join(TEST_DATA_ROOT_PATH, module_path, relpath)
-    download(url, abspath, overwrite=False, size_compare=False)
+    download(url, abspath, overwrite=overwrite, size_compare=False)
     return abspath

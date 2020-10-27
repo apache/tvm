@@ -182,7 +182,7 @@ class ScaledExprNode : public TempExprNode {
   Expr scale = NullValue<Expr>();
 
   Expr Realize() const final {
-    CHECK(!axes.defined()) << "outstanding scale";
+    ICHECK(!axes.defined()) << "outstanding scale";
     return value;
   }
 
@@ -268,7 +268,7 @@ class ForwardPrep : private ExprVisitor {
       auto f = fprep.get(call->op, nullptr);
       if (f != nullptr) {
         Array<Message> in_messages = f(GetRef<Call>(call), out_message);
-        CHECK_EQ(in_messages.size(), call->args.size());
+        ICHECK_EQ(in_messages.size(), call->args.size());
         for (size_t i = 0; i < call->args.size(); ++i) {
           this->Update(call->args[i], in_messages[i]);
         }
@@ -400,8 +400,8 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   auto rnode = make_object<ScaledExprNode>();
 
   if (slhs != nullptr) {
-    CHECK(srhs == nullptr);
-    CHECK(MatchBroadcastToLeftAxes(tlhs, trhs, slhs->axes));
+    ICHECK(srhs == nullptr);
+    ICHECK(MatchBroadcastToLeftAxes(tlhs, trhs, slhs->axes));
     Expr scale = ReshapeOrExpandToMatchAxis(slhs->scale, tlhs->shape, slhs->axes);
     if (!scale.defined()) {
       return Expr();
@@ -411,8 +411,8 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
     rnode->scale = slhs->scale;
     rnode->axes = slhs->axes;
   } else {
-    CHECK(srhs != nullptr);
-    CHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
+    ICHECK(srhs != nullptr);
+    ICHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
     Expr scale = ReshapeOrExpandToMatchAxis(srhs->scale, trhs->shape, srhs->axes);
     if (!scale.defined()) {
       return Expr();
@@ -441,12 +441,12 @@ Expr MultiplyForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
                             const Message& message) {
   if (!message.defined()) return Expr();
   const auto& expected_out_axes = message->axes;
-  CHECK(expected_out_axes.defined() && expected_out_axes.size());
+  ICHECK(expected_out_axes.defined() && expected_out_axes.size());
   // TODO(tvm-team) allow same axes accumulation
   // not as important because it is less common in nn.
   const auto* slhs = new_args[0].as<ScaledExprNode>();
   const auto* srhs = new_args[1].as<ScaledExprNode>();
-  CHECK(!slhs && !srhs);
+  ICHECK(!slhs && !srhs);
 
   const auto* tlhs = ref_call->args[0]->type_as<TensorTypeNode>();
   const auto* trhs = ref_call->args[1]->type_as<TensorTypeNode>();
@@ -480,13 +480,13 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
   // TODO(tvm-team) support general data layout
   // by transforming weight
   const auto* param = call->attrs.as<Conv2DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   Layout data_layout(param->data_layout);
   Layout kernel_layout(param->kernel_layout);
   int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
   int c_small_axis = data_layout.IndexOf(LayoutAxis::Get('c'));
 
-  CHECK_GE(c_big_axis, 0);
+  ICHECK_GE(c_big_axis, 0);
   Message none = NullValue<Message>();
   // For now, we only support simple pattern (no folded weight/data)
   // More general layout can be supported under the current framework.
@@ -520,11 +520,11 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   if (sdata == nullptr) return Expr();
   if (sweight != nullptr) return Expr();
   const auto* param = ref_call->attrs.as<Conv2DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   Layout data_layout(param->data_layout);
   Layout kernel_layout(param->kernel_layout);
   int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
-  CHECK_GE(c_big_axis, 0);
+  ICHECK_GE(c_big_axis, 0);
   int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
   int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
   int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
@@ -532,11 +532,11 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
 
   bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
   bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
-  CHECK(is_simple || is_blocking);
+  ICHECK(is_simple || is_blocking);
 
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(ref_call, param, kernel_layout);
-  CHECK(param->groups == 1 || is_depthwise_conv2d);
+  ICHECK(param->groups == 1 || is_depthwise_conv2d);
 
   Expr weight = new_args[1];
 
@@ -628,7 +628,7 @@ class BackwardPrep : private ExprVisitor {
     auto f = fprep.get(call->op, nullptr);
     if (f == nullptr) return;
     auto rit = ref_counter_.find(call);
-    CHECK(rit != ref_counter_.end());
+    ICHECK(rit != ref_counter_.end());
     // We only allow propagation of scale backward
     // if the expression is only referred by a single parent.
     if (rit->second != 1) return;
@@ -668,7 +668,7 @@ class BackwardTransformerNode : public Object, private ExprMutator {
     if (const CallNode* call_node = expr.as<CallNode>()) {
       return Transform(call_node, message, scale);
     } else {
-      CHECK(!message.defined()) << "outstanding scale";
+      ICHECK(!message.defined()) << "outstanding scale";
       return ExprMutator::VisitExpr(expr);
     }
   }
@@ -738,7 +738,7 @@ Expr BackwardTransformerNode::Transform(const CallNode* call_node, Message messa
     memo_[call] = new_expr;
     return new_expr;
   } else {
-    CHECK(!message.defined()) << "outstanding scale";
+    ICHECK(!message.defined()) << "outstanding scale";
     return NormalCallTransform(call_node);
   }
 }
@@ -807,13 +807,13 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
   StructuralEqual equal;
 
   if (lhs_message.defined() && rhs_message.defined()) {
-    CHECK(equal(lhs_message->axes, rhs_message->axes));
-    CHECK(equal(message->axes, lhs_message->axes));
+    ICHECK(equal(lhs_message->axes, rhs_message->axes));
+    ICHECK(equal(message->axes, lhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], message, scale);
     Expr rhs = transformer->Transform(call->args[1], message, scale);
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else if (lhs_message.defined()) {
-    CHECK(equal(message->axes, lhs_message->axes));
+    ICHECK(equal(message->axes, lhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], message, scale);
     Expr rhs = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
     Expr rhs_scale = ReshapeOrExpandToMatchAxis(scale, tlhs->shape, message->axes);
@@ -823,7 +823,7 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
     rhs = Multiply(rhs, rhs_scale);
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else if (rhs_message.defined()) {
-    CHECK(equal(message->axes, rhs_message->axes));
+    ICHECK(equal(message->axes, rhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
     Expr rhs = transformer->Transform(call->args[1], message, scale);
     Expr lhs_scale = ReshapeOrExpandToMatchAxis(scale, trhs->shape, message->axes);
@@ -852,13 +852,13 @@ RELAY_REGISTER_OP("subtract")
 // Multiply produces the scale-axis pair.
 Expr MultiplyBackwardTransform(const Call& call, const Message& message, const Expr& scale,
                                const BackwardTransformer& transformer) {
-  CHECK(!message.defined()) << "outstanding scale";
+  ICHECK(!message.defined()) << "outstanding scale";
   const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
   const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
   Message lhs_message = transformer->GetMessage(call->args[0]);
   Message rhs_message = transformer->GetMessage(call->args[1]);
   if (lhs_message.defined()) {
-    CHECK(lhs_message->axes.defined() && lhs_message->axes.size());
+    ICHECK(lhs_message->axes.defined() && lhs_message->axes.size());
     // NOTE we won't recursively call mutating on scale part.
     // since there  won't be scale chance within scale part.
     Expr rhs = call->args[1];
@@ -867,7 +867,7 @@ Expr MultiplyBackwardTransform(const Call& call, const Message& message, const E
       return transformer->Transform(call->args[0], lhs_message, rhs);
     }
   } else if (rhs_message.defined()) {
-    CHECK(rhs_message->axes.defined() && rhs_message->axes.size());
+    ICHECK(rhs_message->axes.defined() && rhs_message->axes.size());
     Expr lhs = call->args[0];
     if (MatchBroadcastToLeftAxes(trhs, tlhs, rhs_message->axes, &lhs) &&
         (!rhs_message->require_positive || IsAllPositiveConstant(lhs))) {
@@ -884,13 +884,13 @@ RELAY_REGISTER_OP("multiply")
 // Conv2D send out requirement of axis folding.
 Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   const auto* param = call->attrs.as<Conv2DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   Layout kernel_layout(param->kernel_layout);
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   int c_big_axis = out_layout.IndexOf(LayoutAxis::Get('C'));
   int c_small_axis = out_layout.IndexOf(LayoutAxis::Get('c'));
 
-  CHECK_GE(c_big_axis, 0);
+  ICHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
   // More general layout can be supported under the current framework.
   // By using a unified layout transformation.
@@ -921,11 +921,11 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
     return transformer->NormalCallTransform(call.operator->());
   }
   const auto* param = call->attrs.as<Conv2DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   Layout kernel_layout(param->kernel_layout);
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   int c_big_axis = out_layout.IndexOf(LayoutAxis::Get('C'));
-  CHECK_GE(c_big_axis, 0);
+  ICHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
   // TODO(tvm-team) support general data layout
   int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
@@ -934,10 +934,10 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  CHECK(param->groups == 1 || is_depthwise_conv2d);
+  ICHECK(param->groups == 1 || is_depthwise_conv2d);
   bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
   bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
-  CHECK(is_simple || is_blocking);
+  ICHECK(is_simple || is_blocking);
 
   Expr data = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
   Expr weight = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());

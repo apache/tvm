@@ -138,7 +138,7 @@ def schedule_batch_matmul(cfg, outs):
     return s
 
 
-def batch_matmul_cublas(x, y):
+def batch_matmul_cublas(x, y, out_shape=None):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -149,6 +149,9 @@ def batch_matmul_cublas(x, y):
 
     y : tvm.te.Tensor
         3-D with shape [batch, N, K]
+
+    out_shape : None
+        The output shape
 
     Returns
     -------
