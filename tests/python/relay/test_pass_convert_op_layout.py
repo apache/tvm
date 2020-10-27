@@ -966,6 +966,59 @@ def test_conv_strided_slice_convert_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_roi_pool_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        rois = relay.var("rois", shape=(32, 5))
+        y = relay.vision.roi_pool(
+            y, rois, pooled_size=(14, 14), spatial_scale=0.0625, layout="NCHW"
+        )
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(64, 64, 3, 3))
+        x = relay.layout_transform(x, "NCHW", "NHWC")
+        weight1 = relay.layout_transform(weight1, "OIHW", "HWIO")
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        rois = relay.var("rois", shape=(32, 5))
+        y = relay.vision.roi_pool(
+            y, rois, pooled_size=(14, 14), spatial_scale=0.0625, layout="NHWC"
+        )
+        ret = relay.layout_transform(y, "NHWC", "NCHW")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before()
+    desired_layouts = {
+        "nn.conv2d": ["NHWC", "HWIO"],
+        "vision.roi_pool": ["NHWC", "default"],
+    }
+    a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_default_keyword():
     """ Check that the default keyword selects correct TVM default layout. """
 
@@ -1253,6 +1306,7 @@ if __name__ == "__main__":
     test_conv_convert_kernel_layout()
     test_conv_transpose_convert_layout()
     test_conv_roi_align_convert_layout()
+    test_conv_roi_pool_convert_layout()
     test_conv_strided_slice_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()
