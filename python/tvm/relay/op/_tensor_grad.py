@@ -43,7 +43,7 @@ from .tensor import (
     equal,
     shape_of,
     log,
-    concatenate
+    concatenate,
 )
 from .transform import (
     broadcast_to_like,
@@ -62,7 +62,7 @@ from .transform import (
     split,
     squeeze,
     strided_set,
-    arange
+    arange,
 )
 
 
@@ -677,20 +677,24 @@ def cross_entropy_with_logits_grad(orig, grad):
 
 @register_gradient("take")
 def take_grad(orig, grad):
+    """
+    Returns the gradient of take.
+    """
+
     def make_scalar_tensor(v):
         if isinstance(v, int):
-            v = const(v, dtype='int32')
+            v = const(v, dtype="int32")
         return reshape(v, (1,))
 
     # TODO(@altanh): we currently assume indices are in range
     data, indices = orig.args
-    axis, mode = orig.attrs.axis, orig.attrs.mode
+    axis = orig.attrs.axis
     zero, one = map(make_scalar_tensor, [0, 1])
     data_grad = zeros_like(data)
     try:
         data_shape = data.checked_type.concrete_shape
-    except TypeError:
-        raise OpError('currently take_grad only supports data with concrete shape')
+    except TypeError as ty_err:
+        raise OpError("currently take_grad only supports data with concrete shape") from ty_err
     if axis is None:
         axis = 0
         data_grad = reshape(data_grad, (-1,))
@@ -710,7 +714,7 @@ def take_grad(orig, grad):
     elif len(indices.checked_type.shape) == 1:
         num_indices = take(shape_of(indices), zero, axis=0)
     else:
-        raise OpError('take_grad only supports scalar or 1D indices')
+        raise OpError("take_grad only supports scalar or 1D indices")
 
     def loop_cond(data_grad, i):
         return squeeze(less(i, num_indices))
@@ -731,8 +735,8 @@ def take_grad(orig, grad):
         return (next_data_grad, i + one)
 
     loop_vars = [
-        Var('data_grad', type_annotation=TensorType(data_shape, data.checked_type.dtype)),
-        Var('i', type_annotation=TensorType((1,), 'int32')),
+        Var("data_grad", type_annotation=TensorType(data_shape, data.checked_type.dtype)),
+        Var("i", type_annotation=TensorType((1,), "int32")),
     ]
 
     loop = while_loop(loop_cond, loop_vars, loop_body)
@@ -747,11 +751,17 @@ def take_grad(orig, grad):
 
 @register_gradient("contrib_reverse_reshape")
 def reverse_reshape_grad(orig, grad):
+    """
+    Returns the gradient of reverse_reshape (same as reshape).
+    """
     return [reshape_like(grad, orig.args[0])]
 
 
 @register_gradient("stack")
 def stack_grad(orig, grad):
+    """
+    Returns grad split across stacked inputs.
+    """
     stack_axis = int(orig.attrs.axis)
     sections = len(orig.args[0].checked_type.fields)
     splits = split(grad, sections, stack_axis)
@@ -761,6 +771,9 @@ def stack_grad(orig, grad):
 
 @register_gradient("squeeze")
 def squeeze_grad(orig, grad):
+    """
+    Returns grad expanded to input size.
+    """
     # this should work, can't use expand_dims since we lose
     # squeeze information when axis=None
     return [reshape_like(grad, orig.args[0])]
@@ -768,6 +781,9 @@ def squeeze_grad(orig, grad):
 
 @register_gradient("expand_dims")
 def expand_dims_grad(orig, grad):
+    """
+    Returns grad squeezed on expanded dims.
+    """
     axis = int(orig.attrs.axis)
     for _ in range(orig.attrs.num_newaxis):
         grad = squeeze(grad, axis=[axis])
@@ -776,12 +792,15 @@ def expand_dims_grad(orig, grad):
 
 @register_gradient("arange")
 def arange_grad(orig, grad):
+    """
+    Returns the gradient of arange.
+    """
     start, stop, step = orig.args
-    length = take(shape_of(orig), const(0, dtype='int32'), axis=0)
+    length = take(shape_of(orig), const(0, dtype="int32"), axis=0)
 
     grad_start = cast_like(_sum(grad), start)
     grad_stop = zeros_like(stop)
-    grad_step = cast_like(arange(length, dtype='int32'), grad) * grad
+    grad_step = cast_like(arange(length, dtype="int32"), grad) * grad
     grad_step = cast_like(_sum(grad_step), step)
 
     return [grad_start, grad_stop, grad_step]
