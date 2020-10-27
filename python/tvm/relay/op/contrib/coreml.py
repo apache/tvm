@@ -31,7 +31,8 @@ def _register_coreml_op(op_name):
 
     """
 
-    def _check_supported(attrs, args):
+    def _check_supported(expr):
+        attrs, args = expr.attrs, expr.args
         if op_name == "nn.conv2d":
             if not isinstance(args[1], Constant):
                 return False

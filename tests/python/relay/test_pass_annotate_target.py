@@ -179,7 +179,7 @@ def test_extern_dnnl_mobilenet():
 
 def test_multiple_ends():
     @tvm.ir.register_op_attr("nn.relu", "target.test")
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     def before():
@@ -221,8 +221,8 @@ def test_type_propagation():
     target = "test_type_propagation"
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
-        return args[0].checked_type.dtype == "float32"
+    def relu(expr):  # pylint: disable=unused-variable
+        return expr.args[0].checked_type.dtype == "float32"
 
     def before():
         x = relay.var("x", shape=(10, 10))
@@ -240,11 +240,11 @@ def test_tuple():
     target = "test_tuple"
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("concatenate", "target." + target)
-    def concatenate(attrs, args):  # pylint: disable=unused-variable
+    def concatenate(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that TupleNode is included in annotation when surrounded by supported nodes."""
@@ -331,11 +331,11 @@ def test_composite_function():
 
 def test_multiple_runs():
     @tvm.ir.register_op_attr("nn.relu", "target.A")
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("add", "target.B")
-    def add(attrs, args):  # pylint: disable=unused-variable
+    def add(expr):  # pylint: disable=unused-variable
         return True
 
     def before():
@@ -359,19 +359,19 @@ def test_if_else():
     target = "test_if_else"
 
     @tvm.ir.register_op_attr("equal", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("tanh", "target." + target)
-    def tanh(attrs, args):  # pylint: disable=unused-variable
+    def tanh(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("sigmoid", "target." + target)
-    def sigmoid(attrs, args):  # pylint: disable=unused-variable
+    def sigmoid(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("erf", "target." + target)
-    def erf(attrs, args):  # pylint: disable=unused-variable
+    def erf(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that If-else nodes compiles correctly when surrounded by supported nodes."""
@@ -430,15 +430,15 @@ def test_while_let():
     target = "test_while_let"
 
     @tvm.ir.register_op_attr("less", "target." + target)
-    def less(attrs, args):  # pylint: disable=unused-variable
+    def less(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("add", "target." + target)
-    def add(attrs, args):  # pylint: disable=unused-variable
+    def add(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("zeros_like", "target." + target)
-    def zeros_like(attrs, args):  # pylint: disable=unused-variable
+    def zeros_like(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that let nodes compiles correctly when surrounded by other nodes."""
@@ -514,15 +514,15 @@ def test_if_free_vars():
     target = "test_if_free_vars"
 
     @tvm.ir.register_op_attr("equal", "target." + target)
-    def equal(attrs, args):  # pylint: disable=unused-variable
+    def equal(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("sigmoid", "target." + target)
-    def sigmoid(attrs, args):  # pylint: disable=unused-variable
+    def sigmoid(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("erf", "target." + target)
-    def erf(attrs, args):  # pylint: disable=unused-variable
+    def erf(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that If-else nodes compiles correctly when surrounded by free variables"""
