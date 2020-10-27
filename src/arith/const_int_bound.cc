@@ -261,7 +261,10 @@ class ConstIntBoundAnalyzer::Impl
       ICHECK(!b.is_const(0)) << "floormod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->dtype);
+      int64_t b_min_cap = InfAwareAdd(b.min_value, 1);
+      int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+      return Intersect(MakeBound(std::min(0ll, b_min_cap), std::max(0ll, b_max_cap)),
+                       Everything(op->dtype));
     }
   }
 
