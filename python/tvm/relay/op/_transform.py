@@ -712,7 +712,7 @@ def split_shape_func(attrs, inputs, _):
     axis = get_const_int(attrs.axis)
 
     if axis < 0:
-        axis += inputs[0].shape[0]
+        axis += get_const_int(inputs[0].shape[0])
 
     num_out = (
         indices_or_sections
