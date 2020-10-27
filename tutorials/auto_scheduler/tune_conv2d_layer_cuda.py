@@ -90,15 +90,12 @@ print(task.compute_dag)
 # * see :any:`auto_scheduler.TuningOptions`,
 #   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
 
-if not os.path.exists("./logs"):
-    os.mkdir("./logs")
-
-logfile = os.path.join("./logs", "conv2d.json")
+log_file = "conv2d.json"
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile(logfile)],
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
 )
 
 ######################################################################
@@ -163,7 +160,7 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best(logfile, task.workload_key)
+inp, res = auto_scheduler.load_best(log_file, task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
@@ -183,15 +180,15 @@ func = tvm.build(sch, args, target)
 
 
 cost_model = auto_scheduler.XGBModel()
-cost_model.update_from_file(logfile)
+cost_model.update_from_file(log_file)
 search_policy = auto_scheduler.SketchPolicy(
-    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(logfile)]
+    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
 )
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=5,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile(logfile)],
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
 )
 sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
 
