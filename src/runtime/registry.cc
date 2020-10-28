@@ -146,3 +146,9 @@ int TVMFuncListGlobalNames(int* out_size, const char*** out_array) {
   *out_size = static_cast<int>(ret->ret_vec_str.size());
   API_END();
 }
+
+int TVMFuncRemoveGlobal(const char* name) {
+  API_BEGIN();
+  tvm::runtime::Registry::Remove(name);
+  API_END();
+}
