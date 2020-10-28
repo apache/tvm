@@ -575,10 +575,13 @@ def transpose_shape_func(attrs, inputs, _):
 
 
 @script
-def _squeeze_shape_func(data_shape, keep_axes):
+def _squeeze_shape_func(data_shape, keep_axes, remove_axes):
     out = output_tensor((len(keep_axes),), "int64")
     for i in const_range(len(keep_axes)):
         out[i] = data_shape[keep_axes[i]]
+
+    for i in const_range(len(remove_axes)):
+        assert data_shape[remove_axes[i]] == 1, "Removed dimension must have size 1"
 
     return out
 
@@ -590,10 +593,13 @@ def squeeze_shape_func(attrs, inputs, _):
     """
     axis = attrs.axis if attrs.axis is None else get_const_tuple(attrs.axis)
     keep_axes = []
+    remove_axes = []
     if axis is not None:
         for i in range(inputs[0].shape[0].value):
             if i not in axis:
                 keep_axes.append(i)
+            else:
+                remove_axes.append(i)
 
     # Due to current relay type system, it is possible even
     # a static kernel function needs shape function. To handle
@@ -601,7 +607,7 @@ def squeeze_shape_func(attrs, inputs, _):
     # for now.
     # TODO(kevinthesun): Enhance relay type system to avoid this.
     if keep_axes:
-        out = _squeeze_shape_func(inputs[0], convert(keep_axes))
+        out = _squeeze_shape_func(inputs[0], convert(keep_axes), convert(remove_axes))
     else:
         out = te.compute((), lambda *indices: 0)
     return [out]
@@ -704,6 +710,9 @@ def split_shape_func(attrs, inputs, _):
         ), "split_indices must be sorted"
 
     axis = get_const_int(attrs.axis)
+
+    if axis < 0:
+        axis += get_const_int(inputs[0].shape[0])
 
     num_out = (
         indices_or_sections
