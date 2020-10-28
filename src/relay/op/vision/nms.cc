@@ -31,7 +31,7 @@ TVM_REGISTER_NODE_TYPE(GetValidCountsAttrs);
 
 bool GetValidCountRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   const auto& dshape = data->shape;
@@ -45,17 +45,16 @@ bool GetValidCountRel(const Array<Type>& types, int num_inputs, const Attrs& att
   fields.push_back(TensorType(oshape_indices, DataType::Int(32)));
 
   // assign output type
-  reporter->Assign(types[1], TupleType(Array<Type>(fields)));
+  reporter->Assign(types[2], TupleType(Array<Type>(fields)));
   return true;
 }
 
-Expr MakeGetValidCounts(Expr data, double score_threshold, int id_index, int score_index) {
+Expr MakeGetValidCounts(Expr data, Expr score_threshold, int id_index, int score_index) {
   auto attrs = make_object<GetValidCountsAttrs>();
-  attrs->score_threshold = score_threshold;
   attrs->id_index = id_index;
   attrs->score_index = score_index;
   static const Op& op = Op::Get("vision.get_valid_counts");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(op, {data, score_threshold}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vision._make.get_valid_counts").set_body_typed(MakeGetValidCounts);
@@ -65,8 +64,9 @@ RELAY_REGISTER_OP("vision.get_valid_counts")
 a score threshold. Also moves valid boxes to the top of
 input data.
 )doc" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .add_argument("data", "Tensor", "Input data.")
+    .add_argument("score_threshold", "Tensor", "Minimum Score.")
     .set_support_level(5)
     .add_type_rel("GetValidCount", GetValidCountRel);
 

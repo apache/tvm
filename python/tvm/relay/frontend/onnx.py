@@ -2311,9 +2311,9 @@ class NonMaxSuppression(OnnxOpConverter):
         # Get parameter values
         boxes = inputs[0]
         scores = inputs[1]
-        max_output_boxes_per_class = inputs["max_output_boxes_per_class"]
-        iou_threshold = inputs["iou_threshold"]
-        score_threshold = inputs["score_threshold"]
+        max_output_boxes_per_class = inputs[2]
+        iou_threshold = inputs[3]
+        score_threshold = inputs[4]
 
         dtype = infer_type(boxes).checked_type.dtype
 
@@ -2323,10 +2323,20 @@ class NonMaxSuppression(OnnxOpConverter):
             ), "Only support center_point_box = 0 in onnx importer right now"
 
         if iou_threshold is None:
-            iou_threshold = 0.0
+            iou_threshold = _expr.const(0.0, dtype="float32")
         if score_threshold is None:
-            score_threshold = 0.0
+            score_threshold = _expr.const(0.0, dtype="float32")
 
+        def conditionally_squeeze_scalar(x):
+            rank = len(infer_shape(x))
+            assert rank <= 1, "nms thresholds must be scalars"
+            if rank == 1:
+                return _op.squeeze(x, [0])
+            return x
+
+        max_output_boxes_per_class = conditionally_squeeze_scalar(max_output_boxes_per_class)
+        iou_threshold = conditionally_squeeze_scalar(iou_threshold)
+        score_threshold = conditionally_squeeze_scalar(score_threshold)
         zero = _op.const(np.array([0]), dtype="int64")
         one = _op.const(np.array([1]), dtype="int64")
         three = _op.const(np.array([3]), dtype="int64")
@@ -2345,6 +2355,7 @@ class NonMaxSuppression(OnnxOpConverter):
             "max_output_boxes_per_class_var", shape=(), dtype="int64"
         )
         iou_threshold_var = _expr.var("iou_threshold_var", shape=(), dtype="float32")
+        score_threshold_var = _expr.var("score_threshold_var", shape=(), dtype="float32")
         B = _expr.var("B", shape=(1,), dtype="int64")
         C = _expr.var("C", shape=(1,), dtype="int64")
         S = _expr.var("S", shape=(1,), dtype="int64")
@@ -2362,6 +2373,7 @@ class NonMaxSuppression(OnnxOpConverter):
             S,
             max_output_boxes_per_class,
             iou_threshold,
+            score_threshold,
             onnx_out,
             nms_size_out,
         ):
@@ -2376,6 +2388,7 @@ class NonMaxSuppression(OnnxOpConverter):
             S,
             max_output_boxes_per_class,
             iou_threshold,
+            score_threshold,
             onnx_out,
             nms_size_out,
         ):
@@ -2427,6 +2440,7 @@ class NonMaxSuppression(OnnxOpConverter):
                 S,
                 max_output_boxes_per_class,
                 iou_threshold,
+                score_threshold,
                 _op.concatenate([onnx_out, new_onnx_out], axis=1),
                 _op.concatenate([nms_size_out, nms_size], axis=1),
             ]
@@ -2442,6 +2456,7 @@ class NonMaxSuppression(OnnxOpConverter):
                 S,
                 max_output_boxes_per_class_var,
                 iou_threshold_var,
+                score_threshold_var,
                 onnx_out,
                 nms_size_out,
             ],
@@ -2513,11 +2528,12 @@ class NonMaxSuppression(OnnxOpConverter):
             S,
             max_output_boxes_per_class,
             iou_threshold,
+            score_threshold,
             init_onnx_out,
             init_nms_size_out,
         )
-        onnx_output = _expr.TupleGetItem(loop_vals, 8)
-        nms_size_output = _expr.TupleGetItem(loop_vals, 9)
+        onnx_output = _expr.TupleGetItem(loop_vals, 9)
+        nms_size_output = _expr.TupleGetItem(loop_vals, 10)
 
         init_count = _op.const(np.array([0]).astype("int64"), dtype="int64")
         init_out = _op.const(np.array([]).reshape([0, 3]).astype("int64"), dtype="int64")

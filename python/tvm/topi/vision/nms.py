@@ -133,7 +133,7 @@ def hybrid_get_valid_counts(
         Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
         or [batch_size, num_anchors, 5].
 
-    score_threshold : tvm.tir.const
+    score_threshold : tvm.te.Tensor
         Lower limit of score for valid bounding boxes.
 
     id_index : tvm.tir.const
@@ -213,12 +213,13 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     out_indices: tvm.te.Tensor or numpy NDArray
         Related index in input data.
     """
-    score_threshold_const = tvm.tir.const(score_threshold, data.dtype)
+    if isinstance(score_threshold, float):
+        score_threshold = tvm.tir.const(score_threshold, dtype=data.dtype)
     id_index_const = tvm.tir.const(id_index, "int32")
     score_index_const = tvm.tir.const(score_index, "int32")
     return hybrid_get_valid_counts(
         data,
-        score_threshold_const,
+        score_threshold,
         id_index_const,
         score_index_const,
         tvm.tir.const(1, data.dtype),
