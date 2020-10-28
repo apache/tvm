@@ -467,6 +467,7 @@ inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I, const tvm::t
  * \param block_shape The size of the spatial block.
  * \param pad_before The zero-padding size before each spatial dimension.
  * \param pad_after The zero-padding size after each spatial dimension.
+ * \param pad_value The value used for padding.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
  *
