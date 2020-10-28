@@ -766,7 +766,7 @@ def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     y_data = np.random.uniform(size=y_shape).astype("float32")
 
     for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, (x_data, y_data))
+        res = veval(f, (x_data, y_data), ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
 
 
