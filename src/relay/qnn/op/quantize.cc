@@ -89,7 +89,7 @@ Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
   auto in_type = types[0];
   auto in_tensor_type = in_type.as<TensorTypeNode>();
   ICHECK(in_tensor_type != nullptr) << "Type information missing."
-                                   << " Please run infer_type pass.";
+                                    << " Please run infer_type pass.";
   Array<IndexExpr> input_shape = in_tensor_type->shape;
 
   const auto out_dtype = attrs->out_dtype;
