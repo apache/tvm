@@ -46,10 +46,7 @@ def get_tvm_runtime(script_module, input_name, ishape):
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
-        # opt_mod, opt_params = relay.optimize(mod, target="llvm -mcpu=cascadelake -libs=mkl", params=params)
-        # print(opt_mod["main"])
-        # lib = relay.build(mod, target="llvm -mcpu=cascadelake -libs=mkl", params=params)
-        lib = relay.build(mod, target="llvm -mcpu=cascadelake", params=params)
+        lib = relay.build(mod, target="llvm", params=params)
 
     runtime = tvm.contrib.graph_runtime.GraphModule(lib["default"](tvm.cpu(0)))
     return runtime
@@ -546,6 +543,3 @@ def test_quantize_dynamic():
             tvm_result = runtime.get_output(0).asnumpy()
 
             tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-4, atol=1e-4)
-
-
-test_quantize_dynamic()

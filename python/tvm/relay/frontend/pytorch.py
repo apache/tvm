@@ -3373,7 +3373,6 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
-
     outputs = _get_relay_input_vars(
         graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
     )
