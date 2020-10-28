@@ -22,5 +22,6 @@ def is_version_greater_than(ver):
     import torch
     import re
 
-    return version.parse(''.join(re.findall('(\d+\.)(\d+\.)(\d)',torch.__version__)[0])) > version.parse(
-        ''.join(re.findall('(\d+\.)(\d+\.)(\d)',ver)[0]))
+    return "".join(re.findall("(\d+\.)(\d+\.)(\d)", torch.__version__)[0]) > "".join(
+        re.findall("(\d+\.)(\d+\.)(\d)", ver)[0]
+    )
