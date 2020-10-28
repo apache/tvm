@@ -834,8 +834,8 @@ def _linear_dynamic():
         mx = _op.max(inp)
 
         # Ensure that the interval contains 0
-        mn = _op.minimum(mn, _op.const(0., dtype="float32"))
-        mx = _op.maximum(mx, _op.const(0., dtype="float32"))
+        mn = _op.minimum(mn, _op.const(0.0, dtype="float32"))
+        mx = _op.maximum(mx, _op.const(0.0, dtype="float32"))
 
         qmax = 255
 
