@@ -173,7 +173,7 @@ def _get_quant_param_for_input(input_value):
     # 6th and 7th arg are output scale and zp respectively.
 
     # PyTorch 1.6 changed qconv API
-    if is_version_greater_than("1.5.0"):
+    if is_version_greater_than("1.5.1"):
         qconv_indices = (2, 3)
     else:
         qconv_indices = (6, 7)
@@ -840,7 +840,7 @@ def _linear_dynamic():
         qmax = 255
 
         # reduce_range became True in v1.6
-        if is_version_greater_than("1.5.0"):
+        if is_version_greater_than("1.5.1"):
             qmax = 127
 
         scale = (mx - mn) / _expr.const(qmax, dtype="float32")
