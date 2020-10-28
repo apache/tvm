@@ -334,7 +334,9 @@ inline Tensor squeeze(const Tensor& x, Array<Integer> axis, bool atleast1d = fal
       if (val < 0) {
         val += static_cast<int>(x->shape.size());
       }
-      ICHECK_EQ(GetConstInt(x->shape[val]), 1) << "Dimension " << val << " must have size 1";
+      if (IsConstInt(x->shape[val])) {
+        ICHECK_EQ(GetConstInt(x->shape[val]), 1) << "Dimension " << val << " must have size 1";
+      }
       axis_val.push_back(val);
     }
   }

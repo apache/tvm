@@ -405,6 +405,7 @@ def verify_any_squeeze(data_shape, axis, static_data_shape):
 
 @tvm.testing.uses_gpu
 def test_any_squeeze():
+    verify_any_squeeze((relay.Any(), relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze((1, relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze(
         (1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17)
@@ -684,6 +685,7 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
 
 @tvm.testing.uses_gpu
 def test_any_split():
+    verify_any_split((relay.Any(), 4), 2, -1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
