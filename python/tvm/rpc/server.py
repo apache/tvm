@@ -235,12 +235,13 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         server_proc = multiprocessing.Process(
             target=_serve_loop, args=(conn, addr, load_library, work_path)
         )
-        server_proc.deamon = True
+
         server_proc.start()
         # close from our side.
         conn.close()
         # wait until server process finish or timeout
         server_proc.join(opts.get("timeout", None))
+
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
             # pylint: disable=import-outside-toplevel
@@ -280,7 +281,6 @@ def _connect_proxy_loop(addr, key, load_library):
             opts = _parse_server_opt(remote_key.split()[1:])
             logger.info("connected to %s", str(addr))
             process = multiprocessing.Process(target=_serve_loop, args=(sock, addr, load_library))
-            process.deamon = True
             process.start()
             sock.close()
             process.join(opts.get("timeout", None))
@@ -362,8 +362,6 @@ class Server(object):
         load_library=None,
         custom_addr=None,
         silent=False,
-        utvm_dev_id=None,
-        utvm_dev_config_args=None,
     ):
         try:
             if _ffi_api.ServerLoop is None:
@@ -397,10 +395,6 @@ class Server(object):
                 cmd += ["--custom-addr", custom_addr]
             if silent:
                 cmd += ["--silent"]
-            if utvm_dev_id is not None:
-                assert utvm_dev_config_args is not None
-                cmd += [f"--utvm-dev-id={utvm_dev_id}"]
-                cmd += [f"--utvm-dev-config-args={utvm_dev_config_args}"]
 
             # prexec_fn is not thread safe and may result in deadlock.
             # python 3.2 introduced the start_new_session parameter as
@@ -437,13 +431,11 @@ class Server(object):
                 target=_listen_loop,
                 args=(self.sock, self.port, key, tracker_addr, load_library, self.custom_addr),
             )
-            self.proc.deamon = True
             self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key, load_library)
             )
-            self.proc.deamon = True
             self.proc.start()
 
     def terminate(self):
