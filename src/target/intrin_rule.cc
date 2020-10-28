@@ -130,6 +130,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.q_multiply_shift")
 
       // Lambda function to extract the int value from PrimExpr
       auto get_int_value = [](const PrimExpr node) {
+        if (auto int_node = node.as<IntImmNode>()) {
+          return int_node->value;
+        }
         auto broadcast_node = node.as<BroadcastNode>();
         CHECK(broadcast_node != nullptr);
         auto int_node = broadcast_node->value.as<IntImmNode>();
