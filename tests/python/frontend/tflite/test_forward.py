@@ -2556,8 +2556,8 @@ def test_forward_padv2():
             np.array([2], dtype=np.float32),
         ]
     )
-    # NOTE: In recent version, there is a bug in Tensorflow package for this scenario.
-    #       Hence, it is disabled temporarily for latest TF version.
+    # NOTE: In versions > 2.1.0, there is a bug in Tensorflow package for this scenario.
+    #       Hence, it is disabled temporarily for TF version > 2.1.0 .
     if package_version.parse(tf.VERSION) <= package_version.parse("2.1.0"):
         _test_padv2(
             [
@@ -2576,8 +2576,8 @@ def test_forward_padv2():
             np.float32(2),
         ]
     )
-    # NOTE: In recent version, there is a bug in Tensorflow package for this scenario.
-    #       Hence, it is disabled temporarily for latest TF version.
+    # NOTE: In versions > 2.1.0, there is a bug in Tensorflow package for this scenario.
+    #       Hence, it is disabled temporarily for TF versions > 2.1.0.
     if package_version.parse(tf.VERSION) <= package_version.parse("2.1.0"):
         _test_padv2(
             [
