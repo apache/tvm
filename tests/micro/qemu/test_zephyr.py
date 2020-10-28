@@ -21,7 +21,9 @@ import datetime
 import glob
 import os
 import subprocess
+import sys
 
+import pytest
 import numpy as np
 
 import tvm
@@ -36,19 +38,20 @@ BUILD = True
 DEBUG = False
 
 
-TARGET = tvm.target.target.micro("host")
+TARGET = None
 
 
-def _make_sess_from_op(op_name, sched, arg_bufs):
+def _make_sess_from_op(model, zephyr_board, op_name, sched, arg_bufs):
+    target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, TARGET, target_host=TARGET, name=op_name)
+        mod = tvm.build(sched, arg_bufs, target, target_host=target, name=op_name)
 
-    return _make_session(mod)
+    return _make_session(model, target, zephyr_board, mod)
 
 
-def _make_session(mod):
-    prev_build = f"{os.path.splitext(__file__)[0]}-last-build.micro-binary"
-    test_name = os.path.splitext(os.path.abspath(__file__))[0]
+def _make_session(model, target, zephyr_board, mod):
+    test_name = f"{os.path.splitext(os.path.abspath(__file__))[0]}-{model}"
+    prev_build = f"{test_name}-last-build.micro-binary"
     workspace_root = (
         f'{test_name}-workspace/{datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")}'
     )
@@ -60,7 +63,7 @@ def _make_session(mod):
     project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
     compiler = zephyr.ZephyrCompiler(
         project_dir=project_dir,
-        board="qemu_x86",
+        board="nucleo_f746zg" if "stm32f746" in str(target) else "qemu_x86",
         zephyr_toolchain_variant="zephyr",
     )
 
@@ -101,23 +104,27 @@ def _make_session(mod):
     return tvm.micro.Session(**session_kw)
 
 
-def _make_add_sess():
+def _make_add_sess(model, zephyr_board):
     A = tvm.te.placeholder((2,), dtype="int8")
     B = tvm.te.placeholder((1,), dtype="int8")
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
-    return _make_sess_from_op("add", sched, [A, B, C])
+    return _make_sess_from_op(model, zephyr_board, "add", sched, [A, B, C])
 
 
-def _make_ident_sess():
-    A = tvm.te.placeholder((2,), dtype="int8")
-    B = tvm.te.compute(A.shape, lambda i: A[i], name="B")
-    sched = tvm.te.create_schedule(B.op)
-    return _make_sess_from_op("ident", sched, [A, B])
+# The models that should pass this configuration. Maps a short, identifying platform string to
+# (model, zephyr_board).
+PLATFORMS = {
+    "host": ("host", "qemu_x86"),
+    "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
+}
 
 
-def test_compile_runtime():
+# The same test code can be executed on both the QEMU simulation and on real hardware.
+def test_compile_runtime(platform):
     """Test compiling the on-device runtime."""
+
+    model, zephyr_board = PLATFORMS[platform]
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
     def test_basic_add(sess):
@@ -132,12 +139,9 @@ def test_compile_runtime():
         system_lib.get_function("add")(A_data, B_data, C_data)
         assert (C_data.asnumpy() == np.array([6, 7])).all()
 
-    with _make_add_sess() as sess:
+    with _make_add_sess(model, zephyr_board) as sess:
         test_basic_add(sess)
 
 
 if __name__ == "__main__":
-    import logging
-
-    logging.basicConfig(level=logging.DEBUG)
-    test_compile_runtime()
+    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
