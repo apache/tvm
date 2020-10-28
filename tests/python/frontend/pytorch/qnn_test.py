@@ -199,7 +199,7 @@ class SqueezeExcite(nn.Module):
 
 # test on quantized::mul_scalar with negative scale
 class MulScalarNegative(nn.Module):
-    def __init__(self,):
+    def __init__(self):
         super().__init__()
         self.float_op = nn.quantized.FloatFunctional()
         self.quant = QuantStub()
@@ -337,7 +337,7 @@ def test_quantized_imagenet():
 
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         return transforms.Compose(
-            [transforms.Resize(256), transforms.CenterCrop(224), transforms.ToTensor(), normalize,]
+            [transforms.Resize(256), transforms.CenterCrop(224), transforms.ToTensor(), normalize]
         )
 
     def get_real_image(im_height, im_width):
@@ -545,6 +545,3 @@ def test_quantize_dynamic():
             # Outputs from v1.6 seem reliable. TVM's outputs are always the same
             if is_version_greater_than("1.5.1"):
                 tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-4, atol=1e-4)
-
-
-test_quantize_dynamic()
