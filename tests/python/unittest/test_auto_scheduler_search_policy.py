@@ -18,6 +18,7 @@
 """Test search policy"""
 
 import random
+import multiprocessing
 import numpy as np
 import tempfile
 
@@ -123,6 +124,19 @@ def test_sketch_search_policy_basic():
     t.join()
 
 
+def sketch_search_policy_basic_spawn():
+    assert multiprocessing.get_start_method(False) == "spawn"
+    test_sketch_search_policy_basic()
+
+
+@tvm.testing.requires_llvm
+def test_sketch_search_policy_basic_spawn():
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=sketch_search_policy_basic_spawn)
+    p.start()
+    p.join()
+
+
 @tvm.testing.requires_llvm
 def test_sketch_search_policy_xgbmodel():
     # wrap the search in a new thread to avoid the conflict
@@ -179,6 +193,7 @@ def test_sketch_search_policy_cuda_xgbmodel_rpc_runner():
 if __name__ == "__main__":
     test_workload_registry_search_basic()
     test_sketch_search_policy_basic()
+    test_sketch_search_policy_basic_spawn()
     test_sketch_search_policy_xgbmodel()
     test_sketch_search_policy_cuda_rpc_runner()
     test_sketch_search_policy_cuda_xgbmodel_rpc_runner()
