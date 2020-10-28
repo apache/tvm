@@ -177,16 +177,7 @@ def compile_model(
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
 
-    # Handle the case in which target is a path to a JSON file.
-    if os.path.exists(target):
-        with open(target) as target_file:
-            logger.info("using target input from file: %s", target)
-            target = "".join(target_file.readlines())
-
-    # TODO(@leandron) We don't have an API to collect a list of supported
-    #       targets yet
-    logger.debug("creating target from input: %s", target)
-    tvm_target = tvm.target.Target(target)
+    tvm_target = common.target_from_cli(target)
     target_host = target_host or ""
 
     if tuning_records and os.path.exists(tuning_records):

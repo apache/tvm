@@ -76,7 +76,6 @@ def convert_graph_layout(mod, desired_layout):
             )
 
 
-# TODO In a separate PR, eliminate the duplicated code here and in compiler.py (@leandron)
 def target_from_cli(target):
     """
     Create a tvm.target.Target instance from a
