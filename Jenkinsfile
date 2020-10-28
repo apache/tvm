@@ -50,6 +50,7 @@ ci_cpu = "tlcpack/ci-cpu:v0.70"
 ci_wasm = "tlcpack/ci-wasm:v0.70"
 ci_i386 = "tlcpack/ci-i386:v0.70"
 ci_qemu = "tlcpack/ci-qemu:v0.01"
+ci_arm = "tlcpack/ci-arm:v0.01"
 // <--- End of regex-scanned config.
 
 // tvm libraries
@@ -212,6 +213,16 @@ stage('Build') {
       }
     }
   },
+  'BUILD : arm': {
+    node('ARM') {
+      ws(per_exec_ws("tvm/build-arm")) {
+        init_git()
+        sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
+        make(ci_arm, 'build', '-j2')
+        pack_lib('arm', tvm_multilib)
+      }
+    }
+  },
   'BUILD: QEMU': {
     node('CPU') {
       ws(per_exec_ws("tvm/build-qemu")) {
@@ -249,6 +260,18 @@ stage('Unit Test') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
+        }
+      }
+    }
+  },
+  'python3: arm': {
+    node('ARM') {
+      ws(per_exec_ws("tvm/ut-python-arm")) {
+        init_git()
+        unpack_lib('arm', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+          // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }
       }
     }
