@@ -754,5 +754,21 @@ def test_vm_reshape_tensor():
     check_result([x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 
+def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
+    tup = relay.var(
+        "tup",
+        type_annotation=relay.TupleType([relay.TensorType(x_shape), relay.TensorType(y_shape)]),
+    )
+    out = relay.reshape(relay.TupleGetItem(tup, 0), (1, -1))
+    f = relay.Function([tup], out)
+
+    x_data = np.random.uniform(size=x_shape).astype("float32")
+    y_data = np.random.uniform(size=y_shape).astype("float32")
+
+    for tgt, ctx in tvm.testing.enabled_targets():
+        res = veval(f, (x_data, y_data), ctx=ctx, target=tgt)
+        tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
