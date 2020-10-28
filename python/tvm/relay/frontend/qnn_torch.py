@@ -575,13 +575,7 @@ def _quantized_conv2d(with_relu=False):
         )
 
         return _do_bias_and_requantize(
-            conv_out,
-            bias,
-            input_scale,
-            weight_scale,
-            output_scale,
-            output_zero_point,
-            with_relu,
+            conv_out, bias, input_scale, weight_scale, output_scale, output_zero_point, with_relu
         )
 
     return _impl
@@ -879,7 +873,9 @@ def _linear_dynamic():
         bias_var = inputs[1][3]
 
         dequant_scale = input_scale * weight_scale
-        dense_out = _op.cast(dense, "float32") * dequant_scale
+        dense_out = relay.qnn.op.dequantize(
+            dense, dequant_scale, input_zero_point=relay.const(0, "int32"), axis=1
+        )
 
         if len(data_shape) > 2:
             new_shape = list(data_shape[:-1])
