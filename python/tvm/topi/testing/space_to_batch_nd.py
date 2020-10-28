@@ -19,7 +19,7 @@
 import numpy as np
 
 
-def space_to_batch_nd_python(data, block_shape, pad_before, pad_after):
+def space_to_batch_nd_python(data, block_shape, pad_before, pad_after, pad_value=0):
     """Space to Batch operator in python for NHWC layout.
 
     Parameters
@@ -40,6 +40,9 @@ def space_to_batch_nd_python(data, block_shape, pad_before, pad_after):
         list of shape [M] where M is number of spatial dims, specifies
         zero-padding size after each spatial dimension.
 
+    pad_value : float, optional
+        the value used for padding. Defaults to 0.
+
     Returns
     -------
     s2b_out : np.ndarray
@@ -56,7 +59,7 @@ def space_to_batch_nd_python(data, block_shape, pad_before, pad_after):
     # Add the paddings for batch and remaining dims
     paddings = map(list, zip(pad_before, pad_after))
     paddings = [[0, 0]] + list(paddings) + [[0, 0]] * (data.ndim - 1 - M)
-    padded_data = np.pad(data, paddings, mode="constant")
+    padded_data = np.pad(data, paddings, mode="constant", constant_values=pad_value)
     padded_shape = padded_data.shape
 
     # Get the reshape shape and transpose axes

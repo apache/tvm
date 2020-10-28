@@ -1149,10 +1149,12 @@ RELAY_REGISTER_OP("nn.space_to_depth")
 // used by frontend FFI
 TVM_REGISTER_NODE_TYPE(SpaceToBatchNDAttrs);
 
-Expr MakeSpaceToBatchND(Expr data, Array<Integer> block_shape, Array<Array<IndexExpr>> paddings) {
+Expr MakeSpaceToBatchND(Expr data, Array<Integer> block_shape, Array<Array<IndexExpr>> paddings,
+                        double pad_value) {
   auto attrs = make_object<SpaceToBatchNDAttrs>();
   attrs->block_shape = std::move(block_shape);
   attrs->paddings = std::move(paddings);
+  attrs->pad_value = pad_value;
   static const Op& op = Op::Get("nn.space_to_batch_nd");
   return Call(op, {data}, Attrs(attrs), {});
 }
@@ -1225,8 +1227,10 @@ Array<te::Tensor> SpaceToBatchNDCompute(const Attrs& attrs, const Array<te::Tens
   for (size_t i = 0; i < paddings.size(); ++i) {
     pad_after.push_back(paddings[i][1]);
   }
-
-  return Array<te::Tensor>{topi::space_to_batch_nd(inputs[0], b_shape, pad_before, pad_after)};
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return Array<te::Tensor>{
+      topi::space_to_batch_nd(inputs[0], b_shape, pad_before, pad_after,
+                              tvm::tir::make_const(out_ttype->dtype, param->pad_value))};
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.space_to_batch_nd").set_body_typed(MakeSpaceToBatchND);

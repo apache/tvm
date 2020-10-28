@@ -3158,7 +3158,7 @@ def correlation(
     )
 
 
-def space_to_batch_nd(data, block_shape, paddings):
+def space_to_batch_nd(data, block_shape, paddings, pad_value=0):
     r"""Divide spatial dimensions of the data into a grid of blocks
     and interleave them into batch dim.
 
@@ -3175,6 +3175,9 @@ def space_to_batch_nd(data, block_shape, paddings):
         2-D of shape [M, 2] where M is number of spatial dims, specifies
         [before, after] paddings for each spatial dimension.
 
+    pad_value : float, or relay.Expr, optional, default=0
+        The value used for padding.
+
     Returns
     -------
     result : relay.Expr
@@ -3184,7 +3187,7 @@ def space_to_batch_nd(data, block_shape, paddings):
         remaining_shape]
     """
 
-    return _make.space_to_batch_nd(data, block_shape, paddings)
+    return _make.space_to_batch_nd(data, block_shape, paddings, pad_value)
 
 
 def batch_to_space_nd(data, block_shape, crops):

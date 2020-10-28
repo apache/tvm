@@ -58,7 +58,7 @@ TVM_REGISTER_GLOBAL("topi.nn.pad").set_body([](TVMArgs args, TVMRetValue* rv) {
 });
 
 TVM_REGISTER_GLOBAL("topi.nn.space_to_batch_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = space_to_batch_nd(args[0], args[1], args[2], args[3]);
+  *rv = space_to_batch_nd(args[0], args[1], args[2], args[3], args[4]);
 });
 
 TVM_REGISTER_GLOBAL("topi.nn.batch_to_space_nd").set_body([](TVMArgs args, TVMRetValue* rv) {

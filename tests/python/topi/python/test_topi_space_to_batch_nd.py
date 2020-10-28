@@ -23,7 +23,7 @@ import tvm.testing
 import tvm.topi.testing
 
 
-def verify_space_to_batch_nd(input_shape, block_shape, pad_before, pad_after):
+def verify_space_to_batch_nd(input_shape, block_shape, pad_before, pad_after, pad_value=0):
     out_shape = []
     out_shape.append(int((input_shape[0] * np.prod(block_shape))))
     for i in range(1, len(block_shape) + 1):
@@ -36,9 +36,11 @@ def verify_space_to_batch_nd(input_shape, block_shape, pad_before, pad_after):
     dtype = A.dtype
     a_np = np.random.uniform(size=input_shape).astype(dtype)
 
-    B = topi.nn.space_to_batch_nd(A, block_shape, pad_before, pad_after)
+    B = topi.nn.space_to_batch_nd(A, block_shape, pad_before, pad_after, pad_value)
 
-    b_np = tvm.topi.testing.space_to_batch_nd_python(a_np, block_shape, pad_before, pad_after)
+    b_np = tvm.topi.testing.space_to_batch_nd_python(
+        a_np, block_shape, pad_before, pad_after, pad_value
+    )
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)

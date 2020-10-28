@@ -20,7 +20,7 @@ from __future__ import absolute_import
 from . import cpp
 
 
-def space_to_batch_nd(data, block_shape, pad_before, pad_after):
+def space_to_batch_nd(data, block_shape, pad_before, pad_after, pad_value=0.0):
     """Perform batch to space transformation on the data
 
     Parameters
@@ -41,9 +41,12 @@ def space_to_batch_nd(data, block_shape, pad_before, pad_after):
         list of shape [M] where M is number of spatial dims, specifies
         zero-padding size after each spatial dimension.
 
+    pad_value : float, optional
+        The value used for padding.
+
     Returns
     -------
     output : tvm.te.Tensor
     """
 
-    return cpp.nn.space_to_batch_nd(data, block_shape, pad_before, pad_after)
+    return cpp.nn.space_to_batch_nd(data, block_shape, pad_before, pad_after, pad_value)

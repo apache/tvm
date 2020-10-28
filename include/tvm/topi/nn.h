@@ -476,6 +476,7 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
                                          const tvm::Array<Integer>& block_shape,
                                          const tvm::Array<tvm::PrimExpr>& pad_before,
                                          const tvm::Array<tvm::PrimExpr>& pad_after,
+                                         PrimExpr pad_value = PrimExpr(),
                                          std::string name = "space_to_batch_nd",
                                          std::string tag = kInjective) {
   tvm::te::Tensor padded_t;
@@ -497,7 +498,10 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   }
 
   // pad the input with paddings provided
-  padded_t = pad(data, pad_before_int32, pad_after_int32, make_const(DataType::Int(32), 0));
+  if (!pad_value.defined()) {
+    pad_value = tvm::tir::make_const(data->dtype, 0);
+  }
+  padded_t = pad(data, pad_before_int32, pad_after_int32, pad_value);
 
   auto input_shape = data->shape;
   auto padded_shape = padded_t->shape;
@@ -507,12 +511,12 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
   tvm::Array<Integer> axis;
   tvm::Array<PrimExpr> o_shape;
 
-  size_t M = block_shape.size();
+  size_t num_block_dims = block_shape.size();
   int batch = static_cast<int>(GetConstInt(input_shape[0]));
   tvm::PrimExpr block_shape_prod(1);
   r_shape.push_back(batch);
 
-  for (size_t i = 1; i <= M; i++) {
+  for (size_t i = 1; i <= num_block_dims; i++) {
     int padded_input = static_cast<int>(GetConstInt(padded_shape[i]));
     int block_size = static_cast<int>(GetConstInt(block_shape[i - 1]));
     CHECK_EQ((padded_input % block_size), 0)
@@ -535,11 +539,11 @@ inline tvm::te::Tensor space_to_batch_nd(const tvm::te::Tensor& data,
     axis.push_back(static_cast<int>(GetConstInt(axis[i] - 1)));
   }
   o_shape.push_back(tvm::PrimExpr(batch) * block_shape_prod);
-  for (size_t i = 1; i <= M; i++) {
+  for (size_t i = 1; i <= num_block_dims; i++) {
     o_shape.push_back(div(padded_shape[i], block_shape[i - 1]));
   }
   // append remaining shape
-  for (size_t i = M + 1; i < input_shape.size(); i++) {
+  for (size_t i = num_block_dims + 1; i < input_shape.size(); i++) {
     r_shape.push_back(input_shape[i]);
     axis.push_back(Integer(r_shape.size() - 1));  // index of remaining shape in r_shape
     o_shape.push_back(input_shape[i]);
@@ -574,32 +578,32 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   Array<PrimExpr> in_shape = data->shape;
   Array<PrimExpr> r_shape;
   Array<Integer> axis;
-  size_t M = block_shape.size();
-  size_t N = in_shape.size();
+  size_t num_block_dims = block_shape.size();
+  size_t num_input_dims = in_shape.size();
   tvm::PrimExpr block_shape_prod(1);
   int batch = static_cast<int>(GetConstInt(in_shape[0]));
 
-  for (size_t i = 0; i < M; i++) {
+  for (size_t i = 0; i < num_block_dims; i++) {
     r_shape.push_back(block_shape[i]);
     block_shape_prod *= block_shape[i];
   }
   axis.push_back(Integer(r_shape.size()));  // axis of (batch / block_shape_prod)
   r_shape.push_back(batch / block_shape_prod);
 
-  for (size_t i = 1; i < N; i++) {
+  for (size_t i = 1; i < num_input_dims; i++) {
     axis.push_back(Integer(r_shape.size()));  // axis of in_shape[i]
-    if (axis.size() < (M + N)) {
-      axis.push_back(Integer(r_shape.size() - (M + 1)));  // axis of block_shape[i]
+    if (axis.size() < (num_block_dims + num_input_dims)) {
+      axis.push_back(Integer(r_shape.size() - (num_block_dims + 1)));  // axis of block_shape[i]
     }
     r_shape.push_back(in_shape[i]);
   }
 
   Array<PrimExpr> r_p_shape;
   r_p_shape.push_back(batch / block_shape_prod);
-  for (size_t i = 1; i <= M; i++) {
+  for (size_t i = 1; i <= num_block_dims; i++) {
     r_p_shape.push_back(in_shape[i] * block_shape[i - 1]);
   }
-  for (size_t i = M + 1; i < N; i++) {
+  for (size_t i = num_block_dims + 1; i < num_input_dims; i++) {
     r_p_shape.push_back(in_shape[i]);
   }
 
@@ -612,7 +616,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   Array<Integer> begin_idx, end_idx, strides;
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
     strides.push_back(Integer(1));
-    if (i > 0 && i <= M) {
+    if (i > 0 && i <= num_block_dims) {
       // prepare begin and end index for spatial dimensions
       int begin_i = static_cast<int>(GetConstInt(crop_begin_list[i - 1]));
       int end_i = static_cast<int>(GetConstInt(crop_end_list[i - 1]));
