@@ -20,8 +20,11 @@ from __future__ import absolute_import
 
 from tvm.topi.nn.util import get_pad_tuple
 from tvm.topi.util import get_const_tuple
+from tvm.error import OpError
 
-from ..expr import Tuple, TupleGetItem, const
+from ..expr import Tuple, TupleGetItem, const, Var
+from ..ty import TensorType
+from ..loops import while_loop
 from . import nn as _nn
 from .op import register_gradient
 from .reduce import sum as _sum
@@ -40,6 +43,7 @@ from .tensor import (
     equal,
     shape_of,
     log,
+    concatenate,
 )
 from .transform import (
     broadcast_to_like,
@@ -55,6 +59,10 @@ from .transform import (
     repeat,
     expand_dims,
     full_like,
+    split,
+    squeeze,
+    strided_set,
+    arange,
 )
 
 
@@ -665,3 +673,134 @@ def cross_entropy_with_logits_grad(orig, grad):
     batch_size = take(shape, const(0, dtype="int32"), axis=0)
     grad = grad / batch_size.astype(x.checked_type.dtype)
     return [-grad * y, -grad * x]
+
+
+@register_gradient("take")
+def take_grad(orig, grad):
+    """
+    Returns the gradient of take.
+    """
+
+    def make_scalar_tensor(v):
+        if isinstance(v, int):
+            v = const(v, dtype="int32")
+        return reshape(v, (1,))
+
+    # TODO(@altanh): we currently assume indices are in range
+    data, indices = orig.args
+    axis = orig.attrs.axis
+    zero, one = map(make_scalar_tensor, [0, 1])
+    data_grad = zeros_like(data)
+    try:
+        data_shape = data.checked_type.concrete_shape
+    except TypeError as ty_err:
+        raise OpError("currently take_grad only supports data with concrete shape") from ty_err
+    if axis is None:
+        axis = 0
+        data_grad = reshape(data_grad, (-1,))
+        data_shape = 1
+        for dim in data.checked_type.concrete_shape:
+            data_shape *= dim
+        data_shape = (data_shape,)
+    else:
+        axis = int(axis)
+    strides = [1] * len(data_shape)
+
+    if len(indices.checked_type.shape) == 0:
+        # axis on grad has been squeezed in this case
+        num_indices = one
+        indices = reshape(indices, (1,))
+        grad = expand_dims(grad, int(axis))
+    elif len(indices.checked_type.shape) == 1:
+        num_indices = take(shape_of(indices), zero, axis=0)
+    else:
+        raise OpError("take_grad only supports scalar or 1D indices")
+
+    def loop_cond(data_grad, i):
+        return squeeze(less(i, num_indices))
+
+    def loop_body(data_grad, i):
+        index = take(indices, i, axis=0)
+        grad_slice = take(grad, i, axis=axis)
+        begin, end = [], []
+        for ax, size in enumerate(data_shape):
+            size = make_scalar_tensor(size)
+            begin.append(zero if ax != axis else index)
+            end.append(size if ax != axis else index + one)
+        begin, end = concatenate(begin, axis=0), concatenate(end, axis=0)
+        # data_grad[:,...,index at axis,...,:] += grad_slice
+        update = strided_slice(data_grad, begin, end, strides=strides)
+        update = update + grad_slice  # no need to expand grad_slice since i has shape (1,)
+        next_data_grad = strided_set(data_grad, update, begin, end, strides=strides)
+        return (next_data_grad, i + one)
+
+    loop_vars = [
+        Var("data_grad", type_annotation=TensorType(data_shape, data.checked_type.dtype)),
+        Var("i", type_annotation=TensorType((1,), "int32")),
+    ]
+
+    loop = while_loop(loop_cond, loop_vars, loop_body)
+    result = loop(data_grad, zero)
+    data_grad = TupleGetItem(result, 0)
+
+    if orig.attrs.axis is None:
+        data_grad = reshape_like(data_grad, data)
+
+    return [data_grad, zeros_like(orig.args[1])]
+
+
+@register_gradient("contrib_reverse_reshape")
+def reverse_reshape_grad(orig, grad):
+    """
+    Returns the gradient of reverse_reshape (same as reshape).
+    """
+    return [reshape_like(grad, orig.args[0])]
+
+
+@register_gradient("stack")
+def stack_grad(orig, grad):
+    """
+    Returns grad split across stacked inputs.
+    """
+    stack_axis = int(orig.attrs.axis)
+    sections = len(orig.args[0].checked_type.fields)
+    splits = split(grad, sections, stack_axis)
+    splits = Tuple([squeeze(x, axis=[stack_axis]) for x in splits])
+    return [splits]
+
+
+@register_gradient("squeeze")
+def squeeze_grad(orig, grad):
+    """
+    Returns grad expanded to input size.
+    """
+    # this should work, can't use expand_dims since we lose
+    # squeeze information when axis=None
+    return [reshape_like(grad, orig.args[0])]
+
+
+@register_gradient("expand_dims")
+def expand_dims_grad(orig, grad):
+    """
+    Returns grad squeezed on expanded dims.
+    """
+    axis = int(orig.attrs.axis)
+    for _ in range(orig.attrs.num_newaxis):
+        grad = squeeze(grad, axis=[axis])
+    return [grad]
+
+
+@register_gradient("arange")
+def arange_grad(orig, grad):
+    """
+    Returns the gradient of arange.
+    """
+    start, stop, step = orig.args
+    length = take(shape_of(orig), const(0, dtype="int32"), axis=0)
+
+    grad_start = cast_like(_sum(grad), start)
+    grad_stop = zeros_like(stop)
+    grad_step = cast_like(arange(length, dtype="int32"), grad) * grad
+    grad_step = cast_like(_sum(grad_step), step)
+
+    return [grad_start, grad_stop, grad_step]
