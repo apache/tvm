@@ -20,11 +20,13 @@ import tempfile
 
 import numpy as np
 
+import tvm
 from tvm import auto_scheduler
 
 from test_auto_scheduler_common import matmul_auto_scheduler_test
 
 
+@tvm.testing.requires_llvm
 def test_task_scheduler_round_robin():
     tasks = []
     for n in [2, 4, 8]:
@@ -68,6 +70,7 @@ def test_task_scheduler_round_robin():
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
 
+@tvm.testing.requires_llvm
 def test_task_scheduler_gradient():
     tasks = []
     for n in [2, 4]:
