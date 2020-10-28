@@ -524,8 +524,10 @@ def test_quantize_dynamic():
     torch.manual_seed(0)
     mod = LinearWrapper(16, 32)
 
-    for qconfig in [torch.quantization.per_channel_dynamic_qconfig,
-                    torch.quantization.default_dynamic_qconfig]:
+    for qconfig in [
+        torch.quantization.per_channel_dynamic_qconfig,
+        torch.quantization.default_dynamic_qconfig,
+    ]:
         for ishape in [(16, 16), (10, 16, 16)]:
             qspec = {nn.Linear: qconfig}
             qmod = torch.quantization.quantize_dynamic(mod, qconfig_spec=qspec, dtype=torch.qint8)
