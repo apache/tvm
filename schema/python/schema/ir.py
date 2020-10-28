@@ -1,9 +1,10 @@
-from pprint import pprint
+import json
+from . import typing as ty
 
-class SchemaExpr(object):
+class SchemaIR(object):
     pass
 
-class ObjectDef(SchemaExpr):
+class ObjectDef(SchemaIR):
     def __init__(self, name, type_key, base, fields=[],
                  fvisit_attrs=False, fsequal_reduce=False,
                  fshash_reduce=False, comment=None):
@@ -16,14 +17,26 @@ class ObjectDef(SchemaExpr):
         self.fshash_reduce = fshash_reduce
         self.comment = comment
 
+    def to_json(self):
+        json_dict = self.__dict__.copy()
+        json_dict['base'] = self.base.name
+        return json_dict
 
-class ObjectRefDef(SchemaExpr):
+
+class ObjectRefDef(SchemaIR):
     def __init__(self, name, base, internal):
         self.name = name 
         self.base = base
         self.internal = internal
 
-class FieldDef(SchemaExpr):
+    def to_json(self):
+        json_dict = self.__dict__.copy()
+        json_dict['base'] = self.base.name
+        json_dict['internal'] = self.internal.name
+        return json_dict
+
+
+class FieldDef(SchemaIR):
     def __init__(self, name, type_):
         self.name = name
         self.type_ = type_
@@ -33,3 +46,9 @@ class FieldDef(SchemaExpr):
 
     def __repr__(self):
         return str(vars(self))
+
+    def to_json(self):
+        json_dict = self.__dict__.copy()
+        json_dict['type_'] = self.type_.name
+        return json_dict
+

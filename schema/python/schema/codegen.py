@@ -1,8 +1,10 @@
 import re
 import subprocess
 from collections import namedtuple
-from .expr import *
+from .ir import *
 from .registry import lookup
+from . import typing as ty
+import json
 
 class ExprFunctor:
     def __init__(self):
@@ -139,6 +141,10 @@ class CodeGenCPP(ExprFunctor):
         return template.format(fields_str=fields_str)
 
     def visit_object_def(self, obj):
+        # import json
+        # print(obj.__dict__)
+        # print(json.dumps(obj.__dict__))
+        # raise ValueError
         template = \
         "{comment}" \
         "class {name} : public {base_name} {{\n" \
@@ -208,9 +214,20 @@ class CodeGenCPP(ExprFunctor):
         return src
 
 
-def generate(expr, language='cpp'):
-    if language == 'cpp':
-        return CodeGenCPP().visit(expr)
+class MyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (ObjectDef, ObjectRefDef, FieldDef)):
+            return obj.to_json()
+        else:
+            return json.JSONEncoder.default(self, obj)
+
+
+def generate(ir, target='cpp'):
+    if target == 'cpp':
+        return CodeGenCPP().visit(ir)
+    elif target == 'json':
+        return json.dumps(ir, cls=MyEncoder, sort_keys=True, indent=4)
+    raise ValueError("not supported yet.")
 
 
 TextGroup = namedtuple("TextGroup", ['lines', 'is_normal'])

@@ -1,5 +1,5 @@
 from collections import namedtuple
-from .expr import ObjectDef, ObjectRefDef
+from .ir import ObjectDef, ObjectRefDef
 from . import typing as ty
 
 REGISTRY_TABLE = {}

@@ -1,3 +1,4 @@
+import json
 _GLOBAL_TYPE_TABLE = {}
 
 def get_type(name):
@@ -9,6 +10,10 @@ class TypeCls(object):
         self.name = name
         self.is_pod = is_pod
         _GLOBAL_TYPE_TABLE[name] = self
+
+    # def to_json(self):
+    #     return json.dumps(self.name, sort_keys=True, indent=4)
+
 
 Int = TypeCls("int", True) 
 int64_t = TypeCls("int64_t", True) 

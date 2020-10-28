@@ -1,5 +1,5 @@
 from .registry import register, lookup
-from .expr import ObjectDef, ObjectRefDef, FieldDef
+from .ir import ObjectDef, ObjectRefDef, FieldDef
 from .codegen import generate
 from . import typing as ty
 
@@ -66,14 +66,18 @@ def parse_comment(text):
         key = lines[block_delimiter[idx]].strip()
         ret[key] = lines[block_delimiter[idx]+2: block_delimiter[idx+1]]
 
-    # remove space lines at beginning and the end
     for key in ret:
-        lines = ret[key]
-        while lines and not lines[0].strip():
+        lines = [line.strip() for line in ret[key]]
+        # remove space lines at beginning and the end
+        while lines and not lines[0]:
             lines.pop(0)
-        while lines and not lines[-1].strip():
+        while lines and not lines[-1]:
             lines.pop()
+        ret[key] = lines
+
     return ret
+
+from json import JSONEncoder
 
 
 def declare(cls):
@@ -82,6 +86,7 @@ def declare(cls):
     print(name)
     assert issubclass(cls, Object)
     bases = cls.__bases__
+    assert len(bases) == 1
     base_name = bases[0].__name__
     base_def = lookup(base_name)
 
@@ -103,14 +108,16 @@ def declare(cls):
     obj_def = ObjectDef(name, type_key, base_def, fields,
         fvisit_attrs, fsequal_reduce, fshash_reduce, comment)
     register(obj_def)
-    print(generate(obj_def))
     print("{} has been registered.".format(name))
+    print(generate(obj_def, "cpp"))
+    print(generate(obj_def, "json"))
 
     print('\n')
-    base_ref_def = lookup(base_def.type_key)
-    objref_def = ObjectRefDef(type_key, base_ref_def, obj_def)
+    baseref_def = lookup(base_def.type_key)
+    objref_def = ObjectRefDef(type_key, baseref_def, obj_def)
     register(objref_def)
-    print(generate(objref_def))
     print("{} has been registered.".format(type_key))
+    print(generate(objref_def, "cpp"))
+    print(generate(objref_def, "json"))
 
     return cls
