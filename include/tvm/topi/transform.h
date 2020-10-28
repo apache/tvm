@@ -39,6 +39,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "detail/broadcast.h"
+
 namespace tvm {
 namespace topi {
 
@@ -887,53 +889,30 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int axis, std::string
  */
 inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
                     std::string name = "T_where", std::string tag = kBroadcast) {
-  ICHECK_EQ(x->shape.size(), y->shape.size())
-      << "x and y must have the same shape.Got different number of dimension: " << x->shape.size()
-      << " vs " << y->shape.size();
   ICHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
                                 << y->dtype;
+  auto get_out_shape = [&]() {
+    auto bh1 = detail::BroadcastShape(x->shape, y->shape);
+    Array<PrimExpr> common_shape1(bh1.common_shape.begin(), bh1.common_shape.end());
+    auto bh2 = detail::BroadcastShape(condition->shape, common_shape1);
+    Array<PrimExpr> common_shape2(bh2.common_shape.begin(), bh2.common_shape.end());
+    return common_shape2;
+  };
 
-  if (x->shape.size() == 0) {
-    return compute(
-        condition->shape,
-        [&](const Array<Var>& indices) {
-          PrimExpr cond;
-          if (condition->shape.size() == 0) {
-            cond = condition();
-          } else {
-            Array<PrimExpr> condition_idx{indices[0]};
-            cond = condition(condition_idx);
-          }
-          return tvm::tir::Select(cond != 0, x(), y());
-        },
-        name, tag);
-  } else if (condition->shape.size() != 1) {
-    ICHECK_EQ(condition->shape.size(), x->shape.size())
-        << "condition array must be either have the same shape as x or to be a "
-           "1-D array.Got different number of dimension: "
-        << condition->shape.size() << " vs " << x->shape.size();
-    return compute(
-        x->shape,
-        [&](const Array<Var>& indices) {
-          return tvm::tir::Select(condition(indices) != 0, x(indices), y(indices));
-        },
-        name, tag);
-  } else {
-    int64_t cond_first_dim = topi::GetConstInt(condition->shape[0]);
-    int64_t x_first_dim = topi::GetConstInt(x->shape[0]);
-    if (cond_first_dim > 0 && x_first_dim > 0) {
-      ICHECK_EQ(cond_first_dim, x_first_dim)
-          << "If condition is 1-D, the first dimension must be the same as x: " << cond_first_dim
-          << " vs " << x_first_dim;
-    }
-    return compute(
-        x->shape,
-        [&](const Array<Var>& indices) {
-          Array<PrimExpr> condition_idx{indices[0]};
-          return tvm::tir::Select(condition(condition_idx) != 0, x(indices), y(indices));
-        },
-        name, tag);
-  }
+  auto oshape = get_out_shape();
+
+  auto c_bh = detail::BroadcastShape(condition->shape, oshape);
+  auto x_bh = detail::BroadcastShape(x->shape, oshape);
+  auto y_bh = detail::BroadcastShape(y->shape, oshape);
+
+  auto select = [&](tvm::Array<tvm::tir::Var> ovars) {
+    auto c = condition(InputIndexFromBroadcast(ovars, condition, c_bh.vars1, c_bh.all_vars));
+    auto true_val = x(InputIndexFromBroadcast(ovars, x, x_bh.vars1, x_bh.all_vars));
+    auto false_val = y(InputIndexFromBroadcast(ovars, y, y_bh.vars1, y_bh.all_vars));
+    return tvm::tir::Select(c != 0, true_val, false_val);
+  };
+
+  return compute(oshape, select, name, tag);
 }
 
 /*!

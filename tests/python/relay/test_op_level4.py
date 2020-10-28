@@ -152,35 +152,70 @@ def test_where():
                 op_res = intrp.evaluate(func)(*inputs)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    shape = (3, 4)
+    def verify(x_np, y_np, cond_np):
+        ref_res = np.where(cond_np, x_np, y_np)
+
+        args = []
+        args_np = []
+        vs = []
+
+        cond = relay.var("cond", relay.TensorType(cond_np.shape, "bool"))
+
+        args.append(cond)
+        args_np.append(cond_np)
+
+        for v_name, v_np in [("x", x_np), ("y", y_np)]:
+            if len(v_np.shape) == 0:
+                v = relay.const(v_np.item())
+            else:
+                v = relay.var(v_name, relay.TensorType(v_np.shape, dtype))
+                args.append(v)
+                args_np.append(v_np)
+            vs.append(v)
+
+        z = relay.where(cond, vs[0], vs[1])
+
+        func = relay.Function(args, z)
+
+        run(func, args_np, ref_res)
+
     dtype = "float32"
-    cond = relay.var("cond", relay.TensorType(shape, dtype))
-    x = relay.var("x", relay.TensorType(shape, dtype))
-    y = relay.var("y", relay.TensorType(shape, dtype))
-    z = relay.where(cond, x, y)
-    zz = run_infer_type(z)
-    assert zz.checked_type == relay.TensorType(shape, dtype)
 
-    func = relay.Function([cond, x, y], z)
-    condition = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
-    x = np.random.uniform(size=shape).astype(dtype)
-    y = np.random.uniform(size=shape).astype(dtype)
-    ref_res = np.where(condition, x, y)
+    x_np = np.random.uniform(size=(3, 4)).astype(dtype)
+    y_np = np.random.uniform(size=(3, 4)).astype(dtype)
+    cond_np = np.random.uniform(low=-1, high=1, size=(3, 4)) > 0
 
-    run(func, [condition, x, y], ref_res)
+    verify(x_np, y_np, cond_np)
 
-    x = relay.const(1)
-    y = relay.const(-1)
-    shape = (3,)
-    dtype = "float32"
-    cond = relay.var("cond", relay.TensorType(shape, "bool"))
-    z = relay.where(cond, x, y)
+    x_np = np.array(1.0, dtype)
+    y_np = np.array(-1.0, dtype)
+    cond_np = np.array([1, 0, 1], dtype=np.bool)
 
-    func = relay.Function([cond], z)
-    condition = np.array([1, 0, 1], dtype=np.bool)
-    ref_res = np.where(condition, 1, -1)
+    verify(x_np, y_np, cond_np)
 
-    run(func, [condition], ref_res)
+    x_np = np.arange(10).astype(dtype)
+    y_np = 10 * x_np
+    cond_np = x_np < 5
+
+    verify(x_np, y_np, cond_np)
+
+    x_np = np.array([[1, 2], [3, 4]], dtype)
+    y_np = np.array([[5, 6], [7, 8]], dtype)
+    cond_np = np.array([[1], [0]], dtype=np.bool)
+
+    verify(x_np, y_np, cond_np)
+    verify(x_np, y_np, cond_np.T)
+
+    x_np = np.random.randn(1, 12, 8, 8).astype(dtype)
+    y_np = np.array(-1.0, dtype)
+    cond_np = np.random.randn(1, 1, 8, 8) > 0
+
+    verify(x_np, y_np, cond_np)
+
+    x_np, y_np = np.ogrid[:3, :4]
+    cond_np = np.where(x_np < y_np, x_np, 10 + y_np).astype(np.bool)
+
+    verify(x_np.astype(dtype), y_np.astype(dtype), cond_np)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):

@@ -810,6 +810,33 @@ def stack_shape_func(attrs, inputs, _):
     return [_stack_shape_func(inputs[0], convert(axis), convert(len(inputs)))]
 
 
+@script
+def _broadcast_shape_tensors(shape_tensor1, shape_tensor2):
+    rank1 = shape_tensor1.shape[0]
+    rank2 = shape_tensor2.shape[0]
+    out_rank = max(rank1, rank2)
+    bcast_shape_tensor = output_tensor((out_rank,), "int64")
+
+    for index in const_range(out_rank):
+        dim1 = int64(1)
+        dim2 = int64(1)
+
+        if rank1 == out_rank:
+            dim1 = shape_tensor1[index]
+        elif rank1 - (out_rank - index) >= 0:
+            dim1 = shape_tensor1[rank1 - (out_rank - index)]
+
+        if rank2 == out_rank:
+            dim2 = shape_tensor2[index]
+        elif rank2 - (out_rank - index) >= 0:
+            dim2 = shape_tensor2[rank2 - (out_rank - index)]
+
+        assert dim1 == dim2 or dim1 == 1 or dim2 == 1, "Invalid broadcast shapes"
+        bcast_shape_tensor[index] = max(dim1, dim2)
+
+    return bcast_shape_tensor
+
+
 @_reg.register_shape_func("where", False)
 def where_shape_func(attrs, inputs, _):
     """
@@ -817,6 +844,9 @@ def where_shape_func(attrs, inputs, _):
     """
     cond_shape = inputs[0]
     x_shape = inputs[1]
-    out_shape = x_shape if x_shape.shape else cond_shape
+    y_shape = inputs[2]
 
-    return [topi.math.identity(out_shape)]
+    bcast_shape = _broadcast_shape_tensors(x_shape, y_shape)
+    out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
+
+    return [out_shape]
