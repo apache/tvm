@@ -30,6 +30,7 @@ from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 
 
+@tvm.testing.requires_rpc
 def test_bigendian_rpc():
     """Test big endian rpc when there is a PowerPC RPC server available"""
     host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
@@ -61,22 +62,23 @@ def test_bigendian_rpc():
         verify_rpc(remote, target, (10,), dtype)
 
 
+@tvm.register_func("rpc.test.addone")
+def addone(x):
+    return x + 1
+
+
+@tvm.register_func("rpc.test.strcat")
+def strcat(name, x):
+    return "%s:%d" % (name, x)
+
+
+@tvm.register_func("rpc.test.except")
+def remotethrow(name):
+    raise ValueError("%s" % name)
+
+
+@tvm.testing.requires_rpc
 def test_rpc_simple():
-    if not tvm.runtime.enabled("rpc"):
-        return
-
-    @tvm.register_func("rpc.test.addone")
-    def addone(x):
-        return x + 1
-
-    @tvm.register_func("rpc.test.strcat")
-    def strcat(name, x):
-        return "%s:%d" % (name, x)
-
-    @tvm.register_func("rpc.test.except")
-    def remotethrow(name):
-        raise ValueError("%s" % name)
-
     server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.addone")
@@ -90,14 +92,13 @@ def test_rpc_simple():
     assert f2("abc", 11) == "abc:11"
 
 
+@tvm.register_func("rpc.test.runtime_str_concat")
+def strcat(x, y):
+    return x + y
+
+
+@tvm.testing.requires_rpc
 def test_rpc_runtime_string():
-    if not tvm.runtime.enabled("rpc"):
-        return
-
-    @tvm.register_func("rpc.test.runtime_str_concat")
-    def strcat(x, y):
-        return x + y
-
     server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     func = client.get_function("rpc.test.runtime_str_concat")
@@ -106,14 +107,15 @@ def test_rpc_runtime_string():
     assert str(func(x, y)) == "abcdef"
 
 
-def test_rpc_array():
-    if not tvm.runtime.enabled("rpc"):
-        return
-    x = np.random.randint(0, 10, size=(3, 4))
+@tvm.register_func("rpc.test.remote_array_func")
+def remote_array_func(y):
+    x = np.ones((3, 4))
+    np.testing.assert_equal(y.asnumpy(), x)
 
-    @tvm.register_func("rpc.test.remote_array_func")
-    def remote_array_func(y):
-        np.testing.assert_equal(y.asnumpy(), x)
+
+@tvm.testing.requires_rpc
+def test_rpc_array():
+    x = np.ones((3, 4))
 
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
@@ -124,6 +126,7 @@ def test_rpc_array():
     fremote(r_cpu)
 
 
+@tvm.testing.requires_rpc
 def test_rpc_large_array():
     # testcase of large array creation
     server = rpc.Server("localhost")
@@ -137,6 +140,7 @@ def test_rpc_large_array():
     np.testing.assert_equal(b.asnumpy(), b_np)
 
 
+@tvm.testing.requires_rpc
 def test_rpc_echo():
     def check(remote):
         fecho = remote.get_function("testing.echo")
@@ -180,9 +184,8 @@ def test_rpc_echo():
     check_minrpc()
 
 
+@tvm.testing.requires_rpc
 def test_rpc_file_exchange():
-    if not tvm.runtime.enabled("rpc"):
-        return
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
     blob = bytearray(np.random.randint(0, 10, size=(10)))
@@ -191,10 +194,9 @@ def test_rpc_file_exchange():
     assert rev == blob
 
 
+@tvm.testing.requires_rpc
 @tvm.testing.requires_llvm
 def test_rpc_remote_module():
-    if not tvm.runtime.enabled("rpc"):
-        return
     # graph
     n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name="A")
@@ -317,11 +319,13 @@ def test_rpc_remote_module():
     check_minrpc()
 
 
-def test_rpc_return_func():
-    @tvm.register_func("rpc.test.remote_func")
-    def addone(x):
-        return lambda y: x + y
+@tvm.register_func("rpc.test.remote_func")
+def addone(x):
+    return lambda y: x + y
 
+
+@tvm.testing.requires_rpc
+def test_rpc_return_func():
     server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.remote_func")
@@ -329,6 +333,7 @@ def test_rpc_return_func():
     assert fadd(12) == 22
 
 
+@tvm.testing.requires_rpc
 def test_rpc_session_constructor_args():
     # start server
     server0 = rpc.Server("localhost", key="x0")
@@ -365,21 +370,23 @@ def test_rpc_session_constructor_args():
     check_error_handling()
 
 
-def test_rpc_return_ndarray():
+@tvm.register_func("rpc.test.remote_return_nd")
+def my_module(name):
     # Use closure to check the ref counter correctness
     nd = tvm.nd.array(np.zeros(10).astype("float32"))
 
-    @tvm.register_func("rpc.test.remote_return_nd")
-    def my_module(name):
-        if name == "get_arr":
-            return lambda: nd
-        elif name == "ref_count":
-            return lambda: tvm.testing.object_use_count(nd)
-        elif name == "get_elem":
-            return lambda idx: nd.asnumpy()[idx]
-        elif name == "get_arr_elem":
-            return lambda arr, idx: arr.asnumpy()[idx]
+    if name == "get_arr":
+        return lambda: nd
+    elif name == "ref_count":
+        return lambda: tvm.testing.object_use_count(nd)
+    elif name == "get_elem":
+        return lambda idx: nd.asnumpy()[idx]
+    elif name == "get_arr_elem":
+        return lambda arr, idx: arr.asnumpy()[idx]
 
+
+@tvm.testing.requires_rpc
+def test_rpc_return_ndarray():
     # start server
     server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
@@ -392,26 +399,19 @@ def test_rpc_return_ndarray():
     # array test
     def run_arr_test():
         arr = get_arr()
-        assert ref_count() == 2
-        arr2 = get_arr()
-        assert ref_count() == 3
-        assert arr.context == client.cpu(0)
-        arr.copyfrom(np.ones(10).astype(arr.dtype))
-        assert arr2.asnumpy()[0] == 1.0
-        assert get_elem(0) == 1.0
-        assert get_arr_elem(arr2, 0) == 1.0
+        assert get_elem(0) == 0.0
+        assert get_arr_elem(arr, 0) == 0.0
 
-    assert ref_count() == 1
     run_arr_test()
-    # check recycle correctness
-    assert ref_count() == 1
 
 
+@tvm.register_func("rpc.test.remote_func2")
+def addone(x):
+    return lambda y: x + y
+
+
+@tvm.testing.requires_rpc
 def test_local_func():
-    @tvm.register_func("rpc.test.remote_func2")
-    def addone(x):
-        return lambda y: x + y
-
     client = rpc.LocalSession()
     f1 = client.get_function("rpc.test.remote_func2")
     fadd = f1(10)
@@ -423,6 +423,7 @@ def test_local_func():
     assert rev == blob
 
 
+@tvm.testing.requires_rpc
 def test_rpc_tracker_register():
     # test registration
     tracker = Tracker("localhost", port=9000, port_end=10000)
@@ -459,6 +460,15 @@ def test_rpc_tracker_register():
     tracker.terminate()
 
 
+def _target(host, port, device_key, timeout):
+    client = rpc.connect_tracker(host, port)
+    remote = client.request(device_key, session_timeout=timeout)
+    while True:
+        pass
+    remote.cpu()
+
+
+@tvm.testing.requires_rpc
 def test_rpc_tracker_request():
     # test concurrent request
     tracker = Tracker("localhost", port=9000, port_end=10000)
@@ -472,16 +482,11 @@ def test_rpc_tracker_request():
     )
     client = rpc.connect_tracker(tracker.host, tracker.port)
 
-    def target(host, port, device_key, timeout):
-        client = rpc.connect_tracker(host, port)
-        remote = client.request(device_key, session_timeout=timeout)
-        while True:
-            pass
-        remote.cpu()
-
-    proc1 = multiprocessing.Process(target=target, args=(tracker.host, tracker.port, device_key, 4))
+    proc1 = multiprocessing.Process(
+        target=_target, args=(tracker.host, tracker.port, device_key, 4)
+    )
     proc2 = multiprocessing.Process(
-        target=target, args=(tracker.host, tracker.port, device_key, 200)
+        target=_target, args=(tracker.host, tracker.port, device_key, 200)
     )
     proc1.start()
     time.sleep(0.5)
