@@ -19,7 +19,7 @@
 import datetime
 import os
 import shutil
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 def validate_debug_dir_path(temp_dir, expected_basename):
@@ -32,55 +32,55 @@ def validate_debug_dir_path(temp_dir, expected_basename):
 
 
 def test_tempdir():
-    assert util.TempDirectory._KEEP_FOR_DEBUG == False, "don't submit with KEEP_FOR_DEBUG == True"
+    assert utils.TempDirectory._KEEP_FOR_DEBUG == False, "don't submit with KEEP_FOR_DEBUG == True"
 
-    temp_dir = util.tempdir()
+    temp_dir = utils.tempdir()
     assert os.path.exists(temp_dir.temp_dir)
 
-    old_debug_mode = util.TempDirectory._KEEP_FOR_DEBUG
-    old_tempdirs = util.TempDirectory.TEMPDIRS
+    old_debug_mode = utils.TempDirectory._KEEP_FOR_DEBUG
+    old_tempdirs = utils.TempDirectory.TEMPDIRS
     try:
         for temp_dir_number in range(0, 3):
-            with util.TempDirectory.set_keep_for_debug():
-                debug_temp_dir = util.tempdir()
+            with utils.TempDirectory.set_keep_for_debug():
+                debug_temp_dir = utils.tempdir()
                 try:
                     validate_debug_dir_path(debug_temp_dir, "0000" + str(temp_dir_number))
                 finally:
                     shutil.rmtree(debug_temp_dir.temp_dir)
 
-        with util.TempDirectory.set_keep_for_debug():
+        with utils.TempDirectory.set_keep_for_debug():
             # Create 2 temp_dir within the same session.
-            debug_temp_dir = util.tempdir()
+            debug_temp_dir = utils.tempdir()
             try:
                 validate_debug_dir_path(debug_temp_dir, "00003")
             finally:
                 shutil.rmtree(debug_temp_dir.temp_dir)
 
-            debug_temp_dir = util.tempdir()
+            debug_temp_dir = utils.tempdir()
             try:
                 validate_debug_dir_path(debug_temp_dir, "00004")
             finally:
                 shutil.rmtree(debug_temp_dir.temp_dir)
 
-            with util.TempDirectory.set_keep_for_debug(False):
-                debug_temp_dir = util.tempdir()  # This one should get deleted.
+            with utils.TempDirectory.set_keep_for_debug(False):
+                debug_temp_dir = utils.tempdir()  # This one should get deleted.
 
                 # Simulate atexit hook
-                util.TempDirectory.remove_tempdirs()
+                utils.TempDirectory.remove_tempdirs()
 
                 # Calling twice should be a no-op.
-                util.TempDirectory.remove_tempdirs()
+                utils.TempDirectory.remove_tempdirs()
 
                 # Creating a new TempDirectory should fail now
                 try:
-                    util.tempdir()
+                    utils.tempdir()
                     assert False, "creation should fail"
-                except util.DirectoryCreatedPastAtExit:
+                except utils.DirectoryCreatedPastAtExit:
                     pass
 
     finally:
-        util.TempDirectory.DEBUG_MODE = old_debug_mode
-        util.TempDirectory.TEMPDIRS = old_tempdirs
+        utils.TempDirectory.DEBUG_MODE = old_debug_mode
+        utils.TempDirectory.TEMPDIRS = old_tempdirs
 
 
 if __name__ == "__main__":

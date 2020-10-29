@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
-from tvm.contrib import util, clang
+from tvm.contrib import utils, clang
 import numpy as np
 import ctypes
 import math
@@ -86,7 +86,7 @@ def test_llvm_import():
         if not clang.find_clang(required=False):
             print("skip because clang is not available")
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         ll_path = temp.relpath("temp.ll")
         ll_code = clang.create_llvm(cc_code, output=ll_path)
         s = te.create_schedule(B.op)
