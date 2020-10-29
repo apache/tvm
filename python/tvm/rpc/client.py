@@ -22,7 +22,7 @@ import struct
 import time
 
 import tvm._ffi
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm._ffi.base import TVMError
 from tvm.runtime import ndarray as nd
 
@@ -244,7 +244,7 @@ class LocalSession(RPCSession):
 
 @tvm._ffi.register_func("rpc.PopenSession")
 def _popen_session(binary):
-    temp = util.tempdir()
+    temp = utils.tempdir()
 
     if isinstance(binary, (bytes, bytearray)):
         path_exec = temp.relpath("server.minrpc")

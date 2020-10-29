@@ -70,7 +70,7 @@ from tvm import autotvm
 from tvm import relay
 import tvm.relay.testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from tvm.contrib.util import tempdir
+from tvm.contrib.utils import tempdir
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -421,4 +421,4 @@ def tune_and_evaluate(tuning_opt):
 #      import logging
 #      logging.getLogger('autotvm').setLevel(logging.DEBUG)
 #
-#   Finally, always feel free to ask our community for help on https://discuss.tvm.ai
+#   Finally, always feel free to ask our community for help on https://discuss.tvm.apache.org

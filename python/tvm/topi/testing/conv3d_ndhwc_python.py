@@ -18,7 +18,7 @@
 """Convolution 3D in python"""
 import numpy as np
 import scipy.signal
-from tvm.topi.nn.util import get_pad_tuple3d
+from tvm.topi.nn.utils import get_pad_tuple3d
 
 
 def conv3d_ndhwc_python(a_np, w_np, stride, padding):

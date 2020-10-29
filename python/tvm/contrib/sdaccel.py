@@ -19,7 +19,7 @@ import subprocess
 import os
 
 import tvm._ffi
-from . import util
+from . import utils
 
 
 @tvm._ffi.register_func("tvm_callback_sdaccel_compile")
@@ -40,7 +40,7 @@ def compile_vhls(kernel_info, device_name):
     xclbin : bytearray
         The bytearray of the xclbin
     """
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
 
     sdk = os.environ.get("XILINX_SDX", None)
     xocc = os.path.join(sdk, "bin/xocc") if sdk else "xocc"

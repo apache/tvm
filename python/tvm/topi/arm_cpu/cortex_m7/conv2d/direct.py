@@ -21,7 +21,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task import deserialize_args
 from tvm.topi.nn.conv2d import conv2d_nchw, conv2d_nhwc
-from tvm.topi.util import get_const_tuple, get_const_int, traverse_inline
+from tvm.topi.utils import get_const_tuple, get_const_int, traverse_inline
 
 
 def conv2d_direct(*args, **kwargs):

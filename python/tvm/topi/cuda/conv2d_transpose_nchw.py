@@ -22,7 +22,7 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn
-from ..util import get_const_tuple, traverse_inline
+from ..utils import get_const_tuple, traverse_inline
 
 
 @autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")

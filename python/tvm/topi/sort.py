@@ -18,7 +18,7 @@
 """Argsort operator"""
 import tvm
 from tvm import te
-from .util import get_const_tuple
+from .utils import get_const_tuple
 
 
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):

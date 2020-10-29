@@ -26,7 +26,7 @@ import multiprocessing
 import pytest
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util, cc
+from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 
 
@@ -46,7 +46,7 @@ def test_bigendian_rpc():
         ctx = remote.cpu(0)
         a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), ctx=ctx)
         b = tvm.nd.array(np.zeros(shape).astype(A.dtype), ctx=ctx)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
         f.save(path_dso)
         remote.upload(path_dso)
@@ -164,7 +164,7 @@ def test_rpc_echo():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
             return
         # Test minrpc server.
-        temp = util.tempdir()
+        temp = utils.tempdir()
         minrpc_exec = temp.relpath("minrpc")
         tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
         check(rpc.PopenSession(minrpc_exec))
@@ -212,7 +212,7 @@ def test_rpc_remote_module():
     )
 
     def check_remote(remote):
-        temp = util.tempdir()
+        temp = utils.tempdir()
         ctx = remote.cpu(0)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         path_dso = temp.relpath("dev_lib.so")
@@ -243,7 +243,7 @@ def test_rpc_remote_module():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
             return
         # export to minrpc
-        temp = util.tempdir()
+        temp = utils.tempdir()
         f = tvm.build(s, [A, B], "llvm --system-lib", name="myadd")
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, rpc.with_minrpc(cc.create_executable))
@@ -278,7 +278,7 @@ def test_rpc_remote_module():
         if not tvm.testing.device_enabled("opencl"):
             print("Skip because opencl is not enabled")
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         ctx = remote.cl(0)
         s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=32)

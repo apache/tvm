@@ -26,7 +26,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.contrib.pickle_memoize import memoize
 from tvm import topi
 import tvm.topi.testing
@@ -131,13 +131,13 @@ def run_gemm(
         mod = tvm.build(
             s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
         )
-    temp = util.tempdir()
+    temp = utils.tempdir()
     mod.save(temp.relpath("dense.o"))
     remote.upload(temp.relpath("dense.o"))
     f = remote.load_module("dense.o")
     ctx = remote.context(str(target))
 
-    res_np = np.zeros(topi.util.get_const_tuple(res.shape)).astype(res.dtype)
+    res_np = np.zeros(topi.utils.get_const_tuple(res.shape)).astype(res.dtype)
     data_arr = tvm.nd.array(data_np, ctx)
     kernel_arr = tvm.nd.array(kernel_np, ctx)
     res_arr = tvm.nd.array(res_np, ctx)

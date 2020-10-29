@@ -18,7 +18,7 @@
 # pylint: disable=len-as-condition, no-else-return, unused-argument, invalid-name
 import tvm
 from tvm import te
-from tvm.topi import util
+from tvm.topi import utils
 
 from .environment import get_env
 
@@ -346,7 +346,7 @@ def InjectDMAIntrin():
         ndim = len(buf.shape)
         size = tvm.tir.const(1, buf.shape[0].dtype)
         for i in reversed(range(ndim)):
-            if not util.equal_const_int(size - buf.strides[i], 0):
+            if not utils.equal_const_int(size - buf.strides[i], 0):
                 raise RuntimeError(
                     "Cannot prove compact: shape=%s, strides=%s" % (buf.shape, buf.strides)
                 )
@@ -357,10 +357,10 @@ def InjectDMAIntrin():
         x_size = 1
         base = 0
         for i in range(1, ndim + 1):
-            if not util.equal_const_int(buf.strides[ndim - i] - x_size, 0):
+            if not utils.equal_const_int(buf.strides[ndim - i] - x_size, 0):
                 raise RuntimeError("scope %s needs to have block=%d" % (scope, elem_block))
             x_size = x_size * buf.shape[ndim - i]
-            if util.equal_const_int(x_size - elem_block, 0):
+            if utils.equal_const_int(x_size - elem_block, 0):
                 base = i + 1
                 break
         if base == 0:
@@ -370,7 +370,7 @@ def InjectDMAIntrin():
         shape = [elem_block]
         strides = [1]
 
-        if base < ndim + 1 and not util.equal_const_int(buf.strides[ndim - base], elem_block):
+        if base < ndim + 1 and not utils.equal_const_int(buf.strides[ndim - base], elem_block):
             shape.append(1)
             strides.append(elem_block)
 
@@ -379,14 +379,14 @@ def InjectDMAIntrin():
             x_size = 1
             x_stride = buf.strides[ndim - base]
             next_base = base
-            if not util.equal_const_int(idxm(x_stride, elem_block), 0):
+            if not utils.equal_const_int(idxm(x_stride, elem_block), 0):
                 raise RuntimeError(
                     "scope %s need to have block=%d, shape=%s, strides=%s"
                     % (scope, elem_block, buf.shape, buf.strides)
                 )
             for i in range(base, ndim + 1):
                 k = ndim - i
-                if not util.equal_const_int(x_size * x_stride - buf.strides[k], 0):
+                if not utils.equal_const_int(x_size * x_stride - buf.strides[k], 0):
                     break
                 x_size = x_size * buf.shape[k]
                 next_base = i + 1
@@ -404,7 +404,7 @@ def InjectDMAIntrin():
         if buf.dtype != dtype:
             raise RuntimeError("Expect buffer type to be %s instead of %s" % (dtype, buf.dtype))
         shape, strides = buf.shape, buf.strides
-        if not util.equal_const_int(idxm(buf.elem_offset, elem_block), 0):
+        if not utils.equal_const_int(idxm(buf.elem_offset, elem_block), 0):
             raise RuntimeError("scope %s need to have block=%d" % (scope, elem_block))
         if allow_fold:
             shape, strides = _fold_buffer_dim(buf, scope, elem_block)
@@ -425,10 +425,10 @@ def InjectDMAIntrin():
         ndim = len(shape)
 
         # Check if the inner-tensor is already flat
-        flat = util.equal_const_int(shape[-1], elem_block)
+        flat = utils.equal_const_int(shape[-1], elem_block)
 
         if flat:
-            if not util.equal_const_int(strides[-1], 1):
+            if not utils.equal_const_int(strides[-1], 1):
                 raise_error()
 
             if ndim == 1:
@@ -436,7 +436,7 @@ def InjectDMAIntrin():
                 x_stride = 1
                 y_size = 1
                 return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
-            if not util.equal_const_int(strides[-2] - elem_block, 0):
+            if not utils.equal_const_int(strides[-2] - elem_block, 0):
                 raise_error()
 
             if ndim == 2:
@@ -444,7 +444,7 @@ def InjectDMAIntrin():
                 x_stride = shape[-2]
                 y_size = 1
                 return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
-            if not util.equal_const_int(idxm(strides[-3], elem_block), 0):
+            if not utils.equal_const_int(idxm(strides[-3], elem_block), 0):
                 raise_error()
 
             if ndim == 3:
@@ -454,11 +454,11 @@ def InjectDMAIntrin():
                 return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
 
         else:
-            if not util.equal_const_int(strides[-1], 1):
+            if not utils.equal_const_int(strides[-1], 1):
                 raise_error()
-            if not util.equal_const_int(strides[-2] - shape[-1], 0):
+            if not utils.equal_const_int(strides[-2] - shape[-1], 0):
                 raise_error()
-            if not util.equal_const_int(shape[-1] * shape[-2], elem_block):
+            if not utils.equal_const_int(shape[-1] * shape[-2], elem_block):
                 raise_error()
 
             if ndim == 2:
@@ -466,7 +466,7 @@ def InjectDMAIntrin():
                 x_stride = 1
                 y_size = 1
                 return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
-            if not util.equal_const_int(strides[-3], elem_block):
+            if not utils.equal_const_int(strides[-3], elem_block):
                 raise_error()
 
             if ndim == 3:
@@ -474,7 +474,7 @@ def InjectDMAIntrin():
                 x_stride = shape[-3]
                 y_size = 1
                 return x_size, y_size, x_stride, idxd(buf.elem_offset, elem_block)
-            if not util.equal_const_int(idxm(strides[-4], elem_block), 0):
+            if not utils.equal_const_int(idxm(strides[-4], elem_block), 0):
                 raise_error()
 
             if ndim == 4:
@@ -556,9 +556,9 @@ def InjectDMAIntrin():
                     y_pad_after = pad_after[1]
                     x_pad_after = pad_after[2]
                     for dim in range(3, ndim):
-                        if not util.equal_const_int(pad_before[dim], 0):
+                        if not utils.equal_const_int(pad_before[dim], 0):
                             raise ValueError("Do not support pad on the innermost block")
-                        if not util.equal_const_int(pad_after[dim], 0):
+                        if not utils.equal_const_int(pad_after[dim], 0):
                             raise ValueError("Do not support pad on the innermost block")
                 else:
                     y_pad_before = pad_before[0]
@@ -566,9 +566,9 @@ def InjectDMAIntrin():
                     y_pad_after = pad_after[0]
                     x_pad_after = pad_after[1]
                     for dim in range(2, ndim):
-                        if not util.equal_const_int(pad_before[dim], 0):
+                        if not utils.equal_const_int(pad_before[dim], 0):
                             raise ValueError("Do not support pad on the innermost block")
-                        if not util.equal_const_int(pad_after[dim], 0):
+                        if not utils.equal_const_int(pad_after[dim], 0):
                             raise ValueError("Do not support pad on the innermost block")
                 allow_fold = False
             else:

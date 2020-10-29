@@ -17,4 +17,4 @@
 """FFI for TOPI utility functions"""
 import tvm._ffi
 
-tvm._ffi._init_api("topi.util", "tvm.topi.cpp.util")
+tvm._ffi._init_api("topi.utils", "tvm.topi.cpp.utils")

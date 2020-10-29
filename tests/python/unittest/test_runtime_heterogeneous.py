@@ -21,7 +21,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime, util
+from tvm.contrib import graph_runtime, utils
 from tvm import topi
 
 
@@ -415,7 +415,7 @@ def test_duplex_data_transferring():
             np.testing.assert_equal(out.asnumpy(), tensor_a + tensor_b - tensor_c + tensor_d)
 
         def check_load_module():
-            temp = util.tempdir()
+            temp = utils.tempdir()
             path_lib = temp.relpath("deploy.so")
             mhost.export_library(path_lib)
             with open(temp.relpath("deploy.json"), "w") as out_file:

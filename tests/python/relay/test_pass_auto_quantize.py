@@ -22,7 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import testing
 from tvm.relay.expr import Call
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 
 def quantize_and_build(out):

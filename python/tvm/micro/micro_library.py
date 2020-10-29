@@ -17,7 +17,7 @@
 
 """Defines an Artifact subclass that describes a compiled static library."""
 
-from tvm.contrib import util
+from tvm.contrib import utils
 from . import artifact
 from . import compiler
 
@@ -79,7 +79,7 @@ def create_micro_library(output, objects, options=None):
     options : Optional[List[str]]
       If given, additional command-line flags for the compiler.
     """
-    temp_dir = util.tempdir()
+    temp_dir = utils.tempdir()
     comp = compiler.DefaultCompiler()
     output = temp_dir.relpath("micro-library.o")
     comp.library(output, objects, options=options)

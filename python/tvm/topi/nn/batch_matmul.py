@@ -17,7 +17,7 @@
 """Binary Neural Network (BNN) Operators"""
 # pylint: disable=invalid-name
 from tvm import te
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def batch_matmul(x, y, oshape=None):

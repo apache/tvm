@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import te
-from tvm.contrib import util, clang
+from tvm.contrib import utils, clang
 
 
 def gemm_quantized_4_4_batched():
@@ -372,7 +372,7 @@ def gemm_quantized_impl(M, N, K, unroll, interleave, data_type="uint8"):
         cc_code = cc_code.replace("umull", "smull")
         cc_code = cc_code.replace("uadalp", "sadalp")
 
-    temp = util.tempdir()
+    temp = utils.tempdir()
     ll_path = temp.relpath("temp.ll")
     # Create LLVM ir from c source code
     ll_code = clang.create_llvm(

@@ -24,7 +24,7 @@ from tvm import relay
 from tvm import autotvm
 
 from .. import nn
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 from .conv2d_winograd import _infer_tile_size
 from ..nn import conv2d_legalize
 

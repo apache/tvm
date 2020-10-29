@@ -17,7 +17,7 @@
 # pylint: disable=unused-variable, invalid-name
 """1D convolution in python"""
 import numpy as np
-from tvm.topi.nn.util import get_pad_tuple1d
+from tvm.topi.nn.utils import get_pad_tuple1d
 
 
 def dilate_np(x, dilation):

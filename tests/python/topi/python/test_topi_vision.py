@@ -24,7 +24,7 @@ from tvm import topi
 import tvm.topi.testing
 
 from tvm.contrib.pickle_memoize import memoize
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 from tvm.topi.vision import ssd, non_max_suppression, get_valid_counts
 import pytest
 import tvm.testing

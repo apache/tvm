@@ -25,9 +25,9 @@ from tvm.contrib import cblas
 from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 
-from .util import get_fp32_len
+from .utils import get_fp32_len
 from .. import generic, tag
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 
 
 def _schedule_dense_pack_template(cfg, s, C):

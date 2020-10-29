@@ -3724,7 +3724,7 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
     """Test the quantized Coco SSD Mobilenet V1 TF Lite model."""
     pytest.skip(
         "LLVM bug - getExtendedVectorNumElements - "
-        + "https://discuss.tvm.ai/t/segfault-in-llvm/3567. The workaround is to use a "
+        + "https://discuss.tvm.apache.org/t/segfault-in-llvm/3567. The workaround is to use a "
         + "specific target, for example, llvm -mpcu=core-avx2"
     )
 

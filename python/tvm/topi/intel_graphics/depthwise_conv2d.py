@@ -19,7 +19,7 @@
 import tvm
 from tvm import te
 from tvm import autotvm
-from ..util import traverse_inline
+from ..utils import traverse_inline
 from .. import tag
 from .. import nn
 from ..nn.depthwise_conv2d import depthwise_conv2d_infer_layout

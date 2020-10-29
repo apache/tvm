@@ -25,7 +25,7 @@ from tvm import autotvm
 
 from .gemm import decl_winograd_gemm, schedule_gemm
 from .transforms import tile_and_bind, tile_and_bind3d
-from ..util import traverse_inline, get_const_int, get_const_tuple
+from ..utils import traverse_inline, get_const_int, get_const_tuple
 from .. import nn
 from ..nn.winograd_util import winograd_transform_matrices
 

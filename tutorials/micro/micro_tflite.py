@@ -98,7 +98,7 @@ import numpy as np
 import tvm
 import tvm.micro as micro
 from tvm.contrib.download import download_testdata
-from tvm.contrib import graph_runtime, util
+from tvm.contrib import graph_runtime, utils
 from tvm import relay
 
 # %%

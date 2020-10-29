@@ -18,7 +18,7 @@
 """Convolution 3D transpose in python"""
 import numpy as np
 import tvm.topi.testing
-from tvm.topi.nn.util import get_pad_tuple3d
+from tvm.topi.nn.utils import get_pad_tuple3d
 
 
 def conv3d_transpose_ncdhw_python(a_np, w_np, stride, padding, output_padding):

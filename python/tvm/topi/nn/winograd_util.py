@@ -26,7 +26,7 @@ from operator import mul
 from functools import reduce
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
-from ..util import const_matrix
+from ..utils import const_matrix
 
 
 # pylint: disable=invalid-name
