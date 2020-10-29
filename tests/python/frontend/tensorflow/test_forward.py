@@ -3493,7 +3493,7 @@ def test_forward_expm1():
 
     def _test_forward_expm1(shape):
         tf.disable_eager_execution()
-        np_data = np.random.uniform(1, 100, size=shape).astype(np.float32)
+        np_data = np.random.uniform(1, 10, size=shape).astype(np.float32)
         tf.reset_default_graph()
         in_data = tf.placeholder(tf.float32, shape, name="in_data")
         tf.expm1(in_data, name="expm1")
