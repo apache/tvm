@@ -153,7 +153,10 @@ class XGBoostCostModel(CostModel):
 
         self._close_pool()
 
-        # use global variable to pass common arguments
+        # Use global variable to pass common arguments. This is only used when
+        # new processes are started with fork. We have to set the globals
+        # before we create the pool, so that processes in the pool get the
+        # correct globals.
         global _extract_space, _extract_target, _extract_task
         _extract_space = space
         _extract_target = target
@@ -324,7 +327,12 @@ class XGBoostCostModel(CostModel):
 
         if need_extract:
             pool = self._get_pool()
-            feas = pool.map(self.feature_extract_func, need_extract)
+            # If we are forking, we can pass arguments in globals for better performance
+            if multiprocessing.get_start_method(False) == "fork":
+                feas = pool.map(self.feature_extract_func, need_extract)
+            else:
+                args = [(self.space.get(x), self.target, self.task) for x in need_extract]
+                feas = pool.map(self.feature_extract_func, args)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
 
@@ -344,18 +352,24 @@ class XGBoostCostModel(CostModel):
         self._close_pool()
 
 
+# Global variables for passing arguments to extract functions.
 _extract_space = None
 _extract_target = None
 _extract_task = None
 
 
-def _extract_itervar_feature_index(index):
+def _extract_itervar_feature_index(args):
     """extract iteration var feature for an index in extract_space"""
     try:
-        config = _extract_space.get(index)
-        with _extract_target:
-            sch, args = _extract_task.instantiate(config)
-        fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
+        if multiprocessing.get_start_method(False) == "fork":
+            config = _extract_space.get(args)
+            with _extract_target:
+                sch, fargs = _extract_task.instantiate(config)
+        else:
+            config, target, task = args
+            with target:
+                sch, fargs = task.instantiate(config)
+        fea = feature.get_itervar_feature_flatten(sch, fargs, take_log=True)
         fea = np.concatenate((fea, list(config.get_other_option().values())))
         return fea
     except Exception:  # pylint: disable=broad-except
@@ -381,10 +395,13 @@ def _extract_itervar_feature_log(arg):
         return None
 
 
-def _extract_knob_feature_index(index):
+def _extract_knob_feature_index(args):
     """extract knob feature for an index in extract_space"""
     try:
-        config = _extract_space.get(index)
+        if multiprocessing.get_start_method(False) == "fork":
+            config = _extract_space.get(args)
+        else:
+            config = args[0]
         return config.get_flatten_feature()
     except Exception:  # pylint: disable=broad-except
         return None
@@ -408,13 +425,18 @@ def _extract_knob_feature_log(arg):
         return None
 
 
-def _extract_curve_feature_index(index):
+def _extract_curve_feature_index(args):
     """extract sampled curve feature for an index in extract_space"""
     try:
-        config = _extract_space.get(index)
-        with _extract_target:
-            sch, args = _extract_task.instantiate(config)
-        fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
+        if multiprocessing.get_start_method(False) == "fork":
+            config = _extract_space.get(args)
+            with _extract_target:
+                sch, fargs = _extract_task.instantiate(config)
+        else:
+            config, target, task = args
+            with target:
+                sch, fargs = task.instantiate(config)
+        fea = feature.get_buffer_curve_sample_flatten(sch, fargs, sample_n=20)
         fea = np.concatenate((fea, list(config.get_other_option().values())))
         return np.array(fea)
     except Exception:  # pylint: disable=broad-except

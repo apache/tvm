@@ -35,6 +35,10 @@ these operators, it will query this log file to get the best knob values.
 We also released pre-tuned parameters for some arm devices. You can go to
 `ARM CPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#arm-cpu>`_
 to see the results.
+
+Note that this tutorial will not run on Windows or recent versions of macOS. To
+get it to run, you will need to wrap the body of this tutorial in a :code:`if
+__name__ == "__main__":` block.
 """
 
 ######################################################################
