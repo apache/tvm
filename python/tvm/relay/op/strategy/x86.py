@@ -569,3 +569,15 @@ def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_typ
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
         )
     return strategy
+
+
+@embed_grad_strategy.register("cpu")
+def embed_grad_strategy_cpu(attrs, inputs, out_type, target):
+    """x86 strategy for embed_grad"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_embed_grad(topi.nn.embed_grad),
+        wrap_topi_schedule(topi.x86.schedule_embed_grad),
+        name="embed_grad.x86",
+    )
+    return strategy

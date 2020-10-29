@@ -895,6 +895,27 @@ reg.register_injective_schedule("nn.space_to_batch_nd")
 reg.register_injective_schedule("nn.batch_to_space_nd")
 
 
+# embed
+@reg.register_compute("nn.embed")
+def compute_embed_grad(attrs, inputs, out_type):
+    """Compute definition of embed"""
+    return [topi.nn.embed(inputs[0], inputs[1])]
+
+
+reg.register_injective_schedule("nn.embed")
+reg.register_pattern("nn.embed", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.embed_grad")
+def compute_embed_grad(attrs, inputs, out_type):
+    """Compute definition of embed_grad"""
+    return [topi.nn.embed_grad(inputs[0], inputs[1], inputs[2])]
+
+
+reg.register_strategy("nn.embed_grad", strategy.embed_grad_strategy)
+reg.register_pattern("nn.embed_grad", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 #####################
 #  Shape functions  #
 #####################

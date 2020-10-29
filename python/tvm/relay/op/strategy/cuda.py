@@ -1017,3 +1017,15 @@ def cumsum_strategy_cuda(attrs, inputs, out_type, target):
         name="cumsum.cuda",
     )
     return strategy
+
+
+@embed_grad_strategy.register(["cuda", "gpu"])
+def embed_grad_strategy_gpu(attrs, inputs, out_type, target):
+    """gpu strategy for embed_grad"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_embed_grad(topi.cuda.embed_grad),
+        wrap_topi_schedule(topi.cuda.schedule_embed_grad),
+        name="embed_grad.cuda",
+    )
+    return strategy

@@ -137,6 +137,11 @@ def _cast(func_id, args):
     return _expr.Cast(func_id, args[0])
 
 
+def cast(func_id, args):
+    _internal_assert(args.__len__() == 2, "cast requires two arguments: dtype, value")
+    return _expr.Cast(args[0], args[1])
+
+
 float16 = float32 = float64 = _cast  # pylint: disable=invalid-name
 int8 = int16 = int32 = int64 = _cast  # pylint: disable=invalid-name
 uint8 = uint16 = uint32 = uint64 = _cast  # pylint: disable=invalid-name

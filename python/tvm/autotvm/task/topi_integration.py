@@ -229,7 +229,7 @@ def register_topi_schedule(task_name, func=None):
             """wrapper function for topi schedule"""
             workload = get_workload(outs)
             if workload is None:
-                raise RuntimeError("Cannot find workload in attribute of this schedule")
+                raise RuntimeError(f"Cannot find workload for {task_name}. You may need to register a compute function for it with `@tvm.autotvm.register_topi_compute(\"{task_name}\")`")
             tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             return topi_schedule(cfg, outs, *args, **kwargs)

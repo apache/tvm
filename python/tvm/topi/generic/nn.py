@@ -762,3 +762,20 @@ def schedule_correlation_nchw(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_embed_grad(outs):
+    """Schedule for embed_grad
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of embed_grad
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

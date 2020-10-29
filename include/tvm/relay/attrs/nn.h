@@ -1371,6 +1371,14 @@ struct BatchToSpaceNDAttrs : public tvm::AttrsNode<BatchToSpaceNDAttrs> {
   }
 };  // struct BatchToSpaceNDAttrs
 
+struct EmbedAttrs : public tvm::AttrsNode<EmbedAttrs> {
+  TVM_DECLARE_ATTRS(EmbedAttrs, "relay.attrs.EmbedAttrs") {}
+};
+
+struct EmbedGradAttrs : public tvm::AttrsNode<EmbedGradAttrs> {
+  TVM_DECLARE_ATTRS(EmbedGradAttrs, "relay.attrs.EmbedGradAttrs") {}
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_

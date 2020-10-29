@@ -827,7 +827,6 @@ def arange_grad(orig, grad):
 
     return [grad_start, grad_stop, grad_step]
 
-
 @register_gradient("gather_nd")
 def gather_nd_grad(orig, grad):
     """
@@ -866,3 +865,9 @@ def less_equal_grad(orig, grad):
     Returns the gradient of less_equal.
     """
     return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
+
+
+@register_gradient("nn.embed")
+def embed_grad(orig, grad):
+    table, indices = orig.args
+    return [_nn.embed_grad(table, indices, grad), zeros_like(indices)]

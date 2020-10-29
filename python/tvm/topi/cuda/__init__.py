@@ -40,7 +40,7 @@ from .softmax import *
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
 from .dense import *
 from .pooling import *
-from .nn import schedule_lrn
+from .nn import schedule_lrn, schedule_embed_grad
 from .batch_matmul import *
 from .batch_matmul_tensorcore import *
 from .vision import *

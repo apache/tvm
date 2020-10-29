@@ -119,6 +119,11 @@ def ninf(dtype):
     return numpy.iinfo(dtype).min
 
 
+def cast(x, dtype):
+    """Convert `x` to `dtype`."""
+    return getattr(numpy, dtype)(x)
+
+
 HYBRID_GLOBALS = {
     "unroll": range,
     "vectorize": range,
@@ -150,8 +155,13 @@ HYBRID_GLOBALS = {
     "float64": numpy.float64,
     "ceil_div": lambda a, b: (a + b - 1) // b,
     "max_num_threads": max_num_threads,
+<<<<<<< HEAD
     "inf": inf,
     "ninf": inf,
+||||||| parent of 57e650690... [TOPI] Add embed op and gradient.
+=======
+    "cast": cast,
+>>>>>>> 57e650690... [TOPI] Add embed op and gradient.
 }
 
 

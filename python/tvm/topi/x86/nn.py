@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 nn operators"""
-from tvm import te
+from tvm import autotvm, te
 
 
 def schedule_softmax(outs):
@@ -67,5 +67,35 @@ def schedule_softmax(outs):
 
     if exp is not None:
         s[exp].compute_at(s[softmax], fused_outer_axes)
+
+    return s
+
+
+def schedule_embed_grad(outs):
+    """Schedule for embed_grad
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of embed_grad
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    s = te.create_schedule([outs[0].op])
+
+    vec_size = 8 # should autotune this, but we can't with hybrid script
+    out = s.outputs[0].output(0)
+    zi, zj, i, j = s[out].op.axis
+    zjo, zji = s[out].split(zj, factor=vec_size)
+    s[out].vectorize(zji)
+    s[out].parallel(zjo)
+    s[out].reorder(zjo, zi, zji)
+    jo, ji = s[out].split(j, factor=vec_size)
+    s[out].vectorize(ji)
+    s[out].parallel(i)
 
     return s

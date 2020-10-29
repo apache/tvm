@@ -26,6 +26,7 @@ from .correlation import *
 from .deformable_conv2d import *
 from .depthwise_conv2d import *
 from .elemwise import *
+from .embed import *
 from .dilate import *
 from .flatten import *
 from .dense import *

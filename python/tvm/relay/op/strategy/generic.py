@@ -1432,3 +1432,25 @@ def cumsum_strategy(attrs, inputs, out_type, target):
         name="cumsum.generic",
     )
     return strategy
+
+
+def wrap_compute_embed_grad(topi_compute):
+    """wrap embed_grad"""
+
+    def _wrapped(attrs, inputs, out_type):
+        return [topi_compute(inputs[0], inputs[1], inputs[2])]
+
+    return _wrapped
+
+
+@override_native_generic_func("embed_grad_strategy")
+def embed_grad_strategy(attrs, inputs, out_type, target):
+    """embed gradient generic strategy"""
+    logger.warning("embed_grad is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_embed_grad(topi.nn.embed_grad),
+        wrap_topi_schedule(topi.generic.schedule_embed_grad),
+        name="embed_grad.generic",
+    )
+    return strategy
