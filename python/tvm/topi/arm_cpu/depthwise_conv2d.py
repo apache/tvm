@@ -28,6 +28,7 @@ from ..nn.utils import get_pad_tuple
 from .tensor_intrin import smlal_int16_int32
 from .arm_utils import is_aarch64_arm
 
+
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")
 def depthwise_conv2d_nchw(_, data, kernel, strides, padding, dilation, out_dtype):
     """Compute depthwise_conv2d with NCHW layout"""
