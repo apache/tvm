@@ -30,6 +30,10 @@ The auto-scheduler can automatically generate a large search space and
 find a good schedule in the space.
 
 We use a convolution layer as an example in this tutorial.
+
+Note that this tutorial will not run on Windows or recent versions of macOS. To
+get it to run, you will need to wrap the body of this tutorial in a :code:`if
+__name__ == "__main__":` block.
 """
 
 import os
