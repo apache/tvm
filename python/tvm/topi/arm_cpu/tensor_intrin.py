@@ -885,8 +885,8 @@ def smlal_int16_int32():
     them together through a pair of smlal/smlal2 instructions. The pseudo-code
     for the algorithm is as follows:
 
-        vec_a = vld1q_s16(A)
-        vec_b = vld1q_s16(B)
+        vec_a = vload(A, "int16x8")
+        vec_b = vload(B, "int16x8")
 
         vec_c[0:4] += vec_a[0:4]*vec_b[0:4] //  -> smlal instruction
         vec_c[4:8] += vec_a[4:8]*vec_b[4:8] // -> smlal2 instruction
@@ -932,7 +932,7 @@ def smlal_int16_int32():
             vec_b = ins[1].vload([0, 0], "int16x8")
             inst = "llvm.aarch64.neon.smull"
 
-            # Lower part of the vector
+            # Higher part of the vector
             vec_c_h = outs[0].vload([4], "int32x4")
             vec_a_h = tvm.tir.call_intrin("int16x4", "tir.vectorhigh", vec_a)
             vec_b_h = tvm.tir.call_intrin("int16x4", "tir.vectorhigh", vec_b)
@@ -951,7 +951,7 @@ def smlal_int16_int32():
             vec_out_l = vec_c_l + vmull_l
 
             # Combine higher and lower part in a single int32x8 vector to store
-            # (this will require two different STR instructions, since the
+            # (this will require two different store instructions, since the
             # length of a NEON vector is fixed at 128
             vec_out = tvm.tir.call_intrin("int32x8", "tir.vectorcombine", vec_out_l, vec_out_h)
             ib.emit(outs[0].vstore(0, vec_out))
