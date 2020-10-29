@@ -185,7 +185,7 @@ stage('Build') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
         }
       }
@@ -218,7 +218,7 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-arm")) {
         init_git()
         sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
-        make(ci_arm, 'build', '-j2')
+        make(ci_arm, 'build', '-j4')
         pack_lib('arm', tvm_multilib)
       }
     }
