@@ -249,6 +249,8 @@ def test_extern_gcc_consts():
         assert len(params) == 1
         assert "ccompiler_0_p0" in params.keys()
 
+    tvm._ffi.registry.remove_global_func("relay.ext.ccompiler.constant_updater")
+
 
 def test_extern_dnnl():
     if not tvm.get_global_func("relay.ext.dnnl", True):
