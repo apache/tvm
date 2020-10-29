@@ -262,6 +262,17 @@ def extract_ext_funcs(finit):
     return fdict
 
 
+def remove_global_func(name):
+    """Remove a global function by name
+
+    Parameters
+    ----------
+    name : str
+        The name of the global function
+    """
+    check_call(_LIB.TVMFuncRemoveGlobal(c_str(name)))
+
+
 def _get_api(f):
     flocal = f
     flocal.is_global = True

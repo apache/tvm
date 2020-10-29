@@ -1032,11 +1032,24 @@ def schedule_argwhere(attrs, outs, target):
 
 
 # scatter
-@generic_func
-def schedule_scatter(attrs, outs, target):
-    """schedule scatter"""
-    with target:
-        return topi.generic.schedule_scatter(outs)
+@override_native_generic_func("scatter_strategy")
+def scatter_strategy(attrs, outs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scatter(topi.scatter),
+        wrap_topi_schedule(topi.generic.schedule_scatter),
+        name="scatter.generic",
+    )
+    return strategy
+
+
+def wrap_compute_scatter(topi_compute):
+    """Wrap scatter topi compute"""
+
+    def _compute_scatter(attrs, inputs, _):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], axis=attrs.axis)]
+
+    return _compute_scatter
 
 
 # scatter_add

@@ -878,6 +878,7 @@ def test_reverse_sequence():
     )
 
 
+@tvm.testing.uses_gpu
 def test_scatter():
     def ref_scatter(data, indices, updates, axis=0):
         idx = np.indices(indices.shape).reshape(indices.ndim, -1)
@@ -903,11 +904,32 @@ def test_scatter():
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
-        # TODO(mbrookhart): expand testing when adding more backend schedules
-        for target, ctx in [("llvm", tvm.cpu())]:
+
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    def verify_dynamic_scatter(dshape, ishape, axis=0):
+        d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
+        i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
+        u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
+        z = relay.op.scatter(d, i, u, axis)
+
+        func = relay.Function([d, i, u], z)
+
+        data_np = np.random.uniform(size=dshape).astype("float32")
+        updates_np = np.random.uniform(size=ishape).astype("float32")
+        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+
+        ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(data_np, indices_np, updates_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
     verify_scatter((10,), (10,), 0)
@@ -918,10 +940,25 @@ def test_scatter():
     verify_scatter((2, 3, 4), (1, 3, 4), 0)
     verify_scatter((2, 3, 4), (2, 1, 4), 1)
     verify_scatter((2, 3, 4), (2, 3, 1), 2)
+    verify_scatter((4, 2, 1), (1, 1, 1), 0)
     verify_scatter((2, 3, 4, 5), (1, 3, 4, 5), 0)
     verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
     verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
     verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
+
+    verify_dynamic_scatter((10,), (10,), 0)
+    verify_dynamic_scatter((10, 5), (10, 5), -2)
+    verify_dynamic_scatter((10, 5), (10, 5), -1)
+    verify_dynamic_scatter((10, 5), (3, 5), 0)
+    verify_dynamic_scatter((12, 4), (7, 2), 1)
+    verify_dynamic_scatter((2, 3, 4), (1, 3, 4), 0)
+    verify_dynamic_scatter((2, 3, 4), (2, 1, 4), 1)
+    verify_dynamic_scatter((2, 3, 4), (2, 3, 1), 2)
+    verify_dynamic_scatter((4, 2, 1), (1, 1, 1), 0)
+    verify_dynamic_scatter((2, 3, 4, 5), (1, 3, 4, 5), 0)
+    verify_dynamic_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
+    verify_dynamic_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
+    verify_dynamic_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
 
 
 def test_scatter_add():

@@ -20,9 +20,9 @@
 import json
 import os
 import shutil
+import tvm
 
 from tvm.contrib import util
-from tvm.micro import artifact
 
 
 FILE_LIST = ["label1", "label2", "label12", "unlabelled"]
@@ -49,11 +49,14 @@ def build_artifact(artifact_path, immobile=False):
         os.path.join(artifact_path, "sub_dir"), os.path.join(artifact_path, "abs_dir_symlink")
     )
 
+    from tvm.micro import artifact
+
     art = artifact.Artifact(artifact_path, TEST_LABELS, TEST_METADATA, immobile=immobile)
 
     return art
 
 
+@tvm.testing.requires_micro
 def test_basic_functionality():
     temp_dir = util.tempdir()
     artifact_path = temp_dir.relpath("foo")
@@ -66,7 +69,10 @@ def test_basic_functionality():
         assert art.label_abspath(label) == [os.path.join(artifact_path, p) for p in paths]
 
 
+@tvm.testing.requires_micro
 def test_archive():
+    from tvm.micro import artifact
+
     temp_dir = util.tempdir()
     art = build_artifact(temp_dir.relpath("foo"))
 
@@ -100,7 +106,10 @@ def test_archive():
         assert os.path.exists(os.path.join(unarchive_base_dir, f))
 
 
+@tvm.testing.requires_micro
 def test_metadata_only():
+    from tvm.micro import artifact
+
     temp_dir = util.tempdir()
     base_dir = temp_dir.relpath("foo")
     art = build_artifact(base_dir)

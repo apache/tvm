@@ -20,7 +20,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.testing import check_grad, run_infer_type
+from tvm.relay.testing import check_grad, run_infer_type, _np_randn_from_type
 from tvm.relay.transform import gradient
 import tvm.testing
 
@@ -73,6 +73,48 @@ def test_copy_grad():
     data = relay.var("data", relay.TensorType((10, 4), "float64"))
     fwd_func = relay.Function([data], relay.copy(data))
     check_grad(fwd_func)
+
+
+def test_take_grad():
+    data_dtype = relay.TensorType((3, 4, 5), "float64")
+    data = relay.var("data", data_dtype)
+    indices = relay.var("indices", relay.TensorType((relay.Any(),), "int32"))
+    inputs = [_np_randn_from_type(data_dtype, scale=1e-5), np.array([1, 2], dtype="int32")]
+    test_inputs = [inputs[0]]
+
+    # take on axis
+    fwd_func = relay.Function([data, indices], relay.take(data, indices, axis=1))
+    check_grad(fwd_func, inputs=inputs, test_inputs=test_inputs)
+
+    # take on flattened
+    fwd_func = relay.Function([data, indices], relay.take(data, indices, axis=None))
+    check_grad(fwd_func, inputs=inputs, test_inputs=test_inputs)
+
+
+def test_stack_grad():
+    args = [relay.var(c, shape=(2, 3, 4), dtype="float64") for c in "xyz"]
+    fwd_func = relay.Function(args, relay.stack(args, axis=0))
+    check_grad(fwd_func)
+
+
+def test_squeeze_grad():
+    data = relay.var("data", shape=(2, 1, 1, 3, 4, 1), dtype="float64")
+    fwd_func = relay.Function([data], relay.squeeze(data))
+    fwd_func_subset = relay.Function([data], relay.squeeze(data, axis=[1, -1]))
+    check_grad(fwd_func)
+    check_grad(fwd_func_subset)
+
+
+def test_arange_grad():
+    # TODO: testing arange numerically is strange because two-sided approx can
+    #       produce different output shapes
+    dtype = "float64"
+    start = relay.var("start", relay.TensorType((), dtype))
+    stop = relay.var("stop", relay.TensorType((), dtype))
+    step = relay.var("step", relay.TensorType((), dtype))
+    values = [np.array(v, dtype=dtype) for v in [2.5, 9.5, 1.8]]
+    fwd_func = relay.Function([start, stop, step], relay.arange(start, stop, step, dtype))
+    check_grad(fwd_func, inputs=values)
 
 
 if __name__ == "__main__":

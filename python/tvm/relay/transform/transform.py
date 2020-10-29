@@ -386,6 +386,33 @@ def AlterOpLayout():
     return _ffi_api.AlterOpLayout()
 
 
+class LayoutConfig(object):
+    """A structure for customizing the ConvertLayout pass."""
+
+    current = None
+
+    def __init__(self, skip_layers=None):
+        self.skip_counter = 0
+        self.skip_layers = skip_layers if skip_layers is not None else []
+
+    def check_skip(self):
+        skip = self.skip_counter in self.skip_layers
+        self.skip_counter += 1
+        return skip
+
+    def reset(self):
+        self.skip_counter = 0
+        self.skip_layers = []
+
+    def __enter__(self):
+        self._old_manager = LayoutConfig.current
+        LayoutConfig.current = self
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        LayoutConfig.current = self._old_manager
+
+
 def ConvertLayout(desired_layouts):
     """Given a dest layout, this pass transforms the expr such that most of the ops input data
     layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms,

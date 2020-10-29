@@ -99,6 +99,18 @@ Expr DenseFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int re
   return MakeConstantScalar(DataType::Int(32), scalar_term);
 }
 
+Expr DenseFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point,
+                     int reduction_dim_size) {
+  auto reduction_dim = MakeConstantScalar(DataType::Int(32), reduction_dim_size);
+  return Multiply(Multiply(input_zero_point, kernel_zero_point), reduction_dim);
+}
+
+Expr DenseCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3, const Expr& term4) {
+  auto data_term = Subtract(term1, term2);
+  // Putting constant terms together, so that constant folding can fold it.
+  auto const_term = Subtract(term4, term3);
+  return Add(data_term, const_term);
+}
 /*
  * \brief Forward rewrite the qnn dense op.
  * \param attrs The QNN dense attrs.
@@ -144,14 +156,24 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   const auto* qnn_dense_attrs = attrs.as<DenseAttrs>();
 
-  // Extract the integer zero points.
-  auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
-  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
-
-  // Get all the terms as described in the comments.
   auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);
   auto term2 = DenseSecondTerm(quantized_data, kernel_zero_point);
   auto term3 = DenseThirdTerm(quantized_kernel, input_zero_point);
+
+  // Extract the integer zero points.
+  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
+
+  if (!IsConstScalar(input_zero_point)) {
+    if (kernel_zero_point_int == 0) {
+      return Subtract(term1, term3);
+    }
+    auto term4 = DenseFourthTerm(input_zero_point, kernel_zero_point, reduction_dim_size);
+    return DenseCombineTerms(term1, term2, term3, term4);
+  }
+
+  auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
+
+  // Get all the terms as described in the comments.
   auto term4 = DenseFourthTerm(input_zero_point_int, kernel_zero_point_int, reduction_dim_size);
 
   // Combine those 4 terms depending on the zero points to get the best lowering.
@@ -165,10 +187,7 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     // term 2 and term 4 become zero.
     return Subtract(term1, term3);
   } else {
-    auto data_term = Subtract(term1, term2);
-    // Putting constant terms together, so that constant folding can fold it.
-    auto const_term = Subtract(term4, term3);
-    return Add(data_term, const_term);
+    return DenseCombineTerms(term1, term2, term3, term4);
   }
 }
 

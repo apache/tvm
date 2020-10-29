@@ -33,91 +33,91 @@ TEST(Pattern, Basic) {
 
   // arithmetics
   auto r = 1 + (y + 1);
-  CHECK(!(px + (px + px)).Match(r));
-  CHECK(!(px + (py + py)).Match(r));
-  CHECK((px + (py + pz)).Match(r));
+  ICHECK(!(px + (px + px)).Match(r));
+  ICHECK(!(px + (py + py)).Match(r));
+  ICHECK((px + (py + pz)).Match(r));
   auto pattern = px + (py + pz);
-  CHECK(pattern.Match(r));
+  ICHECK(pattern.Match(r));
   {
-    CHECK((px + (py + px)).Match(r));
+    ICHECK((px + (py + px)).Match(r));
     auto rr = (px + py).Eval();
 
-    CHECK(tir::ExprDeepEqual()(rr, 1 + y));
-    CHECK(tir::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
+    ICHECK(tir::ExprDeepEqual()(rr, 1 + y));
+    ICHECK(tir::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
   }
   {
-    CHECK((px + max(py, px)).Match((x + 1) + max(y, (x + 1))));
-    CHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
+    ICHECK((px + max(py, px)).Match((x + 1) + max(y, (x + 1))));
+    ICHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
   }
-  CHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
+  ICHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
 
-  CHECK((px + min(py, px)).Match(z + min(y, z)));
-  CHECK((px + truncdiv(py, px * py)).Match(x + truncdiv(2, x * 2)));
-  CHECK((px - truncmod(py, px * pz)).Match(x - truncmod(2, x * 2)));
-  CHECK((px - floormod(py, px * PConst<PrimExpr>(2))).Match(x - floormod(2, x * 2)));
+  ICHECK((px + min(py, px)).Match(z + min(y, z)));
+  ICHECK((px + truncdiv(py, px * py)).Match(x + truncdiv(2, x * 2)));
+  ICHECK((px - truncmod(py, px * pz)).Match(x - truncmod(2, x * 2)));
+  ICHECK((px - floormod(py, px * PConst<PrimExpr>(2))).Match(x - floormod(2, x * 2)));
 
   // logicals
-  CHECK((px == pz).Match(x == 1));
-  CHECK((px != pz).Match(x != 1));
-  CHECK((px > py).Match(x > y));
-  CHECK((px < py).Match(x < y));
-  CHECK((px <= py).Match(x <= y));
-  CHECK((px >= py).Match(x >= y));
-  CHECK((px >= py && px < pz).Match(x >= y && x < z));
-  CHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
+  ICHECK((px == pz).Match(x == 1));
+  ICHECK((px != pz).Match(x != 1));
+  ICHECK((px > py).Match(x > y));
+  ICHECK((px < py).Match(x < y));
+  ICHECK((px <= py).Match(x <= y));
+  ICHECK((px >= py).Match(x >= y));
+  ICHECK((px >= py && px < pz).Match(x >= y && x < z));
+  ICHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
-    CHECK(select(px >= pz, py, py + pz).Match(tir::Select((x + 1) >= 1, y, y + 1)));
-    CHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
+    ICHECK(select(px >= pz, py, py + pz).Match(tir::Select((x + 1) >= 1, y, y + 1)));
+    ICHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
   }
   // bit intrinsics
   {
-    CHECK((px >> pz).Match(x >> 1));
-    CHECK(is_const_int(pz.Eval(), 1));
+    ICHECK((px >> pz).Match(x >> 1));
+    ICHECK(is_const_int(pz.Eval(), 1));
   }
-  CHECK(!(px >> pz).Match(x << 1));
-  CHECK((px << pz).Match(x << 1));
-  CHECK((px & pz).Match(x & 1));
-  CHECK((px | pz).Match(x | 1));
-  CHECK((px ^ pz).Match(x ^ 1));
-  CHECK((px - (~(py | (px * pz)))).Match(x - (~(2 | (x * 2)))));
+  ICHECK(!(px >> pz).Match(x << 1));
+  ICHECK((px << pz).Match(x << 1));
+  ICHECK((px & pz).Match(x & 1));
+  ICHECK((px | pz).Match(x | 1));
+  ICHECK((px ^ pz).Match(x ^ 1));
+  ICHECK((px - (~(py | (px * pz)))).Match(x - (~(2 | (x * 2)))));
   // select
   {
-    CHECK(select(px > pz, py, py + pz).Match(tir::Select(x > 1, y, y + 1)));
-    CHECK(is_const_int(pz.Eval(), 1));
+    ICHECK(select(px > pz, py, py + pz).Match(tir::Select(x > 1, y, y + 1)));
+    ICHECK(is_const_int(pz.Eval(), 1));
   }
-  CHECK(!select(px > pz, py, py + pz).Match(tir::Select(x > 2, y, y + 1)));
-  CHECK(!select(px > pz, py, py).Match(tir::Select(x > 2, y, y + 1)));
+  ICHECK(!select(px > pz, py, py + pz).Match(tir::Select(x > 2, y, y + 1)));
+  ICHECK(!select(px > pz, py, py).Match(tir::Select(x > 2, y, y + 1)));
   {
-    CHECK(select(px, py, pz).Match(tir::Select(x > 2, y, y + 1)));
-    CHECK(tir::ExprDeepEqual()(pz.Eval(), y + 1));
+    ICHECK(select(px, py, pz).Match(tir::Select(x > 2, y, y + 1)));
+    ICHECK(tir::ExprDeepEqual()(pz.Eval(), y + 1));
   }
   // if_then_else
   {
-    CHECK(if_then_else(px > pz, py, py + pz).Match(if_then_else(x > 1, y, y + 1)));
-    CHECK(is_const_int(pz.Eval(), 1));
+    ICHECK(if_then_else(px > pz, py, py + pz).Match(if_then_else(x > 1, y, y + 1)));
+    ICHECK(is_const_int(pz.Eval(), 1));
   }
   // cast pattern
   {
-    CHECK(!cast(PConst<DataType>(DataType::Int(32)), px).Match(tir::Cast(DataType::Float(64), x)));
-    CHECK(cast(pt, px).Match(tir::Cast(DataType::Float(64), x)));
-    CHECK(pt.Eval() == DataType::Float(64));
+    ICHECK(!cast(PConst<DataType>(DataType::Int(32)), px).Match(tir::Cast(DataType::Float(64), x)));
+    ICHECK(cast(pt, px).Match(tir::Cast(DataType::Float(64), x)));
+    ICHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
-    CHECK((cast(pt, px) - cast(pt, py))
-              .Match(tir::Cast(DataType::Float(64), x) - tir::Cast(DataType::Int(64), x)));
+    ICHECK((cast(pt, px) - cast(pt, py))
+               .Match(tir::Cast(DataType::Float(64), x) - tir::Cast(DataType::Int(64), x)));
     auto expr = tir::Cast(DataType::Int(32), tir::Cast(DataType::Float(64), x));
-    CHECK(!(cast(pt, cast(pt, px))).Match(expr));
+    ICHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }
   // ramp pattern
   {
-    CHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 1, 10)));
-    CHECK(planes.Eval() == 10);
-    CHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 2, 10)));
+    ICHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 1, 10)));
+    ICHECK(planes.Eval() == 10);
+    ICHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(tir::Ramp(x, 2, 10)));
   }
   // broadcast pattern
   {
-    CHECK(broadcast(px, planes).Match(tir::Broadcast(x, 10)));
-    CHECK(planes.Eval() == 10);
-    CHECK(broadcast(px * py, planes).Match(tir::Broadcast(x * 10, 10)));
+    ICHECK(broadcast(px, planes).Match(tir::Broadcast(x, 10)));
+    ICHECK(planes.Eval() == 10);
+    ICHECK(broadcast(px * py, planes).Match(tir::Broadcast(x * 10, 10)));
   }
 }
 
@@ -129,14 +129,14 @@ TEST(Pattern, IntImm) {
   {
     // We can match integer and Var, both of which are
     // special case container of Expr
-    CHECK((v * c).Match(tx * 3));
-    CHECK_EQ(c.Eval()->value, 3);
-    CHECK((v * 3).Match(tx * 3));
+    ICHECK((v * c).Match(tx * 3));
+    ICHECK_EQ(c.Eval()->value, 3);
+    ICHECK((v * 3).Match(tx * 3));
   }
   // cannot match c to ty
-  CHECK(!(v * c).Match(tx * ty));
+  ICHECK(!(v * c).Match(tx * ty));
   // cannot match tx + 1 to v
-  CHECK(!(v * c).Match((tx + 1) * 3));
+  ICHECK(!(v * c).Match((tx + 1) * 3));
 }
 
 int main(int argc, char** argv) {
