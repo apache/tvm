@@ -3488,6 +3488,22 @@ def test_forward_atan2():
     compare_tf_with_tvm([np_data_1, np_data_2], ["in_data_1:0", "in_data_2:0"], "atan2:0")
 
 
+def test_forward_expm1():
+    """test operator expm1 """
+
+    def _test_forward_expm1(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(1, 10, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.expm1(in_data, name="expm1")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "expm1:0")
+
+    _test_forward_expm1([1, 100])
+    _test_forward_expm1([1, 10, 10])
+    _test_forward_expm1([2, 5, 2, 5])
+
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
