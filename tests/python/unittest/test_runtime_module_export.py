@@ -21,9 +21,9 @@ from tvm import te
 
 import tvm.testing
 
-from tvm.contrib import util
+from tvm.contrib import utils
 
-header_file_dir_path = util.tempdir()
+header_file_dir_path = utils.tempdir()
 
 
 def gen_engine_header():
@@ -80,9 +80,9 @@ def test_mod_export():
                 synthetic_llvm_mod, "llvm", params=synthetic_llvm_params
             )
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -112,9 +112,9 @@ def test_mod_export():
         B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -153,9 +153,9 @@ def test_mod_export():
             + "mul 6 inputs: 5 3 shape: 10 10"
         )
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         subgraph_path = temp.relpath("subgraph.examplejson")
         with open(subgraph_path, "w") as f:
             f.write(subgraph_json)
@@ -204,9 +204,9 @@ def test_mod_export():
         s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "c", name="myadd")
         engine_module = generate_engine_module()
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         file_name = "deploy_lib.so"
         path_lib = temp.relpath(file_name)
         synthetic_cpu_lib.import_module(f)

@@ -22,12 +22,12 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..nn.pad import pad
-from ..util import get_const_tuple
-from ..nn.util import get_pad_tuple
+from ..utils import get_const_tuple
+from ..nn.utils import get_pad_tuple
 from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
 from ..nn.conv2d import unpack_NCHWc_to_nchw
-from ..util import traverse_inline
-from .util import get_fp32_len
+from ..utils import traverse_inline
+from .utils import get_fp32_len
 
 
 def _fallback_schedule(cfg, wkl):

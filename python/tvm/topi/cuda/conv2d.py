@@ -22,8 +22,8 @@ from tvm.autotvm.task.space import OtherOptionEntity
 from tvm.contrib import cudnn
 
 from .. import nn, generic
-from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple, traverse_inline
+from ..nn.utils import get_pad_tuple
+from ..utils import get_const_tuple, traverse_inline
 from .conv2d_direct import schedule_direct_cuda
 from .conv2d_nhwc import schedule_conv2d_nhwc_direct
 

@@ -20,8 +20,8 @@ from tvm import topi
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
-from tvm.topi.util import get_const_tuple
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 import tvm.topi.testing
 from tvm.topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_backward_input_nhwc
 import tvm.testing

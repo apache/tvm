@@ -22,7 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
-from util.assert_diagnostic import DiagnosticTesting
+from utils.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
 

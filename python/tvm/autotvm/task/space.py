@@ -34,7 +34,7 @@ import numpy as np
 
 from tvm.te import schedule, thread_axis
 from tvm.tir import expr
-from tvm.autotvm.util import get_const_int
+from tvm.autotvm.utils import get_const_int
 
 Axis = namedtuple("Axis", ["space", "index"])
 

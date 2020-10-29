@@ -20,7 +20,7 @@ import math
 import tvm
 from tvm import te
 from ...vision.rcnn import generate_anchor, reg_bbox, reg_iou
-from ...util import get_const_tuple, get_const_int
+from ...utils import get_const_tuple, get_const_int
 
 
 def predict_bbox_ir(

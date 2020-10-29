@@ -24,8 +24,8 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
-from tvm.topi.nn.util import get_pad_tuple3d
-from tvm.topi.util import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple3d
+from tvm.topi.utils import get_const_tuple
 
 _conv3d_ncdhw_implement = {
     "generic": (topi.nn.conv3d_ncdhw, topi.generic.schedule_conv3d_ncdhw),

@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.topi.util import get_const_int, get_const_tuple
+from tvm.topi.utils import get_const_int, get_const_tuple
 from .. import tag
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 

@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 from .injective import schedule_injective_from_existing
 from .. import tag
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def _schedule_reduce(sch, op, is_idx_reduce=False):

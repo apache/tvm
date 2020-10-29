@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, exec-used
 """Setup TVM package."""
-from __future__ import absolute_import
 import os
 import shutil
 import sys

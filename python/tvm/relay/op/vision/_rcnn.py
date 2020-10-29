@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Faster R-CNN and Mask R-CNN operations."""
 from tvm import topi
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern

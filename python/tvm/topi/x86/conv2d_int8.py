@@ -24,10 +24,10 @@ from tvm import autotvm
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .. import tag
 from ..generic import conv2d as conv2d_generic
-from ..nn.util import get_pad_tuple
+from ..nn.utils import get_pad_tuple
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
-from ..util import get_const_tuple, traverse_inline
+from ..utils import get_const_tuple, traverse_inline
 from .. import nn
 from . import conv2d_avx_1x1, conv2d_avx_common
 

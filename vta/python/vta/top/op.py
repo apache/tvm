@@ -26,7 +26,7 @@ from tvm.relay.op import op as reg
 from tvm.relay.op import strategy as _strategy
 from tvm.relay.op.op import OpPattern, OpStrategy
 
-from .util import is_packed_layout
+from .utils import is_packed_layout
 from .vta_conv2d import conv2d_packed, schedule_conv2d_packed
 from .vta_conv2d_transpose import conv2d_transpose_packed, schedule_conv2d_transpose_packed
 from .vta_group_conv2d import group_conv2d_packed, schedule_group_conv2d_packed
@@ -69,7 +69,7 @@ def conv2d_strategy_vta(attrs, inputs, out_type, target):
     """conv2d vta strategy"""
     strategy = OpStrategy()
     kernel = inputs[1]
-    dilation = topi.util.get_const_tuple(attrs.dilation)
+    dilation = topi.utils.get_const_tuple(attrs.dilation)
     groups = attrs.groups
     layout = attrs.data_layout
 
@@ -102,7 +102,7 @@ def conv2d_strategy_vta(attrs, inputs, out_type, target):
 @_strategy.conv2d_transpose_strategy.register("vta")
 def conv2d_transpose_strategy_vta(attrs, inputs, out_type, target):
     """conv2d_transpose vta strategy"""
-    dilation = topi.util.get_const_tuple(attrs.dilation)
+    dilation = topi.utils.get_const_tuple(attrs.dilation)
     layout = attrs.data_layout
     assert dilation == (1, 1), "support for dilation limited to (1, 1)"
 

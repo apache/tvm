@@ -49,7 +49,7 @@ from . import arm_cpu
 from . import mali
 from . import bifrost
 from . import intel_graphics
-from . import util
+from . import utils
 from . import rocm
 from . import vision
 from . import image
@@ -57,7 +57,7 @@ from . import sparse
 from . import hls
 
 # error reporting
-from .util import InvalidShapeError
+from .utils import InvalidShapeError
 
 # not import testing by default
 # because testing can have extra deps that are not necessary

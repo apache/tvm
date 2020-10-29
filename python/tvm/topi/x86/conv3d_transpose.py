@@ -19,7 +19,7 @@
 
 """Conv3D Transpose schedule on x86"""
 from tvm import te
-from ..util import traverse_inline
+from ..utils import traverse_inline
 from .. import nn
 from .conv3d import conv3d_ncdhw, schedule_conv3d_ncdhw
 

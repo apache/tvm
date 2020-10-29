@@ -21,7 +21,7 @@ from tvm import autotvm
 from tvm.contrib import cudnn
 
 from .. import nn, generic
-from ..util import get_const_tuple, traverse_inline
+from ..utils import get_const_tuple, traverse_inline
 from .conv3d_direct import schedule_direct_conv3d_cuda
 
 

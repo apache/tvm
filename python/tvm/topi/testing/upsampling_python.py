@@ -18,7 +18,7 @@
 """Upsampling in python"""
 import math
 import numpy as np
-from tvm.topi.util import nchw_pack_layout
+from tvm.topi.utils import nchw_pack_layout
 
 
 def upsample_nearest(arr, scale):

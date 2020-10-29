@@ -18,7 +18,7 @@ import tvm
 import tvm.testing
 from tvm import te
 import numpy as np
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 def test_add():
@@ -31,7 +31,7 @@ def test_add():
 
     def check_c():
         mhost = tvm.build(s, [A, B, C], "c", name="fadd")
-        temp = util.tempdir()
+        temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
@@ -76,7 +76,7 @@ def test_add_pipeline():
         f1 = tvm.lower(s, [A, B, C], name="fadd_pipeline")
         mhost = tvm.build(f1, target="c")
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
@@ -104,7 +104,7 @@ def test_reinterpret():
 
     def check_c():
         mhost = tvm.build(s, [A, B], "c", name="reinterpret")
-        temp = util.tempdir()
+        temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)

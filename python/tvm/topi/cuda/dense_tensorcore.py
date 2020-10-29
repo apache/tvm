@@ -21,7 +21,7 @@ import tvm
 from tvm import te
 import tvm.autotvm as autotvm
 from .. import tag
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 from .tensor_intrin import (
     intrin_wmma_load_matrix_A,
     intrin_wmma_load_matrix_W,

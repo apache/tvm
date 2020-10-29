@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D Transpose schedule on x86"""
 from tvm import te
-from ..util import traverse_inline
+from ..utils import traverse_inline
 from .. import nn
 from .conv2d import conv2d_nchw, schedule_conv2d_nchw
 

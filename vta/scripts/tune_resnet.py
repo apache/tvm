@@ -28,7 +28,7 @@ from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from tvm.contrib import graph_runtime, util, download
+from tvm.contrib import graph_runtime, utils, download
 from tvm.contrib.debugger import debug_runtime
 import vta
 from vta.testing import simulator
@@ -318,7 +318,7 @@ if __name__ == "__main__":
                 )
 
         # Export library
-        temp = util.tempdir()
+        temp = utils.tempdir()
         lib.save(temp.relpath("graphlib.o"))
         remote.upload(temp.relpath("graphlib.o"))
         lib = remote.load_module("graphlib.o")

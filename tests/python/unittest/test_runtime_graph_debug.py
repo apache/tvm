@@ -21,7 +21,7 @@ import tvm.testing
 from tvm import te
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.contrib.debugger import debug_runtime as graph_runtime
 
 
@@ -120,7 +120,7 @@ def test_graph_simple():
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         ctx = remote.cpu(0)
         path_dso = temp.relpath("dev_lib.so")
         mlib.export_library(path_dso)

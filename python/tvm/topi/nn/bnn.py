@@ -19,7 +19,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from .. import tag
-from ..util import simplify, get_const_int
+from ..utils import simplify, get_const_int
 
 
 def binarize_pack(data, axis=None, name="PackedInput"):

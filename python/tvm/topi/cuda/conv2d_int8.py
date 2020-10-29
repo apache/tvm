@@ -25,8 +25,8 @@ from .injective import schedule_injective_from_existing
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
 from ..nn.conv2d import unpack_NCHWc_to_nchw
-from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple, traverse_inline
+from ..nn.utils import get_pad_tuple
+from ..utils import get_const_tuple, traverse_inline
 
 
 def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype="int32"):

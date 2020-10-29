@@ -85,7 +85,7 @@ def git_describe_version():
         msg = py_str(out)
         if msg.find("not a git repository") != -1:
             return __version__, __version__
-        logging.warning("git describe error: %", msg)
+        logging.warning("git describe: %s, use %s", msg, __version__)
         return __version__, __version__
     describe = py_str(out).strip()
     arr_info = describe.split("-")

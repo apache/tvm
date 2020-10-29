@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import autotvm
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 from .. import tag
 from .bitserial_conv2d import _intrin_popcount
 from ..nn.pad import pad

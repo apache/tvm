@@ -18,7 +18,7 @@
 """Dilation operators"""
 import tvm
 from tvm import te
-from .. import util
+from .. import utils
 from .. import tag
 
 
@@ -57,7 +57,7 @@ def dilate(data, strides, dilation_value=0.0, name="DilatedInput"):
         idxdiv = tvm.tir.indexdiv
         idxmod = tvm.tir.indexmod
         for i in range(n):
-            if not util.equal_const_int(strides[i], 1):
+            if not utils.equal_const_int(strides[i], 1):
                 index_tuple.append(idxdiv(indices[i], strides[i]))
                 not_zero.append(idxmod(indices[i], strides[i]).equal(0))
             else:

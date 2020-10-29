@@ -21,9 +21,9 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-from ..util import get_const_tuple, traverse_inline, simplify
+from ..utils import get_const_tuple, traverse_inline, simplify
 from ..nn.pad import pad
-from ..nn.util import get_pad_tuple
+from ..nn.utils import get_pad_tuple
 from .tensor_intrin import intrin_wmma_load_matrix_A
 from .tensor_intrin import intrin_wmma_load_matrix_W
 from .tensor_intrin import intrin_wmma_store_matrix

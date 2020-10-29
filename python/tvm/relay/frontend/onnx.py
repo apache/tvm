@@ -21,7 +21,7 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
 from .. import analysis
@@ -2649,7 +2649,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
     retains that dynamism upon import, and the compiler attempts to convert the
     model into a static shapes at compile time. If this fails, there may still
     be dynamic operations in the model. Not all TVM kernels currently support
-    dynamic shapes, please file an issue on discuss.tvm.ai
+    dynamic shapes, please file an issue on discuss.tvm.apache.org
     if you hit an error with dynamic kernels.
 
     Parameters

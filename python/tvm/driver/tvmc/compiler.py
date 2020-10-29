@@ -26,7 +26,7 @@ import tvm
 from tvm import autotvm
 from tvm import relay
 from tvm.contrib import cc
-from tvm.contrib import util
+from tvm.contrib import utils
 
 from . import common, frontends
 from .main import register_parser
@@ -238,7 +238,7 @@ def save_module(module_path, graph, lib, params, cross=None):
     lib_name = "mod.so"
     graph_name = "mod.json"
     param_name = "mod.params"
-    temp = util.tempdir()
+    temp = utils.tempdir()
     path_lib = temp.relpath(lib_name)
     if not cross:
         logger.debug("exporting library to %s", path_lib)

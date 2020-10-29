@@ -22,7 +22,7 @@ from tvm import te
 from tvm.te.hybrid import script
 from tvm.runtime import convert
 from tvm import topi
-from tvm.topi.util import get_const_int, get_const_tuple
+from tvm.topi.utils import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern

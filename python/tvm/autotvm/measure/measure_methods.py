@@ -41,7 +41,7 @@ from tvm.error import TVMError
 from tvm.driver import build
 from tvm.contrib import nvcc, ndk, tar
 
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 from ..env import AutotvmGlobalScope
 from ..task.space import InstantiationError
 
