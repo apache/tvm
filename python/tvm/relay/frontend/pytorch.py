@@ -2741,7 +2741,7 @@ def _run_jit_passes(graph):
     # pylint: disable=c-extension-no-member
     import torch
 
-    if is_version_greater_than("1.5.0"):
+    if is_version_greater_than("1.5.1"):
         # This is required for torchvision detection models from 1.6 above
         # It is the same as _jit_pass_inline, except that it has some special
         # case behaviors for some ops such as aten::__interpolate()
@@ -3383,7 +3383,8 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
-    if "aten::quantize_per_tensor" in op_names:
+    quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
+    if len(quantized_ops.intersection(set(op_names))) > 0:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)

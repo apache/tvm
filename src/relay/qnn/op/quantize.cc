@@ -83,20 +83,27 @@ Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, int axis
 }
 
 Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
-                   const Expr& output_zero_point, const Array<IndexExpr>& input_shape,
+                   const Expr& output_zero_point, const Array<tvm::relay::Type>& types,
                    const QuantizeAttrs* attrs) {
+  ICHECK_EQ(types.size(), 4);
+  auto in_type = types[0];
+  auto in_tensor_type = in_type.as<TensorTypeNode>();
+  ICHECK(in_tensor_type != nullptr) << "Type information missing."
+                                    << " Please run infer_type pass.";
+  Array<IndexExpr> input_shape = in_tensor_type->shape;
+
   const auto out_dtype = attrs->out_dtype;
   const auto axis = attrs->axis;
 
   size_t n_dim = input_shape.size();
 
   auto expanded_output_scale = output_scale;
-  if (!IsConstScalar(output_scale)) {
+  if (!IsConstScalar(output_scale) && !IsScalarType(types[1])) {
     expanded_output_scale = ExpandBiasToMatchAxis(output_scale, n_dim, {axis});
   }
 
   auto expanded_output_zero_point = output_zero_point;
-  if (!IsConstScalar(output_zero_point)) {
+  if (!IsConstScalar(output_zero_point) && !IsScalarType(types[2])) {
     expanded_output_zero_point = ExpandBiasToMatchAxis(output_zero_point, n_dim, {axis});
   }
 
@@ -120,15 +127,7 @@ Expr QuantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   ICHECK(quantize_attrs != nullptr);
 
-  // Find input shape.
-  ICHECK_EQ(types.size(), 4);
-  auto in_type = types[0];
-  auto in_tensor_type = in_type.as<TensorTypeNode>();
-  ICHECK(in_tensor_type != nullptr) << "Type information missing."
-                                    << " Please run infer_type pass.";
-  Array<IndexExpr> input_shape = in_tensor_type->shape;
-
-  return QuantizeLower(data, output_scale, output_zero_point, input_shape, quantize_attrs);
+  return QuantizeLower(data, output_scale, output_zero_point, types, quantize_attrs);
 }
 
 RELAY_REGISTER_OP("qnn.quantize")

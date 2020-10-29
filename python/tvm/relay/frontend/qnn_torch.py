@@ -173,7 +173,7 @@ def _get_quant_param_for_input(input_value):
     # 6th and 7th arg are output scale and zp respectively.
 
     # PyTorch 1.6 changed qconv API
-    if is_version_greater_than("1.5.0"):
+    if is_version_greater_than("1.5.1"):
         qconv_indices = (2, 3)
     else:
         qconv_indices = (6, 7)
@@ -575,13 +575,7 @@ def _quantized_conv2d(with_relu=False):
         )
 
         return _do_bias_and_requantize(
-            conv_out,
-            bias,
-            input_scale,
-            weight_scale,
-            output_scale,
-            output_zero_point,
-            with_relu,
+            conv_out, bias, input_scale, weight_scale, output_scale, output_zero_point, with_relu
         )
 
     return _impl
@@ -826,6 +820,76 @@ def _mul_scalar():
     return _impl
 
 
+def _linear_dynamic():
+    def _calculate_qparam(inp):
+        # reference ATen/native/quantized/cpu/qlinear_dynamic.cpp
+        # ChooseQuantizationParams function
+        mn = _op.min(inp)
+        mx = _op.max(inp)
+
+        # Ensure that the interval contains 0
+        mn = _op.minimum(mn, _op.const(0.0, dtype="float32"))
+        mx = _op.maximum(mx, _op.const(0.0, dtype="float32"))
+
+        qmax = 255
+
+        # reduce_range became True in v1.6
+        if is_version_greater_than("1.5.1"):
+            qmax = 127
+
+        scale = (mx - mn) / _expr.const(qmax, dtype="float32")
+
+        zero_point_from_min = -(mn / scale)
+        zero_point = _op.cast(_op.round(_op.clip(zero_point_from_min, 0.0, qmax)), "int32")
+
+        return scale, zero_point
+
+    def _impl(inputs, _):
+        weight = inputs[1][0]
+        weight_scale = inputs[1][1]
+        weight_zero_point = inputs[1][2]
+
+        inp = inputs[0]
+
+        input_scale, input_zero_point = _calculate_qparam(inp)
+        qinp = relay.qnn.op.quantize(inp, input_scale, input_zero_point, out_dtype="uint8")
+
+        data_shape = infer_shape(inp)
+
+        if len(data_shape) > 2:
+            qinp = _op.reverse_reshape(qinp, [-1, 0])
+
+        weight_shape = infer_shape(weight)
+        units = weight_shape[0]
+        dense = relay.qnn.op.dense(
+            qinp,
+            weight,
+            input_zero_point,
+            weight_zero_point,
+            input_scale,
+            weight_scale,
+            units=units,
+        )
+        bias_var = inputs[1][3]
+
+        dequant_scale = input_scale * weight_scale
+        dense_out = relay.qnn.op.dequantize(
+            dense, dequant_scale, input_zero_point=relay.const(0, "int32"), axis=1
+        )
+
+        if len(data_shape) > 2:
+            new_shape = list(data_shape[:-1])
+            new_shape.append(units)
+            dense_out = _op.reshape(dense_out, new_shape)
+
+        if bias_var is not None:
+            return dense_out + bias_var
+
+        return dense_out
+
+    return _impl
+
+
 convert_map = {
     "aten::quantize_per_tensor": _quantize_per_tensor(),
     "quantized::conv2d_relu": _quantized_conv2d(with_relu=True),
@@ -841,4 +905,5 @@ convert_map = {
     "quantized::add_scalar": _add_scalar(),
     "quantized::mul_scalar": _mul_scalar(),
     "quantized::relu6": _relu6(),
+    "quantized::linear_dynamic": _linear_dynamic(),
 }
