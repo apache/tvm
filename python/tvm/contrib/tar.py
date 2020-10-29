@@ -21,7 +21,7 @@ from __future__ import absolute_import as _abs
 import os
 import shutil
 import subprocess
-from . import util
+from . import utils
 from .._ffi.base import py_str
 
 
@@ -38,7 +38,7 @@ def tar(output, files):
     """
     cmd = ["tar"]
     cmd += ["-czf"]
-    temp = util.tempdir()
+    temp = utils.tempdir()
     fset = set()
     for fname in files:
         base = os.path.basename(fname)

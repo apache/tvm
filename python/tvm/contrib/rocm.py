@@ -23,7 +23,7 @@ from tvm._ffi.base import py_str
 import tvm.runtime
 import tvm.target
 
-from . import util
+from . import utils
 
 
 def find_lld(required=True):
@@ -51,7 +51,7 @@ def find_lld(required=True):
         lld_list += ["ld.lld-%d.0" % major]
         lld_list += ["ld.lld-%d" % major]
     lld_list += ["ld.lld"]
-    valid_list = [util.which(x) for x in lld_list]
+    valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
         raise RuntimeError("cannot find ld.lld, candidates are: " + str(lld_list))
@@ -97,7 +97,7 @@ def callback_rocm_link(obj_bin):
     cobj_bin : bytearray
         The HSA Code Object
     """
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_obj = tmp_dir.relpath("rocm_kernel.o")
     tmp_cobj = tmp_dir.relpath("rocm_kernel.co")
     with open(tmp_obj, "wb") as out_file:

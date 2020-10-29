@@ -18,7 +18,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
-from tvm.contrib import util, clang
+from tvm.contrib import utils, clang
 import numpy as np
 import ctypes
 import math
@@ -594,7 +594,7 @@ def test_dwarf_debug_information():
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
         m = tvm.build([f1, f2], "llvm")
-        temp = util.tempdir()
+        temp = utils.tempdir()
         o_path = temp.relpath("temp.o")
         m.save(o_path)
         import shutil
