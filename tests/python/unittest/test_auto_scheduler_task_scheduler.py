@@ -75,7 +75,7 @@ def task_scheduler_round_robin_spawn():
 
 
 def test_task_scheduler_round_robin_spawn():
-    ctx = muliprocessing.get_context("spawn")
+    ctx = multiprocessing.get_context("spawn")
     p = ctx.Process(target=task_scheduler_round_robin_spawn)
     p.start()
     p.join()
