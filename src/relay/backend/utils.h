@@ -64,6 +64,37 @@ struct ConstantUpdater : public ExprVisitor {
 };
 
 /*!
+ * \brief A function to update the params with constants found in an external function.
+ * \param func The function from which to get the constant params.
+ * \param params The params to update with the constants.
+ */
+inline void UpdateConstants(Function func,
+                            std::unordered_map<std::string, runtime::NDArray>* params) {
+  auto codegen = func->GetAttr<String>(attr::kCompiler);
+  ICHECK(codegen.defined()) << "No external codegen is set";
+  std::string codegen_name = codegen.value();
+  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  std::string symbol = std::string(name_node.value());
+  std::string const_update_name = "relay.ext." + codegen_name + ".constant_updater";
+  // Get the constant updater for the external codegen
+  auto pf = tvm::runtime::Registry::Get(const_update_name);
+  // If the backend hasn't registered a constant updater, use a default one
+  if (pf == nullptr) {
+    ConstantUpdater const_visit(symbol, params);
+    const_visit(func);
+  } else {
+    Map<String, tvm::runtime::NDArray> constants = (*pf)(func, symbol);
+    for (const auto& it : constants) {
+      std::string const_name(it.first);
+      // Constant names should begin this the compiler name (to avoid conflicts)
+      ICHECK(const_name.find(codegen_name) == 0)
+          << "External constant names must start with compiler name";
+      (*params)[const_name] = it.second;
+    }
+  }
+}
+
+/*!
  * \brief A simple wrapper around ExprFunctor for a single argument case.
  *  The result of visit is memoized.
  */
