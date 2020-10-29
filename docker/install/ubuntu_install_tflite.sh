@@ -33,14 +33,14 @@ pip3 install flatbuffers
 # Build the TFLite static library, necessary for building with TFLite ON.
 # The library is built at:
 # tensorflow/tensorflow/lite/tools/make/gen/*/lib/libtensorflow-lite.a.
-git clone https://github.com/tensorflow/tensorflow --branch=r2.1
+git clone https://github.com/tensorflow/tensorflow --branch=r2.3
 ./tensorflow/tensorflow/lite/tools/make/download_dependencies.sh
 ./tensorflow/tensorflow/lite/tools/make/build_lib.sh
 
 # Setup tflite from schema
 mkdir tflite
 cd tflite
-wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r2.1/tensorflow/lite/schema/schema.fbs
+wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r2.3/tensorflow/lite/schema/schema.fbs
 flatc --python schema.fbs
 
 cat <<EOM >setup.py
@@ -48,7 +48,7 @@ import setuptools
 
 setuptools.setup(
     name="tflite",
-    version="2.1.0",
+    version="2.3.1",
     author="google",
     author_email="google@google.com",
     description="TFLite",
