@@ -788,6 +788,15 @@ def _expand_dims():
     return _impl
 
 
+def _expm1():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/expm1
+    def _impl(inputs, attr, params, mod):
+        exp_out = get_relay_op("exp")(inputs[0])
+        return exp_out - tvm.relay.const(1.0)
+
+    return _impl
+
+
 def _resize(method):
     def _impl(inputs, attr, params, mod):
         if attr["_output_shapes"][0] is not None:
@@ -2297,6 +2306,7 @@ _convert_map = {
     "EuclideanNorm": _euclidean_norm(),
     "Exp": AttrCvt("exp"),
     "ExpandDims": _expand_dims(),
+    "Expm1": _expm1(),
     "Fill": _fill(),
     "Floor": AttrCvt("floor"),
     "FloorDiv": _floordiv(),
