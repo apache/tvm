@@ -108,17 +108,67 @@ struct Handler<::tvm::auto_scheduler::StateNode> {
 };
 
 template <>
+struct Handler<::tvm::auto_scheduler::HardwareParamsNode> {
+  inline static void Write(dmlc::JSONWriter* writer,
+                           const ::tvm::auto_scheduler::HardwareParamsNode& data) {
+    writer->BeginArray(false);
+    writer->WriteArrayItem(data.num_cores);
+    writer->WriteArrayItem(data.vector_unit_bytes);
+    writer->WriteArrayItem(data.cache_line_bytes);
+    writer->WriteArrayItem(data.max_shared_memory_per_block);
+    writer->WriteArrayItem(data.max_registers_per_block);
+    writer->WriteArrayItem(data.max_threads_per_block);
+    writer->WriteArrayItem(data.max_vthread_extent);
+    writer->WriteArrayItem(data.warp_size);
+    writer->EndArray();
+  }
+  inline static void Read(dmlc::JSONReader* reader,
+                          ::tvm::auto_scheduler::HardwareParamsNode* data) {
+    bool s;
+    reader->BeginArray();
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->num_cores);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->vector_unit_bytes);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->cache_line_bytes);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->max_shared_memory_per_block);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->max_registers_per_block);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->max_threads_per_block);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->max_vthread_extent);
+    s = reader->NextArrayItem();
+    CHECK(s);
+    reader->Read(&data->warp_size);
+    s = reader->NextArrayItem();
+    CHECK(!s);
+  }
+};
+
+template <>
 struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
   inline static void Write(dmlc::JSONWriter* writer,
                            const ::tvm::auto_scheduler::SearchTaskNode& data) {
     writer->BeginArray(false);
     writer->WriteArrayItem(std::string(data.workload_key));
     writer->WriteArrayItem(data.target->str());
+    writer->WriteArrayItem(*data.hardware_params.get());
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
     bool s;
     std::string str_value;
+    auto hardware_params_node = ::tvm::make_object<::tvm::auto_scheduler::HardwareParamsNode>();
     reader->BeginArray();
     s = reader->NextArrayItem();
     ICHECK(s);
@@ -129,7 +179,12 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     reader->Read(&str_value);
     data->target = ::tvm::Target(str_value);
     s = reader->NextArrayItem();
-    ICHECK(!s);
+    if (s) {
+      reader->Read(hardware_params_node.get());
+      s = reader->NextArrayItem();
+      data->hardware_params = ::tvm::auto_scheduler::HardwareParams(hardware_params_node);
+      ICHECK(!s);
+    }
   }
 };
 
@@ -216,7 +271,7 @@ namespace auto_scheduler {
 TVM_REGISTER_OBJECT_TYPE(RecordToFileNode);
 TVM_REGISTER_OBJECT_TYPE(RecordReaderNode);
 
-const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.2";  // NOLINT(*)
+const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.3";  // NOLINT(*)
 
 RecordToFile::RecordToFile(String filename) {
   auto node = make_object<RecordToFileNode>();
@@ -340,5 +395,21 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SaveRecords")
       std::ofstream ofs(filename, std::ofstream::app);
       WriteMeasureRecords(&ofs, in, res);
     });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.SerializeMeasureInput")
+    .set_body_typed([](const MeasureInput& input) {
+      std::ostringstream os;
+      dmlc::JSONWriter writer(&os);
+      writer.Write(*input.get());
+      return os.str();
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.DeserializeMeasureInput").set_body_typed([](String json) {
+  std::istringstream ss(json);
+  dmlc::JSONReader reader(&ss);
+  auto inp = make_object<MeasureInputNode>();
+  reader.Read(inp.get());
+  return ObjectRef(inp);
+});
 }  // namespace auto_scheduler
 }  // namespace tvm
