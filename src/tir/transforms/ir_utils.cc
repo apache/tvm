@@ -89,7 +89,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
 class IRConvertSSA final : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const VarNode* op) final {
-    if (scope_.count(op)) {
+    if (scope_.count(op) && !scope_[op].empty()) {
       return scope_[op].back();
     } else {
       return GetRef<PrimExpr>(op);
