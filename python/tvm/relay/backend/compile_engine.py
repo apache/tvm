@@ -255,7 +255,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
 
 @tvm._ffi.register_func("relay.backend.lower_call")
-def lower_call(call, inputs, target):
+def lower_call(call, inputs, target, no_trace=False):
     """Lower the call expression to op implementation and tensor outputs."""
     assert isinstance(call.op, tvm.ir.Op)
     op = call.op
@@ -283,7 +283,7 @@ def lower_call(call, inputs, target):
     env = autotvm.task.TaskExtractEnv.current
     reenable_tracing = False
     if env is not None and env.tracing:
-        if env.wanted_relay_ops is not None and op not in env.wanted_relay_ops:
+        if (env.wanted_relay_ops is not None and op not in env.wanted_relay_ops) or no_trace:
             env.tracing = False
             reenable_tracing = True
 
@@ -410,3 +410,7 @@ def get():
         The compile engine.
     """
     return _backend._CompileEngineGlobal()
+
+
+def translate_to_te(prim_func, target):
+    return _backend._TranslateToTE(prim_func, target)

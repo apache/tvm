@@ -259,6 +259,33 @@ def test_compile_nhwc_pack():
     relay.build(mod, target="llvm")
 
 
+def test_lower_to_te():
+    data = relay.var("data", shape=(1, 1, 1, 1024), dtype="uint8")
+    weight = relay.var("weight", shape=(1, 1, 1024, 1001), dtype="int8")
+    p2 = relay.var("p2", shape=(1, 1, 1, 1), dtype="int32")
+    conv = relay.nn.conv2d(
+        data,
+        weight,
+        kernel_size=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype="int32",
+    )
+    multiply = relay.multiply(relay.const(-22, dtype="int32"), p2)
+    tile = relay.tile(multiply, reps=(1, 1, 1, 1001))
+    subtract = relay.subtract(conv, tile)
+
+    func = subtract
+    expr = relay.Function(relay.analysis.free_vars(func), func)
+    mod = tvm.IRModule.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
+    lowered = relay.backend.compile_engine.translate_to_te(mod["main"], tvm.target.create("llvm"))
+    input_shapes = set()
+    for inp in lowered.inputs:
+        input_shapes.add(tuple([x.value for x in inp.shape]))
+    assert input_shapes == {(1, 1, 1, 1), (1, 1, 1024, 1001), (1, 1, 1, 1024)}
+
+
 if __name__ == "__main__":
     test_get_valid_implementations()
     test_select_implementation()
@@ -268,3 +295,4 @@ if __name__ == "__main__":
     test_compile_tuple_dup()
     test_compile_full()
     test_compile_nhwc_pack()
+    test_lower_to_te()

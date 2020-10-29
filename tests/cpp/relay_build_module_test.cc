@@ -58,7 +58,7 @@ TVM_REGISTER_GLOBAL("test.strategy")
 
 TVM_REGISTER_GLOBAL("relay.backend.lower_call")
     .set_body_typed([](const relay::Call& call, const Array<te::Tensor>& inputs,
-                       const Target& target) {
+                       const Target& target, bool no_trace = false) {
       static auto fstrategy = Op::GetAttrMap<relay::FTVMStrategy>("FTVMStrategy");
       Op op = Downcast<Op>(call->op);
       auto out_type = call->checked_type();
