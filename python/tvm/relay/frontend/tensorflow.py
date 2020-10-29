@@ -791,8 +791,8 @@ def _expand_dims():
 def _expm1():
     # op description: https://www.tensorflow.org/api_docs/python/tf/math/expm1
     def _impl(inputs, attr, params, mod):
-        lh = get_relay_op("exp")(inputs[0])
-        return get_relay_op("subtract")(lh, tvm.relay.const(1, attr["T"].name))
+        exp_out = get_relay_op("exp")(inputs[0])
+        return exp_out - tvm.relay.const(1.0)
 
     return _impl
 
