@@ -101,8 +101,26 @@ def test_channelwise_axis_1():
     )
 
 
+def test_channelwise_axis_0():
+    data = np.array([0, 1, 2, 3, 4, 243, 247, 249, 250, 251]).astype("uint8").reshape((2, 5))
+    output = (
+        np.array([-63.5, -63, -62.5, -62, -61.5, 30, 31, 31.5, 31.75, 32])
+        .astype("float32")
+        .reshape((2, 5))
+    )
+    quant_args = {
+        "in_zero_point": np.array([127, 123]).astype("int32"),
+        "in_scale": np.array([0.5, 0.25]).astype("float32"),
+    }
+
+    dequantize_test_driver(
+        in_dtype="uint8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=0
+    )
+
+
 if __name__ == "__main__":
     test_uint8_to_float32()
     test_int8_to_float32()
     test_int32_to_float32()
     test_channelwise_axis_1()
+    test_channelwise_axis_0()

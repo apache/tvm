@@ -50,7 +50,7 @@ class InternalError(TVMError):
         if "TVM hint:" not in msg:
             msg += (
                 "\nTVM hint: You hit an internal error. "
-                + "Please open a thread on https://discuss.tvm.ai/ to report it."
+                + "Please open a thread on https://discuss.tvm.apache.org/ to report it."
             )
         super(InternalError, self).__init__(msg)
 

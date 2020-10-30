@@ -23,7 +23,7 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 import logging
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 
 _softmax_schedule = {

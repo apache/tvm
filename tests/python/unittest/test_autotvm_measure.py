@@ -16,6 +16,7 @@
 # under the License.
 """Test builder and runner"""
 import logging
+import multiprocessing
 import time
 
 import numpy as np
@@ -44,6 +45,19 @@ def test_task_tuner_without_measurement():
         tuner = tuner_class(task)
         tuner.tune(n_trial=10, measure_option=measure_option)
         assert tuner.best_flops > 1
+
+
+def task_tuner_spawn():
+    assert multiprocessing.get_start_method(False) == "spawn"
+    test_task_tuner_without_measurement()
+
+
+def test_task_tuner_without_measurement_spawn():
+    # Subprocesses inherit the spawn method of their parents
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=task_tuner_spawn)
+    p.start()
+    p.join()
 
 
 def test_check_correctness():
@@ -77,4 +91,5 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     test_task_tuner_without_measurement()
+    test_task_tuner_without_measurement_spawn()
     test_check_correctness()

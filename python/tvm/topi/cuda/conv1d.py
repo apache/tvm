@@ -21,7 +21,7 @@ from tvm import te
 from tvm import autotvm
 
 from .. import nn
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 
 
 @autotvm.register_topi_compute("conv1d_ncw.cuda")

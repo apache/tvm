@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,7 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI for TOPI utility functions"""
-import tvm._ffi
 
-tvm._ffi._init_api("topi.util", "tvm.topi.cpp.util")
+set -e
+set -u
+set -o pipefail
+
+cd /tmp && wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+chmod +x Miniconda3-latest-Linux-x86_64.sh
+/tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda
+rm /tmp/Miniconda3-latest-Linux-x86_64.sh
+/opt/conda/bin/conda upgrade --all
+/opt/conda/bin/conda clean -ya
+/opt/conda/bin/conda install conda-build conda-verify
+chmod -R a+w /opt/conda/

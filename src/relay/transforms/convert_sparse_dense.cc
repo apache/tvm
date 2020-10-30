@@ -75,9 +75,9 @@ class DenseToSparseDenseMutator : public ExprRewriter {
   DenseToSparseDenseMutator(const Array<ObjectRef>& weight_name,
                             const Array<Array<PrimExpr> >& weight_shape)
       : dense_op_(Op::Get("nn.dense")), sparse_dense_op_(Op::Get("nn.sparse_dense")) {
-    CHECK_EQ(weight_name.size(), weight_shape.size());
+    ICHECK_EQ(weight_name.size(), weight_shape.size());
     for (size_t i = 0; i < weight_name.size(); ++i) {
-      CHECK(weight_name[i]->IsInstance<runtime::StringObj>());
+      ICHECK(weight_name[i]->IsInstance<runtime::StringObj>());
       std::string k = weight_name[i].as<runtime::StringObj>()->data;
       const auto& ws = weight_shape[i];
       std::vector<int> v(ws.size());

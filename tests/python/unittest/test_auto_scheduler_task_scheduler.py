@@ -18,6 +18,7 @@
 
 import tempfile
 
+import multiprocessing
 import numpy as np
 
 from tvm import auto_scheduler
@@ -68,6 +69,18 @@ def test_task_scheduler_round_robin():
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
 
+def task_scheduler_round_robin_spawn():
+    assert multiprocessing.get_start_method(False) == "spawn"
+    test_task_scheduler_round_robin()
+
+
+def test_task_scheduler_round_robin_spawn():
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=task_scheduler_round_robin_spawn)
+    p.start()
+    p.join()
+
+
 def test_task_scheduler_gradient():
     tasks = []
     for n in [2, 4]:
@@ -109,4 +122,5 @@ def test_task_scheduler_gradient():
 
 if __name__ == "__main__":
     test_task_scheduler_round_robin()
+    test_task_scheduler_round_robin_spawn()
     test_task_scheduler_gradient()

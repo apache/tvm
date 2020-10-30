@@ -39,7 +39,7 @@ def test_dilate():
         else:
             output_np = tvm.topi.testing.dilate_python(input_np, strides, dilation_value)
         input_tvm = tvm.nd.array(input_np, ctx=ctx)
-        output_size = topi.util.get_const_tuple(Output.shape)
+        output_size = topi.utils.get_const_tuple(Output.shape)
         output_tvm = tvm.nd.array(np.zeros(shape=output_size).astype(Output.dtype), ctx=ctx)
         f = tvm.build(schedule, [Input, Output], target)
         f(input_tvm, output_tvm)

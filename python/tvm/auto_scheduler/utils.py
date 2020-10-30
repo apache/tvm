@@ -129,32 +129,6 @@ def deserialize_args(args):
     return ret
 
 
-class NoDaemonProcess(multiprocessing.Process):
-    @property
-    def daemon(self):
-        return False
-
-    @daemon.setter
-    def daemon(self, value):
-        pass
-
-
-class NoDaemonContext(type(multiprocessing.get_context())):
-    Process = NoDaemonProcess
-
-
-class NoDaemonPool(multiprocessing.pool.Pool):
-    """A no daemon pool version of multiprocessing.Pool.
-    This allows us to start new processes inside the worker function"""
-
-    def __init__(self, *args, **kwargs):
-        kwargs["context"] = NoDaemonContext()
-        super().__init__(*args, **kwargs)
-
-    def __reduce__(self):
-        pass
-
-
 def kill_child_processes(parent_pid, sig=signal.SIGTERM):
     """kill all child processes recursively"""
     try:
@@ -169,17 +143,19 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
             return
 
 
+def _func_wrapper(que, func, args, kwargs):
+    """Call function and return the result over the queue."""
+    if kwargs:
+        que.put(func(*args, **kwargs))
+    else:
+        que.put(func(*args))
+
+
 def call_func_with_timeout(timeout, func, args=(), kwargs=None):
     """Call a function with timeout"""
 
-    def func_wrapper(que):
-        if kwargs:
-            que.put(func(*args, **kwargs))
-        else:
-            que.put(func(*args))
-
     que = multiprocessing.Queue(2)
-    process = multiprocessing.Process(target=func_wrapper, args=(que,))
+    process = multiprocessing.Process(target=_func_wrapper, args=(que, func, args, kwargs))
     process.start()
     process.join(timeout)
 

@@ -2848,11 +2848,11 @@ def test_forward_inception_v1():
 
         # Build an image from random data.
         from PIL import Image
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
         img_array = np.random.uniform(size=(1, 600, 600, 3)).astype("uint8")
         img = Image.frombuffer("RGB", (600, 600), img_array.tostring(), "raw", "RGB", 0, 1)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         img_path = temp.relpath("tf-test.jpg")
         img.save(img_path)
 
@@ -3488,6 +3488,22 @@ def test_forward_atan2():
     compare_tf_with_tvm([np_data_1, np_data_2], ["in_data_1:0", "in_data_2:0"], "atan2:0")
 
 
+def test_forward_expm1():
+    """test operator expm1 """
+
+    def _test_forward_expm1(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(1, 10, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.expm1(in_data, name="expm1")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "expm1:0")
+
+    _test_forward_expm1([1, 100])
+    _test_forward_expm1([1, 10, 10])
+    _test_forward_expm1([2, 5, 2, 5])
+
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
@@ -3644,7 +3660,7 @@ def test_forward_reduce():
     _test_math_op(tf.math.reduce_max)
     _test_math_op(tf.math.reduce_min)
     _test_math_op(tf.math.reduce_prod)
-    _test_math_op(tf.math.reduce_variance)
+    _test_math_op(tf.math.reduce_variance, dtypes=["float32"])
     _test_math_op(tf.math.reduce_std, dtypes=["float32"])
     _test_math_op(tf.math.reduce_logsumexp, dtypes=["float32"])
     if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
@@ -3855,11 +3871,11 @@ def test_forward_unravel_index():
     _test_forward_unravel_index([x, y])
 
     x = np.array([0, 1, 2, 5])
-    y = np.array([2, 2])
+    y = np.array([2, 3])
     _test_forward_unravel_index([x, y])
 
     x = np.array([0, 1, 2, 5])
-    y = np.array([2])
+    y = np.array([6])
     _test_forward_unravel_index([x, y])
 
     x = np.array([102, 300, 16])

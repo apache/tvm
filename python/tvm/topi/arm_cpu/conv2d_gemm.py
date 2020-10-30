@@ -21,8 +21,8 @@ import tvm
 from tvm import te
 from tvm.topi import nn
 from tvm.autotvm.task.space import AnnotateEntity, ReorderEntity, OtherOptionEntity
-from ..util import get_const_tuple, get_const_int
-from ..nn.util import get_pad_tuple
+from ..utils import get_const_tuple, get_const_int
+from ..nn.utils import get_pad_tuple
 from .tensor_intrin import (
     gemm_quantized,
     gemm_quantized_impl,

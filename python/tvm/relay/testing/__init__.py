@@ -64,7 +64,11 @@ def run_infer_type(expr):
 
 
 def _np_randn_from_type(t, scale=1, mean=0):
-    return (mean + (scale * np.random.randn(*(int(d) for d in t.shape)))).astype(t.dtype)
+    res = mean + (scale * np.random.randn(*(int(d) for d in t.shape)))
+    # if t.shape == (), then randn returns a scalar so we need to wrap for dtype conversion
+    if np.isscalar(res):
+        res = np.array(res)
+    return res.astype(t.dtype)
 
 
 def check_grad(

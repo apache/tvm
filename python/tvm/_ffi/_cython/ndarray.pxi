@@ -68,6 +68,10 @@ cdef class NDArrayBase:
         def __set__(self, value):
             self._set_handle(value)
 
+    property is_view:
+        def __get__(self):
+            return self.c_is_view != 0
+
     @property
     def shape(self):
         """Shape of this array"""

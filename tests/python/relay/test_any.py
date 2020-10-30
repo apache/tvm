@@ -22,7 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
-from util.assert_diagnostic import DiagnosticTesting
+from utils.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
 
@@ -405,6 +405,7 @@ def verify_any_squeeze(data_shape, axis, static_data_shape):
 
 @tvm.testing.uses_gpu
 def test_any_squeeze():
+    verify_any_squeeze((relay.Any(), relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze((1, relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze(
         (1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17)
@@ -684,6 +685,7 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
 
 @tvm.testing.uses_gpu
 def test_any_split():
+    verify_any_split((relay.Any(), 4), 2, -1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
@@ -1234,6 +1236,50 @@ def test_any_stack():
     verify_any_stack(any_dims(2), (1, 2), 3, 0)
     verify_any_stack(any_dims(1), (3,), 4, -1)
     verify_any_stack(any_dims(4), (2, 1, 1, 4), 2, 2)
+
+
+def verify_any_where(
+    cond_shape, x_shape, y_shape, cond_np_shape, x_np_shape, y_np_shape, y_np_shape_invalid=None
+):
+    dtype = "float32"
+    cond = relay.var("cond", shape=cond_shape, dtype="bool")
+    x = relay.var("x", shape=x_shape, dtype=dtype)
+    y = relay.var("y", shape=y_shape, dtype=dtype)
+    z = relay.where(cond, x, y)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([cond, x, y], z)
+
+    cond_np = np.random.randn(*cond_np_shape) > 0
+    x_np = np.random.randn(*x_np_shape).astype(dtype)
+    y_np = np.random.randn(*y_np_shape).astype(dtype)
+    expected = np.where(cond_np, x_np, y_np)
+
+    check_result([cond_np, x_np, y_np], mod, expected)
+
+    # verify invalid broadcasting check
+    if y_np_shape_invalid:
+        y_np_bad = np.random.randn(*y_np_shape_invalid).astype(dtype)
+        try:
+            check_result([cond_np, x_np, y_np_bad], mod, expected)
+        except tvm.error.TVMError as e:
+            error_msg = str(e).split("\n")[-1]
+            assert "Invalid broadcast shapes" in error_msg
+
+
+@tvm.testing.uses_gpu
+def test_any_where():
+    verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), any_dims(1), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (5,), (5,))
+    verify_any_where((5,), any_dims(1), any_dims(1), (5,), (5,), (5,))
+
+    # where with broadcast
+    verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (1,), (5,))
+    verify_any_where(any_dims(1), any_dims(2), any_dims(2), (5,), (5, 5), (5, 5))
+    verify_any_where(any_dims(1), any_dims(1), any_dims(2), (5,), (5,), (5, 5))
+    verify_any_where(
+        any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
+    )
 
 
 if __name__ == "__main__":

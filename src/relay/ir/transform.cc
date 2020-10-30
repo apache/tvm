@@ -128,7 +128,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
 
   const PassInfo& pass_info = Info();
 
-  CHECK(mod.defined());
+  ICHECK(mod.defined());
 
   DLOG(INFO) << "Executing function pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;

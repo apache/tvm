@@ -21,9 +21,7 @@ import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object
-from .compute_dag import ComputeDAG
-from .measure import MeasureErrorNo, MeasureInput, MeasureCallback
-from .search_task import SearchTask
+from .measure import MeasureErrorNo, MeasureCallback
 from . import _ffi_api
 
 
@@ -175,38 +173,3 @@ def load_best(filename, workload_key=None, target=None):
             best_res = res
 
     return best_inp, best_res
-
-
-def recover_measure_input(inp, rebuild_state=False):
-    """
-    Recover a deserialized MeasureInput by rebuilding the missing fields.
-    1. Rebuid the compute_dag in inp.task
-    2. (Optional) Rebuild the stages in inp.state
-
-    Parameters
-    ----------
-    inp: MeasureInput
-        The deserialized MeasureInput
-    rebuild_state: bool = False
-        Whether rebuild the stages in MeasureInput.State
-
-    Returns
-    -------
-    new_input: MeasureInput
-        The fully recovered MeasureInput with all fields rebuilt.
-    """
-    task = inp.task
-    new_task = SearchTask(
-        ComputeDAG(task.workload_key),
-        task.workload_key,
-        task.target,
-        task.target_host,
-        task.hardware_params,
-    )
-
-    if rebuild_state:
-        new_state = new_task.compute_dag.infer_bound_from_state(inp.state)
-    else:
-        new_state = inp.state
-
-    return MeasureInput(new_task, new_state)

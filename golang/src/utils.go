@@ -19,7 +19,7 @@
 
 /*!
  * \brief gotvm package source for common utilities
- * \file util.go
+ * \file utils.go
  */
 
 package gotvm

@@ -18,8 +18,8 @@
 """sparse_dense schedule on x86"""
 from tvm import te
 
-from ..util import traverse_inline, get_const_int
-from .util import get_fp32_len
+from ..utils import traverse_inline, get_const_int
+from .utils import get_fp32_len
 
 
 def schedule_sparse_dense(outs):

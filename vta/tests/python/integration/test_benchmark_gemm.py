@@ -18,7 +18,7 @@ import tvm
 import tvm.testing
 from tvm import te
 import numpy as np
-from tvm.contrib import util
+from tvm.contrib import utils
 import vta.testing
 from vta.testing import simulator
 
@@ -61,7 +61,7 @@ def test_gemm():
 
         def verify(s, check_correctness=True):
             mod = vta.build(s, [data, weight, res], "ext_dev", env.target_host, name="gemm")
-            temp = util.tempdir()
+            temp = utils.tempdir()
             mod.save(temp.relpath("gemm.o"))
             remote.upload(temp.relpath("gemm.o"))
             f = remote.load_module("gemm.o")

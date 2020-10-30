@@ -25,7 +25,7 @@ import tvm
 from tvm import te
 import os
 from tvm import rpc
-from tvm.contrib import util, ndk
+from tvm.contrib import utils, ndk
 import numpy as np
 
 # Set to be address of tvm proxy.
@@ -50,7 +50,7 @@ def test_rpc_module():
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     a_np = np.random.uniform(size=1024).astype(A.dtype)
-    temp = util.tempdir()
+    temp = utils.tempdir()
 
     # Establish remote connection with target hardware
     tracker = rpc.connect_tracker(tracker_host, tracker_port)

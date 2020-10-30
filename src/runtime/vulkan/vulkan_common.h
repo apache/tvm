@@ -18,10 +18,10 @@
  */
 #pragma once
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/support/logging.h>
 #include <vulkan/vulkan.h>
 
 #include <memory>
@@ -80,10 +80,10 @@ inline const char* VKGetErrorString(VkResult error) {
  * \brief Protected Vulkan call
  * \param func Expression to call.
  */
-#define VULKAN_CHECK_ERROR(__e)                                     \
-  {                                                                 \
-    CHECK(__e == VK_SUCCESS) << "Vulan Error, code=" << __e << ": " \
-                             << vulkan::VKGetErrorString(__e);      \
+#define VULKAN_CHECK_ERROR(__e)                                      \
+  {                                                                  \
+    ICHECK(__e == VK_SUCCESS) << "Vulan Error, code=" << __e << ": " \
+                              << vulkan::VKGetErrorString(__e);      \
   }
 
 #define VULKAN_CALL(func)    \

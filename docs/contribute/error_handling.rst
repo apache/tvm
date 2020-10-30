@@ -37,14 +37,14 @@ raise an error of the corresponding type.
 Note that you do not have to add a new type
 :py:class:`tvm.error.TVMError` will be raised by default when
 there is no error type prefix in the message.
-This mechanism works for both ``LOG(FATAL)`` and ``CHECK`` macros.
+This mechanism works for both ``LOG(FATAL)`` and ``ICHECK`` macros.
 The following code gives an example on how to do so.
 
 .. code:: c
 
   // src/api_test.cc
   void ErrorTest(int x, int y) {
-    CHECK_EQ(x, y) << "ValueError: expect x and y to be equal."
+    ICHECK_EQ(x, y) << "ValueError: expect x and y to be equal."
     if (x == 1) {
       LOG(FATAL) << "InternalError: cannot reach here";
     }

@@ -21,7 +21,7 @@ import tvm
 from tvm import te
 import tvm.autotvm as autotvm
 from .. import tag
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 from .tensor_intrin import (
     intrin_wmma_load_matrix_A,
     intrin_wmma_load_matrix_W,
@@ -199,6 +199,8 @@ def _schedule_dense_tensorcore(cfg, s, C):
     bb, bbii = s[CS].split(bb, factor=warp_row_tiles)
     oo, ooii = s[CS].split(oo, factor=warp_col_tiles)
     s[CS].reorder(bb, oo, bbii, ooii, bbi, ooi)
+    s[CS].bind(bb, thread_y)
+    s[CS].bind(oo, thread_z)
 
     # Schedule for wmma computation
     s[CF].compute_at(s[CS], oo)

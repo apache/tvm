@@ -18,7 +18,7 @@
 # pylint: disable=import-outside-toplevel, assignment-from-no-return
 
 import os
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 class TFParser(object):
@@ -45,7 +45,7 @@ class TFParser(object):
     def __init__(self, model_dir, outputs=None):
         from tensorflow.core.framework import graph_pb2
 
-        self._tmp_dir = util.tempdir()
+        self._tmp_dir = utils.tempdir()
         self._model_dir = model_dir
         self._graph = graph_pb2.GraphDef()
         self._outputs = outputs or []
@@ -147,7 +147,7 @@ class TFParser(object):
             saved_model_tags,
         )
 
-        with ops.Graph().as_default():
+        with ops.Graph().as_default():  # pylint: disable=not-context-manager
             output_graph_def = graph_pb2.GraphDef()
             with open(output_graph_filename, "rb") as f:
                 output_graph_def.ParseFromString(f.read())

@@ -33,6 +33,10 @@ these operators, it will query this log file to get the best knob values.
 We also released pre-tuned parameters for some NVIDIA GPUs. You can go to
 `NVIDIA GPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#nvidia-gpu>`_
 to see the results.
+
+Note that this tutorial will not run on Windows or recent versions of macOS. To
+get it to run, you will need to wrap the body of this tutorial in a :code:`if
+__name__ == "__main__":` block.
 """
 
 ######################################################################
@@ -65,7 +69,7 @@ from tvm import autotvm
 from tvm import relay
 import tvm.relay.testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from tvm.contrib.util import tempdir
+from tvm.contrib.utils import tempdir
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -313,7 +317,7 @@ def tune_and_evaluate(tuning_opt):
 #      import logging
 #      logging.getLogger('autotvm').setLevel(logging.DEBUG)
 #
-#   Finally, always feel free to ask our community for help on https://discuss.tvm.ai
+#   Finally, always feel free to ask our community for help on https://discuss.tvm.apache.org
 
 
 #################################################################

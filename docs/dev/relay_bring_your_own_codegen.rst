@@ -296,7 +296,7 @@ As mentioned in the previous step, in addition to the subgraph input and output 
 
     // This example only supports single output.
     auto type_node = call->checked_type().as<TensorTypeNode>();
-    CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
+    ICHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
           << "Only support single output tensor with float type";
 
     // Generate a unique buffer name.
@@ -410,7 +410,7 @@ Implement GenCFunc
 .. code-block:: c++
 
   void GenCFunc(const Function& func) {
-    CHECK(func.defined()) << "Input error: expect a Relay function.";
+    ICHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
@@ -474,7 +474,7 @@ This function creates a runtime module for the external library. In this example
 
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("module.csource_module_create");
-    CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
+    ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code_stream_.str(), "cc");
   }
 
@@ -556,7 +556,7 @@ In this section, our goal is to implement the following customized TVM runtime m
       ExampleJsonCodeGen codegen(ref);
       std::string code = codegen.gen(); // Note 1
       const auto* pf = runtime::Registry::Get("module.examplejson_module_create"); // Note 2
-      CHECK(pf != nullptr) << "Cannot find ExampleJson module to create the external runtime module";
+      ICHECK(pf != nullptr) << "Cannot find ExampleJson module to create the external runtime module";
       return (*pf)(code);
   }
   TVM_REGISTER_GLOBAL("relay.ext.examplejsoncompiler").set_body_typed(ExampleJsonCompiler);
@@ -785,7 +785,7 @@ After the construction, we should have the above class variables ready. We then 
 
         // Copy input tensors to corresponding data entries.
         for (auto i = 0; i < args.size(); ++i) {
-          CHECK(args[i].type_code() == kNDArrayContainer || args[i].type_code() == kArrayHandle)
+          ICHECK(args[i].type_code() == kNDArrayContainer || args[i].type_code() == kArrayHandle)
               << "Expect NDArray or DLTensor as inputs\n";
           if (args[i].type_code() == kArrayHandle) {
             DLTensor* arg = args[i];
@@ -800,7 +800,7 @@ After the construction, we should have the above class variables ready. We then 
         for (const auto& it : this->graph_[this->curr_subgraph_]) {
           this->Run(it.id, it.inputs, it.output);
         }
-        CHECK_GT(graph_.count(this->curr_subgraph_), 0U);
+        ICHECK_GT(graph_.count(this->curr_subgraph_), 0U);
 
         // Copy the output from a data entry back to TVM runtime argument.
         auto out_idx = graph_[this->curr_subgraph_].back().output;

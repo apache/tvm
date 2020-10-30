@@ -30,7 +30,7 @@ import tvm.micro
 import tvm.relay
 
 from tvm.micro.contrib import zephyr
-from tvm.contrib import util
+from tvm.contrib import utils
 
 BUILD = True
 DEBUG = False
@@ -93,7 +93,7 @@ def _make_session(mod):
             os.unlink(prev_build)
         session_kw["binary"].archive(prev_build, metadata_only=True)
     else:
-        unarchive_dir = util.tempdir()
+        unarchive_dir = utils.tempdir()
         session_kw["binary"] = tvm.micro.MicroBinary.unarchive(
             prev_build, unarchive_dir.relpath("binary")
         )

@@ -223,7 +223,7 @@ class VMCompiler(object):
         if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
             tophub_context = autotvm.tophub.context(list(target.values()))
         else:
-            tophub_context = autotvm.util.EmptyContext()
+            tophub_context = autotvm.utils.EmptyContext()
         return tophub_context
 
 

@@ -53,7 +53,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 
     auto ctx = TVMContext{kDLGPU, 0};
     auto func = tvm::runtime::Registry::Get("device_api.gpu");
-    CHECK(func != nullptr) << "Cannot find GPU device_api in registry";
+    ICHECK(func != nullptr) << "Cannot find GPU device_api in registry";
     auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
     tvm::runtime::TVMRetValue ret;

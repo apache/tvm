@@ -268,7 +268,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   Map<Var, IntGroupBounds> res_bounds;
   for (const Var& v : system_to_solve->variables) {
-    CHECK(!res_bounds.count(v))
+    ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
 
@@ -436,7 +436,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     analyzer.Bind(vranges);
 
     const Var& var = *it;
-    CHECK(solved_bounds.count(var));
+    ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds[var];
     if (is_one(bnd->coef) && !bnd->equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.

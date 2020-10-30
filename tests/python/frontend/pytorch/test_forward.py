@@ -3139,26 +3139,27 @@ def test_forward_nonzero():
 
 
 def test_forward_scatter():
-    class Scatter(Module):
-        def __init__(self, dim=0):
-            super().__init__()
-            self.dim = dim
+    # integer cannot be traced
+    def test_fn_scatter(dim):
+        return lambda data, index, src: torch.scatter(data, dim=dim, index=index, src=src)
 
-        def forward(self, data, index, src):
-            return torch.scatter(data, dim=self.dim, index=index, src=src)
+    def test_fn_scatter_add(dim):
+        return lambda data, index, src: torch.scatter_add(data, dim=dim, index=index, src=src)
 
     in_data = torch.zeros(3, 5)
     in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
     in_src = torch.rand(2, 5)
     # TODO: add scatter gpu schedule to enable gpu test.
-    verify_trace_model(Scatter(), [in_data, in_index, in_src], ["llvm"])
+    verify_trace_model(test_fn_scatter(0), [in_data, in_index, in_src], ["llvm"])
+    verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], ["llvm"])
 
     in_data = torch.zeros(2, 4)
     in_index = torch.tensor([[2], [3]])
     in_src = torch.rand(2, 1)
 
-    # TODO: add scatter gpu schedule to enable gpu test.
-    verify_trace_model(Scatter(1), [in_data, in_index, in_src], ["llvm"])
+    # # TODO: add scatter gpu schedule to enable gpu test.
+    verify_trace_model(test_fn_scatter(1), [in_data, in_index, in_src], ["llvm"])
+    verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], ["llvm"])
 
 
 def test_numel():
@@ -3350,6 +3351,18 @@ def test_convert_torch_script_with_input_types():
     assert tvm.ir.structural_equal(expected_mod, mod["main"], map_free_vars=True)
 
 
+def test_bincount():
+    def test_fn(x, weights=None):
+        return torch.bincount(x, weights=weights)
+
+    inp = torch.randint(0, 8, (5,), dtype=torch.int64)
+    weights = torch.linspace(0, 1, steps=5)
+
+    verify_trace_model(test_fn, [inp], ["llvm"])
+    verify_trace_model(test_fn, [inp, weights], ["llvm"])
+    verify_trace_model(test_fn, [inp, weights.to(torch.float64)], ["llvm"])
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3476,6 +3489,7 @@ if __name__ == "__main__":
     test_forward_nonzero()
     test_forward_scatter()
     test_numel()
+    test_bincount()
 
     # Model tests
     test_resnet18()

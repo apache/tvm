@@ -37,7 +37,7 @@ void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
   const VarNode* buf = op->buffer_var.as<VarNode>();
   StorageScope scope = GetScope(buf);
   if (Enabled(buf, scope)) {
-    CHECK(allow_append_) << op << " " << scope.to_string();
+    ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = op->buffer_var;
@@ -53,7 +53,7 @@ void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
   allow_append_ = true;
-  CHECK_EQ(curr_stmt_.access.size(), 0U);
+  ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
   const VarNode* buf = op->buffer_var.as<VarNode>();
   StorageScope scope = GetScope(buf);
@@ -78,7 +78,7 @@ void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
   allow_append_ = true;
-  CHECK_EQ(curr_stmt_.access.size(), 0U);
+  ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
   StmtExprVisitor::VisitStmt_(op);
   // push to the scope
@@ -95,7 +95,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
     storage_scope_[buf] = StorageScope::Create(op->value.as<StringImmNode>()->value);
     StmtExprVisitor::VisitStmt_(op);
   } else if (op->attr_key == attr::double_buffer_write) {
-    CHECK(double_buffer_write_ == nullptr);
+    ICHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());
     StmtExprVisitor::VisitStmt_(op);
@@ -151,7 +151,7 @@ void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
         arith::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
-        CHECK(e.touched.defined());
+        ICHECK(e.touched.defined());
         e.touched = arith::EvalSet(e.touched, relax_map);
       }
     }
@@ -185,7 +185,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     const LoadNode* l = op->args[0].as<LoadNode>();
     StmtExprVisitor::VisitExpr_(l);
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
-    CHECK_EQ(op->args.size(), 5U);
+    ICHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const VarNode* buffer = op->args[1].as<VarNode>();
     PrimExpr offset = op->args[2];
@@ -194,7 +194,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     StorageScope scope = GetScope(buffer);
     // The buffer scope.
     if (Enabled(buffer, scope)) {
-      CHECK(allow_append_);
+      ICHECK(allow_append_);
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
@@ -212,7 +212,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     }
     StmtExprVisitor::VisitExpr_(op);
   } else if (op->op.same_as(builtin::tvm_storage_sync())) {
-    CHECK(allow_append_);
+    ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {
       StorageScope scope = StorageScope::Create(s);

@@ -22,7 +22,7 @@ from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.quantize.quantize import prerequisite_optimize
-from tvm.contrib import util, xcode, graph_runtime, coreml_runtime
+from tvm.contrib import utils, xcode, graph_runtime, coreml_runtime
 from tvm.contrib.target import coreml as _coreml
 
 import os
@@ -98,7 +98,7 @@ def get_model(model_name, data_shape):
 
 
 def test_mobilenet():
-    temp = util.tempdir()
+    temp = utils.tempdir()
     image, synset = prepare_input()
     model, params = get_model("mobilenetv2_1.0", image.shape)
 

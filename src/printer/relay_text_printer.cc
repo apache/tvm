@@ -322,7 +322,7 @@ Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
   if (op->is_scalar()) {
     std::ostringstream os;
     DataType dtype = DataType(op->data->dtype);
-    CHECK_EQ(op->data->ctx.device_type, kDLCPU);
+    ICHECK_EQ(op->data->ctx.device_type, kDLCPU);
     if (dtype == DataType::Int(32)) {
       return ScalarLiteral(dtype, static_cast<const int32_t*>(op->data->data)[0]);
     } else if (dtype == DataType::Int(64)) {
@@ -831,7 +831,7 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* dict_attrs = attrs.as<DictAttrsNode>();
-  CHECK(dict_attrs);
+  ICHECK(dict_attrs);
   for (const auto& k : dict_attrs->dict) {
     Doc doc;
     doc << k.first << "=" << Print(k.second);

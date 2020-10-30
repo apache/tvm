@@ -129,9 +129,9 @@ print(out.flatten()[0:10])
 ####################################################
 
 # save the graph, lib and params into separate files
-from tvm.contrib import util
+from tvm.contrib import utils
 
-temp = util.tempdir()
+temp = utils.tempdir()
 path_lib = temp.relpath("deploy_lib.tar")
 lib.export_library(path_lib)
 print(temp.listdir())

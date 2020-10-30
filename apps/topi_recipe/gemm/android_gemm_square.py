@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import os
 from tvm import rpc
-from tvm.contrib import util, ndk
+from tvm.contrib import utils, ndk
 import numpy as np
 
 # Set to be address of tvm proxy.
@@ -121,7 +121,7 @@ def test_gemm_gpu(N, times, bn, num_block, num_thread):
     print(tvm.lower(s, [A, B, C], simple_mode=True))
 
     f = tvm.build(s, [A, B, C], "opencl", target_host=target, name="gemm_gpu")
-    temp = util.tempdir()
+    temp = utils.tempdir()
     path_dso = temp.relpath("gemm_gpu.so")
     f.export_library(path_dso, ndk.create_shared)
 

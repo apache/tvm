@@ -29,7 +29,7 @@ import numpy as np
 import tvm
 import tvm.relay
 
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
 
 BUILD = True

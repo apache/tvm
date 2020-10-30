@@ -19,7 +19,7 @@ import os
 import numpy as np
 import tvm
 from tvm import te
-from tvm.contrib import graph_runtime, util
+from tvm.contrib import graph_runtime, utils
 from tvm import relay
 import tvm.micro as micro
 from tvm.micro import create_micro_mod

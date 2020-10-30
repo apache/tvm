@@ -23,8 +23,8 @@ from tvm import te
 
 from .dilate import dilate
 from .pad import pad
-from .util import get_pad_tuple
-from ..util import simplify
+from .utils import get_pad_tuple
+from ..utils import simplify
 
 # workload description of depthwise-conv2d
 Workload = namedtuple(

@@ -83,7 +83,7 @@ Pass QuantizeAnnotate() {
   std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
     if (e->IsInstance<TempExprNode>()) {
       const auto* n = e.as<QAnnotateExprNode>();
-      CHECK(n);
+      ICHECK(n);
       const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
       Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
       return static_cast<Expr>(QAnnotateExpr(ret, kQInput));

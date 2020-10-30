@@ -219,8 +219,13 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 out_channels = oc_chunk * oc_block_factor
             else:
                 _, _, out_channels, _ = get_const_tuple(kernel.shape)
-            if topi.cuda.is_shape_tensorcore_direct_qualified(
-                batch=N, in_channels=in_channels, num_filter=out_channels, in_dtype=data.dtype
+
+            tensorcore_dtypes = ["int4", "uint4", "int8", "uint8"]
+            if (
+                (N % 16 == 0 and in_channels % 16 == 0 and out_channels % 16 == 0)
+                or (N % 8 == 0 and in_channels % 16 == 0 and out_channels % 32 == 0)
+                or (N % 32 == 0 and in_channels % 16 == 0 and out_channels % 8 == 0)
+                and (data.dtype in tensorcore_dtypes and kernel.dtype in tensorcore_dtypes)
             ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_hwnc_tensorcore),
@@ -646,6 +651,19 @@ def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@scatter_strategy.register(["cuda", "gpu"])
+def scatter_cuda(attrs, inputs, out_type, target):
+    """sparse dense cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scatter(topi.cuda.scatter),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="scatter.cuda",
+        plevel=10,
+    )
+    return strategy
+
+
 @argsort_strategy.register(["cuda", "gpu"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):
     """argsort cuda strategy"""
@@ -655,7 +673,9 @@ def argsort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_argsort),
         name="argsort.cuda",
     )
-    if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
+    if target.kind.name == "cuda" and get_global_func(
+        "tvm.contrib.thrust.sort", allow_missing=True
+    ):
         strategy.add_implementation(
             wrap_compute_argsort(topi.cuda.argsort_thrust),
             wrap_topi_schedule(topi.cuda.schedule_argsort),
@@ -674,7 +694,9 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_topk),
         name="topk.cuda",
     )
-    if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
+    if target.kind.name == "cuda" and get_global_func(
+        "tvm.contrib.thrust.sort", allow_missing=True
+    ):
         strategy.add_implementation(
             wrap_compute_topk(topi.cuda.topk_thrust),
             wrap_topi_schedule(topi.cuda.schedule_topk),

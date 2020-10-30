@@ -175,6 +175,41 @@ def workload_key_to_tensors(workload_key):
     return lookup(*args)
 
 
+def get_workload_func(task):
+    """Get the workload function for a given task
+
+    Parameters
+    ----------
+    task : SearchTask
+        Task to get workload of.
+
+    Returns
+    -------
+    workload : callable
+        The registered workload function.
+    """
+    name = workload_func_name(task.workload_key)
+    lookup = WORKLOAD_FUNC_REGISTRY[name]
+    assert callable(lookup)
+    return lookup
+
+
+def workload_func_name(workload_key):
+    """Decode a workload key to the registered function name.
+
+    Parameters
+    ----------
+    workload_key : str
+        The input workload key.
+
+    Returns
+    -------
+    name : str
+        The function name of this workload key.
+    """
+    return decode_workload_key_to_func_args(workload_key)[0]
+
+
 def save_workload_func_registry(filename):
     """Dump workload function registry to a pickle binary file.
 

@@ -1,0 +1,94 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+{% set version = '0.8.dev0' %}
+{% set pkg_name = 'tvm' %}
+{% set cuda_tag = cuda_version | replace('.', '') %} # [cuda]
+{% set pkg_name = pkg_name + '-cu' + cuda_tag %} # [cuda]
+{% set build_tag = environ.get('GIT_BUILD_STR', 'unknown') %}
+{% set build_tag = build_tag + '_h' + PKG_HASH + '_' + PKG_BUILDNUM %}
+
+package:
+  name: {{ pkg_name }}-package
+  version: {{ version }}
+
+source:
+  path: '../..'
+
+build:
+  number: 0
+  include_recipe: False
+  missing_dso_whitelist:
+    - "*libcuda.*"  # [linux]
+
+requirements:
+  build:
+    # The anaconda compilers for OS X are old an annoying
+    # so we rely on the platform ones for now
+    - {{ compiler('cxx') }} # [not osx]
+    - cmake
+    - make # [not win]
+  host:
+    - zlib
+    - llvmdev ==10.0.0
+
+outputs:
+  - name: {{ pkg_name }}-libs
+    script: install_libtvm.bat # [win]
+    script: install_libtvm.sh  # [not win]
+    string: {{ build_tag }}
+    requirements:
+      build:
+        - {{ compiler('cxx') }}
+        - cmake
+        - git
+        - make # [not win]
+      host:
+        - zlib
+        - llvmdev ==10.0.0
+        - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
+        - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
+      run:
+        - llvmdev ==10.0.0
+        - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
+        - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
+
+  - name: {{ pkg_name }}
+    script: install_tvm_python.sh  # [not win]
+    script: install_tvm_python.bat # [win]
+    string: {{ build_tag }}_py{{ PY_VER | replace('.', '')}}
+    # skip bytecompile pyc to speedup CI speed
+    skip_compile_pyc:
+      - "*/**/*.py"
+    requirements:
+      host:
+        - python
+        - setuptools
+        - cython
+        - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
+      run:
+        - python
+        - decorator
+        - psutil
+        - scipy
+        - {{ pin_compatible('numpy') }}
+        - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
+
+about:
+  home: https://tvm.apache.org
+  license: Apache2
+  summary: An End to End Deep Learning Compiler Stack for CPUs, GPUs and accelerators.

@@ -27,8 +27,10 @@ try:
     from tvm._ffi._cy3.core import _set_class_packed_func, _set_class_module
     from tvm._ffi._cy3.core import PackedFuncBase
     from tvm._ffi._cy3.core import convert_to_tvm_func
-except (RuntimeError, ImportError):
+except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position
+    if _FFI_MODE == "cython":
+        raise error
     from tvm._ffi._ctypes.packed_func import _set_class_packed_func, _set_class_module
     from tvm._ffi._ctypes.packed_func import PackedFuncBase
     from tvm._ffi._ctypes.packed_func import convert_to_tvm_func

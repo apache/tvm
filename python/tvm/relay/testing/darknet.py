@@ -24,8 +24,8 @@ These are utility functions used for testing and tutorial file.
 """
 from __future__ import division
 import numpy as np
-from cffi import FFI
 import cv2
+from cffi import FFI
 
 
 def convert_image(image):

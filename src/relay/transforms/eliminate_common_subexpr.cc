@@ -45,7 +45,7 @@ class CommonSubexprEliminator : public MixedModeMutator {
     static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
     Expr new_expr = post;
     const CallNode* new_call = new_expr.as<CallNode>();
-    CHECK(new_call);
+    ICHECK(new_call);
     const OpNode* op = new_call->op.as<OpNode>();
     StructuralEqual attrs_equal;
 
@@ -83,7 +83,7 @@ class CommonSubexprEliminator : public MixedModeMutator {
   Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) final {
     Expr new_expr = post;
     const TupleGetItemNode* new_tuple_item = new_expr.as<TupleGetItemNode>();
-    CHECK(new_tuple_item);
+    ICHECK(new_tuple_item);
 
     if (fskip_ != nullptr && fskip_(new_expr)) {
       return new_expr;

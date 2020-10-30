@@ -71,23 +71,23 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
   bool transa = args[3];
   bool transb = args[4];
   int bit_depth = sizeof(typename TGemmOp::TDatatype) * 8;
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
 
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed(C));
+  ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  CHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -118,24 +118,24 @@ inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
   int offset_c[1];
   offset_c[0] = 0;
 
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
 
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed(C));
+  ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(TypeMatch(A->dtype, kDLUInt, 8));
-  CHECK(TypeMatch(B->dtype, kDLInt, 8));
-  CHECK(TypeMatch(C->dtype, kDLInt, 32));
+  ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
+  ICHECK(TypeMatch(B->dtype, kDLInt, 8));
+  ICHECK(TypeMatch(C->dtype, kDLInt, 32));
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -180,22 +180,22 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
   bool transa = args[3];
   bool transb = args[4];
   int bit_depth = sizeof(DType) * 8;
-  CHECK_EQ(A->ndim, 3);
-  CHECK_EQ(B->ndim, 3);
-  CHECK_EQ(C->ndim, 3);
+  ICHECK_EQ(A->ndim, 3);
+  ICHECK_EQ(B->ndim, 3);
+  ICHECK_EQ(C->ndim, 3);
   int batch_size = BatchCount3D(A);
-  CHECK_EQ(BatchCount3D(B), batch_size);
-  CHECK_EQ(BatchCount3D(C), batch_size);
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(BatchCount3D(B), batch_size);
+  ICHECK_EQ(BatchCount3D(C), batch_size);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed3D(C));
+  ICHECK(!IsInPlaceTransposed3D(C));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
-  CHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  CHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
   const int A_size = A->shape[1] * A->shape[2];

@@ -97,7 +97,7 @@ There's nothing special for this part. The following Python snippet generate add
 import os
 import tvm
 from tvm import te
-from tvm.contrib import cc, util
+from tvm.contrib import cc, utils
 
 def test_add(target_dir):
     n = te.var("n")

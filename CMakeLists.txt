@@ -387,23 +387,23 @@ endif()
 
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
-  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
-  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "DMLC_LOG_DEBUG")
+  target_compile_definitions(tvm_objs PRIVATE "USE_RELAY_DEBUG")
+  target_compile_definitions(tvm_objs PRIVATE "DMLC_LOG_DEBUG")
 else()
-  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+  target_compile_definitions(tvm_objs PRIVATE "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
 if(USE_FALLBACK_STL_MAP)
   message(STATUS "Building with STL Map...")
-  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=1")
+  target_compile_definitions(tvm_objs PRIVATE "USE_FALLBACK_STL_MAP=1")
 else()
   message(STATUS "Building with TVM Map...")
-  set_target_properties(tvm_objs PROPERTIES COMPILE_DEFINITIONS "USE_FALLBACK_STL_MAP=0")
+  target_compile_definitions(tvm_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
-  set_target_properties(tvm_runtime PROPERTIES LINK_FLAGS
+  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
                         "-Wl,--wrap=pthread_create")
 
   target_include_directories(tvm_runtime SYSTEM
@@ -470,7 +470,7 @@ if(GTEST_INCLUDE_DIR AND GTEST_LIB)
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
     target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
-    target_link_libraries(${__execname} ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
+    target_link_libraries(${__execname} PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   endforeach()

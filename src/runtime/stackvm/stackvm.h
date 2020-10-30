@@ -162,7 +162,7 @@ class StackVM {
     /*!
      * \brief Assert condition is true.
      * \code
-     *  CHECK(stack[sp]) << str_data[code[pc + 1].v_int];
+     *  ICHECK(stack[sp]) << str_data[code[pc + 1].v_int];
      *  sp = sp - 1;
      * \endcode
      */
@@ -201,7 +201,7 @@ class StackVM {
     /*!
      * \brief debug instruction.
      * \code
-     *  CHECK_EQ(sp, code[pc + 1]).v_int;
+     *  ICHECK_EQ(sp, code[pc + 1]).v_int;
      *  pc += 2;
      * \code
      */
@@ -391,7 +391,7 @@ class StackVM {
    * \return The load opcode
    */
   static OpCode GetLoad(DLDataType t) {
-    CHECK_EQ(t.lanes, 1U);
+    ICHECK_EQ(t.lanes, 1U);
     if (t.code == kTVMOpaqueHandle) return ARRAY_LOAD_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
@@ -420,7 +420,7 @@ class StackVM {
    * \return The load opcode
    */
   static OpCode GetStore(DLDataType t) {
-    CHECK_EQ(t.lanes, 1U);
+    ICHECK_EQ(t.lanes, 1U);
     if (t.code == kTVMOpaqueHandle) return ARRAY_STORE_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {

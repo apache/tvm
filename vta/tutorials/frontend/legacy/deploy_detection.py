@@ -241,7 +241,7 @@ with autotvm.tophub.context(target):
     print(MODEL_NAME + " inference graph built in {0:.2f}s!".format(build_time))
 
     # Send the inference library over to the remote RPC server
-    temp = util.tempdir()
+    temp = utils.tempdir()
     lib.export_library(temp.relpath("graphlib.tar"))
     remote.upload(temp.relpath("graphlib.tar"))
     lib = remote.load_module("graphlib.tar")

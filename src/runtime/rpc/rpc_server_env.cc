@@ -31,7 +31,7 @@ namespace runtime {
 std::string RPCGetPath(const std::string& name) {
   // do live lookup everytime as workpath can change.
   const PackedFunc* f = runtime::Registry::Get("tvm.rpc.server.workpath");
-  CHECK(f != nullptr) << "require tvm.rpc.server.workpath";
+  ICHECK(f != nullptr) << "require tvm.rpc.server.workpath";
   return (*f)(name);
 }
 

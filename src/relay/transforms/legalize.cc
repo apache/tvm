@@ -73,7 +73,7 @@ class Legalizer : public ExprRewriter {
         if (legalized_value.defined()) {
           // Check that the returned Expr from legalize is CallNode.
           const CallNode* legalized_call_node = legalized_value.as<CallNode>();
-          CHECK(legalized_call_node)
+          ICHECK(legalized_call_node)
               << "Can only replace the original operator with another call node";
           return legalized_value;
         }

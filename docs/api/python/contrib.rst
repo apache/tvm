@@ -122,9 +122,9 @@ tvm.contrib.tar
     :members:
 
 
-tvm.contrib.util
-~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.util
+tvm.contrib.utils
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.utils
     :members:
 
 

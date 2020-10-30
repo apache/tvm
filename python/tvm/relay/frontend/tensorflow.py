@@ -27,7 +27,7 @@ import tvm
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
 from tvm.relay.transform import InferType
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis
 from .. import expr as _expr
@@ -788,6 +788,15 @@ def _expand_dims():
     return _impl
 
 
+def _expm1():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/expm1
+    def _impl(inputs, attr, params, mod):
+        exp_out = get_relay_op("exp")(inputs[0])
+        return exp_out - tvm.relay.const(1.0)
+
+    return _impl
+
+
 def _resize(method):
     def _impl(inputs, attr, params, mod):
         if attr["_output_shapes"][0] is not None:
@@ -1334,7 +1343,7 @@ def _fused_batch_norm():
             op_name="batch_norm",
             transforms={"scale_after_normalization": "scale", "variance_epsilon": "epsilon"},
             extras={"axis": axis},
-            ignores=["data_format", "U"],
+            ignores=["data_format", "U", "exponential_avg_factor"],
             disables=["momentum"],
         )(inputs, attr)
 
@@ -1364,7 +1373,7 @@ def _batch_norm():
             op_name="batch_norm",
             transforms={"scale_after_normalization": "scale", "variance_epsilon": "epsilon"},
             extras={"axis": axis},
-            ignores=["data_format"],
+            ignores=["data_format", "exponential_avg_factor"],
             disables=["momentum"],
         )(new_inputs, attr)
 
@@ -1549,7 +1558,7 @@ def _stridedSlice():
                 idx += st
 
             # Only return when in_shape is fully static in the range from begin to end.
-            if idx >= st:
+            if idx >= ed:
                 ret = _expr.const(out_data, dtype)
                 if shrink_axis_mask:
                     ret = _op.squeeze(ret)
@@ -1659,14 +1668,26 @@ def _stridedSlice():
 
 def _pad(name):
     def _impl(inputs, attr, params, mod):
-        padlist = _get_param(params, inputs[1])
-        paddings = tuple(tuple(l) for l in padlist)
+        try:
+            padlist = _get_param(params, inputs[1])
+        except (IndexError, KeyError, AttributeError):
+            try:
+                padlist = _infer_value(inputs[1], params, mod).asnumpy().tolist()
+            except Exception:
+                padlist = inputs[1]
+
+        if isinstance(padlist, _expr.Expr):
+            paddings = padlist
+        else:
+            paddings = tuple(tuple(l) for l in padlist)
         attr["pad_width"] = paddings
         attr["pad_value"] = 0
         new_inputs = [inputs[0]]
         if name == "PadV2":
-            constant_values = _get_num_param(params, inputs[2])
-            attr["pad_value"] = constant_values
+            try:
+                attr["pad_value"] = _get_num_param(params, inputs[2])
+            except (IndexError, KeyError, AttributeError):
+                attr["pad_value"] = inputs[2]
         return AttrCvt(
             op_name="pad",
             ignores=["Tpaddings"],
@@ -2285,6 +2306,7 @@ _convert_map = {
     "EuclideanNorm": _euclidean_norm(),
     "Exp": AttrCvt("exp"),
     "ExpandDims": _expand_dims(),
+    "Expm1": _expm1(),
     "Fill": _fill(),
     "Floor": AttrCvt("floor"),
     "FloorDiv": _floordiv(),

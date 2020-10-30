@@ -109,11 +109,11 @@ class ConstIntBoundAnalyzer::Impl
     if (!allow_override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
-        CHECK(it->second == info) << "Trying to update var \'" << var << "\'"
-                                  << " with a different const bound: "
-                                  << "original="
-                                  << ConstIntBound(it->second.min_value, it->second.max_value)
-                                  << ", new=" << ConstIntBound(info.min_value, info.max_value);
+        ICHECK(it->second == info)
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
+            << "original=" << ConstIntBound(it->second.min_value, it->second.max_value)
+            << ", new=" << ConstIntBound(info.min_value, info.max_value);
       }
     }
     var_map_[var] = info;
@@ -155,7 +155,7 @@ class ConstIntBoundAnalyzer::Impl
       auto val = bound_->find(expr);
       if (val != bound_->end()) {
         auto everything = Everything(expr->dtype);
-        CHECK(
+        ICHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
              val->second->max_value == everything.max_value))
@@ -211,7 +211,7 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
-    CHECK(!b.is_const(0)) << "divide by zero";
+    ICHECK(!b.is_const(0)) << "divide by zero";
     return HandleDivision(a, b, op->dtype, InfAwareDiv);
   }
 
@@ -230,7 +230,7 @@ class ConstIntBoundAnalyzer::Impl
                          std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
       }
     } else {
-      CHECK(!b.is_const(0)) << "mod by zero";
+      ICHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
       return Everything(op->dtype);
@@ -240,11 +240,28 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
-    CHECK(!b.is_const(0)) << "floordiv by zero";
+    ICHECK(!b.is_const(0)) << "floordiv by zero";
     return HandleDivision(a, b, op->dtype, InfAwareFloorDiv);
   }
 
   Entry VisitExpr_(const FloorModNode* op) final {
+    /* let a / b = x + y, where x is integer, y \in [0, 1)
+     * floormod(a, b) = a - floordiv(a, b) * b
+     * floordiv(a, b) = x
+     * floormod(a, b) = a - floordiv(a, b) * b
+     *                = a - x * b
+     *                = a - (a / b - y) * b
+     *                = a - a + y * b
+     *                = y * b
+     * note that 0 <= y < 1
+     * when b > 0, 0 <= b * y < b
+     *             0 <= b * y <= b - 1
+     * when b < 0, b < b * y <= 0
+     *             b + 1 <= b * y <= 0
+     * In all cases, min(0, b + 1) <= b * y <= max(0, b - 1)
+     *               min(0, b_min + 1) <= b * y <= max(0, b_max - 1)
+     * That is, min(0, b_min + 1) <= floormod(a, b) <= max(0, b_max - 1)
+     */
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -258,10 +275,12 @@ class ConstIntBoundAnalyzer::Impl
         return MakeBound(0, b_max_cap);
       }
     } else {
-      CHECK(!b.is_const(0)) << "floormod by zero";
-      // mod by negative value is rare,
-      // and we just use the simpliest rule.
-      return Everything(op->dtype);
+      ICHECK(!b.is_const(0)) << "floormod by zero";
+      int64_t b_min_cap = InfAwareAdd(b.min_value, 1);
+      int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+      return Intersect(MakeBound(std::min(static_cast<int64_t>(0), b_min_cap),
+                                 std::max(static_cast<int64_t>(0), b_max_cap)),
+                       Everything(op->dtype));
     }
   }
 
@@ -352,7 +371,7 @@ class ConstIntBoundAnalyzer::Impl
     additional_info_.insert(additional_info_.end(), info.begin(), info.end());
     size_t new_size = old_size + info.size();
     auto frecover = [old_size, new_size, this]() {
-      CHECK_EQ(additional_info_.size(), new_size);
+      ICHECK_EQ(additional_info_.size(), new_size);
       additional_info_.resize(old_size);
     };
     return frecover;
@@ -432,11 +451,11 @@ class ConstIntBoundAnalyzer::Impl
    */
   static int64_t InfAwareAdd(int64_t x, int64_t y) {
     if (x == kPosInf) {
-      CHECK(y != kNegInf);
+      ICHECK(y != kNegInf);
       return kPosInf;
     }
     if (x == kNegInf) {
-      CHECK(y != kPosInf);
+      ICHECK(y != kPosInf);
       return kNegInf;
     }
     if (y == kPosInf || y == kNegInf) return y;
@@ -464,7 +483,7 @@ class ConstIntBoundAnalyzer::Impl
    * \return the result.
    */
   static int64_t InfAwareDiv(int64_t x, int64_t y) {
-    CHECK_NE(y, 0);
+    ICHECK_NE(y, 0);
     if (x == kPosInf || x == kNegInf) {
       if (y > 0) return x;
       return -x;
@@ -478,7 +497,7 @@ class ConstIntBoundAnalyzer::Impl
    * \return the result.
    */
   static int64_t InfAwareFloorDiv(int64_t x, int64_t y) {
-    CHECK_NE(y, 0);
+    ICHECK_NE(y, 0);
     if (x == kPosInf || x == kNegInf) {
       if (y > 0) return x;
       return -x;

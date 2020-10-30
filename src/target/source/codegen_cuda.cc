@@ -41,7 +41,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   CodeGenC::Init(output_ssa);
   vid_global_barrier_state_ = GetUniqueName(runtime::symbol::tvm_global_barrier_state);
   vid_global_barrier_expect_ = GetUniqueName("__barrier_expect");
-  CHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
+  ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
 void CodeGenCUDA::PrintFuncPrefix() { stream << "extern \"C\" __global__ void"; }
@@ -83,7 +83,7 @@ std::string CodeGenCUDA::Finish() {
 }
 
 void CodeGenCUDA::VisitStmt_(const tir::ForNode* op) {
-  CHECK(is_const_int(op->min, 0));
+  ICHECK(is_const_int(op->min, 0));
   if (op->for_type == tir::ForType::Unrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
@@ -92,14 +92,14 @@ void CodeGenCUDA::VisitStmt_(const tir::ForNode* op) {
 }
 
 void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
-  CHECK(!var_idmap_.count(iv->var.get()));
+  ICHECK(!var_idmap_.count(iv->var.get()));
   var_idmap_[iv->var.get()] = CastFromTo(iv->thread_tag, DataType::UInt(32), iv->var.dtype());
 }
 
 void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    CHECK_EQ(lanes, 1) << "do not yet support vector types";
+    ICHECK_EQ(lanes, 1) << "do not yet support vector types";
     os << "void*";
     return;
   }
@@ -120,7 +120,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           // h4.z is emitted as *(half2*)(&(u2.y)).x
           // h4.w is emitted as *(half2*)(&(u2.y)).y
           //
-          CHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
+          ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
           os << "uint" << lanes / 2;
         } else {
           fail = true;
@@ -308,7 +308,7 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
   }
 
   static const char access[] = {'x', 'y', 'z', 'w'};
-  CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
+  ICHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if ((t.is_int()) && t.bits() == 8) {
     if (t.lanes() == 2 || t.lanes() == 3) {
       os << vec << "." << access[i % t.lanes()];
@@ -332,7 +332,7 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
                                     const std::string& value) {
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
-  CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
+  ICHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (t.lanes() == 2 || t.lanes() == 3) {
       stream << vec << '.' << access[i % t.lanes()] << "="
@@ -394,8 +394,8 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
 }
 
 void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  CHECK_NE(scope, "global") << "Cannot allocate global memory when targeting CUDA. You must pass "
-                               "all global arrays as input instead";
+  ICHECK_NE(scope, "global") << "Cannot allocate global memory when targeting CUDA. You must pass "
+                                "all global arrays as input instead";
   if (scope == "shared") {
     os << "__shared__ ";
   }
@@ -404,7 +404,7 @@ void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) 
 void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   DataType from_ty = op->value.dtype();
   DataType target_ty = op->dtype;
-  CHECK_EQ(target_ty.lanes(), from_ty.lanes());
+  ICHECK_EQ(target_ty.lanes(), from_ty.lanes());
 
   // Emit simple C-style type conversion.
   if (from_ty.is_scalar()) return CodeGenC::VisitExpr_(op, os);
@@ -496,7 +496,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
   if (op->op.same_as(builtin::tvm_fill_fragment())) {
     need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 6U);
+    ICHECK_EQ(op->args.size(), 6U);
     os << "nvcuda::wmma::fill_fragment(";
     this->PrintExpr(op->args[0], os);
     os << "[";
@@ -506,7 +506,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << ")";
   } else if (op->op.same_as(builtin::tvm_load_matrix_sync())) {
     need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
+    ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::load_matrix_sync(";
     this->PrintExpr(op->args[0], os);
     os << "[";
@@ -518,7 +518,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << ")";
   } else if (op->op.same_as(builtin::tvm_store_matrix_sync())) {
     need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
+    ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::store_matrix_sync(";
     this->PrintExpr(op->args[5], os);
     os << ", ";
@@ -535,7 +535,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << ")";
   } else if (op->op.same_as(builtin::tvm_mma_sync())) {
     need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
+    ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::mma_sync(";
     for (int i = 0; i < 4; ++i) {
       this->PrintExpr(op->args[i * 2], os);
@@ -545,7 +545,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     }
   } else if (op->op.same_as(builtin::tvm_bmma_sync())) {
     need_mma_h_ = true;
-    CHECK_EQ(op->args.size(), 8U);
+    ICHECK_EQ(op->args.size(), 8U);
     os << "nvcuda::wmma::bmma_sync(";
     for (int i = 0; i < 4; ++i) {
       this->PrintExpr(op->args[i * 2], os);
@@ -572,24 +572,24 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
 }
 
 void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
-  CHECK(!is_zero(op->condition));
+  ICHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
   int32_t constant_size = op->constant_allocation_size();
-  CHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
   std::string scope = alloc_storage_scope_.at(buffer);
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      CHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
-            op->dtype == DataType::UInt(8) || op->dtype == DataType::Int(4) ||
-            op->dtype == DataType::UInt(4) || op->dtype == DataType::Int(1))
+      ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
+             op->dtype == DataType::UInt(8) || op->dtype == DataType::Int(4) ||
+             op->dtype == DataType::UInt(4) || op->dtype == DataType::Int(1))
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";
     } else {
-      CHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
-            op->dtype == DataType::Int(32))
+      ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
+             op->dtype == DataType::Int(32))
           << "Accumulator only support half, float and int type for now";
     }
     constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
@@ -640,7 +640,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
   if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && op->lanes == 4) {
     // make_int8x4
     const int64_t* p = as_const_int(op->value);
-    CHECK(p);
+    ICHECK(p);
     int64_t v = *p & 0xFF;
     v = (v << 24) | (v << 16) | (v << 8) | v;
     if (op->dtype.is_uint()) {
@@ -678,7 +678,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
   std::vector<std::string> to_shuffle(op->vectors.size());
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
-    CHECK(op->vectors[i].dtype().lanes() == 1) << "Only scalars can be shuffled in CUDA!";
+    ICHECK(op->vectors[i].dtype().lanes() == 1) << "Only scalars can be shuffled in CUDA!";
     to_shuffle[i] = PrintExpr(op->vectors[i]);
   }
   os << "make_";
@@ -686,7 +686,7 @@ void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
   os << '(';
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
     const int64_t* val = as_const_int(op->indices[i]);
-    CHECK(val && *val >= 0 && (int)*val < (int)to_shuffle.size());
+    ICHECK(val && *val >= 0 && (int)*val < (int)to_shuffle.size());
     if (i != 0) os << ", ";
     os << to_shuffle[*val];
   }
@@ -701,8 +701,8 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
   }
 
   // Codegen vector condition case by serializing the select op.
-  CHECK(op->false_value->dtype == op->dtype && op->true_value->dtype == op->dtype &&
-        op->dtype.lanes() == op->condition.dtype().lanes());
+  ICHECK(op->false_value->dtype == op->dtype && op->true_value->dtype == op->dtype &&
+         op->dtype.lanes() == op->condition.dtype().lanes());
 
   std::string r_var = GetUniqueName("_");
   this->PrintIndent();
@@ -846,7 +846,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const LoadNode* 
 
 void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
                                        std::ostream& os) {
-  CHECK_GT(t.lanes(), 1);
+  ICHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (!(t.lanes() == 2 || t.lanes() == 3)) {
       if (i != 0) {
