@@ -50,11 +50,11 @@ def get_network(name, batch_size=1, layout="NHWC"):
     elif name == "dcgan":
         mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size, layout=layout)
     elif name == "mlp":
-        data = relay.var("data", shape=(batch_size, 128))
-        fc1 = relay.nn.dense(data, relay.var("fc1_weight"), units=128)
+        data = relay.var("data", shape=(batch_size, 32))
+        fc1 = relay.nn.dense(data, relay.var("fc1_weight"), units=32)
         fc1 = relay.nn.bias_add(fc1, relay.var("fc1_bias"), axis=-1)
         act1 = relay.nn.relu(fc1)
-        fc2 = relay.nn.dense(act1, relay.var("fc2_weight"), units=128)
+        fc2 = relay.nn.dense(act1, relay.var("fc2_weight"), units=32)
         fc2 = relay.nn.bias_add(fc2, relay.var("fc2_bias"), axis=-1)
         act2 = relay.nn.relu(fc2)
         mlp = act2

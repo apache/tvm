@@ -37,7 +37,7 @@ def test_tuning_cuda():
         log_file = fp.name
 
         # Tuning
-        measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=100)
         tuner = auto_scheduler.TaskScheduler(tasks, objective)
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=2,

@@ -65,6 +65,10 @@ from .workload_registry import (
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
 
+# The time cost for measurements with errors
+# We use 1e10 instead of sys.float_info.max for better readability in log
+MAX_FLOAT = 1e10
+
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
@@ -695,7 +699,7 @@ def _timed_eval_func(
         )
     # pylint: disable=broad-except
     except Exception:
-        costs = (max_float,)
+        costs = (MAX_FLOAT,)
         error_no = MeasureErrorNo.COMPILE_DEVICE
         error_msg = make_error_msg()
 
@@ -710,7 +714,7 @@ def _timed_eval_func(
             costs = time_f(*args).results
         # pylint: disable=broad-except
         except Exception:
-            costs = (max_float,)
+            costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_error_msg()
 
@@ -782,14 +786,13 @@ def local_run(
     res : List[MeasureResult]
         The measure results of these MeasureInputs.
     """
-    max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
 
     measure_results = []
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
             res = (
-                (max_float,),
+                (MAX_FLOAT,),
                 build_res.error_no,
                 build_res.error_msg,
                 build_res.time_cost,
@@ -814,7 +817,7 @@ def local_run(
                 if verbose >= 1:
                     print("*T", end="")  # Run timeout
                 res = (
-                    (max_float,),
+                    (MAX_FLOAT,),
                     MeasureErrorNo.RUN_TIMEOUT,
                     None,
                     build_res.time_cost + timeout,
@@ -869,7 +872,7 @@ def _timed_rpc_run(
         )
     # pylint: disable=broad-except
     except Exception:
-        costs = (max_float,)
+        costs = (MAX_FLOAT,)
         error_no = MeasureErrorNo.COMPILE_DEVICE
         error_msg = make_error_msg()
 
@@ -893,7 +896,7 @@ def _timed_rpc_run(
             remote.remove("")
         # pylint: disable=broad-except
         except Exception:
-            costs = (max_float,)
+            costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_error_msg()
 
@@ -923,12 +926,10 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
-
     _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
-            (max_float,),
+            (MAX_FLOAT,),
             build_res.error_no,
             build_res.error_msg,
             build_res.time_cost,
@@ -941,7 +942,7 @@ def _rpc_run_worker(args):
         if verbose >= 1:
             print("*T", end="")  # Run timeout
         res = (
-            (max_float,),
+            (MAX_FLOAT,),
             MeasureErrorNo.RUN_TIMEOUT,
             None,
             build_res.time_cost + timeout,
