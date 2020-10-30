@@ -769,6 +769,21 @@ def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
         res = veval(f, (x_data, y_data), ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
 
+@tvm.testing.uses_gpu
+def test_vm_ref_create_read_write():
+    scope = ScopeBuilder()
+    ref_const = relay.const(1.0, dtype="float32")
+    ref_create = scope.let('ref_create', relay.RefCreate(ref_const))
+    read_ref = scope.let("read_ref", relay.RefRead(ref_create))
+    new_value = read_ref + relay.const(2.0, dtype="float32")
+    scope.let("", relay.RefWrite(ref_create, new_value))
+    scope.ret(relay.RefRead(ref_create))
+
+    f = relay.Function([], scope.get())
+    print(f)
+    for tgt, ctx in tvm.testing.enabled_targets():
+        res = veval(f, [], ctx=ctx, target=tgt)
+        tvm.testing.assert_allclose(res.asnumpy(), np.array(3))
 
 def test_constant_shape_with_external_codegen():
     mod = tvm.IRModule()

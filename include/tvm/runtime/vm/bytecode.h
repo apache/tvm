@@ -68,6 +68,9 @@ enum class Opcode {
   ShapeOf = 17U,
   ReshapeTensor = 18U,
   DeviceCopy = 19U,
+  RefCreate = 20U,
+  RefRead = 21U,
+  RefWrite = 22U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -215,6 +218,16 @@ struct Instruction {
       /*! \brief The destination device type. */
       Index dst_device_type;
     };
+    struct /* RefCreate Operands */ {
+      RegName initial_value;
+    } ref_create;
+    struct /* RefRead */ {
+      RegName ref;
+    } ref_read;
+    struct /* RefWrite */ {
+      RegName ref;
+      RegName value;
+    } ref_write;
   };
 
   /*!
@@ -383,6 +396,31 @@ struct Instruction {
    */
   static Instruction DeviceCopy(RegName src, Index src_device_type, Index dst_device_type,
                                 RegName dst);
+
+  /*!
+   * \brief Create a reference.
+   * \param value The register corresponding to the initial value of the reference.
+   * \param dst The destination register.
+   * \return The reference creation instruction.
+   */
+  static Instruction RefCreate(RegName value, RegName dst);
+
+  /*!
+   * \brief Read a value from a reference.
+   * \param ref The register to read from.
+   * \param dst The destination register.
+   * \return The reference read instruction.
+   */
+  static Instruction RefRead(RegName ref, RegName dst);
+
+  /*!
+   * \brief Write a value to the reference.
+   * \param ref The register to write to.
+   * \param value The value to write to the register.
+   * \param dst The destination register.
+   * \return The reference write instruction.
+   */
+  static Instruction RefWrite(RegName ref, RegName value, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);

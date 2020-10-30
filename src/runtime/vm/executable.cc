@@ -442,6 +442,21 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.assign({instr.src, instr.src_device_type, instr.dst_device_type, instr.dst});
       break;
     }
+    case Opcode::RefCreate: {
+      // Number of fields = 2
+      fields.assign({instr.ref_create.initial_value, instr.dst});
+      break;
+    }
+    case Opcode::RefRead: {
+      // Number of fields = 2
+      fields.assign({instr.ref_read.ref, instr.dst});
+      break;
+    }
+    case Opcode::RefWrite: {
+      // Number of fields = 3
+      fields.assign({instr.ref_write.ref, instr.ref_write.value, instr.dst});
+      break;
+    }
     default:
       LOG(FATAL) << "Invalid opcode" << static_cast<int>(instr.op);
       break;
@@ -733,6 +748,21 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       DCHECK_EQ(instr.fields.size(), 4U);
       return Instruction::DeviceCopy(instr.fields[0], instr.fields[1], instr.fields[2],
                                      instr.fields[3]);
+    }
+    case Opcode::RefCreate: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::RefCreate(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::RefRead: {
+      // Number of fields = 2
+      DCHECK_EQ(instr.fields.size(), 2U);
+      return Instruction::RefRead(instr.fields[0], instr.fields[1]);
+    }
+    case Opcode::RefWrite: {
+      // Number of fields = 3
+      DCHECK_EQ(instr.fields.size(), 3U);
+      return Instruction::RefWrite(instr.fields[0], instr.fields[1], instr.fields[2]);
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;

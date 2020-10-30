@@ -127,6 +127,15 @@ Instruction::Instruction(const Instruction& instr) {
       this->src_device_type = instr.src_device_type;
       this->dst_device_type = instr.dst_device_type;
       return;
+    case Opcode::RefCreate:
+      this->ref_create = instr.ref_create;
+      return;
+    case Opcode::RefRead:
+      this->ref_read = instr.ref_read;
+      return;
+    case Opcode::RefWrite:
+      this->ref_write = instr.ref_write;
+      return;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -233,6 +242,15 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->src_device_type = instr.src_device_type;
       this->dst_device_type = instr.dst_device_type;
       return *this;
+    case Opcode::RefCreate:
+      this->ref_create = instr.ref_create;
+      return *this;
+    case Opcode::RefRead:
+      this->ref_read = instr.ref_read;
+      return *this;
+    case Opcode::RefWrite:
+      this->ref_write = instr.ref_write;
+      return *this;
     default:
       std::ostringstream out;
       out << "Invalid instruction " << static_cast<int>(instr.op);
@@ -255,6 +273,9 @@ Instruction::~Instruction() {
     case Opcode::ShapeOf:
     case Opcode::ReshapeTensor:
     case Opcode::DeviceCopy:
+    case Opcode::RefCreate:
+    case Opcode::RefRead:
+    case Opcode::RefWrite:
     case Opcode::Fatal:
       return;
     case Opcode::AllocTensor:
@@ -491,6 +512,31 @@ Instruction Instruction::Move(RegName src, RegName dst) {
   return instr;
 }
 
+Instruction Instruction::RefCreate(RegName value, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::RefCreate;
+  instr.dst = dst;
+  instr.ref_create.initial_value = value;
+  return instr;
+}
+
+Instruction Instruction::RefRead(RegName ref, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::RefRead;
+  instr.dst = dst;
+  instr.ref_read.ref = ref;
+  return instr;
+}
+
+Instruction Instruction::RefWrite(RegName ref, RegName value, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::RefWrite;
+  instr.dst = dst;
+  instr.ref_write.ref = ref;
+  instr.ref_write.value = value;
+  return instr;
+}
+
 void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
   switch (dtype.code) {
     case kDLInt:
@@ -624,6 +670,18 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::DeviceCopy: {
       os << "device_copy $" << instr.dst << " $" << instr.src << " " << instr.dst_device_type << " "
          << instr.src_device_type;
+      break;
+    }
+    case Opcode::RefCreate: {
+      os << "ref_create $" << instr.dst << " $" << instr.ref_create.initial_value;
+      break;
+    }
+    case Opcode::RefRead: {
+      os << "ref_ref $" << instr.dst << " $" << instr.ref_read.ref;
+      break;
+    }
+    case Opcode::RefWrite: {
+      os << "ref_write $" << instr.dst << " $" << instr.ref_write.ref << " $" << instr.ref_write.value;
       break;
     }
     default:
