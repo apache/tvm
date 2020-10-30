@@ -87,7 +87,7 @@ def schedule_embed_grad(outs):
     """
     s = te.create_schedule([outs[0].op])
 
-    vec_size = 8 # should autotune this, but we can't with hybrid script
+    vec_size = 8  # should autotune this, but we can't with hybrid script
     out = s.outputs[0].output(0)
     zi, zj, i, j = s[out].op.axis
     zjo, zji = s[out].split(zj, factor=vec_size)
