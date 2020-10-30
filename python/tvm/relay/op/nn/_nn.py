@@ -897,7 +897,7 @@ reg.register_injective_schedule("nn.batch_to_space_nd")
 
 # embed
 @reg.register_compute("nn.embed")
-def compute_embed_grad(attrs, inputs, out_type):
+def compute_embed(attrs, inputs, out_type):
     """Compute definition of embed"""
     return [topi.nn.embed(inputs[0], inputs[1])]
 

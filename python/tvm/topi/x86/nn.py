@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 nn operators"""
-from tvm import autotvm, te
+from tvm import te
 
 
 def schedule_softmax(outs):

@@ -137,7 +137,7 @@ def _cast(func_id, args):
     return _expr.Cast(func_id, args[0])
 
 
-def cast(func_id, args):
+def cast(_, args):
     _internal_assert(args.__len__() == 2, "cast requires two arguments: dtype, value")
     return _expr.Cast(args[0], args[1])
 
