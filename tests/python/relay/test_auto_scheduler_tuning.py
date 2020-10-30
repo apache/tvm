@@ -27,17 +27,17 @@ from test_auto_scheduler_task_extraction import get_network
 def test_tuning_cuda():
     auto_scheduler.enable_relay_integration()
 
+    # Extract tasks
     mod, params = get_network("mlp")
     target = tvm.target.Target("cuda")
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-
     objective = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
+        # Tuning
         measure_ctx = auto_scheduler.LocalRPCMeasureContext()
-
         tuner = auto_scheduler.TaskScheduler(tasks, objective)
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=2,
@@ -45,12 +45,15 @@ def test_tuning_cuda():
             runner=measure_ctx.runner,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-
         tuner.tune(tune_option, search_policy="sketch.random")
+        del measure_ctx
 
+        # Compile with the history best
         with auto_scheduler.ApplyHistoryBest(log_file):
             with tvm.transform.PassContext(opt_level=3):
                 lib = relay.build(mod, target=target, params=params)
+
+    # Todo(merrymercy): compile without any history to test the fallback mechanism
 
     auto_scheduler.enable_relay_integration(False)
 

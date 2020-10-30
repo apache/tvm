@@ -242,7 +242,7 @@ class FallbackContext(DispatchContext):
         # a set to prevent print duplicated message
         self.messages = set()
 
-    def _query_inside(self, target, workload_key):
+    def query(self, target, workload_key):
         key = (str(target), workload_key)
         if key in self.memory:
             return self.memory[key]
