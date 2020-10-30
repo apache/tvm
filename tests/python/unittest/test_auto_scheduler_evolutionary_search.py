@@ -52,7 +52,7 @@ def test_mutate_tile_size():
     dag = auto_scheduler.ComputeDAG(workload_key)
     task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.Target("llvm"))
     policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
-    states = policy.sample_initial_population(50)
+    states = policy.sample_initial_population()[:50]
 
     bad_states = []
     for state in states:
@@ -98,7 +98,7 @@ def test_mutate_parallel():
     found = False
     retry_ct = 0
     while retry_ct < 10 and not found:
-        states = policy.sample_initial_population(100)
+        states = policy.sample_initial_population()[:100]
         bad_states = []
         for state in states:
             if not MockCostModel.is_good_state(state):

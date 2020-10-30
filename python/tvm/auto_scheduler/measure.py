@@ -57,45 +57,17 @@ from .utils import (
 )
 from .compute_dag import ComputeDAG
 from .search_task import SearchTask
-from .workload_registry import workload_func_name, get_workload_func
+from .workload_registry import (
+    serialize_workload_registry_entry,
+    deserialize_workload_registry_entry,
+)
 
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
 
-
-def recover_measure_input(inp, rebuild_state=False):
-    """
-    Recover a deserialized MeasureInput by rebuilding the missing fields.
-    1. Rebuid the compute_dag in inp.task
-    2. (Optional) Rebuild the stages in inp.state
-
-    Parameters
-    ----------
-    inp: MeasureInput
-        The deserialized MeasureInput
-    rebuild_state: bool = False
-        Whether rebuild the stages in MeasureInput.State
-
-    Returns
-    -------
-    new_input: MeasureInput
-        The fully recovered MeasureInput with all fields rebuilt.
-    """
-    task = inp.task
-    new_task = SearchTask(
-        ComputeDAG(task.workload_key),
-        task.workload_key,
-        task.target,
-        task.target_host,
-        task.hardware_params,
-    )
-
-    if rebuild_state:
-        new_state = new_task.compute_dag.infer_bound_from_state(inp.state)
-    else:
-        new_state = inp.state
-
-    return MeasureInput(new_task, new_state)
+# The time cost for measurements with errors
+# We use 1e10 instead of sys.float_info.max for better readability in log
+MAX_FLOAT = 1e10
 
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
@@ -127,22 +99,16 @@ class MeasureInput(Object):
         with initialization of the workload registry (maybe because of
         initialization order?).
         """
-        serialize = tvm.get_global_func("auto_scheduler.SerializeMeasureInput", True)
-        assert serialize
-        # We serialize the workload function so that it can be used on the deserialized side.
-        return {
-            "measureinput": serialize(self),
-            "name": workload_func_name(self.task.workload_key),
-            "func": get_workload_func(self.task),
-        }
+        return [
+            _ffi_api.SerializeMeasureInput(self),
+            serialize_workload_registry_entry(self.task.workload_key),
+        ]
 
     @staticmethod
-    def deserialize(state):
-        deserialize = tvm.get_global_func("auto_scheduler.DeserializeMeasureInput", True)
-        assert deserialize
-        tvm.auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY[state["name"]] = state["func"]
-        x = deserialize(state["measureinput"])
-        return recover_measure_input(x)
+    def deserialize(data):
+        inp = _ffi_api.DeserializeMeasureInput(data[0])
+        deserialize_workload_registry_entry(data[1])
+        return recover_measure_input(inp)
 
 
 @tvm._ffi.register_object("auto_scheduler.BuildResult")
@@ -196,6 +162,41 @@ class MeasureResult(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.MeasureResult, costs, error_no, error_msg, all_cost, timestamp
         )
+
+
+def recover_measure_input(inp, rebuild_state=False):
+    """
+    Recover a deserialized MeasureInput by rebuilding the missing fields.
+    1. Rebuid the compute_dag in inp.task
+    2. (Optional) Rebuild the stages in inp.state
+
+    Parameters
+    ----------
+    inp: MeasureInput
+        The deserialized MeasureInput
+    rebuild_state: bool = False
+        Whether rebuild the stages in MeasureInput.State
+
+    Returns
+    -------
+    new_input: MeasureInput
+        The fully recovered MeasureInput with all fields rebuilt.
+    """
+    task = inp.task
+    new_task = SearchTask(
+        ComputeDAG(task.workload_key),
+        task.workload_key,
+        task.target,
+        task.target_host,
+        task.hardware_params,
+    )
+
+    if rebuild_state:
+        new_state = new_task.compute_dag.infer_bound_from_state(inp.state)
+    else:
+        new_state = inp.state
+
+    return MeasureInput(new_task, new_state)
 
 
 @tvm._ffi.register_object("auto_scheduler.ProgramBuilder")
@@ -698,7 +699,7 @@ def _timed_eval_func(
         )
     # pylint: disable=broad-except
     except Exception:
-        costs = (max_float,)
+        costs = (MAX_FLOAT,)
         error_no = MeasureErrorNo.COMPILE_DEVICE
         error_msg = make_error_msg()
 
@@ -713,7 +714,7 @@ def _timed_eval_func(
             costs = time_f(*args).results
         # pylint: disable=broad-except
         except Exception:
-            costs = (max_float,)
+            costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_error_msg()
 
@@ -785,14 +786,13 @@ def local_run(
     res : List[MeasureResult]
         The measure results of these MeasureInputs.
     """
-    max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
 
     measure_results = []
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
     for inp, build_res in zip(inputs, build_results):
         if build_res.error_no != 0:
             res = (
-                (max_float,),
+                (MAX_FLOAT,),
                 build_res.error_no,
                 build_res.error_msg,
                 build_res.time_cost,
@@ -817,7 +817,7 @@ def local_run(
                 if verbose >= 1:
                     print("*T", end="")  # Run timeout
                 res = (
-                    (max_float,),
+                    (MAX_FLOAT,),
                     MeasureErrorNo.RUN_TIMEOUT,
                     None,
                     build_res.time_cost + timeout,
@@ -872,7 +872,7 @@ def _timed_rpc_run(
         )
     # pylint: disable=broad-except
     except Exception:
-        costs = (max_float,)
+        costs = (MAX_FLOAT,)
         error_no = MeasureErrorNo.COMPILE_DEVICE
         error_msg = make_error_msg()
 
@@ -896,7 +896,7 @@ def _timed_rpc_run(
             remote.remove("")
         # pylint: disable=broad-except
         except Exception:
-            costs = (max_float,)
+            costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
             error_msg = make_error_msg()
 
@@ -926,12 +926,10 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    max_float = 1e10  # We use 1e10 instead of sys.float_info.max for better readability in log
-
     _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
-            (max_float,),
+            (MAX_FLOAT,),
             build_res.error_no,
             build_res.error_msg,
             build_res.time_cost,
@@ -944,7 +942,7 @@ def _rpc_run_worker(args):
         if verbose >= 1:
             print("*T", end="")  # Run timeout
         res = (
-            (max_float,),
+            (MAX_FLOAT,),
             MeasureErrorNo.RUN_TIMEOUT,
             None,
             build_res.time_cost + timeout,

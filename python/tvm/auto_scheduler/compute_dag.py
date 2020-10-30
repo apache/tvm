@@ -151,7 +151,14 @@ class ComputeDAG(Object):
                 updated_state.stage_id_map[k] = v
         return updated_state
 
-    def __hash__(self):
+    def hash_key(self):
+        """Return the hash key of this compute DAG.
+
+        Returns
+        -------
+        key: str
+            The hash key of this compute DAG
+        """
         # TODO(merrymercy): Implement this more carefully and move this to c++ as a member function
         # of ComputeDAG
         str_key = ""
