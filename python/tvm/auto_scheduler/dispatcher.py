@@ -116,11 +116,10 @@ class ApplyHistoryBest(DispatchContext):
 
     Parameters
     ----------
-    records : str or iterator of (MeasureInput, MeasureResult)
+    records : str or iterator of (auto_scheduler.measure.MeasureInput, auto_scheduler.meaure.MeasureResult)
         Collection of tuning records.
         If is str, then it should be the filename of a records log file.
-                   Each row of this file is an encoded record pair.
-        Otherwise, it is an iterator.
+        Each row of this file is an encoded record pair. Otherwise, it is an iterator.
     n_lines: Optional[int]
         if it is not None, only load the first `n_lines` lines of log
     """
@@ -139,11 +138,10 @@ class ApplyHistoryBest(DispatchContext):
 
         Parameters
         ----------
-        records : str or iterator of (MeasureInput, MeasureResult)
+        records : str or iterator of (auto_scheduler.measure.MeasureInput, auto_scheduler.measure.MeasureResult)
             Collection of tuning records.
             If is str, then it should be the filename of a records log file.
-                       Each row of this file is an encoded record pair.
-            Otherwise, it is an iterator.
+            Each row of this file is an encoded record pair. Otherwise, it is an iterator.
         n_lines: Optional[int]
             if it is not None, only load the first `n_lines` lines of log
         """
