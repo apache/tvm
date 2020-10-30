@@ -620,6 +620,7 @@ class CompileEngineImpl : public CompileEngineNode {
   }
 
   void Clear() final { cache_.clear(); }
+
   // List all items in the cache.
   Array<ObjectRef> ListItems() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -630,6 +631,13 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     return items;
   }
+
+  /*!
+   * \brief Get the cache key of the function that is being lowered currently
+   * \return the cache key
+   */
+  CCacheKey GetCurrentCCacheKey() { return cur_ccache_key_; }
+
   /*!
    * \brief Create schedule for target.
    * \param source_func The primitive function to be lowered.
@@ -656,6 +664,8 @@ class CompileEngineImpl : public CompileEngineNode {
       value->use_count = 0;
       cache_[key] = value;
     }
+    cur_ccache_key_ = key;
+
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
     if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
@@ -770,6 +780,8 @@ class CompileEngineImpl : public CompileEngineNode {
   std::unordered_map<CCacheKey, CCacheValue> cache_;
   /*! \brief internal compiler cache for shape funcs */
   std::unordered_map<CCacheKey, CCacheValue> shape_func_cache_;
+  /*! \brief the cache key of the function that is being lowered currently*/
+  CCacheKey cur_ccache_key_;
 };
 
 /*! \brief The global compile engine */
@@ -811,7 +823,17 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")
     .set_body_typed([](CompileEngine self, CCacheKey key) { return self->JIT(key); });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems").set_body_typed([](CompileEngine self) {
-  return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
+  CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+  ICHECK(ptr != nullptr);
+  return ptr->ListItems();
 });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGetCurrentCCacheKey")
+    .set_body_typed([](CompileEngine self) {
+      CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+      ICHECK(ptr != nullptr);
+      return ptr->GetCurrentCCacheKey();
+    });
+
 }  // namespace relay
 }  // namespace tvm
