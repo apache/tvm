@@ -333,7 +333,9 @@ def parse_args():
         description="Automates building, testing, and releasing a base box"
     )
     parser.add_argument(
-        "command", default=",".join(ALL_COMMANDS), choices=ALL_COMMANDS,
+        "command",
+        default=",".join(ALL_COMMANDS),
+        choices=ALL_COMMANDS,
         help="Action or actions (comma-separated) to perform."
     )
     parser.add_argument(
@@ -347,12 +349,14 @@ def parse_args():
     )
     parser.add_argument(
         "--test-device-serial",
-        help=("If given, attach the test device with this USB serial number. Corresponds to the "
-              "iSerial field from `lsusb -v` output.")
+        help=(
+            "If given, attach the test device with this USB serial number. Corresponds to the "
+            "iSerial field from `lsusb -v` output."
+        ),
     )
-    parser.add_argument("--release-version",
-                        help=("Version to release, in the form 'x.y.z'. Must be specified with "
-                              "release."))
+    parser.add_argument(
+        "--release-version",
+        help="Version to release, in the form 'x.y.z'. Must be specified with release.")
 
     return parser.parse_args()
 
