@@ -52,7 +52,11 @@ def parse_args():
         "--impl",
         help=(
             "If given, name of a module underneath tvm.micro.contrib "
-            "which contains the Debugger implementation to use."
+            "which contains the Debugger implementation to use. For example, to enable a "
+            "debugger named BarDebugger in python/tvm/micro/contrib/foo.py, specify either "
+            "'tvm.micro.contrib.foo' or 'foo' here. To enable a debugger named BazDebugger in "
+            "a third-party module ext_package.debugger, specify 'ext_package.debugger' here. "
+            "NOTE: the module cannot be in a sub-package of tvm.micro.contrib."
         ),
     )
 
