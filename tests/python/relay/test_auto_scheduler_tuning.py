@@ -52,6 +52,8 @@ def test_tuning_cuda():
             with tvm.transform.PassContext(opt_level=3):
                 lib = relay.build(mod, target=target, params=params)
 
+    auto_scheduler.enable_relay_integration(False)
+
 
 if __name__ == "__main__":
     test_tuning_cuda()
