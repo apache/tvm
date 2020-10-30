@@ -23,7 +23,9 @@ import multiprocessing
 import os
 import re
 import tempfile
+import termios
 import textwrap
+import signal
 import shlex
 import shutil
 import subprocess
@@ -38,7 +40,6 @@ from .. import debugger
 from ..transport import debug
 from ..transport import file_descriptor
 
-from ..transport import serial
 from ..transport import Transport, TransportClosedError, TransportTimeouts
 from ..transport import wakeup
 
@@ -218,7 +219,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         return tvm.micro.MicroBinary(
             output,
             binary_file=os.path.join("zephyr", "zephyr.elf"),
-            debug_files=[os.path.join("zephyr", "zephyr.elf")],
+            debug_files=[],
             labelled_files={
                 "cmake_cache": ["CMakeCache.txt"],
                 "device_tree": [os.path.join("zephyr", "zephyr.dts")],
@@ -288,7 +289,6 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         openocd_serial=None,
         flash_args=None,
         debug_rpc_session=None,
-        serial_timeouts=None,
     ):
         zephyr_base = zephyr_base or os.environ["ZEPHYR_BASE"]
         sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
@@ -308,7 +308,6 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         self._subprocess_env = SubprocessEnv(subprocess_env)
         self._debug_rpc_session = debug_rpc_session
         self._nrfjprog_snr = nrfjprog_snr
-        self._serial_timeouts = serial_timeouts
 
     def _get_nrf_device_args(self):
         nrfjprog_args = ["nrfjprog", "--ids"]
@@ -362,7 +361,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             serials.sort()
 
             self._autodetected_openocd_serial = serials[0]
-            _LOG.debug("zephyr openocd driver: autodetected serial %s", serials[0])
+            print("autodetected", serials[0])
 
         return self._autodetected_openocd_serial
 
@@ -458,9 +457,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         _LOG.debug("zephyr transport: found UART baudrate from devicetree: %d", uart_baud)
 
         port_kwargs = self._find_serial_port(micro_binary)
-        serial_transport = serial.SerialTransport(
-            timeouts=self._serial_timeouts, baudrate=uart_baud, **port_kwargs
-        )
+        serial_transport = serial.SerialTransport(baudrate=uart_baud, **port_kwargs)
         if self._debug_rpc_session is None:
             return serial_transport
 
@@ -471,7 +468,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
                     ZephyrDebugger,
                     (
                         " ".join(shlex.quote(x) for x in self._west_cmd),
-                        os.path.dirname(micro_binary.abspath(micro_binary.label("cmake_cache")[0])),
+                        os.path.join(self._project_dir, "__tvm_build"),
                         micro_binary.abspath(micro_binary.debug_files[0]),
                         self._zephyr_base,
                     ),
@@ -569,6 +566,8 @@ class ZephyrQemuTransport(Transport):
             self.fd_transport = None
 
         if self.proc is not None:
+            #            self.proc.wait()
+            #            self.proc.terminate()
             self.proc = None
 
         if self.pipe_dir is not None:
@@ -586,22 +585,23 @@ class ZephyrQemuTransport(Transport):
         return self.fd_transport.write(data, timeout_sec)
 
 
-class ZephyrDebugger(debugger.GdbDebugger):
+class ZephyrDebugger(debugger.Debugger):
     """A Zephyr debugger implementation."""
 
     def __init__(self, west_cmd, build_dir, elf_path, zephyr_base):
-        super(ZephyrDebugger, self).__init__()
+        debugger.Debugger.__init__(self)
         self._west_cmd = shlex.split(west_cmd)
         self._build_dir = build_dir
         self._elf_path = elf_path
         self._zephyr_base = zephyr_base
 
-    def popen_kwargs(self):
+    def start(self):
         env = dict(os.environ)
         env["ZEPHYR_BASE"] = self._zephyr_base
-
-        return dict(
-            args=self._west_cmd
+        sys.stdin = open(0)  # re-open stdin, closed by multiprocessing.
+        self._old_termios = termios.tcgetattr(sys.stdin)
+        self._proc = subprocess.Popen(
+            self._west_cmd
             + [
                 "debug",
                 "--skip-rebuild",
@@ -612,3 +612,10 @@ class ZephyrDebugger(debugger.GdbDebugger):
             ],
             env=env,
         )
+        self._old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    def stop(self):
+        signal.signal(signal.SIGINT, self._old_sigint_handler)
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self._old_termios)
+        self._proc.terminate()
+        self._proc.wait()
