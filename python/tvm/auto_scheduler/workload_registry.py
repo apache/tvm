@@ -212,15 +212,13 @@ def serialize_workload_registry_entry(workload_key):
     return name, value
 
 
-def deserialize_workload_registry_entry(workload_key, data):
+def deserialize_workload_registry_entry(data):
     """
     Deserialize a workload registry entry.
     This should be used along with :code:`serialize_workload_registry_entry`
 
     Parameters
     ----------
-    workload_key : str
-        The workload key
     data: Tuple
         The return value of :code:`serialize_workload_registry_entry`
     """

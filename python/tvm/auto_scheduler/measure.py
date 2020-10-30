@@ -102,9 +102,9 @@ class MeasureInput(Object):
 
     @staticmethod
     def deserialize(data):
-        x = _ffi_api.DeserializeMeasureInput(data[0])
-        deserialize_workload_registry_entry(x.task.workload_key, data[1])
-        return recover_measure_input(x)
+        inp = _ffi_api.DeserializeMeasureInput(data[0])
+        deserialize_workload_registry_entry(data[1])
+        return recover_measure_input(inp)
 
 
 @tvm._ffi.register_object("auto_scheduler.BuildResult")
