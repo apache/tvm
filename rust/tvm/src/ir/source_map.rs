@@ -39,7 +39,6 @@ pub struct SourceNode {
 
     /// The raw source.
     pub source: TString,
-
     // TODO(@jroesch): Non-ABI compat field
     // A mapping of line breaks into the raw source.
     // std::vector<std::pair<int, int>> line_map;
