@@ -97,7 +97,7 @@ def _tensor_constant_repr(tvalue):
 
 
 @tvm._ffi.register_func("relay._ndarray_repr")
-def _tensor_constant_repr(tvalue):
+def _ndarray_repr(tvalue):
     return str(tvalue.asnumpy())
 
 
