@@ -263,9 +263,9 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
 }
 
 std::string DebugPrint(NDArray array) {
-    const PackedFunc* fprint = Registry::Get("relay._ndarray_repr");
-    ICHECK(fprint) << "unable to find printing function for constants";
-    return (*fprint)(array);
+  const PackedFunc* fprint = Registry::Get("relay._ndarray_repr");
+  ICHECK(fprint) << "unable to find printing function for constants";
+  return (*fprint)(array);
 }
 
 void VirtualMachine::LoadExecutable(const Executable* exec) {
@@ -619,7 +619,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::RefCreate: {
         auto value = ReadRegister(instr.ref_create.initial_value);
-        auto ref = ADT(111, { value });
+        auto ref = ADT(111, {value});
         WriteRegister(instr.dst, ref);
         pc_++;
         goto main_loop;

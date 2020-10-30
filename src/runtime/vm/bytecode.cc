@@ -681,7 +681,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::RefWrite: {
-      os << "ref_write $" << instr.dst << " $" << instr.ref_write.ref << " $" << instr.ref_write.value;
+      os << "ref_write $" << instr.dst << " $" << instr.ref_write.ref << " $"
+         << instr.ref_write.value;
       break;
     }
     default:
