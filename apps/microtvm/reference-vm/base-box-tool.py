@@ -214,7 +214,11 @@ def test_command(args):
 
     for provider_name in providers:
         if os.path.exists(release_test_dir):
-            subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
+            try:
+                subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
+            except subprocess.CalledProcessError:
+                _LOG.warning("vagrant destroy failed--removing dirtree anyhow", exc_info=True)
+
             shutil.rmtree(release_test_dir)
 
         for dirpath, _, filenames in os.walk(user_box_dir):
