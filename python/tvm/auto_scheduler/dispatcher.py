@@ -263,6 +263,10 @@ class FallbackContext(DispatchContext):
         self.memory[key] = state
         return state
 
+    def _query_inside(self, target, workload_key):
+        _ = target = workload_key
+        raise RuntimeError("This function should never be called")
+
     def update(self, target, workload_key, state):
         key = (str(target), workload_key)
         self.memory[key] = state
