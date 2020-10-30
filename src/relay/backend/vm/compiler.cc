@@ -1124,8 +1124,8 @@ void VMCompiler::Codegen() {
     if (target_str == "ext_dev") {
       // Collect metadata in functions that are handled by external codegen.
       ICHECK(mod->ContainGlobalVar(cfunc->func_name));
-      backend::ConstantUpdater const_visit(cfunc->func_name, &params_);
-      const_visit(Downcast<Function>(mod->Lookup(cfunc->func_name)));
+      Function func = Downcast<Function>(mod->Lookup(cfunc->func_name));
+      backend::UpdateConstants(func, &params_);
       continue;
     } else if (funcs.count(target_str) == 0) {
       funcs.emplace(target_str, mod);
