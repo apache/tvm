@@ -328,6 +328,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::Move:
       case Opcode::InvokeClosure:
       case Opcode::DeviceCopy:
+      case Opcode::RefCreate:
+      case Opcode::RefRead:
+      case Opcode::RefWrite:
         last_register_ = instr.dst;
         break;
       case Opcode::InvokePacked:
@@ -403,6 +406,26 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     ICHECK(it != context_->global_map.end());
     // Allocate closure with zero free vars
     Emit(Instruction::AllocClosure(it->second, 0, {}, NewRegister()));
+  }
+
+  void VisitExpr_(const RefCreateNode* ref_create) {
+    this->VisitExpr(ref_create->value);
+    auto value_register = last_register_;
+    Emit(Instruction::RefCreate(value_register, NewRegister()));
+  }
+
+  void VisitExpr_(const RefReadNode* ref_read) {
+    this->VisitExpr(ref_read->ref);
+    auto ref_register = last_register_;
+    Emit(Instruction::RefRead(ref_register, NewRegister()));
+  }
+
+  void VisitExpr_(const RefWriteNode* ref_write) {
+    this->VisitExpr(ref_write->ref);
+    auto ref_register = last_register_;
+    this->VisitExpr(ref_write->value);
+    auto value_register = last_register_;
+    Emit(Instruction::RefWrite(ref_register, value_register, NewRegister()));
   }
 
   void VisitExpr_(const IfNode* if_node) {

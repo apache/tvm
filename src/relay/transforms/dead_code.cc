@@ -82,7 +82,7 @@ class Eliminator : private ExprMutator {
 
   Expr VisitExpr_(const LetNode* op) final {
     Var v = op->var;
-    if (HasLet(v)) {
+    if (HasLet(v) || op->value.as<RefWriteNode>()) {
       return Let(v, VisitExpr(op->value), VisitExpr(op->body));
     } else {
       return VisitExpr(op->body);

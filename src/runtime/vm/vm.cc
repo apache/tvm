@@ -262,6 +262,12 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
   func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
+std::string DebugPrint(NDArray array) {
+    const PackedFunc* fprint = Registry::Get("relay._ndarray_repr");
+    ICHECK(fprint) << "unable to find printing function for constants";
+    return (*fprint)(array);
+}
+
 void VirtualMachine::LoadExecutable(const Executable* exec) {
   ICHECK(exec) << "The executable is not created yet.";
   exec_ = exec;
@@ -592,6 +598,29 @@ void VirtualMachine::RunLoop() {
 
         NDArray dst_data = src_data.CopyTo(dst_ctx);
         WriteRegister(instr.dst, dst_data);
+        pc_++;
+        goto main_loop;
+      }
+      case Opcode::RefRead: {
+        ADT ref = Downcast<ADT>(ReadRegister(instr.ref_read.ref));
+        WriteRegister(instr.dst, ref[0]);
+        pc_++;
+        goto main_loop;
+      }
+      case Opcode::RefWrite: {
+        ADT ref = Downcast<ADT>(ReadRegister(instr.ref_write.ref));
+        ObjectRef value = ReadRegister(instr.ref_write.value);
+        // Not sure about this being best way to implement mutable thing.
+        ADTObj* mut_array = const_cast<ADTObj*>(ref.as<ADTObj>());
+        ObjectRef& inner_value = (*mut_array)[0];
+        inner_value = value;
+        pc_++;
+        goto main_loop;
+      }
+      case Opcode::RefCreate: {
+        auto value = ReadRegister(instr.ref_create.initial_value);
+        auto ref = ADT(111, { value });
+        WriteRegister(instr.dst, ref);
         pc_++;
         goto main_loop;
       }

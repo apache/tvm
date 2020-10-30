@@ -55,6 +55,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         mod = f
     exe = relay.vm.compile(mod, target)
     vm = runtime.vm.VirtualMachine(exe, ctx)
+    import pdb; pdb.set_trace()
     return vm.invoke("main", *args)
 
 
@@ -780,9 +781,9 @@ def test_vm_ref_create_read_write():
     scope.ret(relay.RefRead(ref_create))
 
     f = relay.Function([], scope.get())
-    print(f)
+
     for tgt, ctx in tvm.testing.enabled_targets():
-        res = veval(f, [], ctx=ctx, target=tgt)
+        res = veval(f, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), np.array(3))
 
 def test_constant_shape_with_external_codegen():
