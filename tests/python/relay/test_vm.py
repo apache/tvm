@@ -55,7 +55,6 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         mod = f
     exe = relay.vm.compile(mod, target)
     vm = runtime.vm.VirtualMachine(exe, ctx)
-    import pdb; pdb.set_trace()
     return vm.invoke("main", *args)
 
 
