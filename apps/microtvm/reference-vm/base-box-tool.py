@@ -17,7 +17,6 @@
 # under the License.
 
 
-import abc
 import argparse
 import json
 import logging
@@ -334,7 +333,8 @@ def parse_args():
         description="Automates building, testing, and releasing a base box"
     )
     parser.add_argument(
-        "command", default=",".join(ALL_COMMANDS), choices=ALL_COMMANDS, help="Action to perform."
+        "command", default=",".join(ALL_COMMANDS), choices=ALL_COMMANDS,
+        help="Action or actions (comma-separated) to perform."
     )
     parser.add_argument(
         "platform",
@@ -342,12 +342,17 @@ def parse_args():
     )
     parser.add_argument(
         "--provider",
+        choices=ALL_PROVIDERS,
         help="Name of the provider or providers to act on; if not specified, act on all",
     )
     parser.add_argument(
-        "--test-device-serial", help="If given, attach the test device with this USB serial number"
+        "--test-device-serial",
+        help=("If given, attach the test device with this USB serial number. Corresponds to the "
+              "iSerial field from `lsusb -v` output.")
     )
-    parser.add_argument("--version", help="Version to release. Must be specified with release.")
+    parser.add_argument("--release-version",
+                        help=("Version to release, in the form 'x.y.z'. Must be specified with "
+                              "release."))
 
     return parser.parse_args()
 
