@@ -43,7 +43,7 @@ class TVMDiagnosticCtx(DiagnosticContext):
         src_name = self.diag_ctx.module.source_map.add(name, source)
         self.source_name = src_name
 
-    def emit(self, level, message, span):
+    def emit(self, _level, message, span):
         span = self.to_tvm_span(self.source_name, span)
         self.diag_ctx.emit(Diagnostic(DiagnosticLevel.ERROR, span, message))
         self.diag_ctx.render()  # Raise exception on the first error we hit. TODO remove
