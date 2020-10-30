@@ -57,45 +57,13 @@ from .utils import (
 )
 from .compute_dag import ComputeDAG
 from .search_task import SearchTask
-from .workload_registry import workload_func_name, get_workload_func
+from .workload_registry import (
+    serialize_workload_registry_entry,
+    deserialize_workload_registry_entry,
+)
 
 # The maximum length of error message
 MAX_ERROR_MSG_LEN = 512
-
-
-def recover_measure_input(inp, rebuild_state=False):
-    """
-    Recover a deserialized MeasureInput by rebuilding the missing fields.
-    1. Rebuid the compute_dag in inp.task
-    2. (Optional) Rebuild the stages in inp.state
-
-    Parameters
-    ----------
-    inp: MeasureInput
-        The deserialized MeasureInput
-    rebuild_state: bool = False
-        Whether rebuild the stages in MeasureInput.State
-
-    Returns
-    -------
-    new_input: MeasureInput
-        The fully recovered MeasureInput with all fields rebuilt.
-    """
-    task = inp.task
-    new_task = SearchTask(
-        ComputeDAG(task.workload_key),
-        task.workload_key,
-        task.target,
-        task.target_host,
-        task.hardware_params,
-    )
-
-    if rebuild_state:
-        new_state = new_task.compute_dag.infer_bound_from_state(inp.state)
-    else:
-        new_state = inp.state
-
-    return MeasureInput(new_task, new_state)
 
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
@@ -127,21 +95,15 @@ class MeasureInput(Object):
         with initialization of the workload registry (maybe because of
         initialization order?).
         """
-        serialize = tvm.get_global_func("auto_scheduler.SerializeMeasureInput", True)
-        assert serialize
-        # We serialize the workload function so that it can be used on the deserialized side.
-        return {
-            "measureinput": serialize(self),
-            "name": workload_func_name(self.task.workload_key),
-            "func": get_workload_func(self.task),
-        }
+        return [
+            _ffi_api.SerializeMeasureInput(self),
+            serialize_workload_registry_entry(self.task.workload_key),
+        ]
 
     @staticmethod
-    def deserialize(state):
-        deserialize = tvm.get_global_func("auto_scheduler.DeserializeMeasureInput", True)
-        assert deserialize
-        tvm.auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY[state["name"]] = state["func"]
-        x = deserialize(state["measureinput"])
+    def deserialize(data):
+        x = _ffi_api.DeserializeMeasureInput(data[0])
+        deserialize_workload_registry_entry(x.task.workload_key, data[1])
         return recover_measure_input(x)
 
 
@@ -196,6 +158,41 @@ class MeasureResult(Object):
         self.__init_handle_by_constructor__(
             _ffi_api.MeasureResult, costs, error_no, error_msg, all_cost, timestamp
         )
+
+
+def recover_measure_input(inp, rebuild_state=False):
+    """
+    Recover a deserialized MeasureInput by rebuilding the missing fields.
+    1. Rebuid the compute_dag in inp.task
+    2. (Optional) Rebuild the stages in inp.state
+
+    Parameters
+    ----------
+    inp: MeasureInput
+        The deserialized MeasureInput
+    rebuild_state: bool = False
+        Whether rebuild the stages in MeasureInput.State
+
+    Returns
+    -------
+    new_input: MeasureInput
+        The fully recovered MeasureInput with all fields rebuilt.
+    """
+    task = inp.task
+    new_task = SearchTask(
+        ComputeDAG(task.workload_key),
+        task.workload_key,
+        task.target,
+        task.target_host,
+        task.hardware_params,
+    )
+
+    if rebuild_state:
+        new_state = new_task.compute_dag.infer_bound_from_state(inp.state)
+    else:
+        new_state = inp.state
+
+    return MeasureInput(new_task, new_state)
 
 
 @tvm._ffi.register_object("auto_scheduler.ProgramBuilder")

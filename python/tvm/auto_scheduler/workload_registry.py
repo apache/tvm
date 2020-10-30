@@ -37,6 +37,14 @@ from .utils import serialize_args, deserialize_args, get_func_name
 
 
 # Global workload function and hash key registry
+# It stores two types of workload:
+# 1. User registered tasks. This type of workload is registered
+#    by the decorator "register_workload"
+# 2. Extracted tasks from a relay program. This type of workload is
+#    registered by function "register_workload_tensors".
+#
+# For 1, the dictionary maps a function name to its function pointer
+# For 2, the dictionary maps a hash key to a list of input/output tensors
 WORKLOAD_FUNC_REGISTRY = {}
 
 
@@ -85,6 +93,27 @@ def register_workload(func_name, f=None, override=False):
     if f:
         return register(f)
     return register
+
+
+def register_workload_tensors(tensors):
+    """Register a workload by provding input/output tensors
+
+    Parameters
+    ----------
+    tensors: List[Tensor]
+        The input/output tensors of a compute DAG
+
+    Returns
+    -------
+    key: str
+        The workload key
+    """
+    # pylint: disable=import-outside-toplevel
+    from .compute_dag import ComputeDAG
+
+    key = ComputeDAG(tensors).hash_key()
+    WORKLOAD_FUNC_REGISTRY[key] = tensors
+    return json.dumps((key,))
 
 
 def make_workload_key(func, args):
@@ -147,68 +176,59 @@ def workload_key_to_tensors(workload_key):
 
     workload = json.loads(workload_key)
     name = workload[0]
-    lookup = WORKLOAD_FUNC_REGISTRY[name]
+    value = WORKLOAD_FUNC_REGISTRY[name]
 
-    if callable(lookup):
+    # "value" can be either a function or a list of tensors
+    if callable(value):  # if it is a func
         args = deserialize_args(workload[1:])
-        return lookup(*args)
-    return lookup
+        return value(*args)
+    # otherwise, it is a list of tensors
+    return value
 
 
-def register_workload_tensors(tensors):
-    """Register a workload by provding input/output tensors
-
-    Parameters
-    ----------
-    tensors: List[Tensor]
-        The input/output tensors of a compute DAG
-
-    Returns
-    -------
-    key: str
-        The workload key
+def serialize_workload_registry_entry(workload_key):
     """
-    # pylint: disable=import-outside-toplevel
-    from .compute_dag import ComputeDAG
+    Serialize a workload registry entry.
 
-    key = ComputeDAG(tensors).hash_key()
-    WORKLOAD_FUNC_REGISTRY[key] = tensors
-    return json.dumps((key,))
-
-
-def get_workload_func(task):
-    """Get the workload function for a given task
-
-    Parameters
-    ----------
-    task : SearchTask
-        Task to get workload of.
-
-    Returns
-    -------
-    workload : callable
-        The registered workload function.
-    """
-    name = workload_func_name(task.workload_key)
-    lookup = WORKLOAD_FUNC_REGISTRY[name]
-    assert callable(lookup)
-    return lookup
-
-
-def workload_func_name(workload_key):
-    """Decode a workload key to the registered function name.
+    This is used when the start method of multiprocessing is spawn.
+    We need to serialize the entry and register it in the new processes.
 
     Parameters
     ----------
     workload_key : str
-        The input workload key.
+        The workload key
 
     Returns
     -------
-    name : str
-        The function name of this workload key.
+    data: Tuple
+        The serialized pickable data
     """
-    return decode_workload_key_to_func_args(workload_key)[0]
+    global WORKLOAD_FUNC_REGISTRY
+
+    workload = json.loads(workload_key)
+    name = workload[0]
+    value = WORKLOAD_FUNC_REGISTRY[name]
+
+    return name, value
+
+
+def deserialize_workload_registry_entry(workload_key, data):
+    """
+    Deserialize a workload registry entry.
+    This should be used along with :code:`serialize_workload_registry_entry`
+
+    Parameters
+    ----------
+    workload_key : str
+        The workload key
+    data: Tuple
+        The return value of :code:`serialize_workload_registry_entry`
+    """
+    global WORKLOAD_FUNC_REGISTRY
+
+    name, value = data
+    if name not in WORKLOAD_FUNC_REGISTRY:
+        WORKLOAD_FUNC_REGISTRY[name] = value
 
 
 def save_workload_func_registry(filename):
