@@ -811,4 +811,5 @@ def test_constant_shape_with_external_codegen():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    pytest.main(sys.argv)
