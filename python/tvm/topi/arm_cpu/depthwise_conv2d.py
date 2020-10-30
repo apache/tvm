@@ -339,7 +339,8 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
             # Define a strategy for padding computation
             cfg.define_knob("data_pad_strategy", [1, 2, 3])
             if cfg.is_fallback:
-                # We cannot inline padding when tensorizing. So, if we can tensorize, let's compute_at the closest axis
+                # We cannot inline padding when tensorizing.
+                # So, if we can tensorize, let's compute_at the closest axis
                 cfg["data_pad_strategy"] = (
                     OtherOptionEntity(2) if use_tensorization else OtherOptionEntity(3)
                 )
