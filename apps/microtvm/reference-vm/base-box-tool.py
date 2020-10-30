@@ -336,7 +336,7 @@ def parse_args():
         "command",
         default=",".join(ALL_COMMANDS),
         choices=ALL_COMMANDS,
-        help="Action or actions (comma-separated) to perform."
+        help="Action or actions (comma-separated) to perform.",
     )
     parser.add_argument(
         "platform",
@@ -356,7 +356,8 @@ def parse_args():
     )
     parser.add_argument(
         "--release-version",
-        help="Version to release, in the form 'x.y.z'. Must be specified with release.")
+        help="Version to release, in the form 'x.y.z'. Must be specified with release.",
+    )
 
     return parser.parse_args()
 
