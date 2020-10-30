@@ -54,6 +54,11 @@ def get_tvm_output_with_vm(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
 
+    from tvm.relay import transform
+    # print(mod.astext(show_meta_data=True))
+    # self.mod = transform.AnnotateSpans()(mod)
+    # print(mod.astext(show_meta_data=False))
+
     if convert_to_static:
         from tvm.relay import transform
 
@@ -3732,7 +3737,6 @@ def test_non_max_suppression():
 
         verify_with_ort_with_inputs(model, inputs, use_vm=True)
 
-    print("start first test")
     boxes = np.array(
         [
             [
@@ -3762,9 +3766,7 @@ def test_non_max_suppression():
     iou_threshold = np.array(0.8).astype("float32")
     output_dims = [8, 3]
     verify_nms(boxes, scores, max_output_boxes_per_class, iou_threshold, None, output_dims)
-    print("end first test")
 
-    print("start second test")
     boxes = np.array(
         [
             [
@@ -3785,7 +3787,6 @@ def test_non_max_suppression():
     verify_nms(
         boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
     )
-    print("end second test")
 
 
 def verify_cond_loop():
