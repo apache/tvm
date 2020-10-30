@@ -21,7 +21,8 @@
 #
 # See https://github.com/imageworks/OpenShadingLanguage/issues/1069
 # for more discussion.
-add_definitions(-DDMLC_USE_FOPEN64=0 -DNDEBUG=1)
+add_definitions(-DDMLC_USE_FOPEN64=0)
+target_add_definitions(tvm PRIVATE NDEBUG=1)
 
 # Test if ${USE_LLVM} is not an explicit boolean false
 # It may be a boolean or a string
