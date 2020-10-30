@@ -75,6 +75,10 @@ wget --no-verbose https://github.com/zephyrproject-rtos/sdk-ng/releases/download
 chmod +x zephyr-sdk-0.11.3-setup.run
 ./zephyr-sdk-0.11.3-setup.run -- -d ~/zephyr-sdk -y
 
+# GDB for Zephyr SDK depends on python3.8
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt install -y python3.8-dev
+
 sudo find ~/zephyr-sdk -name '*.rules' -exec cp {} /etc/udev/rules.d \;
 sudo udevadm control --reload
 
