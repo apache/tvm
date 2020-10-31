@@ -31,7 +31,7 @@ def test_fp16_to_fp32():
     import platform
 
     machine = platform.machine()
-    if machine != "x86_64" and machine != "i386" and machine != "AMD64":
+    if machine not in ["x86_64", "i386", "AMD64"]:
         print("Skipping test because the platform is: {} ".format(machine))
         return
 
