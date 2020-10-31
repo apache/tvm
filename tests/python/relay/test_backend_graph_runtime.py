@@ -186,9 +186,9 @@ def test_gru_like():
 
 def test_compile_nested_tuples():
     x = relay.var("x", shape=(10,))
-    x1 = x + relay.const(1.)
-    x2 = x1 + relay.const(1.)
-    x3 = x2 + relay.const(1.)
+    x1 = x + relay.const(1.0)
+    x2 = x1 + relay.const(1.0)
+    x3 = x2 + relay.const(1.0)
     out = relay.Tuple([x1, relay.Tuple([x2, x3])])
     func = relay.Function([x], out)
 
@@ -199,6 +199,8 @@ def test_compile_nested_tuples():
     mod.set_input(x=x_data)
     mod.run()
 
+    assert mod.get_num_outputs() == 3
+
     ref = x_data + 1
     for i in range(mod.get_num_outputs()):
         out = mod.get_output(i).asnumpy()
@@ -207,10 +209,10 @@ def test_compile_nested_tuples():
 
 
 if __name__ == "__main__":
-    # test_plan_memory()
-    # test_with_params()
-    # test_add_op_scalar()
-    # test_add_op_tensor()
-    # test_add_op_broadcast()
-    # test_gru_like()
+    test_plan_memory()
+    test_with_params()
+    test_add_op_scalar()
+    test_add_op_tensor()
+    test_add_op_broadcast()
+    test_gru_like()
     test_compile_nested_tuples()
