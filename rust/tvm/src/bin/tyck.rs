@@ -35,8 +35,7 @@ struct Opt {
 }
 
 fn main() -> Result<()> {
-    codespan::init()
-        .expect("Failed to initialize Rust based diagnostics.");
+    codespan::init().expect("Failed to initialize Rust based diagnostics.");
     let opt = Opt::from_args();
     let _module = match IRModule::parse_file(opt.input) {
         Err(ir::module::Error::TVM(Error::DiagnosticError(_))) => return Ok(()),
