@@ -18,7 +18,7 @@
 [package]
 name = "compiler-ext"
 version = "0.1.0"
-authors = ["Jared Roesch <jroesch@octoml.ai>"]
+authors = ["TVM Contributors"]
 edition = "2018"
 
 [lib]

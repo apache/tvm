@@ -22,7 +22,7 @@ pub mod attrs;
 use std::hash::Hash;
 
 use crate::runtime::array::Array;
-use crate::runtime::{object::*, String as TString};
+use crate::runtime::{object::*, IsObjectRef, String as TString};
 
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
@@ -52,7 +52,7 @@ impl ExprNode {
             span: ObjectRef::null(),
             checked_type: Type::from(TypeNode {
                 base: Object::base::<TypeNode>(),
-                span: Span::empty(),
+                span: Span::null(),
             }),
         }
     }
@@ -554,7 +554,8 @@ def @main() -> float32 {
   0.01639530062675476f
 }
 "#,
-        );
+        )
+        .unwrap();
         let main = module
             .lookup(module.get_global_var("main".to_string().into()).unwrap())
             .unwrap();

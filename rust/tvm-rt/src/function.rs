@@ -33,7 +33,6 @@ use std::{
 };
 
 use crate::errors::Error;
-use crate::object::ObjectPtr;
 
 pub use super::to_function::{ToFunction, Typed};
 pub use tvm_sys::{ffi, ArgValue, RetValue};
@@ -142,13 +141,6 @@ impl Function {
         }
 
         let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
-        match rv {
-            RetValue::ObjectHandle(object) => {
-                let optr = ObjectPtr::from_raw(object as _).unwrap();
-                ObjectPtr::leak(optr);
-            }
-            _ => {}
-        };
 
         Ok(rv)
     }

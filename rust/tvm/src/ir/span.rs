@@ -18,7 +18,7 @@
 * under the License.
 */
 
-use crate::runtime::{Object, String as TString};
+use crate::runtime::{Object, ObjectPtr, String as TString};
 use tvm_macros::Object;
 
 /// A source file name, contained in a Span.
@@ -51,7 +51,21 @@ pub struct SpanNode {
 }
 
 impl Span {
-    pub fn empty() -> Span {
-        todo!()
+    pub fn new(
+        source_name: SourceName,
+        line: i32,
+        end_line: i32,
+        column: i32,
+        end_column: i32,
+    ) -> Span {
+        let span_node = SpanNode {
+            base: Object::base::<SpanNode>(),
+            source_name,
+            line,
+            end_line,
+            column,
+            end_column,
+        };
+        Span(Some(ObjectPtr::new(span_node)))
     }
 }

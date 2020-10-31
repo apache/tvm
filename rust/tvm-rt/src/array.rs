@@ -93,7 +93,9 @@ impl<T: IsObjectRef> Iterator for IntoIter<T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos < self.size {
-            let item = self.array.get(self.pos).expect("should not fail");
+            let item =
+                self.array.get(self.pos)
+                    .expect("Can not index as in-bounds position after bounds checking.\nNote: this error can only be do to an uncaught issue with API bindings.");
             self.pos += 1;
             Some(item)
         } else {
