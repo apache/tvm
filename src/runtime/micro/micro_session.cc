@@ -159,7 +159,8 @@ class MicroTransportChannel : public RPCChannel {
                                               end_time - ::std::chrono::steady_clock::now()));
 
       if (!ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, time_remaining)) {
-        if (end_time >= session_start_end_time) {
+        if (session_start_timeout_ != ::std::chrono::microseconds::zero() &&
+            end_time >= session_start_end_time) {
           break;
         }
         end_time += session_start_retry_timeout_;
@@ -199,11 +200,13 @@ class MicroTransportChannel : public RPCChannel {
       did_receive_message_ = false;
       if (!ReceiveUntil([this]() -> bool { return did_receive_message_; },
                         session_established_timeout_)) {
-        std::stringstream ss;
-        ss << "MicroSessionTimeoutError: failed to read reply message after timeout "
-           << session_established_timeout_.count() / 1e6 << "s";
+        if (session_established_timeout_ != ::std::chrono::microseconds::zero()) {
+          std::stringstream ss;
+          ss << "MicroSessionTimeoutError: failed to read reply message after timeout "
+             << session_established_timeout_.count() / 1e6 << "s";
 
-        throw std::runtime_error(ss.str());
+          throw std::runtime_error(ss.str());
+        }
       }
     }
 
