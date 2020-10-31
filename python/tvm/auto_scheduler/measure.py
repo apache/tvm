@@ -42,8 +42,6 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.rpc.tracker import Tracker
-from tvm.rpc.server import Server
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
 
@@ -481,6 +479,10 @@ class LocalRPCMeasureContext:
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
+        # pylint: disable=import-outside-toplevel
+        from tvm.rpc.tracker import Tracker
+        from tvm.rpc.server import Server
+
         ctx = tvm.context("cuda", 0)
         if ctx.exist:
             cuda_arch = "sm_" + "".join(ctx.compute_version.split("."))
