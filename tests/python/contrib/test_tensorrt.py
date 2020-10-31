@@ -251,7 +251,6 @@ def test_conv2d():
         out = relay.nn.conv2d(
             x,
             kernel,
-            channels=k_shape[0],
             kernel_size=k_shape[2:4],
             groups=groups,
             padding=padding,
