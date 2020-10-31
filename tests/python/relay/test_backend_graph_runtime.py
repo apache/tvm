@@ -184,34 +184,26 @@ def test_gru_like():
             tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def test_plan_memory_nested_tuples():
-    # it is sufficient to cycle through two memories.
+def test_compile_nested_tuples():
     x = relay.var("x", shape=(10,))
-    x1 = relay.exp(x)
-    x2 = relay.exp(x)
-    x3 = relay.exp(x)
+    x1 = x + relay.const(1.)
+    x2 = x1 + relay.const(1.)
+    x3 = x2 + relay.const(1.)
     out = relay.Tuple([x1, relay.Tuple([x2, x3])])
     func = relay.Function([x], out)
-    mod = tvm.IRModule.from_expr(func)
-    mod = relay.transform.InferType()(mod)
-    mod = relay.transform.FuseOps(0)(mod)
-    func = mod["main"]
-    mod = relay.transform.InferType()(mod)
-    smap = relay.backend._backend.GraphPlanMemory(func)
-    # storage_ids = set()
-    # device_types = set()
-    # for k, v in smap.items():
-    #     assert len(v) == 2
-    #     for x in v[0]:
-    #         storage_ids.add(x.value)
-    #     for x in v[1]:
-    #         device_types.add(x.value)
 
-    # # Current rule requires vars have unique storage id
-    # # because we don't do inplace, we will need another
-    # # two alternating temporary space.
-    # assert len(storage_ids) == 4
-    # assert len(device_types) == 1
+    graph, lib, _ = relay.build(tvm.IRModule.from_expr(func), "llvm")
+    mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+
+    x_data = np.random.uniform(size=(10,)).astype(np.float32)
+    mod.set_input(x=x_data)
+    mod.run()
+
+    ref = x_data + 1
+    for i in range(mod.get_num_outputs()):
+        out = mod.get_output(i).asnumpy()
+        tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+        ref = ref + 1
 
 
 if __name__ == "__main__":
@@ -221,4 +213,4 @@ if __name__ == "__main__":
     # test_add_op_tensor()
     # test_add_op_broadcast()
     # test_gru_like()
-    test_plan_memory_nested_tuples()
+    test_compile_nested_tuples()
