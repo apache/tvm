@@ -82,7 +82,6 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     std::vector<StorageToken*> fields;
     for (Expr field : op->fields) {
-      VisitExpr(field);
       auto tokens = GetToken(field);
       fields.insert(fields.end(), tokens.begin(), tokens.end());
     }
