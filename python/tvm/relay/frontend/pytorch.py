@@ -169,7 +169,6 @@ def _min():
 
 def _unary(name):
     def _impl(inputs, input_types):
-        input_type = input_types[0]
         # this is just to ensure tensor input
         (data,) = _pytorch_promote_types(inputs[:1], input_types[:1])
         return get_relay_op(name)(data)
@@ -1988,8 +1987,7 @@ def _bitwise_xor():
 
 def _logical_not():
     def _impl(inputs, input_types):
-        data = inputs[0]
-
+        data = _wrap_const(inputs[0])
         return _op.logical_not(_op.cast(data, "bool"))
 
     return _impl
@@ -2737,6 +2735,7 @@ def _get_convert_map(prelude, default_dtype):
         "aten::empty": _empty(),
         "aten::bincount": _bincount(),
         "aten::scatter_add": _scatter_add(),
+        "aten::__not__": _logical_not(),
     }
     return convert_map
 
@@ -2803,6 +2802,7 @@ def _report_missing_conversion(op_names, convert_map):
         "prim::ListUnpack",
         "prim::TupleConstruct",
         "prim::TupleUnpack",
+        "prim::RaiseException",
         "prim::If",
         "prim::Loop",
     ]
@@ -2908,7 +2908,9 @@ def _get_operator_nodes(nodes):
     ops = []
     # Traverse nodes and add to graph
     for node in nodes:
-        if node.outputsSize() > 1:
+        if node.outputsSize() == 0:
+            continue
+        elif node.outputsSize() > 1:
             node_name = "_".join(_get_output_names(node))
         else:
             node_name = _get_output_name(node)
@@ -3291,6 +3293,9 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
             else:
                 unpacked = _unpack_tuple(inputs[0])
             outputs.update(zip(_get_output_names(op_node), unpacked))
+        elif operator == "prim::prim::RaiseException":
+            logging.warn("raising exceptions is ignored")
+            outputs[node_name] = None
         elif operator == "prim::If":
             if_out = convert_if(op_node, outputs, convert_map, prelude, default_dtype=default_dtype)
             outputs[node_name] = if_out
