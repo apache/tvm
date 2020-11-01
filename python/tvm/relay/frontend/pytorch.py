@@ -2910,7 +2910,7 @@ def _get_operator_nodes(nodes):
     for node in nodes:
         if node.outputsSize() == 0:
             continue
-        elif node.outputsSize() > 1:
+        if node.outputsSize() > 1:
             node_name = "_".join(_get_output_names(node))
         else:
             node_name = _get_output_name(node)
@@ -3294,7 +3294,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude, defau
                 unpacked = _unpack_tuple(inputs[0])
             outputs.update(zip(_get_output_names(op_node), unpacked))
         elif operator == "prim::prim::RaiseException":
-            logging.warn("raising exceptions is ignored")
+            logging.warning("raising exceptions is ignored")
             outputs[node_name] = None
         elif operator == "prim::If":
             if_out = convert_if(op_node, outputs, convert_map, prelude, default_dtype=default_dtype)
