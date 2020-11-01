@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 from tvm import topi
 from tvm import auto_scheduler, te
+import random
 
 from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
 
@@ -47,7 +48,8 @@ def test_apply_steps_with_layout_rewrite():
 
 
 @tvm.testing.requires_llvm
-def test_correctness_layout_rewrite_with_placeholder():
+def test_correctness_layout_rewrite_rewrite_for_preTransformed():
+    random.seed(0)
     N = 128
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
@@ -117,7 +119,8 @@ def test_correctness_layout_rewrite_with_placeholder():
 
 
 @tvm.testing.requires_llvm
-def test_correctness_layout_rewrite_with_pre_transpose():
+def test_correctness_layout_rewrite_insert_transform_stage():
+    random.seed(0)
     N = 128
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
@@ -166,5 +169,5 @@ def test_correctness_layout_rewrite_with_pre_transpose():
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
-    test_correctness_layout_rewrite_with_placeholder()
-    test_correctness_layout_rewrite_with_pre_transpose()
+    test_correctness_layout_rewrite_rewrite_for_preTransformed()
+    test_correctness_layout_rewrite_insert_transform_stage()
