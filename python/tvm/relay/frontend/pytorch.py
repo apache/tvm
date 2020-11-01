@@ -1552,7 +1552,7 @@ def _frobenius_norm():
         axis = None
         keepdims = False
         if len(inputs) > 2:
-            axis = inputs[1]
+            axis = inputs[1] if len(inputs[1]) > 0 else None
             keepdims = bool(inputs[2])
 
         return _op.sqrt(_op.reduce.sum((data * data), axis=axis, keepdims=keepdims))
