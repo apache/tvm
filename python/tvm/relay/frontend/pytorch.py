@@ -3375,7 +3375,6 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     op_names = get_all_op_names(graph)
     _report_missing_conversion(op_names, convert_map)
-    print(graph)
 
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
