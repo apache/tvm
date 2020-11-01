@@ -22,7 +22,7 @@ import tvm
 from tvm import te
 from tvm.contrib import nvcc
 from tvm import topi
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 TASK = "conv2d_hwcn_map"
 USE_MANUAL_CODE = False

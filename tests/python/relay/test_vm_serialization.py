@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import transform
 from tvm.relay.prelude import Prelude
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.relay import testing
 
 
@@ -129,7 +129,7 @@ def test_save_load():
     assert isinstance(code, bytearray)
 
     # save and load the code and lib file.
-    tmp = util.tempdir()
+    tmp = utils.tempdir()
     path_lib = tmp.relpath("lib.so")
     lib.export_library(path_lib)
     with open(tmp.relpath("code.ro"), "wb") as fo:

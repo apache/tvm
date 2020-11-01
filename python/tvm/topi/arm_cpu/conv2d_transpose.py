@@ -23,7 +23,7 @@ from tvm import te
 from tvm import autotvm
 
 from ..nn import dilate, pad, get_pad_tuple
-from ..util import get_const_tuple, traverse_inline
+from ..utils import get_const_tuple, traverse_inline
 from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
 

@@ -20,8 +20,8 @@ from tvm import autotvm
 from tvm import topi
 import tvm.topi.testing
 import numpy as np
-from tvm.topi.util import get_const_tuple
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 from tvm.contrib.pickle_memoize import memoize
 
 import tvm.testing

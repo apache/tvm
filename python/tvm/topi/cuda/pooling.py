@@ -19,7 +19,7 @@
 import tvm
 from tvm import te
 from .. import tag
-from ..util import traverse_inline
+from ..utils import traverse_inline
 
 
 def schedule_adaptive_pool(outs, layout="NCHW"):

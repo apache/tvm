@@ -21,8 +21,8 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from .. import nn
-from ..util import get_const_tuple
-from ..nn.util import get_const_int, get_pad_tuple
+from ..utils import get_const_tuple
+from ..nn.utils import get_const_int, get_pad_tuple
 
 
 def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile):

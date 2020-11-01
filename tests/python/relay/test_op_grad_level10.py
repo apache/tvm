@@ -67,5 +67,10 @@ def test_batch_matmul_grad():
     check_grad(relay.Function([x, y], relay.op.nn.batch_matmul(x, y)))
 
 
+def test_reverse_reshape_grad():
+    x = relay.var("x", shape=(3, 4, 5), dtype="float64")
+    check_grad(relay.Function([x], relay.op.reverse_reshape(x, (-1, 0))))
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

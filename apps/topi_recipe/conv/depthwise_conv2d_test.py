@@ -22,7 +22,7 @@ from scipy import signal
 from tvm.contrib import nvcc
 
 from tvm import topi
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 from tvm.topi.cuda.depthwise_conv2d import (
     schedule_depthwise_conv2d_nchw,
     schedule_depthwise_conv2d_nhwc,

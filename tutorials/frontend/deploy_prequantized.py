@@ -22,7 +22,7 @@ Deploy a Framework-prequantized Model with TVM
 This is a tutorial on loading models quantized by deep learning frameworks into TVM.
 Pre-quantized model import is one of the quantization support we have in TVM. More details on
 the quantization story in TVM can be found
-`here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
+`here <https://discuss.tvm.apache.org/t/quantization-story/3920>`_.
 
 Here, we demonstrate how to load and run models quantized by PyTorch, MXNet, and TFLite.
 Once loaded, we can run compiled, quantized models on any hardware TVM supports.

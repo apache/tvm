@@ -23,8 +23,8 @@ from tvm import autotvm
 from .injective import schedule_injective_from_existing
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
-from ..nn.util import get_pad_tuple
-from ..util import traverse_inline, get_const_tuple, get_const_int
+from ..nn.utils import get_pad_tuple
+from ..utils import traverse_inline, get_const_tuple, get_const_int
 from .. import nn
 
 

@@ -41,7 +41,7 @@ TVM_REGISTER_GLOBAL("test.strategy")
                        const Target& target) {
       FTVMCompute fcompute = [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) -> Array<te::Tensor> {
-        CHECK_EQ(inputs.size(), 2U);
+        ICHECK_EQ(inputs.size(), 2U);
         return {topi::add(inputs[0], inputs[1])};
       };
       FTVMSchedule fschedule = [](const Attrs& attrs, const Array<te::Tensor>& outs,
@@ -116,14 +116,14 @@ TEST(Relay, BuildModule) {
   Target llvm_tgt = Target("llvm");
   targets.Set(0, llvm_tgt);
   auto relay_mod = tvm::IRModule::FromExpr(func);
-  CHECK(relay_mod.defined()) << "Module must be defined";
+  ICHECK(relay_mod.defined()) << "Module must be defined";
   build_f(relay_mod, targets, llvm_tgt);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run
   auto ctx = A->ctx;
   auto pfr = tvm::runtime::Registry::Get("tvm.graph_runtime.create");
-  CHECK(mod.defined()) << "Module must be defined";
+  ICHECK(mod.defined()) << "Module must be defined";
   tvm::runtime::Module run_mod = (*pfr)(json, mod, (int)ctx.device_type, (int)ctx.device_id);
   auto set_input_f = run_mod.GetFunction("set_input_zero_copy", false);
   auto run_f = run_mod.GetFunction("run", false);
@@ -135,7 +135,7 @@ TEST(Relay, BuildModule) {
   tvm::runtime::NDArray Y = get_output_f(0);
   auto pY = (float*)Y->data;
   for (int i = 0; i < 6; ++i) {
-    CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
+    ICHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
   // mutate the input a bit and run it again
   for (int i = 0; i < 6; ++i) {
@@ -145,7 +145,7 @@ TEST(Relay, BuildModule) {
   tvm::runtime::NDArray Y2 = get_output_f(0);
   auto pY2 = (float*)Y2->data;
   for (int i = 0; i < 6; ++i) {
-    CHECK_LT(fabs(pY2[i] - (i + (i + 3) + (i + 2))), 1e-4);
+    ICHECK_LT(fabs(pY2[i] - (i + (i + 3) + (i + 2))), 1e-4);
   }
   // attach a different input and run it again
   auto C2 = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -158,7 +158,7 @@ TEST(Relay, BuildModule) {
   tvm::runtime::NDArray Y3 = get_output_f(0);
   auto pY3 = (float*)Y3->data;
   for (int i = 0; i < 6; ++i) {
-    CHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
+    ICHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
 }
 
@@ -171,12 +171,12 @@ TEST(Relay, GetExprRefCount) {
   auto y = relay::Call(relu_op, {x}, tvm::Attrs(), {});
   auto z = relay::Call(add_op, {y, x}, tvm::Attrs(), {});
   auto ref_count = GetExprRefCount(z);
-  CHECK(ref_count[a.get()] == 1);
-  CHECK(ref_count[relu_op.get()] == 2);
-  CHECK(ref_count[add_op.get()] == 1);
-  CHECK(ref_count[x.get()] == 2);
-  CHECK(ref_count[y.get()] == 1);
-  CHECK(ref_count[z.get()] == 1);
+  ICHECK(ref_count[a.get()] == 1);
+  ICHECK(ref_count[relu_op.get()] == 2);
+  ICHECK(ref_count[add_op.get()] == 1);
+  ICHECK(ref_count[x.get()] == 2);
+  ICHECK(ref_count[y.get()] == 1);
+  ICHECK(ref_count[z.get()] == 1);
 }
 
 int main(int argc, char** argv) {

@@ -998,10 +998,14 @@ PopulationGenerationRule::ResultKind MutateAutoUnroll::Apply(SketchPolicyNode* p
   ICHECK(ps);
 
   // Mutate its value to a random candidates
-  auto val = std::to_string(auto_unroll_configs[(*rand_gen)() % auto_unroll_configs.size()]);
+  int val = auto_unroll_configs[(*rand_gen)() % auto_unroll_configs.size()];
   StateNode* pstate = state->CopyOnWrite();
-  pstate->transform_steps.Set(step_id, PragmaStep(ps->stage_id, ps->iter_id,
-                                                  std::string("auto_unroll_max_step") + "$" + val));
+  pstate->transform_steps.Set(
+      step_id, PragmaStep(ps->stage_id, ps->iter_id,
+                          std::string("auto_unroll_max_step") + "$" + std::to_string(val)));
+  Stage new_stage = pstate->stages[ps->stage_id];
+  new_stage.CopyOnWrite()->attrs.auto_unroll_max_step = val;
+  pstate->stages.Set(ps->stage_id, new_stage);
   return ResultKind::kValid;
 }
 

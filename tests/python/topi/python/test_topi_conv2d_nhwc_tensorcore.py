@@ -24,8 +24,8 @@ import tvm.topi.testing
 from tvm import te
 from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib import nvcc
-from tvm.topi.nn.util import get_pad_tuple
-from tvm.topi.util import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
 import tvm.testing
 
 

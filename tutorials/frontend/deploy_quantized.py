@@ -22,7 +22,7 @@ Deploy a Quantized Model on Cuda
 This article is an introductory tutorial of automatic quantization with TVM.
 Automatic quantization is one of the quantization modes in TVM. More details on
 the quantization story in TVM can be found
-`here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
+`here <https://discuss.tvm.apache.org/t/quantization-story/3920>`_.
 In this tutorial, we will import a GluonCV pre-trained model on ImageNet to
 Relay, quantize the Relay model and then perform the inference.
 """

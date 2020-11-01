@@ -19,7 +19,7 @@
 import math
 import tvm
 from tvm import te
-from ...util import get_const_tuple, get_const_int
+from ...utils import get_const_tuple, get_const_int
 from ...sort import argsort
 
 

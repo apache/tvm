@@ -27,11 +27,11 @@ TEST(SimplePasses, SideEffect) {
   using namespace tvm;
   auto A = tir::Var("A", DataType::Handle());
   auto i = tir::Var("i", DataType::Int(32));
-  CHECK(tir::SideEffect(tir::Load(DataType::Float(32), A, i, tir::const_true(1))) ==
-        tir::CallEffectKind::kReadState);
-  CHECK(tir::SideEffect(exp(tir::Cast(DataType::Float(32), i + 1))) == tir::CallEffectKind::kPure);
-  CHECK(tir::SideEffect(tir::Call(DataType::Handle(), tir::builtin::tvm_storage_sync(), {})) ==
-        tir::CallEffectKind::kUpdateState);
+  ICHECK(tir::SideEffect(tir::Load(DataType::Float(32), A, i, tir::const_true(1))) ==
+         tir::CallEffectKind::kReadState);
+  ICHECK(tir::SideEffect(exp(tir::Cast(DataType::Float(32), i + 1))) == tir::CallEffectKind::kPure);
+  ICHECK(tir::SideEffect(tir::Call(DataType::Handle(), tir::builtin::tvm_storage_sync(), {})) ==
+         tir::CallEffectKind::kUpdateState);
 }
 
 int main(int argc, char** argv) {

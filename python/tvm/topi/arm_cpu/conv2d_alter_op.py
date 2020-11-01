@@ -25,7 +25,7 @@ from tvm import relay
 from tvm import autotvm
 
 from ..nn import conv2d_alter_layout
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 from ..x86.conv2d import _get_default_config as _get_x86_default_config
 from .arm_utils import get_tiling_B_interleaved_t
 

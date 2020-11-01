@@ -96,8 +96,8 @@ Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     expanded_input_zero_point = ExpandBiasToMatchAxis(input_zero_point, n_dim, {axis});
   }
 
-  auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), input_zero_point);
-  auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), input_scale);
+  auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), expanded_input_zero_point);
+  auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), expanded_input_scale);
   return scaled_output;
 }
 

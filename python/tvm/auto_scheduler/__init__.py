@@ -18,10 +18,13 @@
 """ Namespace for TVM Auto-scheduler. """
 
 from . import compute_dag
+from . import dispatcher
+from . import env
 from . import feature
 from . import loop_state
 from . import measure
 from . import measure_record
+from . import relay_integration
 from . import search_policy
 from . import search_task
 from . import task_scheduler
@@ -32,6 +35,8 @@ from . import workload_registry
 from .auto_schedule import TuningOptions, HardwareParams, create_task, auto_schedule
 from .compute_dag import ComputeDAG
 from .cost_model import RandomModel, XGBModel
+from .dispatcher import DispatchContext, ApplyHistoryBest
+from .env import enable_relay_integration, is_relay_integration_enabled
 from .measure import (
     MeasureInput,
     MeasureResult,
@@ -41,6 +46,7 @@ from .measure import (
     LocalRPCMeasureContext,
 )
 from .measure_record import RecordToFile, RecordReader, load_best, load_records, save_records
+from .relay_integration import extract_tasks
 from .search_task import SearchTask
 from .search_policy import EmptyPolicy, SketchPolicy, PreloadMeasuredStates
 from .task_scheduler import TaskScheduler

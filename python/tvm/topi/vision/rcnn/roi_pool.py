@@ -18,7 +18,7 @@
 """ROI pool operator"""
 import tvm
 from tvm import te
-from ...util import get_const_tuple
+from ...utils import get_const_tuple
 
 
 def roi_pool_nchw(data, rois, pooled_size, spatial_scale):

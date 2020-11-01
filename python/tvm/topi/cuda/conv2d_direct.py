@@ -19,7 +19,7 @@
 import tvm
 from tvm import te
 from tvm import autotvm
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def schedule_direct_cuda(cfg, s, conv):

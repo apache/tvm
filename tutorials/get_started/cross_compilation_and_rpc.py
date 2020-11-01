@@ -98,7 +98,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 
 n = tvm.runtime.convert(1024)
 A = te.placeholder((n,), name="A")
@@ -120,7 +120,7 @@ else:
 
 func = tvm.build(s, [A, B], target=target, name="add_one")
 # save the lib at a local temp folder
-temp = util.tempdir()
+temp = utils.tempdir()
 path = temp.relpath("lib.tar")
 func.export_library(path)
 

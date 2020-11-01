@@ -35,8 +35,8 @@ TEST(IRF, Basic) {
   NodeFunctor<int(const ObjectRef& n, int b)> f;
   f.set_dispatch<VarNode>([](const ObjectRef& n, int b) { return b; });
   f.set_dispatch<AddNode>([](const ObjectRef& n, int b) { return b + 2; });
-  CHECK_EQ(f(x, 2), 2);
-  CHECK_EQ(f(z, 2), 4);
+  ICHECK_EQ(f(x, 2), 2);
+  ICHECK_EQ(f(z, 2), 4);
 }
 
 TEST(IRF, CountVar) {
@@ -49,7 +49,7 @@ TEST(IRF, CountVar) {
   tir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
     if (n.as<VarNode>()) ++n_var;
   });
-  CHECK_EQ(n_var, 2);
+  ICHECK_EQ(n_var, 2);
 }
 
 TEST(IRF, ExprTransform) {
@@ -67,8 +67,8 @@ TEST(IRF, ExprTransform) {
     }
   };
   MyExprFunctor f;
-  CHECK_EQ(f(x, 2), 2);
-  CHECK_EQ(f(z, 2), 3);
+  ICHECK_EQ(f(x, 2), 2);
+  ICHECK_EQ(f(z, 2), 3);
   try {
     f(z - 1, 2);
     LOG(FATAL) << "should fail";
@@ -97,7 +97,7 @@ TEST(IRF, ExprVisit) {
   };
   MyVisitor v;
   v.VisitStmt(Evaluate(z));
-  CHECK_EQ(v.count, 1);
+  ICHECK_EQ(v.count, 1);
 }
 
 TEST(IRF, StmtVisitor) {
@@ -118,7 +118,7 @@ TEST(IRF, StmtVisitor) {
     return Allocate(buffer, DataType::Float(32), {z, z}, const_true(), body);
   };
   v(fmaketest());
-  CHECK_EQ(v.count, 3);
+  ICHECK_EQ(v.count, 3);
 }
 
 TEST(IRF, StmtMutator) {
@@ -159,14 +159,14 @@ TEST(IRF, StmtMutator) {
     Array<Stmt> arr{std::move(body), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr.get() == arrptr);
+    ICHECK(arr.get() == arrptr);
     // inplace update body
-    CHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    CHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
+    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
     // copy because there is additional refs
-    CHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
-    CHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
-    CHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
+    ICHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
+    ICHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
+    ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
   }
   {
     Array<Stmt> arr{fmakealloc()};
@@ -174,29 +174,29 @@ TEST(IRF, StmtMutator) {
     Array<Stmt> arr2 = arr;
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr.get() != arrptr);
-    CHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    CHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(arr.get() != arrptr);
+    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
+    ICHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr2.get() == arr.get());
+    ICHECK(arr2.get() == arr.get());
   }
   {
     Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
+    ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr2.get() == arr.get());
+    ICHECK(arr2.get() == arr.get());
   }
 
   {
     auto body =
         Evaluate(Call(DataType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
-    CHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
+    ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
   {
     Stmt body = fmakealloc();
@@ -209,9 +209,9 @@ TEST(IRF, StmtMutator) {
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    CHECK(body.as<SeqStmtNode>()->size() == 3);
-    CHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
-    CHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
+    ICHECK(body.as<SeqStmtNode>()->size() == 3);
+    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
+    ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
   {
@@ -225,7 +225,7 @@ TEST(IRF, StmtMutator) {
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    CHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
+    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
   }
 }
 

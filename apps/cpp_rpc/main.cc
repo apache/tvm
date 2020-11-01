@@ -139,7 +139,7 @@ string GetCmdOption(int argc, char* argv[], string option, bool key = false) {
         return cmd;
       }
       // We assume "=" is the end of option.
-      CHECK_EQ(*option.rbegin(), '=');
+      ICHECK_EQ(*option.rbegin(), '=');
       cmd = arg.substr(arg.find('=') + 1);
       return cmd;
     }

@@ -18,7 +18,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
-from tvm.contrib import util, clang
+from tvm.contrib import utils, clang
 import numpy as np
 import ctypes
 import math

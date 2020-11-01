@@ -19,8 +19,8 @@
 from tvm import te
 from .dilate import dilate
 from .pad import pad
-from ..util import simplify
-from .util import get_pad_tuple1d
+from ..utils import simplify
+from .utils import get_pad_tuple1d
 
 
 def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_padding):

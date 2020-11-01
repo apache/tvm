@@ -24,7 +24,7 @@ from tvm._ffi.base import py_str
 from tvm.relay.op import add
 from tvm import relay
 from tvm import rpc
-from tvm.contrib import util, graph_runtime
+from tvm.contrib import utils, graph_runtime
 
 
 def test_save_load():
@@ -70,7 +70,7 @@ def test_bigendian_rpc_param():
         params = {"x": x_in}
         graph, lib, params = relay.build(func, target=target, params=params)
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
         lib.save(path_dso)
         remote.upload(path_dso)

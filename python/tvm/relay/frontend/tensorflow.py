@@ -27,7 +27,7 @@ import tvm
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
 from tvm.relay.transform import InferType
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis
 from .. import expr as _expr
@@ -784,6 +784,15 @@ def _expand_dims():
             ignores=["Tdim", "N"],
             extras={"axis": int(axis), "num_newaxis": 1},
         )(inputs, attr)
+
+    return _impl
+
+
+def _expm1():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/expm1
+    def _impl(inputs, attr, params, mod):
+        exp_out = get_relay_op("exp")(inputs[0])
+        return exp_out - tvm.relay.const(1.0)
 
     return _impl
 
@@ -2297,6 +2306,7 @@ _convert_map = {
     "EuclideanNorm": _euclidean_norm(),
     "Exp": AttrCvt("exp"),
     "ExpandDims": _expand_dims(),
+    "Expm1": _expm1(),
     "Fill": _fill(),
     "Floor": AttrCvt("floor"),
     "FloorDiv": _floordiv(),

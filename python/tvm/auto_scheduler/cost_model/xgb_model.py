@@ -23,10 +23,11 @@ from collections import defaultdict
 import time
 
 import numpy as np
-import xgboost as xgb
-from xgboost.core import EarlyStopException
-from xgboost.callback import _fmt_metric
-from xgboost.training import aggcv
+
+try:
+    import xgboost as xgb
+except ImportError:
+    xgb = None
 
 from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
@@ -92,6 +93,14 @@ class XGBModel(PythonBasedModel):
     """
 
     def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
+
+        if xgb is None:
+            raise ImportError(
+                "XGBoost is required for XGBModel. "
+                "Please install its python package first. "
+                "Help: (https://xgboost.readthedocs.io/en/latest/) "
+            )
+
         self.xgb_params = {
             "max_depth": 10,
             "gamma": 0.001,
@@ -505,6 +514,11 @@ def custom_callback(
     skip_every=2,
 ):
     """Callback function for xgboost to support multiple custom evaluation functions"""
+    # pylint: disable=import-outside-toplevel
+    from xgboost.core import EarlyStopException
+    from xgboost.callback import _fmt_metric
+    from xgboost.training import aggcv
+
     state = {}
     metric_shortname = metric.split("-")[1]
 

@@ -44,8 +44,8 @@ def dense_packed(cfg, data, weight, bias=None, out_dtype=None):
         raise topi.InvalidShapeError()
 
     # Derive shapes
-    ishape = topi.util.get_const_tuple(data.shape)
-    wshape = topi.util.get_const_tuple(weight.shape)
+    ishape = topi.utils.get_const_tuple(data.shape)
+    wshape = topi.utils.get_const_tuple(weight.shape)
     oshape = (data.shape[0], weight.shape[0], data.shape[2], weight.shape[2])
 
     # Reduction axes (input channel)
@@ -64,7 +64,7 @@ def dense_packed(cfg, data, weight, bias=None, out_dtype=None):
         tag="dense_pack",
     )
 
-    cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) * ishape[1] * ishape[3])
+    cfg.add_flop(2 * np.prod(topi.utils.get_const_tuple(oshape)) * ishape[1] * ishape[3])
 
     return res
 

@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util, tflite_runtime
+from tvm.contrib import utils, tflite_runtime
 
 # import tflite_runtime.interpreter as tflite
 

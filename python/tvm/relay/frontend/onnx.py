@@ -21,7 +21,7 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
 from .. import analysis
@@ -2649,7 +2649,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
     retains that dynamism upon import, and the compiler attempts to convert the
     model into a static shapes at compile time. If this fails, there may still
     be dynamic operations in the model. Not all TVM kernels currently support
-    dynamic shapes, please file an issue on discuss.tvm.ai
+    dynamic shapes, please file an issue on discuss.tvm.apache.org
     if you hit an error with dynamic kernels.
 
     Parameters
@@ -2689,7 +2689,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
-            except onnx.onnx_cpp2py_export.checker.ValidationError as e:
+            except onnx.onnx_cpp2py_export.checker.ValidationError as e:  # pylint: disable=c-extension-no-member
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:

@@ -116,7 +116,7 @@ RPCEnv::RPCEnv() {
         std::string bin;
 
         std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-        CHECK(!fs.fail()) << "Cannot open " << file_name;
+        ICHECK(!fs.fail()) << "Cannot open " << file_name;
         fs.seekg(0, std::ios::end);
         size_t size = static_cast<size_t>(fs.tellg());
         fs.seekg(0, std::ios::beg);
