@@ -21,6 +21,7 @@
 import itertools
 import logging
 import sys
+import math
 
 import numpy as np
 
@@ -1847,18 +1848,33 @@ def _to():
     return _impl
 
 
-def _upsample(method, prelude):
-    def _impl(inputs, input_types):
-        out_size = []
+def _get_upsample_out_size(inputs, method):
+    # This assumes a static shape
+    out_size = []
+    if inputs[1] is not None:
         for size in inputs[1]:
             if not isinstance(size, int):
                 out_size.append(int(_infer_value(size, {}).asnumpy()))
             else:
                 out_size.append(size)
+    else:
+        scale_index = 3 if method in ["bilinear", "trilinear"] else 2
+        scales = inputs[scale_index]
+        assert scales is not None, "neither out size nor scale provided"
+        assert isinstance(scales, list)
+        ishape = _infer_shape(inputs[0])
+        for i in range(len(scales)):
+            out_size.append(int(math.floor(math.floor(ishape[2 + i] * scales[i]))))
 
+    return out_size
+
+
+def _upsample(method, prelude):
+    def _impl(inputs, input_types):
         data = inputs[0]
+        out_size = _get_upsample_out_size(inputs, method)
 
-        if len(inputs) > 2:
+        if len(inputs) > 2 and method == "bilinear":
             align_corners = inputs[2]
         else:
             align_corners = False
@@ -1874,17 +1890,13 @@ def _upsample(method, prelude):
             return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
         if _is_quantized_tensor(data, prelude):
-            # Torch version > 1.4 changed upsampling API
-            if is_version_greater_than("1.4.0"):
-                num_inputs = 7
-            else:
-                num_inputs = 5
-
-            assert len(inputs) == num_inputs, "Input quant param not found in op inputs"
-
+            # input qparams are manually appended by us
+            assert isinstance(inputs[-2], float)
+            assert isinstance(inputs[-1], int)
             input_scale = _expr.const(inputs[-2])
             input_zero_point = _expr.const(inputs[-1])
             return qnn_torch.quantized_upsample(data, input_scale, input_zero_point, func)
+
         return func(data)
 
     return _impl
@@ -1892,17 +1904,10 @@ def _upsample(method, prelude):
 
 def _upsample3d(method):
     def _impl(inputs, input_types):
-        if isinstance(inputs[1], _expr.Var):
-            out_size = _infer_shape(inputs[1])
-        elif _is_int_seq(inputs[1]):
-            out_size = inputs[1]
-        elif isinstance(inputs[1], list):
-            infer_res = [_infer_value(size, {}) for size in inputs[1]]
-            out_size = [np.asscalar(res.asnumpy().astype(np.int)) for res in infer_res]
-
         data = inputs[0]
+        out_size = _get_upsample_out_size(inputs, method)
 
-        if len(inputs) > 2:
+        if len(inputs) > 2 and method == "trilinear":
             align_corners = inputs[2]
         else:
             align_corners = False
@@ -3370,6 +3375,7 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
 
     op_names = get_all_op_names(graph)
     _report_missing_conversion(op_names, convert_map)
+    print(graph)
 
     is_module = isinstance(script_module, torch.jit.ScriptModule)
     params = script_module.state_dict() if is_module else {}
