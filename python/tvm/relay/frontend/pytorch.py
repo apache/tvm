@@ -1863,8 +1863,8 @@ def _get_upsample_out_size(inputs, method):
         assert scales is not None, "neither out size nor scale provided"
         assert isinstance(scales, list)
         ishape = _infer_shape(inputs[0])
-        for i in range(len(scales)):
-            out_size.append(int(math.floor(math.floor(ishape[2 + i] * scales[i]))))
+        for i, scale in enumerate(scales):
+            out_size.append(int(math.floor(math.floor(ishape[2 + i] * scale))))
 
     return out_size
 
