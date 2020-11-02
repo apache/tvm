@@ -1286,7 +1286,7 @@ def _sparse_to_dense():
         sparse_indices = inputs[0]
         sparse_values = inputs[2]
         default_value = inputs[3]
-        output_shape = attr['_output_shapes'][0]
+        output_shape = attr["_output_shapes"][0]
 
         return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
 
@@ -2395,7 +2395,7 @@ _convert_map = {
     "Softplus": _softplus(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
-    'SparseToDense': _sparse_to_dense(),
+    "SparseToDense": _sparse_to_dense(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
