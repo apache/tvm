@@ -64,7 +64,7 @@ std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
       auto&& branch = CreateBranch(child);
       // add the branch to a group, or create a new group
       auto it = std::find_if(groups.begin() + ngroups, groups.end(), [&](const Group& group) {
-        CHECK(!group.empty() && !group[0].empty());
+        ICHECK(!group.empty() && !group[0].empty());
         return fare_compatible_ops_(child, group[0][0]);
       });
       if (it != groups.end()) {
@@ -141,7 +141,7 @@ void ParallelOpCombiner::CombineBranches(const Group& branches) {
     for (parent_index = 0; parent_index < branches[0][i]->args.size(); parent_index++) {
       if (branches[0][i]->args[parent_index].get() == branches[0][i - 1]) break;
     }
-    CHECK_NE(parent_index, branches[0][i]->args.size());
+    ICHECK_NE(parent_index, branches[0][i]->args.size());
     if (!CheckLevel(branches, i, parent_index)) break;
     combined = MakeCombinedCallFromFollowingOps(combined, branches, i, parent_index);
   }

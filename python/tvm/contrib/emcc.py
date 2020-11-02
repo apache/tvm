@@ -42,6 +42,7 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
     cmd += ["-O3"]
 
     cmd += ["-std=c++14"]
+    cmd += ["--no-entry"]
     cmd += ["-s", "ERROR_ON_UNDEFINED_SYMBOLS=0"]
     cmd += ["-s", "STANDALONE_WASM=1"]
     cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]

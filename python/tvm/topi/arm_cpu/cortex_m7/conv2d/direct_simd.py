@@ -20,9 +20,9 @@
 from tvm import autotvm
 from tvm.autotvm.task import deserialize_args
 from tvm import te
-from tvm.topi.util import simplify, traverse_inline
+from tvm.topi.utils import simplify, traverse_inline
 from tvm.topi.nn.pad import pad
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 
 from ..micro_kernel.gemm import (
     intrin_gemm_MxKxN,

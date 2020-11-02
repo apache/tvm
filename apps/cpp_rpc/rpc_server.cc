@@ -245,7 +245,7 @@ class RPCServer {
       support::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
-      CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
+      ICHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
       if (code != kRPCMagic) {
         conn.Close();
         LOG(FATAL) << "Client connected is not TVM RPC server";
@@ -253,7 +253,7 @@ class RPCServer {
       }
 
       int keylen = 0;
-      CHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+      ICHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
 
       const char* CLIENT_HEADER = "client:";
       const char* SERVER_HEADER = "server:";
@@ -265,10 +265,10 @@ class RPCServer {
         continue;
       }
 
-      CHECK_NE(keylen, 0);
+      ICHECK_NE(keylen, 0);
       std::string remote_key;
       remote_key.resize(keylen);
-      CHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
+      ICHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
 
       std::stringstream ssin(remote_key);
       std::string arg0;
@@ -280,16 +280,16 @@ class RPCServer {
 
       if (arg0 != expect_header) {
         code = kRPCMismatch;
-        CHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
+        ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
         conn.Close();
         LOG(WARNING) << "Mismatch key from" << addr->AsString();
         continue;
       } else {
         code = kRPCSuccess;
-        CHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
+        ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
         keylen = int(server_key.length());
-        CHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
-        CHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
+        ICHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
+        ICHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
         LOG(INFO) << "Connection success " << addr->AsString();
 #ifndef __ANDROID__
         ssin >> *opts;
@@ -325,7 +325,7 @@ class RPCServer {
     size_t pos = opts.rfind(option);
     if (pos != std::string::npos) {
       const std::string cmd = opts.substr(pos + option.size());
-      CHECK(support::IsNumber(cmd)) << "Timeout is not valid";
+      ICHECK(support::IsNumber(cmd)) << "Timeout is not valid";
       return std::stoi(cmd);
     }
     return 0;

@@ -241,7 +241,7 @@ class TVMDSOOp : public OpKernel {
     // Load TVM function from dynamic library
     tvm::runtime::Module mod_dylib = tvm::runtime::Module::LoadFromFile(lib_path);
     tvm_func = mod_dylib.GetFunction(func_name);
-    CHECK(tvm_func != nullptr);
+    ICHECK(tvm_func != nullptr);
   }
 
   void Compute(tensorflow::OpKernelContext* context) override {

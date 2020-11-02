@@ -25,7 +25,7 @@ import sys
 import numpy as np
 
 import tvm
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis as _analysis
 from .. import expr as _expr
@@ -2357,6 +2357,37 @@ def _empty():
     return _impl
 
 
+def _bincount():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        weights = inputs[1]
+        maximum = _op.max(data)
+        dim = maximum + _expr.const(1, dtype="int64")
+        if weights:
+            weight_type = _infer_type(weights).checked_type
+            out_dtype = weight_type.dtype
+            updates = weights
+        else:
+            out_dtype = "int64"
+            updates = _op.ones_like(data)
+
+        counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
+        return _op.scatter_add(counts, data, updates, axis=0)
+
+    return _impl
+
+
+def _scatter_add():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        index = inputs[2]
+        src = inputs[3]
+        return _op.scatter_add(data, index, src, axis=axis)
+
+    return _impl
+
+
 def _pytorch_result_type(dtypes, non_tensor_inputs):
     """This promotes TVM dtypes like PyTorch would"""
     import torch
@@ -2699,15 +2730,18 @@ def _get_convert_map(prelude, default_dtype):
         "aten::tensor": _identity(),  # used for example in tensor(1.0)
         "aten::numel": _numel(),
         "aten::empty": _empty(),
+        "aten::bincount": _bincount(),
+        "aten::scatter_add": _scatter_add(),
     }
     return convert_map
 
 
 def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
+    # pylint: disable=c-extension-no-member
     import torch
 
-    if is_version_greater_than("1.5.0"):
+    if is_version_greater_than("1.5.1"):
         # This is required for torchvision detection models from 1.6 above
         # It is the same as _jit_pass_inline, except that it has some special
         # case behaviors for some ops such as aten::__interpolate()
@@ -3349,7 +3383,8 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
-    if "aten::quantize_per_tensor" in op_names:
+    quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
+    if len(quantized_ops.intersection(set(op_names))) > 0:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)

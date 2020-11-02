@@ -25,7 +25,7 @@ import tvm.relay.testing
 import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 def check_result(
@@ -42,7 +42,7 @@ def check_result(
 
         kwargs = {}
         kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = util.tempdir()
+        tmp_path = utils.tempdir()
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)

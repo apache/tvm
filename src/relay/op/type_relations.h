@@ -58,6 +58,15 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter);
 
 /*!
+ * \brief Determine the broadcasted shape from two input shapes
+ * \param t1 One of two Tensortype whose shapes are broadcasted
+ * \param t2 One of two Tensortype whose shapes are broadcasted
+ * \param output_dtype dtype of the output TensorType
+ * \return A TensorType whose shape is broadcasted from two input TensorType.
+ */
+TensorType ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType output_dtype);
+
+/*!
  * \brief The broadcast type relation, implements the broadcasting
  *  rule over the two input types producing the broadcasted type.
  *

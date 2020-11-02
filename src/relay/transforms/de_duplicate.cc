@@ -40,8 +40,8 @@ Expr DeDup(const Expr& e) {
     }
 
     Var Fresh(const Var& v) {
-      CHECK_EQ(rename_.count(v), 0);
-      CHECK_EQ(memo_.count(v), 0) << v.as<VarNode>();
+      ICHECK_EQ(rename_.count(v), 0);
+      ICHECK_EQ(memo_.count(v), 0) << v.as<VarNode>();
       Var ret = Var(v->name_hint(), VisitType(v->type_annotation));
       rename_[v] = ret;
       return ret;
@@ -94,10 +94,10 @@ Expr DeDup(const Expr& e) {
     std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> rename_;
     std::unordered_map<TypeVar, TypeVar, ObjectPtrHash, ObjectPtrEqual> type_rename_;
   };
-  CHECK(WellFormed(e)) << AsText(e, false);
+  ICHECK(WellFormed(e)) << AsText(e, false);
   Expr ret = DeDupMutator().VisitExpr(e);
-  CHECK(WellFormed(ret));
-  CHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
+  ICHECK(WellFormed(ret));
+  ICHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
   return ret;
 }
 

@@ -36,17 +36,17 @@ TVM_REGISTER_NODE_TYPE(ResizeAttrs);
 bool ResizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
   // {data, size, out}
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
 
   const ResizeAttrs* param = attrs.as<ResizeAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "Resize only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 

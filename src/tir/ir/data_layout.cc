@@ -54,7 +54,7 @@ const LayoutAxis LayoutAxis::LOWER_CASE[] = {
     LayoutAxis('z')};
 
 const LayoutAxis& LayoutAxis::Get(const char name) {
-  CHECK((name >= 'A' && name <= 'Z') || (name >= 'a' && name <= 'z'))
+  ICHECK((name >= 'A' && name <= 'Z') || (name >= 'a' && name <= 'z'))
       << "Invalid layout axis name: " << name << ". Has to be A-Z or a-z.";
   return (name >= 'A' && name <= 'Z') ? LayoutAxis::UPPER_CASE[name - 'A']
                                       : LayoutAxis::LOWER_CASE[name - 'a'];
@@ -62,12 +62,12 @@ const LayoutAxis& LayoutAxis::Get(const char name) {
 
 const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
   const std::string axis = itvar->var.get()->name_hint;
-  CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
+  ICHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
   return LayoutAxis::Get(axis[0]);
 }
 
 const LayoutAxis& LayoutAxis::Get(const std::string& name) {
-  CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
+  ICHECK_EQ(name.length(), 1) << "Invalid axis " << name;
   return LayoutAxis::Get(name[0]);
 }
 
@@ -77,13 +77,13 @@ Layout::Layout(const Array<IterVar>& axes) {
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
     if (const auto* factor = axis->dom->extent.as<IntImmNode>()) {
-      CHECK_GT(factor->value, 0);
+      ICHECK_GT(factor->value, 0);
       repr << factor->value;
     }
-    CHECK_EQ(axis->var.get()->name_hint.size(), 1)
+    ICHECK_EQ(axis->var.get()->name_hint.size(), 1)
         << "Invalid layout axis " << axis->var.get()->name_hint;
     char c = axis->var.get()->name_hint.operator std::string()[0];
-    CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
+    ICHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
     repr << axis->var.get()->name_hint;
   }
   node->name = repr.str();
@@ -102,22 +102,22 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
   int32_t factor = 0;
   for (char c : name) {
     if (c >= 'A' && c <= 'Z') {
-      CHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
-                          << " before dimension " << c;
+      ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
+                           << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
       IterVar axis =
           IterVar(Range(PrimExpr(0), Var(shape_name)), Var(std::string(1, c)), tir::kDataPar);
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
-      CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
-                          << " for dimension " << c;
+      ICHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size " << factor
+                           << " for dimension " << c;
       IterVar axis =
           IterVar(Range(PrimExpr(0), PrimExpr(factor)), Var(std::string(1, c)), tir::kDataPar);
       node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
-      CHECK(factor >= 0) << "Invalid layout " << name << ": _ is adjacent to a number.";
+      ICHECK(factor >= 0) << "Invalid layout " << name << ": _ is adjacent to a number.";
       factor = factor * 10 + c - '0';
     } else {
       LOG(FATAL) << "Invalid layout " << name;
@@ -128,16 +128,16 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
   std::vector<bool> exist_axis(256, false);
   for (const IterVar& v : node->axes) {
     auto axis_str = v->var.get()->name_hint.operator std::string();
-    CHECK_EQ(axis_str.size(), 1);
+    ICHECK_EQ(axis_str.size(), 1);
     char axis = axis_str[0];
-    CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
-    CHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
+    ICHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
+    ICHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
     exist_axis[axis] = true;
   }
   for (const IterVar& v : node->axes) {
     char axis = v->var.get()->name_hint.operator std::string()[0];
     if (axis >= 'a' && axis <= 'z') {
-      CHECK(exist_axis[axis - 'a' + 'A'])
+      ICHECK(exist_axis[axis - 'a' + 'A'])
           << "Invalid layout " << name << ": missing axis " << std::toupper(axis);
     }
   }
@@ -160,13 +160,13 @@ Layout Layout::Split(const LayoutAxis& axis, size_t target_pos, int32_t factor) 
   if (!defined()) return Layout::Undef();
   const std::string& name = operator->()->name;
   const auto axes = operator->()->axes;
-  CHECK(target_pos <= this->ndim())
+  ICHECK(target_pos <= this->ndim())
       << "Invalid split position " << target_pos << " for layout " << name;
-  CHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
-  CHECK(this->Contains(axis)) << "Axis " << axis << " does not exist in " << name;
-  CHECK(!this->Contains(axis.ToSubordinate()))
+  ICHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
+  ICHECK(this->Contains(axis)) << "Axis " << axis << " does not exist in " << name;
+  ICHECK(!this->Contains(axis.ToSubordinate()))
       << "Axis " << axis << " has already been split in " << name;
-  CHECK(factor > 0) << "Invalid split size " << factor;
+  ICHECK(factor > 0) << "Invalid split size " << factor;
   Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
     if (i == target_pos) {
@@ -186,7 +186,7 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   for (const IterVar& itvar : operator->()->axes) {
     if (sub == LayoutAxis::Get(itvar)) {
       const auto* factor = itvar->dom->extent.as<IntImmNode>();
-      CHECK(factor);
+      ICHECK(factor);
       return factor->value;
     }
   }
@@ -261,17 +261,17 @@ inline Array<PrimExpr> TransformIndex(const Array<PrimExpr>& src_index,
 }
 
 Array<PrimExpr> BijectiveLayout::ForwardIndex(const Array<PrimExpr>& src_index) const {
-  CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
+  ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  CHECK_EQ(src_index.size(), self->src_layout->axes.size())
+  ICHECK_EQ(src_index.size(), self->src_layout->axes.size())
       << "Input mismatch with layout " << self->src_layout;
   return TransformIndex(src_index, self->src_layout->axes, self->forward_rule);
 }
 
 Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index) const {
-  CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
+  ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  CHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
+  ICHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
       << "Output mismatch with layout " << self->dst_layout;
   return TransformIndex(dst_index, self->dst_layout->axes, self->backward_rule);
 }
@@ -281,7 +281,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
                                       const Array<IterVar>& target_axis,
                                       const Array<PrimExpr>& transform_rule) {
   arith::Analyzer ana;
-  CHECK_EQ(src_shape.size(), src_axis.size());
+  ICHECK_EQ(src_shape.size(), src_axis.size());
   // bind variables for original axes
   // for major-axis, bind the corresponding size
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
@@ -299,7 +299,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
         const auto* orig_shape_const = orig_shape.as<IntImmNode>();
         const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImmNode>();
         if (orig_shape_const) {
-          CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
+          ICHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
               << "Input shape mismatch at index " << i << ". Expected " << orig_axis->dom->extent
               << ", get " << orig_shape;
         }
@@ -313,7 +313,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
   // for major-axis, use the forward/backward_rule directly,
   // for minor-axis, simply use the extent.
   Array<PrimExpr> result;
-  CHECK_EQ(transform_rule.size(), target_axis.size());
+  ICHECK_EQ(transform_rule.size(), target_axis.size());
   for (size_t i = 0; i < transform_rule.size(); ++i) {
     PrimExpr rule = transform_rule[i];
     IterVar axis = target_axis[i];
@@ -331,13 +331,13 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
 }
 
 Array<PrimExpr> BijectiveLayout::ForwardShape(const Array<PrimExpr>& shape) const {
-  CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
+  ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   return TransformShape(shape, self->src_layout->axes, self->dst_layout->axes, self->forward_rule);
 }
 
 Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) const {
-  CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
+  ICHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   return TransformShape(shape, self->dst_layout->axes, self->src_layout->axes, self->backward_rule);
 }
@@ -351,7 +351,7 @@ BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
   // To be consistent with previous behavior, a nullptr layout is created
   // when argument is invalid.
   if (GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
-    CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
+    ICHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
     data_ = std::move(n);
   }
 }

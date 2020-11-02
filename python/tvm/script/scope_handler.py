@@ -14,182 +14,248 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script Parser Scope Handler Functions
-This module provides the functions registered into parser under with_scope or for_scope category.
-Scope handler nodes are StmtNodes with body, which are used to handle such scenarios.
-1. For scope handler
-When registering a for scope handler, the first 4 arguments must be parser, node, body, loop_vars
-and these arguments will provided by TVM Script parser automatically
-.. code-block:: python
-    for loop_vars in tir.xxx():
-2. With scope handler
-There are 4 subtypes of with scope handlers, classified by
-    1) with or without as
-    2) allow concise scoping or not
-1) with as    & concise
-the first 2 arguments must be parser, node
-Need to parse the body manually
-Example : tir.alloc_with_scope
-.. code-block:: python
-    target = tir.xxx()
-    with tir.xxx() as target:
-2) with as    & not concise
-the first 2 arguments must be parser, node
-Need to parse the body manually
-Example : None atm
-.. code-block:: python
-    with tir.xxx() as target:
-3) without as & concise
-the first 3 arguments must be parser, node, body
-TVM Script parser will parse the body automatically
-Example : tir.allocate()/tir.realize()/tir.attr()
-.. code-block:: python
-    tir.xxx()
-    with tir.xxx():
-4) without as & not concise
-the first 3 arguments must be parser, node, body
-TVM Script parser will parse the body automatically
-Example : tir.assert()/tir.let()
-.. code-block:: python
-    with tir.xxx():
-"""
-# pylint: disable=redefined-builtin, unused-argument, invalid-name
+"""TVM Script Parser Scope Handler Classes"""
+# pylint: disable=redefined-builtin, unused-argument, invalid-name, relative-beyond-top-level
 
 from typed_ast import ast3 as ast
 import tvm.tir
-from .registry import register_with_scope, register_for_scope
+from .utils import get_param_list
+from .registry import register
 
 
-# With scope handler
-@register_with_scope(concise=True, with_var=True)
-def allocate(parser, node, extents, dtype, scope, condition=True):
-    """ With scope handler function tir.alloc_with_scope(var, extents, dtype, scope, condition) """
-    # defining buffer var and parse the body manually
+class ScopeHandler:
+    """Base class for all scope handlers"""
 
-    buffer_var = tvm.te.var(parser.target[0], "handle")
-    # (TODO) Uncomment this line if we have richer type info for buffer var
-    # buffer_var = tvm.te.var(parser.target[0], tvm.ir.PointerType(tvm.ir.PrimType(dtype)))
-    if isinstance(node, ast.With):
-        parser.scope_emitter.new_scope()
-        parser.scope_emitter.update_symbol(buffer_var.name, buffer_var)
-        parser.scope_emitter.node_stack[-1].extend(reversed(node.body))
-        body = parser.get_body()
-        parser.scope_emitter.pop_scope()
-    else:
-        parser.scope_emitter.update_symbol(buffer_var.name, buffer_var)
-        body = parser.get_body()
-    condition = tvm.runtime.convert(condition)
-    scope = tvm.runtime.convert(scope)
-    body = tvm.tir.Allocate(buffer_var, dtype, extents, condition, body)
-    return tvm.tir.AttrStmt(buffer_var, "storage_scope", scope, body)
+    def __init__(self, func):
+        self.func = func
+        self.body = None
+        self.node = None
+        self.context = None
+
+    def signature(self):
+        return "tir." + self.func.__name__, get_param_list(self.func)
+
+    def enter_scope(self, node, context):
+        pass
+
+    def exit_scope(self, node, context, arg_list):
+        self.node = node
+        self.context = context
+        return self.func(*arg_list)
 
 
-@register_with_scope(concise=True)
-def launch_thread(parser, node, body, env_var, extent):
-    extent = tvm.runtime.convert(extent)
-    return tvm.tir.AttrStmt(
-        tvm.tir.IterVar(
-            None, env_var, getattr(tvm.tir.IterVar, "ThreadIndex"), parser.var_env_dict[env_var]
-        ),
-        "thread_extent",
-        extent,
-        body,
-    )
+class WithScopeHandler(ScopeHandler):
+    """Base class for all with scope handlers"""
+
+    def __init__(self, func, concise_scope, def_symbol):
+        super().__init__(func)
+        self.concise_scope = concise_scope
+        self.def_symbol = def_symbol
+
+    @staticmethod
+    def get_optional_var_names(node, context):
+        """Get list of names from ast.With's optional_vars"""
+        assert isinstance(node, ast.With)
+
+        var_names = None
+        if isinstance(node.items[0].optional_vars, ast.Name):
+            var_names = [node.items[0].optional_vars.id]
+        elif isinstance(node.items[0].optional_vars, (ast.List, ast.Tuple)):
+            for var in node.items[0].optional_vars.elts:
+                if not isinstance(var, ast.Name):
+                    context.report_error("Invalid optional var definition")
+            var_names = [var.id for var in node.items[0].optional_vars.elts]
+        else:
+            context.report_error("Invalid optional var definition")
+        return var_names
 
 
-@register_with_scope(concise=True)
-def realize(parser, node, body, buffer_bounds, scope, condition=True):
-    """ With scope handler function tir.realize(buffer_bounds, scope, condition) """
-    buffer, bounds = buffer_bounds
-    scope = tvm.runtime.convert(scope)
-    return tvm.tir.AttrStmt(
-        buffer, "realize_scope", scope, tvm.tir.BufferRealize(buffer, bounds, condition, body)
-    )
+@register
+class Allocate(WithScopeHandler):
+    """ With scope handler tir.alloc_with_scope(var, extents, dtype, scope, condition) """
+
+    def __init__(self):
+        def allocate(extents, dtype, scope, condition=True):
+            condition = tvm.runtime.convert(condition)
+            scope = tvm.runtime.convert(scope)
+            body = tvm.tir.Allocate(self.buffer_var, dtype, extents, condition, self.body)
+            return tvm.tir.AttrStmt(self.buffer_var, "storage_scope", scope, body)
+
+        super().__init__(allocate, concise_scope=True, def_symbol=True)
+        self.buffer_var = None
+
+    def enter_scope(self, node, context):
+        # define buffer vars in symbol table
+        if isinstance(node, ast.With):
+            names = WithScopeHandler.get_optional_var_names(node, context)
+            if len(names) != 1:
+                context.report_error("Unexpected number of vars")
+            name = names[0]
+        elif isinstance(node, ast.Assign):
+            name = node.targets[0].id
+        else:
+            raise Exception("Internal Bug")
+
+        self.buffer_var = tvm.te.var(name, "handle")
+        context.update_symbol(name, self.buffer_var)
 
 
-@register_with_scope(concise=True)
-def attr(parser, node, body, attr_node, attr_key, value):
-    """ With scope handler function tir.attr(attr_node, attr_key, value) """
-    attr_node = tvm.runtime.convert(attr_node)
-    value = tvm.runtime.convert(value)
-    return tvm.tir.AttrStmt(attr_node, attr_key, value, body)
+@register
+class LaunchThread(WithScopeHandler):
+    """ With scope handler tir.launch_thread(env_var, extent) """
+
+    def __init__(self):
+        def launch_thread(env_var, extent):
+            extent = tvm.runtime.convert(extent)
+            return tvm.tir.AttrStmt(
+                tvm.tir.IterVar(
+                    None,
+                    env_var,
+                    getattr(tvm.tir.IterVar, "ThreadIndex"),
+                    self.context.func_var_env_dict[env_var],
+                ),
+                "thread_extent",
+                extent,
+                self.body,
+            )
+
+        super().__init__(launch_thread, concise_scope=True, def_symbol=False)
 
 
-@register_with_scope(concise=False)
-def Assert(parser, node, body, condition, message):
-    """ With scope handler function tir.Assert(condition, message) """
-    return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), body)
+@register
+class Realize(WithScopeHandler):
+    """ With scope handler tir.realize(buffer_bounds, scope, condition) """
+
+    def __init__(self):
+        def realize(buffer_bounds, scope, condition=True):
+            buffer, bounds = buffer_bounds
+            scope = tvm.runtime.convert(scope)
+            return tvm.tir.AttrStmt(
+                buffer,
+                "realize_scope",
+                scope,
+                tvm.tir.BufferRealize(buffer, bounds, condition, self.body),
+            )
+
+        super().__init__(realize, concise_scope=True, def_symbol=False)
 
 
-@register_with_scope(concise=False)
-def let(parser, node, body, var, value):
-    """ With scope handler function tir.let(var, value) """
-    return tvm.tir.LetStmt(var, value, body)
+@register
+class Attr(WithScopeHandler):
+    """ With scope handler tir.attr(attr_node, attr_key, value) """
+
+    def __init__(self):
+        def attr(attr_node, attr_key, value):
+            attr_node = tvm.runtime.convert(attr_node)
+            value = tvm.runtime.convert(value)
+            return tvm.tir.AttrStmt(attr_node, attr_key, value, self.body)
+
+        super().__init__(attr, concise_scope=True, def_symbol=False)
 
 
-# For scope handler
-@register_for_scope()
-def serial(parser, node, body, loop_vars, begin, end):
-    """ For scope handler function tir.serial(begin, end)"""
-    if len(loop_vars) != 1:
-        parser.report_error("Expect exact 1 loop var")
-    ana = tvm.arith.Analyzer()
-    extent = end if begin == 0 else ana.simplify(end - begin)
-    return tvm.tir.For(loop_vars[0], begin, extent, 0, 0, body)
+@register
+class AssertHandler(WithScopeHandler):
+    """ With scope handler tir.Assert(condition, message) """
+
+    def __init__(self):
+        def Assert(condition, message):
+            return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), self.body)
+
+        super().__init__(Assert, concise_scope=True, def_symbol=False)
 
 
-@register_for_scope()
-def parallel(parser, node, body, loop_vars, begin, end):
-    """ For scope handler function tir.parallel(begin, end)"""
-    if len(loop_vars) != 1:
-        parser.report_error("Expect exact 1 loop var")
-    ana = tvm.arith.Analyzer()
-    extent = end if begin == 0 else ana.simplify(end - begin)
-    return tvm.tir.For(loop_vars[0], begin, extent, 1, 0, body)
+@register
+class Let(WithScopeHandler):
+    """ With scope handler tir.let(var, value) """
+
+    def __init__(self):
+        def let(var, value):
+            return tvm.tir.LetStmt(var, value, self.body)
+
+        super().__init__(let, concise_scope=False, def_symbol=False)
 
 
-@register_for_scope()
-def vectorized(parser, node, body, loop_vars, begin, end):
-    """ For scope handler function tir.vectorized(begin, end)"""
-    if len(loop_vars) != 1:
-        parser.report_error("Expect exact 1 loop var")
-    ana = tvm.arith.Analyzer()
-    extent = end if begin == 0 else ana.simplify(end - begin)
-    return tvm.tir.For(loop_vars[0], begin, extent, 2, 0, body)
+class ForScopeHandler(ScopeHandler):
+    """Base class for all for scope handlers"""
+
+    def __init__(self, func):
+        super().__init__(func)
+        self.loop_vars = None
+
+    def enter_scope(self, node, context):
+        assert isinstance(node, ast.For)
+
+        loop_var_names = list()
+        if isinstance(node.target, ast.Name):
+            loop_var_names.append(node.target.id)
+        elif isinstance(node.target, ast.Tuple):
+            for elt in node.target.elts:
+                if not isinstance(elt, ast.Name):
+                    context.report_error("Invalid loop var")
+                loop_var_names.append(elt.id)
+        else:
+            context.report_error("Invalid loop var")
+
+        self.loop_vars = [tvm.te.var(name, dtype="int32") for name in loop_var_names]
+        for loop_var in self.loop_vars:
+            context.update_symbol(loop_var.name, loop_var)
 
 
-@register_for_scope()
-def unroll(parser, node, body, loop_vars, begin, end):
-    """ For scope handler function tir.unroll(begin, end)"""
-    if len(loop_vars) != 1:
-        parser.report_error("Expect exact 1 loop var")
-    ana = tvm.arith.Analyzer()
-    extent = end if begin == 0 else ana.simplify(end - begin)
-    return tvm.tir.For(loop_vars[0], begin, extent, 3, 0, body)
+@register
+class Serial(ForScopeHandler):
+    """ For scope handler tir.serial(begin, end)"""
+
+    def __init__(self):
+        def serial(begin, end):
+            if len(self.loop_vars) != 1:
+                self.context.report_error("Expect exact 1 loop var")
+            ana = tvm.arith.Analyzer()
+            extent = end if begin == 0 else ana.simplify(end - begin)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, 0, self.body)
+
+        super().__init__(serial)
 
 
-@register_for_scope(name="range")
-def Range(parser, node, body, loop_vars, begin, end, annotation=None):
-    """ For scope handler function range(begin, end, annotation)"""
-    if len(loop_vars) != 1:
-        parser.report_error("Expect exact 1 loop var")
-    ana = tvm.arith.Analyzer()
-    extent = end if begin == 0 else ana.simplify(end - begin)
-    if annotation is None:
-        annotation = []
-    else:
-        annotation = [
-            tvm.tir.Annotation(key, tvm.runtime.convert(val) if isinstance(val, str) else val)
-            for key, val in annotation.items()
-        ]
-    return tvm.tir.Loop(loop_vars[0], begin, extent, annotation, body)
+@register
+class Parallel(ForScopeHandler):
+    """ For scope handler tir.parallel(begin, end)"""
+
+    def __init__(self):
+        def parallel(begin, end):
+            if len(self.loop_vars) != 1:
+                self.context.report_error("Expect exact 1 loop var")
+            ana = tvm.arith.Analyzer()
+            extent = end if begin == 0 else ana.simplify(end - begin)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, 0, self.body)
+
+        super().__init__(parallel)
 
 
-@register_for_scope()
-def grid(parser, node, body, loop_vars, *extents):
-    """ For scope handler function tir.grid(*extents) """
-    if len(loop_vars) != len(extents):
-        parser.report_error("Inconsitent number of loop vars and extents")
-    for loop_var, extent in zip(reversed(loop_vars), reversed(extents)):
-        body = tvm.tir.Loop(loop_var, 0, extent, [], body)
-    return body
+@register
+class Vectorized(ForScopeHandler):
+    """ For scope handler tir.vectorized(begin, end)"""
+
+    def __init__(self):
+        def vectorized(begin, end):
+            if len(self.loop_vars) != 1:
+                self.context.report_error("Expect exact 1 loop var")
+            ana = tvm.arith.Analyzer()
+            extent = end if begin == 0 else ana.simplify(end - begin)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, 0, self.body)
+
+        super().__init__(vectorized)
+
+
+@register
+class Unroll(ForScopeHandler):
+    """ For scope handler tir.unroll(begin, end)"""
+
+    def __init__(self):
+        def unroll(begin, end):
+            if len(self.loop_vars) != 1:
+                self.context.report_error("Expect exact 1 loop var")
+            ana = tvm.arith.Analyzer()
+            extent = end if begin == 0 else ana.simplify(end - begin)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, 0, self.body)
+
+        super().__init__(unroll)

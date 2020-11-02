@@ -23,7 +23,7 @@ import tvm
 from tvm import te, auto_scheduler
 from tvm import topi
 from tvm.topi.nn.winograd_util import winograd_transform_matrices
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 
 @auto_scheduler.register_workload

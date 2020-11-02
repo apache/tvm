@@ -19,7 +19,7 @@
 
 import numpy as np
 
-from ..util import get_rank
+from ..utils import get_rank
 
 
 def max_curve(trial_scores):

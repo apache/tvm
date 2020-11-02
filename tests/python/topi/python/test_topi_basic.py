@@ -17,13 +17,13 @@
 import tvm
 from tvm import te
 from tvm import topi
-from tvm.topi import util
+from tvm.topi import utils
 
 
 def test_util():
     x = tvm.tir.const(100, "int32")
-    assert util.get_const_int(x) == 100
-    assert util.get_const_tuple((x, x)) == (100, 100)
+    assert utils.get_const_int(x) == 100
+    assert utils.get_const_tuple((x, x)) == (100, 100)
 
 
 def test_ewise():

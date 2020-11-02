@@ -45,7 +45,7 @@ import vta
 import numpy as np
 
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 from vta.testing import simulator
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -370,7 +370,7 @@ from tvm.topi.testing import conv2d_nchw_python
 
 # Compile the TVM module
 my_conv = vta.build(s, [data, kernel, res], "ext_dev", env.target_host, name="my_conv")
-temp = util.tempdir()
+temp = utils.tempdir()
 my_conv.save(temp.relpath("conv2d.o"))
 remote.upload(temp.relpath("conv2d.o"))
 f = remote.load_module("conv2d.o")

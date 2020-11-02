@@ -208,7 +208,7 @@ class ReflectionVTable::Registry {
    * \return rference to self.
    */
   Registry& set_creator(FCreate f) {  // NOLINT(*)
-    CHECK_LT(type_index_, parent_->fcreate_.size());
+    ICHECK_LT(type_index_, parent_->fcreate_.size());
     parent_->fcreate_[type_index_] = f;
     return *this;
   }
@@ -218,7 +218,7 @@ class ReflectionVTable::Registry {
    * \return rference to self.
    */
   Registry& set_repr_bytes(FReprBytes f) {  // NOLINT(*)
-    CHECK_LT(type_index_, parent_->frepr_bytes_.size());
+    ICHECK_LT(type_index_, parent_->frepr_bytes_.size());
     parent_->frepr_bytes_[type_index_] = f;
     return *this;
   }

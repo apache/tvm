@@ -19,7 +19,7 @@ import time
 
 import tvm
 from tvm import te
-from tvm.contrib import util
+from tvm.contrib import utils
 
 from tvm import autotvm
 from tvm.autotvm.measure import MeasureInput, MeasureResult, MeasureErrorNo
@@ -50,7 +50,7 @@ def test_load_dump():
 
 
 def test_file_io():
-    temp = util.tempdir()
+    temp = utils.tempdir()
     file_path = temp.relpath("temp.log")
 
     tsk, target = get_sample_task()

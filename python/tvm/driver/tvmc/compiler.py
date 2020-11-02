@@ -26,7 +26,7 @@ import tvm
 from tvm import autotvm
 from tvm import relay
 from tvm.contrib import cc
-from tvm.contrib import util
+from tvm.contrib import utils
 
 from . import common, frontends
 from .main import register_parser
@@ -177,16 +177,7 @@ def compile_model(
     if alter_layout:
         mod = common.convert_graph_layout(mod, alter_layout)
 
-    # Handle the case in which target is a path to a JSON file.
-    if os.path.exists(target):
-        with open(target) as target_file:
-            logger.info("using target input from file: %s", target)
-            target = "".join(target_file.readlines())
-
-    # TODO(@leandron) We don't have an API to collect a list of supported
-    #       targets yet
-    logger.debug("creating target from input: %s", target)
-    tvm_target = tvm.target.Target(target)
+    tvm_target = common.target_from_cli(target)
     target_host = target_host or ""
 
     if tuning_records and os.path.exists(tuning_records):
@@ -238,7 +229,7 @@ def save_module(module_path, graph, lib, params, cross=None):
     lib_name = "mod.so"
     graph_name = "mod.json"
     param_name = "mod.params"
-    temp = util.tempdir()
+    temp = utils.tempdir()
     path_lib = temp.relpath(lib_name)
     if not cross:
         logger.debug("exporting library to %s", path_lib)

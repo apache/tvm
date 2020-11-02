@@ -129,8 +129,8 @@ class GATuner(Tuner):
                     while knob2point(tmp_gene, self.dims) in self.visited:
                         j = np.random.randint(len(self.dims))
                         tmp_gene[j] = np.random.randint(
-                            self.dims[j]
-                        )  # pylint: disable=invalid-sequence-index
+                            self.dims[j]  # pylint: disable=invalid-sequence-index
+                        )
                     next_genes.append(tmp_gene)
                     self.visited.add(knob2point(tmp_gene, self.dims))
                 else:

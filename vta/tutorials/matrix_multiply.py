@@ -40,7 +40,7 @@ from tvm import te
 import vta
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 from vta.testing import simulator
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -389,7 +389,7 @@ print(vta.lower(s, [A, B, C], simple_mode=True))
 my_gemm = vta.build(s, [A, B, C], "ext_dev", env.target_host, name="my_gemm")
 
 # Write the compiled module into an object file.
-temp = util.tempdir()
+temp = utils.tempdir()
 my_gemm.save(temp.relpath("gemm.o"))
 
 # Send the executable over RPC

@@ -18,7 +18,7 @@
 """Deformable convolution in python"""
 import itertools
 import numpy as np
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 
 
 def deformable_conv2d_nchw_python(

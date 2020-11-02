@@ -21,11 +21,10 @@ from __future__ import absolute_import
 import logging
 import numpy as np
 import tvm
-from tvm import te
+from tvm import te, autotvm, auto_scheduler
 from tvm.runtime import Object
 from tvm.support import libinfo
-from ...target import Target
-from ... import autotvm
+from tvm.target import Target
 from .. import function as _function
 from .. import ty as _ty
 from . import _backend
@@ -184,8 +183,9 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         The best op implementation and the corresponding output tensors.
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
-
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
+
+    # If not use autotvm, always return the implementation with the highest priority
     if not use_autotvm:
         logger.info(
             "Using %s for %s based on highest priority (%d)",
@@ -196,6 +196,20 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
+    # If auto-scheduler is enabled for Relay, always prefer auto-scheduler
+    if auto_scheduler.is_relay_integration_enabled():
+        auto_scheduler_impls = []
+        for impl in all_impls:
+            if impl.name.endswith(auto_scheduler.relay_integration.auto_schedule_impl_suffix):
+                auto_scheduler_impls.append(impl)
+
+        if auto_scheduler_impls:
+            assert len(auto_scheduler_impls) == 1
+            impl = auto_scheduler_impls[0]
+            outs = impl.compute(attrs, inputs, out_type)
+            return impl, outs
+
+    # Otherwise, try autotvm templates
     outputs = {}
     workloads = {}
     best_autotvm_impl = None
@@ -219,6 +233,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             best_autotvm_impl = impl
             best_cfg = cfg
     autotvm.GLOBAL_SCOPE.silent = False
+
     if best_autotvm_impl:
         # The best autotvm implementation definitely doesn't use fallback config
         logger.info(
@@ -228,6 +243,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             best_cfg.cost,
         )
         return best_autotvm_impl, outputs[best_autotvm_impl]
+
     # Use the implementation with highest plevel
     if workloads[best_plevel_impl] is not None:
         msg = (
@@ -370,6 +386,9 @@ class CompileEngine(Object):
         res = _backend._CompileEngineListItems(self)
         assert len(res) % 2 == 0
         return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+    def get_current_ccache_key(self):
+        return _backend._CompileEngineGetCurrentCCacheKey(self)
 
     def dump(self):
         """Return a string representation of engine dump.

@@ -84,6 +84,11 @@ class CheckReshapeOnly(ExprVisitor):
         for arg in call.args:
             self.visit(arg)
 
+    def visit_var(self, var):
+        var_type = var.checked_type
+        if not isinstance(var_type, ty.TensorType):
+            self.reshape_only = False
+
 
 def is_reshape_only(func):
     """Check if the primitive function contains only reshape ops."""

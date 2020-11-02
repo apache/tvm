@@ -23,9 +23,11 @@ members = [
 	"tvm",
 	"tvm/tests/basics",
 	"tvm/tests/callback",
+	"tvm/examples/resnet",
 	"tvm-graph-rt",
 	"tvm-graph-rt/tests/test_tvm_basic",
 	"tvm-graph-rt/tests/test_tvm_dso",
 	"tvm-graph-rt/tests/test_wasm32",
 	"tvm-graph-rt/tests/test_nn",
+	"compiler-ext",
 ]

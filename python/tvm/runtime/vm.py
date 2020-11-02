@@ -120,7 +120,7 @@ class Executable(object):
             executable = relay.vm.compile(mod, target)
             code, lib = executable.save()
             # save and load the code and lib file.
-            tmp = tvm.contrib.util.tempdir()
+            tmp = tvm.contrib.utils.tempdir()
             path_lib = tmp.relpath("lib.so")
             lib.export_library(path_lib)
             with open(tmp.relpath("code.ro"), "wb") as fo:

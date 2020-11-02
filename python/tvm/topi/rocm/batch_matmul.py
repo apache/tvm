@@ -19,7 +19,7 @@
 from tvm import autotvm
 from tvm.contrib import rocblas
 from .. import generic
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 @autotvm.register_topi_compute("batch_matmul_rocblas.rocm")

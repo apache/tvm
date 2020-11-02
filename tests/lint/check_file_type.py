@@ -44,6 +44,7 @@ ALLOW_EXTENSION = {
     "pyd",
     "pyx",
     "cu",
+    "bat",
     # relay text format
     "rly",
     # configurations

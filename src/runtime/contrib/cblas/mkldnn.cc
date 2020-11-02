@@ -20,9 +20,9 @@
 /*!
  * \file Use external cblas library call.
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 extern "C" {
 #include <dnnl.h>
@@ -48,7 +48,7 @@ struct MKLDNNSgemmOp {
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.mkldnn.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
-  CHECK(TypeMatch(A->dtype, kDLFloat, 32));
+  ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
   CallGemm(args, ret, MKLDNNSgemmOp());
 });
 }  // namespace contrib

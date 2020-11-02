@@ -72,16 +72,16 @@ class ValidateAnnotation : private ExprVisitor {
     if (IsOnDeviceNode(call_node)) {
       int device_type = GetDeviceId(call_node);
       if (annotation_map_.count(call_node)) {
-        CHECK_EQ(annotation_map_.at(call_node), device_type)
+        ICHECK_EQ(annotation_map_.at(call_node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({call_node, GetDeviceId(call_node)});
       }
 
-      CHECK_EQ(call_node->args.size(), 1U);
+      ICHECK_EQ(call_node->args.size(), 1U);
       const auto* node = call_node->args[0].operator->();
       if (annotation_map_.count(node)) {
-        CHECK_EQ(annotation_map_.at(node), device_type)
+        ICHECK_EQ(annotation_map_.at(node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({node, GetDeviceId(call_node)});
@@ -103,7 +103,7 @@ class ValidateAnnotation : private ExprVisitor {
    * \return The device type.
    */
   int GetDeviceId(const CallNode* call_node) {
-    CHECK(IsOnDeviceNode(call_node)) << "The input call node must be on_device node.";
+    ICHECK(IsOnDeviceNode(call_node)) << "The input call node must be on_device node.";
     const OnDeviceAttrs* on_device_attr = call_node->attrs.as<OnDeviceAttrs>();
     return on_device_attr->device_type;
   }
@@ -226,7 +226,7 @@ class RewriteAnnotation : public ExprMutator {
     const auto sit = annotation_map_.find(src_node);
     if (sit == annotation_map_.end()) {
       const auto dit = annotation_map_.find(dst);
-      CHECK(dit != annotation_map_.end())
+      ICHECK(dit != annotation_map_.end())
           << "Device copy op is not required when both src and dst ops are not "
              "annotated.";
       return CreateDeviceCopy(src, fallback_device_, dit->second);
@@ -391,7 +391,7 @@ class DeviceInfo {
       // Skip annotation nodes.
       if (!IsOnDeviceNode(call)) {
         if (const auto* node = GetDeviceCopyNode(call)) {
-          CHECK(node->IsInstance<CallNode>());
+          ICHECK(node->IsInstance<CallNode>());
           const auto* call_node = static_cast<const CallNode*>(node);
           auto attrs = call_node->attrs.as<DeviceCopyAttrs>();
 
@@ -496,7 +496,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
           new_body.push_back(field);
         }
       }
-      CHECK_GT(new_body.size(), 0U);
+      ICHECK_GT(new_body.size(), 0U);
       if (new_body.size() == 1) {
         return Function(params, new_body[0], Type(nullptr), fn->type_params, fn->attrs);
       } else if (tuple->fields.size() == new_body.size()) {
@@ -515,7 +515,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
         new_fields.push_back(field);
       }
     }
-    CHECK_GT(new_fields.size(), 0U);
+    ICHECK_GT(new_fields.size(), 0U);
     if (tuple->fields.size() == new_fields.size()) {
       return new_fields.size() == 1 ? new_fields[0] : new_expr;
     } else {

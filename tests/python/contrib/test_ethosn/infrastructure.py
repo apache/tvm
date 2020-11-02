@@ -20,7 +20,7 @@
 from __future__ import absolute_import, print_function
 import tvm
 from tvm import relay
-from tvm.contrib import util, graph_runtime, download
+from tvm.contrib import utils, graph_runtime, download
 from hashlib import md5
 from itertools import zip_longest, combinations
 import numpy as np
@@ -61,7 +61,7 @@ def assert_lib_hash(lib, golden):
     if isinstance(golden, str):
         golden = {golden}
 
-    temp = util.tempdir()
+    temp = utils.tempdir()
     path = temp.relpath("lib.cmm")
     hash_set = set()
     for mod in lib.imported_modules:
@@ -207,7 +207,7 @@ def run(lib, inputs, outputs, npu=True):
     """
     # Export and load lib to confirm this works
     lib_name = "mod.so"
-    temp = util.tempdir()
+    temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
     lib.export_library(lib_path)
     lib = tvm.runtime.load_module(lib_path)

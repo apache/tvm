@@ -150,7 +150,7 @@ TVM_REGISTER_GLOBAL("topi.matmul").set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = matmul(args[0], args[1], args[2], args[3]);
       break;
     default:
-      CHECK(0) << "topi.matmul expects 2, 3 or 4 arguments";
+      ICHECK(0) << "topi.matmul expects 2, 3 or 4 arguments";
   }
 });
 

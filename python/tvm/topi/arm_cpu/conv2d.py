@@ -23,9 +23,9 @@ from tvm import te
 from tvm import autotvm
 import tvm.contrib.nnpack
 
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 from .. import nn
-from ..nn.util import get_const_int, get_pad_tuple
+from ..nn.utils import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
 from .conv2d_spatial_pack import (
     conv2d_spatial_pack_nchw,

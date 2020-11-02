@@ -60,7 +60,7 @@ Map<String, Target> TargetTag::ListTags() {
 
 Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool override) {
   TargetTagRegEntry& tag = TargetTagRegEntry::RegisterOrGet(name).set_name();
-  CHECK(override || tag.tag_->config.empty())
+  ICHECK(override || tag.tag_->config.empty())
       << "Tag \"" << name << "\" has been previously defined as: " << tag.tag_->config;
   tag.set_config(config);
   return Target(config);

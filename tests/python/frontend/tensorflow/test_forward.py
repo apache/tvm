@@ -2848,11 +2848,11 @@ def test_forward_inception_v1():
 
         # Build an image from random data.
         from PIL import Image
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
         img_array = np.random.uniform(size=(1, 600, 600, 3)).astype("uint8")
         img = Image.frombuffer("RGB", (600, 600), img_array.tostring(), "raw", "RGB", 0, 1)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         img_path = temp.relpath("tf-test.jpg")
         img.save(img_path)
 
@@ -3488,6 +3488,38 @@ def test_forward_atan2():
     compare_tf_with_tvm([np_data_1, np_data_2], ["in_data_1:0", "in_data_2:0"], "atan2:0")
 
 
+def test_forward_expm1():
+    """test operator expm1 """
+
+    def _test_forward_expm1(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(1, 10, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.expm1(in_data, name="expm1")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "expm1:0")
+
+    _test_forward_expm1([1, 100])
+    _test_forward_expm1([1, 10, 10])
+    _test_forward_expm1([2, 5, 2, 5])
+
+
+def test_forward_softsign():
+    """test operator softsign """
+
+    def _test_forward_softsign(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(1, 100, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.nn.softsign(in_data, name="softsign")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "softsign:0")
+
+    _test_forward_softsign([1, 100])
+    _test_forward_softsign([1, 10, 10])
+    _test_forward_softsign([2, 5, 2, 5])
+
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
@@ -3644,7 +3676,7 @@ def test_forward_reduce():
     _test_math_op(tf.math.reduce_max)
     _test_math_op(tf.math.reduce_min)
     _test_math_op(tf.math.reduce_prod)
-    _test_math_op(tf.math.reduce_variance)
+    _test_math_op(tf.math.reduce_variance, dtypes=["float32"])
     _test_math_op(tf.math.reduce_std, dtypes=["float32"])
     _test_math_op(tf.math.reduce_logsumexp, dtypes=["float32"])
     if package_version.parse(tf.VERSION) >= package_version.parse("1.15.0"):
@@ -3855,11 +3887,11 @@ def test_forward_unravel_index():
     _test_forward_unravel_index([x, y])
 
     x = np.array([0, 1, 2, 5])
-    y = np.array([2, 2])
+    y = np.array([2, 3])
     _test_forward_unravel_index([x, y])
 
     x = np.array([0, 1, 2, 5])
-    y = np.array([2])
+    y = np.array([6])
     _test_forward_unravel_index([x, y])
 
     x = np.array([102, 300, 16])
@@ -3918,6 +3950,83 @@ def test_forward_dilation():
     _test_dilation2d([1, 224, 224, 10], [8, 8, 10], [1, 3, 1, 1], [1, 1, 1, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 2, 2, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
+
+
+#######################################################################
+# Sparse To Dense
+# ---------------
+def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
+    with tf.Graph().as_default():
+        indices = tf.placeholder(
+            shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices"
+        )
+        values = tf.placeholder(
+            shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values"
+        )
+        oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
+
+        if default_value == None:
+            output = tf.sparse_to_dense(indices, oshape, values)
+            compare_tf_with_tvm(
+                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name
+            )
+        else:
+            dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
+            output = tf.sparse_to_dense(indices, oshape, values, dv)
+            compare_tf_with_tvm(
+                [sparse_indices, sparse_values, default_value],
+                ["indices:0", "values:0", "default_value:0"],
+                output.name,
+            )
+
+
+def test_forward_sparse_to_dense():
+    # scalar
+    _test_sparse_to_dense(
+        sparse_indices=np.int32(1),
+        sparse_values=np.int32(3),
+        default_value=np.int32(0),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # vector
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3, 3, 3]).astype("int32"),
+        default_value=np.int32(0),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # vector nXd
+    _test_sparse_to_dense(
+        sparse_indices=np.array([[0, 0], [1, 2]]).astype("int32"),
+        sparse_values=np.array([1, 2]).astype("int32"),
+        default_value=np.int32(0),
+        output_shape=np.array([3, 4]).astype("int32"),
+    )
+
+    _test_sparse_to_dense(
+        sparse_indices=np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
+        sparse_values=np.array([1, 2]).astype("int32"),
+        default_value=np.int32(4),
+        output_shape=np.array([2, 3, 4]).astype("int32"),
+    )
+
+    # floats
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
+        default_value=np.float32(3.5),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # default value not specified
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
+        default_value=None,
+        output_shape=np.array([5]).astype("int32"),
+    )
 
 
 #######################################################################

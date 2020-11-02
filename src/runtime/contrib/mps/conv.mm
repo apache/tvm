@@ -80,15 +80,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetVa
   int pad = args[3];
   int stride = args[4];
 
-  CHECK_EQ(data->ndim, 4);
-  CHECK_EQ(weight->ndim, 4);
-  CHECK_EQ(output->ndim, 4);
-  CHECK(output->strides == nullptr);
-  CHECK(weight->strides == nullptr);
-  CHECK(data->strides == nullptr);
+  ICHECK_EQ(data->ndim, 4);
+  ICHECK_EQ(weight->ndim, 4);
+  ICHECK_EQ(output->ndim, 4);
+  ICHECK(output->strides == nullptr);
+  ICHECK(weight->strides == nullptr);
+  ICHECK(data->strides == nullptr);
 
-  CHECK_EQ(data->shape[0], 1);
-  CHECK_EQ(output->shape[0], 1);
+  ICHECK_EQ(data->shape[0], 1);
+  ICHECK_EQ(output->shape[0], 1);
 
   int oCh = weight->shape[0];
   int kH = weight->shape[1];

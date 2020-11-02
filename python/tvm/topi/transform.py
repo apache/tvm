@@ -22,7 +22,7 @@ from tvm import te
 from tvm import topi
 from . import cpp
 from . import tag
-from .util import within_index, make_idx
+from .utils import within_index, make_idx
 
 
 def expand_dims(a, axis, num_newaxis=1):

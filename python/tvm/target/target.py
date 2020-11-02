@@ -220,19 +220,24 @@ def intel_graphics(model="unknown", options=None):
     return Target(" ".join(["opencl"] + opts))
 
 
-def micro(hardware="unknown", options=None):
+def micro(model="unknown", options=None):
     """Returns a microTVM target.
 
     Parameters
     ----------
-    hardware : str
-        Canonically identifies the target device; typicaly one of cortex-mX, or a specific SoC model
-        when that model has been tested to work with microTVM.
+    model : str
+        Canonically identifies the target device. This is typically a CPU or board level name (other
+        flags such as -mcpu identify the ISA).
     options : str or list of str
         Additional options
     """
-    trans_table = {"host": ["-mcpu=native"]}
-    opts = _merge_opts(trans_table[hardware] + ["-runtime=c", "--system-lib"], options)
+    trans_table = {
+        "host": ["-mcpu=native"],
+        "stm32f746xx": ["-mcpu=cortex-m7"],
+    }
+    opts = _merge_opts(
+        trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"], options
+    )
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.

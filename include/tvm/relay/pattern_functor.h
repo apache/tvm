@@ -89,7 +89,7 @@ class PatternFunctor<R(const Pattern& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitPattern(const Pattern& n, Args... args) {
-    CHECK(n.defined());
+    ICHECK(n.defined());
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }

@@ -353,7 +353,7 @@ Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   } else {
     // TODO(bohan): Print out the name by he global var in the module.
     auto* op_gvar = op->op.as<GlobalVarNode>();
-    CHECK(op_gvar != nullptr);
+    ICHECK(op_gvar != nullptr);
     doc << "@" << Doc::Text(op_gvar->name_hint) << "(";
   }
   std::vector<Doc> args;

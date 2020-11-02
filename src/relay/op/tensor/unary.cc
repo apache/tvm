@@ -424,9 +424,9 @@ TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
 
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
-  CHECK_EQ(inputs.size(), 1);
+  ICHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<ShapeOfAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   return {topi::shape(inputs[0], param->dtype)};
 }
 
@@ -456,7 +456,7 @@ TVM_REGISTER_NODE_TYPE(NdarraySizeAttrs);
 
 bool NdarraySizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
-  CHECK_EQ(num_inputs, 1);
+  ICHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
 
   if (tt == nullptr) {
@@ -464,16 +464,16 @@ bool NdarraySizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   }
 
   const auto* param = attrs.as<NdarraySizeAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   reporter->Assign(types[1], TensorType({}, param->dtype));
   return true;
 }
 
 Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                      const Type& out_type) {
-  CHECK_EQ(inputs.size(), 1);
+  ICHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<NdarraySizeAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   return Array<te::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 

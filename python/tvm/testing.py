@@ -634,6 +634,23 @@ def requires_micro(*args):
     return _compose(args, _requires_micro)
 
 
+def requires_rpc(*args):
+    """Mark a test as requiring rpc to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_rpc = [
+        pytest.mark.skipif(
+            tvm.support.libinfo().get("USE_RPC", "OFF") != "ON",
+            reason="RPC support not enabled. Set USE_RPC=ON in config.cmake to enable.",
+        )
+    ]
+    return _compose(args, _requires_rpc)
+
+
 def _target_to_requirement(target):
     # mapping from target to decorator
     if target.startswith("cuda"):

@@ -78,7 +78,7 @@ class JSONRuntimeBase : public ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_names_; });
     } else if (this->symbol_name_ == name) {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK(this->initialized_) << "The module has not been initialized";
+        ICHECK(this->initialized_) << "The module has not been initialized";
 
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
@@ -88,7 +88,7 @@ class JSONRuntimeBase : public ModuleNode {
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.size(), 1U);
+        ICHECK_EQ(args.size(), 1U);
         this->Init(args[0]);
         this->initialized_ = true;
         *rv = 0;
@@ -119,9 +119,9 @@ class JSONRuntimeBase : public ModuleNode {
     std::string graph_json;
     std::vector<std::string> consts;
     // Load the symbol
-    CHECK(stream->Read(&symbol)) << "Loading symbol name failed";
-    CHECK(stream->Read(&graph_json)) << "Loading graph json failed";
-    CHECK(stream->Read(&consts)) << "Loading the const name list failed";
+    ICHECK(stream->Read(&symbol)) << "Loading symbol name failed";
+    ICHECK(stream->Read(&graph_json)) << "Loading graph json failed";
+    ICHECK(stream->Read(&consts)) << "Loading the const name list failed";
     Array<String> const_names;
     for (const auto& it : consts) {
       const_names.push_back(it);
@@ -146,13 +146,13 @@ class JSONRuntimeBase : public ModuleNode {
    * \param args The packed args.
    */
   void SetInputOutputBuffers(const TVMArgs& args) {
-    CHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
+    ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
         << "Found mismatch in the number of provided data entryies and required.";
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
       auto eid = i < input_var_eid_.size() ? input_var_eid_[i]
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
-      CHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
+      ICHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
           << "Expect NDArray or DLTensor as inputs";
 
       const DLTensor* arg;
@@ -183,23 +183,23 @@ class JSONRuntimeBase : public ModuleNode {
       uint32_t nid = input_nodes_[i];
       std::string name = nodes_[nid].name_;
       if (nodes_[nid].op_type_ == "input") {
-        CHECK_EQ(nodes_[nid].GetOpShape().size(), nodes_[nid].GetOpDataType().size());
+        ICHECK_EQ(nodes_[nid].GetOpShape().size(), nodes_[nid].GetOpDataType().size());
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
           input_var_eid_.push_back(EntryID(nid, j));
         }
       } else {
-        CHECK_EQ(nodes_[nid].op_type_, "const");
+        ICHECK_EQ(nodes_[nid].op_type_, "const");
         auto pos = std::find(std::begin(const_names_), std::end(const_names_), name);
-        CHECK(pos != std::end(const_names_)) << "Found non-existent constant: " << name;
+        ICHECK(pos != std::end(const_names_)) << "Found non-existent constant: " << name;
         const_idx_.push_back(nid);
         consts.push_back(name);
       }
     }
-    CHECK_EQ(consts.size(), const_names_.size())
+    ICHECK_EQ(consts.size(), const_names_.size())
         << "Found mismatch for the number of constants in the graph and required.";
 
     for (size_t i = 0; i < consts.size(); i++) {
-      CHECK_EQ(consts[i], const_names_[i])
+      ICHECK_EQ(consts[i], const_names_[i])
           << "The position of constant in the graph must be the same as the required.";
     }
 
