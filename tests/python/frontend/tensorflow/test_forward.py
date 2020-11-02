@@ -1758,7 +1758,7 @@ def test_forward_batch_matmul():
 def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=False):
     """ One iteration of sparse_dense_matmul """
 
-    # TODO: Support adjoint options too
+    # TODO(ANSHUMAN87): Support adjoint options too
     for adjoint_a in [False]:
         for adjoint_b in [False]:
             with tf.Graph().as_default():
@@ -1776,7 +1776,7 @@ def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=Fal
 
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
-                # TODO: There is an issue in cuda scheduling for csr, work in progress
+                # TODO(ANSHUMAN87): There is an issue in cuda scheduling for csr, work in progress
                 compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
 
 
@@ -1794,7 +1794,7 @@ def test_forward_sparse_dense_matmul():
     #
     # ------------------------------------------------------------------
 
-    # TODO: False case for flip need to be supported
+    # TODO(ANSHUMAN87): False case for flip need to be supported
     # _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [4, 3], "float32")
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 5], [4, 3], "float32", True)
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32", True)

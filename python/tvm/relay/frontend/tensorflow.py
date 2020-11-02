@@ -932,11 +932,16 @@ def _sparse_tensor_dense_matmul():
         ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
 
         # If both are true means First input was dense and second was sparse
-        # TODO: Support other adjoint option too
+        # TODO(ANSHUMAN87): Support other adjoint option too
         if attr.get("adjoint_a") and attr.get("adjoint_b"):
             ret = _op.transpose(ret)
         else:
-            raise tvm.error.OpAttributeUnImplemented("Adjoint option is not supported yet.")
+            raise tvm.error.OpAttributeUnImplemented(
+                "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
+                " is supported, but adjoint_a={} and adjoint_b={} was supplied.".format(
+                    attr.get("adjoint_a"), attr.get("adjoint_b")
+                )
+            )
 
         return ret
 
