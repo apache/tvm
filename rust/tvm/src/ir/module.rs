@@ -16,14 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+use std::iter::FromIterator;
 use std::path::Path;
 
 use thiserror::Error;
 use tvm_macros::Object;
-
-use std::io::Result as IOResult;
-use std::iter::FromIterator;
-use std::path::Path;
 
 use crate::runtime::array::Array;
 use crate::runtime::function::Result;
