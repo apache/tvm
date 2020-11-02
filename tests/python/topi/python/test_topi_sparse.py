@@ -21,7 +21,7 @@ from tvm import te
 from tvm import topi
 from tvm import relay
 import tvm.topi.testing
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 import tvm.contrib.sparse as tvmsp
 from collections import namedtuple
 import time

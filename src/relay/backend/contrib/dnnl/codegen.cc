@@ -57,7 +57,7 @@ inline size_t GetShape1DSize(const Type& type) {
 std::vector<std::string> Conv2d(const CallNode* call) {
   std::vector<std::string> args;
   const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
-  CHECK(conv2d_attr);
+  ICHECK(conv2d_attr);
 
   auto ishape = GetShape(call->args[0]->checked_type());
   auto wshape = GetShape(call->args[1]->checked_type());
@@ -155,7 +155,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     std::vector<Output> outs;
     for (auto field : node->fields) {
       auto res = VisitExpr(field);
-      CHECK_EQ(res.size(), 1U) << "Do not support tuple nest";
+      ICHECK_EQ(res.size(), 1U) << "Do not support tuple nest";
       outs.push_back(res[0]);
     }
     return outs;
@@ -163,7 +163,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExpr_(const TupleGetItemNode* op) final {
     auto res = VisitExpr(op->tuple);
-    CHECK_GT(res.size(), static_cast<size_t>(op->index));
+    ICHECK_GT(res.size(), static_cast<size_t>(op->index));
 
     // Only keep the item we want for the child node.
     // FIXME(@comaniac): The other items should still be requried for the primary outputs.
@@ -190,8 +190,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     const_idx_++;
 
     const auto* type_node = cn->checked_type().as<TensorTypeNode>();
-    CHECK(type_node);
-    CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
+    ICHECK(type_node);
+    ICHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
 
     return {output};
   }
@@ -233,7 +233,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   GenerateBodyOutput GenerateOpCall(const CallNode* call) {
     const auto* op_node = call->op.as<OpNode>();
-    CHECK(op_node) << "Expect OpNode, but got " << call->op->GetTypeKey();
+    ICHECK(op_node) << "Expect OpNode, but got " << call->op->GetTypeKey();
 
     using ArgFunType = std::function<std::vector<std::string>(const CallNode*)>;
     static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
@@ -257,7 +257,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
                                                    const CallNode* caller) {
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
-    CHECK(pattern_name.defined()) << "Only functions with composite attribute supported";
+    ICHECK(pattern_name.defined()) << "Only functions with composite attribute supported";
 
     if (pattern_name == "dnnl.conv2d_bias_relu") {
       const auto* conv_call =
@@ -283,7 +283,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
                                   const std::vector<std::string>& func_args,
                                   const std::vector<std::string>& attribute_args) {
     // Make function call with input buffers when visiting arguments
-    CHECK_GT(func_args.size(), 0);
+    ICHECK_GT(func_args.size(), 0);
     std::ostringstream decl_stream;
     decl_stream << "(" << func_args[0];
     for (size_t i = 1; i < func_args.size(); ++i) {
@@ -295,11 +295,11 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     if (root_call->checked_type()->IsInstance<TupleTypeNode>()) {
       auto type_node = root_call->checked_type().as<TupleTypeNode>();
       for (auto field : type_node->fields) {
-        CHECK(field->IsInstance<TensorTypeNode>());
+        ICHECK(field->IsInstance<TensorTypeNode>());
         out_types.push_back(field);
       }
     } else if (root_call->checked_type()->IsInstance<TensorTypeNode>()) {
-      CHECK(root_call->checked_type()->IsInstance<TensorTypeNode>());
+      ICHECK(root_call->checked_type()->IsInstance<TensorTypeNode>());
       out_types.push_back(root_call->checked_type());
     } else {
       LOG(FATAL) << "Unrecognized type node: " << AsText(root_call->checked_type(), false);
@@ -363,7 +363,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  public:
   // Create a corresponding DNNL function for the given relay Function.
   std::pair<std::string, Array<String>> GenDNNLFunc(const Function& func) {
-    CHECK(func.defined()) << "Input error: expect a Relay function.";
+    ICHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
@@ -404,7 +404,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "using namespace tvm::runtime::contrib;\n";
     code_stream_ << "\n";
 
-    CHECK(ref->IsInstance<FunctionNode>());
+    ICHECK(ref->IsInstance<FunctionNode>());
     auto res = GenDNNLFunc(Downcast<Function>(ref));
     std::string code = code_stream_.str();
     String sym = std::get<0>(res);
@@ -412,7 +412,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
 
     // Create a CSource module
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
-    CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
+    ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code, "c", sym, variables);
   }
 
@@ -441,14 +441,14 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       auto comp = fn->GetAttr<String>(attr::kComposite);
-      CHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
+      ICHECK(comp.defined()) << "DNNL JSON runtime only supports composite functions.";
       name = comp.value();
 
       if (name == "dnnl.conv2d_bias_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
       } else if (name == "dnnl.conv2d_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
-        CHECK(call->op.as<OpNode>()) << "Not op node";
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else {
         LOG(FATAL) << "Unrecognized DNNL pattern: " << name;
       }
@@ -476,7 +476,7 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
  */
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
 #ifdef USE_JSON_RUNTIME
-  CHECK(ref->IsInstance<FunctionNode>());
+  ICHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = GetExtSymbol(func);
   DNNLJSONSerializer serializer(func_name, func);
@@ -485,7 +485,7 @@ runtime::Module DNNLCompiler(const ObjectRef& ref) {
   auto params = serializer.GetParams();
 
   const auto* pf = runtime::Registry::Get("runtime.DNNLJSONRuntimeCreate");
-  CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
+  ICHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
   auto mod = (*pf)(func_name, graph_json, params);
   return mod;
 #else

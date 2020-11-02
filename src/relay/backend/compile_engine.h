@@ -154,7 +154,7 @@ class CCacheKey : public ObjectRef {
   const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
   // comparator
   inline bool operator==(const CCacheKey& other) const {
-    CHECK(defined() && other.defined());
+    ICHECK(defined() && other.defined());
     return (*this)->Equal(other.operator->());
   }
   using ContainerType = CCacheKeyNode;
@@ -272,7 +272,7 @@ namespace std {
 template <>
 struct hash<::tvm::relay::CCacheKey> {
   size_t operator()(const ::tvm::relay::CCacheKey& key) const {
-    CHECK(key.defined());
+    ICHECK(key.defined());
     return key->Hash();
   }
 };

@@ -20,7 +20,7 @@ from tvm.relay import expr
 
 from . import _make
 from ..dyn.nn import _make as _dyn_make
-from .util import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
+from .utils import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
 from ...expr import const, Expr
 
 

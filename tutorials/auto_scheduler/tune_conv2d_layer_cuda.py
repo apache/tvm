@@ -30,7 +30,13 @@ The auto-scheduler can automatically generate a large search space and
 find a good schedule in the space.
 
 We use a convolution layer as an example in this tutorial.
+
+Note that this tutorial will not run on Windows or recent versions of macOS. To
+get it to run, you will need to wrap the body of this tutorial in a :code:`if
+__name__ == "__main__":` block.
 """
+
+import os
 
 import numpy as np
 import tvm
@@ -88,11 +94,12 @@ print(task.compute_dag)
 # * see :any:`auto_scheduler.TuningOptions`,
 #   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
 
+log_file = "conv2d.json"
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,
     runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile("conv2d.json")],
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
 )
 
 ######################################################################
@@ -157,7 +164,7 @@ print(
 # print the equivalent python schedule API, and build the binary again.
 
 # Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best("conv2d.json", task.workload_key)
+inp, res = auto_scheduler.load_best(log_file, task.workload_key)
 
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
@@ -176,7 +183,6 @@ func = tvm.build(sch, args, target)
 # In the example below we resume the status and do more 5 trials.
 
 
-log_file = "conv2d.json"
 cost_model = auto_scheduler.XGBModel()
 cost_model.update_from_file(log_file)
 search_policy = auto_scheduler.SketchPolicy(

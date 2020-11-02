@@ -41,12 +41,12 @@ def group_conv2d_packed(cfg, data, kernel, strides, padding, dilation, group, ou
     assert kernel.dtype == "int8", kernel.dtype
     assert out_dtype == "int32", out_dtype
 
-    oheight = topi.util.get_const_int((pad_data.shape[2] - kernel.shape[2]) // strides[0] + 1)
-    owidth = topi.util.get_const_int((pad_data.shape[3] - kernel.shape[3]) // strides[1] + 1)
+    oheight = topi.utils.get_const_int((pad_data.shape[2] - kernel.shape[2]) // strides[0] + 1)
+    owidth = topi.utils.get_const_int((pad_data.shape[3] - kernel.shape[3]) // strides[1] + 1)
     oshape = (data.shape[0], kernel.shape[0], oheight, owidth, data.shape[4], kernel.shape[4])
 
-    ishape = topi.util.get_const_tuple(data.shape)
-    kshape = topi.util.get_const_tuple(kernel.shape)
+    ishape = topi.utils.get_const_tuple(data.shape)
+    kshape = topi.utils.get_const_tuple(kernel.shape)
     assert group * kshape[1] == ishape[1]
     assert kshape[0] % group == 0
     d_i = te.reduce_axis((0, kshape[2]), name="d_i")
@@ -74,7 +74,7 @@ def group_conv2d_packed(cfg, data, kernel, strides, padding, dilation, group, ou
 
     cfg.add_flop(
         2
-        * np.prod(topi.util.get_const_tuple(oshape))
+        * np.prod(topi.utils.get_const_tuple(oshape))
         * kshape[2]
         * kshape[3]
         * ishape[1]

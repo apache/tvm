@@ -21,7 +21,7 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te
-from tvm.topi import util
+from tvm.topi import utils
 
 from tvm.relay.op.op import register_compute, register_injective_schedule
 from tvm.relay.op.op import register_pattern, OpPattern
@@ -55,7 +55,7 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
     lanes = data_width // bits
 
     # Data must be in multiples of the data_width
-    assert util.get_const_int(shape_vec[-1]) % lanes == 0, "Not a multiple of word size"
+    assert utils.get_const_int(shape_vec[-1]) % lanes == 0, "Not a multiple of word size"
     shape_vec[-1] = shape_vec[-1] // lanes
     oshape = tuple(shape_vec)
 

@@ -20,8 +20,6 @@
 Besides the compiler toolchain, it also includes utility functions to
 configure the hardware environment and access remote device through RPC.
 """
-from __future__ import absolute_import as _abs
-
 import sys
 
 from .bitstream import get_bitstream_path, download_bitstream

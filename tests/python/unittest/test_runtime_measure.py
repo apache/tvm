@@ -19,7 +19,7 @@ import ctypes
 
 import tvm
 from tvm import te
-from tvm.contrib.util import tempdir
+from tvm.contrib.utils import tempdir
 
 
 def test_min_repeat_ms():

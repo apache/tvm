@@ -126,9 +126,9 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -165,9 +165,9 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -204,9 +204,9 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -248,9 +248,9 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -302,9 +302,9 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -349,9 +349,9 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -396,9 +396,9 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:
@@ -449,9 +449,9 @@ def test_remove_package_params():
         with relay.build_config(opt_level=3):
             complied_graph_lib = relay.build_module.build(mod, "cuda", params=params)
 
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
-        temp = util.tempdir()
+        temp = utils.tempdir()
         if obj_format == ".so":
             file_name = "deploy_lib.so"
         else:

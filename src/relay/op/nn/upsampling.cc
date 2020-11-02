@@ -42,18 +42,18 @@ TVM_REGISTER_NODE_TYPE(UpSampling3DAttrs);
 
 bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
 
   const UpSamplingAttrs* param = attrs.as<UpSamplingAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "UpSampling only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 
@@ -110,18 +110,18 @@ RELAY_REGISTER_OP("nn.upsampling")
 // UpSampling3D
 bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCDHW("NCDHW");
 
   const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "UpSampling3D only support input layouts that are convertible from NCDHW."
       << " But got " << in_layout;
 

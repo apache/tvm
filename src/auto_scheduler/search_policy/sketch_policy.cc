@@ -147,7 +147,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
   if (n_trials <= 1) {
     // No measurement is allowed
     const Array<State>& best_states = SearchOneRound(0);
-    CHECK_GT(best_states.size(), 0);
+    ICHECK_GT(best_states.size(), 0);
     return best_states[0];
   } else {
     int num_random =
@@ -259,11 +259,11 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
 Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Get parameters
   int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
-  int num_use_measured =
-      std::min(static_cast<int>(measured_states_vector_.size()),
-               static_cast<int>(
-                   GetDoubleParam(params, SketchParamKey::EvolutionarySearch::use_measured_ratio) *
-                   population));
+  int num_use_measured = std::min(
+      static_cast<int>(measured_states_vector_.size()),
+      static_cast<int>(
+          GetDoubleParam(params, SketchParamKey::SampleInitPopulation::use_measured_ratio) *
+          population));
   bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
 
   // 1. Generate sketches
@@ -272,8 +272,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
   }
 
   // 2. Sample the init population
-  Array<State> init_population = SampleInitPopulation(
-      sketch_cache_, is_cost_model_reasonable ? population - num_use_measured : population);
+  Array<State> init_population = SampleInitPopulation(sketch_cache_);
 
   // 3. Perform evolutionary search if a cost model is utilized. Otherwise,
   // just return some random states.
@@ -348,10 +347,10 @@ Array<State> SketchPolicyNode::GenerateSketches() {
     auto pstate = state.CopyOnWrite();
     for (size_t step_id = 0; step_id < pstate->transform_steps.size(); ++step_id) {
       if (pstate->transform_steps[step_id]->IsInstance<RfactorStepNode>()) {
-        CHECK_GE(step_id, 1);
+        ICHECK_GE(step_id, 1);
         int split_step_id = static_cast<int>(step_id - 1);
         auto step = pstate->transform_steps[split_step_id].as<SplitStepNode>();
-        CHECK(step != nullptr);
+        ICHECK(step != nullptr);
         pstate->transform_steps.Set(
             split_step_id, SplitStep(step->stage_id, step->iter_id, step->extent, {NullOpt},
                                      step->inner_to_outer));
@@ -364,24 +363,33 @@ Array<State> SketchPolicyNode::GenerateSketches() {
   return out_states;
 }
 
-Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
+Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches) {
+  // Use this population as the parallel degree to do sampling
+  int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
+  // At least we should sample this number of valid programs
+  int min_population = GetIntParam(params, SketchParamKey::SampleInitPopulation::min_population);
+
   int fail_ct = 0;
   Array<State> out_states;
   std::vector<std::mt19937> rand_gens;
-  rand_gens.reserve(out_size);
-  for (int i = 0; i < out_size; i++) {
+  rand_gens.reserve(population);
+  for (int i = 0; i < population; i++) {
     rand_gens.push_back(std::mt19937(rand_gen()));
   }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
-  while (static_cast<int>(out_states.size()) < out_size && fail_ct < out_size) {
-    std::vector<State> temp_states(out_size);
+  size_t iter = 1;
+  size_t target_size = min_population;
+  size_t unchange_cnt = 0;
+  while (out_states.size() < target_size) {
+    std::vector<State> temp_states(population);
 
-    support::parallel_for(0, out_size - out_states.size(),
+    // Sample a batch of states randomly
+    support::parallel_for(0, population,
                           [this, &temp_states, &sketches, &rand_gens](int index) {
                             // Randomly choose a sketch
                             State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
-                            // Derivation rule based enumeration
+                            // Apply random annotation rules one by one
                             bool valid = true;
                             for (const auto& rule : init_rules) {
                               if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
@@ -395,13 +403,57 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
                             }
                           });
 
-    for (int i = 0; i < out_size; i++) {
-      if (temp_states[i].defined()) {
-        out_states.push_back(std::move(temp_states[i]));
+    // Filter out the states that were failed to apply initial rules
+    Array<State> cand_states;
+    for (auto tmp_s : temp_states) {
+      if (tmp_s.defined()) {
+        cand_states.push_back(std::move(tmp_s));
       } else {
         fail_ct++;
       }
     }
+
+    unchange_cnt++;
+    if (!cand_states.empty()) {
+      // Run the cost model to make filter out states that failed to extract features.
+      // This may happen due to illegal schedules or the schedules that uses too much
+      // memory on GPU.
+      std::vector<float> pop_scores;
+      pop_scores.reserve(cand_states.size());
+      cand_states = search_task->compute_dag.InferBound(cand_states);
+      program_cost_model->Predict(search_task, cand_states, &pop_scores);
+
+      for (size_t i = 0; i < cand_states.size(); i++) {
+        if (pop_scores[i] > -1e10) {
+          out_states.push_back(std::move(cand_states[i]));
+          unchange_cnt = 0;  // Reset the counter once we found a valid state
+        } else {
+          fail_ct++;
+        }
+      }
+    }
+
+    if (iter % 5 == 0) {
+      double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                            std::chrono::high_resolution_clock::now() - tic_begin)
+                            .count();
+      StdCout(verbose) << "Sample Iter: " << iter << std::fixed << std::setprecision(4)
+                       << "\t#Pop: " << out_states.size() << "\t#Target: " << target_size
+                       << "\tfail_ct: " << fail_ct << "\tTime elapsed: " << std::fixed
+                       << std::setprecision(2) << duration << std::endl;
+    }
+
+    if (unchange_cnt == 5) {
+      // Reduce the target size to avoid too-long time in this phase if no valid state was found
+      // in the past iterations
+      if (target_size > 1) {
+        target_size /= 2;
+        StdCout(verbose) << "#Target has been reduced to " << target_size
+                         << " due to too many failures";
+      }
+      unchange_cnt = 0;
+    }
+    iter++;
   }
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
@@ -598,10 +650,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")
     .set_body_typed([](SketchPolicy policy) { return policy->GenerateSketches(); });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicySampleInitialPopulation")
-    .set_body_typed([](SketchPolicy policy, int pop_size) {
+    .set_body_typed([](SketchPolicy policy) {
       const Array<State>& sketches = policy->GenerateSketches();
 
-      Array<State> init_population = policy->SampleInitPopulation(sketches, pop_size);
+      Array<State> init_population = policy->SampleInitPopulation(sketches);
       return init_population;
     });
 

@@ -21,6 +21,7 @@ set -u
 
 export PYTHONPATH=`pwd`/python
 
+rm -rf .emscripten_cache
 cd web
 make clean
 npm install

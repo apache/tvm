@@ -22,11 +22,12 @@ pub mod attrs;
 use std::hash::Hash;
 
 use crate::runtime::array::Array;
-use crate::runtime::{object::*, String as TString};
+use crate::runtime::{object::*, IsObjectRef, String as TString};
 
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
+use super::span::Span;
 use super::ty::{Type, TypeNode};
 
 use tvm_macros::Object;
@@ -50,8 +51,8 @@ impl ExprNode {
             base: BaseExprNode::base::<T>(),
             span: ObjectRef::null(),
             checked_type: Type::from(TypeNode {
-                base: Object::base_object::<TypeNode>(),
-                span: ObjectRef::null(),
+                base: Object::base::<TypeNode>(),
+                span: Span::null(),
             }),
         }
     }
@@ -83,7 +84,7 @@ pub struct IdNode {
 impl Id {
     fn new(name_hint: TString) -> Id {
         let node = IdNode {
-            base: Object::base_object::<IdNode>(),
+            base: Object::base::<IdNode>(),
             name_hint: name_hint,
         };
         Id(Some(ObjectPtr::new(node)))
@@ -351,7 +352,7 @@ pub struct PatternNode {
 impl PatternNode {
     pub fn base<T: IsObject>() -> PatternNode {
         PatternNode {
-            base: Object::base_object::<T>(),
+            base: Object::base::<T>(),
             span: ObjectRef::null(),
         }
     }
@@ -450,7 +451,7 @@ pub struct ClauseNode {
 impl Clause {
     pub fn new(lhs: Pattern, rhs: Expr, _span: ObjectRef) -> Clause {
         let node = ClauseNode {
-            base: Object::base_object::<ClauseNode>(),
+            base: Object::base::<ClauseNode>(),
             lhs,
             rhs,
         };
@@ -553,7 +554,8 @@ def @main() -> float32 {
   0.01639530062675476f
 }
 "#,
-        );
+        )
+        .unwrap();
         let main = module
             .lookup(module.get_global_var("main".to_string().into()).unwrap())
             .unwrap();

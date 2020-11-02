@@ -68,15 +68,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
   }
 
   // Currently only supports input dtype to be float32.
-  CHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
-                             "to be float.";
+  ICHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
+                              "to be float.";
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC != 1)
-  CHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
-                              "to be float32.";
+  ICHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
+                               "to be float32.";
 #endif
-  CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                 "input ndim "
-                              << input->ndim;
+  ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                  "input ndim "
+                               << input->ndim;
 
   for (int i = 0; i < input->ndim; ++i) {
     if (i < axis) {
@@ -175,9 +175,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body([](TVMArgs args, TVMRet
   if (axis < 0) {
     axis = input->ndim + axis;
   }
-  CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                 "input ndim "
-                              << input->ndim;
+  ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                  "input ndim "
+                               << input->ndim;
 
   auto data_dtype = DLDataType2String(input->dtype);
   auto out_dtype = DLDataType2String(output->dtype);
@@ -322,7 +322,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body([](TVMArgs args, TVMRetVal
   if (axis < 0) {
     axis = input->ndim + axis;
   }
-  CHECK(axis >= 0 && axis < input->ndim) << "Axis out of boundary for input ndim " << input->ndim;
+  ICHECK(axis >= 0 && axis < input->ndim) << "Axis out of boundary for input ndim " << input->ndim;
 
   auto data_dtype = DLDataType2String(input->dtype);
   auto out_dtype = (indices_out == nullptr) ? "int64" : DLDataType2String(indices_out->dtype);

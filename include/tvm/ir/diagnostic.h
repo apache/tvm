@@ -149,7 +149,7 @@ class DiagnosticRenderer : public ObjectRef {
   void Render(const DiagnosticContext& ctx);
 
   DiagnosticRendererNode* operator->() {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<DiagnosticRendererNode*>(get_mutable());
   }
 
@@ -203,7 +203,7 @@ class DiagnosticContext : public ObjectRef {
   void Render();
 
   DiagnosticContextNode* operator->() {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<DiagnosticContextNode*>(get_mutable());
   }
 

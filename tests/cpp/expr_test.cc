@@ -30,8 +30,8 @@ TEST(Expr, Basic) {
   PrimExpr zz = Downcast<PrimExpr>(tmp);
   std::ostringstream os;
   os << z;
-  CHECK(zz.same_as(z));
-  CHECK(os.str() == "max(((x + 1) + 2), 100)");
+  ICHECK(zz.same_as(z));
+  ICHECK(os.str() == "max(((x + 1) + 2), 100)");
 }
 
 TEST(ExprNodeRef, Basic) {
@@ -40,7 +40,7 @@ TEST(ExprNodeRef, Basic) {
   Var x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tir::MaxNode* op = z.as<tir::MaxNode>();
-  CHECK(GetRef<ObjectRef>(op).same_as(z));
+  ICHECK(GetRef<ObjectRef>(op).same_as(z));
 }
 
 int main(int argc, char** argv) {

@@ -21,7 +21,7 @@ import tvm
 from tvm import te
 from tvm import topi
 import tvm.topi.testing
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 
 def generate_quantized_np(shape, bits, out_dtype):

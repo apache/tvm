@@ -30,7 +30,7 @@ TEST(Relay, SelfReference) {
   auto tensor_type = relay::TensorType({}, DataType::Bool());
   auto x = relay::Var("x", relay::Type());
   auto f = relay::Function(tvm::Array<relay::Var>{x}, x, relay::Type(), {});
-  CHECK(f->IsInstance<BaseFuncNode>());
+  ICHECK(f->IsInstance<BaseFuncNode>());
   auto y = relay::Var("y", tensor_type);
   auto call = relay::Call(f, Array<relay::Expr>{y});
   auto fx = relay::Function(tvm::Array<relay::Var>{y}, call, relay::Type(), {});
@@ -39,7 +39,7 @@ TEST(Relay, SelfReference) {
   auto type_fx = mod->Lookup("main");
 
   auto expected = relay::FuncType(tvm::Array<relay::Type>{tensor_type}, tensor_type, {}, {});
-  CHECK(tvm::StructuralEqual()(type_fx->checked_type(), expected));
+  ICHECK(tvm::StructuralEqual()(type_fx->checked_type(), expected));
 }
 
 int main(int argc, char** argv) {

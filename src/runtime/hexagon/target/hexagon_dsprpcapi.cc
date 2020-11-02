@@ -21,8 +21,8 @@
 #include "hexagon_dsprpcapi.h"
 
 #include <dlfcn.h>
-#include <dmlc/logging.h>
 #include <stdint.h>
+#include <tvm/support/logging.h>
 
 #include "hexagon_target_log.h"
 
@@ -32,7 +32,7 @@ namespace runtime {
 namespace hexagon {
 
 DspRpcAPI::DspRpcAPI() {
-  CHECK(lib_handle_ = dlopen(rpc_lib_name_, RTLD_LAZY | RTLD_LOCAL));
+  ICHECK(lib_handle_ = dlopen(rpc_lib_name_, RTLD_LAZY | RTLD_LOCAL));
 
 #define RESOLVE(n) n##_ = GetSymbol<n##_t*>(#n)
   RESOLVE(remote_handle_close);

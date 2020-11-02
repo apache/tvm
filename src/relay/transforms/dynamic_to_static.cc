@@ -39,7 +39,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
         {Op::Get("dyn.reshape"),
          [](const CallNode* call_node) {
            if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-             CHECK_EQ(shape->data->ndim, 1);
+             ICHECK_EQ(shape->data->ndim, 1);
              return MakeReshape(call_node->args[0], ToVector(shape->data));
            }
            return Expr(nullptr);
@@ -47,7 +47,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
         {Op::Get("dyn.tile"),
          [](const CallNode* call_node) {
            if (const ConstantNode* reps = call_node->args[1].as<ConstantNode>()) {
-             CHECK_EQ(reps->data->ndim, 1);
+             ICHECK_EQ(reps->data->ndim, 1);
              return MakeTile(call_node->args[0], ToVector(reps->data));
            }
            return Expr(nullptr);
@@ -56,7 +56,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
          [](const CallNode* call_node) {
            if (const ConstantNode* k = call_node->args[1].as<ConstantNode>()) {
              const TopKAttrs* param = call_node->attrs.as<TopKAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeTopK(call_node->args[0], static_cast<int>(ToScalar(k->data, 0)),
                              param->axis, param->ret_type, param->is_ascend, param->dtype);
            }
@@ -65,7 +65,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
         {Op::Get("dyn.broadcast_to"),
          [](const CallNode* call_node) {
            if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-             CHECK_EQ(shape->data->ndim, 1);
+             ICHECK_EQ(shape->data->ndim, 1);
              return MakeBroadCastTo(call_node->args[0], ToVector(shape->data));
            }
            return Expr(nullptr);
@@ -74,7 +74,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
          [](const CallNode* call_node) {
            if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
              const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeZeros(ToVector(shape->data), param->dtype);
            }
            return Expr(nullptr);
@@ -83,7 +83,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
          [](const CallNode* call_node) {
            if (const ConstantNode* shape = call_node->args[0].as<ConstantNode>()) {
              const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeOnes(ToVector(shape->data), param->dtype);
            }
            return Expr(nullptr);
@@ -92,7 +92,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
          [](const CallNode* call_node) {
            if (const ConstantNode* depth = call_node->args[3].as<ConstantNode>()) {
              const OneHotAttrs* param = call_node->attrs.as<OneHotAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeOneHot(call_node->args[0], call_node->args[1], call_node->args[2],
                                static_cast<int>(ToScalar(depth->data, 0)), param->axis,
                                param->dtype);
@@ -103,7 +103,7 @@ class DynamicToStaticMutator : public MixedModeMutator {
          [](const CallNode* call_node) {
            if (const ConstantNode* size = call_node->args[1].as<ConstantNode>()) {
              const ResizeAttrs* param = call_node->attrs.as<ResizeAttrs>();
-             CHECK(param);
+             ICHECK(param);
              auto size_int = ToVector(size->data);
              Array<PrimExpr> size_prim;
              for (size_t i = 0; i < size_int.size(); ++i) {
@@ -117,9 +117,9 @@ class DynamicToStaticMutator : public MixedModeMutator {
         {Op::Get("dyn.full"),
          [](const CallNode* call_node) {
            if (const ConstantNode* shape = call_node->args[1].as<ConstantNode>()) {
-             CHECK_EQ(shape->data->ndim, 1);
+             ICHECK_EQ(shape->data->ndim, 1);
              const InitOpAttrs* param = call_node->attrs.as<InitOpAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeFull(call_node->args[0], ToVector(shape->data), param->dtype);
            }
            return Expr(nullptr);
@@ -129,10 +129,10 @@ class DynamicToStaticMutator : public MixedModeMutator {
            const ConstantNode* scale_h = call_node->args[1].as<ConstantNode>();
            const ConstantNode* scale_w = call_node->args[2].as<ConstantNode>();
            if (scale_h && scale_w) {
-             CHECK_EQ(scale_h->data->ndim, 0);
-             CHECK_EQ(scale_w->data->ndim, 0);
+             ICHECK_EQ(scale_h->data->ndim, 0);
+             ICHECK_EQ(scale_w->data->ndim, 0);
              const UpSamplingAttrs* param = call_node->attrs.as<UpSamplingAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeUpSampling(call_node->args[0], ToScalar(scale_h->data),
                                    ToScalar(scale_w->data), param->layout, param->method,
                                    param->align_corners);
@@ -145,11 +145,11 @@ class DynamicToStaticMutator : public MixedModeMutator {
            const ConstantNode* scale_h = call_node->args[2].as<ConstantNode>();
            const ConstantNode* scale_w = call_node->args[3].as<ConstantNode>();
            if (scale_d && scale_h && scale_w) {
-             CHECK_EQ(scale_d->data->ndim, 0);
-             CHECK_EQ(scale_h->data->ndim, 0);
-             CHECK_EQ(scale_w->data->ndim, 0);
+             ICHECK_EQ(scale_d->data->ndim, 0);
+             ICHECK_EQ(scale_h->data->ndim, 0);
+             ICHECK_EQ(scale_w->data->ndim, 0);
              const UpSampling3DAttrs* param = call_node->attrs.as<UpSampling3DAttrs>();
-             CHECK(param);
+             ICHECK(param);
 
              return MakeUpSampling3D(call_node->args[0], ToScalar(scale_d->data),
                                      ToScalar(scale_h->data), ToScalar(scale_w->data),
@@ -163,11 +163,11 @@ class DynamicToStaticMutator : public MixedModeMutator {
            const ConstantNode* pad_width = call_node->args[1].as<ConstantNode>();
            const ConstantNode* pad_fill = call_node->args[2].as<ConstantNode>();
            if (pad_width && pad_fill) {
-             CHECK_EQ(pad_fill->data->ndim, 0);   // pad_val is 1d
-             CHECK_EQ(pad_width->data->ndim, 2);  // pad_width is 2d
+             ICHECK_EQ(pad_fill->data->ndim, 0);   // pad_val is 1d
+             ICHECK_EQ(pad_width->data->ndim, 2);  // pad_width is 2d
 
              const PadAttrs* param = call_node->attrs.as<PadAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakePad(call_node->args[0], ToMatrix(pad_width->data), ToScalar(pad_fill->data),
                             param->pad_mode);
            }
@@ -179,11 +179,11 @@ class DynamicToStaticMutator : public MixedModeMutator {
            const ConstantNode* end = call_node->args[2].as<ConstantNode>();
            const ConstantNode* stride = call_node->args[3].as<ConstantNode>();
            if (begin && end && stride) {
-             CHECK_EQ(begin->data->ndim, 1);
-             CHECK_EQ(end->data->ndim, 1);
-             CHECK_EQ(stride->data->ndim, 1);
+             ICHECK_EQ(begin->data->ndim, 1);
+             ICHECK_EQ(end->data->ndim, 1);
+             ICHECK_EQ(stride->data->ndim, 1);
              const StridedSliceAttrs* param = call_node->attrs.as<StridedSliceAttrs>();
-             CHECK(param);
+             ICHECK(param);
              return MakeStridedSlice(call_node->args[0], ToVector(begin->data), ToVector(end->data),
                                      ToVector(stride->data), param->slice_mode);
            }

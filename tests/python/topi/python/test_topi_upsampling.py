@@ -22,7 +22,7 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 import math
-from tvm.topi.util import nchw_pack_layout
+from tvm.topi.utils import nchw_pack_layout
 
 
 def verify_upsampling(

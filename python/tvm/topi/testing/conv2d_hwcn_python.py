@@ -18,7 +18,7 @@
 """Convolution in python"""
 import numpy as np
 import scipy.signal
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 
 
 def conv2d_hwcn_python(a_np, w_np, stride, padding):

@@ -49,7 +49,7 @@ using ssize_t = int;
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
-#include <dmlc/logging.h>
+#include <tvm/support/logging.h>
 
 #include <cstring>
 #include <string>
@@ -75,7 +75,7 @@ namespace support {
 inline std::string GetHostName() {
   std::string buf;
   buf.resize(256);
-  CHECK_NE(gethostname(&buf[0], 256), -1);
+  ICHECK_NE(gethostname(&buf[0], 256), -1);
   return std::string(buf.c_str());
 }
 
@@ -117,7 +117,7 @@ struct SockAddr {
     size_t sep = url.find(",");
     std::string host = url.substr(2, sep - 3);
     std::string port = url.substr(sep + 1, url.length() - 1);
-    CHECK(ValidateIP(host)) << "Url address is not valid " << url;
+    ICHECK(ValidateIP(host)) << "Url address is not valid " << url;
     if (host == "localhost") {
       host = "127.0.0.1";
     }
@@ -137,7 +137,7 @@ struct SockAddr {
     hints.ai_socktype = SOCK_STREAM;
     addrinfo* res = nullptr;
     int sig = getaddrinfo(host, nullptr, &hints, &res);
-    CHECK(sig == 0 && res != nullptr) << "cannot obtain address of " << host;
+    ICHECK(sig == 0 && res != nullptr) << "cannot obtain address of " << host;
     switch (res->ai_family) {
       case AF_INET: {
         sockaddr_in* addr4 = reinterpret_cast<sockaddr_in*>(&addr);
@@ -152,7 +152,7 @@ struct SockAddr {
         addr6->sin6_family = AF_INET6;
       } break;
       default:
-        CHECK(false) << "cannot decode address";
+        ICHECK(false) << "cannot decode address";
     }
     freeaddrinfo(res);
   }
@@ -177,7 +177,7 @@ struct SockAddr {
       const in_addr& addr4 = reinterpret_cast<const sockaddr_in*>(&addr)->sin_addr;
       sinx_addr = reinterpret_cast<const void*>(&addr4);
     } else {
-      CHECK(false) << "illegal address";
+      ICHECK(false) << "illegal address";
     }
 
 #ifdef _WIN32
@@ -187,7 +187,7 @@ struct SockAddr {
     const char* s =
         inet_ntop(addr.ss_family, sinx_addr, &buf[0], static_cast<socklen_t>(buf.length()));
 #endif
-    CHECK(s != nullptr) << "cannot decode address";
+    ICHECK(s != nullptr) << "cannot decode address";
     std::ostringstream os;
     os << s << ":" << port();
     return os.str();
@@ -526,8 +526,8 @@ class TCPSocket : public Socket {
    */
   void SendBytes(std::string data) {
     int datalen = data.length();
-    CHECK_EQ(SendAll(&datalen, sizeof(datalen)), sizeof(datalen));
-    CHECK_EQ(SendAll(data.c_str(), datalen), datalen);
+    ICHECK_EQ(SendAll(&datalen, sizeof(datalen)), sizeof(datalen));
+    ICHECK_EQ(SendAll(data.c_str(), datalen), datalen);
   }
   /*!
    * \brief Receive the data to remote.
@@ -535,10 +535,10 @@ class TCPSocket : public Socket {
    */
   std::string RecvBytes() {
     int datalen = 0;
-    CHECK_EQ(RecvAll(&datalen, sizeof(datalen)), sizeof(datalen));
+    ICHECK_EQ(RecvAll(&datalen, sizeof(datalen)), sizeof(datalen));
     std::string data;
     data.resize(datalen);
-    CHECK_EQ(RecvAll(&data[0], datalen), datalen);
+    ICHECK_EQ(RecvAll(&data[0], datalen), datalen);
     return data;
   }
 };

@@ -21,7 +21,7 @@ import warnings
 import numpy as np
 import tvm
 from tvm.ir import IRModule
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from ... import nd as _nd
 from .. import analysis
@@ -1871,6 +1871,25 @@ class Resize(OnnxOpConverter):
     """Operator converter for Resize"""
 
     @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        mode = attr.get("mode")
+        if mode == b"nearest":
+            method = "nearest_neighbor"
+        elif mode == b"linear":
+            method = "bilinear"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode)
+            )
+
+        scale = inputs[1]
+        size = _op.cast(_op.shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+
+        layout = "NCHW"  # ONNX assumes NCHW layout
+        out_size = _op.strided_slice(size, [2], [4])
+        return _op.image.resize(inputs[0], out_size, layout, method, "asymmetric")
+
+    @classmethod
     def _impl_v11(cls, inputs, attr, params):
         mode = attr.get("mode")
         if mode == b"nearest":
@@ -1891,9 +1910,7 @@ class Resize(OnnxOpConverter):
             size = inputs[3]
         else:
             assert len(scale_shape) != 0, "One of scale or size should be passed."
-            size = (
-                _op.cast(_op.shape_of(inputs[0]), infer_type(scale).type_annotation.dtype) * scale
-            )
+            size = _op.cast(_op.shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
 
         coord_trans = attr.get("coordinate_transformation_mode")
         if coord_trans in [b"pytorch_half_pixel", b"half_pixel"]:
@@ -2632,7 +2649,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
     retains that dynamism upon import, and the compiler attempts to convert the
     model into a static shapes at compile time. If this fails, there may still
     be dynamic operations in the model. Not all TVM kernels currently support
-    dynamic shapes, please file an issue on discuss.tvm.ai
+    dynamic shapes, please file an issue on discuss.tvm.apache.org
     if you hit an error with dynamic kernels.
 
     Parameters
@@ -2672,7 +2689,7 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
-            except onnx.onnx_cpp2py_export.checker.ValidationError as e:
+            except onnx.onnx_cpp2py_export.checker.ValidationError as e:  # pylint: disable=c-extension-no-member
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(e))
     except ImportError:

@@ -34,16 +34,16 @@ TEST(PackedFunc, Basic) {
   DLTensor a;
 
   Var v = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-    CHECK(args.num_args == 3);
-    CHECK(args.values[0].v_float64 == 1.0);
-    CHECK(args.type_codes[0] == kDLFloat);
-    CHECK(args.values[1].v_handle == &a);
-    CHECK(args.type_codes[1] == kTVMDLTensorHandle);
-    CHECK(args.values[2].v_handle == &x);
-    CHECK(args.type_codes[2] == kTVMOpaqueHandle);
+    ICHECK(args.num_args == 3);
+    ICHECK(args.values[0].v_float64 == 1.0);
+    ICHECK(args.type_codes[0] == kDLFloat);
+    ICHECK(args.values[1].v_handle == &a);
+    ICHECK(args.type_codes[1] == kTVMDLTensorHandle);
+    ICHECK(args.values[2].v_handle == &x);
+    ICHECK(args.type_codes[2] == kTVMOpaqueHandle);
     *rv = Var("a");
   })(1.0, &a, handle);
-  CHECK(v->name_hint == "a");
+  ICHECK(v->name_hint == "a");
 }
 
 TEST(PackedFunc, Node) {
@@ -52,13 +52,13 @@ TEST(PackedFunc, Node) {
   using namespace tvm::runtime;
   Var x;
   Var t = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-    CHECK(args.num_args == 1);
-    CHECK(args[0].IsObjectRef<ObjectRef>());
+    ICHECK(args.num_args == 1);
+    ICHECK(args[0].IsObjectRef<ObjectRef>());
     Var b = args[0];
-    CHECK(x.same_as(b));
+    ICHECK(x.same_as(b));
     *rv = b;
   })(x);
-  CHECK(t.same_as(x));
+  ICHECK(t.same_as(x));
 }
 
 TEST(PackedFunc, NDArray) {
@@ -66,38 +66,38 @@ TEST(PackedFunc, NDArray) {
   using namespace tvm::runtime;
   auto x = NDArray::Empty({}, String2DLDataType("float32"), TVMContext{kDLCPU, 0});
   reinterpret_cast<float*>(x->data)[0] = 10.0f;
-  CHECK(x.use_count() == 1);
+  ICHECK(x.use_count() == 1);
 
   PackedFunc forward([&](TVMArgs args, TVMRetValue* rv) { *rv = args[0]; });
 
   NDArray ret = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
     NDArray y = args[0];
     DLTensor* ptr = args[0];
-    CHECK(ptr == x.operator->());
-    CHECK(x.same_as(y));
-    CHECK(x.use_count() == 2);
+    ICHECK(ptr == x.operator->());
+    ICHECK(x.same_as(y));
+    ICHECK(x.use_count() == 2);
     *rv = forward(y);
   })(x);
-  CHECK(ret.use_count() == 2);
-  CHECK(ret.same_as(x));
+  ICHECK(ret.use_count() == 2);
+  ICHECK(ret.same_as(x));
 }
 
 TEST(PackedFunc, str) {
   using namespace tvm;
   using namespace tvm::runtime;
   PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-    CHECK(args.num_args == 1);
+    ICHECK(args.num_args == 1);
     std::string x = args[0];
-    CHECK(x == "hello");
+    ICHECK(x == "hello");
     String y = args[0];
-    CHECK(y == "hello");
+    ICHECK(y == "hello");
     *rv = x;
   })("hello");
 
   PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-    CHECK(args.num_args == 1);
+    ICHECK(args.num_args == 1);
     runtime::String s = args[0];
-    CHECK(s == "hello");
+    ICHECK(s == "hello");
   })(runtime::String("hello"));
 }
 
@@ -111,13 +111,13 @@ TEST(PackedFunc, func) {
     // TVMArgValue -> Arguments as function
     *rv = f(args[1]).operator int();
   })(addone, 1);
-  CHECK_EQ(r0, 2);
+  ICHECK_EQ(r0, 2);
 
   int r1 = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
     // TVMArgValue -> TVMRetValue
     *rv = args[1];
   })(2, 100);
-  CHECK_EQ(r1, 100);
+  ICHECK_EQ(r1, 100);
 
   int r2 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
     // re-assignment
@@ -125,7 +125,7 @@ TEST(PackedFunc, func) {
     // TVMRetValue -> Function argument
     *rv = addone(args[0].operator PackedFunc()(args[1], 1));
   })(addone, 100);
-  CHECK_EQ(r2, 102);
+  ICHECK_EQ(r2, 102);
 }
 
 TEST(PackedFunc, Expr) {
@@ -141,7 +141,7 @@ TEST(PackedFunc, Expr) {
     // TVMArgValue -> Arguments as function
     *rv = f(args[1]).operator int();
   })(addone, 1);
-  CHECK_EQ(r0, 2);
+  ICHECK_EQ(r0, 2);
 }
 
 TEST(PackedFunc, Type) {
@@ -152,9 +152,9 @@ TEST(PackedFunc, Type) {
     *rv = x;
   });
   auto get_type2 = PackedFunc([](TVMArgs args, TVMRetValue* rv) { *rv = args[0]; });
-  CHECK(get_type("int32").operator DataType() == DataType::Int(32));
-  CHECK(get_type("float").operator DataType() == DataType::Float(32));
-  CHECK(get_type2("float32x2").operator DataType() == DataType::Float(32, 2));
+  ICHECK(get_type("int32").operator DataType() == DataType::Int(32));
+  ICHECK(get_type("float").operator DataType() == DataType::Float(32));
+  ICHECK(get_type2("float32x2").operator DataType() == DataType::Float(32, 2));
 }
 
 TEST(TypedPackedFunc, HighOrder) {
@@ -170,12 +170,12 @@ TEST(TypedPackedFunc, HighOrder) {
     return x;
   };
   auto add = [](int x, int y) { return x + y; };
-  CHECK_EQ(ftyped(Int2Func(add), 1)(2), 3);
+  ICHECK_EQ(ftyped(Int2Func(add), 1)(2), 3);
   PackedFunc f = ftyped(Int2Func(add), 1);
-  CHECK_EQ(f(3).operator int(), 4);
+  ICHECK_EQ(f(3).operator int(), 4);
   // call the type erased version.
   Int1Func f1 = ftyped.packed()(Int2Func(add), 1);
-  CHECK_EQ(f1(3), 4);
+  ICHECK_EQ(f1(3), 4);
 }
 
 TEST(TypedPackedFunc, Deduce) {
@@ -202,54 +202,54 @@ TEST(PackedFunc, ObjectConversion) {
   auto x = NDArray::Empty({}, String2DLDataType("float32"), TVMContext{kDLCPU, 0});
   // assign null
   rv = ObjectRef();
-  CHECK_EQ(rv.type_code(), kTVMNullptr);
+  ICHECK_EQ(rv.type_code(), kTVMNullptr);
 
   // Can assign NDArray to ret type
   rv = x;
-  CHECK_EQ(rv.type_code(), kTVMNDArrayHandle);
+  ICHECK_EQ(rv.type_code(), kTVMNDArrayHandle);
   // Even if we assign base type it still shows as NDArray
   rv = ObjectRef(x);
-  CHECK_EQ(rv.type_code(), kTVMNDArrayHandle);
+  ICHECK_EQ(rv.type_code(), kTVMNDArrayHandle);
   // Check convert back
-  CHECK(rv.operator NDArray().same_as(x));
-  CHECK(rv.operator ObjectRef().same_as(x));
-  CHECK(!rv.IsObjectRef<PrimExpr>());
+  ICHECK(rv.operator NDArray().same_as(x));
+  ICHECK(rv.operator ObjectRef().same_as(x));
+  ICHECK(!rv.IsObjectRef<PrimExpr>());
 
   auto pf1 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-    CHECK_EQ(args[0].type_code(), kTVMNDArrayHandle);
-    CHECK(args[0].operator NDArray().same_as(x));
-    CHECK(args[0].operator ObjectRef().same_as(x));
-    CHECK(args[1].operator ObjectRef().get() == nullptr);
-    CHECK(args[1].operator NDArray().get() == nullptr);
-    CHECK(args[1].operator Module().get() == nullptr);
-    CHECK(args[1].operator Array<NDArray>().get() == nullptr);
-    CHECK(!args[0].IsObjectRef<PrimExpr>());
+    ICHECK_EQ(args[0].type_code(), kTVMNDArrayHandle);
+    ICHECK(args[0].operator NDArray().same_as(x));
+    ICHECK(args[0].operator ObjectRef().same_as(x));
+    ICHECK(args[1].operator ObjectRef().get() == nullptr);
+    ICHECK(args[1].operator NDArray().get() == nullptr);
+    ICHECK(args[1].operator Module().get() == nullptr);
+    ICHECK(args[1].operator Array<NDArray>().get() == nullptr);
+    ICHECK(!args[0].IsObjectRef<PrimExpr>());
   });
   pf1(x, ObjectRef());
   pf1(ObjectRef(x), NDArray());
 
   // testcases for modules
   auto* pf = tvm::runtime::Registry::Get("runtime.SourceModuleCreate");
-  CHECK(pf != nullptr);
+  ICHECK(pf != nullptr);
   Module m = (*pf)("", "xyz");
   rv = m;
-  CHECK_EQ(rv.type_code(), kTVMModuleHandle);
+  ICHECK_EQ(rv.type_code(), kTVMModuleHandle);
   // Even if we assign base type it still shows as NDArray
   rv = ObjectRef(m);
-  CHECK_EQ(rv.type_code(), kTVMModuleHandle);
+  ICHECK_EQ(rv.type_code(), kTVMModuleHandle);
   // Check convert back
-  CHECK(rv.operator Module().same_as(m));
-  CHECK(rv.operator ObjectRef().same_as(m));
-  CHECK(!rv.IsObjectRef<NDArray>());
+  ICHECK(rv.operator Module().same_as(m));
+  ICHECK(rv.operator ObjectRef().same_as(m));
+  ICHECK(!rv.IsObjectRef<NDArray>());
 
   auto pf2 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-    CHECK_EQ(args[0].type_code(), kTVMModuleHandle);
-    CHECK(args[0].operator Module().same_as(m));
-    CHECK(args[0].operator ObjectRef().same_as(m));
-    CHECK(args[1].operator ObjectRef().get() == nullptr);
-    CHECK(args[1].operator NDArray().get() == nullptr);
-    CHECK(args[1].operator Module().get() == nullptr);
-    CHECK(!args[0].IsObjectRef<PrimExpr>());
+    ICHECK_EQ(args[0].type_code(), kTVMModuleHandle);
+    ICHECK(args[0].operator Module().same_as(m));
+    ICHECK(args[0].operator ObjectRef().same_as(m));
+    ICHECK(args[1].operator ObjectRef().get() == nullptr);
+    ICHECK(args[1].operator NDArray().get() == nullptr);
+    ICHECK(args[1].operator Module().get() == nullptr);
+    ICHECK(!args[0].IsObjectRef<PrimExpr>());
   });
   pf2(m, ObjectRef());
   pf2(ObjectRef(m), Module());
@@ -261,7 +261,7 @@ TEST(TypedPackedFunc, RValue) {
   {
     auto inspect = [](TVMArgs args, TVMRetValue* rv) {
       for (int i = 0; i < args.size(); ++i) {
-        CHECK_EQ(args[0].type_code(), kTVMObjectRValueRefArg);
+        ICHECK_EQ(args[0].type_code(), kTVMObjectRValueRefArg);
       }
     };
     PackedFunc finspect(inspect);
@@ -270,37 +270,37 @@ TEST(TypedPackedFunc, RValue) {
   {
     auto f = [](tir::Var x, bool move) {
       if (move) {
-        CHECK(x.unique());
+        ICHECK(x.unique());
       } else {
-        CHECK(!x.unique());
+        ICHECK(!x.unique());
       }
-      CHECK(x->name_hint == "x");
+      ICHECK(x->name_hint == "x");
       return x;
     };
     TypedPackedFunc<tir::Var(tir::Var, bool)> tf(f);
 
     tir::Var var("x");
-    CHECK(var.unique());
+    ICHECK(var.unique());
     tf(var, false);
     // move the result to the function.
     tir::Var ret = tf(std::move(var), true);
-    CHECK(!var.defined());
+    ICHECK(!var.defined());
   }
 
   {
     // pass child class.
     auto f = [](PrimExpr x, bool move) {
       if (move) {
-        CHECK(x.unique());
+        ICHECK(x.unique());
       } else {
-        CHECK(!x.unique());
+        ICHECK(!x.unique());
       }
       return x;
     };
     TypedPackedFunc<PrimExpr(PrimExpr, bool)> tf(f);
 
     tir::Var var("x");
-    CHECK(var.unique());
+    ICHECK(var.unique());
     tf(var, false);
     tf(std::move(var), true);
     // auto conversion.

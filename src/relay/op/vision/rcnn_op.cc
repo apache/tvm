@@ -35,23 +35,23 @@ TVM_REGISTER_NODE_TYPE(ROIAlignAttrs);
 bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   auto roi_align_attrs = attrs.as<ROIAlignAttrs>();
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* rois = types[1].as<TensorTypeNode>();
-  CHECK(data);
-  CHECK(rois);
+  ICHECK(data);
+  ICHECK(rois);
   const auto& dshape = data->shape;
   const auto& rshape = rois->shape;
-  CHECK(roi_align_attrs);
-  CHECK_EQ(dshape.size(), 4) << "Input data should be 4-D.";
-  CHECK_EQ(rshape.size(), 2) << "Input rois should be 2-D.";
+  ICHECK(roi_align_attrs);
+  ICHECK_EQ(dshape.size(), 4) << "Input data should be 4-D.";
+  ICHECK_EQ(rshape.size(), 2) << "Input rois should be 2-D.";
   // assign output type
   std::vector<IndexExpr> oshape;
   if (roi_align_attrs->layout == "NCHW") {
     oshape = {rshape[0], dshape[1], roi_align_attrs->pooled_size[0],
               roi_align_attrs->pooled_size[1]};
   } else {
-    CHECK_EQ(roi_align_attrs->layout, "NHWC") << "Unexpected ROI Align layout";
+    ICHECK_EQ(roi_align_attrs->layout, "NHWC") << "Unexpected ROI Align layout";
     oshape = {rshape[0], roi_align_attrs->pooled_size[0], roi_align_attrs->pooled_size[1],
               dshape[3]};
   }
@@ -111,15 +111,15 @@ TVM_REGISTER_NODE_TYPE(ROIPoolAttrs);
 bool ROIPoolRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   auto roi_pool_attrs = attrs.as<ROIPoolAttrs>();
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* rois = types[1].as<TensorTypeNode>();
   const auto& dshape = data->shape;
   const auto& rshape = rois->shape;
-  CHECK(roi_pool_attrs);
-  CHECK_EQ(dshape.size(), 4) << "Input data should be 4-D.";
-  CHECK_EQ(rshape.size(), 2) << "Input rois should be 2-D.";
-  CHECK_EQ(roi_pool_attrs->layout, "NCHW") << "ROI Pool only supports NCHW layout";
+  ICHECK(roi_pool_attrs);
+  ICHECK_EQ(dshape.size(), 4) << "Input data should be 4-D.";
+  ICHECK_EQ(rshape.size(), 2) << "Input rois should be 2-D.";
+  ICHECK_EQ(roi_pool_attrs->layout, "NCHW") << "ROI Pool only supports NCHW layout";
   // assign output type
   std::vector<IndexExpr> oshape(
       {rshape[0], dshape[1], roi_pool_attrs->pooled_size[0], roi_pool_attrs->pooled_size[1]});
@@ -160,7 +160,7 @@ TVM_REGISTER_NODE_TYPE(ProposalAttrs);
 bool ProposalRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
   auto proposal_attrs = attrs.as<ProposalAttrs>();
-  CHECK_EQ(types.size(), 4);
+  ICHECK_EQ(types.size(), 4);
   const auto* cls_prob = types[0].as<TensorTypeNode>();
   const auto* bbox_pred = types[1].as<TensorTypeNode>();
   const auto* im_info = types[2].as<TensorTypeNode>();
@@ -169,13 +169,13 @@ bool ProposalRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  CHECK_EQ(cls_prob->shape.size(), 4U)
+  ICHECK_EQ(cls_prob->shape.size(), 4U)
       << "The dimension of class probability should be 4, but received " << cls_prob->shape.size();
-  CHECK_EQ(bbox_pred->shape.size(), 4U)
+  ICHECK_EQ(bbox_pred->shape.size(), 4U)
       << "The dimension of box prediction should be 4, but received " << bbox_pred->shape.size();
-  CHECK_EQ(im_info->shape.size(), 2U)
+  ICHECK_EQ(im_info->shape.size(), 2U)
       << "The dimension of image info should be 2, but received " << im_info->shape.size();
-  CHECK(reporter->AssertEQ(im_info->shape[1], 3));
+  ICHECK(reporter->AssertEQ(im_info->shape[1], 3));
 
   auto batch = cls_prob->shape[0];
 

@@ -20,8 +20,8 @@ from tvm import autotvm
 from tvm.contrib import miopen
 
 from .. import generic
-from ..util import get_const_tuple
-from ..nn.util import get_pad_tuple
+from ..utils import get_const_tuple
+from ..nn.utils import get_pad_tuple
 
 
 @autotvm.register_topi_compute("conv2d_nchw_miopen.rocm")

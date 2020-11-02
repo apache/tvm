@@ -71,7 +71,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitType(const Type& n, Args... args) {
-    CHECK(n.defined());
+    ICHECK(n.defined());
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }

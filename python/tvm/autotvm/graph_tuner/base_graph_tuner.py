@@ -509,7 +509,7 @@ class BaseGraphTuner(object):
                 # Rule out invalid layout transformations
                 out = topi.layout_transform(data, in_layout, out_layout)
                 out_flops = 1
-                for i in topi.util.get_const_tuple(out.shape):
+                for i in topi.utils.get_const_tuple(out.shape):
                     out_flops *= i
 
                 if flops != out_flops:

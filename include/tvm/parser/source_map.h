@@ -101,14 +101,12 @@ class SourceMap : public ObjectRef {
   TVM_DLL SourceMap(std::initializer_list<std::pair<SourceName, Source>> source_map)
       : SourceMap(Map<SourceName, Source>(source_map)) {}
 
-  TVM_DLL SourceMap() : SourceMap({}) {}
-
-  TVM_DLL static SourceMap Global();
+  TVM_DLL SourceMap() : SourceMap(Map<SourceName, Source>()) {}
 
   void Add(const Source& source);
 
   SourceMapNode* operator->() {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<SourceMapNode*>(get_mutable());
   }
 

@@ -22,9 +22,9 @@ from tvm import te
 from tvm import autotvm
 from tvm.target import Target
 from tvm.topi.cuda.injective import schedule_injective_from_existing
-from ..util import get_const_tuple, traverse_inline, simplify, tag
+from ..utils import get_const_tuple, traverse_inline, simplify, tag
 from ..nn.pad import pad
-from ..nn.util import get_pad_tuple
+from ..nn.utils import get_pad_tuple
 from .tensor_intrin import intrin_wmma_load_matrix_A
 from .tensor_intrin import intrin_wmma_load_matrix_W
 from .tensor_intrin import intrin_wmma_store_matrix

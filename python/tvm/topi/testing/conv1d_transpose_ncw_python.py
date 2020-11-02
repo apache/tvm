@@ -19,7 +19,7 @@
 import numpy as np
 import scipy
 import tvm.topi.testing
-from tvm.topi.nn.util import get_pad_tuple1d
+from tvm.topi.nn.utils import get_pad_tuple1d
 
 
 def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):

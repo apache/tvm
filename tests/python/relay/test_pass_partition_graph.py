@@ -27,7 +27,7 @@ import tvm.relay.op as reg
 from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
@@ -186,7 +186,7 @@ def check_result(
 
         kwargs = {}
         kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = util.tempdir()
+        tmp_path = utils.tempdir()
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)

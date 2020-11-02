@@ -45,13 +45,25 @@ import numpy as np
 # Load pretrained keras model
 # ----------------------------
 # We load a pretrained resnet-50 classification model provided by keras.
-weights_url = "".join(
-    [
-        "https://github.com/fchollet/deep-learning-models/releases/",
-        "download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5",
-    ]
-)
-weights_file = "resnet50_weights.h5"
+
+if tuple(keras.__version__.split(".")) < ("2", "4", "0"):
+    weights_url = "".join(
+        [
+            "https://github.com/fchollet/deep-learning-models/releases/",
+            "download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5",
+        ]
+    )
+    weights_file = "resnet50_keras_old.h5"
+else:
+    weights_url = "".join(
+        [
+            " https://storage.googleapis.com/tensorflow/keras-applications/",
+            "resnet/resnet50_weights_tf_dim_ordering_tf_kernels.h5",
+        ]
+    )
+    weights_file = "resnet50_keras_new.h5"
+
+
 weights_path = download_testdata(weights_url, weights_file, module="keras")
 keras_resnet50 = keras.applications.resnet50.ResNet50(
     include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000

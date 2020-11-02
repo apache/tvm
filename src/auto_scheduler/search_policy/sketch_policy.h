@@ -56,16 +56,20 @@ struct SketchParamKey {
   /*! \brief Retry several times if SearchOneRound gets no valid state. */
   static constexpr const char* empty_retry_count = "retry_search_one_round_on_empty";
 
+  struct SampleInitPopulation {
+    /*! \brief The minimal size of valid population in the initial sampling. */
+    static constexpr const char* min_population = "sample_init_min_population";
+    /*! \brief The maximum percentage of measured states in the initial sampling. */
+    static constexpr const char* use_measured_ratio = "sample_init_use_measured_ratio";
+  };
+
   struct EvolutionarySearch {
-    /*! \brief The population size for evolutionary search. */
+    /*! \brief The population size of evolutionary search. */
     static constexpr const char* population = "evolutionary_search_population";
     /*! \brief The number of iterations performed by generic algorithm.*/
     static constexpr const char* num_iters = "evolutionary_search_num_iters";
     /*! \brief The mutation probability.*/
     static constexpr const char* mutation_prob = "evolutionary_search_mutation_prob";
-    /*! \brief The maximum percentage of measured states in the initial population for evolutionary
-     * search. */
-    static constexpr const char* use_measured_ratio = "evolutionary_search_use_measured_ratio";
   };
 
   struct MultiLevelTiling {
@@ -120,10 +124,9 @@ class SketchPolicyNode : public SearchPolicyNode {
   /*!
    * \brief Sample the init population.
    * \param sketches The initial sketches for the sampled population
-   * \param out_size The number of output states.
    * \return The generated states (the initial population).
    */
-  Array<State> SampleInitPopulation(const Array<State>& sketches, int out_size);
+  Array<State> SampleInitPopulation(const Array<State>& sketches);
 
   /*!
    * \brief Perform evolutionary search.

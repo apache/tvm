@@ -104,10 +104,11 @@ def download_img_labels():
         ]
     )
     synset_name = "synset.txt"
-    synset_path = download_testdata(synset_url, synset_name, module="data")
+    synset_path = download_testdata(synset_url, synset_name + ".raw", module="data", overwrite=True)
 
     with open(synset_path) as fin:
-        synset = eval(fin.read())
+        data = fin.read()
+        synset = eval(data)
 
     with open(synset_name, "w") as f:
         for key in synset:

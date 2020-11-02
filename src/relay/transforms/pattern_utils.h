@@ -163,7 +163,7 @@ inline Expr ExpandBiasToMatchAxis(Expr bias, int target_ndim, const Array<Intege
       }
     } else {
       int64_t diff = axes[i]->value - axes[i - 1]->value;
-      CHECK_GE(diff, 0L);
+      ICHECK_GE(diff, 0L);
       if (diff > 0) {
         auto attrs = make_object<ExpandDimsAttrs>();
         attrs->axis = i;
@@ -199,7 +199,7 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
   auto param = call->attrs.as<Conv2DAttrs>();
   auto tweight = call->args[1]->type_as<TensorTypeNode>();
   auto index = param->kernel_layout.operator std::string().find('O');
-  CHECK_NE(index, std::string::npos);
+  ICHECK_NE(index, std::string::npos);
   auto channels = tir::as_const_int(tweight->shape[index]);
   return *channels;
 }
@@ -331,8 +331,8 @@ static inline Constant CheckConstantShape(const Array<IndexExpr>& shape) {
   auto* shape_data = static_cast<int64_t*>(shape_array->data);
   for (size_t i = 0; i < shape.size(); ++i) {
     const auto& dim_val = shape[i].as<IntImmNode>();
-    CHECK(dim_val) << "Do not support symbolic shape for "
-                      "Array format. Pass shape as Expr instead.";
+    ICHECK(dim_val) << "Do not support symbolic shape for "
+                       "Array format. Pass shape as Expr instead.";
     shape_data[i] = dim_val->value;
   }
   return Constant(shape_array);
@@ -350,8 +350,8 @@ static inline Array<Integer> CheckConstantShapeArrayInteger(const Array<IndexExp
 
   for (size_t i = 0; i < shape.size(); ++i) {
     const auto& dim_val = shape[i].as<IntImmNode>();
-    CHECK(dim_val) << "Do not support symbolic shape for "
-                      "Array format. Pass shape as Expr instead.";
+    ICHECK(dim_val) << "Do not support symbolic shape for "
+                       "Array format. Pass shape as Expr instead.";
 
     constShape.push_back(dim_val->value);
   }
@@ -423,7 +423,7 @@ static inline long double ToScalar(const runtime::NDArray& array, size_t i = 0) 
  */
 static inline Array<Integer> ToVector(const runtime::NDArray& array) {
   size_t ndim = array.Shape().size();
-  CHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
+  ICHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
   size_t len = array.Shape().front();
   Array<Integer> out;
   for (size_t i = 0; i < len; ++i) {
@@ -440,7 +440,7 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
  */
 static inline Array<Array<Integer>> ToMatrix(const runtime::NDArray& array) {
   size_t ndim = array.Shape().size();
-  CHECK_EQ(ndim, 2) << "This function should only used for 2D NDArrays";
+  ICHECK_EQ(ndim, 2) << "This function should only used for 2D NDArrays";
   size_t dim1 = array.Shape().at(0);
   size_t dim2 = array.Shape().at(1);
 
@@ -494,8 +494,8 @@ inline Expr Log(Expr e) {
 template <typename T>
 T GetScalarFromConstant(Expr expr) {
   const auto* n = expr.as<ConstantNode>();
-  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
-  CHECK(n->is_scalar());
+  ICHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  ICHECK(n->is_scalar());
   return static_cast<T*>(n->data->data)[0];
 }
 

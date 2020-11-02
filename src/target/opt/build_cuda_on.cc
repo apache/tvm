@@ -109,7 +109,7 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   std::string log;
   log.resize(log_size);
   NVRTC_CALL(nvrtcGetProgramLog(prog, &log[0]));
-  CHECK_EQ(compile_res, NVRTC_SUCCESS) << log;
+  ICHECK_EQ(compile_res, NVRTC_SUCCESS) << log;
   size_t ptx_size;
   NVRTC_CALL(nvrtcGetPTXSize(prog, &ptx_size));
 
@@ -128,10 +128,10 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   cg.Init(output_ssa);
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }

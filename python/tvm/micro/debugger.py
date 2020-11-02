@@ -17,13 +17,24 @@
 
 """Defines functions for controlling debuggers for micro TVM binaries."""
 
+import atexit
 import abc
+import logging
 import os
 import signal
 import subprocess
+import sys
+import termios
 import threading
 
+import psutil
+
+from .._ffi import register_func
+from . import class_factory
 from . import transport
+
+
+_LOG = logging.getLogger(__name__)
 
 
 class Debugger(metaclass=abc.ABCMeta):
@@ -45,34 +56,102 @@ class Debugger(metaclass=abc.ABCMeta):
         """Terminate the debugger."""
         raise NotImplementedError()
 
+    def _run_on_terminate_callbacks(self):
+        for callback in self.on_terminate_callbacks:
+            try:
+                callback()
+            except Exception:  # pylint: disable=broad-except
+                _LOG.warning("on_terminate_callback raised exception", exc_info=True)
+
 
 class GdbDebugger(Debugger):
     """Handles launching, suspending signals, and potentially dealing with terminal issues."""
+
+    # Number of seconds to wait in stop() for a graceful shutdown. After this time has elapsed,
+    # the debugger is kill()'d.
+    _GRACEFUL_SHUTDOWN_TIMEOUT_SEC = 5.0
+
+    # The instance of GdbDebugger that's currently started.
+    _STARTED_INSTANCE = None
+
+    @classmethod
+    def _stop_all(cls):
+        if cls._STARTED_INSTANCE:
+            cls._STARTED_INSTANCE.stop()
+
+    def __init__(self):
+        super(GdbDebugger, self).__init__()
+        self._is_running = False
+        self._child_alive_lock = threading.RLock()
+        self._is_child_alive = False
 
     @abc.abstractmethod
     def popen_kwargs(self):
         raise NotImplementedError()
 
-    def _wait_restore_signal(self):
+    def _wait_for_child(self):
         self.popen.wait()
-        if not self.did_terminate.is_set():
-            for callback in self.on_terminate_callbacks:
+        with self._child_alive_lock:
+            self._is_child_alive = True
+
+    @classmethod
+    def _sigint_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
+        if cls._STARTED_INSTANCE is not None:
+            with cls._STARTED_INSTANCE._child_alive_lock:
+                exists = cls._STARTED_INSTANCE._is_child_alive
+            if exists:
                 try:
-                    callback()
-                except Exception:  # pylint: disable=broad-except
-                    logging.warn("on_terminate_callback raised exception", exc_info=True)
+                    os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
+                    return
+                except ProcessLookupError:
+                    pass
+
+        raise Exception()
 
     def start(self):
+        assert not self._is_running
+        assert not self._STARTED_INSTANCE
+
         kwargs = self.popen_kwargs()
-        self.did_terminate = threading.Event()
-        self.old_signal = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        self.did_start_new_session = kwargs.setdefault("start_new_session", True)
+
+        self.old_termios = termios.tcgetattr(sys.stdin.fileno())
         self.popen = subprocess.Popen(**kwargs)
-        threading.Thread(target=self._wait_restore_signal).start()
+        self._is_running = True
+        self.__class__._STARTED_INSTANCE = self
+        try:
+            self.child_pgid = os.getpgid(self.popen.pid)
+        except Exception:
+            self.stop()
+            raise
+        with self._child_alive_lock:
+            self._is_child_alive = True
+        self.old_sigint_handler = signal.signal(signal.SIGINT, self._sigint_handler)
+        t = threading.Thread(target=self._wait_for_child)
+        t.daemon = True
+        t.start()
 
     def stop(self):
-        self.did_terminate.set()
-        self.popen.terminate()
-        signal.signal(signal.SIGINT, self.old_signal)
+        if not self._is_running:
+            return
+
+        signal.signal(signal.SIGINT, self.old_sigint_handler)
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_termios)
+
+        try:
+            children = psutil.Process(self.popen.pid).children(recursive=True)
+            for c in children:
+                c.terminate()
+            _, alive = psutil.wait_procs(children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
+            for a in alive:
+                a.kill()
+        finally:
+            self.__class__._STARTED_INSTANCE = None
+            self._is_running = False
+            self._run_on_terminate_callbacks()
+
+
+atexit.register(GdbDebugger._stop_all)
 
 
 class GdbTransportDebugger(GdbDebugger):
@@ -195,6 +274,76 @@ class GdbRemoteDebugger(GdbDebugger):
     def stop(self):
         try:
             super(GdbRemoteDebugger, self).stop()
+        finally:
+            if self.wrapping_context_manager is not None:
+                self.wrapping_context_manager.__exit__(None, None, None)
+
+
+GLOBAL_DEBUGGER = None
+
+
+class DebuggerFactory(class_factory.ClassFactory):
+
+    SUPERCLASS = Debugger
+
+
+def launch_debugger(debugger_factory, *args, **kw):
+    global GLOBAL_DEBUGGER
+    if GLOBAL_DEBUGGER is not None:
+        stop_debugger()
+
+    GLOBAL_DEBUGGER = debugger_factory.instantiate(*args, **kw)
+    GLOBAL_DEBUGGER.start()
+
+
+@register_func("tvm.micro.debugger.launch_debugger")
+def _launch_debugger(debugger_factory_json):
+    launch_debugger(DebuggerFactory.from_json(debugger_factory_json))
+
+
+@register_func("tvm.micro.debugger.stop_debugger")
+def stop_debugger():
+    global GLOBAL_DEBUGGER
+    if GLOBAL_DEBUGGER is not None:
+        try:
+            GLOBAL_DEBUGGER.stop()
+        finally:
+            GLOBAL_DEBUGGER = None
+
+
+class RpcDebugger(Debugger):
+    """A Debugger instance that launches the actual debugger on a remote TVM RPC server."""
+
+    def __init__(self, rpc_session, factory, wrapping_context_manager=None):
+        super(RpcDebugger, self).__init__()
+        self._factory = factory
+        self.launch_debugger = rpc_session.get_function("tvm.micro.debugger.launch_debugger")
+        self.stop_debugger = rpc_session.get_function("tvm.micro.debugger.stop_debugger")
+        self.wrapping_context_manager = wrapping_context_manager
+
+    def start(self):
+        if self.wrapping_context_manager is not None:
+            self.wrapping_context_manager.__enter__()
+
+        try:
+            self.launch_debugger(self._factory.to_json)
+        except Exception:
+            if self.wrapping_context_manager is not None:
+                self.wrapping_context_manager.__exit__(None, None, None)
+            raise
+
+        try:
+            input("Press [Enter] when debugger is set")
+        except Exception:
+            self.stop()
+            raise
+
+        self._is_running = True
+
+    def stop(self):
+        try:
+            self.stop_debugger()
+            self._run_on_terminate_callbacks()
         finally:
             if self.wrapping_context_manager is not None:
                 self.wrapping_context_manager.__exit__(None, None, None)

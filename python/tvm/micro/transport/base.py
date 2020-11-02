@@ -213,7 +213,7 @@ class TransportLogger(Transport):
         except IoTimeoutError:
             self.logger.log(
                 self.level,
-                "%s read {%3.2fs} %4d B -> [IoTimeoutError %.2f s]",
+                "%s read {%5.2fs} %4d B -> [IoTimeoutError %.2f s]",
                 self.name,
                 timeout_sec,
                 n,
@@ -223,7 +223,7 @@ class TransportLogger(Transport):
         except Exception as err:
             self.logger.log(
                 self.level,
-                "%s read {%3.2fs} %4d B -> [err: %s]",
+                "%s read {%5.2fs} %4d B -> [err: %s]",
                 self.name,
                 timeout_sec,
                 n,
@@ -236,7 +236,7 @@ class TransportLogger(Transport):
         if len(hex_lines) > 1:
             self.logger.log(
                 self.level,
-                "%s read {%3.2fs} %4d B -> [%d B]:\n%s",
+                "%s read {%5.2fs} %4d B -> [%3d B]:\n%s",
                 self.name,
                 timeout_sec,
                 n,
@@ -246,7 +246,7 @@ class TransportLogger(Transport):
         else:
             self.logger.log(
                 self.level,
-                "%s read {%3.2fs} %4d B -> [%d B]: %s",
+                "%s read {%5.2fs} %4d B -> [%3d B]: %s",
                 self.name,
                 timeout_sec,
                 n,
@@ -262,7 +262,7 @@ class TransportLogger(Transport):
         except IoTimeoutError:
             self.logger.log(
                 self.level,
-                "%s write             <- [%d B]: [IoTimeoutError %.2f s]",
+                "%s write                <- [%3d B]: [IoTimeoutError %.2f s]",
                 self.name,
                 len(data),
                 timeout_sec,
@@ -271,7 +271,7 @@ class TransportLogger(Transport):
         except Exception as err:
             self.logger.log(
                 self.level,
-                "%s write             <- [%d B]: [err: %s]",
+                "%s write                <- [%3d B]: [err: %s]",
                 self.name,
                 len(data),
                 str(err),
@@ -283,14 +283,18 @@ class TransportLogger(Transport):
         if len(hex_lines) > 1:
             self.logger.log(
                 self.level,
-                "%s write      <- [%d B]:\n%s",
+                "%s write                <- [%3d B]:\n%s",
                 self.name,
                 bytes_written,
                 "\n".join(hex_lines),
             )
         else:
             self.logger.log(
-                self.level, "%s write      <- [%d B]: %s", self.name, bytes_written, hex_lines[0]
+                self.level,
+                "%s write                <- [%3d B]: %s",
+                self.name,
+                bytes_written,
+                hex_lines[0],
             )
 
         return bytes_written

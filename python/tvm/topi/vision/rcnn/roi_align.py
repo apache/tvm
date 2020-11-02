@@ -18,8 +18,8 @@
 """Roi align operator"""
 import tvm
 from tvm import te
-from ...util import get_const_tuple
-from ...cpp.util import bilinear_sample_nchw
+from ...utils import get_const_tuple
+from ...cpp.utils import bilinear_sample_nchw
 
 
 def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):

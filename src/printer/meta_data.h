@@ -99,7 +99,7 @@ class TextMetaDataContext {
       return it->second;
     }
     std::string type_key = node->GetTypeKey();
-    CHECK(!type_key.empty());
+    ICHECK(!type_key.empty());
     Array<ObjectRef>& mvector = meta_data_[type_key];
     int64_t index = static_cast<int64_t>(mvector.size());
     mvector.push_back(node);

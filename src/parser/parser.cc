@@ -371,7 +371,7 @@ class Parser {
    * \return The Nth token.
    */
   Token Lookahead(int n) {
-    CHECK_GE(n, 1) << "lookahead is only valid when n >= 1";
+    ICHECK_GE(n, 1) << "lookahead is only valid when n >= 1";
 
     // We intend to skip n - 1 tokens, then return the nth.
     auto old_pos = pos;
@@ -822,7 +822,7 @@ class Parser {
               ctor = tvm::Constructor(ctor_name, arg_types, type_global);
             }
 
-            CHECK(ctor.defined());
+            ICHECK(ctor.defined());
 
             try {
               this->ctors.Add(ctor_name, ctor);
@@ -944,7 +944,7 @@ class Parser {
         }
       }
 
-      CHECK_GE(exprs.size(), 1);
+      ICHECK_GE(exprs.size(), 1);
 
       if (exprs.size() == 1) {
         // ICHECK(exprs[0].defined() && exprs[0]->span.defined())
@@ -1258,7 +1258,7 @@ class Parser {
         auto op = opt_op[0];
 
         Expr right = WithSpan<Expr>([this] { return ParseCallExpr(); });
-        CHECK(right->span.defined());
+        ICHECK(right->span.defined());
 
         // If the operator stack is empty
         // we parse an operator and expression
@@ -1285,7 +1285,7 @@ class Parser {
           exprs.pop_back();
           Expr left = exprs.back();
           exprs.pop_back();
-          CHECK(new_op.op.defined()) << "a call op must be set " << new_op.op;
+          ICHECK(new_op.op.defined()) << "a call op must be set " << new_op.op;
           exprs.push_back(
               relay::Call(new_op.op, {left, right}, Attrs(), {}, left->span.Merge(right->span)));
         }
@@ -1301,7 +1301,7 @@ class Parser {
         exprs.pop_back();
         Expr left = exprs.back();
         exprs.pop_back();
-        CHECK(new_op.op.defined()) << "a call op must be set " << new_op.op;
+        ICHECK(new_op.op.defined()) << "a call op must be set " << new_op.op;
         exprs.push_back(
             relay::Call(new_op.op, {left, right}, Attrs(), {}, left->span.Merge(right->span)));
       }
@@ -1369,7 +1369,7 @@ class Parser {
   }
 
   Expr ParseCallArgs(Expr op) {
-    CHECK(op.defined()) << "the operator must be defined";
+    ICHECK(op.defined()) << "the operator must be defined";
 
     DLOG(INFO) << "Parser::ParseCallArgs";
     Map<String, ObjectRef> raw_attrs;
@@ -1401,7 +1401,7 @@ class Parser {
 
       if (is_op && op_key.size()) {
         auto attr_obj = tvm::ReflectionVTable::Global()->CreateObject(op_key, raw_attrs);
-        CHECK(attr_obj.defined());
+        ICHECK(attr_obj.defined());
         attrs = Downcast<Attrs>(attr_obj);
       }
 
@@ -1500,7 +1500,7 @@ class Parser {
             auto spanned_idents = ParseHierarchicalName();
             auto idents = spanned_idents.data;
             auto span = spanned_idents.span;
-            CHECK_NE(idents.size(), 0);
+            ICHECK_NE(idents.size(), 0);
             std::stringstream op_name;
             int i = 0;
             int periods = idents.size() - 1;

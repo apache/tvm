@@ -366,6 +366,12 @@ TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
  */
 TVM_DLL int TVMFuncListGlobalNames(int* out_size, const char*** out_array);
 
+/*!
+ * \brief Remove a global function.
+ * \param name The name of the function.
+ */
+TVM_DLL int TVMFuncRemoveGlobal(const char* name);
+
 // Array related apis for quick proptyping
 /*!
  * \brief Allocate a nd-array's memory,

@@ -35,7 +35,8 @@ namespace contrib {
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
 void CheckACLError(const arm_compute::Status& status) {
-  CHECK(status.error_code() == arm_compute::ErrorCode::OK) << "ACL: " << status.error_description();
+  ICHECK(status.error_code() == arm_compute::ErrorCode::OK)
+      << "ACL: " << status.error_description();
 }
 
 arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
@@ -65,7 +66,7 @@ arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
   if (scale != nullptr && offset != nullptr) {
     std::vector<float> scale_data = GetVectorFromDLTensor<float>(scale);
     std::vector<int> offset_data = GetVectorFromDLTensor<int>(offset);
-    CHECK(scale_data.size() == 1 && offset_data.size() == 1)
+    ICHECK(scale_data.size() == 1 && offset_data.size() == 1)
         << "Currently only per-layer quantization is supported in the Arm Compute Library runtime.";
     arm_compute::QuantizationInfo qinfo(scale_data[0], offset_data[0]);
     info.set_quantization_info(qinfo);
@@ -134,7 +135,7 @@ arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
 
 template <typename T>
 std::vector<T> GetVectorFromDLTensor(const DLTensor* tensor) {
-  CHECK(tensor) << "Cannot convert a nullptr";
+  ICHECK(tensor) << "Cannot convert a nullptr";
   int len = 1;
   for (int i = 0; i < tensor->ndim; i++) {
     len *= tensor->shape[i];

@@ -21,8 +21,8 @@ import tvm
 from tvm import te
 
 from .pad import pad
-from .util import get_pad_tuple3d
-from ..util import simplify, get_const_tuple
+from .utils import get_pad_tuple3d
+from ..utils import simplify, get_const_tuple
 from .winograd_util import winograd_transform_matrices
 
 

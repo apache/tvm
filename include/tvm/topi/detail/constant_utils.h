@@ -76,7 +76,7 @@ inline std::vector<int> GetConstIntValues(Array<PrimExpr> exprs, const std::stri
   std::vector<int> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
-    CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    ICHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
   }
   return result;
@@ -96,7 +96,7 @@ inline std::vector<int64_t> GetConstInt64Values(Array<PrimExpr> exprs,
   std::vector<int64_t> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
-    CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    ICHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
   }
   return result;

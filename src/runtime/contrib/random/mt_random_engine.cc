@@ -21,9 +21,9 @@
  * \file random/mt_random_engine.cc
  * \brief mt19937 random engine
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <ctime>
@@ -71,8 +71,8 @@ class RandomEngine {
    * \brief Fills a tensor with values drawn from Unif(low, high)
    */
   void SampleUniform(DLTensor* data, float low, float high) {
-    CHECK_GT(high, low) << "high must be bigger than low";
-    CHECK(data->strides == nullptr);
+    ICHECK_GT(high, low) << "high must be bigger than low";
+    ICHECK(data->strides == nullptr);
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -80,7 +80,7 @@ class RandomEngine {
       size *= data->shape[i];
     }
 
-    CHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
+    ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
     if (data->ctx.device_type == kDLCPU) {
       std::uniform_real_distribution<float> uniform_dist(low, high);
@@ -95,8 +95,8 @@ class RandomEngine {
    * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
    */
   void SampleNormal(DLTensor* data, float loc, float scale) {
-    CHECK_GT(scale, 0) << "standard deviation must be positive";
-    CHECK(data->strides == nullptr);
+    ICHECK_GT(scale, 0) << "standard deviation must be positive";
+    ICHECK(data->strides == nullptr);
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -104,7 +104,7 @@ class RandomEngine {
       size *= data->shape[i];
     }
 
-    CHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
+    ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
     if (data->ctx.device_type == kDLCPU) {
       std::normal_distribution<float> normal_dist(loc, scale);
