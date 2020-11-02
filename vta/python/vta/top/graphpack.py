@@ -511,7 +511,8 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
     return run_opt_pass(annotated, transform.ToGraphNormalForm())
 
 
-def graph_pack(expr,
+def graph_pack(
+    expr,
     bfactor,
     cfactor,
     weight_bits,
@@ -522,7 +523,8 @@ def graph_pack(expr,
     count_meta=False,
     device_annot=False,
     annot_start_name="nn.conv2d",
-    annot_end_name="annotation.stop_fusion"):
+    annot_end_name="annotation.stop_fusion",
+):
     """Pack the graph into batch&channel packed format.
 
     Parameters
