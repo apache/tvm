@@ -16,22 +16,17 @@
 # under the License.
 
 [package]
-name = "tvm-sys"
+name = "compiler-ext"
 version = "0.1.0"
 authors = ["TVM Contributors"]
-license = "Apache-2.0"
 edition = "2018"
 
-[features]
-default = []
-bindings = []
+[lib]
+crate-type = ["staticlib", "cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "^1.0"
-anyhow = "^1.0"
-ndarray = "0.12"
-enumn = "^0.1"
-
-[build-dependencies]
-bindgen = { version="0.51", default-features=false }
-anyhow = "^1.0"
+tvm = { path = "../tvm", default-features = false, features = ["static-linking"] }
+log = "*"
+env_logger = "*"

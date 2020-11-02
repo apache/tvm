@@ -17,18 +17,19 @@
  * under the License.
  */
 
-pub mod arith;
-pub mod attrs;
-pub mod diagnostics;
-pub mod expr;
-pub mod function;
-pub mod module;
-pub mod op;
-pub mod relay;
-pub mod source_map;
-pub mod span;
-pub mod tir;
-pub mod ty;
+use env_logger;
+use tvm::export;
 
-pub use expr::*;
-pub use module::IRModule;
+fn diagnostics() -> Result<(), tvm::Error> {
+    tvm::ir::diagnostics::codespan::init()
+}
+
+export!(diagnostics);
+
+#[no_mangle]
+extern "C" fn compiler_ext_initialize() -> i32 {
+    let _ = env_logger::try_init();
+    tvm_export("rust_ext").expect("failed to initialize the Rust compiler extensions.");
+    log::debug!("Loaded the Rust compiler extension.");
+    return 0;
+}

@@ -17,18 +17,33 @@
  * under the License.
  */
 
-pub mod arith;
-pub mod attrs;
-pub mod diagnostics;
-pub mod expr;
-pub mod function;
-pub mod module;
-pub mod op;
-pub mod relay;
-pub mod source_map;
-pub mod span;
-pub mod tir;
-pub mod ty;
+use std::path::PathBuf;
 
-pub use expr::*;
-pub use module::IRModule;
+use anyhow::Result;
+use structopt::StructOpt;
+
+use tvm::ir::diagnostics::codespan;
+use tvm::ir::{self, IRModule};
+use tvm::runtime::Error;
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "tyck", about = "Parse and type check a Relay program.")]
+struct Opt {
+    /// Input file
+    #[structopt(parse(from_os_str))]
+    input: PathBuf,
+}
+
+fn main() -> Result<()> {
+    codespan::init().expect("Failed to initialize Rust based diagnostics.");
+    let opt = Opt::from_args();
+    let _module = match IRModule::parse_file(opt.input) {
+        Err(ir::module::Error::TVM(Error::DiagnosticError(_))) => return Ok(()),
+        Err(e) => {
+            return Err(e.into());
+        }
+        Ok(module) => module,
+    };
+
+    Ok(())
+}

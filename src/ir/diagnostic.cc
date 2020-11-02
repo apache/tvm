@@ -113,6 +113,7 @@ TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRendererRender")
     });
 
 DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer) {
+  CHECK(renderer.defined()) << "can not initialize a diagnostic renderer with a null function";
   auto n = make_object<DiagnosticContextNode>();
   n->module = module;
   n->renderer = renderer;
@@ -166,6 +167,10 @@ DiagnosticContext DiagnosticContext::Default(const IRModule& module) {
   auto renderer = GetRenderer();
   return DiagnosticContext(module, renderer);
 }
+
+TVM_REGISTER_GLOBAL("diagnostics.Default").set_body_typed([](const IRModule& module) {
+  return DiagnosticContext::Default(module);
+});
 
 std::ostream& EmitDiagnosticHeader(std::ostream& out, const Span& span, DiagnosticLevel level,
                                    std::string msg) {

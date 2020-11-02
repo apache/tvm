@@ -36,7 +36,7 @@ pub struct TypeNode {
 impl TypeNode {
     fn base<T: IsObject>(span: Span) -> Self {
         TypeNode {
-            base: Object::base_object::<T>(),
+            base: Object::base::<T>(),
             span,
         }
     }

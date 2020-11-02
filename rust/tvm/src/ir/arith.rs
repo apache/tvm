@@ -34,7 +34,7 @@ macro_rules! define_node {
 
         impl $name {
             pub fn new($($id : $t,)*) -> $name {
-                let base = Object::base_object::<$node>();
+                let base = Object::base::<$node>();
                 let node = $node { base, $($id),* };
                 $name(Some(ObjectPtr::new(node)))
             }
