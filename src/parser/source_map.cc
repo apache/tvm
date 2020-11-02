@@ -77,12 +77,6 @@ tvm::String Source::GetLine(int line) {
   return line_text;
 }
 
-// TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-//     .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
-//       auto* node = static_cast<const SourceNameNode*>(ref.get());
-//       p->stream << "SourceName(" << node->name << ", " << node << ")";
-//     });
-
 TVM_REGISTER_NODE_TYPE(SourceMapNode);
 
 SourceMap::SourceMap(Map<SourceName, Source> source_map) {
@@ -90,11 +84,6 @@ SourceMap::SourceMap(Map<SourceName, Source> source_map) {
   n->source_map = std::move(source_map);
   data_ = std::move(n);
 }
-
-// TODO(@jroesch): fix this
-static SourceMap global_source_map = SourceMap(Map<SourceName, Source>());
-
-SourceMap SourceMap::Global() { return global_source_map; }
 
 void SourceMap::Add(const Source& source) { (*this)->source_map.Set(source->source_name, source); }
 

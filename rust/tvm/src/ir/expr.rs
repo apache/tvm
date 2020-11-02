@@ -35,7 +35,7 @@ pub struct BaseExprNode {
 impl BaseExprNode {
     pub fn base<T: IsObject>() -> BaseExprNode {
         BaseExprNode {
-            base: Object::base_object::<T>(),
+            base: Object::base::<T>(),
         }
     }
 }

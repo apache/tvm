@@ -120,24 +120,27 @@ impl Function {
         let mut ret_val = ffi::TVMValue { v_int64: 0 };
         let mut ret_type_code = 0i32;
 
-        check_call!(ffi::TVMFuncCall(
-            self.handle,
-            values.as_mut_ptr() as *mut ffi::TVMValue,
-            type_codes.as_mut_ptr() as *mut c_int,
-            num_args as c_int,
-            &mut ret_val as *mut _,
-            &mut ret_type_code as *mut _
-        ));
+        let ret_code = unsafe {
+            ffi::TVMFuncCall(
+                self.handle,
+                values.as_mut_ptr() as *mut ffi::TVMValue,
+                type_codes.as_mut_ptr() as *mut c_int,
+                num_args as c_int,
+                &mut ret_val as *mut _,
+                &mut ret_type_code as *mut _,
+            )
+        };
+
+        if ret_code != 0 {
+            let raw_error = crate::get_last_error();
+            let error = match Error::from_raw_tvm(raw_error) {
+                Error::Raw(string) => Error::CallFailed(string),
+                e => e,
+            };
+            return Err(error);
+        }
 
         let rv = RetValue::from_tvm_value(ret_val, ret_type_code as u32);
-        match rv {
-            RetValue::ObjectHandle(object) => {
-                let optr = crate::object::ObjectPtr::from_raw(object as _).unwrap();
-                // println!("after wrapped call: {}", optr.count());
-                crate::object::ObjectPtr::leak(optr);
-            }
-            _ => {}
-        };
 
         Ok(rv)
     }

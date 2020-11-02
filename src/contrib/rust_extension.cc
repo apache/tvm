@@ -17,18 +17,15 @@
  * under the License.
  */
 
-pub mod arith;
-pub mod attrs;
-pub mod diagnostics;
-pub mod expr;
-pub mod function;
-pub mod module;
-pub mod op;
-pub mod relay;
-pub mod source_map;
-pub mod span;
-pub mod tir;
-pub mod ty;
+/*!
+ * \file src/contrib/rust_extension.cc
+ * \brief Expose Rust extensions initialization.
+ */
+#ifdef RUST_COMPILER_EXT
 
-pub use expr::*;
-pub use module::IRModule;
+extern "C" {
+int compiler_ext_initialize();
+static int test = compiler_ext_initialize();
+}
+
+#endif

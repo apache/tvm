@@ -18,6 +18,7 @@
  */
 
 use std::convert::{TryFrom, TryInto};
+use std::iter::{IntoIterator, Iterator};
 use std::marker::PhantomData;
 
 use crate::errors::Error;
@@ -78,6 +79,42 @@ impl<T: IsObjectRef> Array<T> {
 
     pub fn len(&self) -> i64 {
         array_size(self.object.clone()).expect("size should never fail")
+    }
+}
+
+pub struct IntoIter<T: IsObjectRef> {
+    array: Array<T>,
+    pos: isize,
+    size: isize,
+}
+
+impl<T: IsObjectRef> Iterator for IntoIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < self.size {
+            let item =
+                self.array.get(self.pos)
+                    .expect("Can not index as in-bounds position after bounds checking.\nNote: this error can only be do to an uncaught issue with API bindings.");
+            self.pos += 1;
+            Some(item)
+        } else {
+            None
+        }
+    }
+}
+
+impl<T: IsObjectRef> IntoIterator for Array<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let size = self.len() as isize;
+        IntoIter {
+            array: self,
+            pos: 0,
+            size: size,
+        }
     }
 }
 

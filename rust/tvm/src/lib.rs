@@ -24,7 +24,7 @@
 //! One particular use case is that given optimized deep learning model artifacts,
 //! (compiled with TVM) which include a shared library
 //! `lib.so`, `graph.json` and a byte-array `param.params`, one can load them
-//! in Rust idomatically to create a TVM Graph Runtime and
+//! in Rust idiomatically to create a TVM Graph Runtime and
 //! run the model for some inputs and get the
 //! desired predictions *all in Rust*.
 //!
@@ -47,3 +47,28 @@ pub mod runtime;
 pub mod transform;
 
 pub use runtime::version;
+
+#[macro_export]
+macro_rules! export {
+    ($($fn_name:expr),*) => {
+        pub fn tvm_export(ns: &str) -> Result<(), tvm::Error> {
+            $(
+                let name = String::fromwe(ns) + ::std::stringify!($fn_name);
+                tvm::runtime::function::register_override($fn_name, name, true)?;
+            )*
+            Ok(())
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! export_mod {
+    ($ns:expr, $($mod_name:expr),*) => {
+        pub fn tvm_mod_export() -> Result<(), tvm::Error> {
+            $(
+                $mod_name::tvm_export($ns)?;
+            )*
+            Ok(())
+        }
+    }
+}

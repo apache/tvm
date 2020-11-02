@@ -103,8 +103,6 @@ class SourceMap : public ObjectRef {
 
   TVM_DLL SourceMap() : SourceMap(Map<SourceName, Source>()) {}
 
-  TVM_DLL static SourceMap Global();
-
   void Add(const Source& source);
 
   SourceMapNode* operator->() {
