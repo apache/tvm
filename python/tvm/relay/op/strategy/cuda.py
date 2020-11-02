@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
 import tvm
+from tvm.auto_scheduler.relay_integration import auto_schedule_topi
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm._ffi import get_global_func
@@ -29,7 +30,8 @@ from .. import op as _op
 def schedule_injective_cuda(attrs, outs, target):
     """schedule injective ops for cuda"""
     with target:
-        return topi.cuda.schedule_injective(outs)
+        return auto_schedule_topi(outs) 
+        #return topi.cuda.schedule_injective(outs)
 
 
 @schedule_reduce.register(["cuda", "gpu"])

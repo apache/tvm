@@ -378,6 +378,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
+  std::unordered_set<std::string> explored_state_strs;
   size_t iter = 1;
   size_t target_size = min_population;
   size_t unchange_cnt = 0;
@@ -406,7 +407,8 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     // Filter out the states that were failed to apply initial rules
     Array<State> cand_states;
     for (auto tmp_s : temp_states) {
-      if (tmp_s.defined()) {
+      if (tmp_s.defined() && explored_state_strs.find(tmp_s.ToStr()) == explored_state_strs.end()) {
+        explored_state_strs.insert(tmp_s.ToStr());
         cand_states.push_back(std::move(tmp_s));
       } else {
         fail_ct++;
@@ -449,7 +451,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
       if (target_size > 1) {
         target_size /= 2;
         StdCout(verbose) << "#Target has been reduced to " << target_size
-                         << " due to too many failures";
+                         << " due to too many failures or duplications" << std::endl;
       }
       unchange_cnt = 0;
     }
