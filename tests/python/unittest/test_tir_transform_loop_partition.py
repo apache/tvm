@@ -61,8 +61,9 @@ def test_const_loop():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True,
-                                                                 "unroll": False}}):
+    with tvm.transform.PassContext(
+        config={"tir.LoopPartition": {"partition_const_loop": True, "unroll": False}}
+    ):
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         stmt = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
@@ -83,8 +84,9 @@ def test_no_unroll_loop():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True,
-                                                                 "unroll": False}}):
+    with tvm.transform.PassContext(
+        config={"tir.LoopPartition": {"partition_const_loop": True, "unroll": False}}
+    ):
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         stmt = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
