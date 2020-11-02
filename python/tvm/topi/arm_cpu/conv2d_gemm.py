@@ -131,10 +131,10 @@ def compute_conv2d_gemm_without_weight_transform(
     # the tile computation.
     #
     # Please refer to:
-    #   - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-performance-for-armv8-architectures/6920
-    #   - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
-    #   - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-through-mmla-instruction
-    #   - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
+    # - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-performance-for-armv8-architectures # pylint: disable=line-too-long
+    # - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
+    # - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-through-mmla-instruction
+    # - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
     # In order to have more information
     #
     if is_mmla_available():
