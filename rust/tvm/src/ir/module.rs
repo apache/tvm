@@ -213,15 +213,15 @@ mod tests {
         let params = Array::from_vec(vec![x.clone()])?;
         let func = relay::Function::simple(params, x.upcast()).upcast();
         let module = module.add(GlobalVar::new("foo".into(), Span::null()), func)?;
-        // let lfunc = module.lookup_str("foo")?;
-        // let lfunc = lfunc.downcast::<relay::Function>()?;
-        // assert_eq!(lfunc.params.len(), 1);
+        let lfunc = module.lookup_str("foo")?;
+        let lfunc = lfunc.downcast::<relay::Function>()?;
+        assert_eq!(lfunc.params.len(), 1);
         Ok(())
     }
 
     #[test]
     fn test_module_add_def() {
-
+        todo!("this is blocked on having ability to define ADTs")
     }
 
     #[test]
@@ -235,34 +235,32 @@ mod tests {
     }
 
     #[test]
+    fn test_get_global_type_vars() {
+
+    }
+
+    #[test]
     fn test_lookup() {
 
     }
 
+    #[test]
+    fn test_contains_global_var() {
+    }
 
-    // pub fn get_global_type_vars(&self) -> Result<Array<GlobalTypeVar>> {
-    //     module_get_global_type_vars(self.clone())
-    // }
-
-    // pub fn contains_global_var<S: Into<TVMString>>(&self, name: S) -> Result<bool> {
-    //     module_contains_global_var(self.clone(), name.into())
-    // }
-
-    // pub fn contains_global_type_var<S: Into<TVMString>>(&self, name: S) -> Result<bool> {
-    //     module_contains_global_type_var(self.clone(), name.into())
-    // }
+    #[test]
+    fn test_contains_global_type_var() {
+    }
 
     #[test]
     fn test_lookup_def() {
 
     }
-    // pub fn lookup_def(&self, global: GlobalTypeVar) -> Result<TypeData> {
-    //     module_lookup_def(self.clone(), global)
-    // }
 
-    // pub fn lookup_def_str(&self, global: GlobalTypeVar) -> Result<TypeData> {
-    //     module_lookup_def_str(self.clone(), global)
-    // }
+    #[test]
+    fn lookup_def() {
+
+    }
 
     // pub fn lookup_tag(&self, tag: i32) -> Result<relay::Constructor> {
     //     module_lookup_tag(self.clone(), tag)
@@ -272,11 +270,9 @@ mod tests {
     //     module_from_expr(expr, funcs, types)
     // }
 
-
     // pub fn import<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
     //     module_import(self.clone(), path.into())
     // }
-
 
     // pub fn import_from_std<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
     //     module_import_from_std(self.clone(), path.into())

@@ -23,6 +23,7 @@ use tvm_macros::Object;
 use tvm_rt::{array::Array, DataType};
 
 use super::PrimExpr;
+use super::relay::Constructor;
 
 #[repr(C)]
 #[derive(Object)]
@@ -240,3 +241,32 @@ impl TensorType {
 // using TypeRelationFn = tvm::TypeRelationFn;
 // using TypeReporter = tvm::TypeReporter;
 // using TypeReporterNode = tvm::TypeReporterNode;
+
+/* TypeData container node.
+\brief Stores all data for an Algebraic Data Type (ADT).
+
+In particular, it stores the handle (global type var) for an ADT
+and the constructors used to build it and is kept in the module. Note
+that type parameters are also indicated in the type data: this means that
+for any instance of an ADT, the type parameters must be indicated. That is,
+an ADT definition is treated as a type-level function, so an ADT handle
+must be wrapped in a TypeCall node that instantiates the type-level arguments.
+The kind checker enforces this. */
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "TypeData"]
+#[type_key = "relay.TypeData"]
+pub struct TypeDataNode {
+    // /*!
+    //   * \brief The header is simply the name of the ADT.
+    //   * We adopt nominal typing for ADT definitions;
+    //   * that is, differently-named ADT definitions with same constructors
+    //   * have different types.
+    //   */
+    pub base: Object,
+    pub type_name: GlobalTypeVar,
+    /// The type variables (to allow for polymorphism).
+    pub type_vars: Array<TypeVar>,
+    /// The constructors.
+    pub constructors: Array<Constructor>,
+}

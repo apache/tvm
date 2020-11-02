@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_global() -> Result<()> {
-        let gv = GlobalVar::new("main".to_string(), ObjectRef::null());
+        let gv = GlobalVar::new("main".to_string(), Span::null());
         let text = as_text(gv.clone());
         assert!(text.contains("@main"));
         Ok(())
@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_var() -> Result<()> {
-        let var = Var::new("local".to_string(), Type::null(), ObjectRef::null());
+        let var = Var::new("local".to_string(), Type::null(), Span::null());
         let text = as_text(var.clone());
         assert!(text.contains("%local"));
         Ok(())

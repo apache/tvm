@@ -17,12 +17,15 @@
  * under the License.
  */
 
-use super::relay;
+use tvm_macros::Object;
+
 use crate::runtime::String as TString;
 use crate::runtime::{self, external, IsObject, IsObjectRef, Object, ObjectPtr, ObjectRef};
 use crate::DataType;
 
-use tvm_macros::Object;
+use super::relay;
+use super::span::Span;
+
 
 #[repr(C)]
 #[derive(Object)]
@@ -68,7 +71,7 @@ pub struct GlobalVarNode {
 }
 
 impl GlobalVar {
-    pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
+    pub fn new(name_hint: String, _span: Span) -> GlobalVar {
         let node = GlobalVarNode {
             base: relay::ExprNode::base::<GlobalVarNode>(),
             name_hint: name_hint.into(),
