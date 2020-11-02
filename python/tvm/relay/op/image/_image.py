@@ -70,12 +70,13 @@ def resize_shape_func(attrs, inputs, _):
             channel_axis = i
     size = get_const_tuple(attrs.size)
     return [
-        _resize_shape_func(inputs[0],
+        _resize_shape_func(
+            inputs[0],
             convert(size),
             convert(batch_axis),
             convert(height_axis),
             convert(width_axis),
-            convert(channel_axis)
+            convert(channel_axis),
         )
     ]
 
