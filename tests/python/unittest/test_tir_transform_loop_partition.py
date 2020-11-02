@@ -37,10 +37,12 @@ def test_basic():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    print(stmt)
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
     mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+    mod = tvm.tir.transform.Simplify()(mod)
+    print(mod)
 
     assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
     assert any(collect_visit(stmt.body.body[1], lambda x: isinstance(x, tvm.tir.IfThenElse)))
@@ -59,11 +61,35 @@ def test_const_loop():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True,
+                                                                 "unroll": False}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
-        stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+        mod = tvm.tir.transform.Simplify()(mod)
+        stmt = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
 
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
+
+
+def test_no_unroll_loop():
+    n = 21
+    A = te.placeholder((n,), name="A")
+    B = te.placeholder((n,), name="B")
+
+    T = te.compute((n,), lambda i: A[i] + B[i])
+    s = te.create_schedule(T.op)
+    xo, xi = s[T].split(T.op.axis[0], factor=4)
+
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True,
+                                                                 "unroll": False}}):
+        mod = tvm.tir.transform.LoopPartition()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
+        stmt = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
+
+    assert sum(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.For))) == 4
 
 
 def test_multi_loop():

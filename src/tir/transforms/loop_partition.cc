@@ -40,9 +40,11 @@ namespace tir {
 
 struct LoopPartitionConfigNode : public tvm::AttrsNode<LoopPartitionConfigNode> {
   bool partition_const_loop;
+  bool unroll;
 
   TVM_DECLARE_ATTRS(LoopPartitionConfigNode, "tir.transform.LoopPartitionConfig") {
     TVM_ATTR_FIELD(partition_const_loop).describe("Split constant loop").set_default(false);
+    TVM_ATTR_FIELD(unroll).describe("Unroll loops of extent 1").set_default(true);
   }
 };
 
@@ -334,8 +336,8 @@ class ThreadPartitionInserter : public StmtMutator {
 // likely conditions
 class LoopPartitioner : public StmtMutator {
  public:
-  explicit LoopPartitioner(bool partition_const_loop)
-      : selector(CandidateSelector(partition_const_loop)) {}
+  explicit LoopPartitioner(bool partition_const_loop, bool unroll)
+      : selector(CandidateSelector(partition_const_loop)), unroll_(unroll) {}
 
   Stmt VisitAndMutate(Stmt stmt) {
     selector(stmt);
@@ -402,6 +404,7 @@ class LoopPartitioner : public StmtMutator {
   std::unordered_map<const VarNode*, IntSet> relax_map_;
   arith::Analyzer analyzer_;
   CandidateSelector selector;
+  bool unroll_;
 };
 
 // Returns an interval (in the first component) in which all the conditions
@@ -596,7 +599,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt body) {
   const ForNode* for_node = static_cast<const ForNode*>(node);
   ICHECK(for_node);
-  if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {
+  if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1)) && unroll_) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
@@ -617,8 +620,8 @@ class RemoveLikelyTags : public StmtExprMutator {
   }
 };
 
-Stmt LoopPartition(Stmt stmt, bool partition_const_loop) {
-  stmt = LoopPartitioner(partition_const_loop).VisitAndMutate(std::move(stmt));
+Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll) {
+  stmt = LoopPartitioner(partition_const_loop, no_unroll).VisitAndMutate(std::move(stmt));
   stmt = RemoveLikelyTags()(std::move(stmt));
   return stmt;
 }
@@ -632,7 +635,7 @@ Pass LoopPartition() {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<LoopPartitionConfig>();
     }
-    n->body = LoopPartition(std::move(n->body), cfg.value()->partition_const_loop);
+    n->body = LoopPartition(std::move(n->body), cfg.value()->partition_const_loop, cfg.value()->unroll);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LoopPartition", {});
