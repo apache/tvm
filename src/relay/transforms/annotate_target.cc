@@ -77,7 +77,11 @@ class AnnotateTargetRewriter : public ExprRewriter {
         compiler_ends.push_back(call->args[0]);
       } else if (op_expr_to_target_.find(arg) != op_expr_to_target_.end()) {
         arg_target = op_expr_to_target_[arg];
-        compiler_ends.push_back(InsertAnnotation(arg, arg_target, make_end_op));
+        if (call && call->args.size() == 0) {
+          compiler_ends.push_back(arg);
+        } else {
+          compiler_ends.push_back(InsertAnnotation(arg, arg_target, make_end_op));
+        }
       } else {
         // Input vars.
         compiler_ends.push_back(arg);
@@ -120,7 +124,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
      * \return An annotated and target-propagated relay expression.
      */
     Expr new_expr = expr;
-    if (op_expr_to_target_.find(expr) != op_expr_to_target_.end()) {
+    if (op_expr_to_target_.find(expr) != op_expr_to_target_.end() && FreeVars(expr).size() != 0) {
       new_expr = InsertAnnotation(expr, op_expr_to_target_[expr], make_end_op);
       op_expr_to_target_[new_expr] = op_expr_to_target_[expr];
     }
