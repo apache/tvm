@@ -24,7 +24,6 @@ use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
 use super::span::Span;
 use super::ty::{Type, TypeNode};
-use super::span::Span;
 
 use tvm_macros::Object;
 use tvm_rt::NDArray;

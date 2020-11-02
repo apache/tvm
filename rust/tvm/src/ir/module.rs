@@ -36,12 +36,7 @@ use super::function::BaseFunc;
 use super::source_map::SourceMap;
 use super::{ty::GlobalTypeVar, relay};
 
-<<<<<<< HEAD
-=======
-use tvm_macros::Object;
-
 // TODO(@jroesch): define type
->>>>>>> WIP
 type TypeData = ObjectRef;
 
 #[derive(Error, Debug)]
@@ -108,16 +103,12 @@ external! {
 // Note: we don't expose update here as update is going to be removed.
 
 impl IRModule {
-<<<<<<< HEAD
-    pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
-=======
     pub fn new<F, T>(funcs: F, types: T) -> Result<IRModule>
     where F: IntoIterator<Item=(GlobalVar, BaseFunc)>, T: IntoIterator<Item=(GlobalTypeVar, TypeData)> {
         module_new(Map::from_iter(funcs), Map::from_iter(types))
     }
 
-    pub fn parse<N, S>(file_name: N, source: S) -> IRModule
->>>>>>> WIP
+    pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
     where
         N: Into<TVMString>,
         S: Into<TVMString>,
