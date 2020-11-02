@@ -94,6 +94,26 @@ def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
     """
     return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)  # type: ignore
 
+def TextureFlatten(cache_line_size, create_bound_attribute=False):
+    """Flatten the multi-dimensional read/write to 1D.
+
+
+    Parameters
+    ----------
+    cache_line_size: int
+        The size of CPU cache line.
+
+    create_bound_attribute:
+        Whether to create bound attributes.
+
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.TextureFlatten(cache_line_size, create_bound_attribute)
+
 
 def InjectCopyIntrin(pragma_key: str, fintrin):
     """Inject virtual thread loops.
