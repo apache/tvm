@@ -158,7 +158,6 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func_ref(*args_ref)
         ctx.sync()
 
-        
         tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
         tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), rtol=1e-4)
         tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
