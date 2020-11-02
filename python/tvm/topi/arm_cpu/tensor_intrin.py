@@ -411,6 +411,7 @@ def gemm_quantized(M, N, K, unroll, interleave, in_type, out_type):
     intrin : TensorIntrin
         The ARM uint8/int8 TensorIntrin that can be used in tensorizing schedule
     """
+    assert in_type in ["uint8", "int8"]
     A = te.placeholder((K // 16, te.var("m"), 16), dtype=in_type, name="A")
     B = te.placeholder((K // 16, te.var("n"), 16), dtype=in_type, name="B")
 
@@ -627,7 +628,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
     Int8 4x4 matrix multiplication and accumulation using sdot/udot
     instructions. This function takes two arrays of int8 datatype
     -- A[4][4] and B[4][4] and produces a 4x4 matrix
-    which is equal to A*B.
+    which is equal to A*B'.
 
     The pseudo code is as follows.
 
@@ -643,7 +644,6 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
         }
 
     Notes:
-        * The rows of matrix B are transposed
         * The tiling strategy is picked to maximize register usage.
 
     Parameters
@@ -656,6 +656,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
     intrin : TensorIntrin
         The Arm TensorIntrin that can be used in tensorizing schedule
     """
+    assert dtype in ["uint8", "int8"]
     # This needs to be a variable number of "rows" since TVM
     # "thinks" I only need to compute one row because of
     # padding
@@ -755,7 +756,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
     """
     Int8 nx16 matrix multiplication and accumulation using sdot/udot instructions
     This function takes two arrays of int8 datatype -- A[n][4] and
-    B[4][16] and produces a rowsx16 matrix which is equal to A*B
+    B[4][16] and produces a rowsx16 matrix which is equal to A*B'
     The pseudo code is as follows.
 
     .. code-block:: c
@@ -771,7 +772,6 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
         }
 
     Notes:
-        * The rows of matrix B are transposed
         * The tile size of B is 16x4. Since the reduction variable k moves between 0 and 16
           we need 4 tiles of B to compute a single row of the output. The first 4 values of
           k will be fetched from B[0][j][k], the second batch of 4 from B[1][j][k] and so on
@@ -789,6 +789,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
     intrin : TensorIntrin
         The Arm TensorIntrin that can be used in tensorizing schedule
     """
+    assert dtype in ["uint8", "int8"]
     A = te.placeholder((rows, 16), dtype, name="A")
     B = te.placeholder((4, 16, 4), dtype, name="B")
     dtype_vec = dtype + "x16"

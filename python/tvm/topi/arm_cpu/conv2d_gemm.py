@@ -131,11 +131,15 @@ def compute_conv2d_gemm_without_weight_transform(
     # the tile computation.
     #
     # Please refer to:
+    #   - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-performance-for-armv8-architectures/6920
     #   - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
+    #   - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-through-mmla-instruction
     #   - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
     # In order to have more information
     #
     if is_mmla_available():
+        # If smmla/ummla is enabled, we are loading 8 rows from A. Each row
+        # will contain 8 elements
         tile_rows_A = 8
         tile_cols_A = 8
     elif is_dotprod_available() and interleave_A:
@@ -322,50 +326,50 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
 
     k = C_interleaved.op.reduce_axis[0]
     _, M, N = C.shape
-    if is_mmla_available():
-        gemm_acc = gemm_acc_2x2_int8_int8_int32(in_type)
-        xi_inner, yi_inner = C_interleaved.op.axis[5:7]
-        k_outer, k_inner = s[C_interleaved].split(k, 8)
-        s[C_interleaved].reorder(
-            b_outer_gemm_fused, inner_gemm, k_outer, xi, yi, xi_inner, yi_inner, k_inner
-        )
-        s[C_interleaved].tensorize(xi_inner, gemm_acc)
-        s[C_interleaved].unroll(xi)
-        s[C_interleaved].unroll(yi)
-    elif is_dotprod_available():
-        gemm_acc = gemm_acc_4x4_int8_int8_int32(in_type)
-        xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(
-            xi, yi, x_factor=8, y_factor=4
-        )
-        k_outer, k_inner = s[C_interleaved].split(k, 4)
-        xi_inner_outer, xi_inner_inner = s[C_interleaved].split(xi_inner, 4)
-        s[C_interleaved].reorder(
-            b_outer_gemm_fused,
-            inner_gemm,
-            xi_outer,
-            yi_outer,
-            k_outer,
-            xi_inner_outer,
-            xi_inner_inner,
-            yi_inner,
-            k_inner,
-        )
-        s[C_interleaved].tensorize(xi_inner_inner, gemm_acc)
-        s[C_interleaved].unroll(xi_inner_outer)
+    if in_type in ["int8", "uint8"]:
+        if is_mmla_available():
+            gemm_acc = gemm_acc_2x2_int8_int8_int32(in_type)
+            xi_inner, yi_inner = C_interleaved.op.axis[-2:]
+            k_outer, k_inner = s[C_interleaved].split(k, 8)
+            s[C_interleaved].reorder(
+                b_outer_gemm_fused, inner_gemm, k_outer, xi, yi, xi_inner, yi_inner, k_inner
+            )
+            s[C_interleaved].tensorize(xi_inner, gemm_acc)
+            s[C_interleaved].unroll(xi)
+            s[C_interleaved].unroll(yi)
+        elif is_dotprod_available():
+            gemm_acc = gemm_acc_4x4_int8_int8_int32(in_type)
+            xi_outer, yi_outer, xi_inner, yi_inner = s[C_interleaved].tile(
+                xi, yi, x_factor=8, y_factor=4
+            )
+            k_outer, k_inner = s[C_interleaved].split(k, 4)
+            xi_inner_outer, xi_inner_inner = s[C_interleaved].split(xi_inner, 4)
+            s[C_interleaved].reorder(
+                b_outer_gemm_fused,
+                inner_gemm,
+                xi_outer,
+                yi_outer,
+                k_outer,
+                xi_inner_outer,
+                xi_inner_inner,
+                yi_inner,
+                k_inner,
+            )
+            s[C_interleaved].tensorize(xi_inner_inner, gemm_acc)
+            s[C_interleaved].unroll(xi_inner_outer)
 
-    elif is_aarch64_arm():
-        s[C_interleaved].reorder(yi, xi)
-        K = A_interleaved_input.shape[2]
-        assert in_type in ["int8", "uint8"], "Only int8 and uint8 gemm are supported"
-        unroll = cfg["gemm_quantized_unroll"].val
-        interleave = cfg["gemm_quantized_interleave"].val
-        gemm = gemm_quantized(M, N, K, unroll, interleave, in_type, out_type)
-        s[C_interleaved].pragma(
-            b_outer_gemm_fused,
-            "import_llvm",
-            gemm_quantized_impl(M, N, K, unroll, interleave, in_type),
-        )
-        s[C_interleaved].tensorize(yi, gemm)
+        elif is_aarch64_arm():
+            s[C_interleaved].reorder(yi, xi)
+            K = A_interleaved_input.shape[2]
+            unroll = cfg["gemm_quantized_unroll"].val
+            interleave = cfg["gemm_quantized_interleave"].val
+            gemm = gemm_quantized(M, N, K, unroll, interleave, in_type, out_type)
+            s[C_interleaved].pragma(
+                b_outer_gemm_fused,
+                "import_llvm",
+                gemm_quantized_impl(M, N, K, unroll, interleave, in_type),
+            )
+            s[C_interleaved].tensorize(yi, gemm)
 
     # Output transform
     if out != final_out:
