@@ -130,8 +130,9 @@ def attach_parallels(uuid, vid_hex=None, pid_hex=None, serial=None):
         ):
             subprocess.check_call(["prlsrvctl", "usb", "set", dev["Name"], uuid])
             if "Used-By-Vm-Name" in dev:
-                subprocess.check_call(["prlctl", "set", dev["Used-By-Vm-Name"],
-                                       "--device-disconnect", dev["Name"]])
+                subprocess.check_call(
+                    ["prlctl", "set", dev["Used-By-Vm-Name"], "--device-disconnect", dev["Name"]]
+                )
             subprocess.check_call(["prlctl", "set", uuid, "--device-connect", dev["Name"]])
             return
 
@@ -207,8 +208,7 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
     for dirpath, _, filenames in os.walk(user_box_dir):
         rel_path = os.path.relpath(dirpath, user_box_dir)
         if any(
-            rel_path == scp or rel_path.startswith(f"{scp}{os.path.sep}")
-            for scp in SKIP_COPY_PATHS
+            rel_path == scp or rel_path.startswith(f"{scp}{os.path.sep}") for scp in SKIP_COPY_PATHS
         ):
             continue
 
@@ -242,18 +242,14 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
         )
         return False
 
-    subprocess.check_call(
-        ["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir
-    )
+    subprocess.check_call(["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir)
 
     return True
 
 
 def do_run_release_test(release_test_dir, provider_name, test_config, test_device_serial):
     with open(
-        os.path.join(
-            release_test_dir, ".vagrant", "machines", "default", provider_name, "id"
-        )
+        os.path.join(release_test_dir, ".vagrant", "machines", "default", provider_name, "id")
     ) as f:
         machine_uuid = f.read()
     ATTACH_USB_DEVICE[provider_name](
@@ -268,10 +264,7 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
         return " ".join(shlex.quote(a) for a in cmd)
 
     test_cmd = _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd"])
-    subprocess.check_call(
-        ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd}'"], cwd=release_test_dir
-    )
-
+    subprocess.check_call(["vagrant", "ssh", "-c", f"bash -ec '{test_cmd}'"], cwd=release_test_dir)
 
 
 def test_command(args):
@@ -294,15 +287,17 @@ def test_command(args):
     release_test_dir = os.path.join(THIS_DIR, "release-test")
 
     if args.skip_build:
-        assert len(providers) == 1, '--skip-build was given, but >1 provider specified'
+        assert len(providers) == 1, "--skip-build was given, but >1 provider specified"
 
     for provider_name in providers:
         try:
             if not args.skip_build:
                 do_build_release_test_vm(
-                    release_test_dir, user_box_dir, base_box_dir, provider_name)
+                    release_test_dir, user_box_dir, base_box_dir, provider_name
+                )
             do_run_release_test(
-                release_test_dir, provider_name, test_config, args.test_device_serial)
+                release_test_dir, provider_name, test_config, args.test_device_serial
+            )
             provider_passed[provider_name] = True
 
         finally:
@@ -371,9 +366,12 @@ def parse_args():
     parser.add_argument(
         "--skip-build",
         action="store_true",
-        help=("For use with the 'test' command. If given, assume a box has already been built in "
-              "the release-test subdirectory. Attach a USB device to this box and execute the "
-              "release test script--do not delete it."))
+        help=(
+            "For use with the 'test' command. If given, assume a box has already been built in "
+            "the release-test subdirectory. Attach a USB device to this box and execute the "
+            "release test script--do not delete it."
+        ),
+    )
     parser.add_argument(
         "--test-device-serial",
         help=(
