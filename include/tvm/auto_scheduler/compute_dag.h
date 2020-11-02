@@ -195,6 +195,24 @@ class ComputeDAGNode : public Object {
 };
 
 /*!
+ * \brief Options for applying layout rewrite.
+ * This is an optimization to rewrite the layout of input tensors according to the schedule we get.
+ */
+enum class LayoutRewriteOption : int {
+  /*! \brief Do not process layout rewrite. */
+  NoRewrite = 0,
+  /*! \brief Insert layout transformation stages for input placeholders in the compute DAG */
+  InsertTransformStage = 1,
+  /*!
+   * \brief Do not insert layout transformation stages and assume the input placeholders
+   * are pre-transformed.
+   * \note The lowered function with this option does not accept the origial input shapes,
+   * so this option must be used along with a layout conversion pass in Relay.
+   */
+  RewriteForPreTransformed = 2,
+};
+
+/*!
  * \brief Managed reference to ComputeDAGNode.
  * \sa ComputeDAGNode
  */
@@ -214,8 +232,10 @@ class ComputeDAG : public ObjectRef {
    * \brief Rewrite the layout of placeholder specified by attr `layout_free_placeholders`
    * according to the loop nest derived with `transform_steps`.
    * \param transform_steps Transform steps of a state.
+   * \param layout_rewrite Different options in layout rewrite.
+   * \return The updated ComputeDAG after layout rewrite.
    */
-  void RewriteLayout(const Array<Step>& transform_steps);
+  ComputeDAG RewriteLayout(Array<Step>* transform_steps, LayoutRewriteOption layout_rewrite) const;
 
   /*!
    * \brief Apply the history transform steps to get a TVM schedule.
@@ -225,14 +245,14 @@ class ComputeDAG : public ObjectRef {
    * \param stage_to_axes The map that stores all axes for one stage.
    * Pass a valid pointer if this information needs to be used outside this function.
    * \param layout_rewrite Rewrite the layout of placeholders specified by
-   * attr `layout_free_placeholders`
+   * attr `layout_free_placeholders`.
    * \return A `te.schedule` and the an Array of `te.Tensor` to be used in `tvm.lower`
    * or `tvm.build`.
    */
-  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(const Array<Step>& transform_steps,
-                                                        Array<te::Stage>* stages = nullptr,
-                                                        StageToAxesMap* stage_to_axes = nullptr,
-                                                        bool layout_rewrite = false) const;
+  std::pair<te::Schedule, Array<te::Tensor>> ApplySteps(
+      const Array<Step>& transform_steps, Array<te::Stage>* stages = nullptr,
+      StageToAxesMap* stage_to_axes = nullptr,
+      LayoutRewriteOption layout_rewrite = LayoutRewriteOption::NoRewrite) const;
 
   /*!
    * \brief Print transform steps as equivalent python schedule API.

@@ -51,6 +51,11 @@ class ComputeDAG(Object):
         Input/output tensors or workload key for a compute declaration.
     """
 
+    # Layout Rewrite Options
+    NoRewrite = 0
+    InsertTransformStage = 1
+    RewriteForPreTransformed = 2
+
     def __init__(self, compute_or_sche):
         if isinstance(compute_or_sche, str):
             compute = workload_key_to_tensors(compute_or_sche)
@@ -81,7 +86,7 @@ class ComputeDAG(Object):
         """
         return State(self.init_state, self)
 
-    def apply_steps_from_state(self, state, layout_rewrite=False):
+    def apply_steps_from_state(self, state, layout_rewrite=NoRewrite):
         """
         Apply the history transform steps from a State to get a TVM schedule.
 
