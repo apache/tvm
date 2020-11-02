@@ -62,6 +62,40 @@ class TextureFlattener : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<BufferRealizeNode>();
+
+    std::string storage_scope;
+    auto it = storage_scope_.find(op->buffer.get());
+    if (it != storage_scope_.end())
+    {
+      storage_scope = it->second;
+    }
+    else
+    {
+      storage_scope = op->buffer->scope;
+    }
+    if (storage_scope == "texture")
+    {
+      // TODO(csullivan): Implement texture intrinsic as builtin
+      // Stmt body = this->VisitStmt(op->body);
+      // Array<PrimExpr> shape;
+      // for (auto r : op->bounds) {
+      //   shape.push_back(r->extent);
+      // }
+      // if (shape.size() == 0) {
+      //   shape.push_back(make_const(DataType::Int(32), 1));
+      // }
+      // DataType storage_type = op->buffer->dtype;
+      // // TODO(csullivan): Consider check on float only
+      // stmt = Allocate(op->buffer->data, storage_type, shape,
+      //                make_const(DataType::Bool(op->buffer->dtype.lanes()), true), body);
+      // stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
+    }
+    return stmt;
+  }
+
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
@@ -111,12 +145,14 @@ class TextureFlattener : public StmtExprMutator {
 };
 
 PrimFunc TextureFlatten(PrimFunc func, int cache_line_size, bool create_bound_attributes) {
+  // std::cout << "Before TextureFlattening: " << func << std::endl;
   auto fptr = func.CopyOnWrite();
 
   IRVisitorWithAnalyzer bound_analyzer;
   bound_analyzer(fptr->body);
   fptr->body = TextureFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
                                 &bound_analyzer)(std::move(fptr->body));
+  // std::cout << "After TextureFlattening: " << func << std::endl;
   return func;
 }
 
