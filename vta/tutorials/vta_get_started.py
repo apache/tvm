@@ -115,7 +115,7 @@ elif env.TARGET == "sim":
 # The last operation is a cast and copy back to DRAM, into results tensor
 # :code:`C`.
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/vadd_dataflow.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/vadd_dataflow.png
 #      :align: center
 
 ######################################################################

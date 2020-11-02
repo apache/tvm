@@ -86,7 +86,7 @@ elif env.TARGET in ["sim", "tsim"]:
 # The last operation is a cast and copy back to DRAM, into results tensor
 # :code:`C`.
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/gemm_dataflow.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/gemm_dataflow.png
 #      :align: center
 
 ######################################################################
@@ -107,7 +107,7 @@ elif env.TARGET in ["sim", "tsim"]:
 #   adding the result matrix to an accumulator matrix, as shown in the
 #   figure below.
 #
-#   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/tensor_core.png
+#   .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/tensor_core.png
 #        :align: center
 #        :width: 480px
 #
@@ -126,7 +126,7 @@ elif env.TARGET in ["sim", "tsim"]:
 #   contiguous.
 #   The resulting tiled tensor has a shape of (2, 4, 2, 2).
 #
-#   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/data_tiling.png
+#   .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/data_tiling.png
 #        :align: center
 #        :width: 480px
 #
