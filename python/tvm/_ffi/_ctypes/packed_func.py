@@ -306,7 +306,9 @@ C_TO_PY_ARG_SWITCH[ArgTypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, ArgTypeCode.MODULE_HANDLE
 )
 C_TO_PY_ARG_SWITCH[ArgTypeCode.DLTENSOR_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
-C_TO_PY_ARG_SWITCH[ArgTypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
+C_TO_PY_ARG_SWITCH[ArgTypeCode.NDARRAY_HANDLE] = _wrap_arg_func(
+    lambda x: _make_array(x.v_handle, False, True), ArgTypeCode.NDARRAY_HANDLE
+)
 
 _CLASS_MODULE = None
 _CLASS_PACKED_FUNC = None
