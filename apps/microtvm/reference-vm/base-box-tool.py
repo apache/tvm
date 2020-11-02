@@ -129,6 +129,9 @@ def attach_parallels(uuid, vid_hex=None, pid_hex=None, serial=None):
             and (serial is None or serial == dev_serial)
         ):
             subprocess.check_call(["prlsrvctl", "usb", "set", dev["Name"], uuid])
+            if "Used-By-Vm-Name" in dev:
+                subprocess.check_call(["prlctl", "set", dev["Used-By-Vm-Name"],
+                                       "--device-disconnect", dev["Name"]])
             subprocess.check_call(["prlctl", "set", uuid, "--device-connect", dev["Name"]])
             return
 
@@ -192,6 +195,85 @@ VM_BOX_RE = re.compile(r'(.*\.vm\.box) = "(.*)"')
 SKIP_COPY_PATHS = [".vagrant", "base-box"]
 
 
+def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provider_name):
+    if os.path.exists(release_test_dir):
+        try:
+            subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
+        except subprocess.CalledProcessError:
+            _LOG.warning("vagrant destroy failed--removing dirtree anyhow", exc_info=True)
+
+        shutil.rmtree(release_test_dir)
+
+    for dirpath, _, filenames in os.walk(user_box_dir):
+        rel_path = os.path.relpath(dirpath, user_box_dir)
+        if any(
+            rel_path == scp or rel_path.startswith(f"{scp}{os.path.sep}")
+            for scp in SKIP_COPY_PATHS
+        ):
+            continue
+
+        dest_dir = os.path.join(release_test_dir, rel_path)
+        os.makedirs(dest_dir)
+        for filename in filenames:
+            shutil.copy2(os.path.join(dirpath, filename), os.path.join(dest_dir, filename))
+
+    release_test_vagrantfile = os.path.join(release_test_dir, "Vagrantfile")
+    with open(release_test_vagrantfile) as f:
+        lines = list(f)
+
+    found_box_line = False
+    with open(release_test_vagrantfile, "w") as f:
+        for line in lines:
+            m = VM_BOX_RE.match(line)
+            if not m:
+                f.write(line)
+                continue
+
+            box_package = os.path.join(
+                base_box_dir, f"output-packer-{provider_name}", "package.box"
+            )
+            f.write(f'{m.group(1)} = "{os.path.relpath(box_package, release_test_dir)}"\n')
+            found_box_line = True
+
+    if not found_box_line:
+        _LOG.error(
+            "testing provider %s: couldn't find config.box.vm = line in Vagrantfile; unable to test",
+            provider_name,
+        )
+        return False
+
+    subprocess.check_call(
+        ["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir
+    )
+
+    return True
+
+
+def do_run_release_test(release_test_dir, provider_name, test_config, test_device_serial):
+    with open(
+        os.path.join(
+            release_test_dir, ".vagrant", "machines", "default", provider_name, "id"
+        )
+    ) as f:
+        machine_uuid = f.read()
+    ATTACH_USB_DEVICE[provider_name](
+        machine_uuid,
+        vid_hex=test_config["vid_hex"],
+        pid_hex=test_config["pid_hex"],
+        serial=test_device_serial,
+    )
+    tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
+
+    def _quote_cmd(cmd):
+        return " ".join(shlex.quote(a) for a in cmd)
+
+    test_cmd = _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd"])
+    subprocess.check_call(
+        ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd}'"], cwd=release_test_dir
+    )
+
+
+
 def test_command(args):
     user_box_dir = os.path.join(THIS_DIR, args.platform)
     base_box_dir = os.path.join(THIS_DIR, args.platform, "base-box")
@@ -211,83 +293,22 @@ def test_command(args):
 
     release_test_dir = os.path.join(THIS_DIR, "release-test")
 
+    if args.skip_build:
+        assert len(providers) == 1, '--skip-build was given, but >1 provider specified'
+
     for provider_name in providers:
-        if os.path.exists(release_test_dir):
-            try:
-                subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
-            except subprocess.CalledProcessError:
-                _LOG.warning("vagrant destroy failed--removing dirtree anyhow", exc_info=True)
-
-            shutil.rmtree(release_test_dir)
-
-        for dirpath, _, filenames in os.walk(user_box_dir):
-            rel_path = os.path.relpath(dirpath, user_box_dir)
-            if any(
-                rel_path == scp or rel_path.startswith(f"{scp}{os.path.sep}")
-                for scp in SKIP_COPY_PATHS
-            ):
-                continue
-
-            dest_dir = os.path.join(release_test_dir, rel_path)
-            os.makedirs(dest_dir)
-            for filename in filenames:
-                shutil.copy2(os.path.join(dirpath, filename), os.path.join(dest_dir, filename))
-
-        release_test_vagrantfile = os.path.join(release_test_dir, "Vagrantfile")
-        with open(release_test_vagrantfile) as f:
-            lines = list(f)
-
-        found_box_line = False
-        with open(release_test_vagrantfile, "w") as f:
-            for line in lines:
-                m = VM_BOX_RE.match(line)
-                if not m:
-                    f.write(line)
-                    continue
-
-                box_package = os.path.join(
-                    base_box_dir, f"output-packer-{provider_name}", "package.box"
-                )
-                f.write(f'{m.group(1)} = "{os.path.relpath(box_package, release_test_dir)}"\n')
-                found_box_line = True
-
-        if not found_box_line:
-            _LOG.error(
-                "testing provider %s: couldn't find config.box.vm = line in Vagrantfile; unable to test",
-                provider_name,
-            )
-            continue
-
-        subprocess.check_call(
-            ["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir
-        )
         try:
-            with open(
-                os.path.join(
-                    release_test_dir, ".vagrant", "machines", "default", provider_name, "id"
-                )
-            ) as f:
-                machine_uuid = f.read()
-            ATTACH_USB_DEVICE[provider_name](
-                machine_uuid,
-                vid_hex=test_config["vid_hex"],
-                pid_hex=test_config["pid_hex"],
-                serial=args.test_device_serial,
-            )
-            tvm_home = os.path.realpath(os.path.join(THIS_DIR, "..", "..", ".."))
-
-            def _quote_cmd(cmd):
-                return " ".join(shlex.quote(a) for a in cmd)
-
-            test_cmd = _quote_cmd(["cd", tvm_home]) + " && " + _quote_cmd(test_config["test_cmd"])
-            subprocess.check_call(
-                ["vagrant", "ssh", "-c", f"bash -ec '{test_cmd}'"], cwd=release_test_dir
-            )
+            if not args.skip_build:
+                do_build_release_test_vm(
+                    release_test_dir, user_box_dir, base_box_dir, provider_name)
+            do_run_release_test(
+                release_test_dir, provider_name, test_config, args.test_device_serial)
             provider_passed[provider_name] = True
 
         finally:
-            subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
-            shutil.rmtree(release_test_dir)
+            if not args.skip_build:
+                subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
+                shutil.rmtree(release_test_dir)
 
         if not all(provider_passed[p] for p in provider_passed.keys()):
             sys.exit(
@@ -347,6 +368,12 @@ def parse_args():
         choices=ALL_PROVIDERS,
         help="Name of the provider or providers to act on; if not specified, act on all",
     )
+    parser.add_argument(
+        "--skip-build",
+        action="store_true",
+        help=("For use with the 'test' command. If given, assume a box has already been built in "
+              "the release-test subdirectory. Attach a USB device to this box and execute the "
+              "release test script--do not delete it."))
     parser.add_argument(
         "--test-device-serial",
         help=(
