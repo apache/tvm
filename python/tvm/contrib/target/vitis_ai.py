@@ -82,12 +82,12 @@ def vitis_ai_compiler(ref):
     vai_build_dir = (
         str(pass_context.config["relay.ext.vitis_ai.options.build_dir"])
         if "relay.ext.vitis_ai.options.build_dir" in pass_context.config
-        else tvm.contrib.util.tempdir().relpath("")
+        else tvm.contrib.utils.tempdir().relpath("")
     )
     vai_work_dir = (
         str(pass_context.config["relay.ext.vitis_ai.options.work_dir"])
         if "relay.ext.vitis_ai.options.work_dir" in pass_context.config
-        else tvm.contrib.util.tempdir().relpath("")
+        else tvm.contrib.utils.tempdir().relpath("")
     )
 
     # (Optional configs) Export and load PyXIR runtime module to file if provided. This is used to

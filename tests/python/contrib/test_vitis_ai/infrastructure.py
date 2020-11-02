@@ -35,7 +35,7 @@ from tvm.relay.op.contrib.vitis_ai import annotation
 from tvm.relay.build_module import bind_params_by_name
 from tvm.contrib.target import vitis_ai
 from tvm.contrib import graph_runtime
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 def get_cpu_op_count(mod):
@@ -107,7 +107,7 @@ def build_module(
 
 
 def update_lib(lib, cross_compile=None):
-    tmp_path = util.tempdir()
+    tmp_path = utils.tempdir()
     lib_name = "lib.so"
     lib_path = tmp_path.relpath(lib_name)
     if cross_compile:
