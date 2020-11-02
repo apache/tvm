@@ -14,7 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM Script Parser For TIR"""
+"""TVM Script Parser For TIR
+
+We use [synr](https://synr.readthedocs.io) to get an AST that is stable over
+different python versions. Synr also provides an error handling context that we
+use for error reporting.
+"""
 # pylint: disable=invalid-name, inconsistent-return-statements, no-else-return
 import json
 import operator
@@ -59,8 +64,8 @@ class CallArgumentReader(object):
         elif name not in self.kwargs:
             # If no positional argument was found in the AST, we see if it was
             # defined by name instead.
-            # TODO: this error message is not quite correct. The number of
-            # required arguments is >= pos
+            # TODO(tkonolige): this error message is not quite correct. The
+            # number of required arguments is >= pos
             self.parser.report_error(
                 f"{self.func_name} requires {pos} arguments, but only {len(self.args)} were given.",
                 self.node.span,
@@ -316,8 +321,8 @@ class TVMScriptParser(Transformer):
         """Class definition visitor.
 
         A class can have multiple function definitions and a single
-        `__tvm_meta__` statement. Each class corresponds to a single
-        `IRModule`.
+        :code:`__tvm_meta__` statement. Each class corresponds to a single
+        :code:`IRModule`.
 
         Example
         -------
@@ -354,13 +359,13 @@ class TVMScriptParser(Transformer):
     def transform_Function(self, node):
         """Function definition visitor.
 
-        Each function definition is translated to a single `PrimFunc`.
+        Each function definition is translated to a single :code:`PrimFunc`.
 
         There are a couple restrictions on TVM Script functions:
         1. Function arguments must have their types specified.
-        2. The body of the function can contain `func_attr` to specify
+        2. The body of the function can contain :code:`func_attr` to specify
            attributes of the function (like it's name).
-        3. The body of the function can also contain multiple `buffer_binds`,
+        3. The body of the function can also contain multiple :code:`buffer_bind`s,
            which give shape and dtype information to arguments.
         4. Return statements are implicit.
 
@@ -450,7 +455,7 @@ class TVMScriptParser(Transformer):
         self.report_error("Unsupported Assign stmt", node.span)
 
     def transform_SubscriptAssign(self, node):
-        """Visitor for statements of the form `x[1] = 2`."""
+        """Visitor for statements of the form :code:`x[1] = 2`."""
         symbol = self.transform(node.params[0])
         indexes = self.transform(node.params[1])
         rhs = self.transform(node.params[2])
@@ -471,12 +476,12 @@ class TVMScriptParser(Transformer):
     def transform_Assert(self, node):
         """Assert visitor
 
-        Pattern corresponds to concise mode of with tir.Assert()
+        Pattern corresponds to concise mode of :code:`with tir.Assert()`.
         """
 
         condition = self.transform(node.condition)
         if node.msg is None:
-            self.report_error("Assert statements must have a message", node.span)
+            self.report_error("Assert statements must have an error message.", node.span)
         message = self.transform(node.msg)
         body = self.parse_body(node)
         return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), body)
@@ -491,11 +496,11 @@ class TVMScriptParser(Transformer):
         """
 
         if not isinstance(node.rhs, ast.Call):
-            self.report_error("The loop iter should be a Call", node.rhs.span)
+            self.report_error("The loop iterator should be a function call.", node.rhs.span)
         func = self.transform(node.rhs.func_name)
         if not isinstance(func, ForScopeHandler):
             self.report_error(
-                "Only for scope handlers can be used in for stmt", node.rhs.func_name.span
+                "Only for scope handlers can be used in a for statement.", node.rhs.func_name.span
             )
         # prepare for new for scope
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
@@ -525,12 +530,17 @@ class TVMScriptParser(Transformer):
         """
 
         if not isinstance(node.rhs, ast.Call):
-            self.report_error("The context expression of with should be a Call", node.rhs.span)
+            self.report_error(
+                "The context expression of a `with` statement should be a function call.",
+                node.rhs.span,
+            )
 
         func = self.transform(node.rhs.func_name)
 
         if not isinstance(func, WithScopeHandler):
-            self.report_error("Function not allowed in with scope", node.rhs.func_name.span)
+            self.report_error(
+                f"Function {func} cannot be used in a `with` statement.", node.rhs.func_name.span
+            )
         # prepare for new block scope
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
         self.current_lineno = node.body.span.start_line
@@ -589,7 +599,7 @@ class TVMScriptParser(Transformer):
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
                 return self._unaryop_maker[node.func_name.name](rhs)
-            self.report_error(f"Unsupported operator {node.func_name.name}", node.func_name.span)
+            self.report_error(f"Unsupported operator {node.func_name.name}.", node.func_name.span)
         else:
             func = self.transform(node.func_name)
             if isinstance(func, Intrin) and not func.stmt:
@@ -608,7 +618,7 @@ class TVMScriptParser(Transformer):
                     # pattern 3
                     return func(*args, **kw_args)
 
-        self.report_error("Unsupported function call", node.func_name.span)
+        self.report_error("Unsupported function call.", node.func_name.span)
 
     def transform_UnassignedCall(self, node):
         """Visitor for statements that are function calls.
@@ -655,13 +665,13 @@ class TVMScriptParser(Transformer):
             func.handle(node, self.context, arg_list)
             return
 
-        self.report_error(f"Invalid Expr stmt {type(func).__name__}", node.call.func_name.span)
+        self.report_error(f"Invalid Expr stmt {type(func).__name__}.", node.call.func_name.span)
 
     def transform_Slice(self, node):
         start = self.transform(node.start)
         end = self.transform(node.end)
         if not (isinstance(node.step, ast.Constant) and node.step.value == 1):
-            self.report_error("Only step size 1 is supported for slices", node.step.span)
+            self.report_error("Only step size 1 is supported for slices.", node.step.span)
         extent = end - start
         if isinstance(extent, tvm.tir.PrimExpr):
             ana = tvm.arith.Analyzer()
@@ -679,7 +689,7 @@ class TVMScriptParser(Transformer):
 
         symbol = self.transform(node.params[0])
         if symbol is None:
-            self.report_error(node.value.id + " is not defined", node.params[0].span)
+            self.report_error(f"Variable {node.value.id} is not defined.", node.params[0].span)
 
         indexes = [self.transform(x) for x in node.params[1].values]
         if isinstance(indexes[0], tvm.ir.Range):
@@ -692,7 +702,7 @@ class TVMScriptParser(Transformer):
 
         self.report_error(
             f"Cannot subscript from a {type(symbol).__name__}. Only variables and "
-            "buffers are supported",
+            "buffers are supported.",
             node.params[0].span,
         )
 
@@ -720,16 +730,18 @@ class TVMScriptParser(Transformer):
                     # Check if we got an attribute error
                     if e.args[0].find("AttributeError"):
                         self.report_error(
-                            "Unregistered function tir." + node.field.name, node.field.span
+                            f"Unregistered function `tir.{node.field.name}`.", node.field.span
                         )
                     else:
                         raise e
 
         symbol = self.transform(node.object)
         if symbol is None:
-            self.report_error("Unsupported Attribute expression", node.object.span)
+            self.report_error("Unsupported Attribute expression.", node.object.span)
         if not hasattr(symbol, node.field.name):
-            self.report_error("Type " + type(symbol) + " has not attr " + node.field, node.span)
+            self.report_error(
+                f"Type {type(symbol)} does not have a field called `{node.field}`.", node.span
+            )
         res = getattr(symbol, node.field.name)
         return res
 
@@ -745,14 +757,16 @@ class TVMScriptParser(Transformer):
         if isinstance(node.object, ast.TypeVar):
             if node.object.id.name == "ty":
                 if not hasattr(ty, node.field.name):
-                    self.report_error("invalid type annotation ty." + node.field.name, node.span)
+                    self.report_error(f"Invalid type annotation `ty.{node.field.name}`.", node.span)
                 return getattr(ty, node.field.name)
 
         symbol = self.transform(node.object)
         if symbol is None:
             self.report_error("Unsupported Attribute expression", node.object.span)
         if not hasattr(symbol, node.field):
-            self.report_error("Type " + type(symbol) + " has not attr " + node.field, node.span)
+            self.report_error(
+                f"Type {type(symbol)} does not have a field called `{node.field}`.", node.span
+            )
         res = getattr(symbol, node.field)
         return res
 
@@ -798,7 +812,7 @@ class TVMScriptParser(Transformer):
         symbol = self.context.lookup_symbol(name)
         if symbol is not None:
             return symbol
-        self.report_error(f"Unknown identifier {name}", node.span)
+        self.report_error(f"Unknown identifier {name}.", node.span)
 
     def transform_TypeVar(self, node):
         """Type variable visitor.
@@ -812,7 +826,7 @@ class TVMScriptParser(Transformer):
         symbol = self.context.lookup_symbol(name)
         if symbol is not None:
             return symbol
-        self.report_error(f"Unknown identifier {name}", node.span)
+        self.report_error(f"Unknown identifier {name}.", node.span)
 
     def transform_Constant(self, node):
         """Constant value visitor.
@@ -915,7 +929,7 @@ def tir(script_in):
     elif inspect.isclass(script_in):
         result = TVMScriptClass(script_in)
     else:
-        raise TypeError("Only function and class are supported")
+        raise TypeError("Only function and class definitions are supported.")
     result.__name__ = script_in.__name__
     result.__qualname__ = script_in.__qualname__
     return result

@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Bridge from synr DiagnosticContext to TVM's diagnostics"""
+"""Bridge from synr's (the library used for parsing the python AST)
+   DiagnosticContext to TVM's diagnostics
+"""
 import tvm
 from synr import DiagnosticContext, ast
 from tvm.ir.diagnostics import DiagnosticContext as TVMCtx
