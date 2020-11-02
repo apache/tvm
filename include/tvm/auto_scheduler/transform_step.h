@@ -182,7 +182,23 @@ class StepNode : public Object {
  */
 class Step : public ObjectRef {
  public:
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);
+  /*!
+   * \brief CopyOnWrite function for Step.
+   * This works almost the same as a normal ObjectRef.CopyOnWrite(), but can dispatch to different
+   * steps.
+   * \return A base StepNode pointer, need to cast to its real StepNode type before doing any
+   * modifications.
+   * \code
+   *
+   *  SplitStep ref;
+   *  StepNode* mutable_ref = ref.CopyOnWrite();
+   *  dynamic_cast<SplitStepNode*>(mutable_ref)->... = ...;
+   *
+   * \endcode
+   */
+  StepNode* CopyOnWrite();
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Step, ObjectRef, StepNode);
 };
 
 // Forward declaration
@@ -267,7 +283,7 @@ class AnnotationStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "AN";
 
   static constexpr const char* _type_key = "auto_scheduler.AnnotationStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, StepNode);
 };
 
 /*!
@@ -330,7 +346,7 @@ class FuseStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "FU";
 
   static constexpr const char* _type_key = "auto_scheduler.FuseStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, StepNode);
 };
 
 /*!
@@ -390,7 +406,7 @@ class PragmaStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "PR";
 
   static constexpr const char* _type_key = "auto_scheduler.PragmaStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PragmaStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PragmaStepNode, StepNode);
 };
 
 /*!
@@ -452,7 +468,7 @@ class ReorderStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "RE";
 
   static constexpr const char* _type_key = "auto_scheduler.ReorderStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, StepNode);
 };
 
 /*!
@@ -527,7 +543,7 @@ class SplitStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "SP";
 
   static constexpr const char* _type_key = "auto_scheduler.SplitStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, StepNode);
 };
 
 /*!
@@ -607,7 +623,7 @@ class FollowSplitStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "FSP";
 
   static constexpr const char* _type_key = "auto_scheduler.FollowSplitStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, StepNode);
 };
 
 /*!
@@ -688,7 +704,7 @@ class FollowFusedSplitStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "FFSP";
 
   static constexpr const char* _type_key = "auto_scheduler.FollowFusedSplitStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, StepNode);
 };
 
 /*!
@@ -754,7 +770,7 @@ class StorageAlignStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "SA";
 
   static constexpr const char* _type_key = "auto_scheduler.StorageAlignStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StorageAlignStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StorageAlignStepNode, StepNode);
 };
 
 /*!
@@ -822,7 +838,7 @@ class ComputeAtStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "CA";
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeAtStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, StepNode);
 };
 
 /*!
@@ -879,7 +895,7 @@ class ComputeInlineStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "CI";
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeInlineStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, StepNode);
 };
 
 /*!
@@ -938,7 +954,7 @@ class ComputeRootStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "CR";
 
   static constexpr const char* _type_key = "auto_scheduler.ComputeRootStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, StepNode);
 };
 
 /*!
@@ -1010,7 +1026,7 @@ class CacheReadStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "CHR";
 
   static constexpr const char* _type_key = "auto_scheduler.CacheReadStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CacheReadStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CacheReadStepNode, StepNode);
 };
 
 /*!
@@ -1081,7 +1097,7 @@ class CacheWriteStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "CHW";
 
   static constexpr const char* _type_key = "auto_scheduler.CacheWriteStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(CacheWriteStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CacheWriteStepNode, StepNode);
 };
 
 /*!
@@ -1148,7 +1164,7 @@ class RfactorStepNode : public StepNode {
   static constexpr const char* record_prefix_str = "RF";
 
   static constexpr const char* _type_key = "auto_scheduler.RfactorStep";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RfactorStepNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RfactorStepNode, StepNode);
 };
 
 /*!

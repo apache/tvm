@@ -28,18 +28,26 @@ from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_t
 
 def test_apply_steps_with_layout_rewrite():
     dag, s = get_tiled_matmul()
-    _, bufs = dag.apply_steps_from_state(s, layout_rewrite=False)
+    _, bufs = dag.apply_steps_from_state(s)
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
-    _, bufs = dag.apply_steps_from_state(s, layout_rewrite=True)
+    _, bufs = dag.apply_steps_from_state(
+        s, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
+    )
     assert bufs[1].shape[0] == 4
     assert bufs[1].shape[1] == 8
     assert bufs[1].shape[2] == 4
     assert bufs[1].shape[3] == 4
     assert bufs[1].shape[4] == 512
+    _, bufs = dag.apply_steps_from_state(
+        s, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
+    )
+    assert bufs[1].shape[0] == 512
+    assert bufs[1].shape[1] == 512
 
 
-def test_layout_rewrite_correctness():
+@tvm.testing.requires_llvm
+def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     N = 128
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
@@ -50,16 +58,19 @@ def test_layout_rewrite_correctness():
 
         search_policy = auto_scheduler.SketchPolicy(task)
 
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext()
         tuning_options = auto_scheduler.TuningOptions(
             num_measure_trials=2,
-            runner="local",
+            runner=measure_ctx.runner,
             verbose=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
-        s, bufs = dag.apply_steps_from_state(inp.state, layout_rewrite=True)
-        s_ref, bufs_ref = dag.apply_steps_from_state(inp.state, layout_rewrite=False)
+        s, bufs = dag.apply_steps_from_state(
+            inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
+        )
+        s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
         np_args_ref = [np.array(x) for x in np_args]
 
@@ -100,10 +111,60 @@ def test_layout_rewrite_correctness():
         func_ref(*args_ref)
         ctx.sync()
 
-        np.testing.assert_allclose(np_args[0], np_args_ref[0])
-        np.testing.assert_allclose(np_args[2], np_args_ref[2])
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
+        del measure_ctx
+
+
+@tvm.testing.requires_llvm
+def test_correctness_layout_rewrite_insert_transform_stage():
+    N = 128
+    target = tvm.target.Target("llvm")
+    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
+    dag = task.compute_dag
+
+    with tempfile.NamedTemporaryFile() as fp:
+        log_file = fp.name
+
+        search_policy = auto_scheduler.SketchPolicy(task)
+
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+        tuning_options = auto_scheduler.TuningOptions(
+            num_measure_trials=2,
+            runner=measure_ctx.runner,
+            verbose=1,
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+        )
+        auto_scheduler.auto_schedule(task, search_policy, tuning_options)
+        inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
+        s, bufs = dag.apply_steps_from_state(
+            inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
+        )
+
+        s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
+        np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
+
+        func = tvm.build(s, bufs, target=target)
+        func_ref = tvm.build(s_ref, bufs_ref, target=target)
+
+        ctx = tvm.context(str(target))
+        ctx_ref = tvm.cpu()
+
+        args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
+        args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args]
+        ctx.sync()
+
+        func(*args)
+        func_ref(*args_ref)
+        ctx.sync()
+
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
+        del measure_ctx
 
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
-    test_layout_rewrite_correctness()
+    test_correctness_layout_rewrite_rewrite_for_preTransformed()
+    test_correctness_layout_rewrite_insert_transform_stage()
