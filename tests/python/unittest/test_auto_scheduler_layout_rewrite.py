@@ -22,7 +22,6 @@ import numpy as np
 import tvm
 from tvm import topi
 from tvm import auto_scheduler, te
-import random
 
 from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
 
@@ -49,7 +48,6 @@ def test_apply_steps_with_layout_rewrite():
 
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
-    random.seed(0)
     N = 128
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
@@ -113,14 +111,13 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         func_ref(*args_ref)
         ctx.sync()
 
-        np.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
-        np.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
         del measure_ctx
 
 
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_insert_transform_stage():
-    random.seed(0)
     N = 128
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
@@ -161,9 +158,10 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func_ref(*args_ref)
         ctx.sync()
 
-        np.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
-        np.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy())
-        np.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
+        
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
         del measure_ctx
 
 
