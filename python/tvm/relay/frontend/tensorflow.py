@@ -1923,6 +1923,16 @@ def _softmax():
     return _impl
 
 
+def _softsign():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/softsign
+    def _impl(inputs, attr, params, mod):
+        abs_out = get_relay_op("abs")(inputs[0])
+        add_out = abs_out + tvm.relay.const(1, attr["T"].name)
+        return inputs[0] / add_out
+
+    return _impl
+
+
 def _softplus():
     # op description: https://www.tensorflow.org/api_docs/python/tf/math/softplus
     def _impl(inputs, attr, params, mod):
@@ -2381,6 +2391,7 @@ _convert_map = {
     "Slice": _slice(),
     "Softmax": _softmax(),
     "Softplus": _softplus(),
+    "Softsign": _softsign(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
     "Split": _split(False),
