@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "../op/memory/utils.h"
 #include "compile_engine.h"
 #include "utils.h"
 
@@ -273,14 +274,11 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       std::vector<GraphNodeRef> ret;
       ShapeVector shape;
       std::vector<std::string> dtype;
+      std::vector<TensorType> fields = FlattenTupleType(checked_type);
       for (size_t i = 0; i < tuple_type->fields.size(); ++i) {
-        if (const auto* typ = tuple_type->fields[i].as<TensorTypeNode>()) {
-          ret.push_back(GraphNodeRef(node_id, i));
-          shape.emplace_back(_ShapeToJSON(typ->shape));
-          dtype.emplace_back(DType2String(typ->dtype));
-        } else {
-          LOG(FATAL) << "type " << checked_type->GetTypeKey() << " not supported";
-        }
+        ret.push_back(GraphNodeRef(node_id, i));
+        shape.emplace_back(_ShapeToJSON(fields[i]->shape));
+        dtype.emplace_back(DType2String(fields[i]->dtype));
       }
       ICHECK_EQ(node->Type(), kGraphOpNode);
       auto op_nd = std::dynamic_pointer_cast<GraphOpNode>(node);

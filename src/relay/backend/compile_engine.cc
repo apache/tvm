@@ -270,10 +270,8 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
-      ICHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
       Array<te::Tensor> res = VisitExpr(field);
-      ICHECK_EQ(res.size(), 1);
-      fields.push_back(res[0]);
+      fields.insert(fields.end(), res.begin(), res.end());
     }
     return fields;
   }
