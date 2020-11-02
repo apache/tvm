@@ -202,7 +202,7 @@ This time again, we will run the 2D convolution testbench.
 Beforehand, we need to program the Pynq board FPGA with a VTA bitstream, and build the VTA runtime via RPC.
 The following ``test_program_rpc.py`` script will perform two operations:
 
-* FPGA programming, by downloading a pre-compiled bitstream from a `VTA bitstream repository <https://github.com/uwsaml/vta-distro>`_ that matches the default ``vta_config.json`` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
+* FPGA programming, by downloading a pre-compiled bitstream from a `VTA bitstream repository <https://github.com/uwsampl/vta-distro>`_ that matches the default ``vta_config.json`` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
 * Runtime building on the Pynq, which needs to be run every time the ``vta_config.json`` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete so be patient!
 
 .. code:: bash
