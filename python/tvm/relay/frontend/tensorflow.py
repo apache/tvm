@@ -1281,6 +1281,18 @@ def _space_to_depth():
     return _impl
 
 
+def _sparse_to_dense():
+    def _impl(inputs, attr, params, mod):
+        sparse_indices = inputs[0]
+        sparse_values = inputs[2]
+        default_value = inputs[3]
+        output_shape = attr["_output_shapes"][0]
+
+        return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
+    return _impl
+
+
 def _bias_add():
     def _impl(inputs, attr, params, mod):
         # Must expand for proper broadcasting in NCHW.
@@ -2394,6 +2406,7 @@ _convert_map = {
     "Softsign": _softsign(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
+    "SparseToDense": _sparse_to_dense(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
