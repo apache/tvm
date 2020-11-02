@@ -264,7 +264,6 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
       static_cast<int>(
           GetDoubleParam(params, SketchParamKey::SampleInitPopulation::use_measured_ratio) *
           population));
-  bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
 
   // 1. Generate sketches
   if (sketch_cache_.empty()) {
@@ -274,23 +273,17 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
   // 2. Sample the init population
   Array<State> init_population = SampleInitPopulation(sketch_cache_);
 
-  // 3. Perform evolutionary search if a cost model is utilized. Otherwise,
-  // just return some random states.
-  if (is_cost_model_reasonable) {
-    // Also insert already measured good states to the initial population
-    std::vector<int> indices = Argsort(measured_states_throughputs_);
-    for (int i = 0; i < num_use_measured; i++) {
-      init_population.push_back(measured_states_vector_[indices[i]]);
-    }
-    // Sample some random states for eps-greedy
-    if (num_random_states > 0 && random_states != nullptr) {
-      *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states);
-    }
-    return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
-  } else {
-    PruneInvalidState(search_task, &init_population);
-    return RandomSampleStates(init_population, &rand_gen, num_measure_per_iter_ * 2);
+  // 3. Perform evolutionary search.
+  // Also insert already measured good states to the initial population
+  std::vector<int> indices = Argsort(measured_states_throughputs_);
+  for (int i = 0; i < num_use_measured; i++) {
+    init_population.push_back(measured_states_vector_[indices[i]]);
   }
+  // Sample some random states for eps-greedy
+  if (num_random_states > 0 && random_states != nullptr) {
+    *random_states = RandomSampleStates(init_population, &rand_gen, num_random_states);
+  }
+  return EvolutionarySearch(init_population, num_measure_per_iter_ * 2);
 }
 
 Array<State> SketchPolicyNode::GenerateSketches() {
@@ -407,8 +400,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     // Filter out the states that were failed to apply initial rules
     Array<State> cand_states;
     for (auto tmp_s : temp_states) {
-      if (tmp_s.defined() && explored_state_strs.find(tmp_s.ToStr()) == explored_state_strs.end()) {
-        explored_state_strs.insert(tmp_s.ToStr());
+      if (tmp_s.defined()) {
         cand_states.push_back(std::move(tmp_s));
       } else {
         fail_ct++;
@@ -423,10 +415,13 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
       std::vector<float> pop_scores;
       pop_scores.reserve(cand_states.size());
       cand_states = search_task->compute_dag.InferBound(cand_states);
+      PruneInvalidState(search_task, &cand_states);
       program_cost_model->Predict(search_task, cand_states, &pop_scores);
 
       for (size_t i = 0; i < cand_states.size(); i++) {
-        if (pop_scores[i] > -1e10) {
+        const auto state_str = cand_states[i].ToStr();
+        if (pop_scores[i] > -1e10 && explored_state_strs.count(state_str) == 0) {
+          explored_state_strs.insert(state_str);
           out_states.push_back(std::move(cand_states[i]));
           unchange_cnt = 0;  // Reset the counter once we found a valid state
         } else {
@@ -495,7 +490,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   // auxiliary global variables
   std::vector<float> pop_scores;
   std::vector<double> pop_selection_probs;
-  float max_score = 0.0;
+  float max_score = -1e-10;
   pop_scores.reserve(population);
   pop_selection_probs.reserve(population);
   std::uniform_real_distribution<> dis(0.0, 1.0);
@@ -543,9 +538,15 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
 
     // Print statistical information
     if (k % 5 == 0 || k == num_iters) {
-      StdCout(verbose) << "GA Iter: " << k << std::fixed << std::setprecision(4)
-                       << "\tMax score: " << max_score << "\tMin score: " << heap.front().second
-                       << "\t#Pop: " << pnow->size() << "\t#M+: " << mutation_success_ct / (k + 1)
+      StdCout(verbose) << "GA Iter: " << k;
+      if (!heap.empty()) {
+        StdCout(verbose) << std::fixed << std::setprecision(4) << "\tMax score: " << max_score
+                         << std::fixed << std::setprecision(4)
+                         << "\tMin score: " << heap.front().second;
+      } else {
+        StdCout(verbose) << "\tMax score: N/A\tMin score: N/A";
+      }
+      StdCout(verbose) << "\t#Pop: " << heap.size() << "\t#M+: " << mutation_success_ct / (k + 1)
                        << "\t#M-: " << mutation_fail_ct / (k + 1) << std::endl;
     }
     if (k == num_iters) {
