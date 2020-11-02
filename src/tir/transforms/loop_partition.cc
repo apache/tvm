@@ -635,7 +635,8 @@ Pass LoopPartition() {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<LoopPartitionConfig>();
     }
-    n->body = LoopPartition(std::move(n->body), cfg.value()->partition_const_loop, cfg.value()->unroll);
+    n->body =
+        LoopPartition(std::move(n->body), cfg.value()->partition_const_loop, cfg.value()->unroll);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LoopPartition", {});
