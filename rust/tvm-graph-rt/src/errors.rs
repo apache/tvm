@@ -22,14 +22,14 @@ use tvm_sys::DataType;
 
 #[derive(Debug, Error)]
 pub enum GraphFormatError {
-    #[error("Could not parse graph json")]
-    Parse(#[from] serde_json::Error),
-    #[error("Could not parse graph params")]
-    Params,
-    #[error("{0} is missing attr: {1}")]
+    #[error("Failed to parse graph with error: {0}")]
+    Parse(#[source] serde_json::Error),
+    #[error("Failed to parse graph parameters with error: {0:?}")]
+    Params(#[source] Option<nom::Err<(Vec<u8>, nom::error::ErrorKind)>>),
+    #[error("{0} is missing attribute: {1}")]
     MissingAttr(String, String),
-    #[error("Graph has invalid attr that can't be parsed: {0}")]
-    InvalidAttr(#[from] std::num::ParseIntError),
+    #[error("Failed to parse graph attribute '{0}' with error: {1}")]
+    InvalidAttr(String, #[source] std::num::ParseIntError),
     #[error("Missing field: {0}")]
     MissingField(&'static str),
     #[error("Invalid DLType: {0}")]

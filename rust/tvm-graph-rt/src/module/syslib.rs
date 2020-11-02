@@ -18,7 +18,7 @@
  */
 
 use std::{
-    collections::HashMap, convert::AsRef, ffi::CStr, os::raw::c_char, string::String, sync::Mutex,
+    collections::HashMap, convert::AsRef, ffi::CStr, os::raw::c_char, string::String, sync::RwLock,
 };
 
 use lazy_static::lazy_static;
@@ -35,14 +35,14 @@ extern "C" {
 }
 
 lazy_static! {
-    static ref SYSTEM_LIB_FUNCTIONS: Mutex<HashMap<String, &'static (dyn PackedFunc)>> =
-        Mutex::new(HashMap::new());
+    static ref SYSTEM_LIB_FUNCTIONS: RwLock<HashMap<String, &'static (dyn PackedFunc)>> =
+        RwLock::new(HashMap::new());
 }
 
 impl Module for SystemLibModule {
     fn get_function<S: AsRef<str>>(&self, name: S) -> Option<&(dyn PackedFunc)> {
         SYSTEM_LIB_FUNCTIONS
-            .lock()
+            .read()
             .unwrap()
             .get(name.as_ref())
             .copied()
@@ -65,7 +65,7 @@ pub extern "C" fn TVMBackendRegisterSystemLibSymbol(
     func: BackendPackedCFunc,
 ) -> i32 {
     let name = unsafe { CStr::from_ptr(cname).to_str().unwrap() };
-    SYSTEM_LIB_FUNCTIONS.lock().unwrap().insert(
+    SYSTEM_LIB_FUNCTIONS.write().unwrap().insert(
         name.to_string(),
         &*Box::leak(super::wrap_backend_packed_func(name.to_string(), func)),
     );
