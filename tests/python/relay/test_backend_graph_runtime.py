@@ -189,7 +189,8 @@ def test_compile_nested_tuples():
     x1 = x + relay.const(1.0)
     x2 = x1 + relay.const(1.0)
     x3 = x2 + relay.const(1.0)
-    out = relay.Tuple([x1, relay.Tuple([x2, x3])])
+    x4 = x3 + relay.const(1.0)
+    out = relay.Tuple([x1, relay.Tuple([relay.Tuple([x2, x3]), x4])])
     func = relay.Function([x], out)
 
     graph, lib, _ = relay.build(tvm.IRModule.from_expr(func), "llvm")
@@ -199,7 +200,7 @@ def test_compile_nested_tuples():
     mod.set_input(x=x_data)
     mod.run()
 
-    assert mod.get_num_outputs() == 3
+    assert mod.get_num_outputs() == 4
 
     ref = x_data + 1
     for i in range(mod.get_num_outputs()):
