@@ -20,9 +20,7 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.op import add
-from tvm.relay import transform
 import tvm.testing
-
 
 # @tq, @jr should we put this in testing ns?
 def check_rts(expr, args, expected_result, mod=None):
@@ -186,7 +184,7 @@ def test_gru_like():
             tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
-def test_return_nested_tuples():
+def test_compile_nested_tuples():
     x = relay.var("x", shape=(10,))
     x1 = x + relay.const(1.0)
     x2 = x1 + relay.const(1.0)
@@ -195,9 +193,7 @@ def test_return_nested_tuples():
     out = relay.Tuple([x1, relay.Tuple([relay.Tuple([x2, x3]), x4])])
     func = relay.Function([x], out)
 
-    with tvm.transform.PassContext(opt_level=3):
-        graph, lib, _ = relay.build(tvm.IRModule.from_expr(func), "llvm")
-
+    graph, lib, _ = relay.build(tvm.IRModule.from_expr(func), "llvm")
     mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
 
     x_data = np.random.uniform(size=(10,)).astype(np.float32)
@@ -213,36 +209,6 @@ def test_return_nested_tuples():
         ref = ref + 1
 
 
-def test_compile_nested_tuples_call_output():
-    mod = tvm.IRModule()
-    x = relay.var("x", shape=(10, 10))
-    a_split = relay.split(x, 2)
-    a_split_0 = relay.TupleGetItem(a_split.astuple(), 0)
-    a_split_1 = relay.TupleGetItem(a_split.astuple(), 1)
-    tuple_out = relay.Tuple((a_split_0, relay.Tuple([a_split_1])))
-    func0 = relay.Function([x], tuple_out)
-    func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-
-    data = relay.var("x", shape=(10, 10))
-    call = relay.Call(func0, [data])
-    mod["main"] = relay.Function([data], call)
-
-    with tvm.transform.PassContext(opt_level=3):
-        graph, lib, _ = relay.build(mod, "llvm")
-
-    mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
-    x_data = np.random.uniform(size=(10, 10)).astype(np.float32)
-    mod.set_input(x=x_data)
-    mod.run()
-
-    assert mod.get_num_outputs() == 2
-
-    ref = np.split(x_data, 2)
-    for i in range(mod.get_num_outputs()):
-        out = mod.get_output(i).asnumpy()
-        tvm.testing.assert_allclose(out, ref[i], rtol=1e-5, atol=1e-5)
-
-
 if __name__ == "__main__":
     test_plan_memory()
     test_with_params()
@@ -250,5 +216,4 @@ if __name__ == "__main__":
     test_add_op_tensor()
     test_add_op_broadcast()
     test_gru_like()
-    test_return_nested_tuples()
-    test_compile_nested_tuples_call_output()
+    test_compile_nested_tuples()

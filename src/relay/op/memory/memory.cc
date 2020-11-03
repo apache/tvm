@@ -32,7 +32,6 @@
 #include "../../transforms/infer_layout_utils.h"
 #include "../op_common.h"
 #include "../type_relations.h"
-#include "utils.h"
 
 namespace tvm {
 namespace relay {

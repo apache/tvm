@@ -28,7 +28,6 @@
 #include <tvm/tir/op.h>
 
 #include "../../support/arena.h"
-#include "../op/memory/utils.h"
 
 namespace tvm {
 namespace relay {
@@ -146,10 +145,8 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
     std::vector<StorageToken*> tokens;
     int device_type =
         node_device_map_.count(GetRef<Expr>(op)) ? node_device_map_[GetRef<Expr>(op)]->value : 0;
-    const Type checked_type = op->checked_type();
-    if (checked_type.as<TupleTypeNode>()) {
-      std::vector<TensorType> fields = FlattenTupleType(checked_type);
-      for (TensorType t : fields) {
+    if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
+      for (Type t : tuple_type->fields) {
         const auto* ttype = t.as<TensorTypeNode>();
         ICHECK(ttype);
         StorageToken* token = arena_->make<StorageToken>();
