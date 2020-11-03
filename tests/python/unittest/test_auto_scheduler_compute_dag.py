@@ -89,6 +89,11 @@ def test_stage_order():
         elif op.name in ["B", "C"]:
             assert stage_ops_1[idx + 1].name == "%s.shared" % op.name
 
+    # Serialize and deserialize the ComputeDAG constructed by a schedule.
+    loaded_dag = pickle.loads(pickle.dumps(dag))
+    assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
+    assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
+
     # Apply the same schedule to Ansor state and it should have the same stage order
     dag = auto_scheduler.ComputeDAG([A, B, C, D, E])
     state = dag.get_init_state()
@@ -107,12 +112,12 @@ def test_stage_order():
     for op1, op2 in zip(stage_ops_1, stage_ops_2):
         assert op1.name == op2.name
 
-    # Serialize and deserialize the ComputeDAG and they should be identical.
-    dag3 = pickle.loads(pickle.dumps(dag))
-    assert str(dag3.get_init_state()) == str(dag.get_init_state())
-    assert len(dag3.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
+    # Serialize and deserialize the ComputeDAG constructed by a list of tensor ops.
+    loaded_dag = pickle.loads(pickle.dumps(dag))
+    assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
+    assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
 
-    # Serialize and deserialize the search task and they should be identical.
+    # Serialize and deserialize the search task.
     task = auto_scheduler.SearchTask(
         dag,
         "test1",
