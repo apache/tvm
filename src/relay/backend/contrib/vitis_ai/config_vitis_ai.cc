@@ -19,11 +19,10 @@
 
 /*!
  * \file src/relay/backend/contrib/vitis_ai/config_vitis_ai.cc
- * \brief Register Vitis-AI codegen options. Main codegen is implemented in python. 
+ * \brief Register Vitis-AI codegen options. Main codegen is implemented in python.
  */
 
 #include <tvm/ir/transform.h>
-
 
 namespace tvm {
 namespace relay {
