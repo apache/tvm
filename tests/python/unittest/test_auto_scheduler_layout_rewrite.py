@@ -20,8 +20,10 @@ import tempfile
 import numpy as np
 
 import pytest
+import random
 
 import tvm
+import tvm.testing
 from tvm import topi
 from tvm import auto_scheduler, te
 
@@ -55,6 +57,10 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
+
+    seed = random.randint(0, 10000000)
+    print(seed)
+    random.seed(seed)
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -114,8 +120,8 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         func_ref(*args_ref)
         ctx.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
         del measure_ctx
 
 
@@ -126,6 +132,10 @@ def test_correctness_layout_rewrite_insert_transform_stage():
     target = tvm.target.Target("llvm")
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
+
+    seed = random.randint(0, 10000000)
+    print(seed)
+    random.seed(seed)
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -162,14 +172,19 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func_ref(*args_ref)
         ctx.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), rtol=1e-4)
-        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), rtol=1e-4)
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
+        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy())
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
         del measure_ctx
 
 
+def ffff():
+    for i in range(10):
+        test_correctness_layout_rewrite_rewrite_for_preTransformed()
+        test_correctness_layout_rewrite_insert_transform_stage()
+
 if __name__ == "__main__":
-    test_apply_steps_with_layout_rewrite()
-    # Disable for now due to being flaky on i386
+    # test_apply_steps_with_layout_rewrite()
     # test_correctness_layout_rewrite_rewrite_for_preTransformed()
     # test_correctness_layout_rewrite_insert_transform_stage()
+    ffff()

@@ -27,5 +27,6 @@ make cython3
 
 TVM_FFI=ctypes python3 -m pytest tests/python/all-platform-minimal-test
 TVM_FFI=cython python3 -m pytest tests/python/all-platform-minimal-test
+python3 tests/python/unittest/test_auto_scheduler_layout_rewrite.py
 TVM_FFI=ctypes python3 -m pytest tests/python/unittest
 TVM_FFI=cython python3 -m pytest tests/python/unittest
