@@ -600,6 +600,10 @@ TVM_DLL const Op& vectorcombine();
  * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA
  */
 TVM_DLL const Op& atomic_add();
+/*!
+ * \brief Create a texture 2d memory allocation
+ */
+TVM_DLL const Op& text2d_alloca();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

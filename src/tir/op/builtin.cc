@@ -246,6 +246,9 @@ TIR_DEFINE_BUILTIN_FUNC(vectorcombine)
 TIR_DEFINE_BUILTIN_FUNC(atomic_add)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_BUILTIN_FUNC(text2d_alloca)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
 }  // namespace builtin
 }  // namespace tir
 }  // namespace tvm

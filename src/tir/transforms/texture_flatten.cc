@@ -78,20 +78,19 @@ class TextureFlattener : public StmtExprMutator {
     }
     if (storage_scope == "texture")
     {
-      // TODO(csullivan): Implement texture intrinsic as builtin
-      // Stmt body = this->VisitStmt(op->body);
-      // Array<PrimExpr> shape;
-      // for (auto r : op->bounds) {
-      //   shape.push_back(r->extent);
-      // }
-      // if (shape.size() == 0) {
-      //   shape.push_back(make_const(DataType::Int(32), 1));
-      // }
-      // DataType storage_type = op->buffer->dtype;
-      // // TODO(csullivan): Consider check on float only
-      // stmt = Allocate(op->buffer->data, storage_type, shape,
-      //                make_const(DataType::Bool(op->buffer->dtype.lanes()), true), body);
-      // stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
+      Stmt body = this->VisitStmt(op->body);
+      Array<PrimExpr> shape;
+      for (auto r : op->bounds) {
+        shape.push_back(r->extent);
+      }
+      ICHECK_EQ(shape.size(), 3) << "Only 2d RGBA texture is currently supported";
+      ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
+
+      // TODO(csullivan): Consider check on float only
+      StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->dtype));
+      Array<PrimExpr> args = {dtype, shape[0], shape[1]};
+      stmt = LetStmt(op->buffer->data, Call(op->buffer->data.dtype(), builtin::text2d_alloca(), args), body);
+      stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
     }
     return stmt;
   }
