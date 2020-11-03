@@ -23,7 +23,6 @@
 
 #include "vitis_ai_runtime.h"
 
-#include <tvm/ir/transform.h>
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
@@ -35,17 +34,6 @@ using namespace pyxir::runtime;
 
 namespace tvm {
 namespace runtime {
-
-/*! \brief The target Vitis-AI accelerator device */
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.target", String);
-/*! \brief (Optional config) The build directory to be used by Vitis-AI */
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.build_dir", String);
-/*! \brief (Optional config) The work directory to be used by Vitis-AI */
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.work_dir", String);
-/*! \brief (Optional config) Export PyXIR runtime module to disk during serialization if provided */
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.export_runtime_module", String);
-/*! \brief (Optional config) Load PyXIR runtime module from disk */
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.vitis_ai.options.load_runtime_module", String);
 
 VitisAIRuntime::VitisAIRuntime(const std::string& symbol_name, const Array<String> const_names,
                                const std::string& serialized_rt_mod,
