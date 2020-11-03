@@ -191,10 +191,7 @@ class ComputeDAG(Object):
     def __getstate__(self):
         import pickle  # pylint: disable=import-outside-toplevel
 
-        return {
-            "compute": SaveJSON(self.compute),
-            "sche": SaveJSON(self.sche)
-        }
+        return {"compute": SaveJSON(self.compute), "sche": SaveJSON(self.sche)}
 
     def __setstate__(self, state):
         import pickle  # pylint: disable=import-outside-toplevel
