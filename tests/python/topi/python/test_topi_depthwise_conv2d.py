@@ -56,6 +56,55 @@ _depthwise_conv2d_nhwc_implement = {
 }
 
 
+def compile_depthwise_NHWC_int8_arm(
+    batch,
+    in_channel,
+    in_size,
+    kernel,
+    depth_multiplier,
+    stride,
+    padding,
+    add_bias=False,
+    dilation=1,
+):
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
+    padding_sum = pad_top + pad_left + pad_bottom + pad_right
+
+    in_height = in_width = in_size
+    A = te.placeholder((batch, in_height, in_width, in_channel), name="A", dtype="int16")
+    W = te.placeholder((kernel, kernel, in_channel, depth_multiplier), name="W", dtype="int16")
+    bias = te.placeholder((in_channel * depth_multiplier,), name="bias", dtype="int32")
+    dtype = "int32"
+
+    device = "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"
+    compute = topi.arm_cpu.compute_depthwise_conv2d_nhwc
+    schedule = topi.arm_cpu.schedule_depthwise_conv2d_nhwc
+
+    if not tvm.testing.device_enabled(device):
+        print("Skip because %s is not enabled" % device)
+        return
+
+    print("Compiling on arm AArch64 target: %s" % device)
+    with tvm.target.Target(device):
+        assert topi.arm_cpu.arm_utils.is_aarch64_arm(), "AArch64 target not recognized"
+
+        C = compute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
+        if add_bias:
+            C += bias
+            ins_outs = [A, W, bias, C]
+        else:
+            ins_outs = [A, W, C]
+
+        s = schedule([C])
+
+        func = tvm.build(
+            s,
+            ins_outs,
+            device,
+            name="depthwise_conv2d",
+        )
+
+
 def depthwise_conv2d_with_workload_nchw(
     batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1
 ):
@@ -478,6 +527,7 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, "SAME")
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, "VALID")
+
     # dilation = 2
     # disabled because it uses too large shared memory on cuda
     # depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
@@ -486,6 +536,10 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME", dilation=2)
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME")
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "VALID")
+
+    # Test compilation on arm devices
+    compile_depthwise_NHWC_int8_arm(1, 728, 32, 1, 3, 1, "SAME")
+    compile_depthwise_NHWC_int8_arm(1, 728, 32, 1, 1, 1, "SAME", True)
 
 
 if __name__ == "__main__":
