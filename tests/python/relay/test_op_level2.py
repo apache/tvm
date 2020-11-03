@@ -23,7 +23,7 @@ from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.contrib import util
+from tvm.contrib import utils
 import tvm.topi.testing
 from tvm.topi.cuda.conv3d_winograd import _infer_tile_size
 import tvm.testing
@@ -258,7 +258,7 @@ def test_conv2d_run():
                         ["data_pad_inline", "ot", 4], ["data_vec_inline", "ot", 1], \
                         ["conv_inline", "ot", 0]]}], "r": [[0.0002933163], \
                         0, 3.1976189613342285, 1570811630.6058347], "v": 0.1}'
-        temp = util.tempdir()
+        temp = utils.tempdir()
         with open(temp.relpath("temp.log"), "w") as log_file:
             log_file.write(test_schedule)
         with autotvm.apply_history_best(temp.relpath("temp.log")):

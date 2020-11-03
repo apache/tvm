@@ -16,11 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
-from __future__ import absolute_import
-
-from tvm.topi.nn.util import get_pad_tuple
-from tvm.topi.util import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
 from tvm.error import OpError
+
 
 from ..expr import Tuple, TupleGetItem, const, Var
 from ..ty import TensorType

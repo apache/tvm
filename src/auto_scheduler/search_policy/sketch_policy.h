@@ -57,8 +57,8 @@ struct SketchParamKey {
   static constexpr const char* empty_retry_count = "retry_search_one_round_on_empty";
 
   struct SampleInitPopulation {
-    /*! \brief The population size of initial sampling. */
-    static constexpr const char* population = "sample_init_population";
+    /*! \brief The minimal size of valid population in the initial sampling. */
+    static constexpr const char* min_population = "sample_init_min_population";
     /*! \brief The maximum percentage of measured states in the initial sampling. */
     static constexpr const char* use_measured_ratio = "sample_init_use_measured_ratio";
   };
@@ -124,10 +124,9 @@ class SketchPolicyNode : public SearchPolicyNode {
   /*!
    * \brief Sample the init population.
    * \param sketches The initial sketches for the sampled population
-   * \param out_size The number of output states.
    * \return The generated states (the initial population).
    */
-  Array<State> SampleInitPopulation(const Array<State>& sketches, int out_size);
+  Array<State> SampleInitPopulation(const Array<State>& sketches);
 
   /*!
    * \brief Perform evolutionary search.

@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
 from tvm import te
-from ..util import is_empty_shape
+from ..utils import is_empty_shape
 
 
 def schedule_injective_from_existing(sch, out):

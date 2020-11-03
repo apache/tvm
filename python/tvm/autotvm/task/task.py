@@ -29,7 +29,8 @@ from tvm.target import Target
 from tvm.te import placeholder, tensor
 from tvm.tir import expr
 
-from ..util import get_const_int, get_const_tuple
+
+from ..utils import get_const_int, get_const_tuple
 from .dispatcher import ApplyConfig, DispatchContext
 from .space import ConfigSpace
 

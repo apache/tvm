@@ -450,4 +450,4 @@ def is_empty_shape(shape):
     is_empty: bool
       Whether input shape is empty or has dimesion with size 0.
     """
-    return cpp.util.is_empty_shape(shape)
+    return cpp.utils.is_empty_shape(shape)

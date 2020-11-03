@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.contrib import cc, util
+from tvm.contrib import cc, utils
 import ctypes
 import os
 import sys
@@ -47,7 +47,7 @@ def test_dso_module_load():
     if not tvm.testing.device_enabled("llvm"):
         return
     dtype = "int64"
-    temp = util.tempdir()
+    temp = utils.tempdir()
 
     def save_object(names):
         n = te.size_var("n")
@@ -105,7 +105,7 @@ def test_device_module_dump():
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         name = "myadd_%s" % device
         if sys.platform == "darwin" or sys.platform.startswith("linux"):
             f = tvm.build(s, [A, B], device, "llvm -system-lib", name=name)
@@ -133,7 +133,7 @@ def test_device_module_dump():
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         name = "myadd_%s" % device
         f = tvm.build(s, [A, B], device, "stackvm", name=name)
         path_dso = temp.relpath("dev_lib.stackvm")
@@ -163,7 +163,7 @@ def test_combine_module_llvm():
         if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         fadd1 = tvm.build(s, [A, B], "llvm", name="myadd1")
         fadd2 = tvm.build(s, [A, B], "llvm", name="myadd2")
         path1 = temp.relpath("myadd1.o")
@@ -188,7 +188,7 @@ def test_combine_module_llvm():
         if not tvm.testing.device_enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         fadd1 = tvm.build(s, [A, B], "llvm -system-lib", name="myadd1")
         fadd2 = tvm.build(s, [A, B], "llvm -system-lib", name="myadd2")
         path1 = temp.relpath("myadd1.o")

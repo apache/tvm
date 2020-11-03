@@ -28,7 +28,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm import autotvm
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm import topi
 import tvm.topi.testing
 import vta
@@ -218,13 +218,13 @@ def run_group_conv2d(env, remote, wl, target, check_correctness=True, print_ir=F
         mod = tvm.build(
             s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
         )
-    temp = util.tempdir()
+    temp = utils.tempdir()
     mod.save(temp.relpath("conv2d.o"))
     remote.upload(temp.relpath("conv2d.o"))
     f = remote.load_module("conv2d.o")
     ctx = remote.context(str(target))
 
-    res_np = np.zeros(topi.util.get_const_tuple(res.shape)).astype(res.dtype)
+    res_np = np.zeros(topi.utils.get_const_tuple(res.shape)).astype(res.dtype)
     data_arr = tvm.nd.array(data_np, ctx)
     kernel_arr = tvm.nd.array(kernel_np, ctx)
     bias_arr = tvm.nd.array(bias_np, ctx)

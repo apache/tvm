@@ -125,7 +125,7 @@ impl Object {
     /// By using associated constants and generics we can provide a
     /// type indexed abstraction over allocating objects with the
     /// correct index and deleter.
-    pub fn base_object<T: IsObject>() -> Object {
+    pub fn base<T: IsObject>() -> Object {
         let index = Object::get_type_index::<T>();
         Object::new(index, delete::<T>)
     }
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_new_object() -> anyhow::Result<()> {
-        let object = Object::base_object::<Object>();
+        let object = Object::base::<Object>();
         let ptr = ObjectPtr::new(object);
         assert_eq!(ptr.count(), 1);
         Ok(())
@@ -359,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_leak() -> anyhow::Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let object = ObjectPtr::leak(ptr);
         assert_eq!(object.count(), 1);
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_clone() -> anyhow::Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let ptr2 = ptr.clone();
         assert_eq!(ptr2.count(), 2);
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn roundtrip_retvalue() -> Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let ret_value: RetValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn roundtrip_argvalue() -> Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let ptr_clone = ptr.clone();
         assert_eq!(ptr.count(), 2);
@@ -435,7 +435,7 @@ mod tests {
     fn test_ref_count_boundary3() {
         use super::*;
         use crate::function::{register, Function};
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let stay = ptr.clone();
         assert_eq!(ptr.count(), 2);

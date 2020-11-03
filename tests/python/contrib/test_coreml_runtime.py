@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util, xcode, coreml_runtime
+from tvm.contrib import utils, xcode, coreml_runtime
 
 import pytest
 import os
@@ -82,7 +82,7 @@ def test_coreml_runtime():
             np.testing.assert_almost_equal(c_out, t_out, 3)
 
     def check_remote(coreml_model):
-        temp = util.tempdir()
+        temp = utils.tempdir()
         compiled_model = xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
         xcode.popen_test_rpc(
             proxy_host, proxy_port, key, destination=destination, libs=[compiled_model]
@@ -93,7 +93,7 @@ def test_coreml_runtime():
         verify(coreml_model, compiled_model, ctx)
 
     def check_local(coreml_model):
-        temp = util.tempdir()
+        temp = utils.tempdir()
         compiled_model = xcode.compile_coreml(coreml_model, out_dir=temp.temp_dir)
         ctx = tvm.cpu(0)
         verify(coreml_model, compiled_model, ctx)

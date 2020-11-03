@@ -19,7 +19,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import te
 from .. import tag
-from ..util import simplify
+from ..utils import simplify
 
 
 def dense_si(data, indices, indptr, weight, bias=None):

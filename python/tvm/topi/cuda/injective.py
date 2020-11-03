@@ -18,7 +18,7 @@
 """Schedule for composition of injective operator"""
 import tvm
 from tvm import te
-from .. import util
+from .. import utils
 
 
 def schedule_injective_from_existing(sch, out):
@@ -45,7 +45,7 @@ def schedule_injective_from_existing(sch, out):
     vector_width = 4 if out.dtype == "float16" else 1
 
     try:
-        const_size = util.get_const_int(util.prod(out.shape))
+        const_size = utils.get_const_int(utils.prod(out.shape))
         need_block_split = const_size > max_block * num_thread * vector_width
     except ValueError:
         need_block_split = False
@@ -87,7 +87,7 @@ def schedule_injective(outs):
 
     tvm.te.schedule.AutoInlineInjective(s)
     for out in outs:
-        if not util.is_empty_shape(out.shape):
+        if not utils.is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)
     return s
 

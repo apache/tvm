@@ -20,7 +20,7 @@ VTA Design and Developer Guide
 
 This developer guide details the complete VTA-TVM hardware-software stack.
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/blogpost/vta_stack.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/blogpost/vta_stack.png
    :align: center
    :width: 60%
 

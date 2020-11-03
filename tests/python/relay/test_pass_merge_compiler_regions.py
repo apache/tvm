@@ -89,7 +89,7 @@ def test_diamond_graph_fanouts():
 def test_example_graph():
     """This tests the merging algorithm on the example used in the RFC.
 
-    See the RFC here: https://discuss.tvm.ai/t/relay-improved-graph-partitioning-algorithm/5830
+    See the RFC here: https://discuss.tvm.apache.org/t/relay-improved-graph-partitioning-algorithm/5830
     Blue nodes are adds (target: test), red nodes are subtracts (target: default).
     """
 

@@ -23,7 +23,7 @@ import sys
 import subprocess
 import json
 from .._ffi.base import py_str
-from . import util
+from . import utils
 
 
 def xcrun(cmd):
@@ -132,7 +132,7 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     metallib : bytearray
         The bytearray of the metallib
     """
-    temp = util.tempdir()
+    temp = utils.tempdir()
     temp_code = temp.relpath("my_lib.metal")
     temp_ir = temp.relpath("my_lib.air")
     temp_target = temp.relpath("my_lib.metallib")
@@ -248,7 +248,7 @@ def popen_test_rpc(host, port, key, destination, libs=None, options=None):
         )
 
     # Lock the path so only one file can run
-    lock = util.filelock(os.path.join(rpc_root, "ios_rpc.lock"))
+    lock = utils.filelock(os.path.join(rpc_root, "ios_rpc.lock"))
 
     with open(os.path.join(rpc_root, "rpc_config.txt"), "w") as fo:
         fo.write("%s %d %s\n" % (host, port, key))

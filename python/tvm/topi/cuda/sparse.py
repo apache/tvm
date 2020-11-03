@@ -23,7 +23,7 @@ import tvm
 from tvm import relay, te
 
 from .. import nn
-from ..util import traverse_inline
+from ..utils import traverse_inline
 
 
 def sparse_dense(data, weight_data, weight_indices, weight_indptr):

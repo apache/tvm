@@ -796,8 +796,8 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
   return orig_layout;
 }
 
-std::string GetNewLayout(Array<PrimExpr>* new_shape, const State& state, const int stage_id,
-                         const Stage& stage, const te::Operation& op, const te::Tensor& placeholder,
+std::string GetNewLayout(const State& state, const int stage_id, const Stage& stage,
+                         const te::Operation& op, const te::Tensor& placeholder,
                          const std::set<std::string>& placeholder_axis_names) {
   std::ostringstream os;
   Array<Iterator> stage_iters;
@@ -852,7 +852,6 @@ std::string GetNewLayout(Array<PrimExpr>* new_shape, const State& state, const i
     if (placeholder_axis_names.count(ori_iter_name)) {
       os << iter->range->extent << ori_iter_name;
       new_names.push_back(ori_iter_name);
-      new_shape->push_back(iter->range->extent);
     }
   }
   std::string new_layout = os.str();
@@ -862,16 +861,22 @@ std::string GetNewLayout(Array<PrimExpr>* new_shape, const State& state, const i
   return new_layout;
 }
 
-void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
-  ComputeDAGNode* p_dag = this->CopyOnWrite();
+ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
+                                     LayoutRewriteOption layout_rewrite) const {
+  CHECK(layout_rewrite != LayoutRewriteOption::NoRewrite)
+      << "Call ComputeDAG::RewriteLayout with NoRewrite.";
+  ComputeDAG new_dag = *this;
+  ComputeDAGNode* p_dag = new_dag.CopyOnWrite();
+
   auto node = make_object<StateNode>();
-  node->transform_steps = transform_steps;
+  node->transform_steps = *transform_steps;
   node->concrete = true;
   const State& state = InferBound(State(node));
+
   OperationSet handled_ops;
-  int stage_id = -1;
-  for (const auto& stage : state->stages) {
-    stage_id += 1;
+  for (size_t stage_id = 0; stage_id < state->stages.size(); stage_id++) {
+    const auto& stage = state->stages[stage_id];
+
     const te::Operation& op = stage->op;
     if (!op->IsInstance<te::ComputeOpNode>()) {
       continue;
@@ -881,15 +886,13 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
       continue;
     }
     const ObjectRef& attr_value = attrs[layout_free_placeholders_key];
-    Array<te::Tensor> placeholders = Downcast<Array<te::Tensor>>(attr_value);
-    for (const auto& placeholder : placeholders) {
+    for (const auto& placeholder : Downcast<Array<te::Tensor>>(attr_value)) {
       const auto& placeholder_op = placeholder->op;
 
       // Check whether this placeholder has already been handled
       if (handled_ops.count(placeholder_op)) {
         continue;
       }
-
       // Skip the op that is not direct consumer of this placeholder.
       // This is usually caused by cache read/write.
       bool direct_consumer = false;
@@ -902,28 +905,89 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
       if (!direct_consumer) {
         continue;
       }
-
-      std::set<std::string> placeholder_axis_names;
-      GetOrigLayout(&placeholder_axis_names, op, placeholder);
-
-      Array<PrimExpr> new_shape;
-      std::string new_layout =
-          GetNewLayout(&new_shape, state, stage_id, stage, op, placeholder, placeholder_axis_names);
-
       handled_ops.insert(placeholder_op);
 
-      Array<te::Operation> old_ops = p_dag->ops;
-      ArrayNode* pops = p_dag->ops.CopyOnWrite();
+      // Process original layout
+      std::set<std::string> placeholder_axis_names;
+      std::string origin_layout = GetOrigLayout(&placeholder_axis_names, op, placeholder);
+      Array<PrimExpr> origin_shape;
+      std::vector<std::string> origin_axes;
+      ParseKernelLayout(origin_layout, &origin_shape, &origin_axes);
 
-      // Create new placeholder
-      te::Operation new_placeholder_op;
-      new_placeholder_op = te::PlaceholderOp(placeholder_op->name, new_shape,
+      // Process new layout
+      std::string new_layout =
+          GetNewLayout(state, stage_id, stage, op, placeholder, placeholder_axis_names);
+      Array<PrimExpr> new_shape;
+      std::vector<std::string> new_axes;
+      ParseKernelLayout(new_layout, &new_shape, &new_axes);
+
+      // Process op updates
+      te::Operation new_op_to_update;
+      if (layout_rewrite == LayoutRewriteOption::RewriteForPreTransformed) {
+        // Create new placeholder
+        new_op_to_update = te::PlaceholderOp(placeholder_op->name, new_shape,
                                              placeholder_op.as<te::PlaceholderOpNode>()->dtype);
+      } else if (layout_rewrite == LayoutRewriteOption::InsertTransformStage) {
+        // Process index strides
+        std::unordered_map<std::string, PrimExpr> axes_stride;
+        for (const auto& i : origin_axes) {
+          axes_stride[i] = Integer(1);
+        }
+        Array<PrimExpr> new_stride(new_shape.size(), PrimExpr());
+        PrimExpr temp = Integer(1);
+        for (int i = new_shape.size() - 1; i >= 0; i--) {
+          new_stride.Set(i, axes_stride[new_axes[i]]);
+          axes_stride[new_axes[i]] *= new_shape[i];
+        }
 
-      te::Operation new_compute_op, old_compute_op;
+        // Add extra layout transpose stage
+        const auto& layout_transform_tensor = te::compute(
+            new_shape,
+            [&new_stride, &placeholder_op, &origin_shape, &new_shape, &origin_axes,
+             &new_axes](const tvm::runtime::Array<tvm::tir::Var>& indices) -> tvm::PrimExpr {
+              Array<PrimExpr> access_indices;
+              for (size_t indice_index = 0; indice_index < origin_shape.size(); indice_index++) {
+                PrimExpr temp = Integer(0);
+                for (size_t i = 0; i < new_shape.size(); i++) {
+                  if (origin_axes[indice_index].compare(new_axes[i]) == 0) {
+                    temp += indices[i] * new_stride[i];
+                  }
+                }
+                access_indices.push_back(temp);
+              }
+              return placeholder_op.output(0)(access_indices);
+            },
+            "auto_schedule_layout_transpose");
+        new_op_to_update = layout_transform_tensor->op;
+
+        // Update the transform steps
+        for (size_t i = 0; i < transform_steps->size(); i++) {
+          Step step = (*transform_steps)[i];
+          if (step->stage_id >= static_cast<int>(stage_id)) {
+            step.CopyOnWrite()->stage_id++;
+          }
+          if (step->IsInstance<ComputeAtStepNode>()) {
+            auto compute_at_step = tvm::Downcast<ComputeAtStep>(step);
+            if (compute_at_step->target_stage_id >= static_cast<int>(stage_id)) {
+              dynamic_cast<ComputeAtStepNode*>(compute_at_step.CopyOnWrite())->target_stage_id++;
+            }
+            transform_steps->Set(i, std::move(compute_at_step));
+          } else {
+            transform_steps->Set(i, std::move(step));
+          }
+        }
+        Array<Integer> to_fuse;
+        for (size_t i = 0; i < new_shape.size() - 1; i++) {
+          to_fuse.push_back(i);
+        }
+        transform_steps->push_back(FuseStep(stage_id, to_fuse));
+        transform_steps->push_back(AnnotationStep(stage_id, 0, IteratorAnnotation::kParallel));
+      }
+
+      te::Operation new_compute_op, original_compute_op;
       Array<PrimExpr> new_body;
       IndexRewriter index_rewriter(placeholder_op, new_layout);
-      for (auto& op : old_ops) {
+      for (const auto& op : p_dag->ops) {
         if (auto* pop = op.as<te::ComputeOpNode>()) {
           bool need_update = false;
           for (auto& t : op->InputTensors()) {
@@ -933,35 +997,45 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
             }
           }
           if (need_update) {
-            for (auto& body : pop->body) {
+            for (const auto& body : pop->body) {
               new_body.push_back(index_rewriter.Rewrite(body));
             }
-            old_compute_op = op;
-            ICHECK(!new_compute_op.defined());
+            original_compute_op = op;
+            CHECK(!new_compute_op.defined());
             new_compute_op = te::ComputeOp(pop->name, pop->tag, pop->attrs, pop->axis, new_body);
           }
         }
       }
 
-      // construct the map from old_op to new_op
+      // construct the map from original_op to new_op
       std::unordered_map<te::Operation, te::Operation> updated_ops;
-      for (size_t i = 0; i < old_ops.size(); ++i) {
-        auto old_op = old_ops[i];
-        if (old_op == placeholder_op) {
-          pops->SetItem(i, new_placeholder_op);
-          updated_ops[placeholder_op] = new_placeholder_op;
-        } else if (old_op == old_compute_op) {
-          pops->SetItem(i, new_compute_op);
-          updated_ops[old_compute_op] = new_compute_op;
+
+      Array<te::Operation> original_ops = p_dag->ops;
+      p_dag->ops.clear();
+      for (size_t i = 0; i < original_ops.size(); ++i) {
+        const auto& original_op = original_ops[i];
+        if (original_op == placeholder_op) {
+          if (layout_rewrite == LayoutRewriteOption::InsertTransformStage) {
+            p_dag->ops.push_back(placeholder_op);
+          }
+          p_dag->ops.push_back(new_op_to_update);
+          updated_ops[placeholder_op] = new_op_to_update;
+        } else if (original_op == original_compute_op) {
+          p_dag->ops.push_back(new_compute_op);
+          updated_ops[original_compute_op] = new_compute_op;
         } else {
-          pops->SetItem(i, old_op);
+          p_dag->ops.push_back(original_op);
         }
       }
 
+      ArrayNode* pops = p_dag->ops.CopyOnWrite();
       // Because ops is sorted in topo-order, only do one pass linear scan here.
       for (size_t i = 0; i < pops->size(); ++i) {
-        auto old_op = Downcast<te::Operation>(pops->at(i));
-        if (auto* pop = old_op.as<te::ComputeOpNode>()) {
+        const auto& original_op = Downcast<te::Operation>(pops->at(i));
+        if (auto* pop = original_op.as<te::ComputeOpNode>()) {
+          if (original_op == new_op_to_update) {
+            continue;
+          }
           auto inputs = pop->InputTensors();
           std::unordered_map<te::Tensor, te::Tensor> rmap;
           for (auto input : inputs) {
@@ -977,8 +1051,8 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
             }
           }
           if (!rmap.empty()) {
-            te::Operation new_op = pop->ReplaceInputs(old_op, rmap);
-            updated_ops[old_op] = new_op;
+            te::Operation new_op = pop->ReplaceInputs(original_op, rmap);
+            updated_ops[original_op] = new_op;
             pops->SetItem(i, new_op);
           }
         }
@@ -986,9 +1060,12 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
 
       Array<te::Tensor> old_tensors = p_dag->tensors;
       ArrayNode* p_tensors = p_dag->tensors.CopyOnWrite();
-
       for (size_t i = 0; i < old_tensors.size(); ++i) {
         const auto& old_tensor = old_tensors[i];
+        if (layout_rewrite != LayoutRewriteOption::RewriteForPreTransformed &&
+            old_tensor->op->IsInstance<te::PlaceholderOpNode>()) {
+          continue;
+        }
         auto it = updated_ops.find(old_tensor->op);
         te::Operation new_op;
         while (it != updated_ops.end()) {
@@ -1018,15 +1095,17 @@ void ComputeDAG::RewriteLayout(const Array<Step>& transform_steps) {
   }
   p_dag->flop_ct = FlopEstimator().EstimateFlop(p_dag->ops);
   p_dag->init_state = State(p_dag->ops);
+
+  return new_dag;
 }
 
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
-    bool layout_rewrite) const {
-  if (layout_rewrite && !transform_steps.empty()) {
-    ComputeDAG new_dag = *this;
-    new_dag.RewriteLayout(transform_steps);
-    return new_dag.ApplySteps(transform_steps, stages, stage_to_axes, false);
+    LayoutRewriteOption layout_rewrite) const {
+  if (layout_rewrite != LayoutRewriteOption::NoRewrite && !transform_steps.empty()) {
+    Array<Step> steps = transform_steps;
+    const auto& dag = RewriteLayout(&steps, layout_rewrite);
+    return dag.ApplySteps(steps);
   }
 
   // Temporal object to be used if the input pointer is nullptr
@@ -1305,11 +1384,12 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
-    .set_body_typed([](const ComputeDAG& dag, const State& state, const bool layout_rewrite) {
+    .set_body_typed([](const ComputeDAG& dag, const State& state, int layout_rewrite) {
       te::Schedule sch;
       Array<te::Tensor> return_tensors;
       std::tie(sch, return_tensors) =
-          dag.ApplySteps(state->transform_steps, nullptr, nullptr, layout_rewrite);
+          dag.ApplySteps(state->transform_steps, nullptr, nullptr,
+                         static_cast<LayoutRewriteOption>(layout_rewrite));
       return Array<ObjectRef>{sch, return_tensors};
     });
 

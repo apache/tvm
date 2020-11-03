@@ -21,8 +21,8 @@ from tvm import te
 from tvm import relay
 from .dilate import dilate
 from .pad import pad
-from .util import get_pad_tuple
-from ..util import simplify
+from .utils import get_pad_tuple
+from ..utils import simplify
 
 
 def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_padding):

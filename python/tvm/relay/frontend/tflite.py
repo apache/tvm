@@ -2770,7 +2770,7 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 3, "input tensors length should be 3"
+        assert len(input_tensors) >= 3, "input tensors length should be >= 3"
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
@@ -2842,6 +2842,19 @@ class OperatorConverter(object):
             kernel_layout="OIHW",
             out_dtype=output_tensor_type_str,
         )
+
+        # if we have bias
+        if len(input_tensors) == 4:
+            bias_tensor = input_tensors[3]
+            bias_tensor_type = bias_tensor.tensor.Type()
+            # bias tensor type should be INT32 (quantization) or FLOAT32
+            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
+            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
+            bias_expr = self.exp_tab.new_const(
+                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+            )
+            channel_axis = 3
+            out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
         return out
 

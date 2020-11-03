@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from .. import nn
-from ..util import traverse_inline
+from ..utils import traverse_inline
 
 
 @autotvm.register_topi_compute("deformable_conv2d_nchw.cuda")

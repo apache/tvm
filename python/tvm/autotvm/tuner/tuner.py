@@ -22,7 +22,7 @@ import tempfile
 import numpy as np
 
 from ..measure import MeasureInput, create_measure_batch
-from ..util import format_si_prefix
+from ..utils import format_si_prefix
 
 from ..env import GLOBAL_SCOPE
 
@@ -107,7 +107,7 @@ class Tuner(object):
             with no return value. These callback functions will be called on
             every measurement pair. See autotvm/tuner/callback.py for some examples.
         si_prefix: str
-            One of tvm.autotvm.util.SI_PREFIXES. The SI prefix to use when reporting FLOPS.
+            One of tvm.autotvm.utils.SI_PREFIXES. The SI prefix to use when reporting FLOPS.
         """
         measure_batch = create_measure_batch(self.task, measure_option)
         n_parallel = getattr(measure_batch, "n_parallel", 1)

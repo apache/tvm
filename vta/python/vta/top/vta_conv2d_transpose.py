@@ -22,8 +22,8 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm import topi
-from tvm.topi.util import get_const_tuple
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 
 from ..environment import get_env
 
@@ -75,7 +75,7 @@ def conv2d_transpose_packed(cfg, data, kernel, strides, padding, out_dtype, outp
 
     cfg.add_flop(
         2
-        * np.prod(topi.util.get_const_tuple(oshape))
+        * np.prod(topi.utils.get_const_tuple(oshape))
         * kshape[2]
         * kshape[3]
         * ishape[1]

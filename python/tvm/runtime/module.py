@@ -277,7 +277,7 @@ class Module(object):
             raise RuntimeError("Cannot call export_library in runtime only mode")
         # Extra dependencies during runtime.
         from pathlib import Path
-        from tvm.contrib import cc as _cc, tar as _tar, util as _util
+        from tvm.contrib import cc as _cc, tar as _tar, utils as _utils
 
         if isinstance(file_name, Path):
             file_name = str(file_name)
@@ -292,7 +292,7 @@ class Module(object):
             return
 
         modules = self._collect_dso_modules()
-        temp = _util.tempdir()
+        temp = _utils.tempdir()
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
@@ -408,9 +408,9 @@ def load_module(path, fmt=""):
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
-        from tvm.contrib import cc as _cc, util as _util, tar as _tar
+        from tvm.contrib import cc as _cc, utils as _utils, tar as _tar
 
-        tar_temp = _util.tempdir(custom_path=path.replace(".tar", ""))
+        tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)

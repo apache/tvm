@@ -21,7 +21,7 @@ import copy
 import logging
 import os
 import re
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 _LOG = logging.getLogger(__name__)
@@ -32,11 +32,11 @@ class Workspace:
 
     def __init__(self, root=None, debug=False):
         if debug or root is not None:
-            with util.TempDirectory.set_keep_for_debug():
-                self.tempdir = util.tempdir(custom_path=root)
+            with utils.TempDirectory.set_keep_for_debug():
+                self.tempdir = utils.tempdir(custom_path=root)
                 _LOG.info("Created debug mode workspace at: %s", self.tempdir.temp_dir)
         else:
-            self.tempdir = util.tempdir()
+            self.tempdir = utils.tempdir()
 
     def relpath(self, path):
         return self.tempdir.relpath(path)

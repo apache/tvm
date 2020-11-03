@@ -19,7 +19,7 @@ import tvm.testing
 from tvm import te
 import numpy as np
 import scipy.signal
-from tvm.topi.nn.util import get_pad_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 from tvm.contrib import nnpack
 import pytest
 

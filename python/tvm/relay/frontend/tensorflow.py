@@ -27,7 +27,7 @@ import tvm
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
 from tvm.relay.transform import InferType
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from .. import analysis
 from .. import expr as _expr
@@ -788,6 +788,15 @@ def _expand_dims():
     return _impl
 
 
+def _expm1():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/expm1
+    def _impl(inputs, attr, params, mod):
+        exp_out = get_relay_op("exp")(inputs[0])
+        return exp_out - tvm.relay.const(1.0)
+
+    return _impl
+
+
 def _resize(method):
     def _impl(inputs, attr, params, mod):
         if attr["_output_shapes"][0] is not None:
@@ -1272,6 +1281,18 @@ def _space_to_depth():
     return _impl
 
 
+def _sparse_to_dense():
+    def _impl(inputs, attr, params, mod):
+        sparse_indices = inputs[0]
+        sparse_values = inputs[2]
+        default_value = inputs[3]
+        output_shape = attr["_output_shapes"][0]
+
+        return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
+    return _impl
+
+
 def _bias_add():
     def _impl(inputs, attr, params, mod):
         # Must expand for proper broadcasting in NCHW.
@@ -1595,11 +1616,15 @@ def _stridedSlice():
                     if final_index == len(m_begin):
                         break
                     if mask & begin_mask:
-                        m_begin[final_index] = data_shape[final_index] if stride[index] < 0 else 0
+                        m_begin[final_index] = -1 if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
-                        m_end[final_index] = 0 if stride[index] < 0 else data_shape[final_index]
+                        m_end[final_index] = (
+                            -(data_shape[final_index] + 1)
+                            if stride[index] < 0
+                            else data_shape[final_index]
+                        )
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
@@ -1910,6 +1935,16 @@ def _unpack():
 def _softmax():
     def _impl(inputs, attr, params, mod):
         return AttrCvt(op_name="softmax", transforms={"axis": ("axis", 1)})([inputs[0]], attr)
+
+    return _impl
+
+
+def _softsign():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/softsign
+    def _impl(inputs, attr, params, mod):
+        abs_out = get_relay_op("abs")(inputs[0])
+        add_out = abs_out + tvm.relay.const(1, attr["T"].name)
+        return inputs[0] / add_out
 
     return _impl
 
@@ -2297,6 +2332,7 @@ _convert_map = {
     "EuclideanNorm": _euclidean_norm(),
     "Exp": AttrCvt("exp"),
     "ExpandDims": _expand_dims(),
+    "Expm1": _expm1(),
     "Fill": _fill(),
     "Floor": AttrCvt("floor"),
     "FloorDiv": _floordiv(),
@@ -2371,8 +2407,10 @@ _convert_map = {
     "Slice": _slice(),
     "Softmax": _softmax(),
     "Softplus": _softplus(),
+    "Softsign": _softsign(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
+    "SparseToDense": _sparse_to_dense(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),

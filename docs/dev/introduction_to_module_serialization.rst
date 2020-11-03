@@ -32,7 +32,7 @@ Let us build one ResNet-18 workload for GPU as an example first.
 
    from tvm import relay
    from tvm.relay import testing
-   from tvm.contrib import util
+   from tvm.contrib import utils
    import tvm
 
    # Resnet18 workload
@@ -43,7 +43,7 @@ Let us build one ResNet-18 workload for GPU as an example first.
        _, resnet18_lib, _ = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
 
    # create one tempory directory
-   temp = util.tempdir()
+   temp = utils.tempdir()
 
    # path lib
    file_name = "deploy.so"

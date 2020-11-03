@@ -258,7 +258,7 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
 
 Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State>* random_states) {
   // Get parameters
-  int population = GetIntParam(params, SketchParamKey::SampleInitPopulation::population);
+  int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
   int num_use_measured = std::min(
       static_cast<int>(measured_states_vector_.size()),
       static_cast<int>(
@@ -272,8 +272,7 @@ Array<State> SketchPolicyNode::SearchOneRound(int num_random_states, Array<State
   }
 
   // 2. Sample the init population
-  Array<State> init_population = SampleInitPopulation(
-      sketch_cache_, is_cost_model_reasonable ? population - num_use_measured : population);
+  Array<State> init_population = SampleInitPopulation(sketch_cache_);
 
   // 3. Perform evolutionary search if a cost model is utilized. Otherwise,
   // just return some random states.
@@ -364,28 +363,33 @@ Array<State> SketchPolicyNode::GenerateSketches() {
   return out_states;
 }
 
-Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches, int out_size) {
+Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches) {
+  // Use this population as the parallel degree to do sampling
+  int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
+  // At least we should sample this number of valid programs
+  int min_population = GetIntParam(params, SketchParamKey::SampleInitPopulation::min_population);
+
   int fail_ct = 0;
   Array<State> out_states;
   std::vector<std::mt19937> rand_gens;
-  rand_gens.reserve(out_size);
-  for (int i = 0; i < out_size; i++) {
+  rand_gens.reserve(population);
+  for (int i = 0; i < population; i++) {
     rand_gens.push_back(std::mt19937(rand_gen()));
   }
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
   size_t iter = 1;
-  size_t target_size = out_size;
+  size_t target_size = min_population;
   size_t unchange_cnt = 0;
   while (out_states.size() < target_size) {
-    std::vector<State> temp_states(out_size);
+    std::vector<State> temp_states(population);
 
-    // Initial a batch of states randomly
-    support::parallel_for(0, out_size,
+    // Sample a batch of states randomly
+    support::parallel_for(0, population,
                           [this, &temp_states, &sketches, &rand_gens](int index) {
                             // Randomly choose a sketch
                             State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
-                            // Derivation rule based enumeration
+                            // Apply random annotation rules one by one
                             bool valid = true;
                             for (const auto& rule : init_rules) {
                               if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
@@ -646,10 +650,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyGenerateSketches")
     .set_body_typed([](SketchPolicy policy) { return policy->GenerateSketches(); });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicySampleInitialPopulation")
-    .set_body_typed([](SketchPolicy policy, int pop_size) {
+    .set_body_typed([](SketchPolicy policy) {
       const Array<State>& sketches = policy->GenerateSketches();
 
-      Array<State> init_population = policy->SampleInitPopulation(sketches, pop_size);
+      Array<State> init_population = policy->SampleInitPopulation(sketches);
       return init_population;
     });
 

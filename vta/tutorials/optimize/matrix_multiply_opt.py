@@ -43,7 +43,7 @@ from tvm import te
 import vta
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 from vta.testing import simulator
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -88,7 +88,7 @@ elif env.TARGET in ["sim", "tsim"]:
 # matrix multiplication followed by a rectified linear activation.
 # We describe the TVM dataflow graph of the fully connected layer below:
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/fc_dataflow.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/fc_dataflow.png
 #      :align: center
 #
 # This computation is intentionally too large to fit onto VTA's on-chip
@@ -183,7 +183,7 @@ print(tvm.lower(s, [data, weight, res], simple_mode=True))
 # We show the outcome of blocking on the computation schedule in the diagram
 # below:
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/blocking.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/blocking.png
 #      :align: center
 #      :width: 480px
 #
@@ -311,7 +311,7 @@ print(vta.lower(s, [data, weight, res], simple_mode=True))
 
 # Compile the TVM module
 my_gemm = vta.build(s, [data, weight, res], "ext_dev", env.target_host, name="my_gemm")
-temp = util.tempdir()
+temp = utils.tempdir()
 my_gemm.save(temp.relpath("gemm.o"))
 remote.upload(temp.relpath("gemm.o"))
 f = remote.load_module("gemm.o")

@@ -368,14 +368,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       CCacheKey key = (*pf0)(func, target);
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
       ICHECK(ext_func.defined()) << "External function is not defined.";
-
-      // Step into the functions that are handled by external codegen to
-      // collect metadata.
-      const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      std::string symobl = std::string(name_node.value());
-      ConstantUpdater const_visit(symobl, &params_);
-      const_visit(func);
-
+      UpdateConstants(func, &params_);
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
     }
 

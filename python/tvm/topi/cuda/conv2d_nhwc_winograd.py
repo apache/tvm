@@ -23,7 +23,7 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from .. import nn
-from ..util import get_const_int, get_const_tuple, traverse_inline
+from ..utils import get_const_int, get_const_tuple, traverse_inline
 from ..nn.winograd_util import winograd_transform_matrices
 from .tensor_intrin import intrin_wmma_load_matrix_A
 from .tensor_intrin import intrin_wmma_load_matrix_W

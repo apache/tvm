@@ -26,7 +26,7 @@ from tvm import relay
 from tvm import rpc
 from tvm.contrib import graph_runtime
 from tvm.relay.op.contrib import arm_compute_lib
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.autotvm.measure import request_remote
 
 
@@ -226,7 +226,7 @@ def build_and_run(
 def update_lib(lib, device, cross_compile):
     """Export the library to the remote/local device."""
     lib_name = "mod.so"
-    temp = util.tempdir()
+    temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
     if cross_compile:
         lib.export_library(lib_path, cc=cross_compile)

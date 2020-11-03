@@ -32,7 +32,7 @@ def get_sample_records(number):
     N = 128
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), "llvm")
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
-    states = policy.sample_initial_population(number)
+    states = policy.sample_initial_population()[:number]
 
     inputs = [auto_scheduler.MeasureInput(task, s) for s in states]
     results = [

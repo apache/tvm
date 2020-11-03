@@ -52,7 +52,7 @@ from matplotlib import pyplot as plt
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, util, download
+from tvm.contrib import graph_runtime, utils, download
 from tvm.contrib.debugger import debug_runtime
 from tvm.relay import transform
 
@@ -204,7 +204,7 @@ with autotvm.tophub.context(target):
     print(model + " inference graph built in {0:.2f}s!".format(build_time))
 
     # Send the inference library over to the remote RPC server
-    temp = util.tempdir()
+    temp = utils.tempdir()
     lib.export_library(temp.relpath("graphlib.tar"))
     remote.upload(temp.relpath("graphlib.tar"))
     lib = remote.load_module("graphlib.tar")
