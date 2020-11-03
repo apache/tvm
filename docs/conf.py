@@ -234,6 +234,61 @@ tvm_alias_check_map = {
     "tvm.relay": ["tvm.ir", "tvm.tir"],
 }
 
+## Setup header and other configs
+import tlcpack_sphinx_addon
+
+footer_copyright = "© 2020 Apache Software Foundation | All right reserved"
+footer_note = " ".join(
+    """
+Apache TVM is an effort undergoing incubation at The Apache Software Foundation (ASF),
+sponsored by the Apache Incubator. Incubation is required of all newly accepted projects
+until a further review indicates that the infrastructure, communications, and decision making
+process have stabilized in a manner consistent with other successful ASF projects. While
+incubation status is not necessarily a reflection of the completeness or stability of the code,
+it does indicate that the project has yet to be fully endorsed by the ASF.
+Copyright © 2020 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+and the Apache TVM project logo are either trademarks or registered trademarks of
+the Apache Software Foundation.""".split(
+        "\n"
+    )
+).strip()
+
+header_logo = "https://tvm.apache.org/assets/images/logo.svg"
+
+header_links = [
+    ("Community", "https://tvm.apache.org/community"),
+    ("Download", "https://tvm.apache.org/download"),
+    ("VTA", "https://tvm.apache.org/vta"),
+    ("Blog", "https://tvm.apache.org/blog"),
+    ("Docs", "https://tvm.apache.org/docs"),
+    ("Conference", "https://tvmconf.org"),
+    ("Github", "https://github.com/apache/incubator-tvm/"),
+]
+
+header_dropdown = {
+    "name": "ASF",
+    "items": [
+        ("Apache Homepage", "https://apache.org/"),
+        ("License", "https://www.apache.org/licenses/"),
+        ("Sponsorship", "https://www.apache.org/foundation/sponsorship.html"),
+        ("Security", "https://www.apache.org/security/"),
+        ("Thanks", "https://www.apache.org/foundation/thanks.html"),
+        ("Events", "https://www.apache.org/events/current-event"),
+    ],
+}
+
+html_context = {
+    "footer_copyright": footer_copyright,
+    "footer_note": footer_note,
+    "header_links": header_links,
+    "header_dropdown": header_dropdown,
+    "header_logo": header_logo,
+}
+
+# add additional overrides
+templates_path += [tlcpack_sphinx_addon.get_templates_path()]
+html_static_path += [tlcpack_sphinx_addon.get_static_path()]
+
 
 def update_alias_docstring(name, obj, lines):
     """Update the docstring of alias functions.
@@ -282,4 +337,3 @@ def process_docstring(app, what, name, obj, options, lines):
 
 def setup(app):
     app.connect("autodoc-process-docstring", process_docstring)
-    app.add_css_file("css/tvm_theme.css")
