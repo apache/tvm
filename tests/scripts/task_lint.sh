@@ -27,26 +27,26 @@ cleanup()
 trap cleanup 0
 
 
-echo "Checking file types..."
-python3 tests/lint/check_file_type.py
+# echo "Checking file types..."
+# python3 tests/lint/check_file_type.py
 
-echo "Checking ASF license headers..."
-tests/lint/check_asf_header.sh
+# echo "Checking ASF license headers..."
+# tests/lint/check_asf_header.sh
 
-echo "Linting the C++ code..."
-tests/lint/cpplint.sh
+# echo "Linting the C++ code..."
+# tests/lint/cpplint.sh
 
-echo "clang-format check..."
-tests/lint/clang_format.sh
+# echo "clang-format check..."
+# tests/lint/clang_format.sh
 
-echo "black check..."
-tests/lint/python_format.sh
+# echo "black check..."
+# tests/lint/python_format.sh
 
-echo "Linting the Python code..."
-tests/lint/pylint.sh
+# echo "Linting the Python code..."
+# tests/lint/pylint.sh
 
-echo "Lintinf the JNI code..."
-tests/lint/jnilint.sh
+# echo "Lintinf the JNI code..."
+# tests/lint/jnilint.sh
 
-echo "Checking C++ documentation..."
-tests/lint/cppdocs.sh
+# echo "Checking C++ documentation..."
+# tests/lint/cppdocs.sh

@@ -28,26 +28,26 @@ export TVM_TEST_TARGETS="llvm;cuda"
 
 find . -type f -path "*.pyc" | xargs rm -f
 
-# Rebuild cython
-make cython3
+# # Rebuild cython
+# make cython3
 
-echo "Running relay MXNet frontend test..."
-python3 -m pytest tests/python/frontend/mxnet
+# echo "Running relay MXNet frontend test..."
+# python3 -m pytest tests/python/frontend/mxnet
 
-echo "Running relay ONNX frontend test..."
-python3 -m pytest tests/python/frontend/onnx
+# echo "Running relay ONNX frontend test..."
+# python3 -m pytest tests/python/frontend/onnx
 
-echo "Running relay CoreML frontend test..."
-python3 -m pytest tests/python/frontend/coreml
+# echo "Running relay CoreML frontend test..."
+# python3 -m pytest tests/python/frontend/coreml
 
-echo "Running relay Tensorflow frontend test..."
-python3 -m pytest tests/python/frontend/tensorflow
+# echo "Running relay Tensorflow frontend test..."
+# python3 -m pytest tests/python/frontend/tensorflow
 
-echo "Running relay caffe2 frontend test..."
-python3 -m pytest tests/python/frontend/caffe2
+# echo "Running relay caffe2 frontend test..."
+# python3 -m pytest tests/python/frontend/caffe2
 
-echo "Running relay DarkNet frontend test..."
-python3 -m pytest tests/python/frontend/darknet
+# echo "Running relay DarkNet frontend test..."
+# python3 -m pytest tests/python/frontend/darknet
 
-echo "Running relay PyTorch frontend test..."
-python3 -m pytest tests/python/frontend/pytorch
+# echo "Running relay PyTorch frontend test..."
+# python3 -m pytest tests/python/frontend/pytorch
