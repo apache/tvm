@@ -24,12 +24,18 @@ cd "${TVM_HOME}"
 
 apps/microtvm/reference-vm/zephyr/rebuild-tvm.sh
 
-# NOTE: until the dependencies make it into a top-level pyproject.toml file in main,
-# use this approach.
-cp apps/microtvm/reference-vm/zephyr/pyproject.toml .
+cd apps/microtvm/reference-vm/zephyr
+
+echo "------------------------------[ TVM Message ]------------------------------"
+echo "WARNING: running 'poetry lock', which could take several minutes (depending"
+echo "on your network connection and the state of PyPI) as dependencies are"
+echo "downloaded and cached for future use."
+echo "------------------------------[ TVM Message ]------------------------------"
 
 poetry lock
 poetry install
 poetry run pip3 install -r ~/zephyr/zephyr/scripts/requirements.txt
 
 echo "export TVM_LIBRARY_PATH=\"$TVM_HOME\"/build-microtvm" >>~/.profile
+echo "VENV_PATH=\$((cd \"$TVM_HOME\"/apps/microtvm/reference-vm/zephyr && poetry env list --full-path) | sed -E 's/^(.*)[[:space:]]\(Activated\)\$/\1/g')" >>~/.profile
+echo "source \$VENV_PATH/bin/activate" >>~/.profile

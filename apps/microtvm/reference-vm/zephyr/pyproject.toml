@@ -52,7 +52,7 @@ version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
 packages = [
-    { include = "tvm", from = "python" },
+    { include = "tvm", from = "../../../../python" },
 ]
 
 [tool.poetry.dependencies]
