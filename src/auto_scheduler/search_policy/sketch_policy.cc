@@ -468,8 +468,15 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
   size_t population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
-  int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
   double mutation_prob = GetDoubleParam(params, SketchParamKey::EvolutionarySearch::mutation_prob);
+  int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
+
+  bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
+  if (!is_cost_model_reasonable && num_iters > 3) {
+    num_iters = 3;
+    StdCout(verbose) << "GA iteration number has been adjusted to " << num_iters
+                     << "due to random cost model";
+  }
 
   // Two ping pong buffers to avoid copy.
   Array<State> states_buf1{init_population}, states_buf2;

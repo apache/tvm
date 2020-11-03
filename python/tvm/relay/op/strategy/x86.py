@@ -36,8 +36,8 @@ _OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
 def schedule_injective_cpu(attrs, outs, target):
     """schedule injective ops for x86"""
     with target:
-        #return auto_schedule_topi(outs) 
-        return topi.x86.schedule_injective(outs)
+        return auto_schedule_topi(outs) 
+        #return topi.x86.schedule_injective(outs)
 
 
 @schedule_reduce.register("cpu")
