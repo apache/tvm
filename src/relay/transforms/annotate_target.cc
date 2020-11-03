@@ -77,6 +77,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
         compiler_ends.push_back(call->args[0]);
       } else if (op_expr_to_target_.find(arg) != op_expr_to_target_.end()) {
         arg_target = op_expr_to_target_[arg];
+        // If Argument is empty, do not insert compiler end
         if (call && call->args.size() == 0) {
           compiler_ends.push_back(arg);
         } else {
@@ -117,7 +118,9 @@ class AnnotateTargetRewriter : public ExprRewriter {
      * \brief This function inserts compiler end to expr and maps the corresponding target to the
      * new expression.
      *
-     *  This function checks for expr existence within the map and inserts the annotation
+     *  This function checks for expr existence within the map and inserts the annotation.
+     *  If the expression has a free variable (e.g: relay.zeros, relay.ones) we do not insert
+     *  compiler end, since there are no compiler begins for it.
      *  Further, it propagates the target to the new expression and returns it
      *
      * \param expr A relay expression
