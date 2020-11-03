@@ -63,7 +63,10 @@ class ComputeDAG(Object):
         elif isinstance(compute_or_sche, list):
             for item in compute_or_sche:
                 if not isinstance(item, tvm.te.Tensor):
-                    raise ValueError("The input of ComputeDAG should be a list of Tensor")
+                    raise ValueError(
+                        "The input of ComputeDAG should be a list of Tensor, but got %s"
+                        % type(item)
+                    )
             compute = compute_or_sche
             sche = None
         elif isinstance(compute_or_sche, tvm.te.Schedule):
@@ -72,8 +75,10 @@ class ComputeDAG(Object):
         else:
             raise ValueError(
                 "Invalid compute type: %s. ComputeDAG expects string, list of Tensor, or Schedule"
-                % type(compute)
+                % type(compute_or_sche)
             )
+        self.compute = compute
+        self.sche = sche
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute, sche)
 
     def get_init_state(self):
@@ -182,3 +187,18 @@ class ComputeDAG(Object):
 
         str_key = str_key.encode(encoding="utf-8")
         return hashlib.md5(str_key).hexdigest()
+
+    def __getstate__(self):
+        import pickle  # pylint: disable=import-outside-toplevel
+
+        return {
+            "compute": self.compute,
+            "sche": self.sche
+        }
+
+    def __setstate__(self, state):
+        import pickle  # pylint: disable=import-outside-toplevel
+
+        self.compute = state["compute"]
+        self.sche = state["sche"]
+        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, self.compute, self.sche)
