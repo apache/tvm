@@ -475,7 +475,7 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   if (!is_cost_model_reasonable && num_iters > 3) {
     num_iters = 3;
     StdCout(verbose) << "GA iteration number has been adjusted to " << num_iters
-                     << " due to random cost model";
+                     << " due to random cost model" << std::endl;
   }
 
   // Two ping pong buffers to avoid copy.
