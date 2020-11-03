@@ -17,15 +17,16 @@
  */
 
 /*!
-* \file runtime/contrib/tensorrt/tensorrt_builder.cc
-* \brief Contains TensorRTBuilder class which can be used to convert a relay
-* program into a TRT engine which can be used for inference.
-*/
+ * \file runtime/contrib/tensorrt/tensorrt_builder.cc
+ * \brief Contains TensorRTBuilder class which can be used to convert a relay
+ * program into a TRT engine which can be used for inference.
+ */
+
+#include "tensorrt_builder.h"
 
 #include <memory>
 #include <string>
 
-#include "tensorrt_builder.h"
 #include "tensorrt_logger.h"
 #include "tensorrt_ops.h"
 #include "utils.h"
@@ -34,11 +35,10 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
-const std::shared_ptr<
-    std::unordered_map<std::string, std::shared_ptr<TrtOpConverter>>>
+const std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<TrtOpConverter>>>
 GetOpConverters() {
-  static auto map = std::make_shared<
-      std::unordered_map<std::string, std::shared_ptr<TrtOpConverter>>>();
+  static auto map =
+      std::make_shared<std::unordered_map<std::string, std::shared_ptr<TrtOpConverter>>>();
   if (!map->empty()) return map;
   map->emplace("nn.relu", std::make_shared<ActivationOpConverter>());
   map->emplace("sigmoid", std::make_shared<ActivationOpConverter>());
@@ -57,10 +57,8 @@ GetOpConverters() {
   map->emplace("minimum", std::make_shared<ElementWiseBinaryOpConverter>());
   map->emplace("nn.max_pool2d", std::make_shared<PoolingOpConverter>());
   map->emplace("nn.avg_pool2d", std::make_shared<PoolingOpConverter>());
-  map->emplace("nn.global_max_pool2d",
-               std::make_shared<GlobalPoolingOpConverter>());
-  map->emplace("nn.global_avg_pool2d",
-               std::make_shared<GlobalPoolingOpConverter>());
+  map->emplace("nn.global_max_pool2d", std::make_shared<GlobalPoolingOpConverter>());
+  map->emplace("nn.global_avg_pool2d", std::make_shared<GlobalPoolingOpConverter>());
   map->emplace("exp", std::make_shared<UnaryOpConverter>());
   map->emplace("log", std::make_shared<UnaryOpConverter>());
   map->emplace("sqrt", std::make_shared<UnaryOpConverter>());
@@ -70,8 +68,7 @@ GetOpConverters() {
   map->emplace("expand_dims", std::make_shared<ExpandDimsOpConverter>());
   map->emplace("squeeze", std::make_shared<SqueezeOpConverter>());
   map->emplace("concatenate", std::make_shared<ConcatOpConverter>());
-  map->emplace("nn.conv2d_transpose",
-               std::make_shared<Conv2DTransposeOpConverter>());
+  map->emplace("nn.conv2d_transpose", std::make_shared<Conv2DTransposeOpConverter>());
   map->emplace("transpose", std::make_shared<TransposeOpConverter>());
   map->emplace("reshape", std::make_shared<ReshapeOpConverter>());
   map->emplace("nn.pad", std::make_shared<PadOpConverter>());
@@ -80,10 +77,8 @@ GetOpConverters() {
   map->emplace("max", std::make_shared<ReduceOpConverter>());
   map->emplace("min", std::make_shared<ReduceOpConverter>());
   map->emplace("mean", std::make_shared<ReduceOpConverter>());
-  map->emplace("nn.adaptive_max_pool2d",
-               std::make_shared<AdaptivePoolingOpConverter>());
-  map->emplace("nn.adaptive_avg_pool2d",
-               std::make_shared<AdaptivePoolingOpConverter>());
+  map->emplace("nn.adaptive_max_pool2d", std::make_shared<AdaptivePoolingOpConverter>());
+  map->emplace("nn.adaptive_avg_pool2d", std::make_shared<AdaptivePoolingOpConverter>());
 #if TRT_VERSION_GE(5, 1, 5)
   map->emplace("clip", std::make_shared<ActivationOpConverter>());
   map->emplace("nn.leaky_relu", std::make_shared<ActivationOpConverter>());
@@ -109,15 +104,17 @@ GetOpConverters() {
 }
 
 TensorRTBuilder::TensorRTBuilder(runtime::TensorRTLogger* logger,
-    const std::vector<DLTensor*>& args, size_t max_workspace_size, bool use_implicit_batch)
-    : execution_args_(args), max_workspace_size_(max_workspace_size),
+                                 const std::vector<DLTensor*>& args, size_t max_workspace_size,
+                                 bool use_implicit_batch)
+    : execution_args_(args),
+      max_workspace_size_(max_workspace_size),
       use_implicit_batch_(use_implicit_batch) {
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
 #if TRT_VERSION_GE(6, 0, 1)
   // Use INetworkV2.
-  auto flags = 1U << static_cast<uint32_t>(
-      nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);;
+  auto flags =
+      1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
   if (use_implicit_batch_) {
     flags = 0U;
     batch_size_ = args[0]->shape[0];
@@ -167,13 +164,11 @@ void TensorRTBuilder::ProcessOutputs(const Expr& expr) {
     out_tensor->setName(output_name.c_str());
     network_output_names_.push_back(output_name);
     network_->markOutput(*out_tensor);
-    DLOG(INFO) << "Added TRT network output: " << out_tensor->getName()
-               << " -> " << output_name;
+    DLOG(INFO) << "Added TRT network output: " << out_tensor->getName() << " -> " << output_name;
   }
 }
 
-runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
-    const Function& func) {
+runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(const Function& func) {
   // Process graph to create INetworkDefinition.
   ProcessInputs(func);
   VisitExpr(func->body);
@@ -197,39 +192,41 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
     }
     config_->addOptimizationProfile(profile);
   }
-  nvinfer1::ICudaEngine* engine =
-      builder_->buildEngineWithConfig(*network_, *config_);
+  nvinfer1::ICudaEngine* engine = builder_->buildEngineWithConfig(*network_, *config_);
 #else
   nvinfer1::ICudaEngine* engine = builder_->buildCudaEngine(*network_);
 #endif
   CleanUp();
-  const int num_input_bindings = std::count(
-      network_input_is_baked_.begin(), network_input_is_baked_.end(), false);
-  CHECK_EQ(engine->getNbBindings(),
-           num_input_bindings + network_output_names_.size());
+  const int num_input_bindings =
+      std::count(network_input_is_baked_.begin(), network_input_is_baked_.end(), false);
+  CHECK_EQ(engine->getNbBindings(), num_input_bindings + network_output_names_.size());
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   std::vector<runtime::NDArray> device_buffers;
-  for (int i = 0; i < network_input_names_.size(); i++) {
-    if (network_input_is_baked_[i]) continue;
-    if (execution_args_[i]->ctx.device_type == kDLGPU) {
-      device_buffers.emplace_back();
+  device_buffers.resize(engine->getNbBindings());
+
+  for (size_t i = 0; i < network_input_names_.size(); i++) {
+    if (network_input_is_baked_[i] || execution_args_[i]->ctx.device_type == kDLGPU) {
+      continue;
     } else {
+      int binding_index = engine->getBindingIndex(network_input_names_[i].c_str());
       std::vector<int64_t> shape(execution_args_[i]->shape,
                                  execution_args_[i]->shape + execution_args_[i]->ndim);
-      device_buffers.push_back(
-          runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0}));
+      device_buffers[binding_index] =
+          runtime::NDArray::Empty(shape, execution_args_[i]->dtype, {kDLGPU, 0});
     }
   }
-  for (int i = 0; i < network_output_names_.size(); i++) {
+
+  for (size_t i = 0; i < network_output_names_.size(); i++) {
     int index_in_args = execution_args_.size() - network_output_names_.size() + i;
     if (execution_args_[index_in_args]->ctx.device_type == kDLGPU) {
-      device_buffers.emplace_back();
+      continue;
     } else {
+      int binding_index = engine->getBindingIndex(network_output_names_[i].c_str());
       std::vector<int64_t> shape(
           execution_args_[index_in_args]->shape,
           execution_args_[index_in_args]->shape + execution_args_[index_in_args]->ndim);
-      device_buffers.push_back(
-          runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0}));
+      device_buffers[binding_index] =
+          runtime::NDArray::Empty(shape, execution_args_[index_in_args]->dtype, {kDLGPU, 0});
     }
   }
   return {
@@ -237,8 +234,7 @@ runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
       device_buffers};
 }
 
-nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(
-    DLTensor* dptr, DLDeviceType src_device) {
+nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(DLTensor* dptr, DLDeviceType src_device) {
   CHECK_EQ(dptr->ctx.device_type, src_device);
   CHECK(static_cast<int>(dptr->dtype.code) == kDLFloat ||
         static_cast<int>(dptr->dtype.code) == kDLInt);
@@ -254,16 +250,14 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(
   CHECK_EQ(count * 4, weight_bytes);
   weight.count = count;
   weight.values = new float[count];
-  CHECK_EQ(
-      TVMArrayCopyToBytes(dptr, const_cast<void*>(weight.values), weight_bytes),
-      0)
+  CHECK_EQ(TVMArrayCopyToBytes(dptr, const_cast<void*>(weight.values), weight_bytes), 0)
       << TVMGetLastError();
   trt_weights_.push_back(weight);
   return weight;
 }
 
-nvinfer1::Weights TensorRTBuilder::GetNdArrayAsWeights(
-    const runtime::NDArray& array, DLDeviceType src_device) {
+nvinfer1::Weights TensorRTBuilder::GetNdArrayAsWeights(const runtime::NDArray& array,
+                                                       DLDeviceType src_device) {
   DLTensor* dptr = const_cast<DLTensor*>(array.operator->());
   return GetDLTensorAsWeights(dptr, src_device);
 }
@@ -272,8 +266,7 @@ void TensorRTBuilder::GetInputAsWeights(const VarNode* node) {
   const int var_node_idx = network_input_map_[node->name_hint()];
   // This input will be baked into TensorRT engine using value from first invocation.
   network_input_is_baked_[var_node_idx] = true;
-  nvinfer1::Weights weight =
-      GetDLTensorAsWeights(execution_args_[var_node_idx], kDLGPU);
+  nvinfer1::Weights weight = GetDLTensorAsWeights(execution_args_[var_node_idx], kDLGPU);
   node_output_map_[node] = {TrtOpInput(weight, GetShape(node->checked_type()))};
 }
 
@@ -284,14 +277,12 @@ void TensorRTBuilder::GetConstantAsWeights(const ConstantNode* node) {
   node_output_map_[node] = {TrtOpInput(weight, shape)};
 }
 
-void TensorRTBuilder::GetInputAsTransposedWeights(const CallNode* transpose,
-                                                  const VarNode* node) {
+void TensorRTBuilder::GetInputAsTransposedWeights(const CallNode* transpose, const VarNode* node) {
   GetInputAsWeights(node);
   CHECK_EQ(node_output_map_[node].size(), 1);
   const nvinfer1::Weights& original_weight = node_output_map_[node][0].weight;
   const auto& shape = node_output_map_[node][0].weight_shape;
-  const float* original_values =
-      static_cast<const float*>(original_weight.values);
+  const float* original_values = static_cast<const float*>(original_weight.values);
   float* values = new float[original_weight.count];
   // Get order and new shape.
   const auto* attrs = transpose->attrs.as<TransposeAttrs>();
@@ -303,25 +294,22 @@ void TensorRTBuilder::GetInputAsTransposedWeights(const CallNode* transpose,
     new_shape[i] = shape[axis];
   }
   // Perform transpose.
-  if (order.size() == 4 && order[0] == 3 && order[1] == 2 && order[2] == 0 &&
-      order[3] == 1) {
+  if (order.size() == 4 && order[0] == 3 && order[1] == 2 && order[2] == 0 && order[3] == 1) {
     const int output_strides[4] = {shape[1], 1, shape[0] * shape[1],
                                    shape[0] * shape[1] * shape[2]};
     TransposeWeights4D(shape, output_strides, original_values, values);
-  } else if (order.size() == 4 && order[0] == 2 && order[1] == 3 &&
-             order[2] == 0 && order[3] == 1) {
+  } else if (order.size() == 4 && order[0] == 2 && order[1] == 3 && order[2] == 0 &&
+             order[3] == 1) {
     const int output_strides[4] = {shape[1], 1, shape[0] * shape[1] * shape[3],
                                    shape[0] * shape[1]};
     TransposeWeights4D(shape, output_strides, original_values, values);
   } else if (order.size() == 2 && order[0] == 1 && order[1] == 0) {
     TransposeWeights2D(shape, original_values, values);
   } else {
-    LOG(FATAL) << "Constant transpose " << DebugString(order)
-               << " is not supported.";
+    LOG(FATAL) << "Constant transpose " << DebugString(order) << " is not supported.";
   }
   // Map as output of transpose op.
-  nvinfer1::Weights transposed_weight{nvinfer1::DataType::kFLOAT, values,
-                                      original_weight.count};
+  nvinfer1::Weights transposed_weight{nvinfer1::DataType::kFLOAT, values, original_weight.count};
   trt_weights_.push_back(transposed_weight);
   node_output_map_[transpose] = {TrtOpInput(transposed_weight, new_shape)};
 }
@@ -334,8 +322,7 @@ void TensorRTBuilder::VisitExpr_(const TupleGetItemNode* op) {
   } else {
     VisitExpr(op->tuple);
     // Index into tensor outputs from expr.
-    node_output_map_[op] = {
-        node_output_map_[op->tuple.operator->()][op->index]};
+    node_output_map_[op] = {node_output_map_[op->tuple.operator->()][op->index]};
   }
 }
 
@@ -356,12 +343,10 @@ nvinfer1::ITensor* TensorRTBuilder::AddInput(const std::string& tensor_name, con
   if (use_implicit_batch_ && shape.size() > 1) {
     shape.erase(shape.begin());
   }
-  DLOG(INFO) << "Added TRT network input: " << tensor_name << " "
-             << DebugString(shape);
+  DLOG(INFO) << "Added TRT network input: " << tensor_name << " " << DebugString(shape);
   nvinfer1::Dims dims = VectorToTrtDims(shape);
   auto type_node = type.as<TensorTypeNode>();
-  CHECK(type_node != nullptr &&
-        runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
+  CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
       << "Only FP32 inputs are supported.";
   return network_->addInput(tensor_name.c_str(), nvinfer1::DataType::kFLOAT, dims);
 }
@@ -393,8 +378,8 @@ void TensorRTBuilder::VisitExpr_(const VarNode* node) {
     }
     // Update network_input_names_
     network_input_names_.erase(network_input_names_.begin() + original_index);
-    network_input_names_.insert(network_input_names_.begin() + original_index,
-                                new_names.begin(), new_names.end());
+    network_input_names_.insert(network_input_names_.begin() + original_index, new_names.begin(),
+                                new_names.end());
     // Update network_input_is_baked_
     bool is_baked = network_input_is_baked_[original_index];
     network_input_is_baked_.erase(network_input_is_baked_.begin() + original_index);
@@ -432,8 +417,7 @@ void TensorRTBuilder::VisitExpr_(const CallNode* call) {
 
   // Ensure that nodes are processed in topological order by visiting their inputs first.
   for (size_t i = 0; i < call->args.size(); ++i) {
-    if (converter->variable_input_count ||
-        converter->input_types[i] != kWeight) {
+    if (converter->variable_input_count || converter->input_types[i] != kWeight) {
       VisitExpr(call->args[i]);
       continue;
     }
@@ -497,22 +481,18 @@ void TensorRTBuilder::CleanUp() {
   }
 }
 
-void TransposeWeights4D(const std::vector<int>& original_shape,
-                        const int* output_strides, const float* input_values,
-                        float* output_values) {
-  const int input_strides[4] = {
-      original_shape[1] * original_shape[2] * original_shape[3],
-      original_shape[2] * original_shape[3], original_shape[3], 1};
+void TransposeWeights4D(const std::vector<int>& original_shape, const int* output_strides,
+                        const float* input_values, float* output_values) {
+  const int input_strides[4] = {original_shape[1] * original_shape[2] * original_shape[3],
+                                original_shape[2] * original_shape[3], original_shape[3], 1};
   for (int i = 0; i < original_shape[0]; i++) {
     for (int j = 0; j < original_shape[1]; j++) {
       for (int k = 0; k < original_shape[2]; k++) {
         for (int l = 0; l < original_shape[3]; l++) {
-          const int input_index =
-              (i * input_strides[0]) + (j * input_strides[1]) +
-              (k * input_strides[2]) + (l * input_strides[3]);
-          const int output_index =
-              (i * output_strides[0]) + (j * output_strides[1]) +
-              (k * output_strides[2]) + (l * output_strides[3]);
+          const int input_index = (i * input_strides[0]) + (j * input_strides[1]) +
+                                  (k * input_strides[2]) + (l * input_strides[3]);
+          const int output_index = (i * output_strides[0]) + (j * output_strides[1]) +
+                                   (k * output_strides[2]) + (l * output_strides[3]);
           output_values[output_index] = input_values[input_index];
         }
       }
@@ -520,8 +500,8 @@ void TransposeWeights4D(const std::vector<int>& original_shape,
   }
 }
 
-void TransposeWeights2D(const std::vector<int>& original_shape,
-                        const float* input_values, float* output_values) {
+void TransposeWeights2D(const std::vector<int>& original_shape, const float* input_values,
+                        float* output_values) {
   const int c = original_shape[0];
   const int k = original_shape[1];
   for (int i = 0; i < c; i++) {
@@ -532,7 +512,6 @@ void TransposeWeights2D(const std::vector<int>& original_shape,
     }
   }
 }
-
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm
