@@ -51,6 +51,10 @@ find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
+# install theme addon for to local if does not exists
+# avoid docker for now before we stablize on the choice of style
+python3 -m pip install --user --upgrade -q tlcpack-sphinx-addon==0.1.0
+
 cd docs
 PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
