@@ -28,8 +28,8 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
-    pip install torch==1.4.0
-    pip install torchvision==0.5.0
+    pip install torch==1.7.0
+    pip install torchvision==0.8.1
 
 or please refer to official site
 https://pytorch.org/get-started/locally/
@@ -37,7 +37,7 @@ https://pytorch.org/get-started/locally/
 PyTorch versions should be backwards compatible but should be used
 with the proper TorchVision version.
 
-Currently, TVM supports PyTorch 1.4 and 1.3. Other versions may
+Currently, TVM supports PyTorch 1.7 and 1.4. Other versions may
 be unstable.
 """
 

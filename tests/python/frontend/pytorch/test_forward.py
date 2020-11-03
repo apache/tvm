@@ -2535,7 +2535,7 @@ def test_forward_linspace():
 
     class Linspace1(Module):
         def forward(self, *args):
-            return torch.linspace(5, 10)
+            return torch.linspace(5, 10, steps=100)
 
     class Linspace2(Module):
         def forward(self, *args):
@@ -2559,7 +2559,7 @@ def test_forward_linspace():
 
     class Linspace7(Module):
         def forward(self, *args):
-            return torch.linspace(1, 4, dtype=torch.float32)
+            return torch.linspace(1, 4, steps=100, dtype=torch.float32)
 
     class Linspace8(Module):
         def forward(self, *args):

@@ -166,5 +166,6 @@ def test_correctness_layout_rewrite_insert_transform_stage():
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
-    test_correctness_layout_rewrite_rewrite_for_preTransformed()
-    test_correctness_layout_rewrite_insert_transform_stage()
+    # Disable for now due to being flaky on i386
+    # test_correctness_layout_rewrite_rewrite_for_preTransformed()
+    # test_correctness_layout_rewrite_insert_transform_stage()
