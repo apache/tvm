@@ -301,7 +301,7 @@ def test_command(args):
             provider_passed[provider_name] = True
 
         finally:
-            if not args.skip_build:
+            if not args.skip_build and len(providers) > 1:
                 subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
                 shutil.rmtree(release_test_dir)
 
