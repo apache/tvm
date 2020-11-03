@@ -1880,6 +1880,16 @@ def test_forward_stridedslice():
         begin_mask=5,
         end_mask=8,
     )
+    _test_stridedslice(
+        (1, 13, 13, 3, 2),
+        [0, 0],
+        [1, 1],
+        [1, -1],
+        "float32",
+        ellipsis_mask=1,
+        begin_mask=2,
+        end_mask=2,
+    )
 
 
 #######################################################################

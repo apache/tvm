@@ -1616,11 +1616,15 @@ def _stridedSlice():
                     if final_index == len(m_begin):
                         break
                     if mask & begin_mask:
-                        m_begin[final_index] = data_shape[final_index] if stride[index] < 0 else 0
+                        m_begin[final_index] = -1 if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
-                        m_end[final_index] = 0 if stride[index] < 0 else data_shape[final_index]
+                        m_end[final_index] = (
+                            -(data_shape[final_index] + 1)
+                            if stride[index] < 0
+                            else data_shape[final_index]
+                        )
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
