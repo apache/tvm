@@ -115,21 +115,21 @@ class LambdaLifter : public ExprMutator {
     Array<Var> typed_captured_vars;
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-        auto var = Var(free_var->name_hint(), free_var->checked_type());
-        typed_captured_vars.push_back(var);
-        rebinding_map.Set(free_var, var);
+      auto var = Var(free_var->name_hint(), free_var->checked_type());
+      typed_captured_vars.push_back(var);
+      rebinding_map.Set(free_var, var);
     }
 
     if (recursive) {
       if (!captured_vars.empty()) {
-          Array<Expr> fvs;
-          for (auto fv : captured_vars) {
-            fvs.push_back(fv);
-          }
-          lambda_map_.emplace(letrec_.back(), Call(global, fvs));
-        } else {
-          lambda_map_.emplace(letrec_.back(), global);
+        Array<Expr> fvs;
+        for (auto fv : captured_vars) {
+          fvs.push_back(fv);
         }
+        lambda_map_.emplace(letrec_.back(), Call(global, fvs));
+      } else {
+        lambda_map_.emplace(letrec_.back(), global);
+      }
     }
 
     auto body = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
@@ -173,10 +173,12 @@ class LambdaLifter : public ExprMutator {
       // construct the "closure" function with fully annotated arguments, no longer relying
       // on type inference.
       auto before = Downcast<Function>(body)->params.size();
-      auto rebound_body = Function(func->params, Bind(body->body, rebinding_map), func->ret_type, func->type_params, func->attrs, func->span);
+      auto rebound_body = Function(func->params, Bind(body->body, rebinding_map), func->ret_type,
+                                   func->type_params, func->attrs, func->span);
       auto after = Downcast<Function>(rebound_body)->params.size();
       CHECK_EQ(before, after);
-      lifted_func = Function(typed_captured_vars, rebound_body, func->func_type_annotation(), free_type_vars);
+      lifted_func =
+          Function(typed_captured_vars, rebound_body, func->func_type_annotation(), free_type_vars);
       lifted_func = MarkClosure(lifted_func);
     }
 

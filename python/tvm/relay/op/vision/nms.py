@@ -48,7 +48,7 @@ def get_valid_counts(data, score_threshold, id_index=0, score_index=1):
     out_indices: relay.Expr
         Indices in input data
     """
-    if isinstance(score_threshold, float):
+    if not isinstance(score_threshold, expr.Expr):
         score_threshold = expr.const(score_threshold, "float32")
     return expr.TupleWrapper(
         _make.get_valid_counts(data, score_threshold, id_index, score_index), 3
@@ -128,9 +128,9 @@ def non_max_suppression(
         If return_indices is True, return relay.Tuple of two 2-D tensors, with
         shape [batch_size, num_anchors] and [batch_size, num_valid_anchors] respectively.
     """
-    if isinstance(max_output_size, int):
+    if not isinstance(max_output_size, expr.Expr):
         max_output_size = expr.const(max_output_size, "int32")
-    if isinstance(iou_threshold, float):
+    if not isinstance(iou_threshold, expr.Expr):
         iou_threshold = expr.const(iou_threshold, "float32")
     out = _make.non_max_suppression(
         data,
