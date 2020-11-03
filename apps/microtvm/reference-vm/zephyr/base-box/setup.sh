@@ -58,6 +58,8 @@ sudo apt install -y ./JLink_Linux_V680a_x86_64.deb
 sudo apt install -y ./nRF-Command-Line-Tools_10_9_0_Linux-amd64.deb
 source ~/.profile
 nrfjprog --help
+cd ..
+rm -rf nrfjprog nRFCommandLineTools1090Linuxamd64.tar.gz
 
 # Zephyr
 pip3 install --user -U west
@@ -74,6 +76,7 @@ echo "Downloading zephyr SDK..."
 wget --no-verbose https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.11.3/zephyr-sdk-0.11.3-setup.run
 chmod +x zephyr-sdk-0.11.3-setup.run
 ./zephyr-sdk-0.11.3-setup.run -- -d ~/zephyr-sdk -y
+rm -rf zephyr-sdk-0.11.3-setup.run
 
 # GDB for Zephyr SDK depends on python3.8
 sudo add-apt-repository ppa:deadsnakes/ppa
