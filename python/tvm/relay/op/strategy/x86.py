@@ -20,7 +20,6 @@ import logging
 
 import re
 from tvm import topi
-from tvm.auto_scheduler.relay_integration import auto_schedule_topi
 from tvm.te import SpecializedCondition
 from tvm.relay.ty import is_dynamic
 from .generic import *
@@ -36,8 +35,7 @@ _OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
 def schedule_injective_cpu(attrs, outs, target):
     """schedule injective ops for x86"""
     with target:
-        return auto_schedule_topi(outs) 
-        #return topi.x86.schedule_injective(outs)
+        return topi.x86.schedule_injective(outs)
 
 
 @schedule_reduce.register("cpu")
