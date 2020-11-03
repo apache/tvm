@@ -61,7 +61,7 @@ def test_const_loop():
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
-        mod = tvm.tir.transform.Simplify()(mod)["main"].body
+        stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
