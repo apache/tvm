@@ -514,7 +514,7 @@ def test_if_free_vars():
     target = "test_if_free_vars"
 
     @tvm.ir.register_op_attr("equal", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def equal(attrs, args):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("sigmoid", "target." + target)
