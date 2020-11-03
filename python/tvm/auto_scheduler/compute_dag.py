@@ -21,13 +21,13 @@ import hashlib
 
 import tvm._ffi
 from tvm.runtime import Object
-from tvm.te import PlaceholderOp, ComputeOp
+from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
+from tvm.te import ComputeOp, PlaceholderOp
 
+from . import _ffi_api
 from .loop_state import State, StateObject
 from .utils import get_const_tuple
 from .workload_registry import workload_key_to_tensors
-
-from . import _ffi_api
 
 
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
@@ -192,13 +192,13 @@ class ComputeDAG(Object):
         import pickle  # pylint: disable=import-outside-toplevel
 
         return {
-            "compute": self.compute,
-            "sche": self.sche
+            "compute": SaveJSON(self.compute),
+            "sche": SaveJSON(self.sche)
         }
 
     def __setstate__(self, state):
         import pickle  # pylint: disable=import-outside-toplevel
 
-        self.compute = state["compute"]
-        self.sche = state["sche"]
+        self.compute = LoadJSON(state["compute"])
+        self.sche = LoadJSON(state["sche"])
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, self.compute, self.sche)

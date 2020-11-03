@@ -16,6 +16,7 @@
 # under the License.
 
 """Test ComputeDAG (replay, infer bound)"""
+import pickle
 
 import tvm
 from tvm import topi
@@ -32,7 +33,7 @@ def test_apply_steps():
     dag, s = get_tiled_matmul()
     dag.print_python_code_from_state(s)
     sch, tensors = dag.apply_steps_from_state(s)
-    stmt = tvm.lower(sch, tensors, simple_mode=True)
+    tvm.lower(sch, tensors, simple_mode=True)
 
 
 def test_infer_bound():
@@ -61,6 +62,7 @@ def test_estimate_flop():
 
 
 def test_stage_order():
+    """Test if the stage order is preserved when recovering a DAG."""
     N = 512
     A, B, C, D, E = parallel_matmul_auto_scheduler_test(N)
     sch = te.create_schedule([D.op, E.op])
@@ -104,6 +106,27 @@ def test_stage_order():
     # Cache read stage should follow the source stage
     for op1, op2 in zip(stage_ops_1, stage_ops_2):
         assert op1.name == op2.name
+
+    # Serialize and deserialize the ComputeDAG and they should be identical.
+    dag3 = pickle.loads(pickle.dumps(dag))
+    assert str(dag3.get_init_state()) == str(dag.get_init_state())
+    assert len(dag3.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
+
+    # Serialize and deserialize the search task and they should be identical.
+    task = auto_scheduler.SearchTask(
+        dag,
+        "test1",
+        tvm.target.Target("llvm"),
+        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64),
+    )
+    task2 = pickle.loads(pickle.dumps(task))
+    assert str(task.dag.get_init_state()) == str(task2.dag.get_init_state())
+    assert len(task.dag.get_init_state().stage_ops) == len(task2.dag.get_init_state().stage_ops)
+    assert task.workload_key == task2.workload_key
+    assert str(task.target) == str(task2.target)
+    assert task.hardware_params.num_cores == task2.hardware_params.num_cores
+    assert task.hardware_params.vector_unit_bytes == task2.hardware_params.vector_unit_bytes
+    assert task.hardware_params.cache_line_bytes == task2.hardware_params.cache_line_bytes
 
 
 if __name__ == "__main__":
