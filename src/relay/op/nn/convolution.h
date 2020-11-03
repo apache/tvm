@@ -102,7 +102,9 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
           << " channels=" << param->channels << " wshape=" << wshape;
     }
     if (!dshape_ncw[1].as<tir::AnyNode>() && !wshape[1].as<tir::AnyNode>()) {
-      ICHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]));
+      ICHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]))
+          << "Conv1D: shape of data input channels is inconsisten with wshape"
+          << " channels=" << dshape_ncw[1] << " wshape=" << wshape;
     }
     channels = wshape[0];
     dilated_ksize = 1 + (wshape[2] - 1) * param->dilation[0];
