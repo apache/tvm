@@ -27,6 +27,8 @@ import tvm.testing
 from tvm import topi
 from tvm import auto_scheduler, te
 
+import os
+
 from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
 
 
@@ -75,6 +77,8 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
+        cmd = "cat %s" % (log_file)
+        os.system(cmd)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(
             inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
@@ -152,6 +156,8 @@ def test_correctness_layout_rewrite_insert_transform_stage():
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
+        cmd = "cat %s" % (log_file)
+        os.system(cmd)
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(
             inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
