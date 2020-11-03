@@ -77,7 +77,8 @@ class AnnotateTargetRewriter : public ExprRewriter {
         compiler_ends.push_back(call->args[0]);
       } else if (op_expr_to_target_.find(arg) != op_expr_to_target_.end()) {
         arg_target = op_expr_to_target_[arg];
-        // If Argument is empty, do not insert compiler end
+        // If an argument is a call node and has no argument, then it should be tensor ops such as
+        // zeros, so we treat it as input vars.
         if (call && call->args.size() == 0) {
           compiler_ends.push_back(arg);
         } else {
