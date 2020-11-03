@@ -510,8 +510,8 @@ def test_while_let():
     assert tvm.ir.structural_equal(expected, result)
 
 
-def test_if_free_vars_1():
-    target = "test_if_free_vars_1"
+def test_if_free_vars():
+    target = "test_if_free_vars"
 
     @tvm.ir.register_op_attr("equal", "target." + target)
     def relu(attrs, args):  # pylint: disable=unused-variable
@@ -528,7 +528,6 @@ def test_if_free_vars_1():
     """Test that If-else nodes compiles correctly when surrounded by free variables"""
 
     def before():
-
         data = relay.var("data", shape=(1, 32))
         eq1 = relay.var("e1", shape=[], dtype="float32")
         eq2 = relay.var("e2", shape=[], dtype="float32")
@@ -545,7 +544,6 @@ def test_if_free_vars_1():
         return mod
 
     def after():
-
         data = relay.var("data", shape=(1, 32))
         eq1 = relay.var("e1", shape=[], dtype="float32")
         eq2 = relay.var("e2", shape=[], dtype="float32")
@@ -577,114 +575,19 @@ def test_if_free_vars_1():
     assert tvm.ir.structural_equal(expected, result)
 
 
-def test_if_free_vars_2():
-    target = "test_if_free_vars_2"
-
-    @tvm.ir.register_op_attr("equal", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    @tvm.ir.register_op_attr("sigmoid", "target." + target)
-    def sigmoid(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    @tvm.ir.register_op_attr("erf", "target." + target)
-    def erf(attrs, args):  # pylint: disable=unused-variable
-        return True
-
-    """Test that If-else nodes compiles correctly when surrounded by free variables"""
-
-    def before():
-
-        data = relay.var("data", shape=(1, 32))
-        eq1 = relay.var("e1", shape=[], dtype="float32")
-        eq2 = relay.var("e2", shape=[], dtype="float32")
-        eq = relay.equal(eq1, eq2)
-
-        true_branch = relay.zeros(shape=(0), dtype="float32")
-        false_branch = relay.sigmoid(data)
-        ife = relay.If(eq, true_branch, false_branch)
-        out = relay.erf(ife)
-
-        func = relay.Function([data, eq1, eq2], out)
-        mod = tvm.IRModule.from_expr(func)
-
-        return mod
-
-    def after():
-
-        data = relay.var("data", shape=(1, 32))
-        eq1 = relay.var("e1", shape=[], dtype="float32")
-        eq2 = relay.var("e2", shape=[], dtype="float32")
-
-        cb_1 = relay.annotation.compiler_begin(eq1, target)
-        cb_2 = relay.annotation.compiler_begin(eq2, target)
-
-        equality_condition = relay.equal(cb_1, cb_2)
-        ce_1 = relay.annotation.compiler_end(equality_condition, target)
-
-        # if condition
-        true_branch = relay.zeros(shape=(0), dtype="float32")
-
-        # else condition
-        cb_3 = relay.annotation.compiler_begin(data, target)
-        false_branch = relay.sigmoid(cb_3)
-        ce_2 = relay.annotation.compiler_end(false_branch, target)
-
-        if_condition = relay.If(ce_1, true_branch, ce_2)
-        cb_4 = relay.annotation.compiler_begin(if_condition, target)
-        erf_out = relay.erf(cb_4)
-        ce_3 = relay.annotation.compiler_end(erf_out, target)
-        func = relay.Function([data, eq1, eq2], ce_3)
-        mod = tvm.IRModule.from_expr(func)
-        return mod
-
-    result = transform.AnnotateTarget(target)(before())
-    expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
-
-
-def test_free_vars_zeros_1():
-    target = "test_free_vars_zeros_1"
+def test_free_vars_zeros():
+    target = "test_free_vars_zeros"
 
     """Test that free variables compile correctly on their own"""
 
     def before():
-
-        func = relay.Function([], relay.zeros(shape=(1, 32), dtype="float32"))
+        func = relay.Function([], relay.zeros(shape=(0), dtype="float32"))
         mod = tvm.IRModule.from_expr(func)
-
         return mod
 
     def after():
-
-        func = relay.Function([], relay.zeros(shape=(1, 32), dtype="float32"))
-        mod = tvm.IRModule.from_expr(func)
-
-        return mod
-
-    result = transform.AnnotateTarget(target)(before())
-    expected = transform.InferType()(after())
-    assert tvm.ir.structural_equal(expected, result)
-
-
-def test_free_vars_zeros_2():
-    target = "test_free_vars_zeros_2"
-
-    """Test that free variables compile correctly on their own"""
-
-    def before():
-
         func = relay.Function([], relay.zeros(shape=(0), dtype="float32"))
         mod = tvm.IRModule.from_expr(func)
-
-        return mod
-
-    def after():
-
-        func = relay.Function([], relay.zeros(shape=(0), dtype="float32"))
-        mod = tvm.IRModule.from_expr(func)
-
         return mod
 
     result = transform.AnnotateTarget(target)(before())
@@ -702,7 +605,5 @@ if __name__ == "__main__":
     test_multiple_runs()
     test_if_else()
     test_while_let()
-    test_if_free_vars_1()
-    test_if_free_vars_2()
-    test_free_vars_zeros_1()
-    test_free_vars_zeros_2()
+    test_if_free_vars()
+    test_free_vars_zeros()
