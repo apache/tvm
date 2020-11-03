@@ -19,11 +19,11 @@
 set -e
 set -u
 
-source tests/scripts/setup-pytest-env.sh
+# source tests/scripts/setup-pytest-env.sh
 
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
+# # cleanup pycache
+# find . -type f -path "*.pyc" | xargs rm -f
 
-TVM_FFI=ctypes python3 -m pytest tests/micro/qemu
-make cython3
-TVM_FFI=cython python3 -m pytest tests/micro/qemu
+# TVM_FFI=ctypes python3 -m pytest tests/micro/qemu
+# make cython3
+# TVM_FFI=cython python3 -m pytest tests/micro/qemu

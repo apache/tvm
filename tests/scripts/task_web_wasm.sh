@@ -17,17 +17,17 @@
 # under the License.
 
 set -e
-set -u
+# set -u
 
-export PYTHONPATH=`pwd`/python
+# export PYTHONPATH=`pwd`/python
 
-rm -rf .emscripten_cache
-cd web
-make clean
-npm install
-npm run lint
-npm run prepwasm
-npm run bundle
-npm run test
-npm run typedoc
-cd ..
+# rm -rf .emscripten_cache
+# cd web
+# make clean
+# npm install
+# npm run lint
+# npm run prepwasm
+# npm run bundle
+# npm run test
+# npm run typedoc
+# cd ..

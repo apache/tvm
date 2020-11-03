@@ -58,7 +58,7 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 
-    seed = random.randint(0, 10000000)
+    seed = 1286272 # random.randint(0, 10000000)
     print(seed)
     random.seed(seed)
 
@@ -79,7 +79,9 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         s, bufs = dag.apply_steps_from_state(
             inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
         )
+        print(tvm.lower(s, bufs, simple_mode=True))
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
+        print(tvm.lower(s_ref, bufs_ref, simple_mode=True))
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
         np_args_ref = [np.array(x) for x in np_args]
 
@@ -133,7 +135,7 @@ def test_correctness_layout_rewrite_insert_transform_stage():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 
-    seed = random.randint(0, 10000000)
+    seed = 1286272 # random.randint(0, 10000000)
     print(seed)
     random.seed(seed)
 
@@ -155,7 +157,9 @@ def test_correctness_layout_rewrite_insert_transform_stage():
             inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
         )
 
+        print(tvm.lower(s, bufs, simple_mode=True))
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
+        print(tvm.lower(s_ref, bufs_ref, simple_mode=True))
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
 
         func = tvm.build(s, bufs, target=target)
@@ -185,6 +189,6 @@ def ffff():
 
 if __name__ == "__main__":
     # test_apply_steps_with_layout_rewrite()
-    # test_correctness_layout_rewrite_rewrite_for_preTransformed()
-    # test_correctness_layout_rewrite_insert_transform_stage()
-    ffff()
+    test_correctness_layout_rewrite_rewrite_for_preTransformed()
+    test_correctness_layout_rewrite_insert_transform_stage()
+    # ffff()

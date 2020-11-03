@@ -27,28 +27,24 @@ cleanup()
 }
 trap cleanup 0
 
-# cleanup cache
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
-find . -type f -path "*.pyc" | xargs rm -f
-make cython3
+# # cleanup cache
+# rm -rf docs/tutorials
+# rm -rf docs/vta/tutorials
+# find . -type f -path "*.pyc" | xargs rm -f
+# make cython3
 
-# install theme addon for to local if does not exists
-# avoid docker for now before we stablize on the choice of style
-python3 -m pip install --user --upgrade -q tlcpack-sphinx-addon==0.1.0
+# echo "PreCheck sphinx doc generation WARNINGS.."
+# cd docs
+# make clean
+# TVM_TUTORIAL_EXEC_PATTERN=none make html |& tee /tmp/$$.log.txt
 
-echo "PreCheck sphinx doc generation WARNINGS.."
-cd docs
-make clean
-TVM_TUTORIAL_EXEC_PATTERN=none make html |& tee /tmp/$$.log.txt
-
-grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
-echo "---------Sphinx Log----------"
-cat /tmp/$$.logclean.txt
-echo "-----------------------------"
-if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
-    echo "WARNINIG found in the log, please fix them."
-    echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
-    exit 1
-fi
-echo "No WARNINGS to be fixed."
+# grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
+# echo "---------Sphinx Log----------"
+# cat /tmp/$$.logclean.txt
+# echo "-----------------------------"
+# if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
+#     echo "WARNINIG found in the log, please fix them."
+#     echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
+#     exit 1
+# fi
+# echo "No WARNINGS to be fixed."
