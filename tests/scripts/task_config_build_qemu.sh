@@ -25,7 +25,6 @@ cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_STANDALONE_CRT ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-10\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
