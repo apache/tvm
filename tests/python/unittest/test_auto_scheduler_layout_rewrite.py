@@ -58,7 +58,7 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 
-    seed = 1286272 # random.randint(0, 10000000)
+    seed = 8749744 # random.randint(0, 10000000)
     print(seed)
     random.seed(seed)
 
@@ -135,7 +135,7 @@ def test_correctness_layout_rewrite_insert_transform_stage():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 
-    seed = 1286272 # random.randint(0, 10000000)
+    seed = 8749744 # random.randint(0, 10000000)
     print(seed)
     random.seed(seed)
 
