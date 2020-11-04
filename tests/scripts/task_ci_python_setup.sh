@@ -21,3 +21,13 @@ set -u
 set -o pipefail
 
 # Script to setup additional python env.
+#
+# Use the following command to install the
+# package to /workspace/.local, these additional
+# packages will have precedence over the system packages.
+#
+# command: python3 -m pip install --user <package>==<version>
+#
+echo "Addtiional setup in" ${CI_IMAGE_NAME}
+
+python3 -m pip install --user tlcpack-sphinx-addon==0.1.2
