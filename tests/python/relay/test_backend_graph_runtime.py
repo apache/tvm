@@ -184,6 +184,31 @@ def test_gru_like():
             tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
+def test_compile_nested_tuples():
+    x = relay.var("x", shape=(10,))
+    x1 = x + relay.const(1.0)
+    x2 = x1 + relay.const(1.0)
+    x3 = x2 + relay.const(1.0)
+    x4 = x3 + relay.const(1.0)
+    out = relay.Tuple([x1, relay.Tuple([relay.Tuple([x2, x3]), x4])])
+    func = relay.Function([x], out)
+
+    graph, lib, _ = relay.build(tvm.IRModule.from_expr(func), "llvm")
+    mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
+
+    x_data = np.random.uniform(size=(10,)).astype(np.float32)
+    mod.set_input(x=x_data)
+    mod.run()
+
+    assert mod.get_num_outputs() == 4
+
+    ref = x_data + 1
+    for i in range(mod.get_num_outputs()):
+        out = mod.get_output(i).asnumpy()
+        tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+        ref = ref + 1
+
+
 if __name__ == "__main__":
     test_plan_memory()
     test_with_params()
@@ -191,3 +216,4 @@ if __name__ == "__main__":
     test_add_op_tensor()
     test_add_op_broadcast()
     test_gru_like()
+    test_compile_nested_tuples()
