@@ -266,7 +266,7 @@ class TVMScriptParser(Transformer):
     def generic_visit(self, node):
         """Fallback visitor if node type is not handled. Reports an error."""
 
-        self.report_error(type(node).__name__ + " AST node is not supported now", node.span)
+        self.report_error(type(node).__name__ + " AST node is not supported", node.span)
 
     def transform_Module(self, node):
         """Module visitor
@@ -500,7 +500,7 @@ class TVMScriptParser(Transformer):
         func = self.transform(node.rhs.func_name)
         if not isinstance(func, ForScopeHandler):
             self.report_error(
-                "Only for scope handlers can be used in a for statement.", node.rhs.func_name.span
+                "Only For scope handlers can be used in a for statement.", node.rhs.func_name.span
             )
         # prepare for new for scope
         old_lineno, old_col_offset = self.current_lineno, self.current_col_offset
@@ -644,7 +644,7 @@ class TVMScriptParser(Transformer):
             else:
                 return self.transform_SubscriptAssign(node.call)
 
-        # handle a regular funciton call
+        # handle a regular function call
         func = self.transform(node.call.func_name)
         arg_list = self.parse_arg_list(func, node.call)
 
@@ -751,8 +751,8 @@ class TVMScriptParser(Transformer):
         We have two cases here:
         1. If the type is of the form `ty.something`, we look up the type in
            the `ty` namespace in this module.
-        2. If the type is of the form `tvm.x.somthing` then we look up
-           `tvm.x.somthing` in this modules namespace.
+        2. If the type is of the form `tvm.x.something` then we look up
+           `tvm.x.something` in this modules namespace.
         """
         if isinstance(node.object, ast.TypeVar):
             if node.object.id.name == "ty":
@@ -820,10 +820,7 @@ class TVMScriptParser(Transformer):
         Equivalent to `transform_Var` but for types.
         """
         name = node.id.name
-        symbol = Registry.lookup(name)
-        if symbol is not None:
-            return symbol
-        symbol = self.context.lookup_symbol(name)
+        symbol = Registry.lookup(name) or self.context.lookup_symbol(name)
         if symbol is not None:
             return symbol
         self.report_error(f"Unknown identifier {name}.", node.span)
