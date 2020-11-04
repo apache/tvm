@@ -359,8 +359,9 @@ def test_reshape_like():
 
     verify_reshape_like((2, 3, 4), (1, 8, 3))
     verify_reshape_like((4, 7), (2, 7, 2))
-    verify_reshape_like((1, 2, 3, 4), (1, 6, 4), (1, 6, 5), 
-                        dict(lhs_begin=1, lhs_end=3, rhs_begin=1, rhs_end=2))
+    verify_reshape_like(
+        (1, 2, 3, 4), (1, 6, 4), (1, 6, 5), dict(lhs_begin=1, lhs_end=3, rhs_begin=1, rhs_end=2)
+    )
 
 
 def test_take_infer_type():

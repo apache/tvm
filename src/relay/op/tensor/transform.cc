@@ -642,21 +642,21 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Array<PrimExpr> infer_reshape_like(const Array<PrimExpr>& lhs_shape, 
+Array<PrimExpr> infer_reshape_like(const Array<PrimExpr>& lhs_shape,
                                    const Array<PrimExpr>& rhs_shape, const Attrs& attrs) {
   const auto* like_attrs = attrs.as<ReshapeLikeAttrs>();
   CHECK(!like_attrs->lhs_end.defined() || like_attrs->lhs_end.as<IntImmNode>())
-    << "lhs_end must be a concrete integer or None";
+      << "lhs_end must be a concrete integer or None";
   CHECK(!like_attrs->rhs_end.defined() || like_attrs->rhs_end.as<IntImmNode>())
-    << "rhs_end must be a concrete integer or None";
+      << "rhs_end must be a concrete integer or None";
   int64_t lhs_shape_size = static_cast<int64_t>(lhs_shape.size());
   int64_t rhs_shape_size = static_cast<int64_t>(rhs_shape.size());
   int64_t lhs_begin = like_attrs->lhs_begin;
-  int64_t lhs_end = like_attrs->lhs_end.defined() ? like_attrs->lhs_end.as<IntImmNode>()->value
-                                                : lhs_shape_size;
+  int64_t lhs_end =
+      like_attrs->lhs_end.defined() ? like_attrs->lhs_end.as<IntImmNode>()->value : lhs_shape_size;
   int64_t rhs_begin = like_attrs->rhs_begin;
-  int64_t rhs_end = like_attrs->rhs_end.defined() ? like_attrs->rhs_end.as<IntImmNode>()->value
-                                                : rhs_shape_size;
+  int64_t rhs_end =
+      like_attrs->rhs_end.defined() ? like_attrs->rhs_end.as<IntImmNode>()->value : rhs_shape_size;
   lhs_begin = lhs_begin < 0 ? lhs_begin + lhs_shape_size : lhs_begin;
   lhs_end = lhs_end < 0 ? lhs_end + lhs_shape_size : lhs_end;
   rhs_begin = rhs_begin < 0 ? rhs_begin + rhs_shape_size : rhs_begin;
@@ -809,8 +809,8 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-Expr MakeReshapeLike(Expr lhs, Expr rhs, int64_t lhs_begin, Integer lhs_end,
-                     int64_t rhs_begin, Integer rhs_end) {
+Expr MakeReshapeLike(Expr lhs, Expr rhs, int64_t lhs_begin, Integer lhs_end, int64_t rhs_begin,
+                     Integer rhs_end) {
   auto attrs = make_object<ReshapeLikeAttrs>();
   attrs->lhs_begin = std::move(lhs_begin);
   attrs->lhs_end = std::move(lhs_end);

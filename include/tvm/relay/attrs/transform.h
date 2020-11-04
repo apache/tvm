@@ -100,15 +100,13 @@ struct ReshapeLikeAttrs : public tvm::AttrsNode<ReshapeLikeAttrs> {
   int rhs_begin;
   Integer rhs_end;  // can be None
   TVM_DECLARE_ATTRS(ReshapeLikeAttrs, "relay.attrs.ReshapeLikeAttrs") {
-    TVM_ATTR_FIELD(lhs_begin)
-        .set_default(0)
-        .describe("The axis of the input where reshaping should begin.");
+    TVM_ATTR_FIELD(lhs_begin).set_default(0).describe(
+        "The axis of the input where reshaping should begin.");
     TVM_ATTR_FIELD(lhs_end)
         .set_default(NullValue<Integer>())
         .describe("The axis of the input where reshaping should end, exclusive.");
-    TVM_ATTR_FIELD(rhs_begin)
-        .set_default(0)
-        .describe("The axis of the shape_like tensor to begin taking dimensions from.");
+    TVM_ATTR_FIELD(rhs_begin).set_default(0).describe(
+        "The axis of the shape_like tensor to begin taking dimensions from.");
     TVM_ATTR_FIELD(rhs_end)
         .set_default(NullValue<Integer>())
         .describe("The axis of the shape_like tensor to end taking dimensions from, exclusive.");
