@@ -3344,17 +3344,17 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_infos: List of tuples of (input name, input shape)
-                 or (input name, (input shape, input types))
+    input_infos : List of tuples
+        Can be (input name, input shape) or (input name, (input shape, input types))
         Graph level input shape and type list
         The same input names need to be used for deployment, so choose easy to
         remember names (such as: input0, input1)
         e.g.
-          [('input0', (1, 2)), ('input1', (3, 4))]
-          or
-          [('input0', ((1, 2), 'int')), ('input1', ((3, 4), 'float'))]
+        [('input0', (1, 2)), ('input1', (3, 4))]
+        or
+        [('input0', ((1, 2), 'int')), ('input1', ((3, 4), 'float'))]
 
-    custom_convert_map: Dictionary of str to Relay op
+    custom_convert_map : Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
 
     Returns

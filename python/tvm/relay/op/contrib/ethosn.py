@@ -128,21 +128,23 @@ def _is_ethosn_composite(node):
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.ethos-n")
-def max_pool2d(attrs, args):
+def max_pool2d(expr):
     """Check if a max pool2d is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    attrs, args = expr.attrs, expr.args
     pool = tvm.relay.nn.max_pool2d(*args, **attrs)
     return support.max_pool2d(pool)
 
 
 @tvm.ir.register_op_attr("reshape", "target.ethos-n")
-def reshape(attrs, args):
+def reshape(expr):
     """Check if a reshape is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    attrs, args = expr.attrs, expr.args
     if not _is_ethosn_composite(args[0]):
         return False
 
@@ -151,21 +153,23 @@ def reshape(attrs, args):
 
 
 @tvm.ir.register_op_attr("qnn.add", "target.ethos-n")
-def qnn_add(attrs, args):
+def qnn_add(expr):
     """Check if an addition is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    args = expr.args
     add = _qnn.op.add(*args)
     return support.addition(add)
 
 
 @tvm.ir.register_op_attr("qnn.concatenate", "target.ethos-n")
-def qnn_concatenate(attrs, args):
+def qnn_concatenate(expr):
     """Check if a concatenate is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    attrs, args = expr.attrs, expr.args
     conc = _qnn.op.concatenate(*args, **attrs)
     if not support.concatenate(conc):
         return False
@@ -190,11 +194,12 @@ def qnn_concatenate(attrs, args):
 
 
 @tvm.ir.register_op_attr("split", "target.ethos-n")
-def split(attrs, args):
+def split(expr):
     """Check if a split is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    attrs, args = expr.attrs, expr.args
     if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
         sp = tvm.relay.split(
             *args, indices_or_sections=attrs["indices_or_sections"].value, axis=attrs["axis"]
@@ -210,11 +215,12 @@ def split(attrs, args):
 
 
 @tvm.ir.register_op_attr("nn.depth_to_space", "target.ethos-n")
-def depth_to_space(attrs, args):
+def depth_to_space(expr):
     """Check if a depth_to_space is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    attrs, args = expr.attrs, expr.args
     depth = tvm.relay.nn.depth_to_space(*args, **attrs)
     if not support.depth_to_space(depth):
         return False
@@ -223,11 +229,12 @@ def depth_to_space(attrs, args):
 
 
 @tvm.ir.register_op_attr("clip", "target.ethos-n")
-def clip(attrs, args):
+def clip(expr):
     """Check if a clip is supported by Ethos-N."""
     if not ethosn_available():
         return False
 
+    attrs, args = expr.attrs, expr.args
     c = tvm.relay.clip(*args, **attrs)
     if not support.relu(c):
         return False

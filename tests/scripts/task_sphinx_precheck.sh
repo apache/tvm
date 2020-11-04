@@ -33,6 +33,10 @@ rm -rf docs/vta/tutorials
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
+# install theme addon for to local if does not exists
+# avoid docker for now before we stablize on the choice of style
+python3 -m pip install --user --upgrade -q tlcpack-sphinx-addon==0.1.0
+
 echo "PreCheck sphinx doc generation WARNINGS.."
 cd docs
 make clean
