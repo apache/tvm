@@ -86,12 +86,14 @@ class TextureFlattener : public StmtExprMutator {
       ICHECK_EQ(shape.size(), 3) << "Only 2d RGBA texture is currently supported";
       ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
 
-      // TODO(csullivan): Consider check on float only
+      // TODO(csullivan): Consider check on float only?
       StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->dtype));
       Array<PrimExpr> args = {dtype, shape[0], shape[1]};
       stmt = LetStmt(op->buffer->data, Call(op->buffer->data.dtype(), builtin::text2d_alloca(), args), body);
-      stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
+      // TODO(csullivan): Adding the below AttrStmt causes SIGSEGV, worth investigating
+      // stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
     }
+
     return stmt;
   }
 
@@ -111,9 +113,15 @@ class TextureFlattener : public StmtExprMutator {
     }
     if (storage_scope == "texture")
     {
-      // TODO(csullivan): Implement texture intrinsic as builtin
-      // stmt = Evaluate(Call(op->buffer->dtype, builtin::isnan(), {op->value}));
+      // TODO(csullivan): Need autovectorization
+      Array<PrimExpr> args = {op->buffer->data, op->value};
+      for (auto& i : op->indices)
+      {
+        args.push_back(i);
+      }
+      stmt = Evaluate(Call(op->buffer->dtype, builtin::text2d_store(), args));
     }
+
     return stmt;
   }
 
@@ -133,9 +141,15 @@ class TextureFlattener : public StmtExprMutator {
     }
     if (storage_scope == "texture")
     {
-      // TODO(csullivan): Implement texture intrinsic as builtin
-      // expr = Call(op->buffer->dtype, builtin::isnan(), {expr});
+      // TODO(csullivan): Need autovectorization
+      Array<PrimExpr> args = {op->buffer->data};
+      for (auto& i : op->indices)
+      {
+        args.push_back(i);
+      }
+      expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
     }
+
     return expr;
   }
  private:
