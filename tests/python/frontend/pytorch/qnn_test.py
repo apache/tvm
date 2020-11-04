@@ -601,8 +601,3 @@ def test_quantize_dynamic():
             # Outputs from v1.6 seem reliable. TVM's outputs are always the same
             if is_version_greater_than("1.5.1"):
                 tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-4, atol=1e-4)
-
-
-if __name__ == "__main__":
-    test_dequantize_dynamic_unit()
-    test_quantize_dynamic_unit()
