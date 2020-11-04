@@ -95,3 +95,7 @@ RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
 RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh
+
+# OpenCL deps
+COPY install/ubuntu_install_opencl.sh /install/ubuntu_install_opencl.sh
+RUN bash /install/ubuntu_install_opencl.sh
