@@ -308,7 +308,7 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
-def reshape_like(data, shape_like):
+def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_end=None):
     """Reshapes the input array by the size of another array.
     For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
     the input array into an output array with the same shape as the second input array.
@@ -329,7 +329,7 @@ def reshape_like(data, shape_like):
     ret : relay.Expr
         The computed result.
     """
-    return _make.reshape_like(data, shape_like)
+    return _make.reshape_like(data, shape_like, lhs_begin, lhs_end, rhs_begin, rhs_end)
 
 
 def take(data, indices, axis=None, mode="clip"):
