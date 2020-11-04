@@ -46,14 +46,14 @@ AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm", "tophub
 
 # the version of each package
 PACKAGE_VERSION = {
-    "arm_cpu": "v0.07",
+    "arm_cpu": "v0.08",
     "llvm": "v0.04",
     "cuda": "v0.09",
     "rocm": "v0.05",
     "opencl": "v0.04",
     "mali": "v0.06",
     "intel_graphics": "v0.02",
-    "vta": "v0.09",
+    "vta": "v0.10",
     "amd_apu": "v0.01",
 }
 
