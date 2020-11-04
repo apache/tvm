@@ -275,6 +275,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('arm', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_python_setup.sh"
           sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
           // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
         }
