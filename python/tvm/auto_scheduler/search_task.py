@@ -52,8 +52,6 @@ class SearchTask(Object):
         )
 
     def __getstate__(self):
-        import pickle  # pylint: disable=import-outside-toplevel
-
         return {
             "dag": self.dag,
             "workload_key": self.workload_key,
@@ -63,8 +61,6 @@ class SearchTask(Object):
         }
 
     def __setstate__(self, state):
-        import pickle  # pylint: disable=import-outside-toplevel
-
         self.dag = state["dag"]
         self.workload_key = state["workload_key"]
         self.target = state["target"]

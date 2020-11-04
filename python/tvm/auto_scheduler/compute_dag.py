@@ -189,13 +189,9 @@ class ComputeDAG(Object):
         return hashlib.md5(str_key).hexdigest()
 
     def __getstate__(self):
-        import pickle  # pylint: disable=import-outside-toplevel
-
         return {"compute": SaveJSON(self.compute), "sche": SaveJSON(self.sche)}
 
     def __setstate__(self, state):
-        import pickle  # pylint: disable=import-outside-toplevel
-
-        self.compute = LoadJSON(state["compute"])
-        self.sche = LoadJSON(state["sche"])
+        self.compute = LoadJSON(state["compute"])  # pylint: disable=assignment-from-no-return
+        self.sche = LoadJSON(state["sche"])  # pylint: disable=assignment-from-no-return
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, self.compute, self.sche)
