@@ -77,6 +77,12 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         _ => panic!("derive only works for structs"),
     };
 
+    let ref_derives = if derive {
+        quote! { #[derive(Debug, Clone)]}
+    } else {
+        quote! { #[derive(Clone)] }
+    };
+
     let mut expanded = quote! {
         unsafe impl #tvm_rt_crate::object::IsObject for #payload_id {
             const TYPE_KEY: &'static str = #type_key;
@@ -89,7 +95,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
-        #[derive(Clone)]
+        #ref_derives
         pub struct #ref_id(Option<#tvm_rt_crate::object::ObjectPtr<#payload_id>>);
 
         impl #tvm_rt_crate::object::IsObjectRef for #ref_id {

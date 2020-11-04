@@ -82,6 +82,13 @@ impl<T: IsObjectRef> Array<T> {
     }
 }
 
+impl<T: IsObjectRef> std::fmt::Debug for Array<T> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let as_vec: Vec<T> = self.clone().into_iter().collect();
+        write!(formatter, "{:?}", as_vec)
+    }
+}
+
 pub struct IntoIter<T: IsObjectRef> {
     array: Array<T>,
     pos: isize,

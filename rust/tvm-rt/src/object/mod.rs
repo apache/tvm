@@ -40,6 +40,7 @@ pub trait IsObjectRef:
     + TryFrom<RetValue, Error = Error>
     + for<'a> Into<ArgValue<'a>>
     + for<'a> TryFrom<ArgValue<'a>, Error = Error>
+    + std::fmt::Debug
 {
     type Object: IsObject;
     fn as_ptr(&self) -> Option<&ObjectPtr<Self::Object>>;

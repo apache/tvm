@@ -26,7 +26,7 @@ use super::PrimExpr;
 use super::relay::Constructor;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Type"]
 #[type_key = "Type"]
 pub struct TypeNode {
@@ -52,7 +52,7 @@ impl TypeNode {
  * \sa PrimType
  */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PrimType"]
 #[type_key = "PrimType"]
 pub struct PrimTypeNode {
@@ -74,7 +74,7 @@ pub struct PrimTypeNode {
  */
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PointerType"]
 #[type_key = "PointerType"]
 pub struct PointerTypeNode {
@@ -83,7 +83,9 @@ pub struct PointerTypeNode {
     pub element_type: Type,
 }
 
+
 /// Possible kinds of type variables.
+#[derive(PartialEq, Eq, Debug)]
 pub enum TypeKind {
     Type = 0,
     /// Template variable in shape expression.
@@ -93,26 +95,16 @@ pub enum TypeKind {
     TypeData = 6,
 }
 
-/*
- * \brief Type parameter in functions.
- *
- * A type variable can be viewed as template parameter in c++ template function.
- *
- * For example, in the following pesudo code,
- * the TypeVar of f is TypeVar("n", kind=kShapeVar).
- * This function can take in a Tensor with shape=(3, 3) and
- * returns a Tensor with shape=(9,)
- *
- * \code
- *
- *  template<i32 n>
- *  f(x : Tensor[i32, (n, n)]) -> Tensor[i32, (n * n)]
- *
- * \endcode
- * \sa TypeVar, TypeKind
- */
+/// Type parameter in functions.
+///
+/// A type variable can be viewed as template parameter in c++ template function.
+///
+/// For example, in the following pesudo code,
+/// the TypeVar of f is TypeVar("n", kind=kShapeVar).
+/// This function can take in a Tensor with shape=(3, 3) and
+/// returns a Tensor with shape=(9,)
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TypeVar"]
 #[type_key = "TypeVar"]
 pub struct TypeVarNode {
@@ -123,7 +115,7 @@ pub struct TypeVarNode {
 
 /// A global type variable that is used for defining new types or type aliases.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "GlobalTypeVar"]
 #[type_key = "GlobalTypeVar"]
 pub struct GlobalTypeVarNode {
@@ -133,7 +125,7 @@ pub struct GlobalTypeVarNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TupleType"]
 #[type_key = "TupleType"]
 pub struct TupleTypeNode {
@@ -148,7 +140,7 @@ impl TupleType {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TypeConstraint"]
 #[type_key = "TypeConstraint"]
 pub struct TypeConstraintNode {
@@ -157,7 +149,7 @@ pub struct TypeConstraintNode {
 
 /// The representation of a polymorphic function type.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "FuncType"]
 #[type_key = "FuncType"]
 pub struct FuncTypeNode {
@@ -182,7 +174,7 @@ pub struct FuncTypeNode {
  * TypeVar represents the input to the graph.
  */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "IncompleteType"]
 #[type_key = "IncompleteType"]
 pub struct IncompleteTypeNode {
@@ -196,7 +188,7 @@ pub struct IncompleteTypeNode {
  * \sa RelayRefType.
  */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "RefType"]
 #[type_key = "relay.RefType"]
 pub struct RelayRefTypeNode {
@@ -205,7 +197,7 @@ pub struct RelayRefTypeNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "BaseTensorType"]
 #[type_key = "relay.BaseTensorType"]
 pub struct BaseTensorTypeNode {
@@ -213,7 +205,7 @@ pub struct BaseTensorTypeNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TensorType"]
 #[type_key = "relay.TensorType"]
 pub struct TensorTypeNode {
@@ -253,7 +245,7 @@ an ADT definition is treated as a type-level function, so an ADT handle
 must be wrapped in a TypeCall node that instantiates the type-level arguments.
 The kind checker enforces this. */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TypeData"]
 #[type_key = "relay.TypeData"]
 pub struct TypeDataNode {

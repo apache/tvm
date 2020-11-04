@@ -17,6 +17,7 @@
  * under the License.
  */
 
+use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::path::Path;
 
@@ -46,7 +47,7 @@ pub enum Error {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "IRModule"]
 #[type_key = "IRModule"]
 pub struct IRModuleNode {
@@ -106,6 +107,12 @@ impl IRModule {
         module_new(Map::from_iter(funcs), Map::from_iter(types))
     }
 
+    pub fn empty() -> Result<IRModule> {
+        let funcs = HashMap::<GlobalVar, BaseFunc>::new();
+        let types =  HashMap::<GlobalTypeVar, TypeData>::new();
+        IRModule::new(funcs, types)
+    }
+
     pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>
     where
         N: Into<TVMString>,
@@ -140,8 +147,9 @@ impl IRModule {
         module_add_def(self.clone(), type_name, type_data, update)
     }
 
-    pub fn get_global_var(&self, name: TVMString) -> Result<GlobalVar> {
-        module_get_global_var(self.clone(), name)
+    pub fn get_global_var<S>(&self, name: S) -> Result<GlobalVar>
+    where S: Into<TVMString> {
+        module_get_global_var(self.clone(), name.into())
     }
 
     pub fn get_global_vars(&self) -> Result<Array<GlobalVar>> {
@@ -206,9 +214,7 @@ mod tests {
 
     #[test]
     fn test_module_add() -> anyhow::Result<()> {
-        let funcs = HashMap::<GlobalVar, BaseFunc>::new();
-        let types =  HashMap::<GlobalTypeVar, TypeData>::new();
-        let mut module = IRModule::new(funcs, types)?;
+        let mut module = IRModule::empty()?;
         let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
         let params = Array::from_vec(vec![x.clone()])?;
         let func = relay::Function::simple(params, x.upcast()).upcast();
@@ -225,8 +231,16 @@ mod tests {
     }
 
     #[test]
-    fn test_get_global_var() {
-
+    fn test_get_global_var() -> Result<()> {
+        let mut module = IRModule::empty()?;
+        let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
+        let params = vec![x.clone()];
+        let func = relay::Function::simple(params, x.upcast()).upcast();
+        let gv_foo = GlobalVar::new("foo".into(), Span::null());
+        let module = module.add(gv_foo, func)?;
+        let gv = module.get_global_var("foo");
+        assert_eq!(gv_foo, gv);
+        Ok(())
     }
 
     #[test]
