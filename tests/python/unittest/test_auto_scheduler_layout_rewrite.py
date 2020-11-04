@@ -20,14 +20,11 @@ import tempfile
 import numpy as np
 
 import pytest
-import random
 
 import tvm
 import tvm.testing
 from tvm import topi
 from tvm import auto_scheduler, te
-
-import os
 
 from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
 
@@ -52,7 +49,6 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[1] == 512
 
 
-@pytest.mark.skip("skip due to flaky")
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     N = 128
@@ -123,7 +119,6 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         del measure_ctx
 
 
-@pytest.mark.skip("skip due to flaky")
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_insert_transform_stage():
     N = 128
