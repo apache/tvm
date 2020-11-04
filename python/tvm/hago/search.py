@@ -371,6 +371,7 @@ class Tuner(object):
             fout.write('\n')
 
     def _update_best_measure(self, measures):
+        old_measure = self.best_measure
         if self.best_measure is None:
             self.best_measure = best_measure(measures, self.measure_kind)
         else:
@@ -383,11 +384,12 @@ class Tuner(object):
             print(m)
         print('best_measure')
         print(self.best_measure)
-        return self.best_measure
+        updated = (self.best_measure == old_measure)
+        return updated, self.best_measure
 
     def _measure(self, bits_list):
         # support single sample measure and batched measure
-        # [bits] -> Measure(strategy, MeasureResult)
+        # [bits] -> [Measure(strategy, MeasureResult)]
         results = []
         if isinstance(bits_list, list):
             groups = _group_same_graph(self.graph, self.hardware, self.topology, bits_list)
@@ -407,17 +409,99 @@ class Tuner(object):
 
 
 class DefaultSetting(Tuner):
-    def __init__(self, space, objective):
+    def __init__(self, space, objective, bits=None):
         super(DefaultSetting, self).__init__(space, objective, max_trials=1)
+        if bits is None:
+            self.bits = [choices[0] for choices in self.space]
+        else:
+            self.bits = bits
 
     def has_next(self):
         return True
 
     def next_trials(self):
-        return [[choices[0] for choices in self.space]]
+        return [self.bits]
 
     def update(self, measures):
-        ms = self._update_best_measure(measures)
+        self._update_best_measure(measures)
+
+
+class RandomSearchTuner(Tuner):
+    def __init__(self, space, objective, max_trials=None):
+        if max_trials is None:
+            max_trials = len(space)
+        super(RandomSearchTuner, self).__init__(space, objective, max_trials)
+
+    def has_next(self):
+        return True
+
+    def next_trials(self):
+        return [[random.choice(choices) for choices in self.space]]
+
+    def update(self, measures):
+        self._update_best_measure(measures)
+
+
+class GreedySearchTuner(Tuner):
+    def __init__(self, space, objective, max_trials=None):
+        super(GreedySearchTuner, self).__init__(space, objective, max_trials)
+        self.dim_idx = 0
+        self.bit_idx = 0
+        self.decided = []
+        self.default = [choices[0] for choices in space]
+
+    def has_next(self):
+        return self.dim_idx < len(self.space)
+
+    def next_trials(self):
+        choice = self.space[self.dim_idx][self.bit_idx]
+        trials = [self.decided + [choice] + self.default[self.dim_idx+1:]]
+        return trials
+
+    def update(self, measures):
+        updated, best_measure = self._update_best_measure(measures)
+        self.bit_idx += 1
+        if measures[0].result.accuracy < best_measure.result.accuracy or \
+            self.bit_idx >= len(self.space[self.dim_idx]):
+            # move to next dimension
+            best_bit = best_measure.strategy.bits[self.dim_idx]
+            self.decided.append(best_bit)
+            self.dim_idx += 1
+            self.bit_idx = 0
+
+    def _measure(self, bits_list):
+        assert len(bits_list) == 1
+        bits = bits_list[0]
+        thresholds = threshold_estimate(self.graph, self.topology, self.stats, bits)
+        quantizer = qtz.Quantizer(self.graph, self.hardware, self.topology, bits, thresholds)
+        sgraph = quantizer.simulate()
+        qgraph = quantizer.quantize()
+        # print('original graph')
+        # print(self.graph)
+        # print('simulated graph')
+        # print(sgraph)
+        # print('quantized graph')
+        # print(qgraph)
+        # lowered_qgraph = relay.qnn.transform.CanonicalizeOps()(tvm.IRModule.from_expr(qgraph))
+        # print('lowered quantized graph')
+        # print(lowered_qgraph)
+        # raise ValueError
+
+        runtime = relay.create_executor("graph", ctx=self.ctx, target=self.target).evaluate(qgraph)
+        input_keys = [str(param.name_hint) for param in qgraph.params]
+        outputs = []
+        for batch_id, batch in enumerate(self.dataset):
+            inputs = {}
+            for key in input_keys:
+                assert key in batch
+                inputs[key] = batch[key]
+            out = runtime(**inputs)
+            outputs.append(out)
+        measure_result = self.measure_func(self.graph, self.dataset, outputs, self.ctx, self.target)
+        strategy = Strategy(self.model_hash, self.topology, bits, thresholds)
+        result = Measure(strategy, measure_result)
+        print(result)
+        return [result]
 
 
 class BatchedGreedySearchTuner(Tuner):
@@ -436,7 +520,7 @@ class BatchedGreedySearchTuner(Tuner):
         return trials
 
     def update(self, measures):
-        ms = self._update_best_measure(measures)
+        updated, ms = self._update_best_measure(measures)
         best_bit = ms.strategy.bits[self.dim_idx]
         self.decided.append(best_bit)
         self.dim_idx += 1

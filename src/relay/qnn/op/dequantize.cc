@@ -43,8 +43,9 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(data != nullptr);
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == DataType::Int(8) || input_dtype == DataType::UInt(8) ||
+        input_dtype == DataType::Int(16) || input_dtype == DataType::UInt(16) ||
         input_dtype == DataType::Int(32))
-      << "Input type should be one of the quantized types [unit8, int8, int32] but was "
+      << "Input type should be one of the quantized types [unit8, int8, uint16, int16, int32] but was "
       << input_dtype;
 
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();

@@ -86,8 +86,8 @@ def threshold_estimate(graph, topology, stats, bits=None):
     else:
         raise ValueError
 
-    print('thresholds: {}'.format(thresholds))
     if cfg.round_scale_to_pot:
         thresholds = [_round2pot(x) for x in thresholds]
 
+    print('thresholds: {}'.format(thresholds))
     return thresholds

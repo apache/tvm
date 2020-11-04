@@ -279,6 +279,17 @@ def realize_addition(node, in_types, out_types):
         rhs = relay.cast(rhs, DataType(dtype))
     return forward_op(node, [lhs, rhs])
 
+@register_realize("nn.dense")
+def realize_dense(node, in_types, out_types):
+    data, weight = node.args
+    fields = node.attrs.list_field_info()
+    attrs_dict = {}
+    for field in fields:
+        key = field.name
+        attrs_dict[str(key)] = getattr(node.attrs, key)
+    attrs_dict['out_dtype'] = DataType(out_types[0])
+    attrs = tvm.ir.make_node("relay.attrs.DenseAttrs", **attrs_dict)
+    return relay.Call(node.op, node.args, attrs, node.type_args)
 
 @register_realize("nn.conv2d")
 def realize_conv2d(node, in_types, out_types):

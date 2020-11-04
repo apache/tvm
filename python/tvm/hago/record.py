@@ -65,7 +65,7 @@ def best_measure(measures, kind):
         key = MeasureKind.enum_to_str(kind)
         attr = getattr(m.result, key)
         nbit = sum(m.strategy.bits)
-        return (attr, nbit)
+        return (attr, -nbit)
     return max(measures, key=compare_key)
 
 

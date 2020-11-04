@@ -92,6 +92,8 @@ class Topology(object):
 
             if isinstance(node, relay.Call):
                 # print(node.op.name)
+                # print(hardware.list_integer_descs(node))
+                # print(hardware.list_float_descs(node))
                 if not hardware.list_integer_descs(node):
                     # current op does not support integer computation 
                     set_cond(node, False)

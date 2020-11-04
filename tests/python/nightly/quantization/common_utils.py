@@ -67,29 +67,47 @@ def eval_acc(func, dataset, batch_fn, args, var_name, target='cuda', ctx=tvm.gpu
 #################
 # Quantize helper
 #################
-def quantize_hago(mod, params, calib_dataset, qconfig=None):
+def quantize_hago(mod, params, calib_dataset,
+                  qconfig=None, hardware=None, tuner=None,
+                  target="llvm", ctx=tvm.cpu(), eval_only=False):
     if qconfig is None:
         qconfig = hago.qconfig(log_file='temp.log')
+    if hardware is None:
+        hardware = hago.create_accelerator_description()
 
     with qconfig:
         graph = hago.prerequisite_optimize(mod['main'], params=params)
         logging.debug('current quantize config')
         logging.debug(hago.current_qconfig())
-        hardware = hago.create_accelerator_description()
         space = hago.generate_search_space(graph, hardware)
-        # tuner = hago.BatchedGreedySearchTuner(space, 'accuracy')
-        tuner = hago.DefaultSetting(space, 'accuracy')
-        ctx = tvm.cpu()
-        strategy, result = hago.search_quantize_strategy(graph, hardware, calib_dataset, tuner, ctx,
-                target='llvm')
+        if tuner is None:
+            tuner = hago.DefaultSetting(space, 'accuracy')
+        elif isinstance(tuner, list):
+            tuner = hago.DefaultSetting(space, 'accuracy', tuner)
+        elif tuner == 'greedy':
+            tuner = hago.GreedySearchTuner(space, "accuracy")
+        elif tuner == 'batched':
+            tuner = hago.BatchedGreedySearchTuner(space, "accuracy")
+
+        if eval_only:
+            record = hago.pick_best(qconfig.log_file, "accuracy")
+            print(record)
+            raise ValueError
+        else:
+            strategy, result = hago.search_quantize_strategy(graph, hardware, calib_dataset, tuner, ctx, target)
+        print('strategy')
+        print(strategy)
 
         quantizer = hago.create_quantizer(graph, hardware, strategy)
         simulated_graph = quantizer.simulate()
         quantized_graph = quantizer.quantize()
+        lowered_quantized_graph = relay.qnn.transform.CanonicalizeOps()(tvm.IRModule.from_expr(quantized_graph))
         logging.debug('simulated graph')
         logging.debug(simulated_graph.astext(show_meta_data=False))
         logging.debug('quantize graph')
         logging.debug(quantized_graph.astext(show_meta_data=False))
+        logging.debug('lowered quantized graph')
+        logging.debug(lowered_quantized_graph.astext(show_meta_data=False))
         # hago.inspect_graph_statistic(graph, hardware, strategy, dataset, ctx, target='llvm')
         return tvm.IRModule.from_expr(quantized_graph)
 

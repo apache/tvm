@@ -22,6 +22,8 @@ from . import _op_attrs
 from .base import qconfig, current_qconfig
 from .analysis import inspect_graph_statistic
 from .hardware import Hardware, OpDesc, create_accelerator_description
-from .search import generate_search_space, search_quantize_strategy, DefaultSetting, BatchedGreedySearchTuner, serialize, deserialize
+from .search import generate_search_space, search_quantize_strategy
+from .search import DefaultSetting, RandomSearchTuner, GreedySearchTuner, BatchedGreedySearchTuner
+from .search import serialize, deserialize
 from .quantize import CalibrationDataset, prerequisite_optimize, create_quantizer
 from .record import serialize, deserialize, load_from_file, pick_best
