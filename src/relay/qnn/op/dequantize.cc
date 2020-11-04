@@ -79,20 +79,27 @@ Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis
 }
 
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
-                     const Expr& input_zero_point, const Array<IndexExpr>& input_shape,
+                     const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
                      const DequantizeAttrs* attrs) {
   const auto axis = attrs->axis;
+
+  ICHECK_EQ(types.size(), 4);
+  auto in_type = types[0];
+  auto in_tensor_type = in_type.as<TensorTypeNode>();
+  ICHECK(in_tensor_type != nullptr) << "Type information missing"
+                                    << " Please run infer_type pass.";
+  Array<IndexExpr> input_shape = in_tensor_type->shape;
 
   size_t n_dim = input_shape.size();
 
   // Expand scale and zero point if the input tensor is channel quantized
   auto expanded_input_scale = input_scale;
-  if (!IsConstScalar(input_scale)) {
+  if (!IsConstScalar(input_scale) && !IsScalarType(types[1])) {
     expanded_input_scale = ExpandBiasToMatchAxis(input_scale, n_dim, {axis});
   }
 
   auto expanded_input_zero_point = input_zero_point;
-  if (!IsConstScalar(input_zero_point)) {
+  if (!IsConstScalar(input_zero_point) && !IsScalarType(types[2])) {
     expanded_input_zero_point = ExpandBiasToMatchAxis(input_zero_point, n_dim, {axis});
   }
 
@@ -113,15 +120,7 @@ Expr DequantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const auto* dequantize_attrs = attrs.as<DequantizeAttrs>();
   ICHECK(dequantize_attrs != nullptr);
 
-  // Find input shape.
-  ICHECK_EQ(types.size(), 4);
-  auto in_type = types[0];
-  auto in_tensor_type = in_type.as<TensorTypeNode>();
-  ICHECK(in_tensor_type != nullptr) << "Type information missing."
-                                    << " Please run infer_type pass.";
-  Array<IndexExpr> input_shape = in_tensor_type->shape;
-
-  return DequantizeLower(data, input_scale, input_zero_point, input_shape, dequantize_attrs);
+  return DequantizeLower(data, input_scale, input_zero_point, types, dequantize_attrs);
 }
 
 RELAY_REGISTER_OP("qnn.dequantize")

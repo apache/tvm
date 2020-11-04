@@ -29,6 +29,7 @@ from torch.quantization import fuse_modules, QuantWrapper
 import tvm
 import tvm.testing
 from tvm import relay
+from tvm.relay.testing import run_infer_type
 from tvm.relay.frontend.pytorch_utils import is_version_greater_than
 from tvm.contrib.download import download_testdata
 
@@ -505,6 +506,25 @@ def test_serialized_modules():
     match_ratio = num_identical / float(np.prod(tvm_result.shape))
     assert match_ratio > 0.90
 
+def test_dequantize_dynamic_unit():
+    data = relay.var('data', shape=(1, 2, 3, 4), dtype='int8')
+    scale = relay.var('scale', shape=(), dtype='float32')
+    zp = relay.var('zp', shape=(), dtype='int32')
+
+    deq_data = relay.qnn.op.dequantize(data, scale * scale, zp + zp)
+    tt = run_infer_type(deq_data)
+
+    assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "float32")
+   
+def test_quantize_dynamic_unit():
+    data = relay.var('data', shape=(1, 2, 3, 4), dtype='float32')
+    scale = relay.var('scale', shape=(), dtype='float32')
+    zp = relay.var('zp', shape=(), dtype='int32')
+
+    q_data = relay.qnn.op.quantize(data, scale * scale, zp + zp)
+    tt = run_infer_type(q_data)
+    
+    assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "int8")
 
 def test_quantize_dynamic():
     # A wrapper is required for quantize_dynamic to work correctly
