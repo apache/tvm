@@ -60,7 +60,8 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 
-    seed = 8749744 # random.randint(0, 10000000)
+    # seed = 8749744
+    seed = random.randint(0, 10000000)
     print(seed)
     random.seed(seed)
 
@@ -79,6 +80,8 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         cmd = "cat %s" % (log_file)
         os.system(cmd)
+        os.system("lscpu")
+        # log_file = "log.txt"
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(
             inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
@@ -126,8 +129,8 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         func_ref(*args_ref)
         ctx.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), atol=1e-3)
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), atol=1e-3)
         del measure_ctx
 
 
@@ -139,7 +142,8 @@ def test_correctness_layout_rewrite_insert_transform_stage():
     task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
     dag = task.compute_dag
 
-    seed = 8749744 # random.randint(0, 10000000)
+    # seed = 8749744
+    seed = random.randint(0, 10000000)
     print(seed)
     random.seed(seed)
 
@@ -158,6 +162,7 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         auto_scheduler.auto_schedule(task, search_policy, tuning_options)
         cmd = "cat %s" % (log_file)
         os.system(cmd)
+        os.system("lscpu")
         inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(
             inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
@@ -169,9 +174,9 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
 
         func = tvm.build(s, bufs, target=target)
-        print(func.get_source())
+        # print(func.get_source())
         func_ref = tvm.build(s_ref, bufs_ref, target=target)
-        print(func_ref.get_source())
+        # print(func_ref.get_source())
 
         ctx = tvm.context(str(target))
         ctx_ref = tvm.cpu()
@@ -184,9 +189,9 @@ def test_correctness_layout_rewrite_insert_transform_stage():
         func_ref(*args_ref)
         ctx.sync()
 
-        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy())
-        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy())
-        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy())
+        tvm.testing.assert_allclose(args[0].asnumpy(), args_ref[0].asnumpy(), atol=1e-3)
+        tvm.testing.assert_allclose(args[1].asnumpy(), args_ref[1].asnumpy(), atol=1e-3)
+        tvm.testing.assert_allclose(args[2].asnumpy(), args_ref[2].asnumpy(), atol=1e-3)
         del measure_ctx
 
 
@@ -199,4 +204,4 @@ if __name__ == "__main__":
     # test_apply_steps_with_layout_rewrite()
     test_correctness_layout_rewrite_rewrite_for_preTransformed()
     test_correctness_layout_rewrite_insert_transform_stage()
-    # ffff()
+    ffff()
