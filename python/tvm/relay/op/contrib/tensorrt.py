@@ -157,7 +157,8 @@ def partition_for_tensorrt(
 
 def _register_external_op_helper_with_checker(op_name, checker):
     @tvm.ir.register_op_attr(op_name, "target.tensorrt")
-    def _func_wrapper(attrs, args):
+    def _func_wrapper(expr):
+        attrs, args = expr.attrs, expr.args
         if any([x.checked_type.dtype != "float32" for x in args]):
             logger.info("Only float32 inputs are supported for TensorRT.")
             return False
@@ -192,9 +193,10 @@ _register_external_op_helper("clip")
 
 
 @tvm.ir.register_op_attr("add", "target.tensorrt")
-def add_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if add is supported by TensorRT."""
 
+    args = expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -211,8 +213,10 @@ def add_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.batch_norm", "target.tensorrt")
-def batch_norm_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.batch_norm is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -223,8 +227,10 @@ def batch_norm_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.softmax", "target.tensorrt")
-def softmax_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def softmax_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.softmax is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -235,8 +241,10 @@ def softmax_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.conv2d", "target.tensorrt")
-def conv2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -253,8 +261,10 @@ def conv2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.dense", "target.tensorrt")
-def dense_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def dense_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if dense is supported by TensorRT."""
+
+    args = expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -270,8 +280,10 @@ def dense_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.bias_add", "target.tensorrt")
-def bias_add_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def bias_add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.bias_add is supported by TensorRT."""
+
+    args = expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -283,8 +295,10 @@ def bias_add_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.tensorrt")
-def max_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.max_pool2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -298,8 +312,10 @@ def max_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.avg_pool2d", "target.tensorrt")
-def avg_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.avg_pool2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -326,8 +342,10 @@ def avg_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.global_max_pool2d", "target.tensorrt")
-def global_max_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def global_max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.global_max_pool2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -338,8 +356,10 @@ def global_max_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-varia
 
 
 @tvm.ir.register_op_attr("nn.global_avg_pool2d", "target.tensorrt")
-def global_avg_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def global_avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.global_avg_pool2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -350,8 +370,10 @@ def global_avg_pool_2d_annotate_fn(attrs, args):  # pylint: disable=unused-varia
 
 
 @tvm.ir.register_op_attr("expand_dims", "target.tensorrt")
-def expand_dims_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def expand_dims_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if expand_dims is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -362,8 +384,10 @@ def expand_dims_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("squeeze", "target.tensorrt")
-def squeeze_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def squeeze_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if squeeze is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -377,8 +401,10 @@ def squeeze_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("concatenate", "target.tensorrt")
-def concatenate_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if concatenate is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.dtype != "float32" for x in args[0].checked_type.fields]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -396,8 +422,10 @@ def concatenate_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.conv2d_transpose", "target.tensorrt")
-def conv2d_transpose_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def conv2d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv2d_transpose is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -419,8 +447,10 @@ def conv2d_transpose_annotate_fn(attrs, args):  # pylint: disable=unused-variabl
 
 
 @tvm.ir.register_op_attr("transpose", "target.tensorrt")
-def transpose_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if transpose is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -431,8 +461,10 @@ def transpose_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("layout_transform", "target.tensorrt")
-def layout_transform_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def layout_transform_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if layout_transform is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -450,8 +482,10 @@ def layout_transform_annotate_fn(attrs, args):  # pylint: disable=unused-variabl
 
 
 @tvm.ir.register_op_attr("reshape", "target.tensorrt")
-def reshape_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if reshape is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if args[0].checked_type.dtype != "float32":
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -481,8 +515,10 @@ def reshape_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.pad", "target.tensorrt")
-def pad_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.pad is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -543,8 +579,10 @@ _register_external_op_helper_with_checker("ceil", trt_version_annotate_fn((5, 1,
 
 
 @tvm.ir.register_op_attr("strided_slice", "target.tensorrt")
-def strided_slice_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def strided_slice_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if strided_slice is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if args[0].checked_type.dtype != "float32":
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -567,8 +605,10 @@ def strided_slice_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.adaptive_max_pool2d", "target.tensorrt")
-def adapative_max_pool2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def adapative_max_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.adaptive_max_pool2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -579,8 +619,10 @@ def adapative_max_pool2d_annotate_fn(attrs, args):  # pylint: disable=unused-var
 
 
 @tvm.ir.register_op_attr("nn.adaptive_avg_pool2d", "target.tensorrt")
-def adapative_avg_pool2d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def adapative_avg_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.adaptive_avg_pool2d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -591,8 +633,10 @@ def adapative_avg_pool2d_annotate_fn(attrs, args):  # pylint: disable=unused-var
 
 
 @tvm.ir.register_op_attr("nn.conv3d", "target.tensorrt")
-def conv3d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv3d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -611,8 +655,10 @@ def conv3d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.max_pool3d", "target.tensorrt")
-def max_pool_3d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def max_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.max_pool3d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -625,8 +671,10 @@ def max_pool_3d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.avg_pool3d", "target.tensorrt")
-def avg_pool_3d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def avg_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.avg_pool3d is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
@@ -639,8 +687,10 @@ def avg_pool_3d_annotate_fn(attrs, args):  # pylint: disable=unused-variable
 
 
 @tvm.ir.register_op_attr("nn.conv3d_transpose", "target.tensorrt")
-def conv3d_transpose_annotate_fn(attrs, args):  # pylint: disable=unused-variable
+def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv3d_transpose is supported by TensorRT."""
+
+    attrs, args = expr.attrs, expr.args
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False

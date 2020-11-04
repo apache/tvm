@@ -178,7 +178,8 @@ class AnnotateTargetRewriter : public ExprRewriter {
           continue;
         }
         auto fannotate = Op::GetAttrMap<FTVMAnnotateTarget>("target." + std::string(target));
-        if (fannotate.count(op) && fannotate[op](pre->attrs, pre->args)) {
+        const Expr& ex = GetRef<Expr>(pre);
+        if (fannotate.count(op) && fannotate[op](ex)) {
           supported_targets.push_back(target);
         }
       }
