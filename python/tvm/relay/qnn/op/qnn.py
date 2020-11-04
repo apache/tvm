@@ -24,6 +24,7 @@ from . import _make
 from ... import op as reg
 from ...op import OpPattern
 
+
 def requantize(
     data,
     input_scale,
@@ -497,6 +498,7 @@ def subtract(
         output_scale,
         output_zero_point,
     )
+
 
 # register fuse pattern for qnn ops
 reg.register_pattern("qnn.quantize", OpPattern.OPAQUE)
