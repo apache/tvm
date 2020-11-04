@@ -38,78 +38,78 @@ echo "Using LLVM_CONFIG_PATH=$LLVM_CONFIG_PATH"
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-# cd $RUST_DIR
-# cargo fmt -- --check
+cd $RUST_DIR
+cargo fmt -- --check
 
-# # First we test tvm-sys the core Rust bindings.
-# cd $RUST_DIR/tvm-sys
-# # First we test w/o the bindings feature on.
+# First we test tvm-sys the core Rust bindings.
+cd $RUST_DIR/tvm-sys
+# First we test w/o the bindings feature on.
+cargo build
+cargo test --tests
+
+# Second we test w/ the bindings feature on.
+cargo build --features bindings
+cargo test --features bindings --tests
+
+# Next we test the runtime API.
+cd $RUST_DIR/tvm-rt
+
+# Build and run the tests.
+cargo build
+cargo test --tests
+
+# Next we test the graph runtime crate.
+cd $RUST_DIR/tvm-graph-rt
+
+# We first we compile a model using the Python bindings then run the tests.
+python3 tests/build_model.py
+cargo test --tests
+
+# Run some more tests involving the graph runtime API.
+cd tests/test_tvm_basic
+cargo run
+cd -
+
+cd tests/test_tvm_dso
+cargo run
+cd -
+
+# # run wasm32 test
+# cd tests/test_wasm32
 # cargo build
-# cargo test --tests
-
-# # Second we test w/ the bindings feature on.
-# cargo build --features bindings
-# cargo test --features bindings --tests
-
-# # Next we test the runtime API.
-# cd $RUST_DIR/tvm-rt
-
-# # Build and run the tests.
-# cargo build
-# cargo test --tests
-
-# # Next we test the graph runtime crate.
-# cd $RUST_DIR/tvm-graph-rt
-
-# # We first we compile a model using the Python bindings then run the tests.
-# python3 tests/build_model.py
-# cargo test --tests
-
-# # Run some more tests involving the graph runtime API.
-# cd tests/test_tvm_basic
-# cargo run
+# wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-wasm32.wasm
 # cd -
 
-# cd tests/test_tvm_dso
-# cargo run
-# cd -
+# run nn graph test
+cd tests/test_nn
+cargo run
+cd -
 
-# # # run wasm32 test
-# # cd tests/test_wasm32
-# # cargo build
-# # wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-wasm32.wasm
-# # cd -
+# Finally we test the TVM crate which provides both runtime
+# and compiler bindings.
+cd $RUST_DIR/tvm
 
-# # run nn graph test
-# cd tests/test_nn
-# cargo run
-# cd -
+cargo test --tests -- --test-threads=1
 
-# # Finally we test the TVM crate which provides both runtime
-# # and compiler bindings.
-# cd $RUST_DIR/tvm
+# run basic tests on cpu
+cd tests/basics
+cargo build --features cpu
+cargo run --features cpu
+# uncomment when have more CI resources
+# cargo build --features gpu
+# cargo run --features gpu
+# fi
+cd -
 
-# cargo test --tests -- --test-threads=1
+# run callback tests separately: https://discuss.tvm.ai/t/are-global-functions-need-to-be-accessed-in-separate-processes/1075
+cd tests/callback
+cargo build
+cargo run --bin int
+cargo run --bin float
+cargo run --bin array
+cargo run --bin string
+cd -
 
-# # run basic tests on cpu
-# cd tests/basics
-# cargo build --features cpu
-# cargo run --features cpu
-# # uncomment when have more CI resources
-# # cargo build --features gpu
-# # cargo run --features gpu
-# # fi
-# cd -
-
-# # run callback tests separately: https://discuss.tvm.ai/t/are-global-functions-need-to-be-accessed-in-separate-processes/1075
-# cd tests/callback
-# cargo build
-# cargo run --bin int
-# cargo run --bin float
-# cargo run --bin array
-# cargo run --bin string
-# cd -
-
-# cd examples/resnet
-# cargo run
-# cd -
+cd examples/resnet
+cargo run
+cd -

@@ -29,14 +29,14 @@ export TVM_TEST_TARGETS="llvm"
 
 find . -type f -path "*.pyc" | xargs rm -f
 
-# # Rebuild cython
-# make cython3
+# Rebuild cython
+make cython3
 
-# echo "Running relay TFLite frontend test..."
-# python3 -m pytest tests/python/frontend/tflite
+echo "Running relay TFLite frontend test..."
+python3 -m pytest tests/python/frontend/tflite
 
-# echo "Running relay Keras frontend test..."
-# python3 -m pytest tests/python/frontend/keras
+echo "Running relay Keras frontend test..."
+python3 -m pytest tests/python/frontend/keras
 
-# echo "Running relay Caffe frontend test..."
-# python3 -m pytest tests/python/frontend/caffe
+echo "Running relay Caffe frontend test..."
+python3 -m pytest tests/python/frontend/caffe

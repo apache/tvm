@@ -44,22 +44,22 @@ cp ${VTA_HW_PATH}/config/tsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
 # make -C ${VTA_HW_PATH}/apps/tsim_example/ run_chisel
 # make -C ${VTA_HW_PATH}/apps/gemm/ default
 
-# # Check style of scala code
-# echo "Check style of scala code..."
-# make -C ${VTA_HW_PATH}/hardware/chisel lint
+# Check style of scala code
+echo "Check style of scala code..."
+make -C ${VTA_HW_PATH}/hardware/chisel lint
 
-# # Build VTA chisel design and verilator simulator
-# echo "Building VTA chisel design..."
-# make -C ${VTA_HW_PATH}/hardware/chisel cleanall
-# make -C ${VTA_HW_PATH}/hardware/chisel USE_THREADS=0 lib
+# Build VTA chisel design and verilator simulator
+echo "Building VTA chisel design..."
+make -C ${VTA_HW_PATH}/hardware/chisel cleanall
+make -C ${VTA_HW_PATH}/hardware/chisel USE_THREADS=0 lib
 
-# # Run unit tests in cycle accurate simulator
-# echo "Running unittest in tsim..."
-# python3 -m pytest ${TVM_PATH}/vta/tests/python/unittest
+# Run unit tests in cycle accurate simulator
+echo "Running unittest in tsim..."
+python3 -m pytest ${TVM_PATH}/vta/tests/python/unittest
 
-# # Run unit tests in cycle accurate simulator
-# echo "Running integration test in tsim..."
-# python3 -m pytest ${TVM_PATH}/vta/tests/python/integration
+# Run unit tests in cycle accurate simulator
+echo "Running integration test in tsim..."
+python3 -m pytest ${TVM_PATH}/vta/tests/python/integration
 
-# # Reset default fsim simulation
-# cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
+# Reset default fsim simulation
+cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
