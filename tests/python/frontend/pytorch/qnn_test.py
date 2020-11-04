@@ -508,55 +508,58 @@ def test_serialized_modules():
     match_ratio = num_identical / float(np.prod(tvm_result.shape))
     assert match_ratio > 0.90
 
+
 def test_dequantize_dynamic_unit():
-    x = relay.var('x', shape=(1, 2, 3, 4), dtype='int8')
-    scale_var = relay.var('scale', shape=(), dtype='float32')
-    zp_var = relay.var('zp', shape=(), dtype='int32')
+    x = relay.var("x", shape=(1, 2, 3, 4), dtype="int8")
+    scale_var = relay.var("scale", shape=(), dtype="float32")
+    zp_var = relay.var("zp", shape=(), dtype="int32")
 
     deq_x = relay.qnn.op.dequantize(x, scale_var * scale_var, zp_var + zp_var)
     tt = run_infer_type(deq_x)
 
     assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "float32")
     func = relay.Function([x, scale_var, zp_var], deq_x)
-    data = np.random.uniform(size=(1, 2, 3, 4)).astype('int8')
-    scale = np.array(1).astype('float32')
-    zp = np.array(0).astype('int32')
+    data = np.random.uniform(size=(1, 2, 3, 4)).astype("int8")
+    scale = np.array(1).astype("float32")
+    zp = np.array(0).astype("int32")
 
     mod = tvm.ir.IRModule.from_expr(func)
 
     for target, ctx in tvm.testing.enabled_targets():
-        #TODO: (electriclilies) enable AlterOpLayout when it is fixed
+        # TODO: (electriclilies) enable AlterOpLayout when it is fixed
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             lib = relay.build(mod, target=target)
-    
+
     module = graph_runtime.GraphModule(lib["default"](ctx))
-    module.set_input(**{'x': data, 'scale': scale, 'zp': zp})
+    module.set_input(**{"x": data, "scale": scale, "zp": zp})
     module.run()
-   
+
+
 def test_quantize_dynamic_unit():
-    x = relay.var('x', shape=(1, 2, 3, 4), dtype='float32')
-    scale_var = relay.var('scale', shape=(), dtype='float32')
-    zp_var = relay.var('zp', shape=(), dtype='int32')
+    x = relay.var("x", shape=(1, 2, 3, 4), dtype="float32")
+    scale_var = relay.var("scale", shape=(), dtype="float32")
+    zp_var = relay.var("zp", shape=(), dtype="int32")
 
     q_x = relay.qnn.op.quantize(x, scale_var * scale_var, zp_var + zp_var)
     tt = run_infer_type(q_x)
-    
+
     assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "int8")
     func = relay.Function([x, scale_var, zp_var], q_x)
-    data = np.random.uniform(size=(1, 2, 3, 4)).astype('float32')
-    scale = np.array(1).astype('float32')
-    zp = np.array(0).astype('int32')
+    data = np.random.uniform(size=(1, 2, 3, 4)).astype("float32")
+    scale = np.array(1).astype("float32")
+    zp = np.array(0).astype("int32")
 
     mod = tvm.ir.IRModule.from_expr(func)
 
     for target, ctx in tvm.testing.enabled_targets():
-        #TODO: (electriclilies) enable AlterOpLayout when it is fixed
+        # TODO: (electriclilies) enable AlterOpLayout when it is fixed
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             lib = relay.build(mod, target=target)
-    
+
     module = graph_runtime.GraphModule(lib["default"](ctx))
-    module.set_input(**{'x': data, 'scale': scale, 'zp': zp})
+    module.set_input(**{"x": data, "scale": scale, "zp": zp})
     module.run()
+
 
 def test_quantize_dynamic():
     # A wrapper is required for quantize_dynamic to work correctly
@@ -599,6 +602,7 @@ def test_quantize_dynamic():
             if is_version_greater_than("1.5.1"):
                 tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-4, atol=1e-4)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_dequantize_dynamic_unit()
     test_quantize_dynamic_unit()
