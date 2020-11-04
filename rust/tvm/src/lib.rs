@@ -53,7 +53,7 @@ macro_rules! export {
     ($($fn_name:expr),*) => {
         pub fn tvm_export(ns: &str) -> Result<(), tvm::Error> {
             $(
-                let name = String::fromwe(ns) + ::std::stringify!($fn_name);
+                let name = String::from(ns) + ::std::stringify!($fn_name);
                 tvm::runtime::function::register_override($fn_name, name, true)?;
             )*
             Ok(())
