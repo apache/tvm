@@ -126,14 +126,5 @@ def test_gather_nd_grad():
     check_grad(fwd, inputs=[data_np, indices_np], test_inputs=[indices_np])
 
 
-# def test_scatter_nd_grad():
-#     data = relay.var("data", relay.TensorType((2, 2), "float64"))
-#     indices = relay.var("indices", relay.TensorType((2, 2), "int64"))
-#     fwd = relay.Function([data, indices], relay.scatter_nd(data, indices, (2, 2)))
-#     data_np = np.array([[0, 1], [2, 3]]).astype("float64")
-#     indices_np = np.array([[1, 0], [1, 1]])
-#     check_grad(fwd, inputs=[data_np, indices_np], test_inputs=[indices_np])
-
-
 if __name__ == "__main__":
     pytest.main()

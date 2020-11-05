@@ -62,7 +62,6 @@ from .transform import (
     squeeze,
     strided_set,
     arange,
-    gather_nd,
     scatter_nd,
 )
 
@@ -811,9 +810,3 @@ def arange_grad(orig, grad):
 def gather_nd_grad(orig, grad):
     data, indices = orig.args
     return [scatter_nd(grad, indices, data.checked_type.concrete_shape), zeros_like(indices)]
-
-
-# @register_gradient("scatter_nd")
-# def scatter_nd_grad(orig, grad):
-#     data, indices = orig.args
-#     return [gather_nd(grad, indices), zeros_like(indices)]

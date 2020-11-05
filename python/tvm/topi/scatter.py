@@ -18,7 +18,6 @@
 """Scatter operator"""
 from ..tir import decl_buffer, ir_builder, Cast, AssertStmt, StringImm, Evaluate
 from ..te import extern, hybrid
-from . import full
 
 
 @hybrid.script
@@ -233,14 +232,23 @@ def scatter_nd(data, indices, shape):
     -------
     ret : tvm.te.Tensor
     """
-    assert indices.shape[0] <= len(shape), f"The first dimension of the indices ({indices.shape[0]}) must be less than or equal to the length of the shape of the output ({len(shape)})."
-    for i in range(len(indices.shape)-1):
-        assert indices.shape[i+1] == data.shape[i], f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of data[{i}] ({data.shape[i]})."
+    assert indices.shape[0] <= len(shape), (
+        f"The first dimension of the indices ({indices.shape[0]}) must be less than or equal to "
+        f"the length of the shape of the output ({len(shape)})."
+    )
+    for i in range(len(indices.shape) - 1):
+        assert indices.shape[i + 1] == data.shape[i], (
+            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
+            f"data[{i}] ({data.shape[i]})."
+        )
     for i in range(int(indices.shape[0]), len(shape)):
-        assert data.shape[i] == out_shape[i], f"Dimension of data[{i}] must equal dimension of out_shape[{i}]"
+        assert (
+            data.shape[i] == out_shape[i]
+        ), f"Dimension of data[{i}] must equal dimension of out_shape[{i}]"
 
-    assert "int" in indices.dtype, f"Indices must be a tensor of integers, but its elements are {indices.dtype}"
-
+    assert (
+        "int" in indices.dtype
+    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}"
 
     def gen_ir(data_ptr, indices_ptr, out_ptr):
         ib = ir_builder.create()
@@ -254,7 +262,7 @@ def scatter_nd(data, indices, shape):
         fused_shape = 1
         for i in shape:
             fused_shape *= i
-        with ib.for_range(0, fused_shape):
+        with ib.for_range(0, fused_shape) as i:
             out[i] = Cast(data_ptr.dtype, 0)
 
         # We combine all the indices dimensions but the first one into a single
@@ -277,7 +285,13 @@ def scatter_nd(data, indices, shape):
                 for l in reversed(range(indices_ptr.shape[0].value)):
                     # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
                     index += offset * indices[i + l * fused_indices_dimension]
-                    ib.emit(AssertStmt(indices[i + l * fused_indices_dimension] < shape[l], StringImm("index out of bounds"), Evaluate(0)))
+                    ib.emit(
+                        AssertStmt(
+                            indices[i + l * fused_indices_dimension] < shape[l],
+                            StringImm("index out of bounds"),
+                            Evaluate(0),
+                        )
+                    )
                     offset *= shape[l]
                 out[index] = data[i * fused_data_dimension + j]
 
