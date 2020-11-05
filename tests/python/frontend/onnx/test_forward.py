@@ -3841,9 +3841,9 @@ def test_loop():
     verify_count_loop()
 
 
-# TODO(jwfromm): enable once onnxruntime version is updated in CI.
-# @tvm.testing.uses_gpu
-def test_if():
+# TODO(jwfromm): enable cuda testing once onnxruntime version is updated in CI.
+@tvm.testing.parametrize_targets("llvm")
+def test_if(ctx, target):
     # Given a bool scalar input cond.
     # return constant tensor x if cond is True, otherwise return constant tensor y.
     then_out = onnx.helper.make_tensor_value_info("then_out", onnx.TensorProto.FLOAT, [5])
@@ -3883,10 +3883,9 @@ def test_if():
     cond = np.array(1).astype("bool")
     onnx_out = get_onnxruntime_output(if_model, [cond], dtype="bool")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output_with_vm(if_model, [cond], target, ctx, freeze_params=True)
-        for i in range(len(tvm_out)):
-            tvm.testing.assert_allclose(onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+    tvm_out = get_tvm_output_with_vm(if_model, [cond], target, ctx, freeze_params=True)
+    for i in range(len(tvm_out)):
+        tvm.testing.assert_allclose(onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
 
 if __name__ == "__main__":
