@@ -59,6 +59,7 @@ external! {
 
 /// The diagnostic level, controls the printing of the message.
 #[repr(C)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum DiagnosticLevel {
     Bug = 10,
     Error = 20,
@@ -69,7 +70,7 @@ pub enum DiagnosticLevel {
 
 /// A compiler diagnostic.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Diagnostic"]
 #[type_key = "Diagnostic"]
 pub struct DiagnosticNode {
@@ -145,7 +146,7 @@ impl DiagnosticBuilder {
 /// of compiler diagnostics to std::out and std::err in
 /// a human readable form.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "DiagnosticRenderer"]
 #[type_key = "DiagnosticRenderer"]
 /// A diagnostic renderer, which given a diagnostic context produces a "rendered"
@@ -166,7 +167,7 @@ impl DiagnosticRenderer {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "DiagnosticContext"]
 #[type_key = "DiagnosticContext"]
 /// A diagnostic context for recording errors against a source file.

@@ -29,7 +29,7 @@ use tvm_macros::Object;
 ///
 /// Could represent the source from an ML framework or a source of an IRModule.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[type_key = "Source"]
 #[ref_name = "Source"]
 pub struct SourceNode {
@@ -46,7 +46,7 @@ pub struct SourceNode {
 
 /// A mapping from a unique source name to source fragments.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[type_key = "SourceMap"]
 #[ref_name = "SourceMap"]
 pub struct SourceMapNode {

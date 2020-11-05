@@ -36,6 +36,10 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         .map(attr_to_str)
         .expect("Failed to get type_key");
 
+    let derive = get_attr(&derive_input, "no_derive")
+        .map(|_| false)
+        .unwrap_or(true);
+
     let ref_id = get_attr(&derive_input, "ref_name")
         .map(|a| Ident::new(attr_to_str(a).value().as_str(), Span::call_site()))
         .unwrap_or_else(|| {
@@ -75,6 +79,12 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         _ => panic!("derive only works for structs"),
     };
 
+    let ref_derives = if derive {
+        quote! { #[derive(Debug, Clone)]}
+    } else {
+        quote! { #[derive(Clone)] }
+    };
+
     let mut expanded = quote! {
         unsafe impl #tvm_rt_crate::object::IsObject for #payload_id {
             const TYPE_KEY: &'static str = #type_key;
@@ -87,7 +97,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
-        #[derive(Clone)]
+        #ref_derives
         pub struct #ref_id(Option<#tvm_rt_crate::object::ObjectPtr<#payload_id>>);
 
         impl #tvm_rt_crate::object::IsObjectRef for #ref_id {
@@ -184,6 +194,26 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
     };
 
     expanded.extend(base_tokens);
+
+    if derive {
+        let derives = quote! {
+            impl std::hash::Hash for #ref_id {
+                fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                    self.0.hash(state)
+                }
+            }
+
+            impl std::cmp::PartialEq for #ref_id {
+                fn eq(&self, other: &Self) -> bool {
+                    self.0 == other.0
+                }
+            }
+
+            impl std::cmp::Eq for #ref_id {}
+        };
+
+        expanded.extend(derives);
+    }
 
     TokenStream::from(expanded)
 }

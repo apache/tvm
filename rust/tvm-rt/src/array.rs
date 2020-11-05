@@ -18,7 +18,7 @@
  */
 
 use std::convert::{TryFrom, TryInto};
-use std::iter::{IntoIterator, Iterator};
+use std::iter::{FromIterator, IntoIterator, Iterator};
 use std::marker::PhantomData;
 
 use crate::errors::Error;
@@ -82,6 +82,13 @@ impl<T: IsObjectRef> Array<T> {
     }
 }
 
+impl<T: IsObjectRef> std::fmt::Debug for Array<T> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let as_vec: Vec<T> = self.clone().into_iter().collect();
+        write!(formatter, "{:?}", as_vec)
+    }
+}
+
 pub struct IntoIter<T: IsObjectRef> {
     array: Array<T>,
     pos: isize,
@@ -115,6 +122,12 @@ impl<T: IsObjectRef> IntoIterator for Array<T> {
             pos: 0,
             size: size,
         }
+    }
+}
+
+impl<T: IsObjectRef> FromIterator<T> for Array<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Array::from_vec(iter.into_iter().collect()).unwrap()
     }
 }
 

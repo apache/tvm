@@ -27,7 +27,7 @@ type FuncType = ObjectRef;
 type AttrFieldInfo = ObjectRef;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Op"]
 #[type_key = "Op"]
 pub struct OpNode {
