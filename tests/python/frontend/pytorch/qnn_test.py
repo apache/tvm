@@ -367,7 +367,8 @@ def test_quantized_imagenet():
             # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
             # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
             # ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
-            ("googlenet", qgooglenet(pretrained=True), per_channel),
+            # tracing quantized googlenet broken as of v1.6
+            # ("googlenet", qgooglenet(pretrained=True), per_channel),
         ]
 
     results = []

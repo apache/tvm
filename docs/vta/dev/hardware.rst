@@ -36,7 +36,7 @@ In addition the design adopts decoupled access-execute to hide memory access lat
 
 To a broader extent, VTA can serve as a template deep learning accelerator design for full stack optimization, exposing a generic tensor computation interface to the compiler stack.
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/blogpost/vta_overview.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/blogpost/vta_overview.png
    :align: center
    :width: 80%
 
@@ -175,7 +175,7 @@ Finally, the ``STORE`` instructions are executed by the store module exclusively
 The fields of each instruction is described in the figure below.
 The meaning of each field will be further explained in the :ref:`vta-uarch` section.
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/developer/vta_instructions.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/developer/vta_instructions.png
    :align: center
    :width: 100%
 
@@ -191,7 +191,7 @@ VTA relies on dependence FIFO queues between hardware modules to synchronize the
 The figure below shows how a given hardware module can execute concurrently from its producer and consumer modules in a dataflow fashion through the use of dependence FIFO queues, and single-reader/single-writer SRAM buffers.
 Each module is connected to its consumer and producer via read-after-write (RAW) and write-after-read (WAR) dependence queues.
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/developer/dataflow.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/developer/dataflow.png
    :align: center
    :width: 100%
 
@@ -258,7 +258,7 @@ There are two types of compute micro-ops: ALU and GEMM operations.
 To minimize the footprint of micro-op kernels, while avoiding the need for control-flow instructions such as conditional jumps, the compute module executes micro-op sequences inside a two-level nested loop that computes the location of each tensor register location via an affine function.
 This compression approach helps reduce the micro-kernel instruction footprint, and applies to both matrix multiplication and 2D convolution, commonly found in neural network operators.
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/developer/gemm_core.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/developer/gemm_core.png
    :align: center
    :width: 100%
 
@@ -269,7 +269,7 @@ This tensorization intrinsic is defined by the dimensions of the input, weight a
 Each data type can have a different integer precision: typically both weight and input types are low-precision (8-bits or less), while the accumulator tensor has a wider type to prevent overflows (32-bits).
 In order to keep the GEMM core busy, each of the input buffer, weight buffer, and register file have to expose sufficient read/write bandwidth.
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/developer/alu_core.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/developer/alu_core.png
    :align: center
    :width: 100%
 
@@ -289,7 +289,7 @@ The micro-code in the context of tensor ALU computation only takes care of speci
 Load and Store Modules
 ~~~~~~~~~~~~~~~~~~~~~~
 
-.. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/developer/2d_dma.png
+.. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/developer/2d_dma.png
    :align: center
    :width: 100%
 

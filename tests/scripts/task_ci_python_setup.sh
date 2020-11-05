@@ -18,14 +18,16 @@
 
 set -e
 set -u
+set -o pipefail
 
-mkdir -p build
-cd build
-cp ../cmake/config.cmake .
+# Script to setup additional python env.
+#
+# Use the following command to install the
+# package to /workspace/.local, these additional
+# packages will have precedence over the system packages.
+#
+# command: python3 -m pip install --user <package>==<version>
+#
+echo "Addtiional setup in" ${CI_IMAGE_NAME}
 
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-10\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
+python3 -m pip install --user tlcpack-sphinx-addon==0.1.2

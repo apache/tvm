@@ -3,7 +3,7 @@ TVM Documentations
 This folder contains the source of TVM documents
 
 - A hosted version of doc is at https://tvm.apache.org/docs
-- pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark "Pillow<7" autodocsumm
+- pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark "Pillow<7" autodocsumm tlcpack-sphinx-addon
 - Build tvm first in the root folder.
 - Run the following command
 ```bash
