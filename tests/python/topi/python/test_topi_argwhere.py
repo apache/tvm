@@ -77,12 +77,10 @@ def test_argwhere():
     verify_argwhere((1, 1))
     verify_argwhere((5, 3))
     verify_argwhere((32, 64))
-    # TODO(zhiics) This test is flaky because nothing is sorted.
     verify_argwhere((128, 65))
+    verify_argwhere((200, 500))
     verify_argwhere((6, 5, 3))
     verify_argwhere((1, 1, 1))
-    # TODO(zhiics) This test is flaky.
-    # verify_argwhere((32, 32, 8))
     verify_argwhere((1, 1, 1, 1))
     verify_argwhere((6, 4, 5, 3))
     verify_argwhere((1, 1, 1, 1, 1))
