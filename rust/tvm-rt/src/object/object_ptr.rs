@@ -364,7 +364,9 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
 
 impl<T: IsObject> std::hash::Hash for ObjectPtr<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_i64(super::structural_hash(ObjectRef(Some(self.clone().upcast())), false).unwrap())
+        state.write_i64(
+            super::structural_hash(ObjectRef(Some(self.clone().upcast())), false).unwrap(),
+        )
     }
 }
 

@@ -36,7 +36,9 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
         .map(attr_to_str)
         .expect("Failed to get type_key");
 
-    let derive = get_attr(&derive_input, "no_derive").map(|_| false).unwrap_or(true);
+    let derive = get_attr(&derive_input, "no_derive")
+        .map(|_| false)
+        .unwrap_or(true);
 
     let ref_id = get_attr(&derive_input, "ref_name")
         .map(|a| Ident::new(attr_to_str(a).value().as_str(), Span::call_site()))
@@ -209,7 +211,6 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
 
             impl std::cmp::Eq for #ref_id {}
         };
-
 
         expanded.extend(derives);
     }

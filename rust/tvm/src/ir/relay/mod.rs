@@ -139,7 +139,11 @@ impl Var {
 
     pub fn static_tensor(name_hint: String, sh: Vec<i32>, dtype: DataType) -> Var {
         let sh = Array::from_vec(sh.into_iter().map(Into::into).collect()).unwrap();
-        Self::new(name_hint, super::ty::TensorType::new(sh, dtype, Span::null()).upcast(), Span::null())
+        Self::new(
+            name_hint,
+            super::ty::TensorType::new(sh, dtype, Span::null()).upcast(),
+            Span::null(),
+        )
     }
 }
 
@@ -497,9 +501,17 @@ impl Function {
     }
 
     pub fn simple<E>(params: Vec<Var>, body: E) -> Function
-    where E: IsObjectRef, E::Object: AsRef<<Expr as IsObjectRef>::Object> {
+    where
+        E: IsObjectRef,
+        E::Object: AsRef<<Expr as IsObjectRef>::Object>,
+    {
         let params = Array::from_vec(params).unwrap();
-        Self::new(params, body.upcast(), Type::null(), Array::from_vec(vec![]).unwrap())
+        Self::new(
+            params,
+            body.upcast(),
+            Type::null(),
+            Array::from_vec(vec![]).unwrap(),
+        )
     }
 }
 

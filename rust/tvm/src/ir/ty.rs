@@ -17,14 +17,13 @@
  * under the License.
  */
 
-
 use tvm_macros::Object;
 use tvm_rt::{array::Array, DataType};
 
-use crate::ir::span::Span;
 use crate::ir::relay::Constructor;
+use crate::ir::span::Span;
 use crate::ir::PrimExpr;
-use crate::runtime::{IsObject, Object, ObjectPtr, string::String as TString};
+use crate::runtime::{string::String as TString, IsObject, Object, ObjectPtr};
 
 #[repr(C)]
 #[derive(Object, Debug)]
@@ -84,7 +83,6 @@ pub struct PointerTypeNode {
     pub element_type: Type,
 }
 
-
 /// Possible kinds of type variables.
 #[derive(PartialEq, Eq, Debug)]
 pub enum TypeKind {
@@ -127,7 +125,9 @@ pub struct GlobalTypeVarNode {
 
 impl GlobalTypeVar {
     pub fn new<S>(name_hint: S, kind: TypeKind, span: Span) -> GlobalTypeVar
-    where S: Into<TString> {
+    where
+        S: Into<TString>,
+    {
         let node = GlobalTypeVarNode {
             base: TypeNode::base::<GlobalTypeVarNode>(span),
             name_hint: name_hint.into(),
@@ -275,13 +275,19 @@ pub struct TypeDataNode {
 }
 
 impl TypeData {
-    pub fn new<TypeVars, Ctors>(type_name: GlobalTypeVar, type_vars: TypeVars, constructors: Ctors, span: Span) -> TypeData
-    where TypeVars: IntoIterator<Item=TypeVar>,
-          Ctors: IntoIterator<Item=Constructor>,
+    pub fn new<TypeVars, Ctors>(
+        type_name: GlobalTypeVar,
+        type_vars: TypeVars,
+        constructors: Ctors,
+        span: Span,
+    ) -> TypeData
+    where
+        TypeVars: IntoIterator<Item = TypeVar>,
+        Ctors: IntoIterator<Item = Constructor>,
     {
         use std::iter::FromIterator;
         let type_data = TypeDataNode {
-            base: TypeNode::base::<TypeDataNode>(span,),
+            base: TypeNode::base::<TypeDataNode>(span),
             type_name,
             type_vars: Array::from_iter(type_vars),
             constructors: Array::from_iter(constructors),

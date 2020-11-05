@@ -18,7 +18,7 @@
  */
 
 use std::convert::{TryFrom, TryInto};
-use std::iter::{IntoIterator, Iterator, FromIterator};
+use std::iter::{FromIterator, IntoIterator, Iterator};
 use std::marker::PhantomData;
 
 use crate::errors::Error;
@@ -126,11 +126,10 @@ impl<T: IsObjectRef> IntoIterator for Array<T> {
 }
 
 impl<T: IsObjectRef> FromIterator<T> for Array<T> {
-    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Array::from_vec(iter.into_iter().collect()).unwrap()
     }
 }
-
 
 impl<T: IsObjectRef> From<Array<T>> for ArgValue<'static> {
     fn from(array: Array<T>) -> ArgValue<'static> {

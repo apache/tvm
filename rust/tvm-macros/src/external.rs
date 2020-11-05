@@ -21,7 +21,10 @@ use proc_macro_error::abort;
 use quote::quote;
 use syn::parse::{Parse, ParseStream, Result};
 
-use syn::{FnArg, Signature, Attribute, token::Semi, Visibility, Generics, Ident, Lit, Meta, NestedMeta, Pat, ReturnType, Type};
+use syn::{
+    token::Semi, Attribute, FnArg, Generics, Ident, Lit, Meta, NestedMeta, Pat, ReturnType,
+    Signature, Type, Visibility,
+};
 
 struct ExternalItem {
     attrs: Vec<Attribute>,
@@ -133,7 +136,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 syn::GenericParam::Type(param) => param.clone(),
                 _ => abort! { ty_param,
                     "Only supports type parameters."
-                }
+                },
             })
             .collect();
 
@@ -148,15 +151,15 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         let ty: Type = *pat_type.ty.clone();
                         (ident, ty)
                     }
-                    _ =>  abort! { pat_type,
+                    _ => abort! { pat_type,
                         "Only supports type parameters."
-                    }
+                    },
                 },
                 pat => abort! {
-                        pat, "invalid pattern type for function";
+                    pat, "invalid pattern type for function";
 
-                        note = "{:?} is not allowed here", pat;
-                    }
+                    note = "{:?} is not allowed here", pat;
+                },
             })
             .unzip();
 

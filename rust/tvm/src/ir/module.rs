@@ -28,12 +28,12 @@ use crate::runtime::array::Array;
 use crate::runtime::function::Result;
 use crate::runtime::map::Map;
 use crate::runtime::string::String as TVMString;
-use crate::runtime::{external, Object, IsObjectRef};
+use crate::runtime::{external, IsObjectRef, Object};
 
 use super::expr::GlobalVar;
-use super::function::{BaseFunc};
+use super::function::BaseFunc;
 use super::source_map::SourceMap;
-use super::{ty::GlobalTypeVar, ty::TypeData, relay};
+use super::{relay, ty::GlobalTypeVar, ty::TypeData};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -100,13 +100,16 @@ external! {
 
 impl IRModule {
     pub fn new<F, T>(funcs: F, types: T) -> Result<IRModule>
-    where F: IntoIterator<Item=(GlobalVar, BaseFunc)>, T: IntoIterator<Item=(GlobalTypeVar, TypeData)> {
+    where
+        F: IntoIterator<Item = (GlobalVar, BaseFunc)>,
+        T: IntoIterator<Item = (GlobalTypeVar, TypeData)>,
+    {
         module_new(Map::from_iter(funcs), Map::from_iter(types))
     }
 
     pub fn empty() -> Result<IRModule> {
         let funcs = HashMap::<GlobalVar, BaseFunc>::new();
-        let types =  HashMap::<GlobalTypeVar, TypeData>::new();
+        let types = HashMap::<GlobalTypeVar, TypeData>::new();
         IRModule::new(funcs, types)
     }
 
@@ -128,14 +131,14 @@ impl IRModule {
         Ok(module)
     }
 
-    pub fn add<F>(
-        &mut self,
-        var: GlobalVar,
-        func: F) -> Result<IRModule>
-        // todo(@jroesch): can we do better here? why doesn't BaseFunc::Object work?
-        where F: IsObjectRef, F::Object: AsRef<<BaseFunc as IsObjectRef>::Object> {
-            module_add(self.clone(), var, func.upcast(), true)
-        }
+    pub fn add<F>(&mut self, var: GlobalVar, func: F) -> Result<IRModule>
+    // todo(@jroesch): can we do better here? why doesn't BaseFunc::Object work?
+    where
+        F: IsObjectRef,
+        F::Object: AsRef<<BaseFunc as IsObjectRef>::Object>,
+    {
+        module_add(self.clone(), var, func.upcast(), true)
+    }
 
     pub fn add_def(
         &mut self,
@@ -147,7 +150,9 @@ impl IRModule {
     }
 
     pub fn get_global_var<S>(&self, name: S) -> Result<GlobalVar>
-    where S: Into<TVMString> {
+    where
+        S: Into<TVMString>,
+    {
         module_get_global_var(self.clone(), name.into())
     }
 
@@ -183,7 +188,9 @@ impl IRModule {
     }
 
     pub fn lookup_def_str<S>(&self, global: S) -> Result<TypeData>
-    where S: Into<TVMString> {
+    where
+        S: Into<TVMString>,
+    {
         module_lookup_def_str(self.clone(), global.into())
     }
 
@@ -192,18 +199,22 @@ impl IRModule {
     }
 
     pub fn from_expr<E>(expr: E) -> Result<IRModule>
-    where E: IsObjectRef, E::Object: AsRef<<relay::Expr as IsObjectRef>::Object> {
+    where
+        E: IsObjectRef,
+        E::Object: AsRef<<relay::Expr as IsObjectRef>::Object>,
+    {
         Self::from_expr_with_items(expr, HashMap::new(), HashMap::new())
     }
 
     pub fn from_expr_with_items<E, F, T>(expr: E, funcs: F, types: T) -> Result<IRModule>
-    where F: IntoIterator<Item=(GlobalVar, BaseFunc)>,
-          T: IntoIterator<Item=(GlobalTypeVar, TypeData)>,
-          E: IsObjectRef,
-          E::Object: AsRef<<relay::Expr as IsObjectRef>::Object> {
+    where
+        F: IntoIterator<Item = (GlobalVar, BaseFunc)>,
+        T: IntoIterator<Item = (GlobalTypeVar, TypeData)>,
+        E: IsObjectRef,
+        E::Object: AsRef<<relay::Expr as IsObjectRef>::Object>,
+    {
         module_from_expr(expr.upcast(), Map::from_iter(funcs), Map::from_iter(types))
     }
-
 
     pub fn import<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
         module_import(self.clone(), path.into())
@@ -218,9 +229,9 @@ impl IRModule {
 mod tests {
     use super::relay::*;
     use super::*;
-    use tvm_rt::IsObjectRef;
-    use crate::ir::ty::{GlobalTypeVar, TypeData, TypeKind};
     use crate::ir::span::Span;
+    use crate::ir::ty::{GlobalTypeVar, TypeData, TypeKind};
+    use tvm_rt::IsObjectRef;
 
     fn add_dummy_functions(names: Vec<&str>) -> Result<IRModule> {
         let mut module = IRModule::empty()?;
@@ -290,10 +301,11 @@ mod tests {
     fn test_get_global_vars() -> Result<()> {
         let names = vec!["foo", "bar", "baz"];
         let module = add_dummy_functions(names.clone())?;
-        let gvars: Vec<String> =
-            module.get_global_vars()?.into_iter().map(|gv| {
-                gv.name_hint.as_str().unwrap().to_string()
-            }).collect();
+        let gvars: Vec<String> = module
+            .get_global_vars()?
+            .into_iter()
+            .map(|gv| gv.name_hint.as_str().unwrap().to_string())
+            .collect();
 
         for name in names {
             assert!(gvars.contains(&name.to_string()));
@@ -306,10 +318,11 @@ mod tests {
     fn test_get_global_type_vars() -> Result<()> {
         let names = vec!["foo", "bar", "baz"];
         let module = add_dummy_types(names.clone())?;
-        let gvars: Vec<String> =
-            module.get_global_type_vars()?.into_iter().map(|gv| {
-                gv.name_hint.as_str().unwrap().to_string()
-            }).collect();
+        let gvars: Vec<String> = module
+            .get_global_type_vars()?
+            .into_iter()
+            .map(|gv| gv.name_hint.as_str().unwrap().to_string())
+            .collect();
 
         for name in names {
             assert!(gvars.contains(&name.to_string()));

@@ -26,7 +26,6 @@ use crate::DataType;
 use super::relay;
 use super::span::Span;
 
-
 #[repr(C)]
 #[derive(Object, Debug)]
 #[ref_name = "BaseExpr"]
