@@ -961,6 +961,7 @@ def test_scatter():
     verify_dynamic_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
 
 
+@tvm.testing.uses_gpu
 def test_scatter_add():
     def ref_scatter_add(data, indices, updates, axis=0):
         output = np.copy(data)
@@ -983,8 +984,7 @@ def test_scatter_add():
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
-        # TODO(mbrookhart): expand testing when adding more backend schedules
-        for target, ctx in [("llvm", tvm.cpu())]:
+        for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
