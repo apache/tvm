@@ -323,6 +323,15 @@ def test_reshape_like_infer_type():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((1, 6, 4), "float32")
 
+    x = relay.var("x", relay.TensorType((1, 2, 3, 4), "float32"))
+    y = relay.var("y", relay.TensorType((2, 3, 4, 1, 6), "float32"))
+    z = relay.reshape_like(x, y, rhs_end=3)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((2, 3, 4), "float32")
+    z = relay.reshape_like(x, y, rhs_begin=2)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((4, 1, 6), "float32")
+
     # symbolic partial reshaping
     n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))

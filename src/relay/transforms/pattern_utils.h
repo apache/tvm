@@ -594,7 +594,7 @@ inline Expr LeftShift(Expr x, Expr nbit) {
   return Call(op, {x, nbit}, Attrs(), {});
 }
 
-inline Expr ReshapeLike(Expr lhs, Expr rhs, int64_t lhs_begin, Integer lhs_end, int64_t rhs_begin,
+inline Expr ReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
                         Integer rhs_end) {
   return MakeReshapeLike(lhs, rhs, lhs_begin, lhs_end, rhs_begin, rhs_end);
 }
