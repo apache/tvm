@@ -38,7 +38,7 @@ namespace codegen {
 class CodeGenCHost final : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts);
+  void Init(bool output_ssa, bool emit_asserts, std::string target_str);
 
   void AddFunction(const PrimFunc& f);
 
