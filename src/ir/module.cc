@@ -425,10 +425,7 @@ TVM_REGISTER_GLOBAL("ir.Module_Add").set_body([](TVMArgs args, TVMRetValue* ret)
   *ret = mod;
 });
 
-TVM_REGISTER_GLOBAL("ir.Module_AddDef")
-    .set_body_typed([](IRModule module, GlobalTypeVar var, TypeData type_def, bool update) {
-      module->AddTypeDef(var, type_def, update);
-    });
+TVM_REGISTER_GLOBAL("ir.Module_AddDef").set_body_method<IRModule>(&IRModuleNode::AddTypeDef);
 
 TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVar")
     .set_body_method<IRModule>(&IRModuleNode::GetGlobalVar);
