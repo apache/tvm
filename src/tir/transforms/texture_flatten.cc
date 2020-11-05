@@ -52,8 +52,7 @@ using runtime::ThreadScope;
 
 class TextureFlattener : public StmtExprMutator {
  public:
-  explicit TextureFlattener(const Map<Var, Buffer>& extern_buffer_map, int cache_line_size,
-                            bool create_bound_attributes, IRVisitorWithAnalyzer* bound_analyzer) {}
+  explicit TextureFlattener() : needs_vectorization_(true) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::realize_scope) {
@@ -120,6 +119,10 @@ class TextureFlattener : public StmtExprMutator {
         args.push_back(i);
       }
       stmt = Evaluate(Call(op->buffer->dtype, builtin::text2d_store(), args));
+      if (needs_vectorization_)
+      {
+        loop_vars_.insert({op->indices.back().get(), true});
+      }
     }
 
     return stmt;
@@ -148,32 +151,62 @@ class TextureFlattener : public StmtExprMutator {
         args.push_back(i);
       }
       expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
+      if (needs_vectorization_)
+      {
+        loop_vars_.insert({op->indices.back().get(), true});
+      }
     }
 
     return expr;
   }
+
+  // Auto-vectorize texture load and store loops
+  Stmt VisitStmt_(const ForNode* op) final {
+    Stmt stmt;
+    if (!needs_vectorization_)
+    {
+      stmt = StmtMutator::VisitStmt_(op);
+    }
+    else if (op->for_type == ForType::Serial)
+    {
+      stmt = StmtMutator::VisitStmt_(op);
+      auto it = loop_vars_.find(op->loop_var.get());
+      if (it != loop_vars_.end() && it->second)
+      {
+        stmt = For(op->loop_var, op->min, op->extent, ForType::Vectorized, op->device_api, op->body);
+        stmt = StmtMutator::VisitStmt_(stmt.as<ForNode>());
+      }
+    }
+    else
+    {
+      needs_vectorization_ = false;
+      stmt = StmtMutator::VisitStmt_(op);
+      needs_vectorization_ = true;
+    }
+
+    return stmt;
+  }
+
  private:
   // Storage scope
   std::unordered_map<const Object*, std::string> storage_scope_;
+  std::unordered_map<const Object*, bool> loop_vars_;
+  bool needs_vectorization_;
 };
 
-PrimFunc TextureFlatten(PrimFunc func, int cache_line_size, bool create_bound_attributes) {
+PrimFunc TextureFlatten(PrimFunc func) {
   // std::cout << "Before TextureFlattening: " << func << std::endl;
   auto fptr = func.CopyOnWrite();
-
-  IRVisitorWithAnalyzer bound_analyzer;
-  bound_analyzer(fptr->body);
-  fptr->body = TextureFlattener(fptr->buffer_map, cache_line_size, create_bound_attributes,
-                                &bound_analyzer)(std::move(fptr->body));
+  fptr->body = TextureFlattener()(std::move(fptr->body));
   // std::cout << "After TextureFlattening: " << func << std::endl;
   return func;
 }
 
 namespace transform {
 
-Pass TextureFlatten(int cache_line_size, bool create_bound_attributes) {
+Pass TextureFlatten() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    return TextureFlatten(std::move(f), cache_line_size, create_bound_attributes);
+    return TextureFlatten(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.TextureFlatten", {});
 }
