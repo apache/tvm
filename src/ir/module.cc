@@ -439,6 +439,9 @@ TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVars")
 TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar")
     .set_body_method<IRModule>(&IRModuleNode::ContainGlobalVar);
 
+TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalTypeVar")
+    .set_body_method<IRModule>(&IRModuleNode::ContainGlobalTypeVar);
+
 TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVar")
     .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVar);
 
