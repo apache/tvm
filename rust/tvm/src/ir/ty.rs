@@ -17,13 +17,14 @@
  * under the License.
  */
 
-use super::span::Span;
-use crate::runtime::{IsObject, Object, ObjectPtr};
+
 use tvm_macros::Object;
 use tvm_rt::{array::Array, DataType};
 
-use super::PrimExpr;
-use super::relay::Constructor;
+use crate::ir::span::Span;
+use crate::ir::relay::Constructor;
+use crate::ir::PrimExpr;
+use crate::runtime::{IsObject, Object, ObjectPtr};
 
 #[repr(C)]
 #[derive(Object, Debug)]
@@ -122,6 +123,18 @@ pub struct GlobalTypeVarNode {
     pub base: TypeNode,
     pub name_hint: String,
     pub kind: TypeKind,
+}
+
+impl GlobalTypeVar {
+    pub fn new<S>(name_hint: S, kind: TypeKind, span: Span) -> GlobalTypeVar
+    where S: Into<String> {
+        let node = GlobalTypeVarNode {
+            base: TypeNode::base::<GlobalTypeVarNode>(span),
+            name_hint: name_hint.into(),
+            kind: kind,
+        };
+        ObjectPtr::new(node).into()
+    }
 }
 
 #[repr(C)]
@@ -249,16 +262,30 @@ The kind checker enforces this. */
 #[ref_name = "TypeData"]
 #[type_key = "relay.TypeData"]
 pub struct TypeDataNode {
-    // /*!
-    //   * \brief The header is simply the name of the ADT.
-    //   * We adopt nominal typing for ADT definitions;
-    //   * that is, differently-named ADT definitions with same constructors
-    //   * have different types.
-    //   */
+    /// The header is simply the name of the ADT.
+    /// We adopt nominal typing for ADT definitions;
+    /// that is, differently-named ADT definitions with same constructors
+    /// have different types.
     pub base: Object,
     pub type_name: GlobalTypeVar,
     /// The type variables (to allow for polymorphism).
     pub type_vars: Array<TypeVar>,
     /// The constructors.
     pub constructors: Array<Constructor>,
+}
+
+impl TypeData {
+    pub fn new<TypeVars, Ctors>(type_name: GlobalTypeVar, type_vars: TypeVars, constructors: Ctors) -> TypeData
+    where TypeVars: IntoIterator<Item=TypeVar>,
+          Ctors: IntoIterator<Item=Constructor>,
+    {
+        use std::iter::FromIterator;
+        let type_data = TypeDataNode {
+            base: Object::base::<TypeDataNode>(),
+            type_name,
+            type_vars: Array::from_iter(type_vars),
+            constructors: Array::from_iter(constructors),
+        };
+        TypeData(Some(ObjectPtr::new(type_data)))
+    }
 }

@@ -28,15 +28,12 @@ use crate::runtime::array::Array;
 use crate::runtime::function::Result;
 use crate::runtime::map::Map;
 use crate::runtime::string::String as TVMString;
-use crate::runtime::{external, Object, ObjectRef};
+use crate::runtime::{external, Object, IsObjectRef};
 
 use super::expr::GlobalVar;
-use super::function::BaseFunc;
+use super::function::{BaseFunc};
 use super::source_map::SourceMap;
-use super::{ty::GlobalTypeVar, relay};
-
-// TODO(@jroesch): define type
-type TypeData = ObjectRef;
+use super::{ty::GlobalTypeVar, ty::TypeData, relay};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -88,7 +85,7 @@ external! {
     #[name("ir.Module_LookupDef")]
     fn module_lookup_def(module: IRModule, global: GlobalTypeVar) -> TypeData;
     #[name("ir.Module_LookupDef_str")]
-    fn module_lookup_def_str(module: IRModule, global: GlobalTypeVar) -> TypeData;
+    fn module_lookup_def_str(module: IRModule, global: TVMString) -> TypeData;
     #[name("ir.Module_LookupTag")]
     fn module_lookup_tag(module: IRModule, tag: i32) -> relay::Constructor;
     #[name("ir.Module_FromExpr")]
@@ -131,11 +128,13 @@ impl IRModule {
         Ok(module)
     }
 
-    pub fn add(
+    pub fn add<F>(
         &mut self,
         var: GlobalVar,
-        func: BaseFunc) -> Result<IRModule> {
-            module_add(self.clone(), var, func, true)
+        func: F) -> Result<IRModule>
+        // todo(@jroesch): can we do better here? why doesn't BaseFunc::Object work?
+        where F: IsObjectRef, F::Object: AsRef<<BaseFunc as IsObjectRef>::Object> {
+            module_add(self.clone(), var, func.upcast(), true)
         }
 
     pub fn add_def(
@@ -183,8 +182,9 @@ impl IRModule {
         module_lookup_def(self.clone(), global)
     }
 
-    pub fn lookup_def_str(&self, global: GlobalTypeVar) -> Result<TypeData> {
-        module_lookup_def_str(self.clone(), global)
+    pub fn lookup_def_str<S>(&self, global: S) -> Result<TypeData>
+    where S: Into<TVMString> {
+        module_lookup_def_str(self.clone(), global.into())
     }
 
     pub fn lookup_tag(&self, tag: i32) -> Result<relay::Constructor> {
@@ -206,18 +206,18 @@ impl IRModule {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use super::relay::*;
     use super::*;
-    use super::super::span::Span;
     use tvm_rt::IsObjectRef;
+    use crate::ir::ty::{GlobalTypeVar, TypeData, TypeKind};
+    use crate::ir::span::Span;
 
     #[test]
     fn test_module_add() -> anyhow::Result<()> {
         let mut module = IRModule::empty()?;
         let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
-        let params = Array::from_vec(vec![x.clone()])?;
-        let func = relay::Function::simple(params, x.upcast()).upcast();
+        let params = vec![x.clone()];
+        let func = relay::Function::simple(params, x);
         let module = module.add(GlobalVar::new("foo".into(), Span::null()), func)?;
         let lfunc = module.lookup_str("foo")?;
         let lfunc = lfunc.downcast::<relay::Function>()?;
@@ -226,8 +226,14 @@ mod tests {
     }
 
     #[test]
-    fn test_module_add_def() {
-        todo!("this is blocked on having ability to define ADTs")
+    fn test_module_add_def() -> Result<()> {
+        let mut module = IRModule::empty()?;
+        let name = GlobalTypeVar::new("my_type", TypeKind::Type, Span::null());
+        let type_data = TypeData::new(name.clone(), vec![], vec![]);
+        module.add_def(name.clone(), type_data, true)?;
+        let by_gtv = module.lookup_def(name)?;
+        let by_gv = module.lookup_def_str("my_type")?;
+        Ok(())
     }
 
     #[test]
@@ -235,26 +241,29 @@ mod tests {
         let mut module = IRModule::empty()?;
         let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
         let params = vec![x.clone()];
-        let func = relay::Function::simple(params, x.upcast()).upcast();
+        let func = relay::Function::simple(params, x);
         let gv_foo = GlobalVar::new("foo".into(), Span::null());
-        let module = module.add(gv_foo, func)?;
-        let gv = module.get_global_var("foo");
+        let module = module.add(gv_foo.clone(), func)?;
+        let gv = module.get_global_var("foo")?;
         assert_eq!(gv_foo, gv);
         Ok(())
     }
 
     #[test]
-    fn test_get_global_vars() {
-
+    fn test_get_global_vars() -> Result<()> {
+        let mut module = IRModule::empty()?;
+        let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
+        let params = vec![x.clone()];
+        let func = relay::Function::simple(params, x);
+        let gv_foo = GlobalVar::new("foo".into(), Span::null());
+        let module = module.add(gv_foo.clone(), func)?;
+        let gv = module.get_global_var("foo")?;
+        assert_eq!(gv_foo, gv);
+        Ok(())
     }
 
     #[test]
     fn test_get_global_type_vars() {
-
-    }
-
-    #[test]
-    fn test_lookup() {
 
     }
 
@@ -266,29 +275,34 @@ mod tests {
     fn test_contains_global_type_var() {
     }
 
-    #[test]
-    fn test_lookup_def() {
-
-    }
-
-    #[test]
-    fn lookup_def() {
-
-    }
-
+    // TODO(@jroesch): not really sure about this API at all.
     // pub fn lookup_tag(&self, tag: i32) -> Result<relay::Constructor> {
     //     module_lookup_tag(self.clone(), tag)
     // }
 
+    // TODO(@jroesch): do we need to test this?
     // pub fn from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> Result<IRModule> {
     //     module_from_expr(expr, funcs, types)
     // }
 
-    // pub fn import<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
-    //     module_import(self.clone(), path.into())
-    // }
+    #[test]
+    fn test_import() -> Result<()> {
+        let mut std_path: String = env!("CARGO_MANIFEST_DIR").into();
+        std_path += "/../../python/tvm/relay/std/prelude.rly";
 
-    // pub fn import_from_std<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
-    //     module_import_from_std(self.clone(), path.into())
-    // }
+        let mut mod1 = IRModule::empty()?;
+        mod1.import(std_path.clone())?;
+        mod1.lookup_str("map")?;
+
+        // TODO(@jroesch): this requires another patch of mine to enable.
+
+        // if cfg!(feature = "python") {
+        //     crate::python::load().unwrap();
+        //     let mut mod2 = IRModule::empty()?;
+        //     mod2.import_from_std("prelude.rly")?;
+        //     mod2.lookup_str("map")?;
+        // }
+
+        Ok(())
+    }
 }

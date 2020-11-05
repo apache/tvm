@@ -496,9 +496,10 @@ impl Function {
         Function(Some(ObjectPtr::new(node)))
     }
 
-    pub fn simple(params: Vec<Var>, body: Expr) -> Function {
+    pub fn simple<E>(params: Vec<Var>, body: E) -> Function
+    where E: IsObjectRef, E::Object: AsRef<<Expr as IsObjectRef>::Object> {
         let params = Array::from_vec(params).unwrap();
-        Self::new(params, body, Type::null(), Array::from_vec(vec![]).unwrap())
+        Self::new(params, body.upcast(), Type::null(), Array::from_vec(vec![]).unwrap())
     }
 }
 
@@ -547,7 +548,7 @@ def @main() -> float32 {
         )
         .unwrap();
         let main = module
-            .lookup(module.get_global_var("main".to_string().into()).unwrap())
+            .lookup(module.get_global_var("main").unwrap())
             .unwrap();
         let func = main.downcast::<crate::ir::relay::Function>().unwrap();
         let constant = func
