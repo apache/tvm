@@ -164,7 +164,7 @@ def test_embed_grad():
     table = relay.var("table", shape=(6, 3), dtype="float64")
     indices = relay.var("indices", shape=(4,), dtype="int64")
     table_nd = np.reshape(np.arange(18), (6, 3)).astype("float64")
-    indices_nd = np.array([0, 0, 3, 2])
+    indices_nd = np.array([0, 0, 3, 2]).astype("int64")
     fwd_func = relay.Function([table, indices], relay.nn.embed(table, indices))
     # Can't test against indices because the function is nonsmooth with respect to them.
     check_grad(fwd_func, inputs=[table_nd, indices_nd], test_inputs=[table_nd])
