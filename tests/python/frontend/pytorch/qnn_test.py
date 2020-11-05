@@ -30,7 +30,6 @@ import tvm
 import tvm.testing
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay import create_executor
 from tvm.relay.frontend.pytorch_utils import is_version_greater_than
 from tvm.contrib.download import download_testdata
 
