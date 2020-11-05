@@ -173,10 +173,14 @@ def SimplifyInference():
     """Simplify the data-flow graph for inference phase. An simplified expression
     which is semantically equal to the input expression will be returned.
 
+    Note that batch norms will only be simplified if their result is indexed at
+    tuple index 0.
+
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass to perform operator simplification.
+
     """
     return _ffi_api.SimplifyInference()
 
