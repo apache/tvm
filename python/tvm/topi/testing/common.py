@@ -19,6 +19,9 @@
 
 import tvm
 from tvm import topi
+from tvm.testing import assert_allclose
+
+import numpy as np
 
 _injective_schedule = {
     "generic": topi.generic.schedule_injective,
