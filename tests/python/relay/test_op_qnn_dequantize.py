@@ -20,6 +20,7 @@ from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.relay.testing import run_infer_type
 
 
 def dequantize_test_driver(in_dtype, quant_args, in_data, verify_output_data, axis):
