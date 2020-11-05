@@ -234,9 +234,9 @@ def gen_ir_3d(data, indices, updates, axis, out, update_func):
                         idx = (i * ci + j) * hi + k
                         index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[((index + n) * c + j) * h + k] = updates_ptr[idx]
+                            update_func(out_ptr, ((index + n) * c + j) * h + k, updates_ptr[idx])
                         with ib.else_scope():
-                            out_ptr[(index * c + j) * h + k] = updates_ptr[idx]
+                            update_func(out_ptr, (index * c + j) * h + k, updates_ptr[idx])
     elif axis == 1:
         with ib.new_scope():
             i = te.thread_axis("blockIdx.x")
@@ -250,9 +250,9 @@ def gen_ir_3d(data, indices, updates, axis, out, update_func):
                         idx = (i * ci + j) * hi + k
                         index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[(i * c + (index + c)) * h + k] = updates_ptr[idx]
+                            update_func(out_ptr, (i * c + (index + c)) * h + k, updates_ptr[idx])
                         with ib.else_scope():
-                            out_ptr[(i * c + index) * h + k] = updates_ptr[idx]
+                            update_func(out_ptr, (i * c + index) * h + k, updates_ptr[idx])
     else:
         with ib.new_scope():
             i = te.thread_axis("blockIdx.x")
@@ -263,9 +263,9 @@ def gen_ir_3d(data, indices, updates, axis, out, update_func):
                 idx = (i * ci + j) * hi + k
                 index = indices_ptr[idx]
                 with ib.if_scope(index < 0):
-                    out_ptr[(i * c + j) * h + (index + h)] = updates_ptr[idx]
+                    update_func(out_ptr, (i * c + j) * h + (index + h), updates_ptr[idx])
                 with ib.else_scope():
-                    out_ptr[(i * c + j) * h + index] = updates_ptr[idx]
+                    update_func(out_ptr, (i * c + j) * h + index, updates_ptr[idx])
     return ib.get()
 
 
@@ -345,9 +345,13 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
                         idx = ((i * ci + j) * hi + k) * wi + l
                         index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[(((index + n) * c + j) * h + k) * w + l] = updates_ptr[idx]
+                            update_func(
+                                out_ptr, (((index + n) * c + j) * h + k) * w + l, updates_ptr[idx]
+                            )
                         with ib.else_scope():
-                            out_ptr[((index * c + j) * h + k) * w + l] = updates_ptr[idx]
+                            update_func(
+                                out_ptr, ((index * c + j) * h + k) * w + l, updates_ptr[idx]
+                            )
     elif axis == 1:
         with ib.new_scope():
             i = te.thread_axis("blockIdx.x")
@@ -363,9 +367,13 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
                         idx = ((i * ci + j) * hi + k) * wi + l
                         index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[((i * c + (index + c)) * h + k) * w + l] = updates_ptr[idx]
+                            update_func(
+                                out_ptr, ((i * c + (index + c)) * h + k) * w + l, updates_ptr[idx]
+                            )
                         with ib.else_scope():
-                            out_ptr[((i * c + index) * h + k) * w + l] = updates_ptr[idx]
+                            update_func(
+                                out_ptr, ((i * c + index) * h + k) * w + l, updates_ptr[idx]
+                            )
     elif axis == 2:
         with ib.new_scope():
             i = te.thread_axis("blockIdx.x")
@@ -381,9 +389,13 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
                         idx = ((i * ci + j) * hi + k) * wi + l
                         index = indices_ptr[idx]
                         with ib.if_scope(index < 0):
-                            out_ptr[((i * c + j) * h + (index + h)) * w + l] = updates_ptr[idx]
+                            update_func(
+                                out_ptr, ((i * c + j) * h + (index + h)) * w + l, updates_ptr[idx]
+                            )
                         with ib.else_scope():
-                            out_ptr[((i * c + j) * h + index) * w + l] = updates_ptr[idx]
+                            update_func(
+                                out_ptr, ((i * c + j) * h + index) * w + l, updates_ptr[idx]
+                            )
     else:
         with ib.new_scope():
             i = te.thread_axis("blockIdx.x")
@@ -396,10 +408,9 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
                 idx = ((i * ci + j) * hi + k) * wi + l
                 index = indices_ptr[idx]
                 with ib.if_scope(index < 0):
-                    out_ptr[((i * c + j) * h + k) * w + (index + w)] = updates_ptr[idx]
+                    update_func(out_ptr, ((i * c + j) * h + k) * w + (index + w), updates_ptr[idx])
                 with ib.else_scope():
-                    out_ptr[((i * c + j) * h + k) * w + index] = updates_ptr[idx]
-
+                    update_func(out_ptr, ((i * c + j) * h + k) * w + index, updates_ptr[idx])
     return ib.get()
 
 
