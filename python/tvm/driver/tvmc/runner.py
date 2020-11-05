@@ -47,7 +47,7 @@ def add_run_parser(subparsers):
     parser.set_defaults(func=drive_run)
 
     # TODO --device needs to be extended and tested to support other targets,
-    #      like 'cl', 'webgpu', etc (@leandron)
+    #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
         choices=["cpu", "gpu", "cl"],
@@ -366,6 +366,7 @@ def run_module(
         elif device == "cl":
             ctx = session.cl()
         else:
+            assert device == "cpu"
             ctx = session.cpu()
 
         if profile:
