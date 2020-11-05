@@ -244,7 +244,7 @@ def scatter_nd(data, indices, shape):
     mdim = int(indices.shape[0])
     for i in range(mdim, len(shape)):
         assert (
-            data.shape[i-mdim] == shape[i]
+            data.shape[i - mdim] == shape[i]
         ), f"Dimension of data[{i}] must equal dimension of out_shape[{i}]"
 
     assert (
