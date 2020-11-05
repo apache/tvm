@@ -28,7 +28,7 @@ use tvm_macros::Object;
 pub type DictAttrs = ObjectRef;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "BaseFunc"]
 #[type_key = "BaseFunc"]
 pub struct BaseFuncNode {

@@ -23,7 +23,7 @@ use tvm_macros::Object;
 
 /// A source file name, contained in a Span.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[type_key = "SourceName"]
 #[ref_name = "SourceName"]
 pub struct SourceNameNode {
@@ -33,7 +33,7 @@ pub struct SourceNameNode {
 
 /// Span information for diagnostic purposes.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[type_key = "Span"]
 #[ref_name = "Span"]
 pub struct SpanNode {
