@@ -24,7 +24,7 @@ use tvm_rt::{array::Array, DataType};
 use crate::ir::span::Span;
 use crate::ir::relay::Constructor;
 use crate::ir::PrimExpr;
-use crate::runtime::{IsObject, Object, ObjectPtr};
+use crate::runtime::{IsObject, Object, ObjectPtr, string::String as TString};
 
 #[repr(C)]
 #[derive(Object, Debug)]
@@ -110,7 +110,7 @@ pub enum TypeKind {
 #[type_key = "TypeVar"]
 pub struct TypeVarNode {
     pub base: TypeNode,
-    pub name_hint: String,
+    pub name_hint: TString,
     pub kind: TypeKind,
 }
 
@@ -121,13 +121,13 @@ pub struct TypeVarNode {
 #[type_key = "GlobalTypeVar"]
 pub struct GlobalTypeVarNode {
     pub base: TypeNode,
-    pub name_hint: String,
+    pub name_hint: TString,
     pub kind: TypeKind,
 }
 
 impl GlobalTypeVar {
     pub fn new<S>(name_hint: S, kind: TypeKind, span: Span) -> GlobalTypeVar
-    where S: Into<String> {
+    where S: Into<TString> {
         let node = GlobalTypeVarNode {
             base: TypeNode::base::<GlobalTypeVarNode>(span),
             name_hint: name_hint.into(),
@@ -266,7 +266,7 @@ pub struct TypeDataNode {
     /// We adopt nominal typing for ADT definitions;
     /// that is, differently-named ADT definitions with same constructors
     /// have different types.
-    pub base: Object,
+    pub base: TypeNode,
     pub type_name: GlobalTypeVar,
     /// The type variables (to allow for polymorphism).
     pub type_vars: Array<TypeVar>,
@@ -275,13 +275,13 @@ pub struct TypeDataNode {
 }
 
 impl TypeData {
-    pub fn new<TypeVars, Ctors>(type_name: GlobalTypeVar, type_vars: TypeVars, constructors: Ctors) -> TypeData
+    pub fn new<TypeVars, Ctors>(type_name: GlobalTypeVar, type_vars: TypeVars, constructors: Ctors, span: Span) -> TypeData
     where TypeVars: IntoIterator<Item=TypeVar>,
           Ctors: IntoIterator<Item=Constructor>,
     {
         use std::iter::FromIterator;
         let type_data = TypeDataNode {
-            base: Object::base::<TypeDataNode>(),
+            base: TypeNode::base::<TypeDataNode>(span,),
             type_name,
             type_vars: Array::from_iter(type_vars),
             constructors: Array::from_iter(constructors),

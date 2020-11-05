@@ -191,9 +191,19 @@ impl IRModule {
         module_lookup_tag(self.clone(), tag)
     }
 
-    pub fn from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> Result<IRModule> {
-        module_from_expr(expr, funcs, types)
+    pub fn from_expr<E>(expr: E) -> Result<IRModule>
+    where E: IsObjectRef, E::Object: AsRef<<relay::Expr as IsObjectRef>::Object> {
+        Self::from_expr_with_items(expr, HashMap::new(), HashMap::new())
     }
+
+    pub fn from_expr_with_items<E, F, T>(expr: E, funcs: F, types: T) -> Result<IRModule>
+    where F: IntoIterator<Item=(GlobalVar, BaseFunc)>,
+          T: IntoIterator<Item=(GlobalTypeVar, TypeData)>,
+          E: IsObjectRef,
+          E::Object: AsRef<<relay::Expr as IsObjectRef>::Object> {
+        module_from_expr(expr.upcast(), Map::from_iter(funcs), Map::from_iter(types))
+    }
+
 
     pub fn import<S: Into<TVMString>>(&mut self, path: S) -> Result<()> {
         module_import(self.clone(), path.into())
@@ -212,6 +222,33 @@ mod tests {
     use crate::ir::ty::{GlobalTypeVar, TypeData, TypeKind};
     use crate::ir::span::Span;
 
+    fn add_dummy_functions(names: Vec<&str>) -> Result<IRModule> {
+        let mut module = IRModule::empty()?;
+        let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
+        let params = vec![x.clone()];
+        let func = relay::Function::simple(params, x);
+
+        for name in names {
+            let gv = GlobalVar::new(name.into(), Span::null());
+            module = module.add(gv, func.clone())?;
+        }
+
+        Ok(module)
+    }
+
+    fn add_dummy_types(names: Vec<&str>) -> Result<IRModule> {
+        let mut module = IRModule::empty()?;
+
+        for name in names {
+            let name: String = name.into();
+            let name = GlobalTypeVar::new(name, TypeKind::Type, Span::null());
+            let type_data = TypeData::new(name.clone(), vec![], vec![], Span::null());
+            module.add_def(name, type_data, true)?;
+        }
+
+        Ok(module)
+    }
+
     #[test]
     fn test_module_add() -> anyhow::Result<()> {
         let mut module = IRModule::empty()?;
@@ -229,7 +266,7 @@ mod tests {
     fn test_module_add_def() -> Result<()> {
         let mut module = IRModule::empty()?;
         let name = GlobalTypeVar::new("my_type", TypeKind::Type, Span::null());
-        let type_data = TypeData::new(name.clone(), vec![], vec![]);
+        let type_data = TypeData::new(name.clone(), vec![], vec![], Span::null());
         module.add_def(name.clone(), type_data, true)?;
         let by_gtv = module.lookup_def(name)?;
         let by_gv = module.lookup_def_str("my_type")?;
@@ -251,28 +288,48 @@ mod tests {
 
     #[test]
     fn test_get_global_vars() -> Result<()> {
-        let mut module = IRModule::empty()?;
-        let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
-        let params = vec![x.clone()];
-        let func = relay::Function::simple(params, x);
-        let gv_foo = GlobalVar::new("foo".into(), Span::null());
-        let module = module.add(gv_foo.clone(), func)?;
-        let gv = module.get_global_var("foo")?;
-        assert_eq!(gv_foo, gv);
+        let names = vec!["foo", "bar", "baz"];
+        let module = add_dummy_functions(names.clone())?;
+        let gvars: Vec<String> =
+            module.get_global_vars()?.into_iter().map(|gv| {
+                gv.name_hint.as_str().unwrap().to_string()
+            }).collect();
+
+        for name in names {
+            assert!(gvars.contains(&name.to_string()));
+        }
+
         Ok(())
     }
 
     #[test]
-    fn test_get_global_type_vars() {
+    fn test_get_global_type_vars() -> Result<()> {
+        let names = vec!["foo", "bar", "baz"];
+        let module = add_dummy_types(names.clone())?;
+        let gvars: Vec<String> =
+            module.get_global_type_vars()?.into_iter().map(|gv| {
+                gv.name_hint.as_str().unwrap().to_string()
+            }).collect();
 
+        for name in names {
+            assert!(gvars.contains(&name.to_string()));
+        }
+
+        Ok(())
     }
 
     #[test]
-    fn test_contains_global_var() {
+    fn test_contains_global_var() -> Result<()> {
+        let module = add_dummy_functions(vec!["foo"])?;
+        assert!(module.contains_global_var("foo")?);
+        Ok(())
     }
 
     #[test]
-    fn test_contains_global_type_var() {
+    fn test_contains_global_type_var() -> Result<()> {
+        let module = add_dummy_types(vec!["foo"])?;
+        assert!(module.contains_global_type_var("foo")?);
+        Ok(())
     }
 
     // TODO(@jroesch): not really sure about this API at all.
@@ -280,10 +337,17 @@ mod tests {
     //     module_lookup_tag(self.clone(), tag)
     // }
 
-    // TODO(@jroesch): do we need to test this?
-    // pub fn from_expr(expr: relay::Expr, funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> Result<IRModule> {
-    //     module_from_expr(expr, funcs, types)
-    // }
+    #[test]
+    fn test_from_expr() -> Result<()> {
+        let x = Var::static_tensor("x".into(), vec![1, 1], DataType::float32());
+        let params = vec![x.clone()];
+        let func = relay::Function::simple(params, x);
+        let module = IRModule::from_expr(func.clone())?;
+        let main_fn = module.lookup_str("main")?;
+        let main_fn = main_fn.downcast::<relay::Function>()?;
+        assert_eq!(main_fn, func);
+        Ok(())
+    }
 
     #[test]
     fn test_import() -> Result<()> {
