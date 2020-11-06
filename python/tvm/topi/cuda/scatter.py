@@ -18,6 +18,7 @@
 """Scatter operator """
 import tvm
 from tvm import te
+from ..scatter import _verify_scatter_nd_inputs
 
 
 def ceil_div(a, b):
@@ -557,39 +558,14 @@ def scatter_nd(data, indices, shape):
     -------
     ret : tvm.te.Tensor
     """
-    assert indices.shape[0] <= len(shape), (
-        f"The first dimension of the indices ({indices.shape[0]}) must be less than or equal to "
-        f"the length of the shape of the output ({len(shape)})."
-    )
-    for i in range(len(indices.shape) - 1):
-        assert indices.shape[i + 1] == data.shape[i], (
-            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
-            f"data[{i}] ({data.shape[i]})."
-        )
-    mdim = int(indices.shape[0])
-    for i in range(mdim, len(shape)):
-        assert (
-            data.shape[i - mdim] == shape[i]
-        ), f"Dimension of data[{i}] must equal dimension of out_shape[{i}]"
-
-    assert (
-        "int" in indices.dtype
-    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}"
+    _verify_scatter_nd_inputs(data, indices, shape)
 
     def gen_ir(data_ptr, indices_ptr, out_ptr):
-        ib = ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
         indices = ib.buffer_ptr(indices_ptr)
         out = ib.buffer_ptr(out_ptr)
-
-        # zero data
-        # TODO(tkonolige): could we use topi.full to zero it instead?
-        fused_shape = 1
-        for i in shape:
-            fused_shape *= i
-        with ib.for_range(0, fused_shape) as i:
-            out[i] = Cast(data_ptr.dtype, 0)
 
         # We combine all the indices dimensions but the first one into a single
         # dimension so we can iterate it in single loop instead of an arbitrary
@@ -602,6 +578,16 @@ def scatter_nd(data, indices, shape):
         for i in data_ptr.shape[indices_ptr.shape[0].value :]:
             fused_data_dimension *= i
 
+        fused_shape = 1
+        for i in shape:
+            fused_shape *= i
+
+        # For now we avoid parallizing over dimensions indexed by `indices` as
+        # there may be repeated indices and hadling parallel accumulation can
+        # be hard. So we parallelize over X_M .. X_{N-1} instead. This will
+        # work well when these dimensions are large enough to saturate memory
+        # bandwidth, but performance will be bad when these dimensions are
+        # small.
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
@@ -610,30 +596,30 @@ def scatter_nd(data, indices, shape):
         bdim = ceil_div(fused_data_dimension, tdim)
         ib.scope_attr(bx, "thread_extent", bdim)
 
+        # zero data
+        # TODO(tkonolige): could we use topi.full to zero it instead?
+        with ib.for_range(0, ceil_div(fused_shape, bdim)) as i:
+            index = i * fused_data_dimension + bx * tdim + tx
+            with ib.if_scope(index < fused_shape):
+                out[index] = tvm.tir.Cast(data_ptr.dtype, 0)
 
         with ib.for_range(0, fused_indices_dimension) as i:
             j = bx * tdim + tx
-            offset = fused_data_dimension
-            index = j  # This is x_M, .. x_{N-1} part of the index into out.
-            # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
-            # of the index into out.
-            for l in reversed(range(indices_ptr.shape[0].value)):
-                # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
-                index += offset * indices[i + l * fused_indices_dimension]
-                ib.emit(
-                    AssertStmt(
-                        indices[i + l * fused_indices_dimension] < shape[l],
-                        StringImm("index out of bounds"),
-                        Evaluate(0),
-                    )
-                )
-                offset *= shape[l]
-            out[index] += data[i * fused_data_dimension + j]
+            with ib.if_scope(j < fused_data_dimension):
+                offset = fused_data_dimension
+                index = j  # This is x_M, .. x_{N-1} part of the index into out.
+                # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
+                # of the index into out.
+                for l in reversed(range(indices_ptr.shape[0].value)):
+                    # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
+                    index += offset * indices[i + l * fused_indices_dimension]
+                    offset *= shape[l]
+                out[index] += data[i * fused_data_dimension + j]
 
         return ib.get()
 
-    out_buf = decl_buffer(shape, data.dtype, "out_buf")
-    return extern(
+    out_buf = tvm.tir.decl_buffer(shape, data.dtype, "out_buf")
+    return te.extern(
         [shape],
         [data, indices],
         lambda ins, outs: gen_ir(ins[0], ins[1], outs[0]),

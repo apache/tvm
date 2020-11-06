@@ -199,6 +199,28 @@ def scatter(data, indices, updates, axis=0):
     raise ValueError("scatter only support for 1-4 dimensions")
 
 
+def _verify_scatter_nd_inputs(data, indices, shape):
+    mdim = int(indices.shape[0])
+    assert mdim <= len(shape), (
+        f"The first dimension of the indices ({mdim}) must be less than or equal to "
+        f"the length of the shape of the output ({len(shape)})."
+    )
+    for i in range(len(indices.shape) - 1):
+        assert indices.shape[i + 1] == data.shape[i], (
+            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
+            f"data[{i}] ({data.shape[i]})."
+        )
+    for i in range(mdim, len(shape)):
+        data_ind = i - mdim + len(indices.shape) - 1
+        assert (
+            data.shape[data_ind] == shape[i]
+        ), f"Dimension of data[{data_ind}] ({data.shape[data_ind]}) must equal dimension of out_shape[{i}] ({shape[i]})."
+
+    assert (
+        "int" in indices.dtype
+    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
+
+
 def scatter_nd(data, indices, shape):
     """Scatter elements from a n-dimension array.
 
@@ -232,24 +254,7 @@ def scatter_nd(data, indices, shape):
     -------
     ret : tvm.te.Tensor
     """
-    assert indices.shape[0] <= len(shape), (
-        f"The first dimension of the indices ({indices.shape[0]}) must be less than or equal to "
-        f"the length of the shape of the output ({len(shape)})."
-    )
-    for i in range(len(indices.shape) - 1):
-        assert indices.shape[i + 1] == data.shape[i], (
-            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
-            f"data[{i}] ({data.shape[i]})."
-        )
-    mdim = int(indices.shape[0])
-    for i in range(mdim, len(shape)):
-        assert (
-            data.shape[i - mdim] == shape[i]
-        ), f"Dimension of data[{i}] must equal dimension of out_shape[{i}]"
-
-    assert (
-        "int" in indices.dtype
-    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}"
+    _verify_scatter_nd_inputs(data, indices, shape)
 
     def gen_ir(data_ptr, indices_ptr, out_ptr):
         ib = ir_builder.create()
