@@ -922,6 +922,7 @@ def correlation_strategy_cuda(attrs, inputs, out_type, target):
     )
     return strategy
 
+
 @argwhere_strategy.register(["cuda", "gpu"])
 def argwhere_strategy_cuda(attrs, inputs, out_type, target):
     """argwhere cuda strategy"""
@@ -929,5 +930,6 @@ def argwhere_strategy_cuda(attrs, inputs, out_type, target):
     strategy.add_implementation(
         wrap_compute_argwhere(topi.cuda.argwhere),
         wrap_topi_schedule(topi.cuda.schedule_argwhere),
-        name="argwhere.cuda")
+        name="argwhere.cuda",
+    )
     return strategy

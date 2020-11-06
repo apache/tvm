@@ -37,9 +37,7 @@ def verify_argwhere(data_shape):
     out_shape = np_out.shape[0]
     np_shape = np.ones(shape=(out_shape, len(data_shape)), dtype=dtype)
 
-    out_shape = te.placeholder(
-        shape=(out_shape, len(data_shape)), name="out_shape", dtype=dtype
-    )
+    out_shape = te.placeholder(shape=(out_shape, len(data_shape)), name="out_shape", dtype=dtype)
     condition = te.placeholder(shape=data_shape, name="condition", dtype=dtype)
 
     def check_device(device, ctx):
@@ -52,9 +50,7 @@ def verify_argwhere(data_shape):
             s_func = tvm.topi.testing.dispatch(device, _argwhere_schedule)
             sch = s_func(out)
 
-        func = tvm.build(
-            sch, [out_shape, condition, out], device, name="argwhere"
-        )
+        func = tvm.build(sch, [out_shape, condition, out], device, name="argwhere")
 
         # print(func.imported_modules[0].get_source())
 
