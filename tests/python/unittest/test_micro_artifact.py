@@ -22,7 +22,7 @@ import os
 import shutil
 import tvm
 
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 FILE_LIST = ["label1", "label2", "label12", "unlabelled"]
@@ -58,7 +58,7 @@ def build_artifact(artifact_path, immobile=False):
 
 @tvm.testing.requires_micro
 def test_basic_functionality():
-    temp_dir = util.tempdir()
+    temp_dir = utils.tempdir()
     artifact_path = temp_dir.relpath("foo")
     art = build_artifact(artifact_path)
 
@@ -73,7 +73,7 @@ def test_basic_functionality():
 def test_archive():
     from tvm.micro import artifact
 
-    temp_dir = util.tempdir()
+    temp_dir = utils.tempdir()
     art = build_artifact(temp_dir.relpath("foo"))
 
     # Create archive
@@ -110,7 +110,7 @@ def test_archive():
 def test_metadata_only():
     from tvm.micro import artifact
 
-    temp_dir = util.tempdir()
+    temp_dir = utils.tempdir()
     base_dir = temp_dir.relpath("foo")
     art = build_artifact(base_dir)
 

@@ -26,9 +26,9 @@ Specifically, we test the following capabilities:
 import tvm
 from tvm import te
 import subprocess
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.contrib import cc
-from tvm.contrib.binutil import *
+from tvm.contrib.binutils import *
 
 TOOLCHAIN_PREFIX = ""
 
@@ -39,7 +39,7 @@ def make_binary():
                 int b = 5; \
                 return 0; \
             }"
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_source = tmp_dir.relpath("source.c")
     tmp_obj = tmp_dir.relpath("obj.obj")
     with open(tmp_source, "w") as f:
@@ -52,7 +52,7 @@ def make_binary():
 def test_tvm_callback_get_section_size(binary=None):
     if binary is None:
         binary = make_binary()
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_bin = tmp_dir.relpath("obj.bin")
     with open(tmp_bin, "wb") as f:
         f.write(binary)
@@ -76,7 +76,7 @@ def test_tvm_callback_get_section_size(binary=None):
 
 def test_tvm_callback_relocate_binary():
     binary = make_binary()
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_bin = tmp_dir.relpath("obj.bin")
     with open(tmp_bin, "wb") as f:
         f.write(binary)
@@ -133,7 +133,7 @@ def test_tvm_callback_read_binary_section():
 
 def test_tvm_callback_get_symbol_map():
     binary = make_binary()
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_bin = tmp_dir.relpath("obj.bin")
     with open(tmp_bin, "wb") as f:
         f.write(binary)

@@ -23,7 +23,7 @@ import logging
 import numpy as np
 
 from .. import record
-from ..util import format_si_prefix
+from ..utils import format_si_prefix
 
 logger = logging.getLogger("autotvm")
 

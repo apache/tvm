@@ -38,6 +38,7 @@ def get_renderer():
     return _ffi_api.GetRenderer()
 
 
+@tvm.register_func("diagnostics.override_renderer")
 def override_renderer(render_func):
     """
     Sets a custom renderer for diagnostics.

@@ -20,13 +20,13 @@
 import logging
 import tvm
 from tvm import te
-from . import util
+from . import utils
 from .. import rpc
 
 
 def _convert_to_remote(func, remote):
     """ convert module function to remote rpc function"""
-    temp = util.tempdir()
+    temp = utils.tempdir()
     path_dso = temp.relpath("tmp_func.tar")
     func.export_library(path_dso)
 

@@ -30,13 +30,13 @@ from .task import ApplyHistoryBest
 from ..target import Target
 from ..contrib.download import download
 from .record import load_from_file
-from .util import EmptyContext
+from .utils import EmptyContext
 
 # environment variable to read TopHub location
 AUTOTVM_TOPHUB_LOC_VAR = "TOPHUB_LOCATION"
 
 # default location of TopHub
-AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub"
+AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/tlc-pack/tophub/main/tophub"
 
 # value of AUTOTVM_TOPHUB_LOC_VAR to specify to not read from TopHub
 AUTOTVM_TOPHUB_NONE_LOC = "NONE"
@@ -46,14 +46,14 @@ AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm", "tophub
 
 # the version of each package
 PACKAGE_VERSION = {
-    "arm_cpu": "v0.07",
+    "arm_cpu": "v0.08",
     "llvm": "v0.04",
     "cuda": "v0.09",
     "rocm": "v0.05",
     "opencl": "v0.04",
     "mali": "v0.06",
     "intel_graphics": "v0.02",
-    "vta": "v0.09",
+    "vta": "v0.10",
     "amd_apu": "v0.01",
 }
 

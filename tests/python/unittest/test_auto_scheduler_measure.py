@@ -17,6 +17,7 @@
 
 """ Test measurement and log serialization. """
 
+import multiprocessing
 import tvm
 from tvm import topi
 from tvm import te, auto_scheduler
@@ -182,12 +183,10 @@ def test_recover_measure_input():
 
         raw_inp = inputs[0]
 
-        correct_inp = auto_scheduler.measure_record.recover_measure_input(raw_inp)
+        correct_inp = auto_scheduler.measure.recover_measure_input(raw_inp)
         assert str(correct_inp.task.compute_dag) == str(inp.task.compute_dag)
 
-        correct_inp = auto_scheduler.measure_record.recover_measure_input(
-            raw_inp, rebuild_state=True
-        )
+        correct_inp = auto_scheduler.measure.recover_measure_input(raw_inp, rebuild_state=True)
         assert str(correct_inp.state) == str(inp.state)
 
 
@@ -232,6 +231,19 @@ def test_measure_local_builder_rpc_runner():
         del measure_ctx
 
 
+def measure_local_builder_rpc_runner_spawn():
+    assert multiprocessing.get_start_method(False) == "spawn"
+    test_measure_local_builder_rpc_runner()
+
+
+@tvm.testing.requires_llvm
+def test_measure_local_builder_rpc_runner_spawn():
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=measure_local_builder_rpc_runner_spawn)
+    p.start()
+    p.join()
+
+
 if __name__ == "__main__":
     test_record_split_reorder_fuse_annotation()
     test_record_compute_at_root_inline_cache_read_write()
@@ -239,4 +251,5 @@ if __name__ == "__main__":
     test_record_pragma_storage_align_rfactor()
     test_recover_measure_input()
     test_measure_local_builder_runner()
+    test_measure_local_builder_runner_spawn()
     test_measure_local_builder_rpc_runner()

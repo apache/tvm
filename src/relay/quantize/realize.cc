@@ -309,7 +309,8 @@ float ChooseDomScale(const std::vector<const QRealizeIntExprNode*>& nptrs) {
 
 /* \brief Unify the dom scale of arguments */
 Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args,
-                            DataType* dtype_ptr, Expr* scale_ptr) {
+                            DataType* dtype_ptr, Expr* scale_ptr,
+                            DataType dtype = DataType::Void()) {
   static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
   const QConfig& cfg = QConfig::Current();
 
@@ -324,13 +325,15 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
 
   // unify the data type
   ICHECK_EQ(ref_args.size(), args.size());
-  DataType dtype;
 
-  if (ret.size() == 2 && nptrs[1]->dtype == cfg->dtype_input) {
-    dtype = cfg->dtype_input;
-  } else {
-    dtype = cfg->dtype_activation;
+  if (dtype.is_void()) {
+    if (ret.size() == 2 && nptrs[1]->dtype == cfg->dtype_input) {
+      dtype = cfg->dtype_input;
+    } else {
+      dtype = cfg->dtype_activation;
+    }
   }
+
   for (size_t i = 0; i < ret.size(); ++i) {
     auto ref_arg = ref_args[i].as<CallNode>();
     if (nptrs[i]->dtype != dtype) {
@@ -361,7 +364,16 @@ Expr AddRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
     DataType dtype;
     Expr dom_scale;
-    Array<Expr> ret_args = UnifyDTypeScale(ref_call->args, new_args, &dtype, &dom_scale);
+    // execute the operation with activation data type.
+    const QConfig& cfg = QConfig::Current();
+    Array<Expr> ret_args =
+        UnifyDTypeScale(ref_call->args, new_args, &dtype, &dom_scale, cfg->dtype_activation);
+    for (size_t i = 0; i < ret_args.size(); ++i) {
+      // do not fuse float32 arg
+      if (new_args[i].as<QRealizeIntExprNode>()->dtype == DataType::Float(32)) {
+        ret_args.Set(i, StopFusion(ret_args[i]));
+      }
+    }
     Expr ret = ForwardOp(ref_call, ret_args);
     return QRealizeIntExpr(ret, dom_scale, dtype);
   }
@@ -429,6 +441,8 @@ Expr IdentityRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
 }
 
 RELAY_REGISTER_OP("nn.relu").set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
+
+RELAY_REGISTER_OP("reshape").set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
 RELAY_REGISTER_OP("strided_slice").set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 

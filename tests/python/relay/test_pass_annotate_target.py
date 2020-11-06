@@ -25,7 +25,7 @@ import tvm.relay.testing
 import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
-from tvm.contrib import util
+from tvm.contrib import utils
 
 
 def check_result(
@@ -42,7 +42,7 @@ def check_result(
 
         kwargs = {}
         kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = util.tempdir()
+        tmp_path = utils.tempdir()
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
@@ -179,7 +179,7 @@ def test_extern_dnnl_mobilenet():
 
 def test_multiple_ends():
     @tvm.ir.register_op_attr("nn.relu", "target.test")
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     def before():
@@ -221,8 +221,8 @@ def test_type_propagation():
     target = "test_type_propagation"
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
-        return args[0].checked_type.dtype == "float32"
+    def relu(expr):  # pylint: disable=unused-variable
+        return expr.args[0].checked_type.dtype == "float32"
 
     def before():
         x = relay.var("x", shape=(10, 10))
@@ -240,11 +240,11 @@ def test_tuple():
     target = "test_tuple"
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("concatenate", "target." + target)
-    def concatenate(attrs, args):  # pylint: disable=unused-variable
+    def concatenate(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that TupleNode is included in annotation when surrounded by supported nodes."""
@@ -331,11 +331,11 @@ def test_composite_function():
 
 def test_multiple_runs():
     @tvm.ir.register_op_attr("nn.relu", "target.A")
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("add", "target.B")
-    def add(attrs, args):  # pylint: disable=unused-variable
+    def add(expr):  # pylint: disable=unused-variable
         return True
 
     def before():
@@ -359,19 +359,19 @@ def test_if_else():
     target = "test_if_else"
 
     @tvm.ir.register_op_attr("equal", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("tanh", "target." + target)
-    def tanh(attrs, args):  # pylint: disable=unused-variable
+    def tanh(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("sigmoid", "target." + target)
-    def sigmoid(attrs, args):  # pylint: disable=unused-variable
+    def sigmoid(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("erf", "target." + target)
-    def erf(attrs, args):  # pylint: disable=unused-variable
+    def erf(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that If-else nodes compiles correctly when surrounded by supported nodes."""
@@ -430,15 +430,15 @@ def test_while_let():
     target = "test_while_let"
 
     @tvm.ir.register_op_attr("less", "target." + target)
-    def less(attrs, args):  # pylint: disable=unused-variable
+    def less(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("add", "target." + target)
-    def add(attrs, args):  # pylint: disable=unused-variable
+    def add(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("zeros_like", "target." + target)
-    def zeros_like(attrs, args):  # pylint: disable=unused-variable
+    def zeros_like(expr):  # pylint: disable=unused-variable
         return True
 
     """Test that let nodes compiles correctly when surrounded by other nodes."""
@@ -510,6 +510,91 @@ def test_while_let():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_if_free_vars():
+    target = "test_if_free_vars"
+
+    @tvm.ir.register_op_attr("equal", "target." + target)
+    def equal(expr):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("sigmoid", "target." + target)
+    def sigmoid(expr):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("erf", "target." + target)
+    def erf(expr):  # pylint: disable=unused-variable
+        return True
+
+    """Test that If-else nodes compiles correctly when surrounded by free variables"""
+
+    def before():
+        data = relay.var("data", shape=(1, 32))
+        eq1 = relay.var("e1", shape=[], dtype="float32")
+        eq2 = relay.var("e2", shape=[], dtype="float32")
+        eq = relay.equal(eq1, eq2)
+
+        true_branch = relay.zeros(shape=(1, 32), dtype="float32")
+        false_branch = relay.sigmoid(data)
+        ife = relay.If(eq, true_branch, false_branch)
+        out = relay.erf(ife)
+
+        func = relay.Function([data, eq1, eq2], out)
+        mod = tvm.IRModule.from_expr(func)
+
+        return mod
+
+    def after():
+        data = relay.var("data", shape=(1, 32))
+        eq1 = relay.var("e1", shape=[], dtype="float32")
+        eq2 = relay.var("e2", shape=[], dtype="float32")
+
+        cb_1 = relay.annotation.compiler_begin(eq1, target)
+        cb_2 = relay.annotation.compiler_begin(eq2, target)
+
+        equality_condition = relay.equal(cb_1, cb_2)
+        ce_1 = relay.annotation.compiler_end(equality_condition, target)
+
+        # if condition
+        true_branch = relay.zeros(shape=(1, 32), dtype="float32")
+
+        # else condition
+        cb_3 = relay.annotation.compiler_begin(data, target)
+        false_branch = relay.sigmoid(cb_3)
+        ce_2 = relay.annotation.compiler_end(false_branch, target)
+
+        if_condition = relay.If(ce_1, true_branch, ce_2)
+        cb_4 = relay.annotation.compiler_begin(if_condition, target)
+        erf_out = relay.erf(cb_4)
+        ce_3 = relay.annotation.compiler_end(erf_out, target)
+        func = relay.Function([data, eq1, eq2], ce_3)
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    result = transform.AnnotateTarget(target)(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
+
+
+def test_free_vars_zeros():
+    target = "test_free_vars_zeros"
+
+    """Test that free variables compile correctly on their own"""
+
+    def before():
+        func = relay.Function([], relay.zeros(shape=(0), dtype="float32"))
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    def after():
+        func = relay.Function([], relay.zeros(shape=(0), dtype="float32"))
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    result = transform.AnnotateTarget(target)(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
+
+
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
@@ -520,3 +605,5 @@ if __name__ == "__main__":
     test_multiple_runs()
     test_if_else()
     test_while_let()
+    test_if_free_vars()
+    test_free_vars_zeros()

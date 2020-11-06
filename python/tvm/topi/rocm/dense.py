@@ -21,7 +21,7 @@ from tvm import autotvm
 from tvm.contrib import rocblas
 from .. import generic, nn
 from .. import tag
-from ..util import traverse_inline
+from ..utils import traverse_inline
 
 
 @autotvm.register_topi_compute("dense.rocm")

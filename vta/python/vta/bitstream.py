@@ -29,7 +29,7 @@ else:
     import urllib2
 
 # bitstream repo
-BITSTREAM_URL = "https://github.com/uwsaml/vta-distro/raw/master/bitstreams/"
+BITSTREAM_URL = "https://github.com/uwsampl/vta-distro/raw/master/bitstreams/"
 
 
 def get_bitstream_path():

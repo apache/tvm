@@ -649,25 +649,26 @@ def where(condition, x, y):
     condition.
 
     .. note::
-        The shape of condition, x, and y needs to be the same.
+        Shapes of condition, x, and y must be broadcastable to a common shape.
+        Semantics follow numpy where function
+        https://numpy.org/doc/stable/reference/generated/numpy.where.html
 
     Parameters
     ----------
     condition : relay.Expr
-        The condition array. The n-th element in `y` is selected when the n-th
-        value in the `condition` array is zero. Otherwise, the corresponding
-        element from `x` will be picked.
+        Where True, yield x, otherwise yield y
 
     x : relay.Expr
-        The first array to be selected.
+        The first array or scalar to be selected.
 
     y : relay.Expr
-        The second array to be selected.
+        The second array or scalar to be selected.
 
     Returns
     -------
     result : relay.Expr
-        The selected array.
+        The selected array. The output shape is the broadcasted shape from
+        condition, x, and y.
 
     Examples
     --------
@@ -678,7 +679,7 @@ def where(condition, x, y):
         condition = [[0, 1], [-1, 0]]
         relay.where(conditon, x, y) = [[5, 2], [3, 8]]
 
-        condition = [1, 0]
+        condition = [[1], [0]]
         relay.where(conditon, x, y) = [[1, 2], [7, 8]]
     """
     return _make.where(condition, x, y)

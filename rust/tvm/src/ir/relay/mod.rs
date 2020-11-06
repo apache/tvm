@@ -16,26 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-pub mod attrs;
-
-use std::hash::Hash;
-
 use crate::runtime::array::Array;
-use crate::runtime::{object::*, String as TString};
+use crate::runtime::{object::*, IsObjectRef, String as TString};
 
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
 use super::function::BaseFuncNode;
+use super::span::Span;
 use super::ty::{Type, TypeNode};
 
 use tvm_macros::Object;
 use tvm_rt::NDArray;
 
 pub use super::expr::{GlobalVar, GlobalVarNode};
+pub use crate::runtime::DataType;
+
+pub mod attrs;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Expr"]
 #[type_key = "RelayExpr"]
 pub struct ExprNode {
@@ -50,29 +49,15 @@ impl ExprNode {
             base: BaseExprNode::base::<T>(),
             span: ObjectRef::null(),
             checked_type: Type::from(TypeNode {
-                base: Object::base_object::<TypeNode>(),
-                span: ObjectRef::null(),
+                base: Object::base::<TypeNode>(),
+                span: Span::null(),
             }),
         }
     }
 }
 
-impl Hash for Expr {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_ptr().unwrap().ptr.hash(state)
-    }
-}
-
-impl PartialEq for Expr {
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ptr().unwrap().ptr.eq(&other.as_ptr().unwrap().ptr)
-    }
-}
-
-impl Eq for Expr {}
-
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Id"]
 #[type_key = "relay.Id"]
 pub struct IdNode {
@@ -83,7 +68,7 @@ pub struct IdNode {
 impl Id {
     fn new(name_hint: TString) -> Id {
         let node = IdNode {
-            base: Object::base_object::<IdNode>(),
+            base: Object::base::<IdNode>(),
             name_hint: name_hint,
         };
         Id(Some(ObjectPtr::new(node)))
@@ -91,7 +76,7 @@ impl Id {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Constant"]
 #[type_key = "relay.Constant"]
 pub struct ConstantNode {
@@ -110,7 +95,7 @@ impl Constant {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Tuple"]
 #[type_key = "relay.Tuple"]
 pub struct TupleNode {
@@ -129,7 +114,7 @@ impl Tuple {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Var"]
 #[type_key = "relay.Var"]
 pub struct VarNode {
@@ -139,11 +124,11 @@ pub struct VarNode {
 }
 
 impl Var {
-    pub fn new(name_hint: String, type_annotation: Type, _span: ObjectRef) -> Var {
+    pub fn new(name_hint: String, type_annotation: Type, _span: Span) -> Var {
         let node = VarNode {
             base: ExprNode::base::<VarNode>(),
             vid: Id::new(name_hint.into()),
-            type_annotation,
+            type_annotation: type_annotation,
         };
         Var(Some(ObjectPtr::new(node)))
     }
@@ -152,13 +137,18 @@ impl Var {
         &self.vid.0.as_ref().unwrap().name_hint
     }
 
-    pub fn to_expr(self) -> Expr {
-        unsafe { Expr(std::mem::transmute(self.0)) }
+    pub fn static_tensor(name_hint: String, sh: Vec<i32>, dtype: DataType) -> Var {
+        let sh = Array::from_vec(sh.into_iter().map(Into::into).collect()).unwrap();
+        Self::new(
+            name_hint,
+            super::ty::TensorType::new(sh, dtype, Span::null()).upcast(),
+            Span::null(),
+        )
     }
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Call"]
 #[type_key = "relay.Call"]
 pub struct CallNode {
@@ -189,7 +179,7 @@ impl Call {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Let"]
 #[type_key = "relay.Let"]
 pub struct LetNode {
@@ -212,7 +202,7 @@ impl Let {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "If"]
 #[type_key = "relay.If"]
 pub struct IfNode {
@@ -235,7 +225,7 @@ impl If {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TupleGetItem"]
 #[type_key = "relay.TupleGetItem"]
 pub struct TupleGetItemNode {
@@ -256,7 +246,7 @@ impl TupleGetItem {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "RefCreate"]
 #[type_key = "relay.RefCreate"]
 pub struct RefCreateNode {
@@ -275,7 +265,7 @@ impl RefCreate {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "RefRead"]
 #[type_key = "relay.RefRead"]
 pub struct RefReadNode {
@@ -294,7 +284,7 @@ impl RefRead {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "RefWrite"]
 #[type_key = "relay.RefWrite"]
 pub struct RefWriteNode {
@@ -315,7 +305,7 @@ impl RefWrite {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Constructor"]
 #[type_key = "relay.Constructor"]
 pub struct ConstructorNode {
@@ -340,7 +330,7 @@ impl Constructor {
 // TODO(@jroesch): define the type data
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Pattern"]
 #[type_key = "relay.Pattern"]
 pub struct PatternNode {
@@ -351,14 +341,14 @@ pub struct PatternNode {
 impl PatternNode {
     pub fn base<T: IsObject>() -> PatternNode {
         PatternNode {
-            base: Object::base_object::<T>(),
+            base: Object::base::<T>(),
             span: ObjectRef::null(),
         }
     }
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PatternWildcard"]
 #[type_key = "relay.PatternWildcard"]
 pub struct PatternWildcardNode {
@@ -375,7 +365,7 @@ impl PatternWildcard {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PatternVar"]
 #[type_key = "relay.PatternVar"]
 pub struct PatternVarNode {
@@ -394,7 +384,7 @@ impl PatternVar {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PatternConstructor"]
 #[type_key = "relay.PatternConstructor"]
 pub struct PatternConstructorNode {
@@ -419,7 +409,7 @@ impl PatternConstructor {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PatternTuple"]
 #[type_key = "relay.PatternTuple"]
 pub struct PatternTupleNode {
@@ -438,7 +428,7 @@ impl PatternTuple {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Clause"]
 #[type_key = "relay.Clause"]
 pub struct ClauseNode {
@@ -450,7 +440,7 @@ pub struct ClauseNode {
 impl Clause {
     pub fn new(lhs: Pattern, rhs: Expr, _span: ObjectRef) -> Clause {
         let node = ClauseNode {
-            base: Object::base_object::<ClauseNode>(),
+            base: Object::base::<ClauseNode>(),
             lhs,
             rhs,
         };
@@ -459,7 +449,7 @@ impl Clause {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Match"]
 #[type_key = "relay.Match"]
 pub struct MatchNode {
@@ -482,7 +472,7 @@ impl Match {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Function"]
 #[type_key = "relay.Function"]
 pub struct FunctionNode {
@@ -509,6 +499,20 @@ impl Function {
         };
         Function(Some(ObjectPtr::new(node)))
     }
+
+    pub fn simple<E>(params: Vec<Var>, body: E) -> Function
+    where
+        E: IsObjectRef,
+        E::Object: AsRef<<Expr as IsObjectRef>::Object>,
+    {
+        let params = Array::from_vec(params).unwrap();
+        Self::new(
+            params,
+            body.upcast(),
+            Type::null(),
+            Array::from_vec(vec![]).unwrap(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -529,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_global() -> Result<()> {
-        let gv = GlobalVar::new("main".to_string(), ObjectRef::null());
+        let gv = GlobalVar::new("main".to_string(), Span::null());
         let text = as_text(gv.clone());
         assert!(text.contains("@main"));
         Ok(())
@@ -537,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_var() -> Result<()> {
-        let var = Var::new("local".to_string(), Type::null(), ObjectRef::null());
+        let var = Var::new("local".to_string(), Type::null(), Span::null());
         let text = as_text(var.clone());
         assert!(text.contains("%local"));
         Ok(())
@@ -553,9 +557,10 @@ def @main() -> float32 {
   0.01639530062675476f
 }
 "#,
-        );
+        )
+        .unwrap();
         let main = module
-            .lookup(module.get_global_var("main".to_string().into()).unwrap())
+            .lookup(module.get_global_var("main").unwrap())
             .unwrap();
         let func = main.downcast::<crate::ir::relay::Function>().unwrap();
         let constant = func

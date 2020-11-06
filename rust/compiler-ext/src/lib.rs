@@ -17,26 +17,19 @@
  * under the License.
  */
 
-/*!
- * \brief gotvm package source for common utilities
- * \file util.go
- */
+use env_logger;
+use tvm::export;
 
-package gotvm
+fn diagnostics() -> Result<(), tvm::Error> {
+    tvm::ir::diagnostics::codespan::init()
+}
 
-//#include "gotvm.h"
-import "C"
+export!(diagnostics);
 
-import (
-    "unsafe"
-)
-
-// Native string map for go string
-type nativeGoString struct { p uintptr; n int32 }
-
-func goStringFromNative (s string) (retStr string) {
-    p := *(*nativeGoString)(unsafe.Pointer(&s))
-    retStr = string((*[0x7fffffff]byte)(unsafe.Pointer(p.p))[:p.n])
-    C.free(unsafe.Pointer(p.p))
-    return
+#[no_mangle]
+extern "C" fn compiler_ext_initialize() -> i32 {
+    let _ = env_logger::try_init();
+    tvm_export("rust_ext").expect("failed to initialize the Rust compiler extensions.");
+    log::debug!("Loaded the Rust compiler extension.");
+    return 0;
 }

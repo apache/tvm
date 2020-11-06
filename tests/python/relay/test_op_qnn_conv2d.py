@@ -176,7 +176,7 @@ def get_funcs(
 def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype):
     def get_inputs(data_shape, data_dtype, kernel_shape, kernel_dtype):
         # Keeping inputs multiple of 4 because of a bug in Average Pool2d
-        # https://discuss.tvm.ai/t/pool2d-gives-bad-output-for-integer-inputs/3377
+        # https://discuss.tvm.apache.org/t/pool2d-gives-bad-output-for-integer-inputs/3377
         low = -128
         high = 127
         if data_dtype == "uint8":

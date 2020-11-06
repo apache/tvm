@@ -20,7 +20,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.topi.transform import concatenate
-from ..util import get_const_int
+from ..utils import get_const_int
 
 
 def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):

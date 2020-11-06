@@ -122,6 +122,58 @@ const char* IteratorAnnotationString[] = {
     "tensorize"     // kTensorized = 11
 };
 
+StepNode* Step::CopyOnWrite() {
+  CHECK(data_ != nullptr);
+  if (!data_.unique()) {
+    if (const auto& ps = as<AnnotationStepNode>()) {
+      auto n = make_object<AnnotationStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<FuseStepNode>()) {
+      auto n = make_object<FuseStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<PragmaStepNode>()) {
+      auto n = make_object<PragmaStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<ReorderStepNode>()) {
+      auto n = make_object<ReorderStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<SplitStepNode>()) {
+      auto n = make_object<SplitStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<FollowSplitStepNode>()) {
+      auto n = make_object<FollowSplitStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<FollowFusedSplitStepNode>()) {
+      auto n = make_object<FollowFusedSplitStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<StorageAlignStepNode>()) {
+      auto n = make_object<StorageAlignStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<ComputeAtStepNode>()) {
+      auto n = make_object<ComputeAtStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<ComputeInlineStepNode>()) {
+      auto n = make_object<ComputeInlineStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<ComputeRootStepNode>()) {
+      auto n = make_object<ComputeRootStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<CacheReadStepNode>()) {
+      auto n = make_object<CacheReadStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<CacheWriteStepNode>()) {
+      auto n = make_object<CacheWriteStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else if (const auto& ps = as<RfactorStepNode>()) {
+      auto n = make_object<RfactorStepNode>(*ps);
+      ObjectPtr<Object>(std::move(n)).swap(data_);
+    } else {
+      LOG(FATAL) << "Invalid step: " << (*this);
+    }
+  }
+  return static_cast<StepNode*>(data_.get());
+}
+
 Step StepReadFromRecord(dmlc::JSONReader* reader) {
   std::string name;
   bool s;

@@ -446,6 +446,12 @@ String State::ToStr(bool delete_trivial_loop) const {
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<StageNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      const auto& stage = tvm::Downcast<Stage>(ref);
+      p->stream << stage->GetTypeKey() << "(" << stage.get() << ": " << stage->op->name << ")";
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<StateNode>([](const ObjectRef& ref, ReprPrinter* p) {
       PrintState(&p->stream, tvm::Downcast<State>(ref), true);
     });

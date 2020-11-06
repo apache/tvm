@@ -20,7 +20,7 @@ from tvm.relay import expr
 
 from . import _make
 from ..dyn.nn import _make as _dyn_make
-from .util import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
+from .utils import get_pad_tuple1d, get_pad_tuple2d, get_pad_tuple3d
 from ...expr import const, Expr
 
 
@@ -2046,7 +2046,7 @@ def sparse_transpose(x):
 
     Parameters
     ----------
-    x : namedtuple.
+    x : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
         The sparse weight matrix for the fast matrix transpose.
 
     Returns
@@ -2055,7 +2055,9 @@ def sparse_transpose(x):
         Tuple of output sparse tensor (same shape and format as input),
         i.e. if CSR then output is in ([data, indices, indptr]) form
     """
-    return expr.TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
+    if hasattr(x, "indices"):
+        return expr.TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
+    return expr.TupleWrapper(_make.sparse_transpose(x[0], x[1], x[2]), 3)
 
 
 def contrib_conv2d_winograd_without_weight_transform(

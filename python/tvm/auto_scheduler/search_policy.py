@@ -148,7 +148,7 @@ class SketchPolicy(SearchPolicy):
     DEFAULT_PARAMS = {
         "eps_greedy": 0.05,
         "retry_search_one_round_on_empty": 10,
-        "sample_init_population": 50,
+        "sample_init_min_population": 50,
         "sample_init_use_measured_ratio": 0.2,
         "evolutionary_search_population": 2048,
         "evolutionary_search_num_iters": 10,
@@ -210,22 +210,17 @@ class SketchPolicy(SearchPolicy):
                 print(s)
         return sketches
 
-    def sample_initial_population(self, pop_size):
+    def sample_initial_population(self):
         """Sample initial population.
         This python interface is mainly used for debugging and testing.
         The actual search is all done in c++.
-
-        Parameters
-        ----------
-        pop_size : int
-            The size of sampled population
 
         Returns
         -------
         states: List[State]
             The sampled states
         """
-        states = _ffi_api.SketchPolicySampleInitialPopulation(self, pop_size)
+        states = _ffi_api.SketchPolicySampleInitialPopulation(self)
         return states
 
     def evolutionary_search(self, init_populations, out_size):

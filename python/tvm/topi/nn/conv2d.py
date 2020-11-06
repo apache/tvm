@@ -23,8 +23,8 @@ import tvm
 from tvm import te
 
 from .pad import pad
-from .util import get_pad_tuple
-from ..util import simplify, get_const_tuple, get_const_int, tag
+from .utils import get_pad_tuple
+from ..utils import simplify, get_const_tuple, get_const_int, tag
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d

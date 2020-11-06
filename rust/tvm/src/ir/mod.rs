@@ -19,11 +19,13 @@
 
 pub mod arith;
 pub mod attrs;
+pub mod diagnostics;
 pub mod expr;
 pub mod function;
 pub mod module;
 pub mod op;
 pub mod relay;
+pub mod source_map;
 pub mod span;
 pub mod tir;
 pub mod ty;

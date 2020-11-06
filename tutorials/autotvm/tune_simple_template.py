@@ -26,6 +26,10 @@ The first step is defining a search space.
 The second step is running a search algorithm to explore through this space.
 In this tutorial, you can learn how to perform these two steps in TVM.
 The whole workflow is illustrated by a matrix multiplication example.
+
+Note that this tutorial will not run on Windows or recent versions of macOS. To
+get it to run, you will need to wrap the body of this tutorial in a :code:`if
+__name__ == "__main__":` block.
 """
 
 ######################################################################

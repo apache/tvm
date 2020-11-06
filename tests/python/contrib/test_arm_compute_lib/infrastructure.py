@@ -26,7 +26,7 @@ from tvm import relay
 from tvm import rpc
 from tvm.contrib import graph_runtime
 from tvm.relay.op.contrib import arm_compute_lib
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.autotvm.measure import request_remote
 
 
@@ -226,7 +226,7 @@ def build_and_run(
 def update_lib(lib, device, cross_compile):
     """Export the library to the remote/local device."""
     lib_name = "mod.so"
-    temp = util.tempdir()
+    temp = utils.tempdir()
     lib_path = temp.relpath(lib_name)
     if cross_compile:
         lib.export_library(lib_path, cc=cross_compile)
@@ -276,10 +276,11 @@ def verify_codegen(
     module,
     known_good_codegen,
     num_acl_modules,
+    tvm_ops=0,
     target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
 ):
     """Check acl codegen against a known good output."""
-    module = build_module(module, target)
+    module = build_module(module, target, tvm_ops=tvm_ops, acl_partitions=num_acl_modules)
     acl_modules = extract_acl_modules(module)
 
     assert len(acl_modules) == num_acl_modules, (

@@ -22,7 +22,7 @@ import glob
 import os
 import re
 
-from tvm.contrib import binutil
+from tvm.contrib import binutils
 import tvm.target
 from . import build
 from . import class_factory
@@ -232,13 +232,13 @@ class DefaultCompiler(Compiler):
 
             output_filename = f"{src_base}.o"
             output_abspath = os.path.join(output, output_filename)
-            binutil.run_cmd(args + ["-c", "-o", output_abspath, src])
+            binutils.run_cmd(args + ["-c", "-o", output_abspath, src])
             outputs.append(output_abspath)
 
         output_filename = f"{os.path.basename(output)}.a"
         output_abspath = os.path.join(output, output_filename)
-        binutil.run_cmd([prefix + "ar", "-r", output_abspath] + outputs)
-        binutil.run_cmd([prefix + "ranlib", output_abspath])
+        binutils.run_cmd([prefix + "ar", "-r", output_abspath] + outputs)
+        binutils.run_cmd([prefix + "ranlib", output_abspath])
 
         return tvm.micro.MicroLibrary(output, [output_filename])
 
@@ -273,7 +273,7 @@ class DefaultCompiler(Compiler):
             for lib_name in obj.library_files:
                 args.append(obj.abspath(lib_name))
 
-        binutil.run_cmd(args)
+        binutils.run_cmd(args)
         return tvm.micro.MicroBinary(output, output_filename, [])
 
     @property

@@ -25,7 +25,7 @@ from .tensor_intrin import dp4a
 from .. import nn
 from .. import tag
 from .. import generic
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 
 logger = logging.getLogger("topi")
 

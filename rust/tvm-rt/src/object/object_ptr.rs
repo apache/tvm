@@ -19,6 +19,7 @@
 
 use std::convert::TryFrom;
 use std::ffi::CString;
+use std::fmt;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicI32;
 
@@ -125,7 +126,7 @@ impl Object {
     /// By using associated constants and generics we can provide a
     /// type indexed abstraction over allocating objects with the
     /// correct index and deleter.
-    pub fn base_object<T: IsObject>() -> Object {
+    pub fn base<T: IsObject>() -> Object {
         let index = Object::get_type_index::<T>();
         Object::new(index, delete::<T>)
     }
@@ -147,6 +148,18 @@ impl Object {
     }
 }
 
+// impl fmt::Debug for Object {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         let index =
+//             format!("{} // key: {}", self.type_index, "the_key");
+
+//         f.debug_struct("Object")
+//          .field("type_index", &index)
+//          // TODO(@jroesch: do we expose other fields?)
+//          .finish()
+//     }
+// }
+
 /// An unsafe trait which should be implemented for an object
 /// subtype.
 ///
@@ -154,7 +167,7 @@ impl Object {
 /// index, a method for accessing the base object given the
 /// subtype, and a typed delete method which is specialized
 /// to the subtype.
-pub unsafe trait IsObject: AsRef<Object> {
+pub unsafe trait IsObject: AsRef<Object> + std::fmt::Debug {
     const TYPE_KEY: &'static str;
 
     unsafe extern "C" fn typed_delete(object: *mut Self) {
@@ -264,6 +277,13 @@ impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
     }
 }
 
+impl<T: IsObject> fmt::Debug for ObjectPtr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::ops::Deref;
+        write!(f, "{:?}", self.deref())
+    }
+}
+
 impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
     fn from(object_ptr: ObjectPtr<T>) -> RetValue {
         let raw_object_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
@@ -342,6 +362,24 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     }
 }
 
+impl<T: IsObject> std::hash::Hash for ObjectPtr<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_i64(
+            super::structural_hash(ObjectRef(Some(self.clone().upcast())), false).unwrap(),
+        )
+    }
+}
+
+impl<T: IsObject> PartialEq for ObjectPtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        let lhs = ObjectRef(Some(self.clone().upcast()));
+        let rhs = ObjectRef(Some(other.clone().upcast()));
+        super::structural_equal(lhs, rhs, false, false).unwrap()
+    }
+}
+
+impl<T: IsObject> Eq for ObjectPtr<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::{Object, ObjectPtr};
@@ -351,7 +389,7 @@ mod tests {
 
     #[test]
     fn test_new_object() -> anyhow::Result<()> {
-        let object = Object::base_object::<Object>();
+        let object = Object::base::<Object>();
         let ptr = ObjectPtr::new(object);
         assert_eq!(ptr.count(), 1);
         Ok(())
@@ -359,7 +397,7 @@ mod tests {
 
     #[test]
     fn test_leak() -> anyhow::Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let object = ObjectPtr::leak(ptr);
         assert_eq!(object.count(), 1);
@@ -368,7 +406,7 @@ mod tests {
 
     #[test]
     fn test_clone() -> anyhow::Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let ptr2 = ptr.clone();
         assert_eq!(ptr2.count(), 2);
@@ -379,7 +417,7 @@ mod tests {
 
     #[test]
     fn roundtrip_retvalue() -> Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let ret_value: RetValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
@@ -401,7 +439,7 @@ mod tests {
 
     #[test]
     fn roundtrip_argvalue() -> Result<()> {
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let ptr_clone = ptr.clone();
         assert_eq!(ptr.count(), 2);
@@ -435,7 +473,7 @@ mod tests {
     fn test_ref_count_boundary3() {
         use super::*;
         use crate::function::{register, Function};
-        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ptr = ObjectPtr::new(Object::base::<Object>());
         assert_eq!(ptr.count(), 1);
         let stay = ptr.clone();
         assert_eq!(ptr.count(), 2);

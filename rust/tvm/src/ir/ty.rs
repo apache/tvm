@@ -17,15 +17,16 @@
  * under the License.
  */
 
-use super::span::Span;
-use crate::runtime::{IsObject, Object, ObjectPtr};
 use tvm_macros::Object;
 use tvm_rt::{array::Array, DataType};
 
-use super::PrimExpr;
+use crate::ir::relay::Constructor;
+use crate::ir::span::Span;
+use crate::ir::PrimExpr;
+use crate::runtime::{string::String as TString, IsObject, Object, ObjectPtr};
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Type"]
 #[type_key = "Type"]
 pub struct TypeNode {
@@ -36,7 +37,7 @@ pub struct TypeNode {
 impl TypeNode {
     fn base<T: IsObject>(span: Span) -> Self {
         TypeNode {
-            base: Object::base_object::<T>(),
+            base: Object::base::<T>(),
             span,
         }
     }
@@ -51,7 +52,7 @@ impl TypeNode {
  * \sa PrimType
  */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PrimType"]
 #[type_key = "PrimType"]
 pub struct PrimTypeNode {
@@ -73,7 +74,7 @@ pub struct PrimTypeNode {
  */
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PointerType"]
 #[type_key = "PointerType"]
 pub struct PointerTypeNode {
@@ -83,6 +84,7 @@ pub struct PointerTypeNode {
 }
 
 /// Possible kinds of type variables.
+#[derive(PartialEq, Eq, Debug)]
 pub enum TypeKind {
     Type = 0,
     /// Template variable in shape expression.
@@ -92,47 +94,51 @@ pub enum TypeKind {
     TypeData = 6,
 }
 
-/*
- * \brief Type parameter in functions.
- *
- * A type variable can be viewed as template parameter in c++ template function.
- *
- * For example, in the following pesudo code,
- * the TypeVar of f is TypeVar("n", kind=kShapeVar).
- * This function can take in a Tensor with shape=(3, 3) and
- * returns a Tensor with shape=(9,)
- *
- * \code
- *
- *  template<i32 n>
- *  f(x : Tensor[i32, (n, n)]) -> Tensor[i32, (n * n)]
- *
- * \endcode
- * \sa TypeVar, TypeKind
- */
+/// Type parameter in functions.
+///
+/// A type variable can be viewed as template parameter in c++ template function.
+///
+/// For example, in the following pesudo code,
+/// the TypeVar of f is TypeVar("n", kind=kShapeVar).
+/// This function can take in a Tensor with shape=(3, 3) and
+/// returns a Tensor with shape=(9,)
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TypeVar"]
 #[type_key = "TypeVar"]
 pub struct TypeVarNode {
     pub base: TypeNode,
-    pub name_hint: String,
+    pub name_hint: TString,
     pub kind: TypeKind,
 }
 
 /// A global type variable that is used for defining new types or type aliases.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "GlobalTypeVar"]
 #[type_key = "GlobalTypeVar"]
 pub struct GlobalTypeVarNode {
     pub base: TypeNode,
-    pub name_hint: String,
+    pub name_hint: TString,
     pub kind: TypeKind,
 }
 
+impl GlobalTypeVar {
+    pub fn new<S>(name_hint: S, kind: TypeKind, span: Span) -> GlobalTypeVar
+    where
+        S: Into<TString>,
+    {
+        let node = GlobalTypeVarNode {
+            base: TypeNode::base::<GlobalTypeVarNode>(span),
+            name_hint: name_hint.into(),
+            kind: kind,
+        };
+        ObjectPtr::new(node).into()
+    }
+}
+
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TupleType"]
 #[type_key = "TupleType"]
 pub struct TupleTypeNode {
@@ -147,7 +153,7 @@ impl TupleType {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TypeConstraint"]
 #[type_key = "TypeConstraint"]
 pub struct TypeConstraintNode {
@@ -156,7 +162,7 @@ pub struct TypeConstraintNode {
 
 /// The representation of a polymorphic function type.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "FuncType"]
 #[type_key = "FuncType"]
 pub struct FuncTypeNode {
@@ -181,7 +187,7 @@ pub struct FuncTypeNode {
  * TypeVar represents the input to the graph.
  */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "IncompleteType"]
 #[type_key = "IncompleteType"]
 pub struct IncompleteTypeNode {
@@ -195,7 +201,7 @@ pub struct IncompleteTypeNode {
  * \sa RelayRefType.
  */
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "RefType"]
 #[type_key = "relay.RefType"]
 pub struct RelayRefTypeNode {
@@ -204,7 +210,7 @@ pub struct RelayRefTypeNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "BaseTensorType"]
 #[type_key = "relay.BaseTensorType"]
 pub struct BaseTensorTypeNode {
@@ -212,7 +218,7 @@ pub struct BaseTensorTypeNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "TensorType"]
 #[type_key = "relay.TensorType"]
 pub struct TensorTypeNode {
@@ -240,3 +246,52 @@ impl TensorType {
 // using TypeRelationFn = tvm::TypeRelationFn;
 // using TypeReporter = tvm::TypeReporter;
 // using TypeReporterNode = tvm::TypeReporterNode;
+
+/* TypeData container node.
+\brief Stores all data for an Algebraic Data Type (ADT).
+
+In particular, it stores the handle (global type var) for an ADT
+and the constructors used to build it and is kept in the module. Note
+that type parameters are also indicated in the type data: this means that
+for any instance of an ADT, the type parameters must be indicated. That is,
+an ADT definition is treated as a type-level function, so an ADT handle
+must be wrapped in a TypeCall node that instantiates the type-level arguments.
+The kind checker enforces this. */
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "TypeData"]
+#[type_key = "relay.TypeData"]
+pub struct TypeDataNode {
+    /// The header is simply the name of the ADT.
+    /// We adopt nominal typing for ADT definitions;
+    /// that is, differently-named ADT definitions with same constructors
+    /// have different types.
+    pub base: TypeNode,
+    pub type_name: GlobalTypeVar,
+    /// The type variables (to allow for polymorphism).
+    pub type_vars: Array<TypeVar>,
+    /// The constructors.
+    pub constructors: Array<Constructor>,
+}
+
+impl TypeData {
+    pub fn new<TypeVars, Ctors>(
+        type_name: GlobalTypeVar,
+        type_vars: TypeVars,
+        constructors: Ctors,
+        span: Span,
+    ) -> TypeData
+    where
+        TypeVars: IntoIterator<Item = TypeVar>,
+        Ctors: IntoIterator<Item = Constructor>,
+    {
+        use std::iter::FromIterator;
+        let type_data = TypeDataNode {
+            base: TypeNode::base::<TypeDataNode>(span),
+            type_name,
+            type_vars: Array::from_iter(type_vars),
+            constructors: Array::from_iter(constructors),
+        };
+        TypeData(Some(ObjectPtr::new(type_data)))
+    }
+}

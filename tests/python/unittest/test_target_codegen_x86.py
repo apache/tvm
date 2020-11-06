@@ -28,6 +28,13 @@ def test_fp16_to_fp32():
         )
         return
 
+    import platform
+
+    machine = platform.machine()
+    if machine not in ["x86_64", "i386", "AMD64"]:
+        print("Skipping test because the platform is: {} ".format(machine))
+        return
+
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
         n = tvm.runtime.convert(elements)

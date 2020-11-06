@@ -22,7 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm import autotvm
 
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 from ..nn import conv2d_alter_layout, conv2d_infer_layout
 from .conv2d import _get_default_config
 

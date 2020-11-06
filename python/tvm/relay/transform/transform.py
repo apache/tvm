@@ -173,10 +173,14 @@ def SimplifyInference():
     """Simplify the data-flow graph for inference phase. An simplified expression
     which is semantically equal to the input expression will be returned.
 
+    Note that batch norms will only be simplified if their result is indexed at
+    tuple index 0.
+
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass to perform operator simplification.
+
     """
     return _ffi_api.SimplifyInference()
 
@@ -422,7 +426,7 @@ def ConvertLayout(desired_layouts):
     parser and relay.build call. This is very helpful for hardware backends that support/prefer only
     type of data layout.
 
-    RFC - https://discuss.tvm.ai/t/layout-conversion-pass/4009
+    RFC - https://discuss.tvm.apache.org/t/layout-conversion-pass/4009
 
     This pass uses most of the AlterOpLayout and InferCorrectLayout infrastructure. We can define
     new layouts for conv2d ops for now. Most of the other operators try to adapt to their input

@@ -17,7 +17,7 @@
 """TVM Script Parser Scope Handler Classes"""
 # pylint: disable=redefined-builtin, unused-argument, invalid-name, relative-beyond-top-level
 
-from typed_ast import ast3 as ast
+from synr import ast
 import tvm.tir
 from .utils import get_param_list
 from .registry import register
@@ -92,7 +92,7 @@ class Allocate(WithScopeHandler):
                 context.report_error("Unexpected number of vars")
             name = names[0]
         elif isinstance(node, ast.Assign):
-            name = node.targets[0].id
+            name = node.lhs.id.name
         else:
             raise Exception("Internal Bug")
 
@@ -186,15 +186,15 @@ class ForScopeHandler(ScopeHandler):
         assert isinstance(node, ast.For)
 
         loop_var_names = list()
-        if isinstance(node.target, ast.Name):
-            loop_var_names.append(node.target.id)
-        elif isinstance(node.target, ast.Tuple):
-            for elt in node.target.elts:
-                if not isinstance(elt, ast.Name):
-                    context.report_error("Invalid loop var")
-                loop_var_names.append(elt.id)
+        if isinstance(node.lhs, ast.Var):
+            loop_var_names.append(node.lhs.id.name)
+        elif isinstance(node.lhs, ast.Tuple):
+            for elt in node.lhs.values:
+                if not isinstance(elt, ast.Var):
+                    context.report_error("Invalid loop var", elt.span)
+                loop_var_names.append(elt.id.name)
         else:
-            context.report_error("Invalid loop var")
+            context.report_error("Invalid loop var", node.lhs)
 
         self.loop_vars = [tvm.te.var(name, dtype="int32") for name in loop_var_names]
         for loop_var in self.loop_vars:

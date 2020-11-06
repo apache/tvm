@@ -19,9 +19,9 @@
 import tvm
 from tvm import te
 
-from .util import get_pad_tuple
-from ..util import get_const_tuple
-from ..cpp.util import bilinear_sample_nchw
+from .utils import get_pad_tuple
+from ..utils import get_const_tuple
+from ..cpp.utils import bilinear_sample_nchw
 
 
 def deformable_conv2d_nchw(

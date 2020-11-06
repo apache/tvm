@@ -23,7 +23,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.contrib.util import tempdir
+from tvm.contrib.utils import tempdir
 import tvm.contrib.graph_runtime as runtime
 from tvm import relay
 

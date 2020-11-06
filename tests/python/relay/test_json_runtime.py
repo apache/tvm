@@ -24,7 +24,7 @@ import tvm
 import tvm.relay.op as reg
 import tvm.relay.testing
 from tvm import relay, runtime
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.relay import transform
 from tvm.relay.backend import compile_engine
 from tvm.relay.build_module import bind_params_by_name

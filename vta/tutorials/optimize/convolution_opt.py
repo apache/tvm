@@ -45,7 +45,7 @@ import vta
 import numpy as np
 
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 from vta.testing import simulator
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -93,7 +93,7 @@ elif env.TARGET in ["sim", "tsim"]:
 # convolution followed by a rectified linear activation.
 # We describe the TVM dataflow graph of the 2D convolution layer below:
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/conv2d_dataflow.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/conv2d_dataflow.png
 #      :align: center
 #
 # This computation is intentionally too large to fit onto VTA's on-chip
@@ -120,7 +120,7 @@ elif env.TARGET in ["sim", "tsim"]:
 #   loaded from DRAM into VTA's SRAM, following a 2D strided and padded memory
 #   read.
 #
-#   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/padding.png
+#   .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/padding.png
 #        :align: center
 #        :width: 480px
 
@@ -292,7 +292,7 @@ s[res_conv].reorder(ic_out, b_inn, oc_inn, y_inn, ic_inn, dy, dx, x_inn, b_tns, 
 # We show how work is split when computing the 2D convolution in the figure
 # below.
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/virtual_threading.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/virtual_threading.png
 #      :align: center
 #      :width: 480px
 
@@ -370,7 +370,7 @@ from tvm.topi.testing import conv2d_nchw_python
 
 # Compile the TVM module
 my_conv = vta.build(s, [data, kernel, res], "ext_dev", env.target_host, name="my_conv")
-temp = util.tempdir()
+temp = utils.tempdir()
 my_conv.save(temp.relpath("conv2d.o"))
 remote.upload(temp.relpath("conv2d.o"))
 f = remote.load_module("conv2d.o")

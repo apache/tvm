@@ -22,7 +22,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
-from util.assert_diagnostic import DiagnosticTesting
+from utils.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
 
@@ -405,6 +405,7 @@ def verify_any_squeeze(data_shape, axis, static_data_shape):
 
 @tvm.testing.uses_gpu
 def test_any_squeeze():
+    verify_any_squeeze((relay.Any(), relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze((1, relay.Any(), relay.Any()), (0,), (1, 9, 8))
     verify_any_squeeze(
         (1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17)
@@ -684,6 +685,7 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
 
 @tvm.testing.uses_gpu
 def test_any_split():
+    verify_any_split((relay.Any(), 4), 2, -1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), relay.Any()), 2, 1, (9, 4), [(9, 2), (9, 2)])
     verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
@@ -1119,6 +1121,94 @@ def test_any_ndarray_size():
     verify_any_ndarray_size((1, 2, 3, 4))
 
 
+def verify_any_resize(data_shape, scale, layout, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    if layout == "NHWC":
+        size = (data_shape[1] * scale, data_shape[2] * scale)
+    else:
+        size = (data_shape[2] * scale, data_shape[3] * scale)
+    y = relay.image.resize(data, size, layout)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_resize():
+    verify_any_resize(
+        data_shape=(relay.Any(), 4, 4, 4),
+        scale=2,
+        layout="NHWC",
+        static_data_shape=(1, 4, 4, 4),
+        ref_out_shape=(1, 8, 8, 4),
+    )
+    verify_any_resize(
+        data_shape=(relay.Any(), 8, 17, 20),
+        scale=3,
+        layout="NCHW",
+        static_data_shape=(2, 8, 17, 20),
+        ref_out_shape=(2, 8, 51, 60),
+    )
+
+
+def verify_any_grid_sample(data_shape, grid_shape, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    grid = relay.var("grid", shape=grid_shape, dtype=dtype)
+    y = relay.image.grid_sample(data, grid)
+    mod["main"] = relay.Function([data, grid], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    grid_np = np.random.uniform(size=grid_shape).astype(dtype)
+    check_result([data_np, grid_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_grid_sample():
+    verify_any_grid_sample(
+        data_shape=(relay.Any(), 4, 16, 32),
+        grid_shape=(4, 2, 8, 8),
+        static_data_shape=(4, 4, 16, 32),
+        ref_out_shape=(4, 4, 8, 8),
+    )
+    verify_any_grid_sample(
+        data_shape=(relay.Any(), 4, 16, 32),
+        grid_shape=(4, 2, 32, 32),
+        static_data_shape=(4, 4, 16, 32),
+        ref_out_shape=(4, 4, 32, 32),
+    )
+
+
+def verify_any_affine_grid(num_batch, static_num_batch, target_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data_shape = (num_batch, 2, 3)
+    static_data_shape = (static_num_batch, 2, 3)
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.image.affine_grid(data, target_shape)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    check_result([data_np], mod, ref_out_shape, assert_shape=True)
+
+
+@tvm.testing.uses_gpu
+def test_any_affine_grid():
+    verify_any_affine_grid(
+        num_batch=relay.Any(),
+        static_num_batch=1,
+        target_shape=(16, 32),
+        ref_out_shape=(1, 2, 16, 32),
+    )
+    verify_any_affine_grid(
+        num_batch=relay.Any(),
+        static_num_batch=8,
+        target_shape=(32, 32),
+        ref_out_shape=(8, 2, 32, 32),
+    )
+
+
 def test_any_consecutive_broadcast():
     dtype = "float32"
     data0 = relay.var("data0", shape=any_dims(2), dtype=dtype)
@@ -1234,6 +1324,50 @@ def test_any_stack():
     verify_any_stack(any_dims(2), (1, 2), 3, 0)
     verify_any_stack(any_dims(1), (3,), 4, -1)
     verify_any_stack(any_dims(4), (2, 1, 1, 4), 2, 2)
+
+
+def verify_any_where(
+    cond_shape, x_shape, y_shape, cond_np_shape, x_np_shape, y_np_shape, y_np_shape_invalid=None
+):
+    dtype = "float32"
+    cond = relay.var("cond", shape=cond_shape, dtype="bool")
+    x = relay.var("x", shape=x_shape, dtype=dtype)
+    y = relay.var("y", shape=y_shape, dtype=dtype)
+    z = relay.where(cond, x, y)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([cond, x, y], z)
+
+    cond_np = np.random.randn(*cond_np_shape) > 0
+    x_np = np.random.randn(*x_np_shape).astype(dtype)
+    y_np = np.random.randn(*y_np_shape).astype(dtype)
+    expected = np.where(cond_np, x_np, y_np)
+
+    check_result([cond_np, x_np, y_np], mod, expected)
+
+    # verify invalid broadcasting check
+    if y_np_shape_invalid:
+        y_np_bad = np.random.randn(*y_np_shape_invalid).astype(dtype)
+        try:
+            check_result([cond_np, x_np, y_np_bad], mod, expected)
+        except tvm.error.TVMError as e:
+            error_msg = str(e).split("\n")[-1]
+            assert "Invalid broadcast shapes" in error_msg
+
+
+@tvm.testing.uses_gpu
+def test_any_where():
+    verify_any_where(any_dims(1), (5,), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), any_dims(1), (5,), (5,), (5,), (5,))
+    verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (5,), (5,))
+    verify_any_where((5,), any_dims(1), any_dims(1), (5,), (5,), (5,))
+
+    # where with broadcast
+    verify_any_where(any_dims(1), any_dims(1), any_dims(1), (5,), (1,), (5,))
+    verify_any_where(any_dims(1), any_dims(2), any_dims(2), (5,), (5, 5), (5, 5))
+    verify_any_where(any_dims(1), any_dims(1), any_dims(2), (5,), (5,), (5, 5))
+    verify_any_where(
+        any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
+    )
 
 
 if __name__ == "__main__":

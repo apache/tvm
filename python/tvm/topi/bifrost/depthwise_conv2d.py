@@ -22,7 +22,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 
-from .. import util
+from .. import utils
 from .. import tag
 
 
@@ -70,12 +70,12 @@ def schedule_depthwise_conv2d_nchw(outs):
         VH = 1
         VW = 1
         num_thread = 4
-        while util.get_const_int(conv.shape[3]) % (VW * 2) == 0 and VW * 2 <= 4:
+        while utils.get_const_int(conv.shape[3]) % (VW * 2) == 0 and VW * 2 <= 4:
             VW = VW * 2
-        while util.get_const_int(conv.shape[2]) % (VH * 2) == 0 and VH * 2 <= 2:
+        while utils.get_const_int(conv.shape[2]) % (VH * 2) == 0 and VH * 2 <= 2:
             VH = VH * 2
         if raw_data.dtype == "float16":
-            if util.get_const_int(conv.shape[3]) % (VW * 2) == 0:
+            if utils.get_const_int(conv.shape[3]) % (VW * 2) == 0:
                 VW *= 2
                 num_thread *= 2
             else:

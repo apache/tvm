@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 import tvm
 from tvm import te
-from tvm.topi.util import nchw_pack_layout, nchw_xc_layout
+from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
 from .. import tag
 
 

@@ -51,7 +51,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # Save Compiled Module
 # --------------------
 from tvm.contrib import cc
-from tvm.contrib import util
+from tvm.contrib import utils
 
 fadd.save("deploy.o")
 cc.create_shared("deploy.so", ["deploy.o"])

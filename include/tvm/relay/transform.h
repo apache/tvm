@@ -194,8 +194,9 @@ TVM_DLL Pass ToGraphNormalForm();
 TVM_DLL Pass PartialEval();
 
 /*!
- * \brief Simplify certain operators during inference. For example, batch norm
- * will be unpacked into a number of simplified operators.
+ * \brief Simplify certain operators during inference. For example, the result
+ * of a batch norm which is indexed at tuple index 0 will be unpacked into a
+ * number of simplified operators.
  *
  * \return The Pass.
  */

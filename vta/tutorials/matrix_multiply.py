@@ -40,7 +40,7 @@ from tvm import te
 import vta
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import utils
 from vta.testing import simulator
 
 # Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
@@ -86,7 +86,7 @@ elif env.TARGET in ["sim", "tsim"]:
 # The last operation is a cast and copy back to DRAM, into results tensor
 # :code:`C`.
 #
-# .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/gemm_dataflow.png
+# .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/gemm_dataflow.png
 #      :align: center
 
 ######################################################################
@@ -107,7 +107,7 @@ elif env.TARGET in ["sim", "tsim"]:
 #   adding the result matrix to an accumulator matrix, as shown in the
 #   figure below.
 #
-#   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/tensor_core.png
+#   .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/tensor_core.png
 #        :align: center
 #        :width: 480px
 #
@@ -126,7 +126,7 @@ elif env.TARGET in ["sim", "tsim"]:
 #   contiguous.
 #   The resulting tiled tensor has a shape of (2, 4, 2, 2).
 #
-#   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/main/vta/tutorial/data_tiling.png
+#   .. image:: https://raw.githubusercontent.com/uwsampl/web-data/main/vta/tutorial/data_tiling.png
 #        :align: center
 #        :width: 480px
 #
@@ -389,7 +389,7 @@ print(vta.lower(s, [A, B, C], simple_mode=True))
 my_gemm = vta.build(s, [A, B, C], "ext_dev", env.target_host, name="my_gemm")
 
 # Write the compiled module into an object file.
-temp = util.tempdir()
+temp = utils.tempdir()
 my_gemm.save(temp.relpath("gemm.o"))
 
 # Send the executable over RPC

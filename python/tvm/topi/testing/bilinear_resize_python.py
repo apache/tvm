@@ -18,7 +18,7 @@
 """Bilinear Scale in python"""
 import math
 import numpy as np
-from tvm.topi.util import nchw_pack_layout
+from tvm.topi.utils import nchw_pack_layout
 
 
 def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mode="align_corners"):

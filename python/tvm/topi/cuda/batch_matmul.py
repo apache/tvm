@@ -22,7 +22,7 @@ from tvm import te
 from tvm.contrib import cublas
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn
-from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
+from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @autotvm.register_topi_compute("batch_matmul.cuda")

@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, exec-used
 """Setup TVM package."""
-from __future__ import absolute_import
 import os
 import shutil
 import sys
@@ -184,7 +183,7 @@ setup(
         "decorator",
         "attrs",
         "psutil",
-        "typed_ast",
+        "synr>=0.2.1",
     ],
     extras_require={
         "test": ["pillow<7", "matplotlib"],

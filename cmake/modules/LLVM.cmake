@@ -16,7 +16,14 @@
 # under the License.
 
 # LLVM rules
-add_definitions(-DDMLC_USE_FOPEN64=0)
+# Due to LLVM debug symbols you can sometimes face linking issues on
+# certain compiler, platform combinations if you don't set NDEBUG.
+#
+# See https://github.com/imageworks/OpenShadingLanguage/issues/1069
+# for more discussion.
+add_definitions(-DDMLC_USE_FOPEN64=0 -DNDEBUG=1)
+# TODO(@jroesch, @tkonolige): if we actually use targets we can do this.
+# target_compile_definitions(tvm PRIVATE NDEBUG=1)
 
 # Test if ${USE_LLVM} is not an explicit boolean false
 # It may be a boolean or a string

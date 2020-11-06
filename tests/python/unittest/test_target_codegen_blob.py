@@ -49,9 +49,9 @@ def test_synthetic():
     with tvm.transform.PassContext(opt_level=3):
         synthetic_gpu_lib = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
 
-    from tvm.contrib import util
+    from tvm.contrib import utils
 
-    temp = util.tempdir()
+    temp = utils.tempdir()
     path_lib = temp.relpath("deploy_lib.so")
     synthetic_gpu_lib.export_library(path_lib)
 
@@ -82,9 +82,9 @@ def test_cuda_lib():
     s[B].bind(bx, te.thread_axis("blockIdx.x"))
     s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
-    from tvm.contrib import util
+    from tvm.contrib import utils
 
-    temp = util.tempdir()
+    temp = utils.tempdir()
     fn_add = tvm.build(s, [A, B], target="cuda", target_host="llvm", name="add")
     path_lib = temp.relpath("deploy_lib.so")
     fn_add.export_library(path_lib)

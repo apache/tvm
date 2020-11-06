@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import topi
-from tvm.contrib import util
+from tvm.contrib import utils
 
 import vta
 import vta.testing
@@ -54,7 +54,7 @@ def test_save_load_out():
 
         if not remote:
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         m.save(temp.relpath("load_act.o"))
         remote.upload(temp.relpath("load_act.o"))
         f = remote.load_module("load_act.o")
@@ -125,7 +125,7 @@ def test_padded_load():
 
             if not remote:
                 return
-            temp = util.tempdir()
+            temp = utils.tempdir()
             mod.save(temp.relpath("padded_load.o"))
             remote.upload(temp.relpath("padded_load.o"))
             f = remote.load_module("padded_load.o")
@@ -209,7 +209,7 @@ def test_gemm():
 
         def verify(s, name=None):
             mod = vta.build(s, [x, w, y], "ext_dev", env.target_host)
-            temp = util.tempdir()
+            temp = utils.tempdir()
             mod.save(temp.relpath("gemm.o"))
             remote.upload(temp.relpath("gemm.o"))
             f = remote.load_module("gemm.o")
@@ -371,7 +371,7 @@ def test_alu():
                     mod = vta.build(s, [a, res], "ext_dev", env.target_host)
                 else:
                     mod = vta.build(s, [a, b, res], "ext_dev", env.target_host)
-            temp = util.tempdir()
+            temp = utils.tempdir()
             mod.save(temp.relpath("load_act.o"))
             remote.upload(temp.relpath("load_act.o"))
             f = remote.load_module("load_act.o")
@@ -454,7 +454,7 @@ def test_relu():
             mod = vta.build(s, [a, res], "ext_dev", env.target_host)
         if not remote:
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         mod.save(temp.relpath("load_act.o"))
         remote.upload(temp.relpath("load_act.o"))
         f = remote.load_module("load_act.o")
@@ -516,7 +516,7 @@ def test_shift_and_scale():
         mod = vta.build(s, [a, res], "ext_dev", env.target_host)
         if not remote:
             return
-        temp = util.tempdir()
+        temp = utils.tempdir()
         mod.save(temp.relpath("load_act.o"))
         remote.upload(temp.relpath("load_act.o"))
         f = remote.load_module("load_act.o")
