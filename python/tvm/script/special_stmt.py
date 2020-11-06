@@ -17,7 +17,7 @@
 """TVM Script Parser Special Stmt Classes"""
 # pylint: disable=unused-argument, no-self-argument, inconsistent-return-statements
 # pylint: disable=relative-beyond-top-level
-from typed_ast import ast3 as ast
+from synr import ast
 
 import tvm.tir
 from tvm import te
@@ -69,7 +69,9 @@ class MatchBuffer(SpecialStmt):
             assert isinstance(self.node, ast.Assign)
 
             if param not in self.context.func_params:
-                self.context.report_error("Can not bind non-input param to buffer")
+                self.context.report_error(
+                    "Can not bind non-input param to buffer", self.node.rhs.params[0].span
+                )
             if strides is None:
                 strides = []
             align = align.value if not isinstance(align, int) else align
@@ -79,7 +81,7 @@ class MatchBuffer(SpecialStmt):
             buffer = tvm.tir.decl_buffer(
                 shape,
                 dtype,
-                self.node.targets[0].id,
+                self.node.lhs.id.name,
                 data,
                 strides,
                 elem_offset,
@@ -89,7 +91,7 @@ class MatchBuffer(SpecialStmt):
                 buffer_type,
             )
             self.context.func_buffer_map[param] = buffer
-            self.context.update_symbol(self.node.targets[0].id, buffer)
+            self.context.update_symbol(self.node.lhs.id.name, buffer)
 
         super().__init__(match_buffer, def_symbol=True)
 
@@ -127,7 +129,7 @@ class BufferDeclare(SpecialStmt):
             buffer = tvm.tir.decl_buffer(
                 shape,
                 dtype,
-                self.node.targets[0].id,
+                self.node.lhs.id.name,
                 data,
                 strides,
                 elem_offset,
@@ -136,7 +138,7 @@ class BufferDeclare(SpecialStmt):
                 offset_factor,
                 buffer_type,
             )
-            self.context.update_symbol(self.node.targets[0].id, buffer)
+            self.context.update_symbol(self.node.lhs.id.name, buffer)
             return buffer
 
         super().__init__(buffer_decl, def_symbol=True)
@@ -149,7 +151,7 @@ class VarDef(SpecialStmt):
     def __init__(self):
         def var(dtype):
             assert isinstance(self.node, ast.Assign)
-            v = te.var(self.node.targets[0].id, dtype)
+            v = te.var(self.node.lhs.id.name, dtype)
             self.context.update_symbol(v.name, v)
 
         super().__init__(var, def_symbol=True)
@@ -162,7 +164,7 @@ class EnvThread(SpecialStmt):
     def __init__(self):
         def env_thread(env_name):
             assert isinstance(self.node, ast.Assign)
-            v = te.var(self.node.targets[0].id)
+            v = te.var(self.node.lhs.id.name)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v)
 
