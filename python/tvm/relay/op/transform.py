@@ -345,6 +345,15 @@ def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_e
     -------
     ret : relay.Expr
         The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+        data.shape == (1, 2, 3, 4)
+        shape_like.shape == (6, 2, 2, 3)
+
+        ret = relay.reshape_like(data, shape_like, lhs_begin=1, rhs_end=3)
+        ret.shape == (1, 6, 2, 2)
     """
     return _make.reshape_like(data, shape_like, lhs_begin, lhs_end, rhs_begin, rhs_end)
 

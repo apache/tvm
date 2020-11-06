@@ -832,6 +832,13 @@ For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation re
 the input array into an output array with the same shape as the second input array.
 .. note::
     Sizes for both array should be compatible.
+Example::
+
+  data.shape == (1, 2, 3, 4)
+  shape_like.shape == (6, 2, 2, 3)
+
+  ret = reshape_like(data, shape_like, lhs_begin=1, rhs_end=3)
+  ret.shape == (1, 6, 2, 2)
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<ReshapeLikeAttrs>()
     .set_num_inputs(2)
