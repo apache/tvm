@@ -17,7 +17,7 @@
 import numpy as np
 import math
 import onnx
-from onnx import helper, TensorProto, mapping
+from onnx import helper, TensorProto, mapping, numpy_helper
 import torch
 import torchvision
 import tvm.topi.testing
@@ -3839,6 +3839,53 @@ def test_loop():
     verify_cond_loop()
     # Test a loop that exits after a fixed number of iterations.
     verify_count_loop()
+
+
+@tvm.testing.uses_gpu
+def test_if():
+    # Given a bool scalar input cond.
+    # return constant tensor x if cond is True, otherwise return constant tensor y.
+    then_out = onnx.helper.make_tensor_value_info("then_out", onnx.TensorProto.FLOAT, [5])
+    else_out = onnx.helper.make_tensor_value_info("else_out", onnx.TensorProto.FLOAT, [5])
+
+    x = np.array([1, 2, 3, 4, 5]).astype(np.float32)
+    y = np.array([5, 4, 3, 2, 1]).astype(np.float32)
+
+    then_const_node = onnx.helper.make_node(
+        "Constant", inputs=[], outputs=["then_out"], value=onnx.numpy_helper.from_array(x)
+    )
+
+    else_const_node = onnx.helper.make_node(
+        "Constant", inputs=[], outputs=["else_out"], value=onnx.numpy_helper.from_array(y)
+    )
+
+    then_body = onnx.helper.make_graph([then_const_node], "then_body", [], [then_out])
+
+    else_body = onnx.helper.make_graph([else_const_node], "else_body", [], [else_out])
+
+    if_node = onnx.helper.make_node(
+        "If", inputs=["cond"], outputs=["res"], then_branch=then_body, else_branch=else_body
+    )
+
+    if_graph = onnx.helper.make_graph(
+        [if_node],
+        "if_outer",
+        inputs=[
+            onnx.helper.make_tensor_value_info("cond", onnx.TensorProto.BOOL, []),
+        ],
+        outputs=[
+            onnx.helper.make_tensor_value_info("res", onnx.TensorProto.FLOAT, [5]),
+        ],
+    )
+
+    if_model = onnx.helper.make_model(if_graph)
+    cond = np.array(1).astype("bool")
+    correct_out = x if cond else y
+
+    for target, ctx in tvm.testing.enabled_targets():
+        tvm_out = get_tvm_output_with_vm(if_model, [cond], target, ctx, freeze_params=True)
+        for i in range(len(tvm_out)):
+            tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
 
 if __name__ == "__main__":

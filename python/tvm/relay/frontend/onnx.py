@@ -2146,7 +2146,9 @@ class Loop(OnnxOpConverter):
 
             # Get the output of the current loop using the updated inputs.
             with subgraph_scope:
-                loop_outputs = subgraph_scope.from_onnx(body, 11, get_output_expr=True)
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
             # Unpack the body outputs and prepare variables for next iteration.
             new_cond = loop_outputs[0]
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
@@ -2195,6 +2197,43 @@ class Loop(OnnxOpConverter):
         for var in free_vars:
             graph_scope._nodes.update({var.name_hint: var})
         return outputs
+
+
+class If(OnnxOpConverter):
+    """Operator converter for If"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        cond = inputs[0]
+        then_branch = attr.get("then_branch", None)
+        else_branch = attr.get("else_branch", None)
+        assert then_branch is not None and else_branch is not None
+
+        # Create graph converters for both branches.
+        graph_scope = GraphProto.current
+        then_graph = GraphProto(graph_scope._shape, graph_scope._dtype)
+        then_graph._nodes = graph_scope._nodes.copy()
+        else_graph = GraphProto(graph_scope._shape, graph_scope._dtype)
+        else_graph._nodes = graph_scope._nodes.copy()
+
+        # Convert each branch to a relay expression.
+        with then_graph:
+            then_expr = then_graph.from_onnx(then_branch, graph_scope.opset, get_output_expr=True)
+        with else_graph:
+            else_expr = else_graph.from_onnx(else_branch, graph_scope.opset, get_output_expr=True)
+
+        # Add constants from both branches to parent graph.
+        graph_scope._params.update(then_graph._params)
+        then_free_vars = analysis.free_vars(then_expr)
+        for var in then_free_vars:
+            graph_scope._nodes.update({var.name_hint: var})
+        graph_scope._params.update(else_graph._params)
+        else_free_vars = analysis.free_vars(else_expr)
+        for var in else_free_vars:
+            graph_scope._nodes.update({var.name_hint: var})
+
+        # Now we can construct the relay if statement and return.
+        return _expr.If(cond, then_expr, else_expr)
 
 
 # compatible operators that do NOT require any conversion.
@@ -2354,6 +2393,7 @@ def _get_convert_map(opset):
         "Range": Range.get_converter(opset),
         # defs/control_flow
         "Loop": Loop.get_converter(opset),
+        "If": If.get_converter(opset),
     }
 
 
@@ -2381,6 +2421,7 @@ class GraphProto:
         self._num_param = 0
         self._shape = shape if shape else {}
         self._dtype = dtype
+        self.opset = None
 
     def __enter__(self):
         self._old_manager = GraphProto.current
@@ -2436,6 +2477,7 @@ class GraphProto:
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
+        self.opset = opset
         # parse network inputs to relay, aka parameters
         for init_tensor in graph.initializer:
             if not init_tensor.name.strip():
