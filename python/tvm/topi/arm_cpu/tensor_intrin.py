@@ -969,6 +969,7 @@ def smlal_int16_int32():
         default_buffer_params=buffer_params,
     )
 
+
 def gemm_acc_2x2_int8_int8_int32(dtype):
     """
     Int8 2x2 matrix multiplication using smmla/ummla instructions
