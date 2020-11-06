@@ -194,6 +194,11 @@ class ReshapeAttrs(Attrs):
     """Attributes for transform.reshape"""
 
 
+@tvm._ffi.register_object("relay.attrs.ReshapeLikeAttrs")
+class ReshapeLikeAttrs(Attrs):
+    """Attributes for transform.reshape_like"""
+
+
 @tvm._ffi.register_object("relay.attrs.GatherAttrs")
 class GatherAttrs(Attrs):
     """Attributes for transform.gather"""

@@ -453,6 +453,7 @@ RELAY_REGISTER_OP("transpose")
 
 /* relay.reshape */
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
+TVM_REGISTER_NODE_TYPE(ReshapeLikeAttrs);
 
 Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs) {
   const auto* param = attrs.as<ReshapeAttrs>();
@@ -641,11 +642,49 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
+Array<PrimExpr> infer_reshape_like(const Array<PrimExpr>& lhs_shape,
+                                   const Array<PrimExpr>& rhs_shape, const Attrs& attrs) {
+  const auto* like_attrs = attrs.as<ReshapeLikeAttrs>();
+  CHECK(!like_attrs->lhs_end.defined() || like_attrs->lhs_end.as<IntImmNode>())
+      << "lhs_end must be a concrete integer or None";
+  CHECK(!like_attrs->rhs_end.defined() || like_attrs->rhs_end.as<IntImmNode>())
+      << "rhs_end must be a concrete integer or None";
+
+  int64_t lhs_shape_size = static_cast<int64_t>(lhs_shape.size());
+  int64_t rhs_shape_size = static_cast<int64_t>(rhs_shape.size());
+  int64_t lhs_begin = static_cast<int64_t>(like_attrs->lhs_begin);
+  int64_t lhs_end =
+      like_attrs->lhs_end.defined() ? like_attrs->lhs_end.as<IntImmNode>()->value : lhs_shape_size;
+  int64_t rhs_begin = static_cast<int64_t>(like_attrs->rhs_begin);
+  int64_t rhs_end =
+      like_attrs->rhs_end.defined() ? like_attrs->rhs_end.as<IntImmNode>()->value : rhs_shape_size;
+
+  // handle negative axes
+  lhs_begin = lhs_begin < 0 ? lhs_begin + lhs_shape_size : lhs_begin;
+  lhs_end = lhs_end < 0 ? lhs_end + lhs_shape_size : lhs_end;
+  rhs_begin = rhs_begin < 0 ? rhs_begin + rhs_shape_size : rhs_begin;
+  rhs_end = rhs_end < 0 ? rhs_end + rhs_shape_size : rhs_end;
+
+  Array<PrimExpr> shape_like;
+  for (auto i = 0; i < lhs_begin; i++) {
+    shape_like.push_back(lhs_shape[i]);
+  }
+  for (auto i = rhs_begin; i < rhs_end; i++) {
+    shape_like.push_back(rhs_shape[i]);
+  }
+  for (auto i = lhs_end; i < lhs_shape_size; i++) {
+    shape_like.push_back(lhs_shape[i]);
+  }
+  return shape_like;
+}
+
 Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
   // Quick path for reshape_like
   if (!attrs.as<ReshapeAttrs>()) {
-    return {topi::reshape(inputs[0], inputs[1]->shape)};
+    ICHECK(attrs.as<ReshapeLikeAttrs>() != nullptr);
+    auto shape_like = infer_reshape_like(inputs[0]->shape, inputs[1]->shape, attrs);
+    return {topi::reshape(inputs[0], shape_like)};
   }
 
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -746,6 +785,7 @@ Example::
  */
 bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
+  ICHECK(attrs.as<ReshapeLikeAttrs>() != nullptr);
   ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
@@ -755,6 +795,7 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (reshape_like == nullptr) {
     return false;
   }
+  auto shape_like = infer_reshape_like(data->shape, reshape_like->shape, attrs);
   // Only check When input data has static shape.
   bool is_static_shape = true;
   for (size_t i = 0; i < data->shape.size(); ++i) {
@@ -763,17 +804,24 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       break;
     }
   }
+  auto output_type = TensorType(shape_like, data->dtype);
   if (is_static_shape) {
-    ICHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
+    ICHECK(reporter->AssertEQ(data->Size(), output_type->Size()))
         << "Reshape inputs size should be compatible.";
   }
-  reporter->Assign(types[2], TensorType(reshape_like->shape, data->dtype));
+  reporter->Assign(types[2], output_type);
   return true;
 }
 
-Expr MakeReshapeLike(Expr data, Expr shape_like) {
+Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
+                     Integer rhs_end) {
+  auto attrs = make_object<ReshapeLikeAttrs>();
+  attrs->lhs_begin = std::move(lhs_begin);
+  attrs->lhs_end = std::move(lhs_end);
+  attrs->rhs_begin = std::move(rhs_begin);
+  attrs->rhs_end = std::move(rhs_end);
   static const Op& op = Op::Get("reshape_like");
-  return Call(op, {data, shape_like}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.reshape_like").set_body_typed(MakeReshapeLike);
@@ -784,7 +832,15 @@ For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation re
 the input array into an output array with the same shape as the second input array.
 .. note::
     Sizes for both array should be compatible.
+Example::
+
+  data.shape == (1, 2, 3, 4)
+  shape_like.shape == (6, 2, 2, 3)
+
+  ret = reshape_like(data, shape_like, lhs_begin=1, rhs_end=3)
+  ret.shape == (1, 6, 2, 2)
 )code" TVM_ADD_FILELINE)
+    .set_attrs_type<ReshapeLikeAttrs>()
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("shape_like", "Tensor", "Shape tensor.")

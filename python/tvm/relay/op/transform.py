@@ -308,28 +308,55 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
-def reshape_like(data, shape_like):
-    """Reshapes the input array by the size of another array.
-    For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
-    the input array into an output array with the same shape as the second input array.
+def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_end=None):
+    """Reshapes the input tensor by the size of another tensor.
+    For an input tensor with shape ``(d0, d1, ..., d(k-1))``, `reshape_like` operation reshapes
+    the input tensor into an output tensor with the same shape as the second input tensor,
+    in particular reshaping the dimensions of `data` in `[lhs_begin, lhs_end)` using the dimensions
+    from `shape_like` in `[rhs_begin, rhs_end)`.
 
     .. note::
-        Sizes for both array should be compatible.
+        Sizes for `data` and the output tensor should be compatible.
 
     Parameters
     ----------
     data : relay.Expr
         The input data to the operator.
 
-    shape_like : tuple of int
-        The new shape. Should be compatible with the original shape.
+    shape_like : relay.Expr
+        The tensor to reshape data like. Should be compatible with the original shape on the
+        reshaped dimensions.
+
+    lhs_begin : int, optional
+        The axis of data to begin reshaping. Default is 0.
+
+    lhs_end : int or None, optional
+        The axis of data where reshaping should stop, exclusive. Default is None which reshapes to
+        the end.
+
+    rhs_begin : int, optional
+        The axis of shape_like where the target shape begins. Default is 0.
+
+    rhs_end : int or None, optional
+        The axis of shape_like where the target shape ends, exclusive. Default is None which extends
+        to the end.
 
     Returns
     -------
     ret : relay.Expr
         The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data.shape == (1, 2, 3, 4)
+        shape_like.shape == (6, 2, 2, 3)
+
+        ret = relay.reshape_like(data, shape_like, lhs_begin=1, rhs_end=3)
+        ret.shape == (1, 6, 2, 2)
     """
-    return _make.reshape_like(data, shape_like)
+    return _make.reshape_like(data, shape_like, lhs_begin, lhs_end, rhs_begin, rhs_end)
 
 
 def take(data, indices, axis=None, mode="clip"):
