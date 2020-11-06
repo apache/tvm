@@ -27,6 +27,7 @@ import tvm.topi.testing
 import random
 import tvm.testing
 
+
 @tvm.testing.uses_gpu
 def test_broadcast_to():
     def verify_more_dynamic_broadcast_to(x_shape, out_shape):

@@ -430,7 +430,6 @@ def verify_dynamic_strided_slice(in_shape, begin, end, strides=None):
     Strides = te.placeholder(shape=[len(in_shape)], name="strides", dtype="int64")
     strides = [1, 1, 1] if strides is None else strides
     B = topi.strided_slice(A, Begin, End, Strides) + 1
-    
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -818,6 +817,7 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
+
 
 @tvm.testing.uses_gpu
 def test_dynamic_strided_slice():

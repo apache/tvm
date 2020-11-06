@@ -36,6 +36,7 @@ def verify_func(func, data, ref_res):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
+
 @tvm.testing.uses_gpu
 def test_dyn_reshape():
     def verify_reshape(shape, newshape, oshape):
@@ -65,6 +66,7 @@ def test_dyn_reshape():
     verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
     verify_reshape((2, 3, 4), (0, -3), (2, 12))
 
+
 @tvm.testing.uses_gpu
 def test_dyn_shape_reshape():
     def verify_reshape(shape, newshape, oshape):
@@ -81,6 +83,7 @@ def test_dyn_shape_reshape():
 
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
+
 
 @tvm.testing.uses_gpu
 def test_dyn_tile():

@@ -200,7 +200,11 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     -------
     ret : tvm.te.Tensor
     """
-    if isinstance(begin, tvm.te.Tensor) or isinstance(end, tvm.te.Tensor) or isinstance(strides, tvm.te.Tensor):
+    if (
+        isinstance(begin, tvm.te.Tensor)
+        or isinstance(end, tvm.te.Tensor)
+        or isinstance(strides, tvm.te.Tensor)
+    ):
         if not isinstance(begin, tvm.te.Tensor):
             begin = const_vector(begin)
         if not isinstance(end, tvm.te.Tensor):

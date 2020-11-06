@@ -203,6 +203,7 @@ def const_vector(vector, name="const_vector"):
         The created tensor
     """
     import numpy as np
+
     if not isinstance(vector, np.ndarray):
         vector = np.array(vector)
     row = vector.shape[0]
@@ -220,7 +221,6 @@ def const_vector(vector, name="const_vector"):
         return now
 
     return te.compute(vector.shape, select_array, name=name)
-
 
     return tuple(ret)
 
