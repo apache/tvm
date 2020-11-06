@@ -122,8 +122,8 @@ def test_gather_nd_grad():
     indices = relay.var("indices", relay.TensorType((2, 4), "int64"))
     fwd = relay.Function([data, indices], relay.gather_nd(data, indices))
     data_np = np.random.rand(2, 3).astype("float64")
-    indices_np = np.array([[0, 1, 1, 0], [0, 1, 2, 1]]).astype("int64")
-    check_grad(fwd, inputs=[data_np, indices_np], test_inputs=indices_np)
+    indices_np = np.array([[0, 1, 1, 0], [0, 1, 0, 0]], dtype="int64")
+    check_grad(fwd, inputs=[data_np, indices_np], test_inputs=[data_np])
 
 
 if __name__ == "__main__":

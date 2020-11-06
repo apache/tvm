@@ -143,6 +143,8 @@ def check_grad(
                         break
             grads = tmp
 
+        assert len(grads) > 0, "You must test at least one gradient."
+
         # Get numeric gradients for each dimension of each param, using two-sided approximation.
         approx_grads = []
         for x in test_inputs:

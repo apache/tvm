@@ -294,7 +294,7 @@ def scatter_nd(data, indices, shape):
                         )
                     )
                     offset *= shape[l]
-                out[index] = data[i * fused_data_dimension + j]
+                out[index] += data[i * fused_data_dimension + j]
 
         return ib.get()
 
