@@ -44,7 +44,7 @@ def build_graph_lib(model_file, opt_level):
 
     # Compile the relay mod
     mod, params = _get_mod_and_params(model_file)
-    target = "llvm -target=wasm32-unknown-unknown -mattr=+simd128 --system-lib"
+    target = "llvm -mtriple=wasm32-unknown-unknown -mattr=+simd128 --system-lib"
     with tvm.transform.PassContext(opt_level=opt_level):
         graph_json, lib, params = relay.build(mod, target=target, params=params)
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
         "--opt-level",
         type=int,
         default=0,
-        help="level of optimization. 0 is unoptimized and 3 is the highest level",
+        help="level of optimization. 0 is non-optimized and 3 is the highest level",
     )
     args = parser.parse_args()
 
