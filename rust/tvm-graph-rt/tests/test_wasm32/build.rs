@@ -51,7 +51,7 @@ fn main() -> Result<()> {
             .unwrap_or("")
     );
 
-    let ar = option_env!("LLVM_AR").unwrap_or("llvm-ar-8");
+    let ar = option_env!("LLVM_AR").unwrap_or("llvm-ar-10");
 
     let output = Command::new(ar)
         .arg("rcs")

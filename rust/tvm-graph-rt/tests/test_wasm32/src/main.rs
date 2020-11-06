@@ -28,15 +28,10 @@ unsafe fn __get_tvm_module_ctx() -> i32 {
     __tvm_module_ctx
 }
 
-extern crate ndarray;
-#[macro_use]
-extern crate tvm_graph_rt;
-
 use ndarray::Array;
 use tvm_graph_rt::{DLTensor, Module as _, SystemLibModule};
 
 fn main() {
-    // try static
     let mut a = Array::from_vec(vec![1f32, 2., 3., 4.]);
     let mut b = Array::from_vec(vec![1f32, 0., 1., 0.]);
     let mut c = Array::from_vec(vec![0f32; 4]);
@@ -44,11 +39,13 @@ fn main() {
     let mut a_dl: DLTensor = (&mut a).into();
     let mut b_dl: DLTensor = (&mut b).into();
     let mut c_dl: DLTensor = (&mut c).into();
+    let args = vec![(&mut a_dl).into(), (&mut b_dl).into(), (&mut c_dl).into()];
 
+    // try runtime
     let syslib = SystemLibModule::default();
     let add = syslib
         .get_function("default_function")
         .expect("main function not found");
-    call_packed!(add, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
+    add(&args[..]).unwrap();
     assert!(c.all_close(&e, 1e-8f32));
 }
