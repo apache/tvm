@@ -349,6 +349,7 @@ def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_e
     Examples
     --------
     .. code-block:: python
+
         data.shape == (1, 2, 3, 4)
         shape_like.shape == (6, 2, 2, 3)
 
