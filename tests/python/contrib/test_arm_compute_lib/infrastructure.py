@@ -276,10 +276,11 @@ def verify_codegen(
     module,
     known_good_codegen,
     num_acl_modules,
+    tvm_ops=0,
     target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
 ):
     """Check acl codegen against a known good output."""
-    module = build_module(module, target)
+    module = build_module(module, target, tvm_ops=tvm_ops, acl_partitions=num_acl_modules)
     acl_modules = extract_acl_modules(module)
 
     assert len(acl_modules) == num_acl_modules, (
