@@ -48,6 +48,8 @@ def conv2d_partition_function(ref_call, new_args, ctx):
     assert not kernel_cond
     if data_cond:
         data = new_args[0].realize()
+    else:
+        data = QPartitionExpr(data).realize()
     ret = _forward_op(ref_call, [data, kernel])
     return QPartitionExpr(ret)
 
