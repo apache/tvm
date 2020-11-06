@@ -80,7 +80,9 @@ def test_no_unroll_loop():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
     with tvm.transform.PassContext(
-        config={"tir.LoopPartition": {"partition_const_loop": True, "unroll": False}}
+        config={
+            "tir.LoopPartition": {"partition_const_loop": True, "no_unroll_single_iter_loop": True}
+        }
     ):
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
