@@ -26,6 +26,7 @@ def test_scatter_nd(ctx, target):
     def check_scatter_nd(data, indices, shape, out):
         implementations = {
             "generic": (lambda x, y: topi.scatter_nd(x, y, shape), topi.generic.schedule_extern),
+            "cuda": (lambda x, y: topi.cuda.scatter_nd(x, y, shape), topi.generic.schedule_extern),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm([data, indices], out, target, ctx, fcompute, fschedule)
