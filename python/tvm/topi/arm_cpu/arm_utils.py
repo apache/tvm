@@ -43,10 +43,19 @@ def get_arch_version(target_mattr):
 
 
 def is_dotprod_available():
-    """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
+    """ Checks whether the hardware has support for udot/sdot instructions. """
     target = tvm.target.Target.current(allow_none=False)
     arch_version = get_arch_version(target.mattr)
     return arch_version >= 8.4 or ((arch_version in (8.2, 8.3)) and "+dotprod" in target.mattr)
+
+
+def is_mmla_available():
+    """ Checks whether the hardware has support for ummla/smmla instructions. """
+    target = tvm.target.Target.current(allow_none=False)
+    arch_version = get_arch_version(target.mattr)
+    return arch_version >= 8.6 or (
+        (arch_version in (8.2, 8.3, 8.4, 8.5)) and "+i8mm" in target.mattr
+    )
 
 
 def is_aarch64_arm():
@@ -63,8 +72,10 @@ def get_tiling_B_interleaved_t(interleave_A):
     tile computation.
 
     Please refer to:
-        - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
-        - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
+    - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-performance-for-armv8-architectures # pylint: disable=line-too-long
+    - https://discuss.tvm.apache.org/t/rfc-accelerate-quantized-convolution-through-dot-product
+    - https://discuss.tvm.apache.org/t/rfc-improve-quantized-convolution-through-mmla-instruction
+    - Conv2DGemmWeightTransformRel in src/relay/op/nn/convolution.h
      In order to have more information
 
     Parameters
@@ -77,7 +88,13 @@ def get_tiling_B_interleaved_t(interleave_A):
     tile_rows_B: the output tile rows of B'
     tile_cols_B: the output tile columns of B'
     """
-    if is_dotprod_available():
+    if is_mmla_available():
+        # If smmla/ummla is available,  A must be interleaved.
+        # Each load from B' will contain 8 elements
+        # and we are loading 12 rows of B' (i.e., 12 columns of B)
+        tile_rows_B = 12
+        tile_cols_B = 8
+    elif is_dotprod_available():
         # The number of tile rows of B' vary depending on the
         # strategy:
         # * If we are interleaving A, then we select 12 columns from B'(i.e.,
@@ -92,7 +109,7 @@ def get_tiling_B_interleaved_t(interleave_A):
         # rows of the original matrix B)  need to be 4.
         tile_cols_B = 4
     else:
-        # If dot product is not available, A must be interleaved. In this case
+        # If no acceleration is available, A must be interleaved. In this case
         # we load 4 rows of B' (i.e., 4 columns of B). Each of them will contain 16 elements
         tile_rows_B = 4
         tile_cols_B = 16
