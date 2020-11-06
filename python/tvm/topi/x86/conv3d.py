@@ -22,11 +22,11 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..util import traverse_inline
-from ..nn.util import get_pad_tuple3d, infer_pad3d
+from ..utils import traverse_inline
+from ..nn.utils import get_pad_tuple3d, infer_pad3d
 from ..nn.pad import pad
-from ..util import get_const_tuple, simplify, get_const_int
-from .util import get_fp32_len
+from ..utils import get_const_tuple, simplify, get_const_int
+from .utils import get_fp32_len
 
 Workload3D = namedtuple(
     "Workload",

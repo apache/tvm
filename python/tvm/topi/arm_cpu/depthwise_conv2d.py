@@ -23,8 +23,10 @@ from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from .. import nn
-from ..util import traverse_inline, get_const_tuple, get_const_int
-from ..nn.util import get_pad_tuple
+from ..utils import traverse_inline, get_const_tuple, get_const_int
+from ..nn.utils import get_pad_tuple
+from .tensor_intrin import smlal_int16_int32
+from .arm_utils import is_aarch64_arm
 
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")
@@ -151,7 +153,7 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
 # This schedule has incorrect result on some hardware platforms (like NV Jetson TX2)
 # Let us comment it out but not remove.
 # see discussion:
-# https://discuss.tvm.ai/t/autotuner-incorrect-result-after-tuning-mobilenetv2-on-arm-cpu/6088
+# https://discuss.tvm.apache.org/t/autotuner-incorrect-result-after-tuning-mobilenetv2-on-arm-cpu/6088
 @autotvm.register_topi_compute("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
 def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """TOPI compute callback for depthwise_conv2d nchw
@@ -222,7 +224,6 @@ def compute_depthwise_conv2d_nhwc(_, data, kernel, strides, padding, dilation, o
     output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
-
     out_dtype = out_dtype or data.dtype
 
     N, IH, IW, IC = get_const_tuple(data.shape)
@@ -288,10 +289,18 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
 
     ##### space definition begin #####
     n, h, w, c = s[out].op.axis
+    # Split the number of input/output channels
     cfg.define_split("tile_c", c, num_outputs=2)
+    # Split the height of the convolution
     _, hi = cfg.define_split("tile_h", h, num_outputs=2)
+    # Split the width of the convolution
     _, wi = cfg.define_split("tile_w", w, num_outputs=2)
+    # Additional out (e.g., requantization, bias addition, etc..)
+    # 0: locate the output on the second last axis of the main compuation
+    # 1: locate the output closest to the main computation
     cfg.define_knob("locate_output", [0, 1])
+    # Determine if we should unroll the computation of the inner tile
+    cfg.define_knob("unroll_tile", [True, False])
 
     # fallback support
     if cfg.is_fallback:
@@ -299,10 +308,15 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
         cfg["tile_h"] = SplitEntity([-1, 2])
         cfg["tile_w"] = SplitEntity([-1, 2])
         cfg["locate_output"] = OtherOptionEntity(1)
+        cfg["unroll_tile"] = OtherOptionEntity(True)
     ##### space definition end #####
 
     def schedule_conv(conv):
         conv_data = conv.op.input_tensors[0]
+        kernel_data = conv.op.input_tensors[1]
+        in_type = conv_data.dtype
+
+        _, _, IC, channel_multiplier = get_const_tuple(kernel_data.shape)
 
         n, w, h, c = conv.op.axis
         r_h, r_w = conv.op.reduce_axis
@@ -310,24 +324,53 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
         wo, wi = cfg["tile_w"].apply(s, conv, w)
         co, ci = cfg["tile_c"].apply(s, conv, c)
 
+        split_val = cfg["tile_c"].size[-1]
+        use_tensorization = (
+            (in_type == "int16")
+            and (split_val == 8)
+            and (IC % split_val == 0)
+            and (channel_multiplier == 1)
+            and is_aarch64_arm()
+        )
+
+        data_pad_value = -1
         if conv_data.name == "data_pad":
             assert isinstance(conv_data.op, tvm.te.ComputeOp)
-            # Define a policy for padding computation
-            cfg.define_knob("data_pad_inline", [1, 2, 3])
+            # Define a strategy for padding computation
+            cfg.define_knob("data_pad_strategy", [1, 2, 3])
             if cfg.is_fallback:
-                cfg["data_pad_inline"] = OtherOptionEntity(3)
-            if cfg["data_pad_inline"].val == 1:
+                # We cannot inline padding when tensorizing.
+                # So, if we can tensorize, let's compute_at the closest axis
+                cfg["data_pad_strategy"] = (
+                    OtherOptionEntity(2) if use_tensorization else OtherOptionEntity(3)
+                )
+            # Compute padding on the third to last axis of the computation
+            if cfg["data_pad_strategy"].val == 1:
                 s[conv_data].vectorize(list(s[conv_data].op.axis)[-1])
                 s[conv_data].compute_at(s[conv], ho)
-            if cfg["data_pad_inline"].val == 2:
+            # Compute padding on the second to last axis of the computation
+            if cfg["data_pad_strategy"].val == 2:
                 s[conv_data].vectorize(list(s[conv_data].op.axis)[-1])
                 s[conv_data].compute_at(s[conv], wo)
-            if cfg["data_pad_inline"].val == 3:
+            # Inline padding during computation
+            if cfg["data_pad_strategy"].val == 3:
                 s[conv_data].compute_inline()
+            data_pad_value = cfg["data_pad_strategy"].val
+
+        if use_tensorization and data_pad_value != 3:
+            smlal = smlal_int16_int32()
+            s[conv].tensorize(ci, smlal)
+        else:
+            s[conv].vectorize(ci)
+
+        if cfg["unroll_tile"].val:
+            s[conv].unroll(r_h)
+            s[conv].unroll(r_w)
+            s[conv].unroll(wi)
+            s[conv].unroll(hi)
 
         s[conv].reorder(n, ho, wo, co, hi, wi, r_h, r_w, ci)
         fused_n_ho = s[conv].fuse(n, ho)
-        s[conv].vectorize(ci)
         return fused_n_ho
 
     def schedule_conv_out(out):
@@ -335,13 +378,17 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
         co, ci = cfg["tile_c"].apply(s, out, c)
         wo, wi = cfg["tile_w"].apply(s, out, w)
         ho, hi = cfg["tile_h"].apply(s, out, h)
-        s[out].reorder(n, ho, wo, co, hi, wi)
+        s[out].reorder(n, ho, wo, co, hi, wi, ci)
+        if cfg["unroll_tile"]:
+            s[out].unroll(wi)
+            s[out].unroll(hi)
 
         if out.dtype in ["int8", "uint8"]:
             # In case of quantized convolution further split the channel in batches of 4 elements
             # so that we can use arm intrinsics to run fixed_point_multiplication
             ci_outer, ci_inner = s[out].split(ci, 4)
             s[out].vectorize(ci_inner)
+            s[out].unroll(ci_outer)
 
         fused_n_ho = s[out].fuse(n, ho)
         return hi, wi, fused_n_ho

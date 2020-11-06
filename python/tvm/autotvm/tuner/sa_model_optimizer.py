@@ -25,7 +25,7 @@ import time
 
 import numpy as np
 
-from ..util import sample_ints
+from ..utils import sample_ints
 from .model_based_tuner import ModelOptimizer, knob2point, point2knob
 
 logger = logging.getLogger("autotvm")

@@ -45,6 +45,7 @@
 #include "../../transforms/pattern_utils.h"
 #include "../make_op.h"
 #include "../op_common.h"
+#include "../type_relations.h"
 
 namespace tvm {
 namespace relay {
@@ -1685,30 +1686,17 @@ bool WhereRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  const auto& cond_shape = condition->shape;
-  const auto& x_shape = x->shape;
-  const auto& y_shape = y->shape;
-  ICHECK(x_shape.size() == y_shape.size()) << "x and y must have the same size";
+  ICHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: " << x->dtype << " vs "
+                                << y->dtype;
 
-  if (cond_shape.size() != x_shape.size()) {
-    ICHECK_EQ(cond_shape.size(), 1) << "Shape of condition " << condition->shape
-                                    << " must be either equal to x or has dimension of 1.";
-  }
-  for (size_t i = 0; i < x_shape.size(); i++) {
-    ICHECK(reporter->AssertEQ(x_shape[i], y_shape[i]))
-        << "x and y must have the same shape: " << x_shape << " vs " << y_shape;
+  auto tensor_ty_condition = GetRef<TensorType>(condition);
+  auto tensor_ty_x = GetRef<TensorType>(x);
+  auto tensor_ty_y = GetRef<TensorType>(y);
 
-    if (i < cond_shape.size()) {
-      ICHECK(reporter->AssertEQ(cond_shape[i], x_shape[i]))
-          << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
-    }
-  }
-  if (x_shape.size() == 0) {
-    // if x and y are scalar, the condition shape becomes the output shape
-    reporter->Assign(types[3], TensorType(cond_shape, x->dtype));
-  } else {
-    reporter->Assign(types[3], TensorType(x_shape, x->dtype));
-  }
+  auto b_ty = ConcreteBroadcast(tensor_ty_x, tensor_ty_y, x->dtype);
+  auto ret_ty = ConcreteBroadcast(tensor_ty_condition, b_ty, b_ty->dtype);
+
+  reporter->Assign(types[3], ret_ty);
   return true;
 }
 
@@ -1731,17 +1719,10 @@ Return the elements, either from x or y, depending on the condition.
 
 Given three ndarrays, condition, x, and y, return an ndarray with the elements
 from x or y, depending on the elements from condition are true or false.
-x and y must have the same shape. If condition has the same shape as x,
-each element in the output array is from x if the corresponding element
-in the condition is true, and from y if false.
 
-If condition does not have the same shape as x, it must be a 1D array whose
-size is the same as x’s first dimension size. Each row of the output array
-is from x’s row if the corresponding element from condition is true, and
-from y’s row if false.
-
-When x and y are scalars, condition must be an 1D array. The output shape
-is the same as condition's shape.
+Shapes of condition, x, and y must be broadcastable to a common shape, which
+is the output shape of this op. Semantics follow numpy where function.
+https://numpy.org/doc/stable/reference/generated/numpy.where.html
 
 Note that all non-zero values are interpreted as True in condition.
 
@@ -1753,7 +1734,7 @@ Examples::
   where(cond, x, y) = [[5, 2], [3, 8]]
 
 
-  cond = [1, 0]
+  cond = [[1], [0]]
   where(cond, x, y) = [[1, 2], [7, 8]]
 
   cond = [0, 1]

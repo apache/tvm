@@ -23,7 +23,7 @@ authors = ["TVM Contributors"]
 edition = "2018"
 
 [dependencies]
-ndarray="0.12"
+ndarray = "0.12"
 tvm-graph-rt = { path = "../../" }
 
 [build-dependencies]

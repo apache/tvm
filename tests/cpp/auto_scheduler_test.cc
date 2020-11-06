@@ -43,8 +43,8 @@ tvm::Array<tvm::te::Tensor> conv2d_nchw_bn_relu_func(int N, int H, int W, int CI
   int OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) / strides + 1;
 
   const auto& conv = topi::conv2d_nchw(data, kernel, padding, padding, strides, strides);
-  CHECK(conv->shape[2].as<IntImmNode>()->value == OH);
-  CHECK(conv->shape[3].as<IntImmNode>()->value == OW);
+  ICHECK(conv->shape[2].as<IntImmNode>()->value == OH);
+  ICHECK(conv->shape[3].as<IntImmNode>()->value == OW);
 
   const auto& bias_add = compute(
       {N, CO, OH, OW}, [&](Var i, Var j, Var k, Var l) { return conv[i][j][k][l] + bias[j][0][0]; },
@@ -76,9 +76,9 @@ TEST(ComputeDAG, AccessAnalyzer) {
   std::set<int> needs_multi_level_tiling = {conv};
   for (size_t stage_id = 0; stage_id < dag->ops.size(); stage_id++) {
     if (needs_multi_level_tiling.count(stage_id)) {
-      CHECK(dag->access_analyzer.NeedsMultiLevelTiling(dag->ops[stage_id]));
+      ICHECK(dag->access_analyzer.NeedsMultiLevelTiling(dag->ops[stage_id]));
     } else {
-      CHECK(!dag->access_analyzer.NeedsMultiLevelTiling(dag->ops[stage_id]));
+      ICHECK(!dag->access_analyzer.NeedsMultiLevelTiling(dag->ops[stage_id]));
     }
   }
 
@@ -86,37 +86,37 @@ TEST(ComputeDAG, AccessAnalyzer) {
                                     bn_scale, bn_mul,  bn_offset, bn_add, relu};
   for (size_t stage_id = 0; stage_id < dag->ops.size(); stage_id++) {
     if (is_simple_access.count(stage_id)) {
-      CHECK(dag->access_analyzer.IsSimpleAccess(dag->ops[stage_id]));
+      ICHECK(dag->access_analyzer.IsSimpleAccess(dag->ops[stage_id]));
     } else {
-      CHECK(!dag->access_analyzer.IsSimpleAccess(dag->ops[stage_id]));
+      ICHECK(!dag->access_analyzer.IsSimpleAccess(dag->ops[stage_id]));
     }
   }
 
   std::set<int> is_strictly_inlinable = {bias_add, bn_mul, bn_add, relu};
   for (size_t stage_id = 0; stage_id < dag->ops.size(); stage_id++) {
     if (is_strictly_inlinable.count(stage_id)) {
-      CHECK(dag->access_analyzer.IsStrictlyInlineable(dag->ops[stage_id]));
+      ICHECK(dag->access_analyzer.IsStrictlyInlineable(dag->ops[stage_id]));
     } else {
-      CHECK(!dag->access_analyzer.IsStrictlyInlineable(dag->ops[stage_id]));
+      ICHECK(!dag->access_analyzer.IsStrictlyInlineable(dag->ops[stage_id]));
     }
   }
 
   std::set<int> is_output = {relu};
   for (size_t stage_id = 0; stage_id < dag->ops.size(); stage_id++) {
     if (is_output.count(stage_id)) {
-      CHECK(dag->access_analyzer.IsOutput(dag->ops[stage_id]));
+      ICHECK(dag->access_analyzer.IsOutput(dag->ops[stage_id]));
     } else {
-      CHECK(!dag->access_analyzer.IsOutput(dag->ops[stage_id]));
+      ICHECK(!dag->access_analyzer.IsOutput(dag->ops[stage_id]));
     }
   }
 
-  CHECK_EQ(dag->access_analyzer.GetNumCommonOuterIterator(dag->ops[conv], dag->ops[bias_add]), 4);
-  CHECK_EQ(dag->access_analyzer.GetNumCommonOuterIterator(dag->ops[conv], dag->ops[relu]), 4);
-  CHECK_EQ(dag->access_analyzer.GetNumCommonOuterIterator(dag->ops[data], dag->ops[relu]), 1);
+  ICHECK_EQ(dag->access_analyzer.GetNumCommonOuterIterator(dag->ops[conv], dag->ops[bias_add]), 4);
+  ICHECK_EQ(dag->access_analyzer.GetNumCommonOuterIterator(dag->ops[conv], dag->ops[relu]), 4);
+  ICHECK_EQ(dag->access_analyzer.GetNumCommonOuterIterator(dag->ops[data], dag->ops[relu]), 1);
 
-  CHECK(dag->access_analyzer.ElementWiseMatch(dag->ops[conv], dag->ops[bias_add]));
-  CHECK(dag->access_analyzer.ElementWiseMatch(dag->ops[conv], dag->ops[relu]));
-  CHECK(!dag->access_analyzer.ElementWiseMatch(dag->ops[data], dag->ops[padding]));
+  ICHECK(dag->access_analyzer.ElementWiseMatch(dag->ops[conv], dag->ops[bias_add]));
+  ICHECK(dag->access_analyzer.ElementWiseMatch(dag->ops[conv], dag->ops[relu]));
+  ICHECK(!dag->access_analyzer.ElementWiseMatch(dag->ops[data], dag->ops[padding]));
 
   std::unordered_set<tvm::te::Operation, tvm::ObjectHash, tvm::ObjectEqual> op_set;
   {
@@ -126,8 +126,8 @@ TEST(ComputeDAG, AccessAnalyzer) {
         {bn_offset, bn_add}, {bn_add, relu}};
     for (const auto& pair : consumer_list) {
       op_set = dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op);
-      CHECK_EQ(op_set.size(), 1);
-      CHECK_EQ((*op_set.begin()), s0->stages[pair.second]->op);
+      ICHECK_EQ(op_set.size(), 1);
+      ICHECK_EQ((*op_set.begin()), s0->stages[pair.second]->op);
     }
     std::vector<std::pair<int, std::vector<int>>> producer_list = {{padding, {data}},
                                                                    {conv, {padding, kernel}},
@@ -137,9 +137,9 @@ TEST(ComputeDAG, AccessAnalyzer) {
                                                                    {relu, {bn_add}}};
     for (const auto& pair : producer_list) {
       op_set = dag->access_analyzer.GetProducers(s0, s0->stages[pair.first]->op);
-      CHECK_EQ(op_set.size(), pair.second.size());
+      ICHECK_EQ(op_set.size(), pair.second.size());
       for (const auto& target : pair.second) {
-        CHECK(op_set.count(s0->stages[target]->op));
+        ICHECK(op_set.count(s0->stages[target]->op));
       }
     }
   }
@@ -152,8 +152,8 @@ TEST(ComputeDAG, AccessAnalyzer) {
     std::vector<std::pair<int, int>> consumer_list = {{data, conv}, {kernel, conv}, {conv, relu}};
     for (const auto& pair : consumer_list) {
       op_set = dag->access_analyzer.GetConsumers(s0, s0->stages[pair.first]->op);
-      CHECK_EQ(op_set.size(), 1);
-      CHECK_EQ((*op_set.begin()), s0->stages[pair.second]->op);
+      ICHECK_EQ(op_set.size(), 1);
+      ICHECK_EQ((*op_set.begin()), s0->stages[pair.second]->op);
     }
     std::vector<std::pair<int, std::vector<int>>> producer_list = {{padding, {data}},
                                                                    {conv, {padding, kernel}},
@@ -163,9 +163,9 @@ TEST(ComputeDAG, AccessAnalyzer) {
                                                                    {relu, {bn_add}}};
     for (const auto& pair : producer_list) {
       op_set = dag->access_analyzer.GetDirectProducers(s0->stages[pair.first]->op);
-      CHECK_EQ(op_set.size(), pair.second.size());
+      ICHECK_EQ(op_set.size(), pair.second.size());
       for (const auto& target : pair.second) {
-        CHECK(op_set.count(s0->stages[target]->op));
+        ICHECK(op_set.count(s0->stages[target]->op));
       }
     }
   }

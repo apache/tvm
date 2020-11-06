@@ -33,7 +33,7 @@ pub type IRModule = ObjectRef;
 pub type PassContext = ObjectRef;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PassInfo"]
 #[type_key = "transform.PassInfo"]
 pub struct PassInfoNode {
@@ -50,7 +50,7 @@ impl PassInfo {
         let required = Array::from_vec(required)?;
 
         let node = PassInfoNode {
-            base: Object::base_object::<PassInfoNode>(),
+            base: Object::base::<PassInfoNode>(),
             opt_level,
             name: name.into(),
             required,

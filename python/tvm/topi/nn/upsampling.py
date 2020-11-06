@@ -17,7 +17,7 @@
 """TVM operator upsampling compute."""
 from tvm import topi
 from tvm import te
-from ..util import simplify
+from ..utils import simplify
 
 
 def upsampling(

@@ -33,7 +33,7 @@ from . import measure
 from . import record
 from . import task
 from . import tuner
-from . import util
+from . import utils
 from . import env
 from . import tophub
 

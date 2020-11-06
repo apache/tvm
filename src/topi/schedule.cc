@@ -182,11 +182,11 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn").set_body([](TVMArgs args, TVMRetVa
 });
 
 /* Utility functions */
-TVM_REGISTER_GLOBAL("topi.util.is_empty_shape").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("topi.utils.is_empty_shape").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = topi::detail::is_empty_shape(args[0]);
 });
 
-TVM_REGISTER_GLOBAL("topi.util.bilinear_sample_nchw").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nchw").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = detail::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
 });
 

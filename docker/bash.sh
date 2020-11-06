@@ -83,9 +83,9 @@ else
 fi
 
 if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
-    CI_PY_ENV="-e PYTHONPATH=/workspace/python"
+    CI_ADDON_ENV="-e PYTHONPATH=/workspace/python"
 else
-    CI_PY_ENV=""
+    CI_ADDON_ENV=""
 fi
 
 # If the Vitis-AI docker image is selected, expose the Xilinx FPGA devices and required volumes containing e.g. DSA's and overlays
@@ -142,7 +142,8 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
     -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
-    ${CI_PY_ENV} \
+    -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
+    ${CI_ADDON_ENV} \
     ${CUDA_ENV} \
     "${CI_DOCKER_EXTRA_PARAMS[@]}" \
     ${DOCKER_IMAGE_NAME} \

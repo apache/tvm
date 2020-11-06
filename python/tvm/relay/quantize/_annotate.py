@@ -284,6 +284,7 @@ def identity_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(ret_expr, x_kind)
 
 
+register_annotate_function("reshape", identity_rewrite)
 register_annotate_function("clip", identity_rewrite)
 register_annotate_function("nn.relu", identity_rewrite)
 register_annotate_function("strided_slice", identity_rewrite)

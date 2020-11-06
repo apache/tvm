@@ -24,8 +24,8 @@ from tvm.autotvm.task.space import FallbackConfigEntity
 from tvm import topi
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
-from tvm.topi.nn.util import get_pad_tuple
-from tvm.topi.util import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
 from tvm.topi.arm_cpu.conv2d_gemm import is_aarch64_arm
 
 from common import Int8Fallback

@@ -25,9 +25,10 @@ use super::Object;
 use tvm_macros::Object;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "String"]
 #[type_key = "runtime.String"]
+#[no_derive]
 pub struct StringObj {
     base: Object,
     data: *const u8,
@@ -38,7 +39,7 @@ impl From<std::string::String> for String {
     fn from(s: std::string::String) -> Self {
         let size = s.len() as u64;
         let data = Box::into_raw(s.into_boxed_str()).cast();
-        let base = Object::base_object::<StringObj>();
+        let base = Object::base::<StringObj>();
         StringObj { base, data, size }.into()
     }
 }
@@ -47,7 +48,7 @@ impl From<&'static str> for String {
     fn from(s: &'static str) -> Self {
         let size = s.len() as u64;
         let data = s.as_bytes().as_ptr();
-        let base = Object::base_object::<StringObj>();
+        let base = Object::base::<StringObj>();
         StringObj { base, data, size }.into()
     }
 }

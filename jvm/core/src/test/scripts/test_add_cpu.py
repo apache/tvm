@@ -18,7 +18,7 @@ import os
 
 import tvm
 from tvm import te
-from tvm.contrib import cc, util
+from tvm.contrib import cc, utils
 
 
 def test_add(target_dir):

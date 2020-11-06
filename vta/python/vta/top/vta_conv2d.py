@@ -23,7 +23,7 @@ from tvm import te
 from tvm import autotvm
 from tvm import topi
 
-from .util import is_packed_layout
+from .utils import is_packed_layout
 from ..environment import get_env
 
 
@@ -40,12 +40,12 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         pad_data = data
     assert len(data.shape) == 6
     assert len(kernel.shape) == 6
-    oheight = topi.util.get_const_int((pad_data.shape[2] - kernel.shape[2]) // strides[0] + 1)
-    owidth = topi.util.get_const_int((pad_data.shape[3] - kernel.shape[3]) // strides[1] + 1)
+    oheight = topi.utils.get_const_int((pad_data.shape[2] - kernel.shape[2]) // strides[0] + 1)
+    owidth = topi.utils.get_const_int((pad_data.shape[3] - kernel.shape[3]) // strides[1] + 1)
     oshape = (data.shape[0], kernel.shape[0], oheight, owidth, data.shape[4], kernel.shape[4])
 
-    ishape = topi.util.get_const_tuple(data.shape)
-    kshape = topi.util.get_const_tuple(kernel.shape)
+    ishape = topi.utils.get_const_tuple(data.shape)
+    kshape = topi.utils.get_const_tuple(kernel.shape)
     d_i = te.reduce_axis((0, kshape[2]), name="d_i")
     d_j = te.reduce_axis((0, kshape[3]), name="d_j")
     k_o = te.reduce_axis((0, ishape[1]), name="k_o")
@@ -64,7 +64,7 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     cfg.add_flop(
         2
-        * np.prod(topi.util.get_const_tuple(oshape))
+        * np.prod(topi.utils.get_const_tuple(oshape))
         * kshape[2]
         * kshape[3]
         * ishape[1]

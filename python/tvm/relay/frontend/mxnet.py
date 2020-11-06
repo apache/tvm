@@ -23,7 +23,7 @@ import tvm
 from tvm.ir import IRModule
 
 from tvm import relay
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function

@@ -64,7 +64,7 @@ bool EqualConstInt(const IndexExpr& lhs, int64_t value) {
   return false;
 }
 
-Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType output_dtype) {
+TensorType ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType output_dtype) {
   std::vector<IndexExpr> oshape;
   size_t ndim1 = t1->shape.size();
   size_t ndim2 = t2->shape.size();

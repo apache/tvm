@@ -20,9 +20,9 @@
 import tvm
 from tvm import te
 from .pad import pad
-from .util import get_pad_tuple
+from .utils import get_pad_tuple
 from .bitserial_util import bitpack
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def bitserial_conv2d_nchw(

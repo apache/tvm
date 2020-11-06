@@ -180,6 +180,18 @@ static inline bool IsScalarType(const Type& expr_type, const DataType& dtype) {
 }
 
 /*
+ * \brief Checks whether an expr type is scalar.
+ * \param expr_type The type of expr to be checked.
+ * \return True if the type is a scalar
+ */
+static inline bool IsScalarType(const Type& expr_type) {
+  const auto* tensor_type = expr_type.as<TensorTypeNode>();
+  CHECK(tensor_type) << "Only tensor type can be checked for scalar values. But got"
+                     << AsText(expr_type, false);
+  return tensor_type->shape.size() == 0;
+}
+
+/*
  * \brief Checks and assigns types to scale and zero points.
  * \param expr_type The type of expr to be checked.
  * \param dtype The expected dtype.

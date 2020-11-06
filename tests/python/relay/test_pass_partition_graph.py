@@ -27,7 +27,7 @@ import tvm.relay.op as reg
 from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
-from tvm.contrib import util
+from tvm.contrib import utils
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
@@ -186,7 +186,7 @@ def check_result(
 
         kwargs = {}
         kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
-        tmp_path = util.tempdir()
+        tmp_path = utils.tempdir()
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
@@ -1035,7 +1035,7 @@ def test_duplicate_outputs():
     target = "test_duplicate_outputs"
 
     @tvm.ir.register_op_attr("abs", "target." + target)
-    def abs(attrs, args):  # pylint: disable=unused-variable
+    def abs(expr):  # pylint: disable=unused-variable
         return True
 
     def create_graph():
@@ -1096,11 +1096,11 @@ def test_duplicate_merge_and_tuplegetitem():
     target = "test_duplicate_merge_and_tuplegetitem"
 
     @tvm.ir.register_op_attr("nn.batch_norm", "target." + target)
-    def batch_norm(attrs, args):  # pylint: disable=unused-variable
+    def batch_norm(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("nn.relu", "target." + target)
-    def relu(attrs, args):  # pylint: disable=unused-variable
+    def relu(expr):  # pylint: disable=unused-variable
         return True
 
     def create_graph():
@@ -1177,7 +1177,7 @@ def test_duplicate_merge_and_tuplegetitem():
 
 def test_constant_tuples():
     @tvm.ir.register_op_attr("qnn.concatenate", "target.const_tuples")
-    def add(attrs, args):  # pylint: disable=unused-variable
+    def add(expr):  # pylint: disable=unused-variable
         return True
 
     def create_graph():
@@ -1223,11 +1223,11 @@ def test_flatten_tuple_output():
     target = "test_flatten_tuple_output"
 
     @tvm.ir.register_op_attr("split", "target." + target)
-    def split(attrs, args):  # pylint: disable=unused-variable
+    def split(expr):  # pylint: disable=unused-variable
         return True
 
     @tvm.ir.register_op_attr("abs", "target." + target)
-    def abs(attrs, args):  # pylint: disable=unused-variable
+    def abs(expr):  # pylint: disable=unused-variable
         return True
 
     def create_graph():

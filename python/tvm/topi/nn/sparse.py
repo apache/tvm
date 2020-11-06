@@ -20,7 +20,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import te
 
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 
 
 def sparse_dense(data, weight_data, weight_indices, weight_indptr):

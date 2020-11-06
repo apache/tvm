@@ -144,5 +144,11 @@ def test_bias_add_grad():
     verify_bias_add((4, 8), (8,))
 
 
+def test_expand_dims_grad():
+    data = relay.var("data", shape=(2, 3), dtype="float64")
+    fwd_func = relay.Function([data], relay.expand_dims(data, axis=1, num_newaxis=2))
+    check_grad(fwd_func)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

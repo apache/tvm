@@ -20,6 +20,7 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm import testing
 
 from .infrastructure import (
     skip_runtime_test,

@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import tvm.topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from tvm.topi.util import nchw_pack_layout, nchw_xc_layout
+from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
 from ... import op as reg
 
 

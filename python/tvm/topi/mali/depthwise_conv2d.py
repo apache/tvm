@@ -22,7 +22,7 @@ from tvm import te
 from tvm import autotvm
 
 from .. import nn
-from ..util import traverse_inline
+from ..utils import traverse_inline
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.mali")

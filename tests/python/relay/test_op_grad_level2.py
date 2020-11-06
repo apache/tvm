@@ -38,7 +38,7 @@ def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
 
     data = np.random.rand(*x_shape).astype("float32")
     ph, pw = padding
-    y_shape = topi.util.get_const_tuple(fwd_func.ret_type.shape)
+    y_shape = topi.utils.get_const_tuple(fwd_func.ret_type.shape)
     out_grad = np.ones(shape=y_shape)
     ref_grad = tvm.topi.testing.pool_grad_nchw(
         data,
@@ -87,7 +87,7 @@ def verify_avg_pool2d_grad(
 
         data = np.random.rand(*x_shape).astype(dtype)
         ph, pw = padding
-        y_shape = topi.util.get_const_tuple(fwd_func.ret_type.shape)
+        y_shape = topi.utils.get_const_tuple(fwd_func.ret_type.shape)
         out_grad = np.ones(shape=y_shape)
         ref_grad = tvm.topi.testing.pool_grad_nchw(
             data,
@@ -143,7 +143,7 @@ def verify_global_avg_pool2d_grad(x_shape):
     bwd_func = run_infer_type(gradient(fwd_func))
 
     data = np.random.rand(*x_shape).astype("float32")
-    y_shape = topi.util.get_const_tuple(fwd_func.ret_type.shape)
+    y_shape = topi.utils.get_const_tuple(fwd_func.ret_type.shape)
     out_grad = np.ones(shape=y_shape)
     ref_grad = tvm.topi.testing.pool_grad_nchw(
         data,

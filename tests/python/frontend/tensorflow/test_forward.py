@@ -1751,6 +1751,62 @@ def test_forward_batch_matmul():
 
 
 #######################################################################
+# SparseTensorDenseMatMul
+# ----------------------------------
+
+
+def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=False):
+    """ One iteration of sparse_dense_matmul """
+
+    # TODO(ANSHUMAN87): Support adjoint options too
+    for adjoint_a in [False]:
+        for adjoint_b in [False]:
+            with tf.Graph().as_default():
+                A_sp = tf.sparse.SparseTensor(indices=indices, values=values, dense_shape=A_shape)
+                B = tf.placeholder(shape=B_shape, dtype=dtype, name="B")
+
+                if flip:
+                    result = tf.sparse.sparse_dense_matmul(
+                        B, A_sp, adjoint_a=adjoint_a, adjoint_b=adjoint_b
+                    )
+                else:
+                    result = tf.sparse.sparse_dense_matmul(
+                        A_sp, B, adjoint_a=adjoint_a, adjoint_b=adjoint_b
+                    )
+
+                B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+
+                # TODO(ANSHUMAN87): There is an issue in cuda scheduling for csr, work in progress
+                compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+
+
+def test_forward_sparse_dense_matmul():
+    """ sparse_dense_matmul op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+
+    # TODO(ANSHUMAN87): False case for flip need to be supported
+    # _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [4, 3], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 5], [4, 3], "float32", True)
+    _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32", True)
+    _test_sparse_dense_matmul(
+        [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32", True
+    )
+    _test_sparse_dense_matmul(
+        [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [9, 5], [7, 9], "float32", True
+    )
+
+
+#######################################################################
 # StridedSlice
 # ------------
 
@@ -1879,6 +1935,16 @@ def test_forward_stridedslice():
         ellipsis_mask=2,
         begin_mask=5,
         end_mask=8,
+    )
+    _test_stridedslice(
+        (1, 13, 13, 3, 2),
+        [0, 0],
+        [1, 1],
+        [1, -1],
+        "float32",
+        ellipsis_mask=1,
+        begin_mask=2,
+        end_mask=2,
     )
 
 
@@ -2848,11 +2914,11 @@ def test_forward_inception_v1():
 
         # Build an image from random data.
         from PIL import Image
-        from tvm.contrib import util
+        from tvm.contrib import utils
 
         img_array = np.random.uniform(size=(1, 600, 600, 3)).astype("uint8")
         img = Image.frombuffer("RGB", (600, 600), img_array.tostring(), "raw", "RGB", 0, 1)
-        temp = util.tempdir()
+        temp = utils.tempdir()
         img_path = temp.relpath("tf-test.jpg")
         img.save(img_path)
 
@@ -3488,6 +3554,38 @@ def test_forward_atan2():
     compare_tf_with_tvm([np_data_1, np_data_2], ["in_data_1:0", "in_data_2:0"], "atan2:0")
 
 
+def test_forward_expm1():
+    """test operator expm1 """
+
+    def _test_forward_expm1(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(1, 10, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.expm1(in_data, name="expm1")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "expm1:0")
+
+    _test_forward_expm1([1, 100])
+    _test_forward_expm1([1, 10, 10])
+    _test_forward_expm1([2, 5, 2, 5])
+
+
+def test_forward_softsign():
+    """test operator softsign """
+
+    def _test_forward_softsign(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(1, 100, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.nn.softsign(in_data, name="softsign")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "softsign:0")
+
+    _test_forward_softsign([1, 100])
+    _test_forward_softsign([1, 10, 10])
+    _test_forward_softsign([2, 5, 2, 5])
+
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
@@ -3918,6 +4016,83 @@ def test_forward_dilation():
     _test_dilation2d([1, 224, 224, 10], [8, 8, 10], [1, 3, 1, 1], [1, 1, 1, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 2, 2, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
+
+
+#######################################################################
+# Sparse To Dense
+# ---------------
+def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
+    with tf.Graph().as_default():
+        indices = tf.placeholder(
+            shape=sparse_indices.shape, dtype=str(sparse_indices.dtype), name="indices"
+        )
+        values = tf.placeholder(
+            shape=sparse_values.shape, dtype=str(sparse_values.dtype), name="values"
+        )
+        oshape = tf.constant(output_shape, shape=output_shape.shape, dtype=str(output_shape.dtype))
+
+        if default_value == None:
+            output = tf.sparse_to_dense(indices, oshape, values)
+            compare_tf_with_tvm(
+                [sparse_indices, sparse_values], ["indices:0", "values:0"], output.name
+            )
+        else:
+            dv = tf.placeholder(shape=(), dtype=str(default_value.dtype), name="default_value")
+            output = tf.sparse_to_dense(indices, oshape, values, dv)
+            compare_tf_with_tvm(
+                [sparse_indices, sparse_values, default_value],
+                ["indices:0", "values:0", "default_value:0"],
+                output.name,
+            )
+
+
+def test_forward_sparse_to_dense():
+    # scalar
+    _test_sparse_to_dense(
+        sparse_indices=np.int32(1),
+        sparse_values=np.int32(3),
+        default_value=np.int32(0),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # vector
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3, 3, 3]).astype("int32"),
+        default_value=np.int32(0),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # vector nXd
+    _test_sparse_to_dense(
+        sparse_indices=np.array([[0, 0], [1, 2]]).astype("int32"),
+        sparse_values=np.array([1, 2]).astype("int32"),
+        default_value=np.int32(0),
+        output_shape=np.array([3, 4]).astype("int32"),
+    )
+
+    _test_sparse_to_dense(
+        sparse_indices=np.array([[0, 0, 0], [1, 2, 3]]).astype("int32"),
+        sparse_values=np.array([1, 2]).astype("int32"),
+        default_value=np.int32(4),
+        output_shape=np.array([2, 3, 4]).astype("int32"),
+    )
+
+    # floats
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
+        default_value=np.float32(3.5),
+        output_shape=np.array([5]).astype("int32"),
+    )
+
+    # default value not specified
+    _test_sparse_to_dense(
+        sparse_indices=np.array([0, 1, 4]).astype("int32"),
+        sparse_values=np.array([3.1, 3.1, 3.1]).astype("float32"),
+        default_value=None,
+        output_shape=np.array([5]).astype("int32"),
+    )
 
 
 #######################################################################

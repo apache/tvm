@@ -25,8 +25,8 @@ from .. import tag
 from ..nn.pad import pad
 from ..nn.bitserial_conv2d import bitserial_conv2d_legalize
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
-from ..nn.util import get_pad_tuple
-from ..util import get_const_int, get_const_tuple
+from ..nn.utils import get_pad_tuple
+from ..utils import get_const_int, get_const_tuple
 
 
 def _kernel_vec_spatial_pack_nhwc(kernel, kernel_bits, VC, use_bitpack=True):

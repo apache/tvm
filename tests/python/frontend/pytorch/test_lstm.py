@@ -277,6 +277,8 @@ def test_custom_lstm():
     num_layers = 3
     state_tensor_shape = (batch, hidden_size)
 
+    torch.manual_seed(1)
+
     inp = torch.randn(seq_len, batch, input_size)
 
     input_shapes = [
