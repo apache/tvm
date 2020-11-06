@@ -250,6 +250,24 @@ def test_null_attribute():
     assert "TestAttribute=(nullptr)" in txt
 
 
+def test_span():
+    x = relay.var("x", shape=(3, 2))
+    y = relay.var("y")
+    one = relay.const(10e10, dtype="float32")
+    z = relay.add(x, one)
+    z = relay.Call(
+        z.op, z.args, z.attrs, z.type_args, relay.Span(relay.SourceName("Add0"), 0, 0, 0, 0)
+    )
+    z = relay.add(z, z)
+    z = relay.Call(
+        z.op, z.args, z.attrs, z.type_args, relay.Span(relay.SourceName("Add1"), 0, 0, 0, 0)
+    )
+    f = relay.Function([x, y], z)
+    txt = astext(f)
+    assert "Add0" in txt
+    assert "Add1" in txt
+
+
 if __name__ == "__main__":
     import sys
 
