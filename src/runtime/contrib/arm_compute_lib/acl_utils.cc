@@ -45,6 +45,7 @@ arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
   std::vector<int64_t> shape = tensor_rep.GetOpShape()[0];
   DLDataType dtype = tensor_rep.GetOpDataType()[0];
   arm_compute::TensorInfo info = MakeACLTensorInfo(shape, dtype, scale, offset);
+  info.set_is_resizable(false);
   tensor.allocator()->init(info);
   if (data != nullptr) {
     CheckACLError(tensor.allocator()->import_memory(data));
