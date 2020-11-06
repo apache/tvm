@@ -185,6 +185,43 @@ def get_const_tuple(in_tuple):
                 ret.append(get_const_int(elem))
         else:
             ret.append(get_const_int(elem))
+
+
+def const_vector(vector, name="const_vector"):
+    """convert a const numpy 1-dimensional vector to tvm tensor
+
+    Parameters
+    ----------
+    vector: numpy.ndarray
+        Const input array
+    name: str, optional
+        The name of output op
+
+    Returns
+    -------
+    tensor: Tensor
+        The created tensor
+    """
+    import numpy as np
+    if not isinstance(vector, np.ndarray):
+        vector = np.array(vector)
+    row = vector.shape[0]
+    dtype = str(vector.dtype)
+    idxm = tvm.tir.indexmod
+
+    def select_array(i):
+        now = tvm.tir.const(0.0, dtype)
+        for ii in range(row):
+            now = tvm.tir.Select(
+                tvm.tir.all(idxm(i, row) == ii),
+                tvm.tir.const(vector[ii], dtype),
+                now,
+            )
+        return now
+
+    return te.compute(vector.shape, select_array, name=name)
+
+
     return tuple(ret)
 
 
