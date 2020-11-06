@@ -7,6 +7,8 @@ from common_utils import target_and_ctx
 def create_hardware():
     hardware = hago.Hardware()
     hardware.add_op_desc('concatenate', hago.OpDesc(in_dtypes='float32', out_dtypes='float32'))
+    hardware.add_op_desc('concatenate', hago.OpDesc(in_dtypes='int8', out_dtypes='int8'))
+    hardware.add_op_desc('concatenate', hago.OpDesc(in_dtypes='int32', out_dtypes='int32'))
     hardware.add_op_desc('add', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
     hardware.add_op_desc('nn.dense', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
     hardware.add_op_desc('nn.conv2d', hago.OpDesc(in_dtypes='int8', out_dtypes='int32'))
@@ -46,18 +48,24 @@ def test_concatenate(ishape=(8, 16), wshape=(10, 16), batch_num=3, device='cpu')
     data_c = relay.var('data_c', shape=ishape)
     data_d = relay.var('data_d', shape=ishape)
     weight0 = relay.var('weight0', shape=w0shape)
+    weight1 = relay.var('weight1', shape=w0shape)
+    weight2 = relay.var('weight2', shape=w0shape)
+    weight3 = relay.var('weight3', shape=w0shape)
     dense_a = relay.nn.dense(data_a, weight0)
-    dense_b = relay.nn.dense(data_b, weight0)
-    dense_c = relay.nn.dense(data_c, weight0)
-    dense_d = relay.nn.dense(data_d, weight0)
+    dense_b = relay.nn.dense(data_b, weight1)
+    dense_c = relay.nn.dense(data_c, weight2)
+    dense_d = relay.nn.dense(data_d, weight3)
     concat = relay.concatenate([dense_a, dense_b, dense_c, dense_d], axis=0)
     # 32, 10
-    weight1 = relay.var('weight1', shape=w1shape)
-    out = relay.nn.dense(concat, weight1)
-    func = relay.Function([data_a, data_b, data_c, data_d, weight0, weight1], out)
+    weight5 = relay.var('weight5', shape=w1shape)
+    out = relay.nn.dense(concat, weight5)
+    func = relay.Function([data_a, data_b, data_c, data_d, weight0, weight1, weight2, weight3, weight5], out)
 
     weight0_np = np.random.normal(size=w0shape).astype('float32')
-    weight1_np = np.random.normal(size=w1shape).astype('float32')
+    weight1_np = np.random.normal(size=w0shape).astype('float32')
+    weight2_np = np.random.normal(size=w0shape).astype('float32')
+    weight3_np = np.random.normal(size=w0shape).astype('float32')
+    weight5_np = np.random.normal(size=w1shape).astype('float32')
 
     # generate dataset
     batches = []
@@ -67,7 +75,8 @@ def test_concatenate(ishape=(8, 16), wshape=(10, 16), batch_num=3, device='cpu')
         data_c_np = np.random.rand(*ishape).astype('float32')
         data_d_np = np.random.rand(*ishape).astype('float32')
         ex = relay.create_executor("debug", ctx=ctx, target=target)
-        out_np = ex.evaluate(func)(data_a_np, data_b_np, data_c_np, data_d_np, weight0_np, weight1_np).asnumpy()
+        out_np = ex.evaluate(func)(data_a_np, data_b_np, data_c_np, data_d_np, weight0_np,
+                weight1_np, weight2_np, weight3_np, weight5_np).asnumpy()
         pred_np = np.argmax(out_np, axis=1)
         batches.append({'data_a': tvm.nd.array(data_a_np),
                         'data_b': tvm.nd.array(data_b_np),
@@ -77,7 +86,10 @@ def test_concatenate(ishape=(8, 16), wshape=(10, 16), batch_num=3, device='cpu')
     dataset = hago.CalibrationDataset(batches)
 
     params = {'weight0': tvm.nd.array(weight0_np),
-              'weight1': tvm.nd.array(weight1_np)}
+              'weight1': tvm.nd.array(weight0_np),
+              'weight2': tvm.nd.array(weight0_np),
+              'weight3': tvm.nd.array(weight0_np),
+              'weight5': tvm.nd.array(weight5_np)}
     return func, params, dataset
 
 def test_conv2d(ishape=(1,3,224,224), wshape=(32,3,5,5), batch_num=5, device='cpu'):
@@ -139,11 +151,11 @@ def check_results(func, params, dataset, device='cpu'):
     strategy, result = hago.search_quantize_strategy(func, hardware, dataset, tuner, ctx, target)
     quantizer = hago.create_quantizer(func, hardware, strategy)
     simulated_graph = quantizer.simulate()
-    # quantized_graph = quantizer.quantize()
+    quantized_graph = quantizer.quantize()
     print(strategy)
     print(result)
     print(simulated_graph)
-    # print(quantized_graph)
+    print("Quantized graph", quantized_graph)
 
     input_data = [ {**data, **params} for data in dataset.batches ]
     expected_out = hago.base.evaluate(original_func, input_data)[0]
@@ -154,11 +166,11 @@ def check_results(func, params, dataset, device='cpu'):
 
 if __name__ == '__main__':
     qconfig = hago.qconfig(log_file='temp.log',
-                           per_channel_scale_axis=1,
+                           use_channel_quantize=1,
                            threshold_estimate_method="avg_range")
     with qconfig:
         device = 'cpu'
-        func, params, dataset = test_dense(device=device)
+        func, params, dataset = test_concatenate(device=device)
         print('original model:')
         print(func)
         check_results(func, params, dataset, device)

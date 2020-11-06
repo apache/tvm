@@ -245,6 +245,7 @@ def identity_scale(input_scales):
     return scale0
 
 register_infer_scale("add", identity_scale)
+register_infer_scale("concatenate", identity_scale)
 register_infer_scale("mean", identity_scale)
 register_infer_scale("nn.softmax", identity_scale)
 register_infer_scale("layout_transform", identity_scale)
@@ -334,6 +335,14 @@ def register_rectify_scale(op_name, frectify_scale=None, level=10):
 def add_rectify_scale(args, old_in_scales, old_out_scales):
     new_scale = old_out_scales[0] if old_out_scales[0] > old_out_scales[1] else old_out_scales[1]
     return [new_scale, new_scale]
+
+@register_rectify_scale("concatenate")
+def concatenate_rectify_scale(args, old_in_scales, old_out_scales):
+    max_scale = old_out_scales[0]
+    for idx, scale in enumerate(old_in_scales):
+        max_scale = max(max_scale, scale)
+    return [max_scale] * len(old_in_scales)
+
 
 def return_input_scale(args, old_in_scales, old_out_scales):
     # Skip the requantize before relu
