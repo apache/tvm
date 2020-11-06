@@ -68,6 +68,9 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
   if (query_imports) {
     for (Module& m : self->imports_) {
       pf = m.operator->()->GetFunction(name, query_imports);
+      if (pf != nullptr) {
+        return pf;
+      }
     }
   }
   return pf;
