@@ -123,9 +123,11 @@ class TensorRTBuilder {
   /*! \brief Clean up resources used to create engine. */
   void CleanUp();
 
-  /*! \brief If the input DLTensor is not on the GPU, allocate a buffer for it. */
-  void AllocateDeviceBufferIfNeeded(nvinfer1::ICudaEngine* engine, const std::string& name,
-                                    std::vector<runtime::NDArray>* device_buffers);
+  /*! \brief Allocate a GPU buffer for input or output DLTensor, only if the context is not GPU
+   * already. Inputs that are already on the GPU can be passed directly to TensorRT and will not
+   * need a buffer. */
+  void AllocateDeviceBuffer(nvinfer1::ICudaEngine* engine, const std::string& name,
+                            std::vector<runtime::NDArray>* device_buffers);
 
   /*! \brief Maps a node to its outputs. */
   std::unordered_map<int, std::vector<TensorRTOpInput>> node_output_map_;

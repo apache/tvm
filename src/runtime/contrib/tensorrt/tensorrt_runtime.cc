@@ -165,7 +165,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
  private:
   /*!
-   * \brief Build TensorRT engine from JSON representation.
+   * \brief Build TensorRT engine from JSON representation and cache it. If engine is already built,
+   * do nothing.
    */
   void BuildEngine() {
     if (trt_engine_cache_.count(symbol_name_)) return;
