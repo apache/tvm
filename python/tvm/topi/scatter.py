@@ -212,9 +212,10 @@ def _verify_scatter_nd_inputs(data, indices, shape):
         )
     for i in range(mdim, len(shape)):
         data_ind = i - mdim + len(indices.shape) - 1
-        assert (
-            data.shape[data_ind] == shape[i]
-        ), f"Dimension of data[{data_ind}] ({data.shape[data_ind]}) must equal dimension of out_shape[{i}] ({shape[i]})."
+        assert data.shape[data_ind] == shape[i], (
+            f"Dimension of data[{data_ind}] ({data.shape[data_ind]}) must equal dimension "
+            f"of out_shape[{i}] ({shape[i]})."
+        )
 
     assert (
         "int" in indices.dtype

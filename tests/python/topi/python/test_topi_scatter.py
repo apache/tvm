@@ -44,7 +44,7 @@ def test_scatter_nd(ctx, target):
     out = np.array([[[[0, 0], [1, 2]], [[0, 0], [3, 4]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]])
     check_scatter_nd(data, indices, shape, out)
 
-    data = np.reshape(np.arange(1560*3), (3, 1560)).astype("float32")
+    data = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
     indices = np.array([[1, 0, 0]])
     shape = (2, 1560)
     out = np.zeros(shape).astype("float32")

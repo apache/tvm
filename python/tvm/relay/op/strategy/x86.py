@@ -447,6 +447,7 @@ def bitserial_dense_strategy_cpu(attrs, inputs, out_type, target):
     )
     return strategy
 
+
 @scatter_nd_strategy.register("cpu")
 def scatter_nd_strategy_cpu(attrs, inputs, out_type, target):
     """scatter_nd x86 strategy"""

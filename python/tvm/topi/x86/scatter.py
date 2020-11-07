@@ -56,6 +56,7 @@ def scatter_nd(data, indices, shape):
     _verify_scatter_nd_inputs(data, indices, shape)
 
     def gen_ir(data_ptr, indices_ptr, out_ptr):
+        # pylint: disable=invalid-name
         ib = tvm.tir.ir_builder.create()
 
         data = ib.buffer_ptr(data_ptr)
