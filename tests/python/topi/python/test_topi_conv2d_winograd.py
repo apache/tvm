@@ -244,5 +244,5 @@ def test_conv2d_nhwc():
 
 
 if __name__ == "__main__":
-    # test_conv2d_nchw()
+    test_conv2d_nchw()
     test_conv2d_nhwc()
