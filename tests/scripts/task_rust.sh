@@ -74,15 +74,15 @@ cd tests/test_tvm_dso
 cargo run
 cd -
 
+# run nn graph test
+cd tests/test_nn
+cargo run
+cd -
+
 # run wasm32 test
 cd tests/test_wasm32
 cargo build
 wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-rt-wasm32.wasm
-cd -
-
-# run nn graph test
-cd tests/test_nn
-cargo run
 cd -
 
 # Finally we test the TVM crate which provides both runtime

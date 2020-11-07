@@ -71,7 +71,6 @@ fn main() -> Result<()> {
             .unwrap_or("")
     );
 
-    println!("cargo:rustc-link-lib=static=test_wasm32");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     Ok(())
 }

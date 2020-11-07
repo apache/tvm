@@ -17,17 +17,6 @@
  * under the License.
  */
 
-extern "C" {
-    static __tvm_module_ctx: i32;
-}
-
-#[no_mangle]
-unsafe fn __get_tvm_module_ctx() -> i32 {
-    // Refer a symbol in the libtest_wasm32.a to make sure that the link of the
-    // library is not optimized out.
-    __tvm_module_ctx
-}
-
 use ndarray::Array;
 use tvm_graph_rt::{DLTensor, Module as _, SystemLibModule};
 
