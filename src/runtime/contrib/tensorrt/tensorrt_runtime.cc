@@ -123,7 +123,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
             bindings[binding_index] = data_entry_[eid]->data;
           } else {
             device_buffers[binding_index].CopyFrom(data_entry_[eid]);
-            bindings[binding_index] = reinterpret_cast<float*>(device_buffers[binding_index]->data);
+            bindings[binding_index] = device_buffers[binding_index]->data;
           }
         }
       }
@@ -135,9 +135,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->ctx.device_type == kDLGPU) {
-        bindings[binding_index] = reinterpret_cast<float*>(data_entry_[eid]->data);
+        bindings[binding_index] = data_entry_[eid]->data;
       } else {
-        bindings[binding_index] = reinterpret_cast<float*>(device_buffers[binding_index]->data);
+        bindings[binding_index] = device_buffers[binding_index]->data;
       }
     }
 
