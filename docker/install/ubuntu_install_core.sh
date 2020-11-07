@@ -27,4 +27,4 @@ apt-get update && apt-get install -y --no-install-recommends \
         apt-transport-https graphviz
 
 
-cd /usr/src/gtest && cmake CMakeLists.txt && make && cp *.a /usr/lib
+cd /usr/src/gtest && cmake CMakeLists.txt && make && ls && cp ./lib/*.a /usr/lib
