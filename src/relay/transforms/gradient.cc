@@ -181,6 +181,22 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
     return ret;
   }
 
+  Expr UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
+    if (t.as<TensorTypeNode>()) {
+      return ll->Push(Add(arg, grad));
+    } else if (auto* tt = t.as<TupleTypeNode>()) {
+      Array<Expr> updates;
+      for (size_t i = 0; i < tt->fields.size(); ++i) {
+        updates.push_back(this->UpdateGrad(tt->fields[i], ll->Push(GetField(arg, i)),
+                                           ll->Push(GetField(grad, i)), ll));
+      }
+      return ll->Push(Tuple(updates));
+    } else {
+      LOG(FATAL) << "unsupported arg type of operator: " << t;
+      throw;
+    }
+  }
+
   ADValue VisitExpr_(const OpNode* op) final {
     Op op_ref = GetRef<Op>(op);
     ICHECK(rev_map.count(op_ref)) << op->name << " does not have reverse mode defined";
@@ -198,8 +214,10 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
             tvm::Array<Expr> rev = rev_map[op_ref](orig, ret->reverse);
             ICHECK(args.size() == rev.size());
             for (size_t i = 0; i < args.size(); ++i) {
+              auto ad_arg = args[i]->get<ADTensor>();
+              auto ad_arg_type = ad_arg.forward->checked_type();
               args[i]->get<ADTensor>().reverse =
-                  ll->Push(Add(args[i]->get<ADTensor>().reverse, rev[i]));
+                  this->UpdateGrad(ad_arg_type, ad_arg.reverse, rev[i], ll);
             }
           });
           return ret;

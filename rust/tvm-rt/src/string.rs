@@ -25,9 +25,10 @@ use super::Object;
 use tvm_macros::Object;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "String"]
 #[type_key = "runtime.String"]
+#[no_derive]
 pub struct StringObj {
     base: Object,
     data: *const u8,

@@ -246,10 +246,10 @@ if os.path.exists(output_file):
     with np.load(output_file) as data:
         scores = softmax(data["output_0"])
         scores = np.squeeze(scores)
-        scores = np.argsort(scores)[::-1]
+        ranks = np.argsort(scores)[::-1]
 
-        for i in scores[0:5]:
-            print("class='%s' with probability=%f" % (labels[i], scores[i]))
+        for rank in ranks[0:5]:
+            print("class='%s' with probability=%f" % (labels[rank], scores[rank]))
 
 
 ########################################################################

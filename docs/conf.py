@@ -254,6 +254,7 @@ the Apache Software Foundation.""".split(
 ).strip()
 
 header_logo = "https://tvm.apache.org/assets/images/logo.svg"
+header_logo_link = "https://tvm.apache.org/"
 
 header_links = [
     ("Community", "https://tvm.apache.org/community"),
@@ -283,6 +284,7 @@ html_context = {
     "header_links": header_links,
     "header_dropdown": header_dropdown,
     "header_logo": header_logo,
+    "header_logo_link": header_logo_link,
 }
 
 # add additional overrides

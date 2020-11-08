@@ -51,7 +51,7 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
         num_int8_elements,
     )
 
-    oc_bn = int32_lanes
+    oc_bn = int32_lanes if int32_lanes >= num_int8_elements else num_int8_elements
     ic_bn = 1
     for bn in range(oc_bn, 0, -4):
         if wkl.in_filter % bn == 0:
@@ -99,7 +99,7 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
         num_int8_elements,
     )
 
-    oc_bn = int32_lanes
+    oc_bn = int32_lanes if int32_lanes >= num_int8_elements else num_int8_elements
     ic_bn = 1
     for bn in range(oc_bn, 0, -4):
         if wkl.in_filter % bn == 0:
@@ -119,7 +119,7 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
 
 
 def schedule_conv_NCHWc_cpu_common_int8(
-    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, intrin=None
+    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, int8_elems=4, intrin=None
 ):
     """
     Defines the schedule for INT8 for Intel and ARM machines
@@ -180,7 +180,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
     ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
 
     assert oc_bn % int32_lanes == 0
-    assert ic_bn % 4 == 0  # 4 (u)int8 elements in (u)int32
+    assert ic_bn % int8_elems == 0  # (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
@@ -245,7 +245,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
 
 
 def schedule_conv_NCHWc_cpu_1x1_int8(
-    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, intrin=None
+    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, int8_elems=4, intrin=None
 ):
     """
     Defines the 1x1 conv schedule for INT8 for Intel and ARM machines
@@ -305,7 +305,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
     assert oc_bn % int32_lanes == 0
-    assert ic_bn % 4 == 0  # 4 (u)int8 elements in (u)int32
+    assert ic_bn % int8_elems == 0  # (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 

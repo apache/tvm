@@ -36,7 +36,7 @@ determine the architecture by looking online.
 
 We recommend two different ways to build and install ACL:
 
-* Use the script located at `docker/install/ubuntu_install_arm_compute_library.sh`. You can use this
+* Use the script located at `docker/install/ubuntu_install_arm_compute_lib.sh`. You can use this
   script for building ACL from source natively or for cross-compiling the library on an x86 machine.
   You may need to change the architecture of the device you wish to compile for by altering the
   `target_arch` variable. Binaries will be built from source and installed to the location denoted by

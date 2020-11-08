@@ -3149,17 +3149,17 @@ def test_forward_scatter():
     in_data = torch.zeros(3, 5)
     in_index = torch.tensor([[0, 1, 2, 0, 0], [2, 0, 0, 1, 2]])
     in_src = torch.rand(2, 5)
-    # TODO: add scatter gpu schedule to enable gpu test.
-    verify_trace_model(test_fn_scatter(0), [in_data, in_index, in_src], ["llvm"])
-    verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], ["llvm"])
+
+    targets = ["llvm", "cuda"]
+    verify_trace_model(test_fn_scatter(0), [in_data, in_index, in_src], targets)
+    verify_trace_model(test_fn_scatter_add(0), [in_data, in_index, in_src], targets)
 
     in_data = torch.zeros(2, 4)
     in_index = torch.tensor([[2], [3]])
     in_src = torch.rand(2, 1)
 
-    # # TODO: add scatter gpu schedule to enable gpu test.
-    verify_trace_model(test_fn_scatter(1), [in_data, in_index, in_src], ["llvm"])
-    verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], ["llvm"])
+    verify_trace_model(test_fn_scatter(1), [in_data, in_index, in_src], targets)
+    verify_trace_model(test_fn_scatter_add(1), [in_data, in_index, in_src], targets)
 
 
 def test_numel():

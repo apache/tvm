@@ -46,7 +46,7 @@ def skip_runtime_test():
     return False
 
 
-def run_and_verify_func(config):
+def run_and_verify_func(config, target="cuda"):
     """Test a Relay func by compiling, running, and comparing TVM and TRT outputs.
 
     Parameters
@@ -70,10 +70,11 @@ def run_and_verify_func(config):
     mod["main"] = f
     mod, config = tensorrt.partition_for_tensorrt(mod, params)
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
-        graph, lib, graph_params = relay.build(mod, "cuda", params=params)
+        graph, lib, graph_params = relay.build(mod, target, params=params)
     if skip_runtime_test():
         return
-    mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
+    ctx = tvm.context(target)
+    mod = graph_runtime.create(graph, lib, ctx=ctx)
     mod.set_input(**graph_params)
     mod.run(**input_dict)
     results = [mod.get_output(i) for i in range(mod.get_num_outputs())]
@@ -82,8 +83,8 @@ def run_and_verify_func(config):
     mod = tvm.IRModule()
     mod["main"] = f
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, graph_params = relay.build(mod, "cuda", params=params)
-    mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
+        graph, lib, graph_params = relay.build(mod, target, params=params)
+    mod = graph_runtime.create(graph, lib, ctx=ctx)
     mod.set_input(**graph_params)
     mod.run(**input_dict)
     ref_results = [mod.get_output(i) for i in range(mod.get_num_outputs())]
@@ -186,6 +187,23 @@ def test_tensorrt_simple():
     z_data = np.random.uniform(-1, 1, zshape).astype(dtype)
     mod.run(x=x_data, y=y_data, z=z_data)
     results = [mod.get_output(i).asnumpy() for i in range(mod.get_num_outputs())]
+
+
+def test_tensorrt_simple_cpu_io():
+    def get_graph():
+        dtype = "float32"
+        x_shape = (1, 3, 2, 2)
+        y_shape = (1, 3, 1, 1)
+        z_shape = (1, 1, 1, 1)
+        x = relay.var("x", shape=(x_shape), dtype=dtype)
+        y = relay.var("y", shape=(y_shape), dtype=dtype)
+        z = relay.var("z", shape=(z_shape), dtype=dtype)
+        w = z * (x + y)
+        out = relay.nn.relu(w)
+        f = relay.Function([x, y, z], out)
+        return f, {"x": x_shape, "y": y_shape, "z": z_shape}, ["y"]
+
+    run_and_verify_func(get_graph(), target="llvm")
 
 
 def test_tensorrt_not_compatible():
@@ -859,6 +877,7 @@ def test_densenet121():
 if __name__ == "__main__":
     test_tensorrt_not_compatible()
     test_tensorrt_simple()
+    test_tensorrt_simple_cpu_io()
     test_tensorrt_serialize()
 
     # Op tests

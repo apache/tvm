@@ -17,11 +17,12 @@
 """Arm Compute Library network tests."""
 
 import numpy as np
-
+import pytest
+from tvm import testing
 from tvm import relay
 
-from .infrastructure import skip_runtime_test, build_and_run, verify
-from .infrastructure import Device
+from test_arm_compute_lib.infrastructure import skip_runtime_test, build_and_run, verify
+from test_arm_compute_lib.infrastructure import Device
 
 
 def _build_and_run_network(mod, params, inputs, device, tvm_ops, acl_partitions, atol, rtol):

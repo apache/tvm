@@ -82,9 +82,8 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     std::vector<StorageToken*> fields;
     for (Expr field : op->fields) {
-      auto tok = GetToken(field);
-      ICHECK_EQ(tok.size(), 1U);
-      fields.push_back(tok[0]);
+      auto tokens = GetToken(field);
+      fields.insert(fields.end(), tokens.begin(), tokens.end());
     }
     token_map_[op] = fields;
   }

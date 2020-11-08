@@ -70,5 +70,5 @@ class ContextMaintainer:
                 return symbols[name]
         return None
 
-    def report_error(self, message):
-        self.parser.report_error(message)
+    def report_error(self, message, span):
+        self.parser.report_error(message, span)

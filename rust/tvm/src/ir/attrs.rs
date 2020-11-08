@@ -21,7 +21,7 @@ use crate::runtime::Object;
 use tvm_macros::Object;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "Attrs"]
 #[type_key = "Attrs"]
 pub struct BaseAttrsNode {

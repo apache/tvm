@@ -17,15 +17,17 @@
  * under the License.
  */
 
-use super::relay;
+use tvm_macros::Object;
+
 use crate::runtime::String as TString;
 use crate::runtime::{self, external, IsObject, IsObjectRef, Object, ObjectPtr, ObjectRef};
 use crate::DataType;
 
-use tvm_macros::Object;
+use super::relay;
+use super::span::Span;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "BaseExpr"]
 #[type_key = "Expr"]
 pub struct BaseExprNode {
@@ -41,7 +43,7 @@ impl BaseExprNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PrimExpr"]
 #[type_key = "PrimExpr"]
 pub struct PrimExprNode {
@@ -59,7 +61,7 @@ impl PrimExprNode {
 }
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "GlobalVar"]
 #[type_key = "GlobalVar"]
 pub struct GlobalVarNode {
@@ -68,7 +70,7 @@ pub struct GlobalVarNode {
 }
 
 impl GlobalVar {
-    pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
+    pub fn new(name_hint: String, _span: Span) -> GlobalVar {
         let node = GlobalVarNode {
             base: relay::ExprNode::base::<GlobalVarNode>(),
             name_hint: name_hint.into(),

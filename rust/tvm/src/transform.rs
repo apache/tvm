@@ -33,7 +33,7 @@ pub type IRModule = ObjectRef;
 pub type PassContext = ObjectRef;
 
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "PassInfo"]
 #[type_key = "transform.PassInfo"]
 pub struct PassInfoNode {
