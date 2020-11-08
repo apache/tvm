@@ -169,10 +169,10 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
         program_cost_model->Update(inputs, results);
 
         double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
-                        std::chrono::high_resolution_clock::now() - tic_begin)
-                        .count();
-        StdCout(verbose) << "Time elapsed: " << std::fixed
-                         << std::setprecision(2) << duration << std::endl;
+                              std::chrono::high_resolution_clock::now() - tic_begin)
+                              .count();
+        StdCout(verbose) << "Time elapsed: " << std::fixed << std::setprecision(2) << duration
+                         << std::endl;
       }
 
       // Search one round to get promising states
@@ -264,10 +264,10 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
   program_cost_model->Update(inputs, results);
 
   double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
-                  std::chrono::high_resolution_clock::now() - tic_begin)
-                  .count();
-  StdCout(verbose) << "Time elapsed: " << std::fixed
-                   << std::setprecision(2) << duration << std::endl;
+                        std::chrono::high_resolution_clock::now() - tic_begin)
+                        .count();
+  StdCout(verbose) << "Time elapsed: " << std::fixed << std::setprecision(2) << duration
+                   << std::endl;
 
   return std::make_pair(std::move(inputs), std::move(results));
 }
