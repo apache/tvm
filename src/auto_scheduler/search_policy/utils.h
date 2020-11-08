@@ -677,33 +677,6 @@ class SplitFactorizationMemo {
  private:
   void DfsEnumerate(int now, int remaining_length, int max_innermost_factor);
 
-  /*!
-   * \brief A simple implementation of read-write lock.
-   * The guarded block can be read by multiple threads at the same time, while other operations will
-   * be blocked if one thread is writing.
-   * \note Writing threads will wait until all reading threads have finshed. If there're multiple
-   * writing threads, the process order of them is not guaranteed.
-   */
-  class ReadWriteLock {
-   public:
-    /*! \brief The method to get the read lock. One thread can process read if there's on other
-     * writing threads. */
-    void GetRead();
-    /*! \brief The method to get the write lock. One thread can process write if there's on other
-     * reading or writing threads. */
-    void GetWrite();
-    /*! \brief The method to release the read lock. */
-    void UnlockRead();
-    /*! \brief The method to release the write lock. */
-    void UnlockWrite();
-
-   private:
-    uint32_t read_count_ = 0;
-    bool is_writing_ = false;
-    std::mutex cv_mutex_;
-    std::condition_variable cv_;
-  } lock_;
-
   std::unordered_map<QueryKey, Array<Array<Integer>>> memory_;
 
   int n_lengths_;
