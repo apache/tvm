@@ -163,8 +163,16 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
     while (ct < n_trials) {
       if (!inputs.empty()) {
         // Retrain cost models before the next search round
+        auto tic_begin = std::chrono::high_resolution_clock::now();
+
         PrintTitle("Train cost model", verbose);
         program_cost_model->Update(inputs, results);
+
+        double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                        std::chrono::high_resolution_clock::now() - tic_begin)
+                        .count();
+        StdCout(verbose) << "Time elapsed: " << std::fixed
+                         << std::setprecision(2) << duration << std::endl;
       }
 
       // Search one round to get promising states
@@ -250,8 +258,16 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
   }
 
   // Update the cost model
+  auto tic_begin = std::chrono::high_resolution_clock::now();
+
   PrintTitle("Train cost model", verbose);
   program_cost_model->Update(inputs, results);
+
+  double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                  std::chrono::high_resolution_clock::now() - tic_begin)
+                  .count();
+  StdCout(verbose) << "Time elapsed: " << std::fixed
+                   << std::setprecision(2) << duration << std::endl;
 
   return std::make_pair(std::move(inputs), std::move(results));
 }
@@ -362,6 +378,8 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   // At least we should sample this number of valid programs
   int min_population = GetIntParam(params, SketchParamKey::SampleInitPopulation::min_population);
 
+  auto tic_begin = std::chrono::high_resolution_clock::now();
+
   int fail_ct = 0;
   Array<State> out_states;
   std::vector<std::mt19937> rand_gens;
@@ -369,7 +387,6 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   for (int i = 0; i < population; i++) {
     rand_gens.push_back(std::mt19937(rand_gen()));
   }
-  auto tic_begin = std::chrono::high_resolution_clock::now();
 
   std::unordered_set<std::string> explored_state_strs;
   size_t iter = 1;
