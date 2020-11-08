@@ -283,7 +283,7 @@ class TaskScheduler:
                         continue
 
                     # compute gradient from chain rule : (delta f / delta g_i)
-                    delta = 1e-7
+                    delta = 1e-4
                     new_costs = list(self.best_costs)
                     new_costs[i] -= delta
                     chain_grad = (

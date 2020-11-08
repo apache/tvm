@@ -132,7 +132,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 # Define the neural network and compilation target
 network = "resnet-18"
 batch_size = 1
-layout = "NCHW"
+layout = "NHWC"
 target = tvm.target.Target("cuda")
 dtype = "float32"
 log_file = "%s-B%d.json" % (network, batch_size)
@@ -189,7 +189,7 @@ def run_tuning():
 
     tuner = auto_scheduler.TaskScheduler(tasks, objective)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=200,  # change this to 20000 to achive the best performance
+        num_measure_trials=200,  # change this to 20000 to achieve the best performance
         runner=measure_ctx.runner,
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
@@ -211,6 +211,7 @@ def run_tuning():
 #   of the task scheduler. The following table is a sample output.
 #
 #   .. code-block:: c
+#
 #     ----------------------------------------------------------------------
 #     ------------------------------  [ Task Scheduler ]
 #     ----------------------------------------------------------------------
