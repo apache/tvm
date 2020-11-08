@@ -505,7 +505,7 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
 
 
 def conv2d_NCHWc_int8(
-    data, kernel, stride, padding, dilation, layout, out_layout, out_dtype="int32"
+    data, kernel, stride, padding, dilation, layout, out_layout, out_dtype="int32", n_elems=4
 ):
     """Conv2D operator for nChw[x]c layout.
 
@@ -538,6 +538,9 @@ def conv2d_NCHWc_int8(
 
     out_dtype : str
         output data type
+
+    n_elems : int
+        numer of int8 elements accumulated
 
     Returns
     -------
@@ -588,7 +591,6 @@ def conv2d_NCHWc_int8(
     kw = te.reduce_axis((0, kernel_width), name="kw")
 
     if groups == 1:
-        n_elems = 4
         ic_outer = te.reduce_axis((0, in_channel // ic_bn), name="ic_outer")
         ic_f_inner = te.reduce_axis((0, ic_bn // n_elems), name="ic_f_inner")
         ic_s_inner = te.reduce_axis((0, n_elems), name="ic_s_inner")
@@ -611,7 +613,6 @@ def conv2d_NCHWc_int8(
             tag="conv2d_NCHWc_int8",
         )
     # for int8 group conv support
-    n_elems = 4
     ic_chunk = in_channel // ic_bn
     ic_outer = te.reduce_axis((0, ic_chunk // groups), name="ic_outer")
     ic_f_inner = te.reduce_axis((0, ic_bn // n_elems), name="ic_f_inner")
