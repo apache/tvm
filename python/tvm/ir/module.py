@@ -251,8 +251,7 @@ class IRModule(Node):
         return tvm.relay.transform.InferType()(self)
 
     def __str__(self):
-        # TODO(jroesch): why does this hang sometimes?
-        return self.astext()
+        return _ffi_api.PrettyPrint(self)
 
     def __repr__(self):
         return self.astext()
