@@ -217,8 +217,7 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     batch_size = builder->n_parallel * 2;
   }
 
-  StdCout(verbose) << "Get " << inputs.size() << " programs for measure. (This may take a while)"
-                   << std::endl;
+  StdCout(verbose) << "Get " << inputs.size() << " programs to measure." << std::endl;
 
   for (size_t i = 0; i < inputs.size(); i += batch_size) {
     Array<MeasureInput> input_batch(inputs.begin() + i,
@@ -247,11 +246,12 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
       }
 
       ct++;
-      StdCout(verbose) << std::fixed << std::setprecision(2) << Chars('=', 50) << "\n"
-                       << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
-                       << best_flops[workload_key] / 1e9 << "\tresults: " << result_batch[j] << "\n"
-                       << Chars('=', 50) << "\n"
-                       << input_batch[j]->state << "\n";
+      StdCout(verbose, 2) << std::fixed << std::setprecision(2) << Chars('=', 50) << "\n"
+                          << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
+                          << best_flops[workload_key] / 1e9 << "\tresults: " << result_batch[j]
+                          << "\n"
+                          << Chars('=', 50) << "\n"
+                          << input_batch[j]->state << "\n";
     }
 
     // Call callback functions

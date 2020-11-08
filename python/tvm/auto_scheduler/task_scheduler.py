@@ -31,9 +31,10 @@ import numpy as np
 
 from .search_policy import SearchPolicy, SketchPolicy
 from .cost_model import RandomModel, XGBModel
-from .utils import array_mean, to_str_round
+from .utils import array_mean
 from .measure import ProgramMeasurer
 from .measure_record import RecordReader
+from . import _ffi_api
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -75,7 +76,7 @@ def make_search_policies(
         if model_type == "xgb":
             cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
             if load_model_file:
-                logger.info("Load pretrained model...")
+                logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
                 cost_model.load_log_file(load_log_file)
@@ -337,10 +338,40 @@ class TaskScheduler:
             self._tune_task(task_idx)
             self._adjust_similarity_group(task_idx)
 
+    def _print_table_info(self, next_task_idx):
+        # table header
+        _ffi_api.PrintTitle("Task Scheduler")
+        print("|  ID  | Latency (ms) | Speed (GFLOPS) | Trials |")
+        print("-------------------------------------------------")
+
+        # content
+        for i in range(len(self.tasks)):
+            id_str = "%d" % i
+            latency_str = "%.3f" % (1e3 * self.best_costs[i]) if self.best_costs[i] < 1e9 else "-"
+            speed_str = (
+                "%.2f" % (self.tasks[i].compute_dag.flop_ct / self.best_costs[i] / 1e9)
+                if self.best_costs[i] < 1e9
+                else "-"
+            )
+            trials_str = "%d" % (self.task_cts[i] * self.num_measures_per_round)
+            print("| %4s | %12s | % 14s | %6s |" % (id_str, latency_str, speed_str, trials_str))
+        print("-------------------------------------------------")
+
+        # overall info
+        if all(self.best_costs[i] < 1e9 for i in range(len(self.tasks))):
+            total_latency_str = "%.3f" % (self.cur_score * 1e3)
+        else:
+            total_latency_str = "-"
+        print(
+            "Total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
+            % (total_latency_str, self.ct, time.time() - self.tic, next_task_idx)
+        )
+
     def _tune_task(self, task_idx):
         """Tune the select task for one round"""
         if self.verbose >= 1:
-            logger.info("TaskScheduler: task id:\t%d", task_idx)
+            self._print_table_info(task_idx)
+
         measure_inputs, measure_results = self.search_policies[task_idx].continue_search_one_round(
             self.num_measures_per_round, self.measurer
         )
@@ -358,17 +389,6 @@ class TaskScheduler:
 
         self.ct += len(measure_inputs)
         self.cur_score = self._compute_score(self.best_costs)
-
-        if self.verbose >= 1:
-            logger.info(
-                "TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t"
-                "best_costs (ms): %s\ttask_ct: %s",
-                self.ct,
-                self.cur_score * 1e3,
-                time.time() - self.tic,
-                to_str_round(self.best_costs * 1e3, decimal=3),
-                self.task_cts,
-            )
 
     def _compute_score(self, costs):
         """compute the objective function"""

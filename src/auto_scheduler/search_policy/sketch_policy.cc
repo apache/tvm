@@ -673,5 +673,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyEvolutionarySearch")
       return states;
     });
 
+TVM_REGISTER_GLOBAL("auto_scheduler.PrintTitle").set_body_typed([](std::string title) {
+  PrintTitle(title, 1);
+});
+
 }  // namespace auto_scheduler
 }  // namespace tvm
