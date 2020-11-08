@@ -135,7 +135,7 @@ batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("cuda")
 dtype = "float32"
-log_file = "%s-B%d.json" % (network, batch_size)
+log_file = "%s-%s-B%d.json" % (network, layout, batch_size)
 
 #################################################################
 # Extract Search Tasks
