@@ -146,6 +146,10 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     name="conv2d_nchw_winograd.cuda",
                     plevel=5,
                 )
+
+            strategy.add_auto_scheduler(
+                wrap_compute_conv2d(topi.nn.conv2d_nchw), name="conv2d_nchw"
+            )
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(
@@ -271,11 +275,21 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
                 name="depthwise_conv2d_nchw.cuda",
             )
+
+            strategy.add_auto_scheduler(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.cuda",
+            )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nhwc),
+                name="depthwise_conv2d_nhwc.cuda",
+            )
+
+            strategy.add_auto_scheduler(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.cuda",
             )
         else:
@@ -463,6 +477,11 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                 name="conv3d_ncdhw_winograd.cuda",
                 plevel=5,
             )
+
+        strategy.add_auto_scheduler(
+            wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
+            name="conv3d_ncdhw.cuda",
+        )
     else:  # layout == "NDHWC":
         strategy.add_implementation(
             wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
@@ -485,6 +504,11 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                         name="conv3d_ndhwc_tensorcore.cuda",
                         plevel=20,
                     )
+
+        strategy.add_auto_scheduler(
+            wrap_compute_conv3d(topi.nn.conv3d_ndhwc),
+            name="conv3d_ndhwc.cuda",
+        )
 
     if target.kind.name == "cuda" and "cudnn" in target.libs:
         strategy.add_implementation(
