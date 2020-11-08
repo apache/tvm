@@ -204,6 +204,74 @@ subsection_order = ExplicitOrder(
     ]
 )
 
+# Explicitly define the order within a subsection.
+# The listed files are sorted according to the list.
+# The unlisted files are sorted by filenames.
+# The unlisted files always appear after listed files.
+within_subsection_order = {
+    "get_started": [
+        "relay_quick_start.py",
+        "tensor_expr_get_started.py",
+        "tvmc_command_line_driver.py",
+        "cross_compilation_and_rpc.py",
+    ],
+    "frontend": [
+        "from_pytorch.py",
+        "from_tensorflow.py",
+        "from_mxnet.py",
+        "from_onnx.py",
+        "from_keras.py",
+        "from_tflite.py",
+        "from_coreml.py",
+        "from_darknet.py",
+        "from_caffe2.py",
+    ],
+    "language": [
+        "schedule_primitives.py",
+        "reduciton.py",
+        "intrin_math.py",
+        "scan.py",
+        "extern_op.py",
+        "tensorize.py",
+        "tuple_inputs.py",
+        "tedd.py",
+    ],
+    "optimize": [
+        "opt_gemm.py",
+        "opt_conv_cuda.py",
+        "opt_conv_tensorcore.py",
+        "opt_matmul_auto_tensorcore.py",
+    ],
+    "autotvm": [
+        "tune_simple_template.py",
+        "tune_conv2d_cuda.py",
+        "tune_relay_cuda.py",
+        "tune_relay_x86.py",
+        "tune_relay_arm.py",
+        "tune_relay_mobile_gpu.py",
+    ],
+    "auto_scheduler": ["tune_matmul_x86.py", "tune_conv2d_layer_cuda.py"],
+}
+
+
+class WithinSubsectionOrder:
+    def __init__(self, src_dir):
+        self.src_dir = src_dir.split("/")[-1]
+
+    def __call__(self, filename):
+        # If the order is provided, use the provided order
+        if (
+            self.src_dir in within_subsection_order
+            and filename in within_subsection_order[self.src_dir]
+        ):
+            index = within_subsection_order[self.src_dir].index(filename)
+            assert index < 1e10
+            return "\0%010d" % index
+
+        # Otherwise, sort by filename
+        return filename
+
+
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("tvm", "numpy"),
@@ -213,6 +281,7 @@ sphinx_gallery_conf = {
         "numpy": "https://numpy.org/doc/stable",
     },
     "examples_dirs": examples_dirs,
+    "within_subsection_order": WithinSubsectionOrder,
     "gallery_dirs": gallery_dirs,
     "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", ".py"),
