@@ -28,6 +28,10 @@ def get_network(name, batch_size=1, layout="NHWC"):
         image_shape = (224, 224, 3)
     elif layout == "NCHW":
         image_shape = (3, 224, 224)
+    elif layout == "NCDHW":
+        image_shape = (3, 16, 224, 224)
+    elif layout == "NDHWC":
+        image_shape = (3, 224, 224, 16)
     else:
         raise ValueError("Invalid layout: " + layout)
 
@@ -39,13 +43,13 @@ def get_network(name, batch_size=1, layout="NHWC"):
         mod, params = relay.testing.resnet.get_workload(
             num_layers=50, batch_size=batch_size, layout=layout, image_shape=image_shape
         )
-    elif name == "resnet3d-18":
-        mod, params = relay.testing.resnet_3d.get_workload(
-            num_layers=18, batch_size=batch_size, layout=layout, image_shape=image_shape
-        )
     elif name == "mobilenet":
         mod, params = relay.testing.mobilenet.get_workload(
             batch_size=batch_size, layout=layout, image_shape=image_shape
+        )
+    elif name == "resnet3d-18":
+        mod, params = relay.testing.resnet_3d.get_workload(
+            num_layers=18, batch_size=batch_size, layout=layout, image_shape=image_shape
         )
     elif name == "dcgan":
         mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size, layout=layout)
@@ -70,20 +74,34 @@ def get_network(name, batch_size=1, layout="NHWC"):
 @tvm.testing.requires_cuda
 def test_task_extraction_cuda():
     auto_scheduler.enable_relay_integration()
+    target = tvm.target.Target("cuda")
 
     mod, params = get_network("mlp")
-    target = tvm.target.Target("cuda")
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-
     assert len(tasks) == 1
     assert sum(task_weights) == 2
 
-    mod, params = get_network("resnet-18")
-    target = tvm.target.Target("cuda")
-    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+    for layout in ["NHWC", "NCHW"]:
+        mod, params = get_network("resnet-18", layout=layout)
+        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
-    assert len(tasks) == 21
-    assert sum(task_weights) == 22
+        assert len(tasks) == 21
+        assert sum(task_weights) == 22
+
+        mod, params = get_network("mobilenet", layout=layout)
+        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+
+        assert len(tasks) == 20
+        assert sum(task_weights) == 28
+
+    for layout in ["NCDHW", "NDHWC"]:
+        mod, params = get_network("resnet3d-18", layout=layout)
+        tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+
+        assert len(tasks) == 21
+        assert sum(task_weights) == 22
+
+    auto_scheduler.enable_relay_integration(False)
 
 
 if __name__ == "__main__":
