@@ -450,6 +450,7 @@ std::vector<std::pair<State, int>> RuleSpecialComputeLocationGPU::Apply(
 
 PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy, State* state,
                                                              std::mt19937* rand_gen) const {
+  SplitFactorizationMemo split_memo;
   int max_innermost_split_factor =
       GetIntParam(policy->params, SketchParamKey::max_innermost_split_factor);
 
@@ -470,8 +471,9 @@ PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* p
 
       ICHECK(ps->extent);
       int extent = GetIntImm(ps->extent.value());
-      const auto& candidate_lens = policy->split_memo.GetFactorizationSchemes(
-          extent, ps->lengths.size(), max_innermost_split_factor);
+      const auto& candidate_lens = split_memo.GetFactorizationSchemes(extent, ps->lengths.size(),
+                                                                      max_innermost_split_factor);
+      ICHECK(!candidate_lens.empty());
       const auto& candidate_lengths = candidate_lens[(*rand_gen)() % candidate_lens.size()];
 
       pstate->transform_steps.Set(
