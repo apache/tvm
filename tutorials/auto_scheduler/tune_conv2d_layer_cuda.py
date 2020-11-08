@@ -22,8 +22,7 @@ Auto-scheduling a convolution layer for GPU
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
 
-
-Different from the existing :ref:`autotvm <tutorials-autotvm-sec>` which relies on 
+Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any templates.
 Users only need to write the computation declaration without any schedule commands or templates.
 The auto-scheduler can automatically generate a large search space and
@@ -181,7 +180,6 @@ func = tvm.build(sch, args, target)
 # In this case, we need to create the search policy and cost model by ourselves
 # and resume the status of search policy and cost model with the log file.
 # In the example below we resume the status and do more 5 trials.
-
 
 cost_model = auto_scheduler.XGBModel()
 cost_model.update_from_file(log_file)
