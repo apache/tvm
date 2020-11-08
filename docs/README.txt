@@ -51,3 +51,8 @@ You will need a gpu CI environment.
 ```bash
 ./tests/scripts/task_python_docs.sh
 ```
+
+Define the Order of Tutorials
+-----------------------------
+You can define the order of tutorials with `conf.py::subsection_order` and `conf.py::within_subsection_order`.
+By default, the tutorials within one subsection is sorted by filename.
