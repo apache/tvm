@@ -141,13 +141,7 @@ void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src, DataType t) {
   PrintType(t, stream);
-  stream << ' ' << target << " = ";
-  if (src.length() > 3 && src[0] == '(' && src[src.length() - 1] == ')') {
-    stream << src.substr(1, src.length() - 2);
-  } else {
-    stream << src;
-  }
-  stream << ";\n";
+  stream << ' ' << target << " = " << src << ";\n";
 }
 
 // Print a reference expression to a buffer.
