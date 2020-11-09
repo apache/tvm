@@ -1796,12 +1796,8 @@ def test_forward_sparse_dense_matmul():
 
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 4], [4, 3], "float32")
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32")
-    _test_sparse_dense_matmul(
-        [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32"
-    )
-    _test_sparse_dense_matmul(
-        [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [7, 9], [9, 5], "float32"
-    )
+    _test_sparse_dense_matmul([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [5, 5], [5, 5], "float32")
+    _test_sparse_dense_matmul([[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [7, 9], [9, 5], "float32")
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [4, 3], [3, 4], "float32", True)
     _test_sparse_dense_matmul([[0, 0], [1, 2]], [4.0, 8.0], [3, 3], [3, 3], "float32", True)
     _test_sparse_dense_matmul(

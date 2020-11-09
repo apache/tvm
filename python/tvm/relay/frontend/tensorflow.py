@@ -941,7 +941,9 @@ def _sparse_tensor_dense_matmul():
         weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
 
         if sparse_data:
-            ret = _op.nn.sparse_dense([weight_data, weight_indices, weight_indptrs], data, sparse_data=True)
+            ret = _op.nn.sparse_dense(
+                [weight_data, weight_indices, weight_indptrs], data, sparse_data=True
+            )
         else:
             ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
             ret = _op.transpose(ret)
@@ -949,7 +951,10 @@ def _sparse_tensor_dense_matmul():
         # Case 1. If both are true means first input was dense and second was sparse
         # Case 2. If both are false means first input was sparse and second was dense
         # TODO(ANSHUMAN87): Support other adjoint option too
-        if not ((attr.get("adjoint_a") and attr.get("adjoint_b")) or ((not attr.get("adjoint_a")) and (not attr.get("adjoint_b")))):
+        if not (
+            (attr.get("adjoint_a") and attr.get("adjoint_b"))
+            or ((not attr.get("adjoint_a")) and (not attr.get("adjoint_b")))
+        ):
             raise tvm.error.OpAttributeUnImplemented(
                 "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
                 "or with adjoint_a=False and adjoint_b=False"
