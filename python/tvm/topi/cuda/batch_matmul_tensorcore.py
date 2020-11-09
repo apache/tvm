@@ -19,7 +19,7 @@
 import tvm
 from tvm import autotvm
 from tvm import te
-from ..util import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple
 from .tensor_intrin import intrin_wmma_load_matrix_A, \
         intrin_wmma_load_matrix_W, intrin_wmma_store_matrix, intrin_wmma_gemm
 
