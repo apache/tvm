@@ -140,6 +140,7 @@ class PrimFunc : public BaseFunc {
    * \param ret_type The return type of the function.
    * \param buffer_map The buffer map for parameter buffer unpacking.
    * \param attrs Additional function attributes.
+   * \param span The location of this object in the source code.
    */
   TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
                    Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),

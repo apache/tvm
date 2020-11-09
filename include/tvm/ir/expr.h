@@ -264,6 +264,7 @@ class IntImm : public PrimExpr {
    * \brief Constructor.
    * \param dtype The data type of the value.
    * \param value The internal value.
+   * \param span The location of this object in the source code.
    */
   TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
 

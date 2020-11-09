@@ -594,6 +594,7 @@ class SeqStmt : public Stmt {
   /*!
    * \brief Construct SeqStmt.
    * \param seq The sequence.
+   * \param span The location of this object in the source code.
    */
   TVM_DLL explicit SeqStmt(Array<Stmt> seq, Span span = Span());
 
@@ -990,6 +991,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
 /*!
  * \brief Create a type annotation expression
  * \param dtype The data type
+ * \param span The location of this object in the source code.
  * \return Expr a expression with dtype.
  */
 TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());

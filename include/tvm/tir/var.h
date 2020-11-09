@@ -91,6 +91,7 @@ class Var : public PrimExpr {
    * \brief Constructor
    * \param name_hint variable name
    * \param dtype data type
+   * \param span The location of this object in the source code.
    */
   TVM_DLL explicit Var(String name_hint = "v", DataType dtype = DataType::Int(32),
                        Span span = Span());
@@ -98,6 +99,7 @@ class Var : public PrimExpr {
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
    * \param type_annotation The type annotation.
+   * \param span The location of this object in the source code.
    */
   TVM_DLL explicit Var(String name_hint, Type type_annotation, Span span = Span());
   /*!
@@ -139,6 +141,7 @@ class SizeVar : public Var {
    * \brief constructor
    * \param name_hint variable name
    * \param t data type
+   * \param span The location of this object in the source code.
    */
   TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32),
                            Span span = Span());

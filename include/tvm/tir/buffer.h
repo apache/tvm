@@ -188,6 +188,7 @@ class Buffer : public ObjectRef {
  * \param shape The shape of the buffer,
  * \param dtype The content data type.
  * \param name The name of the buffer
+ * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
