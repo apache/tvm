@@ -74,6 +74,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc PrintFinal(const ObjectRef& node);
   std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
   std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
+  Doc PrintSpan(const Span& span);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
 
