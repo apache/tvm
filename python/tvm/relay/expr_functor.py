@@ -213,7 +213,7 @@ class ExprMutator(ExprFunctor):
     def visit_call(self, call):
         new_fn = self.visit(call.op)
         new_args = [self.visit(arg) for arg in call.args]
-        return Call(new_fn, new_args, call.attrs)
+        return Call(new_fn, new_args, call.attrs, call.type_args, call.span)
 
     def visit_var(self, var):
         return var
@@ -225,7 +225,7 @@ class ExprMutator(ExprFunctor):
         return If(self.visit(ite.cond), self.visit(ite.true_branch), self.visit(ite.false_branch))
 
     def visit_tuple(self, tup):
-        return Tuple([self.visit(field) for field in tup.fields])
+        return Tuple([self.visit(field) for field in tup.fields], tup.span)
 
     def visit_tuple_getitem(self, op):
         tuple_value = self.visit(op.tuple_value)
