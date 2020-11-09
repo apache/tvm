@@ -18,6 +18,8 @@
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
 from numbers import Integral
+import numpy as np
+
 
 import tvm
 from tvm import te
@@ -185,6 +187,7 @@ def get_const_tuple(in_tuple):
                 ret.append(get_const_int(elem))
         else:
             ret.append(get_const_int(elem))
+    return tuple(ret)
 
 
 def const_vector(vector, name="const_vector"):
@@ -202,8 +205,6 @@ def const_vector(vector, name="const_vector"):
     tensor: Tensor
         The created tensor
     """
-    import numpy as np
-
     if not isinstance(vector, np.ndarray):
         vector = np.array(vector)
     row = vector.shape[0]
@@ -221,8 +222,6 @@ def const_vector(vector, name="const_vector"):
         return now
 
     return te.compute(vector.shape, select_array, name=name)
-
-    return tuple(ret)
 
 
 def get_float_tuple(in_tuple):
