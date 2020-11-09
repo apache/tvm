@@ -43,58 +43,58 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   ICHECK(param != nullptr);
 
   if (param->sparse_data) {
-        const auto* weight = types[3].as<TensorTypeNode>();
-      const auto* data_data = types[0].as<TensorTypeNode>();
-      ICHECK(data_data->shape.size() == 1 || data_data->shape.size() == 3);
-      const auto* data_indptr = types[2].as<TensorTypeNode>();
-      if (weight == nullptr) return false;
+    const auto* weight = types[3].as<TensorTypeNode>();
+    const auto* data_data = types[0].as<TensorTypeNode>();
+    ICHECK(data_data->shape.size() == 1 || data_data->shape.size() == 3);
+    const auto* data_indptr = types[2].as<TensorTypeNode>();
+    if (weight == nullptr) return false;
 
-      if (data_data->shape.size() == 1) {
-        // CSR case.
-        Array<IndexExpr> oshape({data_indptr->shape[0] - 1, weight->shape[0]});
-        reporter->Assign(types[4], TensorType(oshape, weight->dtype));
-        return true;
-      }
+    if (data_data->shape.size() == 1) {
+      // CSR case.
+      Array<IndexExpr> oshape({data_indptr->shape[0] - 1, weight->shape[0]});
+      reporter->Assign(types[4], TensorType(oshape, weight->dtype));
+      return true;
+    }
 
-      if (data_data->shape.size() == 3) {
-        // BSR case.
-        Array<IndexExpr> oshape(
-            {(data_indptr->shape[0] - 1) * data_data->shape[1], weight->shape[0]});
-        reporter->Assign(types[4], TensorType(oshape, weight->dtype));
-        return true;
-      }
-      LOG(FATAL) << "Unknown data ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
-      return false;
-  
-  }else {
-  
-  const auto* data = types[0].as<TensorTypeNode>();
-  const auto* weight_data = types[1].as<TensorTypeNode>();
-  ICHECK(weight_data->shape.size() == 1 || weight_data->shape.size() == 3);
-  const auto* weight_indptr = types[3].as<TensorTypeNode>();
-  if (data == nullptr) return false;
+    if (data_data->shape.size() == 3) {
+      // BSR case.
+      Array<IndexExpr> oshape(
+          {(data_indptr->shape[0] - 1) * data_data->shape[1], weight->shape[0]});
+      reporter->Assign(types[4], TensorType(oshape, weight->dtype));
+      return true;
+    }
+    LOG(FATAL) << "Unknown data ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
+    return false;
 
-  if (weight_data->shape.size() == 1) {
-    // CSR case.
-    Array<IndexExpr> oshape({data->shape[0], weight_indptr->shape[0] - 1});
-    reporter->Assign(types[4], TensorType(oshape, data->dtype));
-    return true;
-  }
+  } else {
+    const auto* data = types[0].as<TensorTypeNode>();
+    const auto* weight_data = types[1].as<TensorTypeNode>();
+    ICHECK(weight_data->shape.size() == 1 || weight_data->shape.size() == 3);
+    const auto* weight_indptr = types[3].as<TensorTypeNode>();
+    if (data == nullptr) return false;
 
-  if (weight_data->shape.size() == 3) {
-    // BSR case.
-    Array<IndexExpr> oshape(
-        {data->shape[0], (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
-    reporter->Assign(types[4], TensorType(oshape, data->dtype));
-    return true;
-  }
-  LOG(FATAL) << "Unknown weight ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
-  return false;
+    if (weight_data->shape.size() == 1) {
+      // CSR case.
+      Array<IndexExpr> oshape({data->shape[0], weight_indptr->shape[0] - 1});
+      reporter->Assign(types[4], TensorType(oshape, data->dtype));
+      return true;
+    }
+
+    if (weight_data->shape.size() == 3) {
+      // BSR case.
+      Array<IndexExpr> oshape(
+          {data->shape[0], (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
+      reporter->Assign(types[4], TensorType(oshape, data->dtype));
+      return true;
+    }
+    LOG(FATAL) << "Unknown weight ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
+    return false;
   }
 }
 
 // Positional relay function to create dense operator used by frontend FFI.
-Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr, bool sparse_data) {
+Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr,
+                     bool sparse_data) {
   auto attrs = make_object<SparseDenseAttrs>();
   attrs->sparse_data = std::move(sparse_data);
   static const Op& op = Op::Get("nn.sparse_dense");
@@ -107,7 +107,8 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense")
     });
 
 RELAY_REGISTER_OP("nn.sparse_dense")
-    .describe(R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with either X or W sparse.
+    .describe(
+        R"code(Applies a sparse linear transformation: :math:`Y = XW^T` with either X or W sparse.
 
 - **data**: `(x1, x2, ..., xn, input_dim)`
 - **weight**: `(units, input_dim)`
@@ -116,7 +117,8 @@ RELAY_REGISTER_OP("nn.sparse_dense")
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<SparseDenseAttrs>()
     .set_num_inputs(4)
-    .add_argument("input_tensor1", "nD Tensor", "Input data if dense, otherwise data_data matrix if sparse.")
+    .add_argument("input_tensor1", "nD Tensor",
+                  "Input data if dense, otherwise data_data matrix if sparse.")
     .add_argument("input_tensor2", "nD Tensor", "Weight_data matrix or data_indices matrix.")
     .add_argument("input_tensor3", "nD Tensor", "Weight_indices matrix or data_indptr matrix.")
     .add_argument("input_tensor4", "nD Tensor", "Weight_indptr matrix or weight matrix if dense.")

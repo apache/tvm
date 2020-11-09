@@ -940,8 +940,10 @@ struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
   bool sparse_data;
 
   TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
-    TVM_ATTR_FIELD(sparse_data).set_default(false).describe("Indicate whether data or weight is sparse. True if data is sparse");
-    }
+    TVM_ATTR_FIELD(sparse_data)
+        .set_default(false)
+        .describe("Indicate whether data or weight is sparse. True if data is sparse");
+  }
 };
 
 /*! \brief Attributes for sparse_transpose operator */
