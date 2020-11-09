@@ -3586,6 +3586,23 @@ def test_forward_softsign():
     _test_forward_softsign([2, 5, 2, 5])
 
 
+def test_forward_rint():
+    """test operator rint """
+
+    def _test_forward_rint(shape):
+        tf.disable_eager_execution()
+        np_data = np.random.uniform(-100, 100, size=shape).astype(np.float32)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf.float32, shape, name="in_data")
+        tf.math.rint(in_data, name="rint")
+        compare_tf_with_tvm([np_data], ["in_data:0"], "rint:0")
+
+    _test_forward_rint([100])
+    _test_forward_rint([1, 100])
+    _test_forward_rint([1, 10, 10])
+    _test_forward_rint([2, 5, 2, 5])
+
+
 def test_forward_negative():
     """test tf operator Neg """
     np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
