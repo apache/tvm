@@ -16,6 +16,7 @@
 # under the License.
 """Binary Neural Network (BNN) Operators"""
 # pylint: disable=invalid-name
+import tvm
 from tvm import te
 from ..utils import get_const_tuple
 
@@ -59,3 +60,25 @@ def batch_matmul(x, y, oshape=None):
         lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
         tag="batch_matmul",
     )
+
+
+@tvm.target.generic_func
+def batch_matmul_legalize(attrs, inputs, types):
+    """Legalizes Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # not to change by default
+    return None
