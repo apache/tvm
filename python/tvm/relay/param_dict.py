@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save parameter dicts."""
+import json
 import tvm
 import tvm._ffi
 
@@ -76,3 +77,19 @@ def load_param_dict(param_bytes):
         param_bytes = bytearray(param_bytes)
     load_arr = _load_param_dict(param_bytes)
     return {v.name: v.array for v in load_arr}
+
+
+def linkable_param_dict(graph_json, params, target):
+    graph = json.loads(graph_json)
+    data_by_sid = [None] * len(params)
+    for param_name, param in params.items():
+        for node in graph['nodes']:
+            if node['name'] == param_name:
+                sid = node['storage_id']
+                data_by_sid[sid] = param
+
+    # GraphRuntimeCodegen is expected to allocated the first len(params) storage_ids to contain
+    # parameters.
+    assert all(d is not None for d in data_by_sid)
+
+    data_

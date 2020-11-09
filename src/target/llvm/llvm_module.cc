@@ -209,7 +209,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       }
       funcs.push_back(f);
     }
-    ICHECK_NE(funcs.size(), 0U);
+    bool is_link_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+    ICHECK(funcs.size() > 0 || is_link_params);
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
@@ -222,6 +223,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       cg->AddMainFunction(entry_func);
     }
 
+    if (is_link_params) {
+      CHECK(found_linked_params) << "--link-params given, but no parameters given to codegen";
+      cg->LinkParameters(linked_params);
+    }
     module_ = cg->Finish();
     module_->addModuleFlag(llvm::Module::Warning, "tvm_target",
                            llvm::MDString::get(*ctx_, LLVMTargetToString(target)));

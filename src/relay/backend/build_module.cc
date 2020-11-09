@@ -443,6 +443,35 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = graph_codegen_->GetIRModule();
 
+    Target target_host = GetTargetHost();
+    // If no target_host has been set, we choose a default one, which is
+    // llvm if "codegen.LLVMModuleCreate" is accessible.
+    const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
+    if (!target_host.defined())
+      target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
+
+    if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
+      CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
+      auto param_ids = graph_codegen_->GetParamIds();
+      auto link_params = Map<String, tir::LinkedParam>();
+      for (auto param : ret_.params) {
+        link_params.Set(
+          param.first, tir::LinkedParam(param_ids[param.first], param.second));
+      }
+
+      Map<String, ObjectRef> dict;
+      dict.Set(tvm::tir::attr::kLinkedParams, link_params);
+      dict.Set(tvm::attr::kGlobalSymbol, String(::tvm::target::packed_func::kLookupLinkedParam));
+      DictAttrs attrs{dict};
+      auto prim = tir::PrimFunc(
+        Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(), Map<tir::Var, tir::Buffer>(), attrs);
+      if (lowered_funcs.find(target_host->str()) == lowered_funcs.end()) {
+        lowered_funcs.Set(target_host->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      }
+      lowered_funcs[target_host->str()]->Add(
+        GlobalVar(::tvm::target::packed_func::kLookupLinkedParam), prim);
+    }
+
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
       Target target_host = GetTargetHost();

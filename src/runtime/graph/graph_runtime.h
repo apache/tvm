@@ -182,7 +182,10 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   struct PoolEntry {
     size_t size;
     int device_type;
-    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
+    void* pre_linked_param;
+    int param_data_entry;
+    PoolEntry(int s, int dev_type, std::unique_ptr<DLTensor> pre_linked_param) :
+        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
   // Node entry
   struct NodeEntry {
@@ -363,6 +366,8 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
+  /*! \brief Setup pre-linked parameters. */
+  void SetupLinkedParams();
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors. */
