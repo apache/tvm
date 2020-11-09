@@ -1993,7 +1993,7 @@ def batch_matmul(x, y):
     return _make.batch_matmul(x, y)
 
 
-def sparse_dense(data, weight):
+def sparse_dense(data, weight, sparse_data=False):
     r"""
     Computes the matrix multiplication of `data` and `weight`, where `data` is
     a dense matrix and `weight` is a sparse (either BSR or CSR) namedtuple with
@@ -2025,8 +2025,13 @@ def sparse_dense(data, weight):
         The computed result.
     """
     if hasattr(weight, "indices"):
-        return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr)
-    return _make.sparse_dense(data, weight[0], weight[1], weight[2])
+        return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr, sparse_data)
+    elif isinstance(weight, (tuple, list)):
+        return _make.sparse_dense(data, weight[0], weight[1], weight[2], sparse_data)
+    elif hasattr(data, "indices"):
+        return _make.sparse_dense(data.data, data.indices, data.indptr, weight, sparse_data)
+    else:
+        return _make.sparse_dense(data[0], data[1], data[2], weight, sparse_data)
 
 
 def sparse_transpose(x):
