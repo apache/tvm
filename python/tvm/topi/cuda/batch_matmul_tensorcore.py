@@ -24,8 +24,9 @@ from .tensor_intrin import intrin_wmma_load_matrix_A, \
         intrin_wmma_load_matrix_W, intrin_wmma_store_matrix, intrin_wmma_gemm
 
 @autotvm.register_topi_compute("batch_matmul_tensorcore.cuda")
-def batch_matmul_tensorcore(cfg, x, y):
+def batch_matmul_tensorcore(cfg, x, y, out_shape=None):
     """batch matmul tensorcore operator on cuda"""
+    # todo: deal with out_shape for broadcast, liuxin.ai
     return batch_matmul_tensorcore_cuda(x, y)
 
 
