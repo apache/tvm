@@ -1993,6 +1993,7 @@ def batch_matmul(x, y):
     return _make.batch_matmul(x, y)
 
 
+# pylint: disable=no-else-return,inconsistent-return-statements
 def sparse_dense(data, weight, sparse_data=False):
     r"""
     Computes the matrix multiplication of `data` and `weight`, where `data` is

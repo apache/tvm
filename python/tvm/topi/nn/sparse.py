@@ -93,6 +93,7 @@ def sparse_dense_v1(data_data, data_indices, data_indptr, weight):
     return func(data_data, data_indices, data_indptr, weight)
 
 
+# pylint: disable=no-else-return,inconsistent-return-statements
 def sparse_dense(input_1, input_2, input_3, input_4, sparse_data=False):
     """
     Computes sparse-dense matrix multiplication of `data` and
@@ -181,8 +182,8 @@ def _sparse_dense_csrmm_v2(data, weight_data, weight_indices, weight_indptr):
 
 
 def _sparse_dense_bsrmm_v1(data_data, data_indices, data_indptr, weight):
-    (k, m) = get_const_tuple(weight.shape)
-    (l, bs_r, bs_c) = get_const_tuple(data_data.shape)
+    (k, _) = get_const_tuple(weight.shape)
+    (_, bs_r, bs_c) = get_const_tuple(data_data.shape)
     (num_blocks_plus_1,) = get_const_tuple(data_indptr.shape)
     num_blocks = num_blocks_plus_1 - 1
 
