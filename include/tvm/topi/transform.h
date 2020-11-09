@@ -558,17 +558,16 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  * \param end Indicies indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
- * \param slice_mode Specifies the slice mode
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the split operation
  */
-inline te::Tensor dynamic_strided_slice(const te::Tensor& input, const te::Tensor& begin,
+inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& begin,
                                         const te::Tensor& end, const te::Tensor& strides,
                                         std::string name = "T_strided_slice_dynamic",
                                         std::string tag = topi::kInjective) {
-  int64_t src_tensor_dim = input->shape.size();
+  int64_t src_tensor_dim = x->shape.size();
   Array<PrimExpr> out_shape;
   for (int64_t i = 0; i < src_tensor_dim; ++i) {
     out_shape.push_back(tvm::tir::Var("dim"));
@@ -580,7 +579,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& input, const te::Tenso
         for (int32_t i = 0; i < src_tensor_dim; ++i) {
           real_indices.push_back(indices[i] * strides(i) + begin(i));
         }
-        return input(real_indices);
+        return x(real_indices);
       },
       name, tag);
 }
