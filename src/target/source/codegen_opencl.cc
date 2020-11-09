@@ -243,6 +243,34 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
     this->PrintExpr(load->index, os);
     os << ')';
+  } else if (op->op.same_as(builtin::text2d_store())) {
+    os << "write_imagef(";
+    this->PrintExpr(op->args[0], os);
+    os << ", ";
+    os << "(int2)(";
+    this->PrintExpr(op->args[2], os);
+    os << ", ";
+    this->PrintExpr(op->args[1], os);
+    os << "), ";
+    this->PrintExpr(op->args[3], os);
+    os << ")";
+  } else if (op->op.same_as(builtin::text2d_load())) {
+    /*
+      float4 read_imagef(read_only image2d_t image,
+      sampler_t sampler,
+      int2 coord)
+    */
+    // std::cout << "LOAD\n";
+    // std::cout << op->args << std::endl;
+    os << "read_imagef(";
+    this->PrintExpr(op->args[0], os);
+    os << ", ";
+    os << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
+    os << "(int2)(";
+    this->PrintExpr(op->args[2], os);
+    os << ", ";
+    this->PrintExpr(op->args[1], os);
+    os << "))";
   } else if (op->op.same_as(builtin_call_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);
     // Enable atomics extension if used.

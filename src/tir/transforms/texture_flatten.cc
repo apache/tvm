@@ -62,6 +62,10 @@ class TextureFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    //DataType vdtype(op->buffer->dtype.code(), op->buffer->dtype.bits(), 4);
+    // Var buffer_var(op->buffer->data->name_hint, vdtype);
+    // let_binding_.insert({op->buffer->data, buffer_var});
+
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferRealizeNode>();
 
@@ -86,8 +90,10 @@ class TextureFlattener : public StmtExprMutator {
       ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
 
       // TODO(csullivan): Consider check on float only?
-      StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->dtype));
+      //StringImm dtype = StringImm(runtime::DLDataType2String(vdtype));
+      StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->data.dtype()));
       Array<PrimExpr> args = {dtype, shape[0], shape[1]};
+
       stmt = LetStmt(op->buffer->data, Call(op->buffer->data.dtype(), builtin::text2d_alloca(), args), body);
       // TODO(csullivan): Adding the below AttrStmt causes SIGSEGV, worth investigating
       // stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
@@ -95,6 +101,46 @@ class TextureFlattener : public StmtExprMutator {
 
     return stmt;
   }
+
+  // Stmt VisitStmt_(const BufferRealizeNode* op) final {
+  //   //DataType vdtype(op->buffer->dtype.code(), op->buffer->dtype.bits(), 4);
+  //   // Var buffer_var(op->buffer->data->name_hint, vdtype);
+  //   // let_binding_.insert({op->buffer->data, buffer_var});
+
+  //   Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  //   op = stmt.as<BufferRealizeNode>();
+
+  //   std::string storage_scope;
+  //   auto it = storage_scope_.find(op->buffer.get());
+  //   if (it != storage_scope_.end())
+  //   {
+  //     storage_scope = it->second;
+  //   }
+  //   else
+  //   {
+  //     storage_scope = op->buffer->scope;
+  //   }
+  //   if (storage_scope == "texture")
+  //   {
+  //     Stmt body = this->VisitStmt(op->body);
+  //     Array<PrimExpr> shape;
+  //     for (auto r : op->bounds) {
+  //       shape.push_back(r->extent);
+  //     }
+  //     ICHECK_EQ(shape.size(), 3) << "Only 2d RGBA texture is currently supported";
+  //     ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
+
+  //     // TODO(csullivan): Consider check on float only?
+  //     StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->dtype));
+  //     Array<PrimExpr> args = {dtype, shape[0], shape[1]};
+  //     stmt = Allocate(op->buffer->data, op->buffer->dtype, shape,
+  //              make_const(DataType::Bool(op->buffer->dtype.lanes()), true), body);
+  //     // TODO(csullivan): Adding the below AttrStmt causes SIGSEGV, worth investigating
+  //     //stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
+  //   }
+
+  //   return stmt;
+  // }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -112,13 +158,29 @@ class TextureFlattener : public StmtExprMutator {
     }
     if (storage_scope == "texture")
     {
-      // TODO(csullivan): Need autovectorization
-      Array<PrimExpr> args = {op->buffer->data, op->value};
-      for (auto& i : op->indices)
+      Array<PrimExpr> args;
+      if (let_binding_.count(op->buffer->data))
       {
-        args.push_back(i);
+        args.push_back(let_binding_[op->buffer->data]);
       }
-      stmt = Evaluate(Call(op->buffer->dtype, builtin::text2d_store(), args));
+      else
+      {
+        args.push_back(op->buffer->data);
+      }
+      // for (auto& i : op->indices)
+      // {
+      //   args.push_back(i);
+      // }
+
+      // TODO(csullivan)-BeforePR: Consider whether always dropping the last index is correct.
+      // I don't think this will work generally	when tensor dimension doesn't have (4) in the FCD.
+      for (size_t i = 0u; i < op->indices.size()-1; i++)
+      {
+        args.push_back(op->indices[i]);
+      }
+      args.push_back(op->value);
+
+      stmt = Evaluate(Call(DataType::Void(), builtin::text2d_store(), args));
       if (needs_vectorization_)
       {
         loop_vars_.insert({op->indices.back().get(), true});
@@ -144,12 +206,29 @@ class TextureFlattener : public StmtExprMutator {
     }
     if (storage_scope == "texture")
     {
-      // TODO(csullivan): Need autovectorization
-      Array<PrimExpr> args = {op->buffer->data};
-      for (auto& i : op->indices)
+      Array<PrimExpr> args;
+      if (let_binding_.count(op->buffer->data))
       {
-        args.push_back(i);
+        args.push_back(let_binding_[op->buffer->data]);
       }
+      else
+      {
+        args.push_back(op->buffer->data);
+      }
+
+
+      // for (auto& i : op->indices)
+      // {
+      //   args.push_back(i);
+      // }
+
+      // TODO(csullivan)-BeforePR: Consider whether always dropping the last index is correct.
+      // I don't think this will work generally	when tensor dimension doesn't have (4) in the FCD.
+      for (size_t i = 0u; i < op->indices.size()-1; i++)
+      {
+        args.push_back(op->indices[i]);
+      }
+
       expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
       if (needs_vectorization_)
       {
@@ -190,6 +269,8 @@ class TextureFlattener : public StmtExprMutator {
  private:
   // Storage scope
   std::unordered_map<const Object*, std::string> storage_scope_;
+  // Let binding
+  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
   std::unordered_map<const Object*, bool> loop_vars_;
   bool needs_vectorization_;
 };
