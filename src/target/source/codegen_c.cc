@@ -139,10 +139,12 @@ void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
   }
 }
 
+static bool CheckOutermostBracketMatch(const std::string& s);
+
 void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src, DataType t) {
   PrintType(t, stream);
   stream << ' ' << target << " = ";
-  if (src.length() > 3 && src[0] == '(' && src[src.length() - 1] == ')') {
+  if (CheckOutermostBracketMatch(src)) {
     stream << src.substr(1, src.length() - 2);
   } else {
     stream << src;
@@ -971,6 +973,24 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
     os << "))";
   }
   return;
+}
+
+static bool CheckOutermostBracketMatch(const std::string& s) {
+  if (!s.empty() && s.front() == '(' && s.back() == ')') {
+    size_t len = s.size();
+    int n_unmatched = 0;
+    for (size_t i = 0; i < len; ++i) {
+      if (s[i] == '(') {
+        n_unmatched++;
+      } else if (s[i] == ')') {
+        n_unmatched--;
+      }
+      if (n_unmatched == 0) {
+        return i == len - 1;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace codegen
