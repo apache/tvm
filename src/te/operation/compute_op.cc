@@ -597,7 +597,8 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
     }
   }
 
-  auto cond = foldl([](PrimExpr a, PrimExpr b) { return a || b; }, const_false(1), conds);
+  auto cond = foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_or(a, b, span); },
+                    const_false(1), conds);
   return IfThenElse(cond, update, body);
 }
 
