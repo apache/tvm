@@ -1537,19 +1537,29 @@ def test_tensor_array_scatter():
                 element_shape = tf.TensorShape([tf.Dimension(None)])
             else:
                 element_shape = None
-            t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str), dtype=dtype)
-            indices = tf.constant([2, 1, 0])
-            ta1 = tf.TensorArray(
-                dtype=dtype, size=3, infer_shape=infer_shape, element_shape=element_shape
-            )
-            ta2 = ta1.scatter(indices, t)
-            out0 = ta2.read(0)
-            out1 = ta2.read(1)
-            out2 = ta2.read(2)
+            ta0 = _construct_scatter(dtype, dtype_str, element_shape, infer_shape, 3)
+            out0 = ta0.read(0)
+            out1 = ta0.read(1)
+            out2 = ta0.read(2)
+            ta1 = _construct_scatter(dtype, dtype_str, element_shape, infer_shape, 4)
+            out4 = ta1.read(0)
             g = tf.get_default_graph()
             compare_tf_with_tvm([], [], ["TensorArrayReadV3:0"], mode="vm")
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_1:0"], mode="vm")
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0"], mode="vm")
+            compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0", out4.name], mode="vm")
+
+    def _construct_scatter(dtype, dtype_str, element_shape, infer_shape, size):
+        arr = [[float(i)] for i in range(size)]
+        indices_arr = [i for i in range(size - 1, -1, -1)]
+
+        t = tf.constant(np.array(arr).astype(dtype_str), dtype=dtype)
+        indices = tf.constant(indices_arr)
+        ta1 = tf.TensorArray(
+            dtype=dtype, size=size, infer_shape=infer_shape, element_shape=element_shape
+        )
+        ta2 = ta1.scatter(indices, t)
+        return ta2
 
     for dtype in ["float32", "int8"]:
         run(dtype, False)

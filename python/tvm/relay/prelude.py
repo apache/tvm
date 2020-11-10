@@ -413,6 +413,12 @@ class StaticTensorArrayOps(object):
             return
 
         tensor_array_scatter_helper_name = self.get_name("tensor_array_scatter_helper")
+
+        if indices_shape:
+            # Put indices_shape into variable name
+            tensor_array_scatter_name += "_" + str(indices_shape)
+            tensor_array_scatter_helper_name += "_" + str(indices_shape)
+
         tensor_array_scatter_helper_var = self._create_global_var(tensor_array_scatter_helper_name)
         ta = Var("ta", self.list(self.tensor_type_var()))
         current = Var("current", scalar_type("int32"))
