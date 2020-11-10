@@ -173,7 +173,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     }
   } else if (arr_type.code() == runtime::DataType::TypeCode::kFloat) {
     // Floats and doubles are printed as hex but casted.
-    one_element_size_bytes += std::string{(arr_type.bits() == 32 ? kFloatCast : kDoubleCast)}.size();
+    one_element_size_bytes += 1 /* sign */ + 1 /* decimal point */ + 1 /* exponent sign */;
   }
 
   int elements_per_row = 16;
@@ -193,7 +193,8 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
 
   std::unique_ptr<DLManagedTensor, DLManagedTensorDeleter> tensor(arr.ToDLPack());
   auto old_fmtflags = os.flags();
-  os.setf(std::ios::right | std::ios::hex, std::ios::adjustfield | std::ios::basefield);
+  os.setf(std::ios::right | std::ios::hex | std::ios::fixed | std::ios::scientific,
+          std::ios::adjustfield | std::ios::basefield | std::ios::floatfield);
   os.fill('0');
   switch (arr_type.code()) {
   case runtime::DataType::kInt:
@@ -314,15 +315,14 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
   case runtime::DataType::TypeCode::kFloat:
     if (arr_type.bits() == 32) {
       for (int i = 0; i < num_elements; i++) {
-        os << kFloatCast << "0x" << std::setw(8)
-           << static_cast<uint32_t*>(tensor->dl_tensor.data)[i] << "U";
+        os << static_cast<float*>(tensor->dl_tensor.data)[i];
         if (i < num_elements - 1) { os << ", "; }
         if (((i + 1) % elements_per_row) == 0) { os << "\n" << indent_str; }
       }
+      std::cout << "\n";
     } else if (arr_type.bits() == 64) {
       for (int i = 0; i < num_elements; i++) {
-        os << kDoubleCast << "0x" << std::setw(16)
-           << static_cast<uint64_t*>(tensor->dl_tensor.data)[i] << "UL";
+        os << static_cast<double*>(tensor->dl_tensor.data)[i];
         if (i < num_elements - 1) { os << ", "; }
         if (((i + 1) % elements_per_row) == 0) { os << "\n" << indent_str; }
       }
