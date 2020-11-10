@@ -173,7 +173,8 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     }
   } else if (arr_type.code() == runtime::DataType::TypeCode::kFloat) {
     // Floats and doubles are printed as hex but casted.
-    one_element_size_bytes += 1 /* sign */ + 1 /* decimal point */ + 1 /* exponent sign */;
+    one_element_size_bytes += 1 /* sign */ + 1 /* decimal point */ +
+      1 /* exponent sign */ + 1 /* extra decimal digit in exponent */;
   }
 
   int elements_per_row = 16;
@@ -193,8 +194,8 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
 
   std::unique_ptr<DLManagedTensor, DLManagedTensorDeleter> tensor(arr.ToDLPack());
   auto old_fmtflags = os.flags();
-  os.setf(std::ios::right | std::ios::hex | std::ios::fixed | std::ios::scientific,
-          std::ios::adjustfield | std::ios::basefield | std::ios::floatfield);
+  os.setf(std::ios::internal | std::ios::hex,
+          std::ios::adjustfield | std::ios::basefield | std::ios::showbase);
   os.fill('0');
   switch (arr_type.code()) {
   case runtime::DataType::kInt:
@@ -210,7 +211,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
         // NOTE: for special types int8_t and uint8_t, need to promote to int type to avoid printing
         // as a char.
         int8_t elem = static_cast<int8_t*>(tensor->dl_tensor.data)[i];
-        uint8_t to_print;
+        uint16_t to_print;
         if (elem < 0) {
           os << "-";
           to_print = -elem;
@@ -240,7 +241,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     } else if (arr_type.bits() == 32) {
       for (int i = 0; i < num_elements; i++) {
         int32_t elem = static_cast<int32_t*>(tensor->dl_tensor.data)[i];
-        uint32_t to_print ;
+        uint32_t to_print;
         if (elem < 0) {
           os << "-";
           to_print = -elem;
@@ -312,17 +313,44 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     }
     break;
 
-  case runtime::DataType::TypeCode::kFloat:
+  case runtime::DataType::TypeCode::kFloat: {
+    std::stringstream ss;
+    ss.setf(std::ios::hex | std::ios::showbase | std::ios::fixed | std::ios::scientific,
+            std::ios::basefield | std::ios::showbase | std::ios::floatfield);
+    os.fill(' ');
+    os.setf(std::ios::left, std::ios::adjustfield);
     if (arr_type.bits() == 32) {
       for (int i = 0; i < num_elements; i++) {
-        os << static_cast<float*>(tensor->dl_tensor.data)[i];
+        float elem = static_cast<float*>(tensor->dl_tensor.data)[i];
+        if (isinf(elem)) {
+          // C99 standard.
+          os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
+        } else if (isnan(elem)) {
+          // GNU extension, implemenatation-dependent.
+          os << std::setw(one_element_size_bytes) << "NAN";
+        } else {
+          ss << elem;
+          os << std::setw(one_element_size_bytes) << ss.str();
+          ss.str("");
+        }
         if (i < num_elements - 1) { os << ", "; }
         if (((i + 1) % elements_per_row) == 0) { os << "\n" << indent_str; }
       }
       std::cout << "\n";
     } else if (arr_type.bits() == 64) {
       for (int i = 0; i < num_elements; i++) {
-        os << static_cast<double*>(tensor->dl_tensor.data)[i];
+        double elem = static_cast<double*>(tensor->dl_tensor.data)[i];
+        if (isinf(elem)) {
+          // C99 standard.
+          os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
+        } else if (isnan(elem)) {
+          // GNU extension, implemenatation-dependent.
+          os << std::setw(one_element_size_bytes) << "NAN";
+        } else {
+          ss << elem;
+          os << std::setw(one_element_size_bytes) << ss.str();
+          ss.str("");
+        }
         if (i < num_elements - 1) { os << ", "; }
         if (((i + 1) % elements_per_row) == 0) { os << "\n" << indent_str; }
       }
@@ -331,6 +359,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
                    << arr_type.bits() << "-bit array";
     }
     break;
+  }
 
   default:
     CHECK(false) << "Data type not supported";
