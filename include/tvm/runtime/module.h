@@ -229,7 +229,7 @@ constexpr const char* tvm_module_main = "__tvm_main__";
 /*! \brief Prefix for parameter symbols emitted into the main program. */
 constexpr const char* tvm_param_prefix = "__tvm_param__";
 /*! \brief A PackedFunc that looks up linked parameters by storage_id. */
-constexpr const char* tvm_lookup_linked_param = "__lookup_linked_param";
+constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
 }  // namespace symbol
 
 // implementations of inline functions.

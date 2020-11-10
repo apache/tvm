@@ -461,7 +461,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
       Map<String, ObjectRef> dict;
       dict.Set(tvm::tir::attr::kLinkedParams, link_params);
-      dict.Set(tvm::attr::kGlobalSymbol, String(::tvm::target::packed_func::kLookupLinkedParam));
+      dict.Set(tvm::attr::kGlobalSymbol, String(::tvm::runtime::symbol::tvm_lookup_linked_param));
       DictAttrs attrs{dict};
       auto prim = tir::PrimFunc(
         Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(), Map<tir::Var, tir::Buffer>(), attrs);
@@ -469,7 +469,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         lowered_funcs.Set(target_host->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
       }
       lowered_funcs[target_host->str()]->Add(
-        GlobalVar(::tvm::target::packed_func::kLookupLinkedParam), prim);
+        GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param), prim);
     }
 
     // When there is no lowered_funcs due to reasons such as optimization.

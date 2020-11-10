@@ -208,13 +208,13 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
 
   llvm::Function* function = llvm::Function::Create(
     ftype, llvm::Function::ExternalLinkage,
-    ::tvm::target::packed_func::kLookupLinkedParam, module_.get());
+    ::tvm::runtime::symbol::tvm_lookup_linked_param, module_.get());
   function->setCallingConv(llvm::CallingConv::C);
   function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
   builder_->SetInsertPoint(entry);
-  std::vector<llvm::Value*> zero_index_list{{llvm::ConstantInt::get(t_int32_, 0)}};
+  std::vector<llvm::Value*> zero_index_list{llvm::ConstantInt::get(t_int32_, 0)};
   auto args_array = builder_->CreateBitCast(
     &function->arg_begin()[0], llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1));
   llvm::Value* sid =

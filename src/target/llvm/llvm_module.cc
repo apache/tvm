@@ -200,6 +200,16 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     std::vector<PrimFunc> funcs;
     std::string entry_func;
     for (auto kv : mod->functions) {
+      if (could_have_linked_params &&
+          kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
+        Map<String,ObjectRef> attrs_dict = Downcast<Map<String,ObjectRef>>(kv.second->attrs->dict);
+        CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
+          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+        linked_params = Downcast<Map<String,LinkedParam>>(
+          attrs_dict[::tvm::tir::attr::kLinkedParams]);
+        found_linked_params = true;
+        continue;
+      }
       ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
       auto f = Downcast<PrimFunc>(kv.second);
       if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
@@ -209,8 +219,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       }
       funcs.push_back(f);
     }
-    bool is_link_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
-    ICHECK(funcs.size() > 0 || is_link_params);
+    ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
@@ -223,8 +232,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       cg->AddMainFunction(entry_func);
     }
 
-    if (is_link_params) {
-      CHECK(found_linked_params) << "--link-params given, but no parameters given to codegen";
+    if (found_linked_params) {
       cg->LinkParameters(linked_params);
     }
     module_ = cg->Finish();

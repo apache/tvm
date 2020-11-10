@@ -72,7 +72,6 @@ void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module modu
   this->Load(&reader);
   module_ = module;
   ctxs_ = ctxs;
-  this->SetupLinkedParams();
   this->SetupStorage();
   this->SetupOpExecs();
   for (size_t i = 0; i < input_nodes_.size(); i++) {
@@ -245,14 +244,16 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
   this->SetupOpExecs();
 }
 
-void GraphRuntime::PreAllocatedDeleter(void* ctx) {
-  delete ctx;
+void GraphRuntime::PreAllocatedDLTensorDeleter(DLManagedTensor* tensor) {
+  // ctx is the DLTensor which needs to get deleted. The data member points to global const memory.
+  delete reinterpret_cast<DLTensor*>(tensor);
 }
 
 void GraphRuntime::SetupStorage() {
   // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
   // params are present.
-  tvm::runtime::PackedFunc pf = module_.GetFunction(::tvm::runtime::module::kLookupLinkedParam, true);
+  tvm::runtime::PackedFunc pf = module_.GetFunction(
+    ::tvm::runtime::symbol::tvm_lookup_linked_param, true);
 
   // Grab saved optimization plan from graph.
   std::vector<DLDataType> vtype;
@@ -263,8 +264,6 @@ void GraphRuntime::SetupStorage() {
   // Size and device type of each storage pool entry.
   std::vector<PoolEntry> pool_entry;
   // Find the maximum space size.
-  int node_index = 0;
-  int node_output = 0;
   for (size_t i = 0; i < attrs_.shape.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     // Use the fallback device if no device index is available.
@@ -289,14 +288,14 @@ void GraphRuntime::SetupStorage() {
       ICHECK(pool_entry[sid].device_type == -1 || pool_entry[sid].device_type == device_type)
           << "The same pool entry cannot be assigned to multiple devices";
     }
-    if (pf != nullptr && pool_entry[sid] == nullptr) {
+    if (pf != nullptr && pool_entry[sid].pre_linked_param == nullptr) {
       try {
         pool_entry[sid].pre_linked_param = pf(sid);
-        pool_entry[sid].param_data_entry = i;
-      } except (std::runtime_error& e) {
+      } catch (std::runtime_error& e) {
         // Indicates this storage_id is not pre-linked.
       }
     }
+    pool_entry[sid].param_data_entry = i;
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
   }
@@ -310,16 +309,20 @@ void GraphRuntime::SetupStorage() {
     });
     TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
     if (pit.pre_linked_param != nullptr) {
-      auto param_entry = data_entry_[pit.param_data_entry];
-      DLTensor* param_tensor = new DLTensor{
-        pit.preq_linked_param, ctx, vtype[pit.param_data_entry],
-        param_entry.size(), nullptr, 0};
+      LOG(INFO) << "param " << pit.param_data_entry << " pre-loaded!";
+      auto param_shape = &attrs_.shape[pit.param_data_entry];
+      DLManagedTensor* param_tensor = new DLManagedTensor{
+        {pit.pre_linked_param, ctx, static_cast<int>(param_shape->size()),
+         vtype[pit.param_data_entry], param_shape->data(), nullptr, 0},
+        nullptr,
+        PreAllocatedDLTensorDeleter};
 
-      storage_pool_.push_back(
-        NDArray::FromDLManagedTensor(
-          DLManagedTensor{param_tensor, param_tensor, PreAllocatedDeleter}));
+      storage_pool_.push_back(NDArray::FromDLPack(param_tensor));
+      LOG(INFO) << "Loaded data entry " << pit.param_data_entry
+                << " from pre-linked blob: " << param_tensor->dl_tensor.data;
 
     } else {
+      LOG(INFO) << "param " << pit.param_data_entry << " blank!";
       std::vector<int64_t> shape;
       shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
       storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
@@ -334,10 +337,7 @@ void GraphRuntime::SetupStorage() {
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    auto pool_entry = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
-    if (pool_entry.get() != nullptr) {
-      data_entry_[i] = pool_entry.get();
-    }
+    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
 
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = details::GetDataAlignment(*tmp);

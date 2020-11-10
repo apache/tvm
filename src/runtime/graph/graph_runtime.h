@@ -184,8 +184,8 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     int device_type;
     void* pre_linked_param;
     int param_data_entry;
-    PoolEntry(int s, int dev_type, std::unique_ptr<DLTensor> pre_linked_param) :
-        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
+//    PoolEntry(int s, int dev_type, void* pre_linked_param) :
+//        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
   // Node entry
   struct NodeEntry {
@@ -366,8 +366,8 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
-  /*! \brief Setup pre-linked parameters. */
-  void SetupLinkedParams();
+  /*! \brief Delete pre-allocated DLTensor. */
+  static void PreAllocatedDLTensorDeleter(DLManagedTensor* tensor);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors. */
