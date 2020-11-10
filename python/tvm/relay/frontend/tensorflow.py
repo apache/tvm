@@ -1329,9 +1329,9 @@ def _space_to_depth():
 def _sparse_to_dense():
     def _impl(inputs, attr, params, mod):
         sparse_indices = inputs[0]
+        output_shape = inputs[1]
         sparse_values = inputs[2]
         default_value = inputs[3]
-        output_shape = attr["_output_shapes"][0]
 
         return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
 
