@@ -53,8 +53,7 @@ import sys
 import numpy as np
 
 import tvm
-from tvm import te
-from tvm import topi
+from tvm import te, topi, testing
 from tvm.topi.testing import conv2d_nchw_python
 
 from tvm import autotvm
