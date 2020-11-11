@@ -280,11 +280,11 @@ def scatter_nd(data, indices, shape):
             fused_indices_dimension *= i
 
         fused_data_dimension = 1
-        for i in data_ptr.shape[len(indices_ptr.shape)-1 :]:
+        for i in data_ptr.shape[len(indices_ptr.shape) - 1 :]:
             fused_data_dimension *= i
 
-        with ib.for_range(0, fused_indices_dimension, name='i') as i:
-            with ib.for_range(0, fused_data_dimension, name='j') as j:
+        with ib.for_range(0, fused_indices_dimension, name="i") as i:
+            with ib.for_range(0, fused_data_dimension, name="j") as j:
                 offset = fused_data_dimension
                 index = j  # This is x_M, .. x_{N-1} part of the index into out.
                 # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
