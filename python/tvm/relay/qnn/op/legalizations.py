@@ -55,6 +55,9 @@ def qnn_conv2d_legalize(attrs, inputs, types):
 # Generic QNN Conv2Transpose legalization function.
 @tvm.target.generic_func
 def qnn_conv2d_transpose_legalize(attrs, inputs, types):
+    """Convert kernel and data to int16, subtract offsets upfront
+    and calls into relay.nn.conv2d_transpose."""
+
     # Collect the input exprs.
     data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
 
