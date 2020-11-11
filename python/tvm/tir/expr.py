@@ -325,10 +325,13 @@ class Var(PrimExprWithOp):
 
     dtype : Union[str, tvm.irType]
         The data type
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, name, dtype):
-        self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype)
+    def __init__(self, name, dtype, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype, span)
 
 
 @tvm._ffi.register_object("tir.SizeVar")
@@ -343,11 +346,14 @@ class SizeVar(Var):
 
     dtype : int
         The data type
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
     # pylint: disable=super-init-not-called
-    def __init__(self, name, dtype):
-        self.__init_handle_by_constructor__(_ffi_api.SizeVar, name, dtype)
+    def __init__(self, name, dtype, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.SizeVar, name, dtype, span)
 
 
 @tvm._ffi.register_object("tir.IterVar")
@@ -370,6 +376,9 @@ class IterVar(Object, ExprOp):
     thread_tag : str
         The thread type tag.
 
+    span : Optional[Span]
+        The location of this itervar in the source code.
+
     See Also
     --------
     te.thread_axis: Create thread axis IterVar.
@@ -386,7 +395,7 @@ class IterVar(Object, ExprOp):
     Parallelized = 7
     Tensorized = 8
 
-    def __init__(self, dom, var, iter_type, thread_tag=""):
+    def __init__(self, dom, var, iter_type, thread_tag="", span=None):
         if dom is not None:
             if isinstance(dom, (list, tuple)):
                 if len(dom) != 2:
@@ -399,7 +408,7 @@ class IterVar(Object, ExprOp):
         name = var if var is not None else "iter"
         dtype = "int32" if dom is None else dom.extent.dtype
         var = Var(name, dtype=dtype) if not isinstance(var, Var) else var
-        self.__init_handle_by_constructor__(_ffi_api.IterVar, dom, var, iter_type, thread_tag)
+        self.__init_handle_by_constructor__(_ffi_api.IterVar, dom, var, iter_type, thread_tag, span)
 
 
 @tvm._ffi.register_object("tir.CommReducer")
@@ -419,11 +428,14 @@ class CommReducer(Object):
 
     identity_element : List[PrimExpr]
        The identity elements.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, lhs, rhs, result, identity_element):
+    def __init__(self, lhs, rhs, result, identity_element, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.CommReducer, lhs, rhs, result, identity_element
+            _ffi_api.CommReducer, lhs, rhs, result, identity_element, span
         )
 
 
@@ -450,11 +462,14 @@ class Reduce(PrimExprWithOp):
 
     init : list of Expr
         The initial value for output. This can be an int, float or ProducerLoad
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, combiner, src, rdom, condition, value_index, init=None):
+    def __init__(self, combiner, src, rdom, condition, value_index, init=None, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.Reduce, combiner, src, rdom, condition, value_index, init
+            _ffi_api.Reduce, combiner, src, rdom, condition, value_index, init, span
         )
 
 
@@ -469,10 +484,13 @@ class FloatImm(ConstExpr):
 
     value : float
         The constant value.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, dtype, value):
-        self.__init_handle_by_constructor__(tvm.ir._ffi_api.FloatImm, dtype, value)
+    def __init__(self, dtype, value, span=None):
+        self.__init_handle_by_constructor__(tvm.ir._ffi_api.FloatImm, dtype, value, span)
 
 
 @tvm._ffi.register_object
@@ -486,10 +504,13 @@ class IntImm(ConstExpr):
 
     value : int
         The constant value.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, dtype, value):
-        self.__init_handle_by_constructor__(tvm.ir._ffi_api.IntImm, dtype, value)
+    def __init__(self, dtype, value, span=None):
+        self.__init_handle_by_constructor__(tvm.ir._ffi_api.IntImm, dtype, value, span)
 
     def __hash__(self):
         return self.value
@@ -518,10 +539,13 @@ class StringImm(ConstExpr):
     ----------
     value : str
         The value of the function.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, value):
-        self.__init_handle_by_constructor__(_ffi_api.StringImm, value)
+    def __init__(self, value, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)
 
     def __eq__(self, other):
         if isinstance(other, ConstExpr):
@@ -545,10 +569,13 @@ class Cast(PrimExprWithOp):
 
     value : PrimExpr
         The value of the function.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, dtype, value):
-        self.__init_handle_by_constructor__(_ffi_api.Cast, dtype, value)
+    def __init__(self, dtype, value, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Cast, dtype, value, span)
 
 
 @tvm._ffi.register_object("tir.Add")
@@ -562,10 +589,13 @@ class Add(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Add, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Add, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Sub")
@@ -579,10 +609,13 @@ class Sub(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Sub, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Sub, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Mul")
@@ -596,10 +629,13 @@ class Mul(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Mul, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Mul, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Div")
@@ -613,10 +649,13 @@ class Div(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Div, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Div, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Mod")
@@ -630,10 +669,13 @@ class Mod(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Mod, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Mod, a, b, span)
 
 
 @tvm._ffi.register_object("tir.FloorDiv")
@@ -647,10 +689,13 @@ class FloorDiv(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.FloorDiv, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.FloorDiv, a, b, span)
 
 
 @tvm._ffi.register_object("tir.FloorMod")
@@ -664,10 +709,13 @@ class FloorMod(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.FloorMod, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.FloorMod, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Min")
@@ -681,10 +729,13 @@ class Min(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Min, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Min, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Max")
@@ -698,10 +749,13 @@ class Max(BinaryOpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Max, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Max, a, b, span)
 
 
 @tvm._ffi.register_object("tir.EQ")
@@ -715,10 +769,13 @@ class EQ(CmpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.EQ, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.EQ, a, b, span)
 
 
 @tvm._ffi.register_object("tir.NE")
@@ -732,10 +789,13 @@ class NE(CmpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.NE, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.NE, a, b, span)
 
 
 @tvm._ffi.register_object("tir.LT")
@@ -749,10 +809,13 @@ class LT(CmpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.LT, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.LT, a, b, span)
 
 
 @tvm._ffi.register_object("tir.LE")
@@ -766,10 +829,13 @@ class LE(CmpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.LE, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.LE, a, b, span)
 
 
 @tvm._ffi.register_object("tir.GT")
@@ -783,10 +849,13 @@ class GT(CmpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.GT, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.GT, a, b, span)
 
 
 @tvm._ffi.register_object("tir.GE")
@@ -800,10 +869,13 @@ class GE(CmpExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.GE, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.GE, a, b, span)
 
 
 @tvm._ffi.register_object("tir.And")
@@ -817,10 +889,13 @@ class And(LogicalExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.And, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.And, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Or")
@@ -834,10 +909,13 @@ class Or(LogicalExpr):
 
     b : PrimExpr
         The right hand operand.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a, b):
-        self.__init_handle_by_constructor__(_ffi_api.Or, a, b)
+    def __init__(self, a, b, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Or, a, b, span)
 
 
 @tvm._ffi.register_object("tir.Not")
@@ -848,10 +926,13 @@ class Not(LogicalExpr):
     ----------
     a : PrimExpr
         The input value
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, a):
-        self.__init_handle_by_constructor__(_ffi_api.Not, a)
+    def __init__(self, a, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Not, a, span)
 
 
 @tvm._ffi.register_object("tir.Select")
@@ -876,10 +957,14 @@ class Select(PrimExprWithOp):
     false_value : PrimExpr
         The value to take when condition is false.
 
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, condition, true_value, false_value):
-        self.__init_handle_by_constructor__(_ffi_api.Select, condition, true_value, false_value)
+    def __init__(self, condition, true_value, false_value, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.Select, condition, true_value, false_value, span
+        )
 
 
 @tvm._ffi.register_object("tir.Load")
@@ -899,11 +984,17 @@ class Load(PrimExprWithOp):
 
     predicate : PrimExpr
         The load predicate.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, dtype, buffer_var, index, predicate=None):
-        args = [] if predicate is None else [predicate]
-        self.__init_handle_by_constructor__(_ffi_api.Load, dtype, buffer_var, index, *args)
+    def __init__(self, dtype, buffer_var, index, predicate=None, span=None):
+        if predicate is None:
+            predicate = _ffi_api.const_true(dtype)
+        self.__init_handle_by_constructor__(
+            _ffi_api.Load, dtype, buffer_var, index, predicate, span
+        )
 
 
 @tvm._ffi.register_object("tir.BufferLoad")
@@ -917,10 +1008,13 @@ class BufferLoad(PrimExprWithOp):
 
     indices : List[PrimExpr]
         The buffer indices.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, buffer, indices):
-        self.__init_handle_by_constructor__(_ffi_api.BufferLoad, buffer, indices)
+    def __init__(self, buffer, indices, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.BufferLoad, buffer, indices, span)
 
 
 @tvm._ffi.register_object("tir.ProducerLoad")
@@ -934,10 +1028,13 @@ class ProducerLoad(PrimExprWithOp):
 
     indices : List[PrimExpr]
         The buffer indices.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, producer, indices):
-        self.__init_handle_by_constructor__(_ffi_api.ProducerLoad, producer, indices)
+    def __init__(self, producer, indices, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.ProducerLoad, producer, indices, span)
 
 
 @tvm._ffi.register_object("tir.Ramp")
@@ -954,10 +1051,13 @@ class Ramp(PrimExprWithOp):
 
     lanes : int
         The lanes of the expression.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, base, stride, lanes):
-        self.__init_handle_by_constructor__(_ffi_api.Ramp, base, stride, lanes)
+    def __init__(self, base, stride, lanes, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Ramp, base, stride, lanes, span)
 
 
 @tvm._ffi.register_object("tir.Broadcast")
@@ -971,10 +1071,13 @@ class Broadcast(PrimExprWithOp):
 
     lanes : int
         The lanes of the expression.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, value, lanes):
-        self.__init_handle_by_constructor__(_ffi_api.Broadcast, value, lanes)
+    def __init__(self, value, lanes, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Broadcast, value, lanes, span)
 
 
 @tvm._ffi.register_object("tir.Shuffle")
@@ -988,10 +1091,13 @@ class Shuffle(PrimExprWithOp):
 
     indices : Array of indices
         The indices
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, vectors, indices):
-        self.__init_handle_by_constructor__(_ffi_api.Shuffle, vectors, indices)
+    def __init__(self, vectors, indices, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Shuffle, vectors, indices, span)
 
 
 class CallEffectKind:
@@ -1020,9 +1126,12 @@ class Call(PrimExprWithOp):
 
     args : list of Expr
         The input arguments to the call
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, dtype, op, args):
+    def __init__(self, dtype, op, args, span=None):
         if isinstance(op, str):
             if not op.startswith("tir."):
                 raise ValueError(
@@ -1034,7 +1143,7 @@ class Call(PrimExprWithOp):
                     % op
                 )
             op = Op.get(op)
-        self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args)
+        self.__init_handle_by_constructor__(_ffi_api.Call, dtype, op, args, span)
 
 
 @tvm._ffi.register_object("tir.Let")
@@ -1051,15 +1160,22 @@ class Let(PrimExprWithOp):
 
     body : PrimExpr
         The body expression.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
 
-    def __init__(self, var, value, body):
-        self.__init_handle_by_constructor__(_ffi_api.Let, var, value, body)
+    def __init__(self, var, value, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Let, var, value, body, span)
 
 
 @tvm._ffi.register_object("tir.Any")
 class Any(PrimExpr):
-    """Any node."""
+    """Any node.
 
-    def __init__(self):
-        self.__init_handle_by_constructor__(_ffi_api.Any)
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Any, span)

@@ -45,9 +45,9 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name) {
-  return Buffer(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
-                PrimExpr(), name, "", 0, 0, kDefault);
+Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, Span span) {
+  return Buffer(Var(name, PointerType(PrimType(dtype)), span), dtype, shape, Array<PrimExpr>(),
+                PrimExpr(), name, "", 0, 0, kDefault, span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -382,7 +382,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                PrimExpr elem_offset, String name, String scope, int data_alignment,
-               int offset_factor, BufferType buffer_type) {
+               int offset_factor, BufferType buffer_type, Span span) {
   ICHECK(IsPointerType(data->type_annotation, dtype))
       << "Buffer data field expect to have the right pointer type annotation"
       << " annotation=" << data->type_annotation << ", dtype=" << dtype;
@@ -416,6 +416,7 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
       n->strides.push_back(Var("stride", n->shape[i].dtype()));
     }
   }
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
