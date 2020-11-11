@@ -120,7 +120,19 @@ def _InverseLabelTransformer(op, inexpr, dshape, dtype, columns=None):
     """
     Identity transformation of the label data. The conversion to string happens in runtime.
     """
-    return _op.copy(inexpr)
+    if len(dshape) > 2:
+        raise ValueError(
+            "Dim of Input for InverseLabelTransformer should be 1 or 2, {} is given".format(
+                len(dshape)
+            )
+        )
+
+    if len(dshape) == 1:
+        ret = _op.cast(_op.greater(inexpr, _op.const(0.5)), "int32")
+    else:
+        ret = _op.argmax(inexpr, axis=1)
+
+    return ret
 
 
 def _RobustOrdinalEncoder(op, inexpr, dshape, dtype, columns=None):
@@ -274,12 +286,12 @@ def _TfidfVectorizer(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
-def _PCA(op, inexpr, dshape, dtype, columns=None):
+def _RobustPCA(op, inexpr, dshape, dtype, columns=None):
     """
     Scikit-Learn Transformer:
     PCA transformation with existing eigen vector.
     """
-    eigvec = _op.const(np.array(op.components_, dtype))
+    eigvec = _op.const(np.array(op.robust_pca_.components_, dtype))
     ret = _op.nn.dense(inexpr, eigvec)
     return ret
 
@@ -295,7 +307,7 @@ _convert_map = {
     "RobustOrdinalEncoder": {"transform": _RobustOrdinalEncoder},
     "KBinsDiscretizer": {"transform": _KBinsDiscretizer},
     "TfidfVectorizer": {"transform": _TfidfVectorizer},
-    "PCA": {"transform": _PCA},
+    "RobustPCA": {"transform": _RobustPCA},
 }
 
 INPUT_FLOAT = 0
@@ -364,7 +376,7 @@ def from_auto_ml(model, shape=None, dtype="float32", func_name="transform"):
         if type(model.feature_transformer.steps[0][1]).__name__ != "ColumnTransformer":
             raise NameError(
                 "The First Transformer must be an ColumnTransformer, but {} is given".format(
-                    type(transformer).__name__
+                    type(model.feature_transformer.steps[0][1]).__name__
                 )
             )
 

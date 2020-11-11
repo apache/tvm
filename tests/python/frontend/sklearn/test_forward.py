@@ -16,15 +16,17 @@
 # under the License.
 import numpy as np
 
+from scipy.sparse import random as sparse_random
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sagemaker_sklearn_extension.externals import AutoMLTransformer
 from sagemaker_sklearn_extension.externals import Header
 from sagemaker_sklearn_extension.impute import RobustImputer
+from sagemaker_sklearn_extension.decomposition import RobustPCA
 from sagemaker_sklearn_extension.preprocessing import (
     RobustStandardScaler,
     ThresholdOneHotEncoder,
@@ -126,21 +128,6 @@ def test_threshold_onehot_encoder():
     _test_model_impl(st_helper, tohe, dshape, data)
 
 
-def test_inverse_label_transformer():
-    st_helper = SklearnTestHelper()
-    rle = RobustLabelEncoder()
-
-    data = np.array([1, 2, 3, 4, 5], dtype=np.int32)
-    rle.fit(data)
-
-    dshape = (len(data),)
-    st_helper.compile(rle, dshape, "int32", "inverse_transform")
-    tvm_out = st_helper.run(data)
-    # identity transformation, because of the string input, the actually encoding happens outside
-    # of tvm in runtime as post processing
-    tvm.testing.assert_allclose(data, tvm_out, rtol=1e-5, atol=1e-5)
-
-
 def test_robust_ordinal_encoder():
     st_helper = SklearnTestHelper()
     roe = RobustOrdinalEncoder()
@@ -191,10 +178,21 @@ def test_kbins_discretizer():
 def test_pca():
     st_helper = SklearnTestHelper()
     pca = PCA(n_components=2)
+    rpca = RobustPCA()
     data = np.array([[-1, -1], [-2, -1], [-3, -2], [1, 1], [2, 1], [3, 2]], dtype=np.float32)
     pca.fit(data)
+    rpca.robust_pca_ = pca
     dshape = (relay.Any(), len(data[0]))
-    _test_model_impl(st_helper, pca, dshape, data)
+    _test_model_impl(st_helper, rpca, dshape, data)
+
+    tSVD = TruncatedSVD(n_components=5, n_iter=7, random_state=42)
+    data = sparse_random(
+        100, 100, density=0.01, format="csr", dtype="float32", random_state=42
+    ).toarray()
+    tSVD.fit(data)
+    rpca.robust_pca_ = tSVD
+    dshape = (relay.Any(), len(data[0]))
+    _test_model_impl(st_helper, rpca, dshape, data)
 
 
 def test_automl():
@@ -224,15 +222,36 @@ def test_automl():
     _test_model_impl(st_helper, automl_transformer, dshape, data, auto_ml=True)
 
 
+def test_inverse_label_transformer():
+    st_helper = SklearnTestHelper()
+    rle = RobustLabelEncoder()
+
+    # Binary Classification
+    data = np.random.random_sample((10,)).astype(np.float32)
+    dshape = (relay.Any(),)
+    st_helper.compile(rle, dshape, "float32", "inverse_transform")
+    python_out = (data > 0.5).astype(int)
+    tvm_out = st_helper.run(data)
+    tvm.testing.assert_allclose(python_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+    # Multiclass Classification
+    data = np.random.random_sample((10, 5)).astype(np.float32)
+    dshape = (relay.Any(), 5)
+    st_helper.compile(rle, dshape, "float32", "inverse_transform")
+    python_out = np.argmax(data, axis=1)
+    tvm_out = st_helper.run(data)
+    tvm.testing.assert_allclose(python_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     test_simple_imputer()
     test_robust_imputer()
     test_robust_scaler()
     test_threshold_onehot_encoder()
-    test_inverse_label_transformer()
     test_robust_ordinal_encoder()
     test_na_label_encoder()
     test_kbins_discretizer()
     # test_tfidf_vectorizer()
     test_pca()
     test_automl()
+    test_inverse_label_transformer()
