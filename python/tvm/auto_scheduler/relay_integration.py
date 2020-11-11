@@ -41,7 +41,7 @@ def call_all_topi_funcs(mod, params, target):
 
     with transform.PassContext(opt_level=3):
         opt_mod, _ = relay.optimize(mod, target, params)
-        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target, use_topi_schedule=False)
         grc.codegen(opt_mod["main"])
 
 

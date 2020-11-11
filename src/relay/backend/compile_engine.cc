@@ -98,8 +98,10 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 // Get schedule from functor.
 class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
-  explicit ScheduleGetter(Target target)
-      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
+  explicit ScheduleGetter(Target target, bool use_topi_schedule)
+      : target_(target),
+        use_topi_schedule_(use_topi_schedule),
+        device_copy_op_(Op::Get("device_copy")) {}
 
   CachedFunc Create(const Function& prim_func) {
     auto cache_node = make_object<CachedFuncNode>();
@@ -145,11 +147,20 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
         tensor_outs.push_back(tensor);
       }
     }
+
     te::Schedule schedule;
     // No need to register schedule for device copy op.
     if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      ICHECK(anchor_implementation_.defined());
-      schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
+      if (use_topi_schedule_) {
+        ICHECK(anchor_implementation_.defined());
+        schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
+      } else {
+        tvm::Array<te::Operation> tensor_out_ops;
+        for (const auto& tensor : tensor_outs) {
+          tensor_out_ops.push_back(tensor->op);
+        }
+        schedule = te::create_schedule(tensor_out_ops);
+      }
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {
           schedule[scalar].compute_inline();
@@ -228,9 +239,9 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     }
 
     int op_pattern = fpattern[op];
-    if (op_pattern >= kCommReduce) {
+    if (use_topi_schedule_ && op_pattern >= kCommReduce) {
       ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
-          << "Two complicated op in a primitive function "
+          << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
     }
     if (op_pattern >= anchor_op_pattern_) {
@@ -295,6 +306,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
+  bool use_topi_schedule_;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
@@ -572,7 +584,9 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 class CompileEngineImpl : public CompileEngineNode {
  public:
   // Lower the function.
-  CachedFunc Lower(const CCacheKey& key) { return LowerInternal(key)->cached_func; }
+  CachedFunc Lower(const CCacheKey& key, const bool use_topi_schedule) {
+    return LowerInternal(key, use_topi_schedule)->cached_func;
+  }
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
@@ -662,16 +676,18 @@ class CompileEngineImpl : public CompileEngineNode {
    * \brief Create schedule for target.
    * \param source_func The primitive function to be lowered.
    * \param target The target we want to create schedule for.
+   * \param use_topi_schedule If false, then an empty schedule will be used.
    * \return Pair of schedule and cache.
    *  The funcs field in cache is not yet populated.
    */
-  CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
-    return ScheduleGetter(target).Create(source_func);
+  CachedFunc CreateSchedule(const Function& source_func, const Target& target,
+                            const bool use_topi_schedule = true) {
+    return ScheduleGetter(target, use_topi_schedule).Create(source_func);
   }
 
  private:
   // implement lowered func
-  CCacheValue LowerInternal(const CCacheKey& key) {
+  CCacheValue LowerInternal(const CCacheKey& key, const bool use_topi_schedule = true) {
     std::lock_guard<std::mutex> lock(mutex_);
     CCacheValue value;
     auto it = cache_.find(key);
@@ -702,7 +718,7 @@ class CompileEngineImpl : public CompileEngineNode {
     With<Target> target_scope(key->target);
 
     ICHECK(!value->cached_func.defined());
-    auto cfunc = CreateSchedule(key->source_func, key->target);
+    auto cfunc = CreateSchedule(key->source_func, key->target, use_topi_schedule);
     auto cache_node = make_object<CachedFuncNode>(*(cfunc.operator->()));
 
     // Skip lowering for device copy node.
@@ -831,7 +847,9 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineClear").set_body_typed([](Compi
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
-    .set_body_typed([](CompileEngine self, CCacheKey key) { return self->Lower(key); });
+    .set_body_typed([](CompileEngine self, CCacheKey key, bool use_topi_schedule) {
+      return self->Lower(key, use_topi_schedule);
+    });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
     .set_body_typed([](CompileEngine self, CCacheKey key) { return self->LowerShapeFunc(key); });
