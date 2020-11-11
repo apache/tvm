@@ -72,9 +72,9 @@ def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
     from tvm import relay
 
     if isinstance(target, str):
-        target = Target(target)
+        target = tvm.target.Target(target)
     if isinstance(target_host, str):
-        target_host = Target(target_host)
+        target_host = tvm.target.Target(target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
     env = TracingEnvironment(TracingMode.EXTRACT_TASK)

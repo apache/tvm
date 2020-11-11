@@ -37,7 +37,7 @@ def search_common(
     seed=random.randint(1, 1 << 30),
     runner="local",
     cost_model=auto_scheduler.RandomModel(),
-    num_measure_trials=2,
+    num_measure_trials=10,
     init_search_callbacks=None,
 ):
     print("Test %s schedule search with the default search policy" % (target))
