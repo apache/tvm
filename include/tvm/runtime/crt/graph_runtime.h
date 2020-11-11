@@ -70,12 +70,24 @@ TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const struct TVMMo
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 
 /*!
+ * \brief get number of input tensors allocated.
+ * \return integer number of tensors available to use.
+ */
+int TVMGraphRuntime_GetNumInputs();
+
+/*!
  * \brief set input to the graph based on name.
  * \param runtime The graph runtime.
  * \param name The name of the input.
  * \param data_in The input data.
  */
 void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
+
+/*!
+ * \brief get number of output tensors allocated.
+ * \return integer number of output tensors allocated.
+ */
+int TVMGraphRuntime_GetNumOutputs();
 
 /*!
  * \brief Return NDArray for given output index.

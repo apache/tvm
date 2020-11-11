@@ -65,7 +65,7 @@ $(notdir $(1)): $${BUILD_DIR}/lib$(notdir $(1)).a
 
 endef
 
-LIBS = src/runtime/crt/common src/runtime/crt/graph_runtime src/runtime/crt/utvm_rpc_common src/runtime/crt/utvm_rpc_server
+LIBS = src/runtime/crt/common src/runtime/crt/graph_runtime src/runtime/crt/graph_runtime_module src/runtime/crt/utvm_rpc_common src/runtime/crt/utvm_rpc_server
 
 $(foreach lib,$(LIBS),$(eval $(call LIB_template,$(lib))))
 

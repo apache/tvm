@@ -245,9 +245,7 @@ HEX_NUM_RE = re.compile(r'[+\-]?(?:(?:0x[0-9A-Fa-f.p+-]+)|(?:INFINITY)|(?:NAN))'
 def test_c_link_params():
     temp_dir = utils.tempdir()
     for dtype in LINKABLE_DTYPES:
-        print("test", dtype)
         mod, param_init = _make_mod_and_params(dtype)
-        print('built mod', mod)
         rand_input = _make_random_tensor(dtype)
         main_func = mod['main']
         target = 'c --link-params'
@@ -331,6 +329,68 @@ def test_c_link_params():
             np.testing.assert_allclose(unlinked_output.asnumpy(), linked_output.asnumpy())
 
 
+@tvm.testing.requires_micro
+def test_crt_link_params():
+    import tvm.micro
+
+
+    for dtype in LINKABLE_DTYPES:
+        mod, param_init = _make_mod_and_params(dtype)
+        rand_input = _make_random_tensor(dtype)
+        main_func = mod['main']
+        target = 'c -mcpu=native --system-lib --runtime=c --link-params'
+        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+            graph_json, lib, params = tvm.relay.build(mod, target, params=param_init)
+            assert set(params.keys()) == {"p0"}  # NOTE: op folded
+
+            workspace = tvm.micro.Workspace()
+            compiler = tvm.micro.DefaultCompiler(target=target)
+            opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+            opts['bin_opts']['ldflags'].append('-DTVM_HOST_USE_GRAPH_RUNTIME_MODULE')
+
+            micro_binary = tvm.micro.build_static_runtime(
+                # the x86 compiler *expects* you to give the exact same dictionary for both
+                # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
+                # the binary compiler is expecting those mutations to be in bin_opts.
+                # TODO(weberlo) fix this very bizarre behavior
+                workspace,
+                compiler,
+                lib,
+                lib_opts=opts["bin_opts"],
+                bin_opts=opts["bin_opts"],
+                extra_libs=[os.path.join(tvm.micro.CRT_ROOT_DIR, m)
+                            for m in ('graph_runtime', 'graph_runtime_module')],
+            )
+
+            flasher_kw = {
+                "debug": False,
+            }
+            flasher = compiler.flasher(**flasher_kw)
+            with tvm.micro.Session(binary=micro_binary, flasher=flasher) as sess:
+                rpc_lib = sess.get_system_lib()
+                graph_rt = tvm.contrib.graph_runtime.create(
+                  graph_json, rpc_lib, sess.context)
+
+                graph_rt.set_input('rand_input', rand_input, **params)
+                graph_rt.run()
+                linked_output = graph_rt.get_output(0).asnumpy()
+
+        with tvm.transform.PassContext(opt_level=3):
+            lib = tvm.relay.build(mod, 'llvm --system-lib', params=param_init)
+
+            def _run_unlinked(lib):
+                graph_json, mod, lowered_params = lib
+                graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
+                graph_rt.set_input('rand_input', rand_input, **lowered_params)
+                graph_rt.run()
+                return graph_rt.get_output(0)
+
+            unlinked_output = _run_unlinked(lib).asnumpy()
+
+        if 'int' in dtype:
+            np.testing.assert_equal(unlinked_output, linked_output)
+        else:
+            np.testing.assert_allclose(unlinked_output, linked_output)
 
 
 if __name__ == '__main__':

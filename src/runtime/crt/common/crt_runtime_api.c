@@ -127,7 +127,7 @@ static TVMModuleHandle EncodeModuleHandle(tvm_module_index_t module_index) {
   return (TVMModuleHandle)((uintptr_t)(module_index | 0x8000));
 }
 
-static int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
+int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
   tvm_module_index_t idx;
 
   for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {

@@ -121,6 +121,7 @@ class MicroTransportChannel : public RPCChannel {
 
       ::std::string chunk;
       if (timeout != ::std::chrono::microseconds::zero()) {
+        LOG(INFO) << "ReceiveUntil no-timeout " << timeout.count() << " us";
         ::std::chrono::microseconds iter_timeout{
             ::std::max(::std::chrono::microseconds{0},
                        ::std::chrono::duration_cast<::std::chrono::microseconds>(
@@ -288,6 +289,7 @@ class MicroTransportChannel : public RPCChannel {
 };
 
 TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue* rv) {
+                                                     LOG(INFO) << "MICRO RPC CONNECT " << uint64_t(args[3]) << ", " << uint64_t(args[4]) << ", " << uint64_t(args[5]);
   MicroTransportChannel* micro_channel =
       new MicroTransportChannel(args[1], args[2], ::std::chrono::microseconds(uint64_t(args[3])),
                                 ::std::chrono::microseconds(uint64_t(args[4])),

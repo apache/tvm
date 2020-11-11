@@ -540,6 +540,15 @@ uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint
 }
 
 /*!
+ * \brief Get the number of input tensors allocated.
+ * \param runtime The graph runtime.
+ * \return the number of input tensors allocated.
+ */
+int TVMGraphRuntime_GetNumInputs(TVMGraphRuntime* runtime) {
+  return runtime->input_nodes_count;
+}
+
+/*!
  * \brief Get the input index given the name of input.
  * \param runtime The graph runtime.
  * \param name The name of the input.
@@ -673,6 +682,15 @@ void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
       runtime->op_execs[idx].Call(&(runtime->op_execs[idx]));
     }
   }
+}
+
+/*!
+ * \brief Get the number of output tensors allocated.
+ * \param runtime The graph runtime.
+ * \return the number of output tensors allocated.
+ */
+int TVMGraphRuntime_GetNumOutputs(TVMGraphRuntime* runtime) {
+  return runtime->outputs_count;
 }
 
 int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out) {
@@ -875,7 +893,6 @@ void TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, cons
 
 TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const TVMModule* m,
                                         const TVMContext* ctxs) {
-  CHECK_EQ(vleak_size, 1, "memory leak checking won't work with concurrent CRT use");
   TVMGraphRuntime* runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(TVMGraphRuntime));
   // init
@@ -909,6 +926,4 @@ void TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
     vfree(g_fexecs);
     g_fexecs = 0;
   }
-
-  CHECK_EQ(vleak_size, 1, "found memory leak, leak size=%d", vleak_size - 1);
 }

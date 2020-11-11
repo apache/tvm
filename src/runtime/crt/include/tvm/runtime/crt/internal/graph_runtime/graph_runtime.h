@@ -100,6 +100,7 @@ typedef struct TVMGraphRuntime {
 typedef DLTensor* DLTensorPtr;
 
 // private functions
+uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint32_t index);
 void TVMGraphRuntime_SetInput(TVMGraphRuntime* runtime, const char* name, DLTensor* data_in);
 int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
                                const uint32_t param_size);

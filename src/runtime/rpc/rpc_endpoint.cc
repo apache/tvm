@@ -370,6 +370,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    */
   void HandleReturn(RPCCode code, RPCSession::FEncodeReturn setreturn) {
     TVMArgs args = RecvPackedSeq();
+    LOG(INFO) << "Receive PackedSeq " << args.size();
 
     if (code == RPCCode::kException) {
       // switch to the state before sending exception.

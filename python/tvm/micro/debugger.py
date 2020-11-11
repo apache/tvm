@@ -19,6 +19,7 @@
 
 import atexit
 import abc
+import errno
 import logging
 import os
 import signal
@@ -26,12 +27,14 @@ import subprocess
 import sys
 import termios
 import threading
+import time
 
 import psutil
 
 from .._ffi import register_func
 from . import class_factory
 from . import transport
+from .transport.file_descriptor import FdTransport
 
 
 _LOG = logging.getLogger(__name__)
@@ -195,7 +198,8 @@ class GdbTransportDebugger(GdbDebugger):
         else:
             raise NotImplementedError(f"System {sysname} is not yet supported")
 
-        self.fd_transport = fd.FdTransport(stdout_read, stdin_write)
+        self.fd_transport = FdTransport(
+            stdout_read, stdin_write, timeouts=transport.debug_transport_timeouts())
         self.fd_transport.open()
 
         return {
@@ -227,13 +231,33 @@ class GdbTransportDebugger(GdbDebugger):
             pass  # Pipes opened by parent class.
 
         def write(self, data, timeout_sec):
-            return self.gdb_transport_debugger.fd_transport.write(data, timeout_sec)
+            end_time = time.monotonic() + timeout_sec
+            while timeout_sec == 0 or time.monotonic() < end_time:
+                try:
+                    return self.gdb_transport_debugger.fd_transport.write(data, timeout_sec)
+                except OSError as e:
+                    if e.errno == errno.EAGAIN:
+                        time.sleep(0.1)
+                        continue
+                    raise e
+
+            raise base.IoTimeoutError()
 
         def read(self, n, timeout_sec):
-            return self.gdb_transport_debugger.fd_transport.read(n, timeout_sec)
+            end_time = time.monotonic() + timeout_sec
+            while timeout_sec == 0 or time.monotonic() < end_time:
+                try:
+                    return self.gdb_transport_debugger.fd_transport.read(n, timeout_sec)
+                except OSError as e:
+                    if e.errno == errno.EAGAIN:
+                        time.sleep(0.1)
+                        continue
+                    raise e
+
+            raise base.IoTimeoutError()
 
         def close(self):
-            pass  # Pipes closed by parent class.
+            pass  # Pipes closed by parent class (DebugWrapperTransport calls stop() next).
 
     def transport(self):
         return self._Transport(self)
