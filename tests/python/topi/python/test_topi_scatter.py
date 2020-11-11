@@ -26,8 +26,8 @@ def test_scatter_nd(ctx, target):
     def check_scatter_nd(data, indices, shape, out):
         implementations = {
             "generic": (lambda x, y: topi.scatter_nd(x, y, shape), topi.generic.schedule_extern),
-            "cuda": (lambda x, y: topi.cuda.scatter_nd(x, y, shape), topi.generic.schedule_extern),
-            "llvm": (lambda x, y: topi.x86.scatter_nd(x, y, shape), topi.generic.schedule_extern),
+            "gpu": (lambda x, y: topi.cuda.scatter_nd(x, y, shape), topi.generic.schedule_extern),
+            "cpu": (lambda x, y: topi.x86.scatter_nd(x, y, shape), topi.generic.schedule_extern),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm([data, indices], out, target, ctx, fcompute, fschedule)
@@ -41,7 +41,7 @@ def test_scatter_nd(ctx, target):
     data = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
     indices = np.array([[0, 1], [1, 1]])
     shape = (2, 2, 2, 2)
-    out = np.array([[[[0, 0], [1, 2]], [[0, 0], [3, 4]]], [[[0, 0], [0, 0]], [[0, 0], [0, 0]]]])
+    out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
     check_scatter_nd(data, indices, shape, out)
 
     data = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
@@ -53,12 +53,13 @@ def test_scatter_nd(ctx, target):
     out[0, :] += data[2, :]
     check_scatter_nd(data, indices, shape, out)
 
-    data = np.random.rand((40, 768))
-    indices = np.stack((np.random.randint(40, size=40), np.random.randint(768, size=40)))
-    shape = (8, 50, 768)
-    out = np.zeros(shape).astype("float32")
-    for i in range(40):
-        out[indices[0, i], indices[1, i], :] += data[i, :]
+    data = np.ones((5, 3)).astype("float64")
+    indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype("int64")
+    shape = (2, 7, 3)
+    out = np.zeros(shape).astype("float64")
+    for i in range(indices.shape[1]):
+        for j in range(data.shape[1]):
+            out[indices[0, i], indices[1, i], j] += data[i, j]
     check_scatter_nd(data, indices, shape, out)
 
 

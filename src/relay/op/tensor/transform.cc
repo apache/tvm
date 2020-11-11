@@ -1016,7 +1016,7 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   // data: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
   for (size_t i = mdim->value; i < ndim; i++) {
-    reporter->AssertEQ(data->shape[i - mdim + kdim], oshape[i]);
+    reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
   }
 
   reporter->Assign(types[2], TensorType(oshape, data->dtype));

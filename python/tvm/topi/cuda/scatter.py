@@ -575,7 +575,7 @@ def scatter_nd(data, indices, shape):
             fused_indices_dimension *= i
 
         fused_data_dimension = 1
-        for i in data_ptr.shape[indices_ptr.shape[0].value :]:
+        for i in data_ptr.shape[len(indices_ptr.shape)-1 :]:
             fused_data_dimension *= i
 
         fused_shape = 1
