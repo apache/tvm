@@ -45,6 +45,12 @@ using tvm::runtime::String;
  */
 class BaseExprNode : public Object {
  public:
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
   static constexpr const char* _type_key = "BaseExpr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -135,11 +141,6 @@ class PrimExpr : public BaseExpr {
  */
 class RelayExprNode : public BaseExprNode {
  public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
   /*!
    * \brief Stores the result of type inference(type checking).
    *
@@ -263,8 +264,9 @@ class IntImm : public PrimExpr {
    * \brief Constructor.
    * \param dtype The data type of the value.
    * \param value The internal value.
+   * \param span The location of this object in the source code.
    */
-  TVM_DLL IntImm(DataType dtype, int64_t value);
+  TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
 };
@@ -307,8 +309,9 @@ class FloatImm : public PrimExpr {
    * \brief Constructor.
    * \param dtype The data type of the value.
    * \param value The internal value.
+   * \param span The location in the source code.
    */
-  TVM_DLL FloatImm(DataType dtype, double value);
+  TVM_DLL FloatImm(DataType dtype, double value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
 };
@@ -321,7 +324,7 @@ class FloatImm : public PrimExpr {
  */
 class Bool : public IntImm {
  public:
-  explicit Bool(bool value) : IntImm(DataType::Bool(), value) {}
+  explicit Bool(bool value, Span span = Span()) : IntImm(DataType::Bool(), value, span) {}
   Bool operator!() const { return Bool((*this)->value == 0); }
   operator bool() const { return (*this)->value != 0; }
 
@@ -358,7 +361,7 @@ class Integer : public IntImm {
   /*!
    * \brief Construct integer from int value.
    */
-  Integer(int value) : IntImm(DataType::Int(32), value) {}  // NOLINT(*)
+  Integer(int value, Span span = Span()) : IntImm(DataType::Int(32), value, span) {}  // NOLINT(*)
   /*!
    * \brief Construct integer from int imm.
    * \param other The other value.

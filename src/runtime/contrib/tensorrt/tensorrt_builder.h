@@ -25,6 +25,8 @@
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_BUILDER_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_BUILDER_H_
 
+#include <tvm/runtime/ndarray.h>
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -50,6 +52,8 @@ struct TensorRTEngineAndContext {
   nvinfer1::IExecutionContext* context;
   std::vector<std::string> inputs;
   std::vector<std::string> outputs;
+  /*! \brief GPU buffers for inputs and outputs. */
+  std::vector<NDArray> device_buffers;
 };
 
 /*!
@@ -69,15 +73,17 @@ class TensorRTBuilder {
    * \param use_fp16 Whether to use implicit batch mode (default)
    * \param batch_size If use_implicit_batch,
    */
-  TensorRTBuilder(TensorRTLogger* logger, size_t max_workspace_size, bool use_implicit_batch,
-                  bool use_fp16, int batch_size);
+  TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,
+                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
+                  int batch_size);
 
   /*!
    * \brief Add TensorRT input(s) for input node in network definition.
    * \param nid The input node id.
+   * \param entry_id The index into data_entry_ for first entry in node.
    * \param node The input node.
    */
-  void AddInput(int nid, const JSONGraphNode& node);
+  void AddInput(int nid, uint32_t entry_id, const JSONGraphNode& node);
 
   /*!
    * \brief Add TensorRT weight for input constant in network definition.
@@ -96,8 +102,9 @@ class TensorRTBuilder {
   /*!
    * \brief Mark TensorRT output in network definition.
    * \param entry The output node entry.
+   * \param entry_id The output node entry id.
    */
-  void AddOutput(const JSONGraphNodeEntry& entry);
+  void AddOutput(const JSONGraphNodeEntry& entry, uint32_t entry_id);
 
   /*!
    * \brief Takes network definition and "compiles" a TensorRT engine which can be used for
@@ -116,6 +123,12 @@ class TensorRTBuilder {
   /*! \brief Clean up resources used to create engine. */
   void CleanUp();
 
+  /*! \brief Allocate a GPU buffer for input or output DLTensor, only if the context is not GPU
+   * already. Inputs that are already on the GPU can be passed directly to TensorRT and will not
+   * need a buffer. */
+  void AllocateDeviceBuffer(nvinfer1::ICudaEngine* engine, const std::string& name,
+                            std::vector<runtime::NDArray>* device_buffers);
+
   /*! \brief Maps a node to its outputs. */
   std::unordered_map<int, std::vector<TensorRTOpInput>> node_output_map_;
 
@@ -132,6 +145,12 @@ class TensorRTBuilder {
 
   /*! \brief List of all weights held in memory. */
   std::vector<nvinfer1::Weights> trt_weights_;
+
+  /*! \brief Input and output tensors from TVM. */
+  const std::vector<const DLTensor*>& data_entry_;
+
+  /*! \brief Map TensorRT binding name to index in data_entry_. */
+  std::unordered_map<std::string, uint32_t> entry_id_map_;
 
   /*! \brief Max workspace size in bytes for TRT. */
   size_t max_workspace_size_;

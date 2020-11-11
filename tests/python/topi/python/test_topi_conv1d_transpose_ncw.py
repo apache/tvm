@@ -91,9 +91,13 @@ def test_conv1d_transpose_ncw():
     verify_conv1d_transpose_ncw(1, 1, 1024, 1, 512, 2, 256, (0,))
     verify_conv1d_transpose_ncw(1, 1, 1024, 1, 512, 5, 256, (0,))
     verify_conv1d_transpose_ncw(1, 1, 1024, 1, 512, 5, 256, (3,))
+    verify_conv1d_transpose_ncw(1, 2, 1024, 1, 128, 128, 0, (0,))
+    verify_conv1d_transpose_ncw(1, 1, 1024, 2, 128, 128, 0, (0,))
+    verify_conv1d_transpose_ncw(1, 1, 1024, 2, 2, 2, 0, (0,))
     verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (0, 3), (0,))
     verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (1, 3), (0,))
     verify_conv1d_transpose_ncw(1, 1, 10, 1, 5, 1, (2, 3), (0,))
+    verify_conv1d_transpose_ncw(1, 257, 128, 1, 512, 128, 256, (0,))
 
 
 if __name__ == "__main__":

@@ -316,17 +316,45 @@ def test_reshape_like_infer_type():
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((1, 8, 8), "float32")
 
+    # partial reshaping
+    x = relay.var("x", relay.TensorType((1, 2, 3, 4), "float32"))
+    y = relay.var("y", relay.TensorType((1, 6, 5), "float32"))
+    z = relay.reshape_like(x, y, lhs_begin=1, lhs_end=3, rhs_begin=1, rhs_end=2)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((1, 6, 4), "float32")
+
+    x = relay.var("x", relay.TensorType((1, 2, 3, 4), "float32"))
+    y = relay.var("y", relay.TensorType((2, 3, 4, 1, 6), "float32"))
+    z = relay.reshape_like(x, y, rhs_end=3)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((2, 3, 4), "float32")
+    z = relay.reshape_like(x, y, rhs_begin=2)
+    zz = run_infer_type(z)
+    assert zz.checked_type == relay.TensorType((4, 1, 6), "float32")
+
+    # symbolic partial reshaping
+    n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.var("y", relay.TensorType((5, 6), "float32"))
+    z = relay.var("z", relay.TensorType((4,), "float32"))
+    w = relay.reshape_like(x, y, lhs_end=3)
+    w = relay.reshape_like(w, z, lhs_begin=2)
+    w = run_infer_type(w)
+    assert w.checked_type == relay.TensorType((5, 6, 4), "float32")
+
 
 @tvm.testing.uses_gpu
 def test_reshape_like():
-    def verify_reshape_like(shape, oshape):
+    def verify_reshape_like(shape, oshape, shape_like=None, reshape_like_kwargs={}):
+        if shape_like is None:
+            shape_like = oshape
         x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
-        y_data = np.random.uniform(low=-1, high=1, size=oshape).astype("float32")
-        ref_res = np.reshape(x_data, y_data.shape)
+        y_data = np.random.uniform(low=-1, high=1, size=shape_like).astype("float32")
+        ref_res = np.reshape(x_data, oshape)
 
         x = relay.var("x", relay.TensorType(shape, "float32"))
-        y = relay.var("x", relay.TensorType(oshape, "float32"))
-        z = relay.reshape_like(x, y)
+        y = relay.var("x", relay.TensorType(shape_like, "float32"))
+        z = relay.reshape_like(x, y, **reshape_like_kwargs)
         zz = run_infer_type(z)
         assert zz.checked_type == relay.ty.TensorType(ref_res.shape, "float32")
 
@@ -340,6 +368,9 @@ def test_reshape_like():
 
     verify_reshape_like((2, 3, 4), (1, 8, 3))
     verify_reshape_like((4, 7), (2, 7, 2))
+    verify_reshape_like(
+        (1, 2, 3, 4), (1, 6, 4), (1, 6, 5), dict(lhs_begin=1, lhs_end=3, rhs_begin=1, rhs_end=2)
+    )
 
 
 def test_take_infer_type():

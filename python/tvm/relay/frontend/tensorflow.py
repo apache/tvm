@@ -2439,6 +2439,7 @@ _convert_map = {
     "ResizeNearestNeighbor": _resize("nearest_neighbor"),
     "ReverseV2": _reverse_v2(),
     "RightShift": AttrCvt("right_shift"),
+    "Rint": AttrCvt("round"),
     "Round": AttrCvt("round"),
     "Rsqrt": _rsqrt(),
     "Select": _where(),
@@ -3401,7 +3402,7 @@ class GraphProto(object):
         return ret
 
     def _convert_operator(
-        self, op_name, inputs, attrs, graph, identity_list=None, convert_map=None
+        self, op_name, node_name, inputs, attrs, identity_list=None, convert_map=None
     ):
         """Convert from Tensorflow operator to relay operator.
         The converter must specify conversions explicitly for incompatible name, and
@@ -3440,6 +3441,23 @@ class GraphProto(object):
             sym = self._partition_call_operator(inputs, attrs)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
+
+        sym = self._set_span(sym, node_name)
+
+        return sym
+
+    @staticmethod
+    def _set_span(sym, node_name):
+        span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
+        if isinstance(sym, _expr.Call):
+            sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
+        elif isinstance(sym, _expr.TupleWrapper):
+            tuple_value = sym.tuple_value
+            if isinstance(tuple_value, _expr.Call):
+                tuple_value = _expr.Call(
+                    tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
+                )
+                sym = _expr.TupleWrapper(tuple_value, sym.size)
         return sym
 
     def _licm_construct(self, loop_name, node_name):
@@ -3576,7 +3594,7 @@ class GraphProto(object):
                         actual_input = self._licm_construct(plname, iname)
                         inputs[i] = actual_input
 
-                op = self._convert_operator(node.op, inputs, attr, self._graph)
+                op = self._convert_operator(node.op, node.name, inputs, attr)
 
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)

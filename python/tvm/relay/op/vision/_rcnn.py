@@ -69,11 +69,53 @@ def convert_roi_align(attrs, inputs, tinfos, desired_layouts):
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
 
+@reg.register_convert_op_layout("vision.roi_pool")
+def convert_roi_pool(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for roi_pool op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current roi_pool
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and rois inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    data, rois = inputs
+    new_attrs = dict(attrs)
+    assert (
+        len(desired_layouts) == 2
+    ), "A desired layout is expected for both of vision.roi_pool's inputs"
+
+    desired_data_layout, desired_rois_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    assert desired_rois_layout == "default", "Rois layout must be default"
+
+    new_attrs["layout"] = desired_data_layout
+    # rois layout not change
+    if desired_data_layout in ["NCHW", "NHWC"]:
+        return relay.vision.roi_pool(data, rois, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+
+
 # roi_pool
 @reg.register_compute("vision.roi_pool")
 def compute_roi_pool(attrs, inputs, _):
     """Compute definition of roi_pool"""
-    assert attrs.layout == "NCHW"
+    assert attrs.layout == "NCHW", "only support nchw for now"
     return [
         topi.vision.rcnn.roi_pool_nchw(
             inputs[0],

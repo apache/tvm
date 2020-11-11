@@ -185,10 +185,13 @@ class Tuple(ExprWithOp):
     ----------
     fields : List[tvm.relay.Expr]
         The fields in the tuple.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
     """
 
-    def __init__(self, fields):
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields)
+    def __init__(self, fields, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -251,12 +254,15 @@ class Call(ExprWithOp):
     type_args: Optional[List[tvm.relay.Type]]
         The additional type arguments, this is only
         used in advanced usecase of template functions.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
     """
 
-    def __init__(self, op, args, attrs=None, type_args=None):
+    def __init__(self, op, args, attrs=None, type_args=None, span=None):
         if not type_args:
             type_args = []
-        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args)
+        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
 
 
 @tvm._ffi.register_object("relay.Let")

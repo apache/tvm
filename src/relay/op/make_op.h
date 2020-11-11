@@ -62,6 +62,9 @@ Expr MakeRepeat(Expr data, int repeats, int axis);
 
 Expr MakeReshape(Expr data, Array<Integer> newshape);
 
+Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
+                     Integer rhs_end);
+
 Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 
 Expr MakeSqueeze(Expr data, Array<Integer> axis);
