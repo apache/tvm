@@ -77,8 +77,8 @@ def schedule_dense_small_batch(cfg, outs):
 
 
 def _schedule_dense_small_batch(cfg, s, C):
-    A, _ = C.op.input_tensors
-    _, in_dim = get_const_tuple(A.shape)
+    A, weights = C.op.input_tensors
+    _, in_dim = get_const_tuple(weights.shape)
     cfg.define_split("tile_k", in_dim, num_outputs=2)
     if cfg.is_fallback:
         cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
