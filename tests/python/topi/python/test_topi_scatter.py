@@ -53,6 +53,14 @@ def test_scatter_nd(ctx, target):
     out[0, :] += data[2, :]
     check_scatter_nd(data, indices, shape, out)
 
+    data = np.random.rand((40, 768))
+    indices = np.stack((np.random.randint(40, size=40), np.random.randint(768, size=40)))
+    shape = (8, 50, 768)
+    out = np.zeros(shape).astype("float32")
+    for i in range(40):
+        out[indices[0, i], indices[1, i], :] += data[i, :]
+    check_scatter_nd(data, indices, shape, out)
+
 
 if __name__ == "__main__":
     test_scatter_nd(tvm.context("cpu"), tvm.target.Target("llvm"))
