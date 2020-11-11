@@ -569,14 +569,14 @@ bool SparseToDenseRel(const Array<Type>& types, int num_inputs, const Attrs& att
     return false;
   }
 
-  ICHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
 
-  ICHECK_LE(sparse_indices->shape.size(), 3)
+  CHECK_LE(sparse_indices->shape.size(), 3)
       << "sparse_indices must be a tensor of either 0D, 1D or 2D";
 
-  ICHECK_LE(sparse_values->shape.size(), 2) << "sparse_values must be a tensor of either 0D, 1D";
+  CHECK_LE(sparse_values->shape.size(), 2) << "sparse_values must be a tensor of either 0D, 1D";
 
-  ICHECK_EQ(default_value->shape.size(), 0) << "default_value should be a scalar";
+  CHECK_EQ(default_value->shape.size(), 0) << "default_value should be a scalar";
 
   Array<IndexExpr> oshape;
   for (int i = 0; i < output_shape->shape[0].as<IntImmNode>()->value; i++) {
