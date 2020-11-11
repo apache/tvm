@@ -472,28 +472,6 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-inline te::Tensor DynamicStridedSlice(const te::Tensor& input, const te::Tensor& begin,
-                                      const te::Tensor& end, const te::Tensor& strides,
-                                      std::string name = "T_strided_slice_dynamic",
-                                      std::string tag = topi::kInjective) {
-  int64_t src_tensor_dim = input->shape.size();
-  Array<IndexExpr> out_shape;
-  for (int64_t i = 0; i < src_tensor_dim; ++i) {
-    out_shape.push_back(tvm::tir::Var("dim"));
-  }
-  // TODO(yongwww): move the compute into topi
-  return te::compute(
-      out_shape,
-      [&](const Array<tvm::tir::Var>& indices) {
-        Array<IndexExpr> real_indices;
-        for (int32_t i = 0; i < src_tensor_dim; ++i) {
-          real_indices.push_back(indices[i] * strides(i) + begin(i));
-        }
-        return input(real_indices);
-      },
-      name, tag);
-}
-
 Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                       const Type& out_type) {
   te::Tensor data = inputs[0];
@@ -507,7 +485,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
          strides->shape[0].as<IntImmNode>()->value == data_rank)
       << "begin, end, and strides are required to have the same length"
       << " if they are dynamic variables.";
-  return Array<te::Tensor>{DynamicStridedSlice(data, begin, end, strides)};
+  return Array<te::Tensor>{topi::dynamic_strided_slice(data, begin, end, strides)};
 }
 
 Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, String slice_mode) {
