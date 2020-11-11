@@ -25,6 +25,7 @@ import numpy as np
 
 from .tuner import Tuner
 from ..env import GLOBAL_SCOPE
+from ..utils import sample_ints
 
 
 class FeatureCache(object):
@@ -193,9 +194,11 @@ class ModelBasedTuner(Tuner):
         If is not None, the tuner will first select
         top-(plan_size * diversity_filter_ratio) candidates according to the cost model
         and then pick plan_size of them according to the diversity metric.
+    uncertainty_aware: bool, optional
+        Whether to dynamically control the EE balance during the search
     """
 
-    def __init__(self, task, cost_model, model_optimizer, plan_size, diversity_filter_ratio=None):
+    def __init__(self, task, cost_model, model_optimizer, plan_size, diversity_filter_ratio=None, uncertainty_aware=False):
         super(ModelBasedTuner, self).__init__(task)
 
         # space
@@ -225,6 +228,10 @@ class ModelBasedTuner(Tuner):
         self.ys = []
         self.flops_max = 0.0
         self.train_ct = 0
+
+        self.uncertainty_aware = uncertainty_aware
+        if uncertainty_aware:
+            self.dynamic_ep = 0.05
 
     def next_batch(self, batch_size):
         ret = []
@@ -280,6 +287,13 @@ class ModelBasedTuner(Tuner):
                 maximums = self.model_optimizer.find_maximums(
                     self.cost_model, self.plan_size, self.visited
                 )
+            
+            # Update the dynamic_ep which controls the EE balance
+            if self.uncertainty_aware:
+                samples = np.array(sample_ints(0, len(self.space), 20))
+                prediction_variation = self.cost_model._prediction_variation(samples)
+
+                self.dynamic_ep = min(1, prediction_variation/self.best_flops)
 
             self.trials = maximums
             self.trial_pt = 0
