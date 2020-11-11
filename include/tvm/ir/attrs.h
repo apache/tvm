@@ -413,6 +413,12 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   }
 }
 
+// Workaround for GCC8.1 / GCC8.2
+template <>
+inline void SetValue<DataType>(DataType* ptr, const TVMArgValue& val) {
+  *ptr = val.operator DataType();
+}
+
 template <>
 inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   if (String::CanConvertFrom(val)) {
