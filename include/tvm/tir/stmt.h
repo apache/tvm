@@ -37,6 +37,15 @@ namespace tir {
 /*! \brief Base node of all statements. */
 class StmtNode : public Object {
  public:
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
+
+  StmtNode() = default;
+  explicit StmtNode(Span span) : span(span) {}
+
   static constexpr const char* _type_key = "tir.Stmt";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -89,7 +98,7 @@ class LetStmtNode : public StmtNode {
  */
 class LetStmt : public Stmt {
  public:
-  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body);
+  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(LetStmt, Stmt, LetStmtNode);
 };
@@ -144,7 +153,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body);
+  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
 };
@@ -191,7 +200,7 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Stmt body);
+  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(AssertStmt, Stmt, AssertStmtNode);
 };
@@ -254,7 +263,8 @@ class StoreNode : public StmtNode {
  */
 class Store : public Stmt {
  public:
-  TVM_DLL Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate);
+  TVM_DLL Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
+                Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Store, Stmt, StoreNode);
 };
@@ -305,7 +315,8 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                               Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
 };
@@ -352,8 +363,9 @@ class BufferRealizeNode : public StmtNode {
   }
 
   BufferRealizeNode() = default;
-  BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body)
-      : buffer(buffer), bounds(bounds), condition(condition), body(body) {}
+  BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
+                    Span span = Span())
+      : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
 
   static constexpr const char* _type_key = "tir.BufferRealize";
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
@@ -365,7 +377,8 @@ class BufferRealizeNode : public StmtNode {
  */
 class BufferRealize : public Stmt {
  public:
-  TVM_DLL explicit BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body);
+  TVM_DLL explicit BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
+                                 Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
 };
@@ -416,7 +429,8 @@ class ProducerStoreNode : public StmtNode {
  */
 class ProducerStore : public Stmt {
  public:
-  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices);
+  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
+                        Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
 };
@@ -472,7 +486,8 @@ class ProducerRealizeNode : public StmtNode {
  */
 class ProducerRealize : public Stmt {
  public:
-  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body);
+  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
+                          Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
 };
@@ -540,7 +555,7 @@ class AllocateNode : public StmtNode {
 class Allocate : public Stmt {
  public:
   TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body);
+                   Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
 };
@@ -579,8 +594,9 @@ class SeqStmt : public Stmt {
   /*!
    * \brief Construct SeqStmt.
    * \param seq The sequence.
+   * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SeqStmt(Array<Stmt> seq);
+  TVM_DLL explicit SeqStmt(Array<Stmt> seq, Span span = Span());
 
   /*! \return get the size of the sequence */
   size_t size() const { return operator->()->size(); }
@@ -678,7 +694,8 @@ class IfThenElseNode : public StmtNode {
  */
 class IfThenElse : public Stmt {
  public:
-  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt());
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt(),
+                     Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
 };
@@ -712,9 +729,9 @@ class EvaluateNode : public StmtNode {
  */
 class Evaluate : public Stmt {
  public:
-  TVM_DLL explicit Evaluate(PrimExpr value);
+  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
 
-  explicit Evaluate(int value) : Evaluate(PrimExpr(value)) {}
+  explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 
   TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
 };
@@ -799,7 +816,7 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
-              Stmt body);
+              Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
 };
@@ -829,7 +846,8 @@ class PrefetchNode : public StmtNode {
   }
 
   PrefetchNode() = default;
-  PrefetchNode(Buffer buffer, Array<Range> bounds) : buffer(buffer), bounds(bounds) {}
+  PrefetchNode(Buffer buffer, Array<Range> bounds, Span span = Span())
+      : StmtNode(span), buffer(buffer), bounds(bounds) {}
 
   static constexpr const char* _type_key = "tir.Prefetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
@@ -841,7 +859,7 @@ class PrefetchNode : public StmtNode {
  */
 class Prefetch : public Stmt {
  public:
-  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds);
+  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds, Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
 };
@@ -973,9 +991,10 @@ inline bool IsPragmaKey(const std::string& attr_key) {
 /*!
  * \brief Create a type annotation expression
  * \param dtype The data type
+ * \param span The location of this object in the source code.
  * \return Expr a expression with dtype.
  */
-TVM_DLL PrimExpr TypeAnnotation(DataType dtype);
+TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());
 
 // overload printing of for type.
 TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);
