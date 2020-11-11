@@ -75,7 +75,8 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
 
   function_names_.emplace_back(tvm::runtime::symbol::tvm_lookup_linked_param);
   for (auto kv : params) {
-    decl_stream << "#ifdef __cplusplus\n"
+    decl_stream << "\n"
+                << "#ifdef __cplusplus\n"
                 << "extern \"C\" {\n"
                 << "#endif\n"
                 << "static const ";
@@ -92,7 +93,7 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
                 << "}  // extern \"C\"\n"
                 << "#endif\n";
     stream << "    case " << kv.second->id << ":\n"
-           << "        ((int64_t*)out_ret_value)[0] = (int64_t) " << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
+           << "        ((uint64_t*)out_ret_value)[0] = (uint64_t) (uintptr_t) " << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
            << "        out_ret_tcode[0] = " << kTVMOpaqueHandle << ";\n"
            << "        return 0;\n";
   }

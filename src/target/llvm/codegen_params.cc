@@ -322,10 +322,10 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     if (arr_type.bits() == 32) {
       for (int i = 0; i < num_elements; i++) {
         float elem = static_cast<float*>(tensor->dl_tensor.data)[i];
-        if (isinf(elem)) {
+        if (std::isinf(elem)) {
           // C99 standard.
           os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
-        } else if (isnan(elem)) {
+        } else if (std::isnan(elem)) {
           // GNU extension, implemenatation-dependent.
           os << std::setw(one_element_size_bytes) << "NAN";
         } else {
@@ -340,10 +340,10 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     } else if (arr_type.bits() == 64) {
       for (int i = 0; i < num_elements; i++) {
         double elem = static_cast<double*>(tensor->dl_tensor.data)[i];
-        if (isinf(elem)) {
+        if (std::isinf(elem)) {
           // C99 standard.
           os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
-        } else if (isnan(elem)) {
+        } else if (std::isnan(elem)) {
           // GNU extension, implemenatation-dependent.
           os << std::setw(one_element_size_bytes) << "NAN";
         } else {
