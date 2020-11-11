@@ -903,7 +903,7 @@ bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of scatter must be tensor of integer";
   const auto param = attrs.as<ScatterAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1076,7 +1076,7 @@ Examples::
     .set_support_level(3)
     .add_type_rel("Take", TakeRel)
     .set_attr<FTVMCompute>("FTVMCompute", TakeCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // Init ops
 TVM_REGISTER_NODE_TYPE(InitOpAttrs);
@@ -2322,7 +2322,11 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
         << "for dynamic inputs, len(begin) must equal the input dimension";
     Array<IndexExpr> out_shape;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
-      out_shape.push_back(tvm::tir::Var("dim"));
+      if (input->shape[i]->IsInstance<tvm::IntImmNode>()) {
+        out_shape.push_back(input->shape[i]);
+      } else {
+        out_shape.push_back(tvm::tir::Var("dim"));
+      }
     }
     Array<PrimExpr> begin_expr;
     Array<PrimExpr> strides_expr;
