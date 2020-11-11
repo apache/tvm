@@ -467,7 +467,6 @@ def test_dyn_strided_slice():
             op_res = intrp.evaluate()(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
     verify(
         (1, 224, 224, 3),
         [0, 20, 20, 0],
