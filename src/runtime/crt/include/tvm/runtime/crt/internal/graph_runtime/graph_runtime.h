@@ -33,6 +33,7 @@
 typedef struct TVMGraphRuntimePoolEntry {
   size_t size;
   int device_type;
+  int entry_id;
 } TVMGraphRuntimePoolEntry;
 
 // Node entry
@@ -43,6 +44,12 @@ typedef struct TVMGraphRuntimeNodeEntry {
   // JSON Loader
   void (*Load)(JSONReader* reader);
 } TVMGraphRuntimeNodeEntry;
+
+// Storage entry.
+typedef struct TVMGraphRuntimeStorageEntry {
+  uint8_t is_linked_param;
+  TVMNDArray array;
+} TVMGraphRuntimeStorageEntry;
 
 // Node
 typedef struct TVMGraphRuntimeNode {
@@ -87,7 +94,7 @@ typedef struct TVMGraphRuntime {
   TVMContext ctxs[1];
   uint32_t ctxs_count;
   /*! \brief Common storage pool for all devices. */
-  TVMNDArray* storage_pool;
+  TVMGraphRuntimeStorageEntry* storage_pool;
   uint32_t storage_pool_count;
   /*! \brief Data entry of each node. */
   TVMNDArray* data_entry;

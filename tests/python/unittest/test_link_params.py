@@ -371,7 +371,8 @@ def test_crt_link_params():
                 graph_rt = tvm.contrib.graph_runtime.create(
                   graph_json, rpc_lib, sess.context)
 
-                graph_rt.set_input('rand_input', rand_input, **params)
+                # NOTE: not setting params here.
+                graph_rt.set_input('rand_input', rand_input)
                 graph_rt.run()
                 linked_output = graph_rt.get_output(0).asnumpy()
 

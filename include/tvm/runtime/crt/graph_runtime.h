@@ -61,10 +61,10 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  * \brief Allocate a new GraphRuntime with vmalloc and initialize it.
  *
  * \param sym_json JSON-encoded graph.
- * \param m TVM Module that exposes the functions to call.
+ * \param module_handle TVM Module that exposes the functions to call.
  * \param ctxs runtime execution context.
  */
-TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const struct TVMModule* m,
+TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
                                         const TVMContext* ctxs);
 
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
