@@ -233,7 +233,7 @@ def distill_record_file(in_file, out_file):
 """
 Usage:
 * Distill the best entries from a large log file
-e.g. python -m tvm.auto_scheduler.measure_record --mode distill --i collect.log
+e.g. python -m tvm.auto_scheduler.measure_record --mode distill --i input.json
 """
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -242,7 +242,8 @@ if __name__ == "__main__":
     parser.add_argument("--o", type=str, default=None, help="output file")
 
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
 
     if args.mode == "distill":
         args.o = args.o or args.i + ".best.json"

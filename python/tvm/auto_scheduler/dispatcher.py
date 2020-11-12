@@ -191,7 +191,7 @@ class ApplyHistoryBest(DispatchContext):
                 if np.mean(other_costs) > np.mean(costs):
                     best_by_model[key] = (inp, res)
 
-        logger.info("Finish loading %d records", counter)
+        logger.debug("Finish loading %d records", counter)
 
     def _query_inside(self, target, workload_key):
         if target is None:
