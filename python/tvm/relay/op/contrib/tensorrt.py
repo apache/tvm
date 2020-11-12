@@ -173,7 +173,6 @@ def check_dynamism(args, op_name):
     ret : bool
         True if dynamism is present, False otherwise
     """
-    print(type(op_name))
     for arg in args:
         if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
             for dim_shape in arg.checked_type.shape:
@@ -183,7 +182,7 @@ def check_dynamism(args, op_name):
             return check_dynamism(arg.fields, op_name)
         else:
             logger.info(
-                "Arg not supported in TensorRT for ",
+                "Arg not supported in TensorRT for %s with type %s",
                 op_name,
                 type(arg),
             )
@@ -217,7 +216,7 @@ def _register_external_dynamic_check_func(op_name, checker):
 
     @tvm.ir.register_op_attr(op_name, "target.tensorrt")
     def _func_wrapper(expr):
-        attrs, args = expr.attrs, expr.args
+        args = expr.args
         # ops with dynamic shapes are offloaded to VM
         if check_dynamism(args, op_name):
             return False
@@ -639,13 +638,24 @@ def strided_slice_annotate_fn(expr):  # pylint: disable=unused-variable
 
     for i in range(0, len(args[0].checked_type.shape)):
         begin = int(attrs.begin[i])
-        end = (
-            int(attrs.end[i])
-            if attrs.end[i] is not None and int(attrs.end[i]) != -1
-            else args[0].checked_type.shape[i]
-        )
-        if int(end) - int(begin) < 1:
-            print("strided_slice: size of slice must be at least 1")
+        if attrs.slice_mode == "end":
+            end = (
+                int(attrs.end[i])
+                if attrs.end[i] is not None and int(attrs.end[i]) != -1
+                else args[0].checked_type.shape[i]
+            )
+            size = int(end) - int(begin)
+        elif attrs.slice_mode == "size":
+            size = (
+                int(attrs.end[i])
+                if attrs.end[i] is not None and int(attrs.end[i]) != -1
+                else args[0].checked_type.shape[i] - begin
+            )
+        else:
+            logger.warning("strided_slice: unknown slice mode encountered")
+
+        if int(size) < 1:
+            logger.info("strided_slice: size of slice must be at least 1")
             return False
 
     return True
