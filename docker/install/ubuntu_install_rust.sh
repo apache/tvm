@@ -32,7 +32,7 @@ rustup component add rustfmt
 # install wasmtime
 apt-get install -y --no-install-recommends libc6-dev-i386
 export WASMTIME_HOME=/opt/wasmtime
-bash <(curl https://wasmtime.dev/install.sh -sSf) --version v0.16.0
+curl https://wasmtime.dev/install.sh -sSf | bash
 export PATH="${WASMTIME_HOME}/bin:${PATH}"
 rustup target add wasm32-wasi
 
