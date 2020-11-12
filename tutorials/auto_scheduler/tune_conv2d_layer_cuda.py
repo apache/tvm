@@ -80,7 +80,7 @@ print(task.compute_dag)
 #
 # * :code:`measure_ctx` launches a different process for measurement to
 #   provide isolation. It can protect the master process from GPU crashes
-#   happened during measurement and avoid other runtime conflicts.
+#   during measurement and avoid other runtime conflicts.
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
 #   Typically, we recommend a value > 300 ms.

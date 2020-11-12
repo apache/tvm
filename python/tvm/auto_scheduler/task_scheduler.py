@@ -79,7 +79,7 @@ def make_search_policies(
                 logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
-                cost_model.load_log_file(load_log_file)
+                cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()
         else:

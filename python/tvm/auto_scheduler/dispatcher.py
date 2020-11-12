@@ -191,7 +191,7 @@ class ApplyHistoryBest(DispatchContext):
                 if np.mean(other_costs) > np.mean(costs):
                     best_by_model[key] = (inp, res)
 
-        logger.debug("Finish loading %d records", counter)
+        logger.info("Finish loading %d records", counter)
 
     def _query_inside(self, target, workload_key):
         if target is None:
@@ -249,7 +249,7 @@ class FallbackContext(DispatchContext):
 
         if not self.silent:
             msg = (
-                "Cannot find tuned schedule for target=%s, workload_key=%s. "
+                "Cannot find tuned schedules for target=%s, workload_key=%s. "
                 "A fallback schedule is used, "
                 "which may bring great performance regression." % (target, workload_key)
             )

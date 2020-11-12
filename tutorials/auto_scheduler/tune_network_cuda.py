@@ -16,7 +16,7 @@
 # under the License.
 """
 Auto-tuning a Neural Network for NVIDIA GPU
-==================================================
+===========================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
@@ -27,7 +27,7 @@ To auto-tune a neural network, we partition the network into small subgraphs and
 tune them independently. Each subgraph is treated as one search task.
 A task scheduler slices the time and dynamically allocates time resources to
 these tasks. The task scheduler predicts the impact of each task on the end-to-end
-execution time and prioritizes the one that can reduce the execution time fastest.
+execution time and prioritizes the one that can reduce the execution time the most.
 
 For each subgraph, we use the compute declaration in :code:`tvm/python/topi` to
 get the computational DAG in the tensor expression form.
@@ -36,7 +36,7 @@ for good schedules (low-level optimizations).
 
 Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any
-schedule templates. So the auto-scheduler only uses the compute declarations
+schedule templates. In other words, the auto-scheduler only uses the compute declarations
 in :code:`tvm/python/topi` while does not use existing schedule templates.
 
 Note that this tutorial will not run on Windows or recent versions of macOS. To
@@ -54,14 +54,14 @@ from tvm.contrib import graph_runtime
 #################################################################
 # Define a Network
 # ----------------
-# First, we need to define the network in relay frontend API.
+# First, we need to define the network with relay frontend API.
 # We can load some pre-defined network from :code:`tvm.relay.testing`.
 # We can also load models from MXNet, ONNX, PyTorch, and TensorFlow
 # (see :ref:`front end tutorials<tutorial-frontend>`).
 #
 # Note that although auto-scheduler can work with any layouts,
 # we found that the best performance is typically archived with NHWC layout
-# for convolutional neural networks.
+# for convolutional neural networks, so we use NHWC layout in this tutorial.
 #
 
 
@@ -161,19 +161,19 @@ objective = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
 #################################################################
 # Begin Tuning
 # ------------
-# Now, we set some options of tuning and launch the search tasks
+# Now, we set some options for tuning and launch the search tasks
 #
 # * :code:`measure_ctx` launches a different process for measurement to
 #   provide isolation. It can protect the master process from GPU crashes
-#   happened during measurement and avoid other runtime conflicts.
+#   during measurement and avoid other runtime conflicts.
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
 #   Typically, we recommend a value > 300 ms.
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the tuning.
 #   You can set it to a small number (e.g., 200) for a fast demonstrative run.
-#   In practice, we recommend setting it round :code:`1000 * len(tasks)`,
+#   In practice, we recommend setting it around :code:`1000 * len(tasks)`,
 #   which is typically enough for the search to converge.
-#   For example, there are 21 tasks in resnet-18, so we can set it as 20000 for renset-18.
+#   For example, there are 21 tasks in resnet-18, so we can set it as 20000.
 #   You can adjust this parameter according to your time budget.
 # * In addition, we use :code:`RecordToFile` to dump measurement records into the log file,
 #   The measurement records can be used to query the history best, resume the search,
@@ -206,7 +206,7 @@ def run_tuning():
 ######################################################################
 # .. note:: Explain the printed information during tuning
 #
-#   During the tuning, a lot of information will be printed on the screen.
+#   During the tuning, a lot of information will be printed on the console.
 #   They are used for debugging purposes. The most important info is the output
 #   of the task scheduler. The following table is a sample output.
 #
@@ -249,22 +249,26 @@ def run_tuning():
 #   The last line also prints the total number of measurement trials,
 #   total time spent on auto-tuning and the id of the next task to tune.
 #
-#   There will also be some "dmlc::Error"s and CUDA errors. You can safely
-#   ignore them if the tuning can continue.
+#   There will also be some "dmlc::Error"s and CUDA errors, because the
+#   auto-scheduler will try some invalid schedules.
+#   You can safely ignore them if the tuning can continue, because these
+#   errors are isolated from the master process.
+#
 
 ######################################################################
 # .. note:: Terminate the tuning earlier
 #
-#   You can terminate the tuning earlier by forcely killing this process.
+#   You can terminate the tuning earlier by forcibly killing this process.
 #   As long as you get at least one valid schedule for each task in the log file,
 #   you should be able to do the compilation (the secion below).
 #
+
 
 #################################################################
 # Compile and Evaluate
 # --------------------
 # After auto-tuning, we can compile the network with the best schedules we found.
-# All measurement records are dumpled into the log file during auto-tuning,
+# All measurement records are dumped into the log file during auto-tuning,
 # so we can read the log file and load the best schedules.
 
 # Compile with the history best
@@ -284,3 +288,17 @@ print("Evaluate inference time cost...")
 ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
 prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
 print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
+
+
+#################################################################
+# Other Tips
+# --------------------
+# 1. During the tuning, the auto-scheduler needs to compile many programs and
+#    extract feature from them. This part is CPU-intensive,
+#    so a high-performance CPU with many cores is recommended for faster search.
+# 2. If you have multiple GPUs, you can use all of them for measurements to
+#    parallelize the measurements. Check this section :ref:`autotvm <tutorials-autotvm-sec>`
+#    to learn how to use the RPC Tracker and RPC Server.
+#    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
+#    with :any:`auto_scheduler.RPCRunner`.
+#
