@@ -198,10 +198,16 @@ def conv3d_cudnn(
     stride_d, stride_h, stride_w = (
         (strides, strides, strides) if isinstance(strides, int) else strides
     )
-    pad_d, pad_h, pad_w = (padding, padding, padding) if isinstance(padding, int) else padding
+    if isinstance(padding, int):
+        pad_d, pad_h, pad_w = (padding, padding, padding)
+    elif isinstance(padding, (list, tuple)) and len(padding) == 6:
+        pad_d, pad_h, pad_w, _, _, _ = padding
+    else:
+        raise ValueError("Cudnn doesn't support asymmetric padding.")
     dilation_d, dilation_h, dilation_w = (
         (dilation, dilation, dilation) if isinstance(dilation, int) else dilation
     )
+    dtype = data.dtype
 
     OD = (D + 2 * pad_d - KD) // stride_d + 1
     OH = (H + 2 * pad_h - KH) // stride_h + 1
