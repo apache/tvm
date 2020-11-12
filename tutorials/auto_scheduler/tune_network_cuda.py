@@ -146,6 +146,7 @@ log_file = "%s-%s-B%d.json" % (network, layout, batch_size)
 # By using the weight, we can approximate the end-to-end latency of the network
 # as :code:`sum(latency[t] * weight[t])`, where :code:`latency[t]` is the
 # latency of a task and :code:`weight[t]` is the weight of the task.
+# The task scheduler will just optimize this objective.
 
 # Enable auto-scheduler in relay
 auto_scheduler.enable_relay_integration()
@@ -154,9 +155,6 @@ auto_scheduler.enable_relay_integration()
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-
-# Define the objective as the end-to-end execution time of the network
-objective = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
 
 #################################################################
 # Begin Tuning
@@ -187,7 +185,7 @@ def run_tuning():
     print("Begin tuning...")
     measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400, timeout=10)
 
-    tuner = auto_scheduler.TaskScheduler(tasks, objective)
+    tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
         runner=measure_ctx.runner,

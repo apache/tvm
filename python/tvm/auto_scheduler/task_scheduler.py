@@ -138,10 +138,18 @@ class TaskScheduler:
     ----------
     tasks: List[SearchTask]
         All tasks to tune
+    task_weights: Optional[List[float]]
+        The weights of tasks.
+        If provided, the task scheduler will set the objective function to
+        sum(weight[t] * latency[t]), where weight[t] is the weight of a task
+        and the lantecy[t] is the lantecy of the task.
+        If not provided, the task scheduer will assign equal weights to all
+        tasks (i.e., the objective function is sum(latency[t])).
     objective_func: Optional[Callable[List[float] -> float]]
         The objective function to be minimized.
         The objective function accepts the current latencies of all tasks and returns the
-        objective. If not presented, the objective is the sum of the latencies of all task.
+        objective.
+        If not provided, the objective is the weighted sum of the latencies of all tasks.
     strategy: str = "gradient"
         The scheduling strategy.
         "round-robin": Tune tasks in round robin order.
@@ -165,6 +173,7 @@ class TaskScheduler:
     def __init__(
         self,
         tasks,
+        task_weights=None,
         objective_func=None,
         strategy="gradient",
         load_model_file: str = None,
@@ -176,7 +185,14 @@ class TaskScheduler:
         backward_window_size: int = 3,
     ):
         self.tasks = tasks
-        self.objective_func = objective_func or sum
+        if objective_func:  # use custom objective function
+            self.objective_func = objective_func
+        else:  # use weighted sum
+            if task_weights:
+                self.objective_func = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
+            else:
+                self.objective_func = sum
+
         self.strategy = strategy
         self.verbose = verbose
         self.load_log_file = load_log_file
@@ -363,7 +379,7 @@ class TaskScheduler:
         else:
             total_latency_str = "-"
         print(
-            "Total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
+            "Estimated total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
             % (total_latency_str, self.ct, time.time() - self.tic, next_task_idx)
         )
 
