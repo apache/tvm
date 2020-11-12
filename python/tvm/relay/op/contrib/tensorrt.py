@@ -18,7 +18,6 @@
 """TensorRT supported operators."""
 import logging
 import numpy as np
-import os
 import tvm
 from tvm import relay
 from tvm.relay import transform
@@ -142,11 +141,9 @@ def partition_for_tensorrt(
             RemoveDropoutPass(),
             transform.RemoveUnusedFunctions(),
             transform.ConvertLayout(
-                {"nn.conv2d": ["NCHW", "default"],
-                 "nn.conv3d": ["NCDHW", "default"]}
+                {"nn.conv2d": ["NCHW", "default"], "nn.conv3d": ["NCDHW", "default"]}
             ),
             transform.FoldConstant(),
-            transform.InferType(),
             transform.AnnotateTarget("tensorrt"),
             transform.MergeCompilerRegions(),
             transform.PartitionGraph(),
@@ -159,24 +156,24 @@ def partition_for_tensorrt(
 
     return mod, config
 
+
 def check_dynamism(args, op_name):
     """
-    This function checks for dynamism inside any of the args in the op.
-    Can be used to offload dynamic ops that are not supported by TRT to
-    be offloaded to relay VM.
-
-    Raises a NotImplementedError if the type of the arg is not of types
-    Call, Var, Constant, or TupleGetItem.
+    Check for dynamism inside any of the args in the op.
 
     Parameters
     ----------
-    args: a TRT array of the arguments of the op
-    op_name: name of the op for debugging purposes only
-
+    args : tvm.ir.container.Array
+        Arguments of the op. Each of the argument shape is checked for presence of dynamic
+        components.
+    op_name: str
+        Name of the op for debugging purposes only.
     Returns
     ----------
-    True if dynamism is present, False otherwise
+    ret : bool
+        True if dynamism is present, False otherwise
     """
+    print(type(op_name))
     for arg in args:
         if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
             for dim_shape in arg.checked_type.shape:
@@ -216,18 +213,8 @@ def _register_external_op_helper(op_name, supported=True):
 
 
 def _register_external_dynamic_check_func(op_name, checker):
-    """
-    Wrapper to check dynamic shapes inside any of the args in the op
+    """Wrapper to check dynamic shapes inside any of the args in the op."""
 
-    Parameters
-    ----------
-    op_name: name of the op for debugging purposes only
-    checker: additional checker function specific to the op
-
-    Returns
-    ----------
-    wrapped checker function with dynamism check
-    """
     @tvm.ir.register_op_attr(op_name, "target.tensorrt")
     def _func_wrapper(expr):
         attrs, args = expr.attrs, expr.args
@@ -235,6 +222,7 @@ def _register_external_dynamic_check_func(op_name, checker):
         if check_dynamism(args, op_name):
             return False
         return checker(expr)
+
     return _func_wrapper
 
 
@@ -299,7 +287,6 @@ _register_external_op_helper_with_checker("atan", trt_version_annotate_fn((5, 1,
 _register_external_op_helper_with_checker("ceil", trt_version_annotate_fn((5, 1, 5)))
 
 
-
 def add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if add is supported by TensorRT."""
 
@@ -317,6 +304,7 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("add: bug in TRT with adding batched constants.")
         return False
     return True
+
 
 def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.batch_norm is supported by TensorRT."""
@@ -344,7 +332,6 @@ def softmax_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
-
 def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv2d is supported by TensorRT."""
 
@@ -364,7 +351,6 @@ def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
-
 def dense_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if dense is supported by TensorRT."""
 
@@ -381,7 +367,6 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("nn.dense: weight has rank %d but must be 2.", weight_rank)
         return False
     return True
-
 
 
 def bias_add_annotate_fn(expr):  # pylint: disable=unused-variable
@@ -454,7 +439,6 @@ def global_max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("nn.global_max_pool2d: layout is %s but must be NCHW.", attrs.layout)
         return False
     return True
-
 
 
 def global_avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
@@ -575,6 +559,7 @@ def layout_transform_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     return True
 
+
 def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if reshape is supported by TensorRT."""
 
@@ -605,6 +590,7 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
             logger.info("reshape: can't modify batch dimension.")
             return False
     return True
+
 
 def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.pad is supported by TensorRT."""
@@ -691,7 +677,6 @@ def adaptive_avg_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
-
 def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv3d is supported by TensorRT."""
 
@@ -771,6 +756,7 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     return True
 
+
 _register_external_dynamic_check_func("add", add_annotate_fn)
 _register_external_dynamic_check_func("nn.batch_norm", batch_norm_annotate_fn)
 _register_external_dynamic_check_func("nn.softmax", softmax_annotate_fn)
@@ -796,8 +782,6 @@ _register_external_dynamic_check_func("nn.conv3d", conv3d_annotate_fn)
 _register_external_dynamic_check_func("nn.max_pool3d", max_pool_3d_annotate_fn)
 _register_external_dynamic_check_func("nn.avg_pool3d", avg_pool_3d_annotate_fn)
 _register_external_dynamic_check_func("nn.conv3d_transpose", conv3d_transpose_annotate_fn)
-
-
 
 
 def is_valid_subgraph(params, body):
@@ -839,6 +823,7 @@ def prune_tensorrt_subgraphs(mod):
         """
         Reverts subgraphs in subgraphs_to_remove back to TVM instead of using an external codegen.
         """
+
         def __init__(self, subgraphs_to_remove, mod, new_mod):
             ExprMutator.__init__(self)
             self.subgraphs_to_remove = subgraphs_to_remove
@@ -860,7 +845,7 @@ def prune_tensorrt_subgraphs(mod):
                     args = []
                     for arg in call.args:
                         args.append(super().visit(arg))
-                    return call.op(*args) 
+                    return call.op(*args)
             return super().visit_call(call)
 
     subgraphs_to_remove = []
@@ -897,5 +882,3 @@ class RemoveDropout(ExprMutator):
 class RemoveDropoutPass:
     def transform_function(self, func, mod, _):
         return RemoveDropout().visit(func)
-
-

@@ -28,6 +28,7 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.relay import Any, GlobalVar, transform
 from mxnet.gluon.model_zoo.vision import get_model
 
+
 def skip_codegen_test():
     """Skip test if TensorRT and CUDA codegen are not present"""
     if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
@@ -94,7 +95,9 @@ def run_and_verify_func(config, target="cuda"):
             result_key = mode + ("_trt" if use_trt else "")
             if use_trt:
                 mod, config = tensorrt.partition_for_tensorrt(mod, params)
-                with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
+                with tvm.transform.PassContext(
+                    opt_level=3, config={"relay.ext.tensorrt.options": config}
+                ):
                     exec = relay.create_executor(mode, mod=mod, ctx=ctx, target=target)
             else:
                 with tvm.transform.PassContext(opt_level=3):
@@ -123,7 +126,7 @@ def run_and_verify_model(model):
             mod, config = tensorrt.partition_for_tensorrt(mod, params)
             check_trt_used(mod)
             with tvm.transform.PassContext(
-                    opt_level=3, config={"relay.ext.tensorrt.options": config}
+                opt_level=3, config={"relay.ext.tensorrt.options": config}
             ):
                 exec = relay.create_executor(mode, mod=mod, ctx=tvm.gpu(0), target="cuda")
         else:
@@ -144,7 +147,7 @@ def run_and_verify_model(model):
         for use_trt in [True, False]:
             result_key = mode + ("_trt" if use_trt else "")
             result_dict[result_key] = compile_and_run(
-                 mod, params, i_data, mode=mode, use_trt=use_trt
+                mod, params, i_data, mode=mode, use_trt=use_trt
             )
 
     if not skip_runtime_test():
@@ -169,7 +172,6 @@ def test_tensorrt_simple():
     y_data = np.random.uniform(-1, 1, yshape).astype(dtype)
     z_data = np.random.uniform(-1, 1, zshape).astype(dtype)
 
-
     result_dict = dict()
     for mode in ["vm", "graph"]:
         for use_trt in [True, False]:
@@ -178,7 +180,9 @@ def test_tensorrt_simple():
             result_key = mode + ("_trt" if use_trt else "")
             if use_trt:
                 mod, config = tensorrt.partition_for_tensorrt(mod)
-                with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
+                with tvm.transform.PassContext(
+                    opt_level=3, config={"relay.ext.tensorrt.options": config}
+                ):
                     relay_exec = relay.create_executor(mode, mod=mod, ctx=tvm.gpu(0), target="cuda")
             else:
                 with tvm.transform.PassContext(opt_level=3):
@@ -229,8 +233,7 @@ def test_tensorrt_not_compatible():
                 results = exec.evaluate()(x_data)
 
 
-
-def test_tensorrt_serialize(data_shape=(1, 3, 224, 224), data_type="float32"):
+def test_tensorrt_serialize_graph_runtime(data_shape=(1, 3, 224, 224), data_type="float32"):
     if skip_codegen_test():
         return
 
@@ -238,29 +241,6 @@ def test_tensorrt_serialize(data_shape=(1, 3, 224, 224), data_type="float32"):
     block = get_model("resnet18_v1", pretrained=True)
     mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype=data_type)
     mod, config = tensorrt.partition_for_tensorrt(mod)
-
-    def compile_vm(mod, params):
-        with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
-            vm_exec = relay.vm.compile(mod, target="cuda", params=params)
-            code, lib = vm_exec.save()
-        return code, lib
-
-    def run_vm(code, lib):
-        vm_exec = tvm.runtime.vm.Executable.load_exec(code, lib)
-        vm = VirtualMachine(vm_exec, tvm.gpu(0))
-        result = vm.invoke("main", data=i_data)
-        return result
-
-    def save_vm(code, lib):
-        # save and load the code and lib file.
-        lib.export_library("path_lib.so")
-        with open("path_code.ro", "wb") as fo:
-            fo.write(code)
-
-    def load_vm():
-        lib = tvm.runtime.load_module("path_lib.so")
-        code = bytearray(open("path_code.ro", "rb").read())
-        return lib, code
 
     def compile_graph(mod, params):
         with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
@@ -297,6 +277,45 @@ def test_tensorrt_serialize(data_shape=(1, 3, 224, 224), data_type="float32"):
     save_graph(graph, lib, graph_params)
     loaded_graph, loaded_lib, loaded_params = load_graph()
 
+    if not skip_runtime_test():
+        result_dict = dict()
+        result_dict["graph"] = run_graph(graph, lib, graph_params)
+        result_dict["graph_ref"] = run_graph(loaded_graph, loaded_lib, loaded_params)
+        assert_result_dict_holds(result_dict)
+
+
+def test_tensorrt_serialize_vm(data_shape=(1, 3, 224, 224), data_type="float32"):
+    if skip_codegen_test():
+        return
+
+    i_data = np.random.uniform(0, 1, data_shape).astype(data_type)
+    block = get_model("resnet18_v1", pretrained=True)
+    mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype=data_type)
+    mod, config = tensorrt.partition_for_tensorrt(mod)
+
+    def compile_vm(mod, params):
+        with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
+            vm_exec = relay.vm.compile(mod, target="cuda", params=params)
+            code, lib = vm_exec.save()
+        return code, lib
+
+    def run_vm(code, lib):
+        vm_exec = tvm.runtime.vm.Executable.load_exec(code, lib)
+        vm = VirtualMachine(vm_exec, tvm.gpu(0))
+        result = vm.invoke("main", data=i_data)
+        return result
+
+    def save_vm(code, lib):
+        # save and load the code and lib file.
+        lib.export_library("path_lib.so")
+        with open("path_code.ro", "wb") as fo:
+            fo.write(code)
+
+    def load_vm():
+        lib = tvm.runtime.load_module("path_lib.so")
+        code = bytearray(open("path_code.ro", "rb").read())
+        return lib, code
+
     # Test serialization with VM
     code_vm, lib_vm = compile_vm(mod, params)
     save_vm(code_vm, lib_vm)
@@ -304,12 +323,8 @@ def test_tensorrt_serialize(data_shape=(1, 3, 224, 224), data_type="float32"):
 
     if not skip_runtime_test():
         result_dict = dict()
-        result_dict['graph'] = run_graph(graph, lib, graph_params)
-        result_dict['graph_ref'] = run_graph(loaded_graph, loaded_lib, loaded_params)
-
-        result_dict['vm'] = run_vm(code_vm, lib_vm)
-        result_dict['vm_ref'] = run_vm(loaded_code_vm, loaded_lib_vm)
-
+        result_dict["vm"] = run_vm(code_vm, lib_vm)
+        result_dict["vm_ref"] = run_vm(loaded_code_vm, loaded_lib_vm)
         assert_result_dict_holds(result_dict)
 
 
@@ -779,14 +794,20 @@ def test_strided_slice():
         f = relay.Function([x], out)
         return f, {"x": x_shape}, []
 
-
     for slice_mode in ["size", "end"]:
-        run_and_verify_func(get_graph((1, 3, 6, 7), (0, 0, 0, 0), (1, 1, 6, 7), slice_mode=slice_mode))
-        run_and_verify_func(get_graph((1, 3, 6, 7), [0, 1, 0, 0], [1, 2, 6, 6], slice_mode=slice_mode))
-        run_and_verify_func(get_graph((2, 3, 6, 7), [0, 0, 0, 0], [-1,-1,-1,-1], slice_mode=slice_mode ))
-        run_and_verify_func(get_graph((2, 3, 6, 7), [0, 1, 0, 0], [-1,-1,-1,-1], slice_mode=slice_mode ))
-        run_and_verify_func(get_graph((1, 6), [0, 1], [1, 3], slice_mode=slice_mode ))
-    
+        run_and_verify_func(
+            get_graph((1, 3, 6, 7), (0, 0, 0, 0), (1, 1, 6, 7), slice_mode=slice_mode)
+        )
+        run_and_verify_func(
+            get_graph((1, 3, 6, 7), [0, 1, 0, 0], [1, 2, 6, 6], slice_mode=slice_mode)
+        )
+        run_and_verify_func(
+            get_graph((2, 3, 6, 7), [0, 0, 0, 0], [-1, -1, -1, -1], slice_mode=slice_mode)
+        )
+        run_and_verify_func(
+            get_graph((2, 3, 6, 7), [0, 1, 0, 0], [-1, -1, -1, -1], slice_mode=slice_mode)
+        )
+        run_and_verify_func(get_graph((1, 6), [0, 1], [1, 3], slice_mode=slice_mode))
 
 
 def test_adaptive_pool2d():
@@ -906,39 +927,6 @@ def test_conv3d_transpose():
     run_and_verify_func(get_graph(strides=(2, 2, 2)))
     run_and_verify_func(get_graph(strides=(2, 2, 2), output_padding=(1, 1, 1)))
 
-def test_tensorrt_ops():
-    # Op tests
-    test_conv2d()
-    test_conv2d_nhwc()
-    test_conv2d_weights_const()
-    test_conv2d_weights_transposed()
-    test_dense()
-    test_bias_add()
-    test_pool2d()
-    test_global_pool2d()
-    test_batch_flatten()
-    test_expand_dims()
-    test_squeeze()
-    test_concatenate()
-    test_conv2d_transpose()
-    test_reshape()
-    test_transpose()
-    test_float_const()
-    test_pad()
-    test_softmax()
-    test_batch_norm()
-    test_unary()
-    test_clip()
-    test_leaky_relu()
-    test_binary()
-    test_reduce()
-    test_strided_slice()
-    test_adaptive_pool2d()
-    test_multiple_outputs()
-    test_conv3d()
-    test_pool3d()
-    test_conv3d_transpose()
-
 
 def test_alexnet():
     run_and_verify_model("alexnet")
@@ -984,20 +972,18 @@ def test_tensorrt_integration():
     test_densenet121()
 
 
-    
 def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
     """
-    This test checks for proper dynamic offloading of relay graphs. An addition between 
+    This test checks for proper dynamic offloading of relay graphs. An addition between
     the outputs of two conv2d's is performed, one of them having all static args whereas
     the other has a arg with dynamic shape. It is expected for the TRT partitioner to
     offload the conv2d with dynamic arg to TVM while running the other in TRT.
     """
-    x = relay.var('x', shape=(data_shape[0], data_shape[1], Any(), Any()), dtype='float32')
-    y = relay.var('y', shape=(data_shape), dtype='float32')
-    kernel = relay.var('kernel', shape=(k_shape), dtype='float32')
+    x = relay.var("x", shape=(data_shape[0], data_shape[1], Any(), Any()), dtype="float32")
+    y = relay.var("y", shape=(data_shape), dtype="float32")
+    kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
 
     def get_expected():
-
         def set_func_attr(func, compile_name, symbol_name):
             func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
             func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
@@ -1007,8 +993,8 @@ def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
 
         # Create a nested TRT function that matches the expected output
         mod = tvm.IRModule()
-        var1 = relay.var('tensorrt_0_i0', shape=(data_shape), dtype='float32')
-        kernel_trt = relay.var('tensorrt_0_i1', shape=(k_shape), dtype='float32')
+        var1 = relay.var("tensorrt_0_i0", shape=(data_shape), dtype="float32")
+        kernel_trt = relay.var("tensorrt_0_i1", shape=(k_shape), dtype="float32")
         out1 = relay.nn.conv2d(var1, kernel_trt, channels=k_shape[0], kernel_size=k_shape[2:4])
         f1 = GlobalVar("tensorrt_0")
         func = relay.Function([var1, kernel_trt], out1)
@@ -1016,13 +1002,12 @@ def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
         mod[f1] = func
         mod = relay.transform.InferType()(mod)
 
-        # Create the main function 
+        # Create the main function
         out1 = relay.nn.conv2d(x, kernel, channels=k_shape[0], kernel_size=k_shape[2:4])
         out = relay.add(out1, f1(y, kernel))
         f = relay.Function([x, y, kernel], out)
         mod["main"] = f
         mod = relay.transform.InferType()(mod)
-        
         return mod
 
     # Create relay function that will be offloaded to TRT
@@ -1042,12 +1027,42 @@ def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
     tvm.ir.assert_structural_equal(mod_trt, mod_exp, map_free_vars=True)
     return
 
+
 if __name__ == "__main__":
     test_tensorrt_not_compatible()
     test_tensorrt_simple()
     test_tensorrt_simple_cpu_io()
-    test_tensorrt_serialize()
-    test_tensorrt_ops()
+    test_tensorrt_serialize_graph_runtime()
+    test_tensorrt_serialize_vm()
     test_tensorrt_integration()
     test_dynamic_offload()
-    
+    test_conv2d()
+    test_conv2d_nhwc()
+    test_conv2d_weights_const()
+    test_conv2d_weights_transposed()
+    test_dense()
+    test_bias_add()
+    test_pool2d()
+    test_global_pool2d()
+    test_batch_flatten()
+    test_expand_dims()
+    test_squeeze()
+    test_concatenate()
+    test_conv2d_transpose()
+    test_reshape()
+    test_transpose()
+    test_float_const()
+    test_pad()
+    test_softmax()
+    test_batch_norm()
+    test_unary()
+    test_clip()
+    test_leaky_relu()
+    test_binary()
+    test_reduce()
+    test_strided_slice()
+    test_adaptive_pool2d()
+    test_multiple_outputs()
+    test_conv3d()
+    test_pool3d()
+    test_conv3d_transpose()
