@@ -93,6 +93,11 @@ class TFLiteRuntime : public ModuleNode {
    * \return NDArray corresponding to given output node index.
    */
   NDArray GetOutput(int index) const;
+  /*!
+   * \brief Set the number of threads available to the interpreter.
+   * \param num_threads The number of threads to be set.
+   */
+  void SetNumThreads(int num_threads);
 
   // Buffer backing the interpreter's model
   std::unique_ptr<char[]> flatBuffersBuffer_;
