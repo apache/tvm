@@ -1046,6 +1046,7 @@ def _conv2d_winograd_nhwc_impl(
         ),
         name="data_pack",
         attrs={"auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]},
+        # the attrs are necessary hints for the auto-scheduler
     )
 
     # do batch gemm
@@ -1069,6 +1070,7 @@ def _conv2d_winograd_nhwc_impl(
         ),
         name="inverse",
         attrs={"auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]},
+        # the attrs are necessary hints for the auto-scheduler
     )
 
     # output
