@@ -243,7 +243,18 @@ class ForwardPrep : private ExprVisitor {
     }
   }
   // Visitor pattern override.
-  void VisitExpr_(const LetNode* call) { LOG(FATAL) << "FoldScaleAxis only accept dataflow-form"; }
+  void VisitExpr_(const LetNode* op) {
+    ExprVisitor::VisitExpr_(op);
+    // do pass through condition
+    // by assigning NullValue<Message>
+    // it means fuse signal cannot pass
+    // through into these subexpressions.
+    auto flazy = [this, op]() {
+      this->Update(op->value, NullValue<Message>());
+      this->Update(op->body, NullValue<Message>());
+    };
+    flist_.push_back(flazy);
+  }
 
   void VisitExpr_(const FunctionNode* op) {
     ExprVisitor::VisitExpr_(op);
