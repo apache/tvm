@@ -19,9 +19,7 @@
 
 import logging
 import tvm
-from tvm import te
-from tvm import relay
-from tvm import autotvm
+from tvm import te, relay, autotvm, auto_scheduler
 
 from .. import nn
 from ..utils import get_const_tuple
@@ -36,22 +34,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
 
-    _, outs = relay.backend.compile_engine.select_implementation(
-        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
-    )
-    workload = autotvm.task.get_workload(outs)
-    if workload is None:
-        # The best implementation is not an AutoTVM template,
-        # we then assume it's not necessary to alter this op.
-        return None
-    cfg = dispatch_ctx.query(target, workload)
-    if cfg.is_fallback:  # if is fallback, clear query cache and return None
-        autotvm.task.clear_fallback_cache(target, workload)
-        return None
-
-    topi_tmpl = workload[0]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
-
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     dilation = attrs.get_int_tuple("dilation")
@@ -61,6 +44,48 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
+    impl, outs = relay.backend.compile_engine.select_implementation(
+        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
+    )
+    workload = autotvm.task.get_workload(outs)
+    if workload is None:
+        # The best implementation is not an AutoTVM template.
+        # It may be from the auto-scheduler
+
+        if impl.name == (
+            "conv2d_nhwc.winograd" + auto_scheduler.relay_integration.auto_schedule_impl_suffix
+        ):
+            if dilation != (1, 1):
+                logger.warning("Does not support weight pre-transform for dilated convolution.")
+                return None
+
+            assert data_layout == "NHWC" and kernel_layout == "HWIO"
+            N, H, W, CI = get_const_tuple(data.shape)
+            KH, KW, _, CO = get_const_tuple(kernel.shape)
+
+            # Pre-compute weight transformation in winograd
+            tile_size = _infer_tile_size(tinfos[0], tinfos[1])
+
+            # HWIO -> OIHW
+            kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
+            # alpha, alpha, CO, CI
+            weight = relay.nn.contrib_conv2d_winograd_weight_transform(
+                kernel_transform, tile_size=tile_size
+            )
+            new_attrs["tile_size"] = tile_size
+            new_attrs["channels"] = CO
+            return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+                inputs[0], weight, **new_attrs
+            )
+
+        return None
+
+    cfg = dispatch_ctx.query(target, workload)
+    if cfg.is_fallback:  # if is fallback, clear query cache and return None
+        autotvm.task.clear_fallback_cache(target, workload)
+        return None
+
+    topi_tmpl = workload[0]
     if topi_tmpl == "conv2d_NCHWc_int8.cuda":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
@@ -136,10 +161,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         KH, KW, _, CO = get_const_tuple(kernel.shape)
 
         # Pre-compute weight transformation in winograd
-        if H % 8 == 0:
-            tile_size = 4
-        else:
-            tile_size = 2
+        tile_size = _infer_tile_size(data, kernel)
         kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
         weight = relay.nn.contrib_conv2d_winograd_weight_transform(
             kernel_transform, tile_size=tile_size
