@@ -73,6 +73,7 @@ class TFLiteModule(object):
         self._set_input = module["set_input"]
         self._invoke = module["invoke"]
         self._get_output = module["get_output"]
+        self._set_num_threads = module["set_num_threads"]
 
     def set_input(self, index, value):
         """Set inputs to the module via kwargs
@@ -109,3 +110,12 @@ class TFLiteModule(object):
             The output index
         """
         return self._get_output(index)
+
+    def set_num_threads(self, num_threads):
+        """Set the number of threads via kwargs
+        Parameters
+        ----------
+        num_threads : int
+           The number of threads
+        """
+        self._set_num_threads(num_threads)
