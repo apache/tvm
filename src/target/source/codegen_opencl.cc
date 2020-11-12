@@ -162,6 +162,21 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
 }
 
+void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
+  if (auto* ptr = type.as<PrimTypeNode>()) {
+    return PrintType(ptr->dtype, os);
+  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+    PrintType(ptr->element_type, os);
+    os << '*';
+  } else if (auto* ptr = type.as<TextureTypeNode>()){
+    os << "image2d_t";
+  } else if (IsVoidType(type)) {
+    os << "void";
+  } else {
+    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
+  }
+}
+
 void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
   if (!HandleTypeMatch(buffer, t.element_of())) {

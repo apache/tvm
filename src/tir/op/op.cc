@@ -51,7 +51,7 @@ using namespace tir;
 runtime::DataType GetRuntimeDataType(const Type& type) {
   if (auto* n = type.as<PrimTypeNode>()) {
     return n->dtype;
-  } else if (type.as<PointerTypeNode>()) {
+  } else if (type.as<PointerTypeNode>() || type.as<TextureTypeNode>()) {
     return DataType::Handle();
   } else if (IsVoidType(type)) {
     return DataType::Void();

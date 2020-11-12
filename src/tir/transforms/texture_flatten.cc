@@ -62,9 +62,9 @@ class TextureFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    //DataType vdtype(op->buffer->dtype.code(), op->buffer->dtype.bits(), 4);
-    // Var buffer_var(op->buffer->data->name_hint, vdtype);
-    // let_binding_.insert({op->buffer->data, buffer_var});
+    //Var buffer_var(op->buffer->data->name_hint, DataType::Handle());
+    Var buffer_var(op->buffer->data->name_hint, TextureType(DataType::Float(32, 1)));
+    let_binding_.insert({op->buffer->data, buffer_var});
 
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferRealizeNode>();
