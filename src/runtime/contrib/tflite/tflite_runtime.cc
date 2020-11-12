@@ -128,9 +128,7 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
   });
 }
 
-void TFLiteRuntime::SetNumThreads(int num_threads) {
-  interpreter_->SetNumThreads(num_threads);
-}
+void TFLiteRuntime::SetNumThreads(int num_threads) { interpreter_->SetNumThreads(num_threads); }
 
 NDArray TFLiteRuntime::GetOutput(int index) const {
   TfLiteTensor* output = interpreter_->tensor(interpreter_->outputs()[index]);
