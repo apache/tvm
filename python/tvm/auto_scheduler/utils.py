@@ -138,12 +138,13 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
         parent = psutil.Process(parent_pid)
     except psutil.NoSuchProcess:
         return
-    children = parent.children(recursive=True)
-    for process in children:
-        try:
+
+    try:
+        children = parent.children(recursive=True)
+        for process in children:
             process.send_signal(sig)
-        except psutil.NoSuchProcess:
-            return
+    except psutil.NoSuchProcess:
+        return
 
 
 def _func_wrapper(que, func, args, kwargs):
