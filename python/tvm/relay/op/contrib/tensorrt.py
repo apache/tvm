@@ -847,7 +847,7 @@ def prune_tensorrt_subgraphs(mod):
                         var_map[param] = super().visit(arg)
                     new_body = relay.bind(func.body, var_map)
                     return new_body
-                elif name != "main":
+                if name != "main":
                     args = []
                     for arg in call.args:
                         args.append(super().visit(arg))
