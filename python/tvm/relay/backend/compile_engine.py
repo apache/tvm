@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import logging
 import numpy as np
 import tvm
-from tvm import te, autotvm, auto_scheduler
+from tvm import te, autotvm
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -305,7 +305,7 @@ class CompileEngine(Object):
     def __init__(self):
         raise RuntimeError("Cannot construct a CompileEngine")
 
-    def lower(self, source_func, target=None):
+    def lower(self, source_func, target=None, use_topi_schedule=True):
         """Lower a source_func to a CachedFunc.
 
         Parameters
@@ -316,6 +316,9 @@ class CompileEngine(Object):
         target : tvm.Target
             The target platform.
 
+        use_topi_schedule: bool
+            Use TOPI-defined schdules. If false, then auto_scheduler schedule will be used.
+
         Returns
         -------
         cached_func: CachedFunc
@@ -324,7 +327,7 @@ class CompileEngine(Object):
         # pylint: disable=broad-except, import-outside-toplevel
         try:
             key = _get_cache_key(source_func, target)
-            return _backend._CompileEngineLower(self, key)
+            return _backend._CompileEngineLower(self, key, use_topi_schedule)
         except Exception:
             import traceback
 

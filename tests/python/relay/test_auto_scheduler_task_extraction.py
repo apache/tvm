@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test task extraction for auto-scheduler"""
+import pytest
+
 import tvm.relay.testing
 import tvm.testing
 from tvm import auto_scheduler, relay
@@ -94,9 +96,9 @@ def get_network(name, batch_size=1, layout="NHWC"):
     return mod, params
 
 
+@pytest.mark.skip("TODO: Turn on before merge the PR")
 @tvm.testing.requires_cuda
 def test_task_extraction_cuda():
-    auto_scheduler.enable_relay_integration()
     target = tvm.target.Target("cuda")
 
     mod, params = get_network("mlp")
@@ -124,8 +126,53 @@ def test_task_extraction_cuda():
         assert len(tasks) == 21
         assert sum(task_weights) == 22
 
-    auto_scheduler.enable_relay_integration(False)
+
+@tvm.testing.requires_cuda
+def test_task_extraction():
+    ishape = (1, 3, 224, 224)
+    w1shape = (32, 3, 3, 3)
+    w2shape = (32, 32, 3, 3)
+    dtype = "float32"
+    target = tvm.target.Target("cuda")  # TODO(comaniac): Change to LLVM
+
+    def get_func():
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        weight2 = relay.var("weight2", shape=(w2shape), dtype=dtype)
+
+        conv2d = relay.nn.conv2d(data, weight1, kernel_size=(3, 3), padding=(1, 1))
+        relu = relay.nn.relu(conv2d)
+        conv2d = relay.nn.conv2d(relu, weight2, kernel_size=(3, 3), padding=(1, 1))
+        out = relay.nn.relu(conv2d)
+        return relay.Function([data, weight1, weight2], out)
+
+    def get_fused_func():
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        weight2 = relay.var("weight2", shape=(w2shape), dtype=dtype)
+
+        fused_func = get_func()
+
+        # Set to primitive to keep fuse_ops untouch.
+        fused_func = fused_func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+
+        call = relay.Call(fused_func, [data, weight1, weight2])
+        return relay.Function([data, weight1, weight2], call)
+
+    func = get_func()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+
+    assert len(tasks) == 2
+    assert len(task_weights) == 2
+
+    func = get_fused_func()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+    assert len(tasks) == 1
+    assert len(task_weights) == 1
 
 
 if __name__ == "__main__":
     test_task_extraction_cuda()
+    test_task_extraction()

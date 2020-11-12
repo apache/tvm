@@ -18,7 +18,6 @@
 """The base node types for the Relay language."""
 import tvm._ffi
 import tvm.ir
-from tvm.auto_scheduler.relay_integration import auto_schedule_topi
 from tvm.driver import lower, build
 from tvm.target import get_native_generic_func, GenericFunc
 from tvm.runtime import Object

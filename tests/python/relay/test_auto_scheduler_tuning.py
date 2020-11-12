@@ -57,8 +57,6 @@ def tune_network(network, target):
     # 1. compile without history to test the fallback mechanism
     # 2. check the correctness of layout rewrite / winograd pre-transform
 
-    auto_scheduler.enable_relay_integration(False)
-
 
 @tvm.testing.requires_cuda
 def test_tuning_cuda():

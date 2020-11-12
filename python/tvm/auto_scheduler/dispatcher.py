@@ -220,11 +220,11 @@ class ApplyHistoryBest(DispatchContext):
 
     def update(self, target, workload_key, state):
         model = target.model
-        key = (model, workload)
+        key = (model, workload_key)
         self._best_user_defined[key] = state
 
         for k in target.keys:
-            key = (k, workload)
+            key = (k, workload_key)
             self._best_user_defined[key] = state
 
 

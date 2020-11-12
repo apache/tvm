@@ -369,7 +369,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
       CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key);
+      CachedFunc ext_func = (*pf1)(compile_engine_, key, true);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
@@ -553,27 +553,28 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
   GraphRuntimeCodegenModule() {}
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        auto num_args = args.num_args;
-        bool use_topi_schedule = true;
-        if (num_args == 3) {
-          use_topi_schedule = args[2];
-          num_args--;
-        }
-        ICHECK_EQ(num_args, 2)
-            << "The expected of arguments are: "
-            << "runtime::Module mod and Map<int, Target> targets bool use_topi_schedule=true";
-        void* mod = args[0];
-        Map<Integer, tvm::Target> tmp = args[1];
-        TargetsMap targets;
-        for (const auto& it : tmp) {
-          auto dev_type = it.first.as<tir::IntImmNode>();
-          ICHECK(dev_type);
-          targets[dev_type->value] = it.second;
-        }
-        codegen_ = std::make_shared<GraphRuntimeCodegen>(reinterpret_cast<runtime::Module*>(mod),
-                                                         targets, use_topi_schedule);
-      });
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+            auto num_args = args.num_args;
+            bool use_topi_schedule = true;
+            if (num_args == 3) {
+              use_topi_schedule = args[2];
+              num_args--;
+            }
+            ICHECK_EQ(num_args, 2)
+                << "The expected of arguments are: "
+                << "runtime::Module mod and Map<int, Target> targets bool use_topi_schedule=true";
+            void* mod = args[0];
+            Map<Integer, tvm::Target> tmp = args[1];
+            TargetsMap targets;
+            for (const auto& it : tmp) {
+              auto dev_type = it.first.as<tir::IntImmNode>();
+              ICHECK(dev_type);
+              targets[dev_type->value] = it.second;
+            }
+            codegen_ = std::make_shared<GraphRuntimeCodegen>(
+                reinterpret_cast<runtime::Module*>(mod), targets, use_topi_schedule);
+          });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];
