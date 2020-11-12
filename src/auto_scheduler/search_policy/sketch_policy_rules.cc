@@ -54,21 +54,32 @@ std::vector<std::pair<State, int>> RuleSkipStage::Apply(const SketchPolicyNode& 
 }
 
 /********** RuleAlwaysInline **********/
+inline bool ShouldAlwaysBeInlined(const SketchPolicyNode& policy, const State& state,
+                                  int stage_id) {
+  const SearchTask& task = policy.search_task;
+  const Stage& stage = state->stages[stage_id];
+
+  // Check the inline limitation of TE
+  if (stage->op_type == StageKind::kPlaceholder || IsOutputOp(task, state, stage_id) ||
+      HasReduceIter(stage)) {
+    return false;
+  }
+
+  if (IsGPUTask(task)) {  // Greedily inline all inlinable ops on gpu
+    return true;
+  } else {
+    // Only always-inline strict-inlinable ops on cpu.
+    // The computation location of other ops will be tuned by InitChangeComputeLocation
+    // and MutateComputeLocation.
+    return IsStrictlyInlineable(task, state, stage_id);
+  }
+}
 
 SketchGenerationRule::ConditionKind RuleAlwaysInline::MeetCondition(const SketchPolicyNode& policy,
                                                                     const State& state,
                                                                     int stage_id) const {
-  const Stage& stage = state->stages[stage_id];
-  // Check the inline limitation of TE first
-  if (stage->op_type == StageKind::kPlaceholder ||
-      IsOutputOp(policy.search_task, state, stage_id) || HasReduceIter(stage)) {
-    return ConditionKind::kSkip;
-  }
-
-  // Always do compute inline if it's strictly inlineable or is in GPU policy
-  return IsStrictlyInlineable(policy.search_task, state, stage_id) || IsGPUTask(policy.search_task)
-             ? ConditionKind::kApplyAndSkipRest
-             : ConditionKind::kSkip;
+  return ShouldAlwaysBeInlined(policy, state, stage_id) ? ConditionKind::kApplyAndSkipRest
+                                                        : ConditionKind::kSkip;
 }
 
 std::vector<std::pair<State, int>> RuleAlwaysInline::Apply(const SketchPolicyNode& policy,
@@ -414,6 +425,10 @@ std::vector<std::pair<State, int>> RuleCrossThreadReduction::Apply(const SketchP
 SketchGenerationRule::ConditionKind RuleSpecialComputeLocationGPU::MeetCondition(
     const SketchPolicyNode& policy, const State& state, int stage_id) const {
   if (GetProducers(policy.search_task, state, stage_id).empty()) {
+    return ConditionKind::kSkip;
+  }
+
+  if (!ShouldAlwaysBeInlined(policy, state, stage_id)) {
     return ConditionKind::kSkip;
   }
 

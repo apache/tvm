@@ -43,6 +43,29 @@ def get_network(name, batch_size=1, layout="NHWC"):
         mod, params = relay.testing.resnet.get_workload(
             num_layers=50, batch_size=batch_size, layout=layout, image_shape=image_shape
         )
+    elif name == "winograd-test":
+        input_shape = [1, 7, 7, 64]
+        output_shape = input_shape
+
+        data = relay.var("data", shape=input_shape, dtype="float32")
+        net = relay.testing.layers.conv2d(
+            data=data,
+            channels=64,
+            kernel_size=3,
+            strides=1,
+            padding=1,
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+            name="",
+        )
+        bias = relay.var("conv1_bias")
+        net = relay.nn.bias_add(net, bias, 3)
+        net = relay.nn.relu(net)
+        mod, params = relay.testing.create_workload(net)
+    elif name == "resnet3d-18":
+        mod, params = relay.testing.resnet_3d.get_workload(
+            num_layers=18, batch_size=batch_size, layout=layout, image_shape=image_shape
+        )
     elif name == "mobilenet":
         mod, params = relay.testing.mobilenet.get_workload(
             batch_size=batch_size, layout=layout, image_shape=image_shape
