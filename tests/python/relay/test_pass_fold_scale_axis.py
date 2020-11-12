@@ -344,8 +344,6 @@ def test_fold_fwd_let_fail():
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = run_opt_pass(y1, transform.InferType())
         y1_folded = run_opt_pass(y1, transform.ForwardFoldScaleAxis())
-        print(y1)
-        raise
         assert tvm.ir.structural_equal(y1, y1_folded)
 
     check((2, 11, 10, 4), 4)
