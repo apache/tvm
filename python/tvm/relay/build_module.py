@@ -23,6 +23,7 @@ import numpy as np
 
 from tvm.ir import IRModule
 
+from tvm import auto_scheduler
 from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, autotvm
 from ..target import Target
@@ -123,8 +124,12 @@ class BuildModule(object):
         # Setup the params.
         if params:
             self._set_params(params)
-        # Build the IR module
-        self._build(mod, target, target_host)
+        # Build the IR module. If auto_scheduler is not enabled,
+        # then use the TOPI-defined schedule.
+        use_topi_schedule = not isinstance(
+            auto_scheduler.DispatchContext.current, auto_scheduler.ApplyHistoryBest
+        )
+        self._build(mod, target, target_host, use_topi_schedule)
         # Get artifacts
         graph_json = self.get_json()
         mod = self.get_module()

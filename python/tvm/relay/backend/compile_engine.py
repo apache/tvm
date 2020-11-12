@@ -196,19 +196,6 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
-    # If auto-scheduler is enabled for Relay, always prefer auto-scheduler
-    if auto_scheduler.is_relay_integration_enabled():
-        auto_scheduler_impls = []
-        for impl in all_impls:
-            if impl.name.endswith(auto_scheduler.relay_integration.auto_schedule_impl_suffix):
-                auto_scheduler_impls.append(impl)
-
-        if auto_scheduler_impls:
-            assert len(auto_scheduler_impls) == 1
-            impl = auto_scheduler_impls[0]
-            outs = impl.compute(attrs, inputs, out_type)
-            return impl, outs
-
     # Otherwise, try autotvm templates
     outputs = {}
     workloads = {}

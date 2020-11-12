@@ -155,11 +155,11 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
         ICHECK(anchor_implementation_.defined());
         schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
       } else {
-        tvm::Array<te::Operation> tensor_out_ops;
-        for (const auto& tensor : tensor_outs) {
-          tensor_out_ops.push_back(tensor->op);
-        }
-        schedule = te::create_schedule(tensor_out_ops);
+        const auto* fauto_schedule =
+            runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
+        ICHECK(fauto_schedule != nullptr)
+            << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
+        schedule = (*fauto_schedule)(tensor_outs);
       }
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {

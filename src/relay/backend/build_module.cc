@@ -63,7 +63,9 @@ struct GraphCodegen {
   }
   ~GraphCodegen() {}
 
-  void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
+  void Init(runtime::Module* m, TargetsMap targets, const bool use_topi_schedule) {
+    CallFunc("init", m, targets, use_topi_schedule);
+  }
 
   void Codegen(const Function& func) { CallFunc("codegen", func); }
 
@@ -124,8 +126,14 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 3);
-        this->Build(args[0], args[1], args[2]);
+        bool use_topi_schedule = true;
+        auto num_args = args.num_args;
+        if (num_args == 4) {
+          use_topi_schedule = args[3];
+          num_args--;
+        }
+        ICHECK_EQ(num_args, 3);
+        this->Build(args[0], args[1], args[2], use_topi_schedule);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -220,11 +228,13 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param mod Relay IRModule
    * \param target Target device
    * \param target_host Host target device
+   * \param use_topi_schedule If false, then use auto_scheduler generated schedule.
    */
-  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host) {
+  void Build(IRModule mod, const TargetsMap& targets, const tvm::Target& target_host,
+             const bool use_topi_schedule) {
     targets_ = targets;
     target_host_ = target_host;
-    BuildRelay(mod, params_);
+    BuildRelay(mod, params_, use_topi_schedule);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
   }
@@ -425,9 +435,11 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \param relay_module The Relay IR module.
    * \param params The parameters.
+   * \param use_topi_schedule If false, then use auto_scheduler generated schedule.
    */
   void BuildRelay(IRModule relay_module,
-                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+                  const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
+                  const bool use_topi_schedule) {
     // Relay IRModule -> IRModule optimizations.
     relay_module = Optimize(relay_module, targets_, params);
     // Get the updated function.
@@ -435,7 +447,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
-    graph_codegen_->Init(nullptr, targets_);
+    graph_codegen_->Init(nullptr, targets_, use_topi_schedule);
     graph_codegen_->Codegen(func);
 
     ret_.graph_json = graph_codegen_->GetJSON();

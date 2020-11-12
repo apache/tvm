@@ -34,7 +34,7 @@ from .workload_registry import register_workload_tensors
 
 
 def call_all_topi_funcs(mod, params, target):
-    """Call all TOPI compute + schedule to extract tasks in a relay program"""
+    """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
     from tvm.relay.backend import graph_runtime_codegen
@@ -181,10 +181,7 @@ def traverse_to_get_io_tensors(outs):
     return inputs + list(outs), has_layout_free
 
 
-# The suffix of implementations that use the auto-scheduler in the OpStrategy.
-auto_schedule_impl_suffix = ".auto_scheduler"
-
-
+@tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
 def auto_schedule_topi(outs):
     """Use auto-scheduler to schedule any topi compute function.
 
