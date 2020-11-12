@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name,pointless-string-statement
 
 """ Serialization and other I/O support for measurement records (tuning logs). """
 import argparse
@@ -214,8 +215,6 @@ def distill_record_file(in_file, out_file):
 
     for v in best_context.best_by_targetkey.values():
         best_set.add(measure_input_str_key(v[0]))
-
-    fout = open(out_file, "w") if isinstance(out_file, str) else out_file
 
     inputs = []
     results = []

@@ -155,7 +155,7 @@ print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
-# Define the objective as the end-to-end exeuction time of the network
+# Define the objective as the end-to-end execution time of the network
 objective = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
 
 #################################################################
