@@ -237,9 +237,9 @@ def run_tuning():
 #     |   19 |        0.013 |         955.80 |     64 |
 #     |   20 |        0.029 |         437.71 |     64 |
 #     -------------------------------------------------
-#     Total latency: 1.649 ms  Trials: 1920  Used time : 3598 s  Next ID: 9
+#     Estimated total latency: 1.649 ms  Trials: 1920  Used time : 3598 s  Next ID: 9
 #
-#   This table lists the latency and speed of all tasks.
+#   This table lists the latency and (estimated) speed of all tasks.
 #   It also lists the allocation of measurement trials for all tasks.
 #   The last line prints the total weighted latency of these tasks,
 #   which can be a rough estimation of the end-to-end execution time
@@ -295,7 +295,7 @@ print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), n
 #    extract feature from them. This part is CPU-intensive,
 #    so a high-performance CPU with many cores is recommended for faster search.
 # 2. If you have multiple GPUs, you can use all of them for measurements to
-#    parallelize the measurements. Check this section :ref:`autotvm <tutorials-autotvm-sec>`
+#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
 #    with :any:`auto_scheduler.RPCRunner`.
