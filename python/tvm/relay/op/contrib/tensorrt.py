@@ -134,7 +134,6 @@ def partition_for_tensorrt(
 
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
-
     seq = tvm.transform.Sequential(
         [
             transform.InferType(),
@@ -153,7 +152,6 @@ def partition_for_tensorrt(
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
         mod = seq(mod)
         mod = prune_tensorrt_subgraphs(mod)
-
     return mod, config
 
 
@@ -631,11 +629,9 @@ def strided_slice_annotate_fn(expr):  # pylint: disable=unused-variable
         if batch_dim_begin_modified or batch_dim_end_modified:
             logger.info("strided_slice: can't modify batch dimension.")
             return False
-
     if any([x is not None and x <= 0 for x in attrs.strides]):
         logger.info("strided_slice: stride must be positive")
         return False
-
     for i in range(0, len(args[0].checked_type.shape)):
         begin = int(attrs.begin[i])
         if attrs.slice_mode == "end":
