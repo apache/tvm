@@ -45,6 +45,7 @@ def verify_conv3d_ncdhw(
     dilation=1,
     add_bias=False,
     add_relu=False,
+    use_cudnn=False
 ):
     pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = get_pad_tuple3d(
         padding, (kernel, kernel, kernel)
@@ -83,11 +84,19 @@ def verify_conv3d_ncdhw(
 
     def check_device(device, ctx):
         print("Running on target: %s" % device)
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
+        if "cudnn" in device:
+            fcompute, fschedule = topi.cuda.conv3d_cudnn, topi.cuda.schedule_conv3d_cudnn
+        else:
+            fcompute, fschedule = tvm.topi.testing.dispatch(device, _conv3d_ncdhw_implement)
         with tvm.target.Target(device):
-            C = fcompute(
-                A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), dtype
-            )
+            if "cudnn" in device:
+                C = fcompute(
+                    A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), "NCDHW", dtype
+                )
+            else:
+                C = fcompute(
+                    A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), dtype
+                )
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
@@ -121,6 +130,8 @@ def verify_conv3d_ncdhw(
     for device, ctx in tvm.testing.enabled_targets():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device, ctx)
+    if use_cudnn:
+        check_device("cuda -model=unknown -libs=cudnn", tvm.context("cuda -model=unknown -libs=cudnn", 0))
 
 
 @tvm.testing.uses_gpu
@@ -154,6 +165,10 @@ def test_conv3d_ncdhw():
     verify_conv3d_ncdhw(1, 32, 32, 1, 1, 1, (2, 1, 0))
     verify_conv3d_ncdhw(1, 32, 32, 1, 3, 1, "VALID")
     verify_conv3d_ncdhw(1, 32, 32, 5, 1, 1, "VALID")
+
+    # cudnn
+    verify_conv3d_ncdhw(1, 64, 56, 3, 1, 1, 1, use_cudnn=True)
+    verify_conv3d_ncdhw(4, 64, 56, 5, 3, 1, (1,1,1,1,1,1), use_cudnn=True)
 
 
 if __name__ == "__main__":
