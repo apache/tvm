@@ -27,6 +27,7 @@ from .nms import atomic_add
 from .sort import topk, topk_thrust, argsort, argsort_thrust
 from .. import tag
 from ..transform import strided_slice, adv_index, squeeze
+from ..utils import const_vector
 
 logger = logging.getLogger("topi")
 
@@ -36,7 +37,7 @@ def _get_sort_func(mode=0):
     if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
         ret = topk_thrust if mode == 0 else argsort_thrust
     else:
-        logger.warn(
+        logger.warning(
             "It's highly recommended to enable thrust library with set(USE_THRUST ON)"
             " when compiling argwhere for cuda target. Otherwise, it can result in"
             " significant performance degradation or incorrect result"
@@ -44,6 +45,17 @@ def _get_sort_func(mode=0):
         ret = topk if mode == 0 else argsort
 
     return ret
+
+
+def _create_end(data, out, end):
+    ib = tvm.tir.ir_builder.create()
+    end = tvm.tir.const(end, dtype=out.dtype)
+    out_ptr = ib.buffer_ptr(out)
+    bx = te.thread_axis("blockIdx.x")
+    ib.scope_attr(bx, "thread_extent", 1)
+    out_ptr[0] = data.shape[0]
+    out_ptr[1] = end
+    return ib.get()
 
 
 def argwhere_1d_ir(condition, out):
@@ -125,7 +137,7 @@ def argwhere_1d(output_shape, condition):
         tag="argwhere1d_gpu",
     )
 
-    if out.shape[0] <= 1:
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)) and int(out.shape[0]) <= 1:
         return out
 
     sorted_out = _get_sort_func()(
@@ -218,23 +230,56 @@ def argwhere_2d(output_shape, condition):
         tag="argwhere2d_gpu",
     )
 
-    if out.shape[0] <= 1:
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)) and int(out.shape[0]) <= 1:
         return out
 
     sort_func = _get_sort_func(1)
 
     # sort the output from the least significant to the most significant
     # column.
-    out1 = strided_slice(out, [0, 1], [out.shape[0], 2])
-    out2 = sort_func(out1, axis=0, dtype="int32")
-    out3 = squeeze(out2)
-    out = adv_index(out, [out3])
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)):
+        out1 = strided_slice(out, [0, 1], [out.shape[0], 2])
+        out2 = sort_func(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        out = adv_index(out, [out3])
 
-    out1 = strided_slice(out, [0, 0], [out.shape[0], 1])
-    out2 = sort_func(out1, axis=0, dtype="int32")
-    out3 = squeeze(out2)
+        out1 = strided_slice(out, [0, 0], [out.shape[0], 1])
+        out2 = sort_func(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
 
-    return adv_index(out, [out3])
+        return adv_index(out, [out3])
+    else:
+        out_shape = [2]
+        out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
+        end = te.extern(
+            [out_shape],
+            [out],
+            lambda ins, outs: _create_end(ins[0], outs[0], 2),
+            dtype="int32",
+            out_buffers=[out_buf],
+            name="strided_slice_gpu_end0",
+            tag="strided_slice_gpu_end0",
+        )
+        out1 = strided_slice(out, const_vector([0, 1]), end)
+        out2 = sort_func(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        out = adv_index(out, [out3])
+
+        out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
+        end = te.extern(
+            [out_shape],
+            [out],
+            lambda ins, outs: _create_end(ins[0], outs[0], 1),
+            dtype="int32",
+            out_buffers=[out_buf],
+            name="strided_slice_gpu_end1",
+            tag="strided_slice_gpu_end1",
+        )
+        out1 = strided_slice(out, const_vector([0, 0]), end)
+        out2 = sort_func(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+
+        return adv_index(out, [out3])
 
 
 def argwhere_3d_ir(condition, out):
