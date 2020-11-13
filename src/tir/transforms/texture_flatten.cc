@@ -90,57 +90,18 @@ class TextureFlattener : public StmtExprMutator {
       ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
 
       // TODO(csullivan): Consider check on float only?
-      //StringImm dtype = StringImm(runtime::DLDataType2String(vdtype));
-      StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->data.dtype()));
-      Array<PrimExpr> args = {dtype, shape[0], shape[1]};
+      StringImm dtype(runtime::DLDataType2String(buffer_var.dtype()));
 
-      stmt = LetStmt(op->buffer->data, Call(op->buffer->data.dtype(), builtin::text2d_alloca(), args), body);
-      // TODO(csullivan): Adding the below AttrStmt causes SIGSEGV, worth investigating
-      // stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
+      // StringImm func("device_api.opencl.AllocImage2d");
+      // Array<PrimExpr> args = {func, dtype, shape[0], shape[1]};
+      // stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::tvm_call_packed(), args), body);
+
+      Array<PrimExpr> args = {dtype, shape[0], shape[1]};
+      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::text2d_alloca(), args), body);
     }
 
     return stmt;
   }
-
-  // Stmt VisitStmt_(const BufferRealizeNode* op) final {
-  //   //DataType vdtype(op->buffer->dtype.code(), op->buffer->dtype.bits(), 4);
-  //   // Var buffer_var(op->buffer->data->name_hint, vdtype);
-  //   // let_binding_.insert({op->buffer->data, buffer_var});
-
-  //   Stmt stmt = StmtExprMutator::VisitStmt_(op);
-  //   op = stmt.as<BufferRealizeNode>();
-
-  //   std::string storage_scope;
-  //   auto it = storage_scope_.find(op->buffer.get());
-  //   if (it != storage_scope_.end())
-  //   {
-  //     storage_scope = it->second;
-  //   }
-  //   else
-  //   {
-  //     storage_scope = op->buffer->scope;
-  //   }
-  //   if (storage_scope == "texture")
-  //   {
-  //     Stmt body = this->VisitStmt(op->body);
-  //     Array<PrimExpr> shape;
-  //     for (auto r : op->bounds) {
-  //       shape.push_back(r->extent);
-  //     }
-  //     ICHECK_EQ(shape.size(), 3) << "Only 2d RGBA texture is currently supported";
-  //     ICHECK_EQ(static_cast<int>(shape[2].as<IntImmNode>()->value), 4) << "FCD of texture must be vector of length 4 (RGBA)";
-
-  //     // TODO(csullivan): Consider check on float only?
-  //     StringImm dtype = StringImm(runtime::DLDataType2String(op->buffer->dtype));
-  //     Array<PrimExpr> args = {dtype, shape[0], shape[1]};
-  //     stmt = Allocate(op->buffer->data, op->buffer->dtype, shape,
-  //              make_const(DataType::Bool(op->buffer->dtype.lanes()), true), body);
-  //     // TODO(csullivan): Adding the below AttrStmt causes SIGSEGV, worth investigating
-  //     //stmt = AttrStmt(op->buffer->data, attr::storage_scope, StringImm(storage_scope), stmt);
-  //   }
-
-  //   return stmt;
-  // }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -180,7 +141,7 @@ class TextureFlattener : public StmtExprMutator {
       }
       args.push_back(op->value);
 
-      stmt = Evaluate(Call(DataType::Void(), builtin::text2d_store(), args));
+      stmt = Evaluate(Call(op->buffer->dtype, builtin::text2d_store(), args));
       if (needs_vectorization_)
       {
         loop_vars_.insert({op->indices.back().get(), true});

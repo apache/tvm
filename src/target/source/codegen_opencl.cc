@@ -33,12 +33,61 @@
 namespace tvm {
 namespace codegen {
 
+class InferTextureAccess : public StmtExprVisitor {
+public:
+  static constexpr const uint8_t read_access = 1;
+  static constexpr const uint8_t write_access = 2;
+
+  explicit InferTextureAccess() {}
+  std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
+    this->operator()(n);
+    std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
+    for (auto& texture : var_access_map_) {
+      if (texture.second == read_access) {
+        storage_scope_qualifiers.insert({texture.first, "__read_only "});
+      }
+      else if (texture.second == write_access) {
+        storage_scope_qualifiers.insert({texture.first, "__write_only "});
+      }
+      else if (texture.second == (read_access | write_access)) {
+        storage_scope_qualifiers.insert({texture.first, ""});
+      }
+    }
+    return storage_scope_qualifiers;
+  }
+  void VisitExpr_(const CallNode* op) {
+    if (!op->args.size())
+    {
+      return;
+    }
+    if (const VarNode* buffer = op->args[0].as<VarNode>())
+    {
+      if (op->op.same_as(builtin::text2d_load())) {
+        var_access_map_[buffer] |= read_access;
+      }
+      else if (op->op.same_as(builtin::text2d_store())) {
+        var_access_map_[buffer] |= write_access;
+      }
+    }
+  }
+private:
+  std::unordered_map<const VarNode*, uint8_t> var_access_map_;
+};
+
+
 CodeGenOpenCL::CodeGenOpenCL() { restrict_keyword_ = "restrict"; }
 
 void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  this->SetTextureScope(InferTextureAccess().Infer(f->body));
   for (Var arg : f->params) {
-    if (arg.dtype().is_handle()) {
+    if (arg->type_annotation.as<TextureTypeNode>())
+    {
+      // Storage scope qualifiers for textures are inferred
+      // and set prior function codegen.
+      continue;
+    }
+    else if (arg.dtype().is_handle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -168,7 +217,7 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     PrintType(ptr->element_type, os);
     os << '*';
-  } else if (auto* ptr = type.as<TextureTypeNode>()){
+  } else if (type.as<TextureTypeNode>()){
     os << "image2d_t";
   } else if (IsVoidType(type)) {
     os << "void";
@@ -225,6 +274,18 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
     os << "__global ";
   } else if (scope == "shared") {
     os << "__local ";
+  }
+  else
+  {
+    os << scope;
+  }
+}
+
+void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
+  // Only apply restrict qualifer for non-texture types
+  if (v->type_annotation.as<TextureTypeNode>() == nullptr)
+  {
+    os << ' ' << restrict_keyword_;
   }
 }
 
@@ -320,6 +381,13 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
     os << "NAN";
   } else {
     CodeGenC::VisitExpr_(op, os);
+  }
+}
+
+void CodeGenOpenCL::SetTextureScope(const std::unordered_map<const VarNode*, std::string>& scope) { // NOLINT(*)
+  for (auto& texture : scope)
+  {
+    alloc_storage_scope_.insert(texture);
   }
 }
 

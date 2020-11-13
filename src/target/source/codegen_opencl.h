@@ -51,8 +51,11 @@ class CodeGenOpenCL final : public CodeGenC {
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
   void PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
-                    std::ostream& os);                                        // NOLINT(*)
-  std::string CastFromTo(std::string value, DataType from, DataType target);  // NOLINT(*)
+                    std::ostream& os);                                          // NOLINT(*)
+  void PrintRestrict(const Var& v, std::ostream& os) final;                     // NOLINT(*)
+  std::string CastFromTo(std::string value, DataType from, DataType target);    // NOLINT(*)
+  void SetTextureScope(const std::unordered_map<const VarNode*, std::string>&); // NOLINT(*)
+
 
   // overload visitor
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
