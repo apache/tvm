@@ -31,9 +31,10 @@ import numpy as np
 
 from .search_policy import SearchPolicy, SketchPolicy
 from .cost_model import RandomModel, XGBModel
-from .utils import array_mean, to_str_round
+from .utils import array_mean
 from .measure import ProgramMeasurer
 from .measure_record import RecordReader
+from . import _ffi_api
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -75,10 +76,10 @@ def make_search_policies(
         if model_type == "xgb":
             cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
             if load_model_file:
-                logger.info("Load pretrained model...")
+                logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
-                cost_model.load_log_file(load_log_file)
+                cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()
         else:
@@ -137,10 +138,18 @@ class TaskScheduler:
     ----------
     tasks: List[SearchTask]
         All tasks to tune
+    task_weights: Optional[List[float]]
+        The weights of tasks.
+        If provided, the task scheduler will set the objective function to
+        sum(weight[t] * latency[t]), where weight[t] is the weight of a task
+        and the lantecy[t] is the lantecy of the task.
+        If not provided, the task scheduer will assign equal weights to all
+        tasks (i.e., the objective function is sum(latency[t])).
     objective_func: Optional[Callable[List[float] -> float]]
         The objective function to be minimized.
         The objective function accepts the current latencies of all tasks and returns the
-        objective. If not presented, the objective is the sum of the latencies of all task.
+        objective.
+        If not provided, the objective is the weighted sum of the latencies of all tasks.
     strategy: str = "gradient"
         The scheduling strategy.
         "round-robin": Tune tasks in round robin order.
@@ -164,20 +173,26 @@ class TaskScheduler:
     def __init__(
         self,
         tasks,
+        task_weights=None,
         objective_func=None,
         strategy="gradient",
         load_model_file: str = None,
         load_log_file: str = None,
-        verbose: int = 1,
         alpha: float = 0.2,
         beta: float = 2,
         gamma: float = 0.5,
         backward_window_size: int = 3,
     ):
         self.tasks = tasks
-        self.objective_func = objective_func or sum
+        if objective_func:  # use custom objective function
+            self.objective_func = objective_func
+        else:  # use weighted sum
+            if task_weights:
+                self.objective_func = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
+            else:
+                self.objective_func = sum
+
         self.strategy = strategy
-        self.verbose = verbose
         self.load_log_file = load_log_file
         self.load_model_file = load_model_file
         self.alpha = alpha
@@ -198,7 +213,8 @@ class TaskScheduler:
         self.best_costs = 1e10 * np.ones(len(self.tasks))
         self.cur_score = self._compute_score(self.best_costs)
 
-        self.tune_option = self.measurer = self.search_policies = self.ct = self.tic = None
+        self.tune_option = self.measurer = self.search_policies = None
+        self.ct = self.best_ct = self.best_score = self.tic = None
         self.num_measures_per_round = None
         self.dead_tasks = set()
 
@@ -234,14 +250,17 @@ class TaskScheduler:
         """
         # init members
         self.tune_option = tune_option
+        early_stopping = 1e20 if tune_option.early_stopping < 0 else tune_option.early_stopping
+
         self.measurer = ProgramMeasurer(
             tune_option.builder,
             tune_option.runner,
             tune_option.measure_callbacks,
             tune_option.verbose,
         )
-        self.ct = 0
+        self.ct = self.best_ct = 0
         self.tic = time.time()
+
         # reset num_measures_per_round to make sure every task is tuned at least once
         self.num_measures_per_round = min(
             tune_option.num_measures_per_round, tune_option.num_measure_trials // len(self.tasks)
@@ -266,6 +285,8 @@ class TaskScheduler:
         # do a round robin first to warm up
         for i in range(len(self.tasks)):
             self._tune_task(i)
+        self.best_ct = self.ct
+        self.best_score = self.cur_score
 
         # use the specific strategy to choose workload to tune
         task_idx = -1
@@ -282,7 +303,7 @@ class TaskScheduler:
                         continue
 
                     # compute gradient from chain rule : (delta f / delta g_i)
-                    delta = 1e-7
+                    delta = 1e-4
                     new_costs = list(self.best_costs)
                     new_costs[i] -= delta
                     chain_grad = (
@@ -337,10 +358,54 @@ class TaskScheduler:
             self._tune_task(task_idx)
             self._adjust_similarity_group(task_idx)
 
+            if self.cur_score < self.best_score:
+                self.best_score = self.cur_score
+                self.best_ct = self.ct
+            elif self.ct - self.best_ct >= early_stopping and all(
+                cost < 1e9 for cost in self.best_costs
+            ):
+                if self.tune_option.verbose >= 1:
+                    print(
+                        "Stop early since no performance improvement in the last "
+                        + str(early_stopping)
+                        + " measurement trials."
+                    )
+                break
+
+    def _print_table_info(self, next_task_idx):
+        # table header
+        _ffi_api.PrintTitle("Task Scheduler")
+        print("|  ID  | Latency (ms) | Speed (GFLOPS) | Trials |")
+        print("-------------------------------------------------")
+
+        # content
+        for i in range(len(self.tasks)):
+            id_str = "%d" % i
+            latency_str = "%.3f" % (1e3 * self.best_costs[i]) if self.best_costs[i] < 1e9 else "-"
+            speed_str = (
+                "%.2f" % (self.tasks[i].compute_dag.flop_ct / self.best_costs[i] / 1e9)
+                if self.best_costs[i] < 1e9
+                else "-"
+            )
+            trials_str = "%d" % (self.task_cts[i] * self.num_measures_per_round)
+            print("| %4s | %12s | % 14s | %6s |" % (id_str, latency_str, speed_str, trials_str))
+        print("-------------------------------------------------")
+
+        # overall info
+        if all(cost < 1e9 for cost in self.best_costs):
+            total_latency_str = "%.3f" % (self.cur_score * 1e3)
+        else:
+            total_latency_str = "-"
+        print(
+            "Estimated total latency: %s ms\tTrials: %d\tUsed time : %.0f s\tNext ID: %d\t"
+            % (total_latency_str, self.ct, time.time() - self.tic, next_task_idx)
+        )
+
     def _tune_task(self, task_idx):
         """Tune the select task for one round"""
-        if self.verbose >= 1:
-            logger.info("TaskScheduler: task id:\t%d", task_idx)
+        if self.tune_option.verbose >= 1:
+            self._print_table_info(task_idx)
+
         measure_inputs, measure_results = self.search_policies[task_idx].continue_search_one_round(
             self.num_measures_per_round, self.measurer
         )
@@ -358,17 +423,6 @@ class TaskScheduler:
 
         self.ct += len(measure_inputs)
         self.cur_score = self._compute_score(self.best_costs)
-
-        if self.verbose >= 1:
-            logger.info(
-                "TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t"
-                "best_costs (ms): %s\ttask_ct: %s",
-                self.ct,
-                self.cur_score * 1e3,
-                time.time() - self.tic,
-                to_str_round(self.best_costs * 1e3, decimal=3),
-                self.task_cts,
-            )
 
     def _compute_score(self, costs):
         """compute the objective function"""

@@ -40,7 +40,7 @@ rm -rf docs/doxygen
 
 # prepare auto scheduler tutorials
 rm -rf tutorials/auto_scheduler/*.json
-cp -f tutorials/auto_scheduler/ci_logs/{matmul,conv2d}.json tutorials/auto_scheduler
+cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/auto_scheduler
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials

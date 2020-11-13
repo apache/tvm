@@ -315,6 +315,7 @@ def tune_and_evaluate(tuning_opt):
 #################################################################
 # Scale up measurement by using multiple devices
 # ----------------------------------------------
+# .. _tutorials-autotvm-rpc-tracker:
 #
 # If you have multiple devices, you can use all of them for measurement.
 # TVM uses the RPC Tracker to manage distributed devices.
