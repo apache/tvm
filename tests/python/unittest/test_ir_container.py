@@ -26,6 +26,9 @@ def test_array():
     a_slice = a[-3:-1]
     assert (a_slice[0].value, a_slice[1].value) == (1, 2)
 
+    a.append(tvm.runtime.convert(4))
+    assert len(a) == 4
+    assert a[-1].value == 4
 
 def test_array_save_load_json():
     a = tvm.runtime.convert([1, 2, 3])

@@ -347,6 +347,15 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
   void clear() { ShrinkBy(size_); }
 
   /*!
+   * \brief push a new item to the back of the list
+   * \param item The item to be pushed.
+   */
+  void push_back(const ObjectRef item) {
+    EnlargeBy(1);
+    SetItem(this->size_-1, item);
+  }
+
+  /*!
    * \brief Set i-th element of the array in-place
    * \param i The index
    * \param item The value to be set

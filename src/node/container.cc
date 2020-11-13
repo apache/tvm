@@ -187,6 +187,16 @@ TVM_REGISTER_GLOBAL("node.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret
   *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
 });
 
+TVM_REGISTER_GLOBAL("node.ArrayAppendItem").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ObjectRef item = args[1];
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+  ICHECK(ptr->IsInstance<ArrayNode>());
+  auto* n = static_cast<ArrayNode*>(ptr);
+  n->push_back(item);
+  *ret = static_cast<int64_t>(n->size());
+});
+
 struct MapNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 

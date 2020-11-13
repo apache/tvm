@@ -38,6 +38,9 @@ class Array(Object):
     def __len__(self):
         return _ffi_node_api.ArraySize(self)
 
+    def append(self, item):
+        return _ffi_node_api.ArrayAppendItem(self, item)
+
 
 @tvm._ffi.register_object
 class Map(Object):
