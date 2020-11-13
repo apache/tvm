@@ -18,6 +18,8 @@ import numpy as np
 import time
 import pytest
 import itertools
+import mxnet as mx
+from mxnet.gluon.model_zoo.vision import get_model
 
 import tvm
 import tvm.relay.testing
@@ -26,7 +28,6 @@ from tvm.relay.op.contrib import tensorrt
 from tvm.contrib import graph_runtime, utils
 from tvm.runtime.vm import VirtualMachine
 from tvm.relay import Any, GlobalVar, transform
-from mxnet.gluon.model_zoo.vision import get_model
 
 
 def skip_codegen_test():
