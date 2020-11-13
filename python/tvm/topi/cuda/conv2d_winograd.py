@@ -25,6 +25,7 @@ from tvm import autotvm
 from .. import nn
 from ..utils import get_const_int, get_const_tuple, traverse_inline
 from ..nn.winograd_util import winograd_transform_matrices
+from ..nn.conv2d import conv2d_winograd_nhwc, _conv2d_winograd_nhwc_impl
 
 
 logger = logging.getLogger("conv2d_winograd")
@@ -354,3 +355,16 @@ def schedule_conv2d_nchw_winograd_without_weight_transform(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+@conv2d_winograd_nhwc.register(["cuda", "gpu"])
+def conv2d_winograd_nhwc_cuda(
+    data, weight, strides, padding, dilation, out_dtype, pre_computed=False
+):
+    """Conv2D Winograd in NHWC layout.
+    This is a clean version to be used by the auto-scheduler for both CPU and GPU.
+    """
+    tile_size = _infer_tile_size(data, weight)
+    return _conv2d_winograd_nhwc_impl(
+        data, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed
+    )

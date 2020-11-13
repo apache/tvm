@@ -36,8 +36,7 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, relay.Any(), relay.Any()), "int8")
 
 
-# TODO(mbrookhart): Enable when VM supports heterogenus execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_resize():
     def verify_resize(dshape, scale, method, layout):
         if layout == "NHWC":

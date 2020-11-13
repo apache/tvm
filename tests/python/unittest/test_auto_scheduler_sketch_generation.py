@@ -370,18 +370,19 @@ def test_cuda_conv2d_winograd_sketch():
     """ 1 multi-level tiling sketch """
     assert len(sketches) == 1
     assert_compute_at_condition(sketches[0].stages[1], "inlined")
-    assert_compute_at_condition(sketches[0].stages[2], "inlined")
+    assert_compute_at_condition(sketches[0].stages[2], "iter")
     assert_compute_at_condition(sketches[0].stages[3], "inlined")
     assert_is_tiled(sketches[0].stages[4])
     assert_has_cache_read(sketches[0], 4)
     assert_compute_at_condition(sketches[0].stages[5], "iter")
     assert_has_cache_read(sketches[0], 6)
     assert_compute_at_condition(sketches[0].stages[7], "iter")
-    assert_is_not_tiled(sketches[0].stages[8])
+    assert_is_tiled(sketches[0].stages[8])
     assert_compute_at_condition(sketches[0].stages[8], "iter")
-    assert_compute_at_condition(sketches[0].stages[9], "inlined")
-    assert_is_tiled(sketches[0].stages[10])
-    assert_is_not_tiled(sketches[0].stages[11])
+    assert_has_cache_write(sketches[0], 8)
+    assert_compute_at_condition(sketches[0].stages[9], "root")
+    assert_is_tiled(sketches[0].stages[11])
+    assert_is_not_tiled(sketches[0].stages[12])
 
 
 if __name__ == "__main__":

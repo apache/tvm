@@ -128,6 +128,8 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
   });
 }
 
+void TFLiteRuntime::SetNumThreads(int num_threads) { interpreter_->SetNumThreads(num_threads); }
+
 NDArray TFLiteRuntime::GetOutput(int index) const {
   TfLiteTensor* output = interpreter_->tensor(interpreter_->outputs()[index]);
   DataType dtype = TfLiteDType2TVMDType(output->type);
@@ -163,6 +165,12 @@ PackedFunc TFLiteRuntime::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(args[0]); });
   } else if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Invoke(); });
+  } else if (name == "set_num_threads") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      int num_threads = args[0];
+      CHECK_GE(num_threads, 1);
+      this->SetNumThreads(num_threads);
+    });
   } else {
     return PackedFunc();
   }
