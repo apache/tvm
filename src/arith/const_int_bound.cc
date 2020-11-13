@@ -519,8 +519,8 @@ class ConstIntBoundAnalyzer::Impl
    */
   static Entry MakeBound(int64_t min_value, int64_t max_value) {
     Entry e;
-    e.min_value = min_value;
-    e.max_value = max_value;
+    e.min_value = (min_value == kPosInf) ? min_value - 1 : min_value;
+    e.max_value = (max_value == kNegInf) ? max_value + 1 : max_value;
     return e;
   }
   /*!
