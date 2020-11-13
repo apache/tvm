@@ -36,7 +36,6 @@
 namespace tvm {
 namespace runtime {
 
-
 // deleter of RPC remote array
 static void RemoteNDArrayDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
@@ -57,7 +56,8 @@ static void RemoteNDArrayDeleter(Object* obj) {
  *      needs to be explicitly deleted after the NDArray is freed, this function should do that.
  * \param deleter_ctx An opaque pointer passed to deleter to identify the tensor being deleted.
  */
-NDArray NDArrayFromRemoteOpaqueHandle(void* handle, int64_t* shape, int64_t ndim, DLContext* ctx, FDeleter deleter, void* deleter_ctx) {
+NDArray NDArrayFromRemoteOpaqueHandle(void* handle, int64_t* shape, int64_t ndim, DLContext* ctx,
+                                      FDeleter deleter, void* deleter_ctx) {
   NDArray::Container* data = new NDArray::Container();
   data->manager_ctx = deleter_ctx;
   data->SetDeleter(deleter);
@@ -80,7 +80,6 @@ NDArray NDArrayFromRemoteOpaqueHandle(void* handle, int64_t* shape, int64_t ndim
   data->dl_tensor.byte_offset = tensor->byte_offset;
   return ret;
 }
-
 
 /*!
  * \brief A wrapped remote function as a PackedFunc.
@@ -291,7 +290,9 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
     ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
     void* nd_handle = args[2];
-    *rv = NDArrayFromRemoteOpaqueHandle(tensor->data, tensor->shape, tensor->ndim, AddRPCSessionMask(ctx, sess_->table_index()), RemoteNDArrayDeleter, nd_handle);
+    *rv = NDArrayFromRemoteOpaqueHandle(tensor->data, tensor->shape, tensor->ndim,
+                                        AddRPCSessionMask(ctx, sess_->table_index()),
+                                        RemoteNDArrayDeleter, nd_handle);
   } else {
     ICHECK_EQ(args.size(), 2);
     *rv = args[1];
@@ -477,11 +478,10 @@ TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue*
   *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
 });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.wrap_remote_ndarray").set_body_typed([](void* remote_array, PackedFunc deleter) {
-  *rv = WrapRemoteNDArray(remote_array, [pf](Object* ctx) {
-    pf();
-  });
-});
+TVM_REGISTER_GLOBAL("tvm.rpc.wrap_remote_ndarray")
+    .set_body_typed([](void* remote_array, PackedFunc deleter) {
+      *rv = WrapRemoteNDArray(remote_array, [pf](Object* ctx) { pf(); });
+    });
 
 }  // namespace runtime
 }  // namespace tvm
