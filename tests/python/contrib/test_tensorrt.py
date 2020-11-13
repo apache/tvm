@@ -972,18 +972,6 @@ def test_densenet121():
     run_and_verify_model("densenet121")
 
 
-def test_tensorrt_integration():
-    # Integration tests
-    test_alexnet()
-    test_resnet18_v1()
-    test_resnet18_v2()
-    test_squeezenet()
-    test_mobilenet()
-    test_mobilenet_v2()
-    test_vgg11()
-    test_densenet121()
-
-
 def test_dynamic_offload():
     """
     This test checks for proper dynamic offloading of relay graphs. An addition between
