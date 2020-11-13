@@ -162,9 +162,9 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
     Array<MeasureResult> results;
     while (ct < n_trials) {
       if (!inputs.empty()) {
-        // Retrain cost models before the next search round
         auto tic_begin = std::chrono::high_resolution_clock::now();
 
+        // Retrain the cost model before the next search round
         PrintTitle("Train cost model", verbose);
         program_cost_model->Update(inputs, results);
 
@@ -208,9 +208,10 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
       ct += inputs.size();
 
       // Check if reach the early stopping condition
-      if (ct - measurer->best_ct[search_task->workload_key] > early_stopping) {
+      if (ct - measurer->best_ct[search_task->workload_key] > early_stopping &&
+          measurer->has_valid.count(search_task->workload_key)) {
         StdCout(verbose) << "Stop early since no performance improvement in the last "
-                         << early_stopping << " measure steps.\n";
+                         << early_stopping << " measurements trials.\n";
         break;
       }
 
@@ -257,9 +258,9 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
     measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
   }
 
-  // Update the cost model
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
+  // Update the cost model
   PrintTitle("Train cost model", verbose);
   program_cost_model->Update(inputs, results);
 

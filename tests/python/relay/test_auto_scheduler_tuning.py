@@ -38,8 +38,9 @@ def tune_network(network, target):
         measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
         tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
         tune_option = auto_scheduler.TuningOptions(
-            num_measure_trials=4,
+            num_measure_trials=100,
             num_measures_per_round=2,
+            early_stopping=1,
             runner=measure_ctx.runner,
             builder=auto_scheduler.LocalBuilder(timeout=60),
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],

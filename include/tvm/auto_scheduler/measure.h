@@ -436,6 +436,8 @@ class ProgramMeasurerNode : public Object {
   std::unordered_map<std::string, State> best_state;
   /*! \brief Workload key to best state's count index map. */
   std::unordered_map<std::string, int> best_ct;
+  /*! \brief The set of workloads that have at least one valid schedule */
+  std::unordered_set<std::string> has_valid;
   /*! \brief The ProgramBuilder to build each program. */
   ProgramBuilder builder;
   /*! \brief The ProgramRunner to measure each program. */

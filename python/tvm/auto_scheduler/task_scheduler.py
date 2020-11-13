@@ -178,7 +178,6 @@ class TaskScheduler:
         strategy="gradient",
         load_model_file: str = None,
         load_log_file: str = None,
-        verbose: int = 1,
         alpha: float = 0.2,
         beta: float = 2,
         gamma: float = 0.5,
@@ -194,7 +193,6 @@ class TaskScheduler:
                 self.objective_func = sum
 
         self.strategy = strategy
-        self.verbose = verbose
         self.load_log_file = load_log_file
         self.load_model_file = load_model_file
         self.alpha = alpha
@@ -215,7 +213,8 @@ class TaskScheduler:
         self.best_costs = 1e10 * np.ones(len(self.tasks))
         self.cur_score = self._compute_score(self.best_costs)
 
-        self.tune_option = self.measurer = self.search_policies = self.ct = self.tic = None
+        self.tune_option = self.measurer = self.search_policies = None
+        self.ct = self.best_ct = self.best_score = self.tic = None
         self.num_measures_per_round = None
         self.dead_tasks = set()
 
@@ -257,8 +256,9 @@ class TaskScheduler:
             tune_option.measure_callbacks,
             tune_option.verbose,
         )
-        self.ct = 0
+        self.ct = self.best_ct = 0
         self.tic = time.time()
+
         # reset num_measures_per_round to make sure every task is tuned at least once
         self.num_measures_per_round = min(
             tune_option.num_measures_per_round, tune_option.num_measure_trials // len(self.tasks)
@@ -283,6 +283,8 @@ class TaskScheduler:
         # do a round robin first to warm up
         for i in range(len(self.tasks)):
             self._tune_task(i)
+        self.best_ct = self.ct
+        self.best_score = self.cur_score
 
         # use the specific strategy to choose workload to tune
         task_idx = -1
@@ -354,6 +356,19 @@ class TaskScheduler:
             self._tune_task(task_idx)
             self._adjust_similarity_group(task_idx)
 
+            if self.cur_score < self.best_score:
+                self.best_score = self.cur_score
+                self.best_ct = self.ct
+            elif self.ct - self.best_ct >= tune_option.early_stopping and all(
+                cost < 1e9 for cost in self.best_costs
+            ):
+                if self.tune_option.verbose >= 1:
+                    print(
+                        "Stop early since no performance improvement in the last %d measurement trials"
+                        % tune_option.early_stopping
+                    )
+                break
+
     def _print_table_info(self, next_task_idx):
         # table header
         _ffi_api.PrintTitle("Task Scheduler")
@@ -374,7 +389,7 @@ class TaskScheduler:
         print("-------------------------------------------------")
 
         # overall info
-        if all(self.best_costs[i] < 1e9 for i in range(len(self.tasks))):
+        if all(cost < 1e9 for cost in self.best_costs):
             total_latency_str = "%.3f" % (self.cur_score * 1e3)
         else:
             total_latency_str = "-"
@@ -385,7 +400,7 @@ class TaskScheduler:
 
     def _tune_task(self, task_idx):
         """Tune the select task for one round"""
-        if self.verbose >= 1:
+        if self.tune_option.verbose >= 1:
             self._print_table_info(task_idx)
 
         measure_inputs, measure_results = self.search_policies[task_idx].continue_search_one_round(

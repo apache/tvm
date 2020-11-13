@@ -203,6 +203,7 @@ void ProgramMeasurerNode::Reset() {
   best_flops.clear();
   best_ct.clear();
   best_state.clear();
+  has_valid.clear();
 }
 
 Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
@@ -229,16 +230,18 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
 
     // update current best state according to the new measure result
     for (size_t j = 0; j < input_batch.size(); ++j) {
+      const String& workload_key = input_batch[j]->task->workload_key;
       double flops;
+
       if (result_batch[j]->error_no == 0) {
         flops = task->compute_dag->flop_ct / FloatArrayMean(result_batch[j]->costs);
         error_ct = 0;
+        has_valid.insert(workload_key);
       } else {
         flops = 0.0;
         error_ct++;
       }
 
-      const String& workload_key = input_batch[j]->task->workload_key;
       if (flops > best_flops[workload_key]) {
         best_flops[workload_key] = flops;
         best_state[workload_key] = input_batch[j]->state;
