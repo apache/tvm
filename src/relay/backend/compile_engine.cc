@@ -420,38 +420,59 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
     using tir::make_const;
     ICHECK(data_dependants_.size());
-    ICHECK(op->is_scalar());
     bool data_dependant = data_dependants_.back();
-    if (data_dependant) {
-      void* data = op->data->data;
-      DataType dtype = DataType(op->data->dtype);
-      auto value = tvm::te::compute(
-          {},
-          [&](const Array<tvm::tir::Var>&) {
-            if (dtype == DataType::Int(32)) {
-              return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-            } else if (dtype == DataType::Int(64)) {
-              return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-            } else if (dtype == DataType::Float(32)) {
-              return make_const(dtype, static_cast<const float*>(data)[0]);
-            } else if (dtype == DataType::Float(64)) {
-              return make_const(dtype, static_cast<const double*>(data)[0]);
-            } else if (dtype == DataType::Bool()) {
-              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
-            } else {
-              LOG(FATAL) << "not handled";
-              return tvm::PrimExpr();
+    if (!op->is_scalar()) {
+      // This is a constant weight, extract the shape of the weight tensor.
+      // This can not be data dependent.
+      CHECK(!data_dependant);
+      auto ttype = op->checked_type().as<TensorTypeNode>();
+      int ndim = static_cast<int>(ttype->shape.size());
+      Array<PrimExpr> out_shape{ndim};
+      te::Tensor value = tvm::te::compute(
+          out_shape,
+          [&](const Array<tvm::tir::Var>& indices) {
+            auto idx = indices[0];
+            PrimExpr ret = make_const(DataType::Int(64), 0);
+            for (int i = 0; i < ndim; i++) {
+              ret = tvm::if_then_else(idx == i, ttype->shape[i], ret);
             }
+            return ret;
           },
-          "data_const", topi::kBroadcast);
-      scalars_.push_back(value);
-      return {value};
-    } else {
-      auto value = tvm::te::compute(
-          {}, [&](const Array<tvm::tir::Var>&) { return tir::make_const(DataType::Int(64), 0); },
           "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
+    } else {
+      if (data_dependant) {
+        void* data = op->data->data;
+        DataType dtype = DataType(op->data->dtype);
+        auto value = tvm::te::compute(
+            {},
+            [&](const Array<tvm::tir::Var>&) {
+              if (dtype == DataType::Int(32)) {
+                return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+              } else if (dtype == DataType::Int(64)) {
+                return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+              } else if (dtype == DataType::Float(32)) {
+                return make_const(dtype, static_cast<const float*>(data)[0]);
+              } else if (dtype == DataType::Float(64)) {
+                return make_const(dtype, static_cast<const double*>(data)[0]);
+              } else if (dtype == DataType::Bool()) {
+                return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+              } else {
+                LOG(FATAL) << "not handled";
+                return tvm::PrimExpr();
+              }
+            },
+            "data_const", topi::kBroadcast);
+        scalars_.push_back(value);
+        return {value};
+      } else {
+        auto value = tvm::te::compute(
+            {}, [&](const Array<tvm::tir::Var>&) { return tir::make_const(DataType::Int(64), 0); },
+            "shape_const", topi::kBroadcast);
+        scalars_.push_back(value);
+        return {value};
+      }
     }
   }
 
