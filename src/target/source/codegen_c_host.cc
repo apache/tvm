@@ -71,7 +71,8 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
     << tvm::runtime::symbol::tvm_lookup_linked_param;
   stream << "    switch (((int64_t*) args)[0]) {\n"
          << "    default:\n"
-         << "        return " << kTvmErrorGeneratedInvalidStorageId << ";\n";
+         << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
+         << "        return 0;\n";
 
   function_names_.emplace_back(tvm::runtime::symbol::tvm_lookup_linked_param);
   for (auto kv : params) {

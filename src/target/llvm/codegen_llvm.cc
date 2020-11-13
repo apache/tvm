@@ -228,7 +228,14 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
 
   builder_->SetInsertPoint(default_block);
-  builder_->CreateRet(ConstInt32(kTvmErrorGeneratedInvalidStorageId));
+  {
+    auto ret_types_array = builder_->CreateBitCast(
+      &function->arg_begin()[4], llvm::ArrayType::get(t_int_, 1));
+    builder_->CreateStore(
+      llvm::ConstantInt::get(t_int_, kTVMNullptr),
+      builder_->CreateGEP(ret_types_array, zero_index_list));
+    builder_->CreateRet(ConstInt32(kTvmErrorNoError));
+  }
 
   llvm::raw_os_ostream os{std::cout};
 
@@ -249,7 +256,6 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
     auto retval_array = builder_->CreateBitCast(
       &function->arg_begin()[3], llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1));
     builder_->CreateStore(
-//      param_symbol,
       builder_->CreatePointerCast(param_symbol, t_void_->getPointerTo(GetGlobalAddressSpace())),
       builder_->CreateGEP(retval_array, zero_index_list));
     auto ret_types_array = builder_->CreateBitCast(

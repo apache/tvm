@@ -64,14 +64,19 @@ void GraphRuntime::Run() {
  * processor.
  * \param ctxs The context of the host and devices where graph nodes will be
  * executed on.
+ * \param lookup_linked_param_func Linked parameter lookup function.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs) {
+                        const std::vector<TVMContext>& ctxs, PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   module_ = module;
   ctxs_ = ctxs;
+  lookup_linked_param_ = lookup_linked_param_func;
+  if (lookup_linked_param_ == nullptr) {
+    lookup_linked_param_ = PackedFunc(&GraphRuntime::DefaultLookupLinkedParam);
+  }
   this->SetupStorage();
   this->SetupOpExecs();
   for (size_t i = 0; i < input_nodes_.size(); i++) {
@@ -249,12 +254,47 @@ void GraphRuntime::PreAllocatedDLTensorDeleter(DLManagedTensor* tensor) {
   delete reinterpret_cast<DLTensor*>(tensor);
 }
 
-void GraphRuntime::SetupStorage() {
+void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
+  Module mod = args[0];
+  int64_t storage_id = args[1];
+  NDArray template_tensor = args[2];
+  TVMContext ctx = args[3];
   // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
   // params are present.
-  tvm::runtime::PackedFunc pf = module_.GetFunction(
+  tvm::runtime::PackedFunc pf = mod.GetFunction(
     ::tvm::runtime::symbol::tvm_lookup_linked_param, true);
+  if (pf == nullptr) {
+    *rv = nullptr;
+    return;
+  }
 
+  TVMRetValue opaque_handle = pf(storage_id);
+  if (opaque_handle.type_code() == kTVMNullptr) {
+    *rv = nullptr;
+    return;
+  }
+
+  std::unique_ptr<NDArray::Container> container{new NDArray::Container(
+      static_cast<void*>(opaque_handle), template_tensor.Shape(), template_tensor.DataType(), ctx)};
+  *rv = NDArray(GetObjectPtr<Object>(container.release()));
+}
+
+std::string List2String(std::vector<int64_t> shape) {
+  if (shape.size() == 0) {
+    return "[]";
+  }
+
+  std::stringstream ss;
+  ss << "[" << shape[0];
+  for (int i = 1; i < shape.size(); i++) {
+    ss << ", " << shape[i];
+  }
+  ss << "]";
+  return ss.str();
+}
+
+
+void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<DLDataType> vtype;
   for (const std::string& s_type : attrs_.dltype) {
@@ -288,12 +328,16 @@ void GraphRuntime::SetupStorage() {
       ICHECK(pool_entry[sid].device_type == -1 || pool_entry[sid].device_type == device_type)
           << "The same pool entry cannot be assigned to multiple devices";
     }
-    if (pf != nullptr && pool_entry[sid].pre_linked_param == nullptr) {
-      try {
-        pool_entry[sid].pre_linked_param = pf(sid);
-      } catch (std::runtime_error& e) {
-        // Indicates this storage_id is not pre-linked.
-      }
+    TVMRetValue lookup_rv;
+    {
+      std::vector<int64_t> shape_vec{attrs_.shape[i].begin(), attrs_.shape[i].end()};
+      DLTensor template_tensor{
+        nullptr, TVMContext{kDLCPU, 0}, static_cast<int>(shape_vec.size()), vtype[i], shape_vec.data(), nullptr, 0};
+      lookup_rv = lookup_linked_param_(
+        module_, sid, &template_tensor, ctxs_[0]);
+    }
+    if (lookup_rv.type_code() != kTVMNullptr) {
+      pool_entry[sid].linked_param = lookup_rv;
     }
     pool_entry[sid].param_data_entry = i;
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
@@ -308,21 +352,11 @@ void GraphRuntime::SetupStorage() {
       return pit.device_type == static_cast<int>(c.device_type);
     });
     TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
-    if (pit.pre_linked_param != nullptr) {
-      LOG(INFO) << "param " << pit.param_data_entry << " pre-loaded!";
-      auto param_shape = &attrs_.shape[pit.param_data_entry];
-      DLManagedTensor* param_tensor = new DLManagedTensor{
-        {pit.pre_linked_param, ctx, static_cast<int>(param_shape->size()),
-         vtype[pit.param_data_entry], param_shape->data(), nullptr, 0},
-        nullptr,
-        PreAllocatedDLTensorDeleter};
-
-      storage_pool_.push_back(NDArray::FromDLPack(param_tensor));
-      LOG(INFO) << "Loaded data entry " << pit.param_data_entry
-                << " from pre-linked blob: " << param_tensor->dl_tensor.data;
-
+    if (pit.linked_param.defined()) {
+      LOG(INFO) << "param " << storage_pool_.size() << " pre-loaded!";
+      storage_pool_.push_back(pit.linked_param);
     } else {
-      LOG(INFO) << "param " << pit.param_data_entry << " blank!";
+      LOG(INFO) << "param " << storage_pool_.size() << " blank!";
       std::vector<int64_t> shape;
       shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
       storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
@@ -337,6 +371,9 @@ void GraphRuntime::SetupStorage() {
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
+    LOG(INFO) << "sid " << i << ": (" << List2String(storage_pool_[storage_id].Shape())
+              << ", dtype=" << storage_pool_[storage_id].DataType() << ")"
+              << ": setup view: " << List2String(attrs_.shape[i]);
     data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
 
     const DLTensor* tmp = data_entry_[i].operator->();
@@ -497,18 +534,19 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
 }
 
 Module GraphRuntimeCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                          const std::vector<TVMContext>& ctxs) {
+                          const std::vector<TVMContext>& ctxs,
+                          const PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntime>();
-  exec->Init(sym_json, m, ctxs);
+  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
   return Module(exec);
 }
 
 // Get all context for the host and other runtime devices.
-std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
+std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg) {
   // Reserve the first item as the fallback device.
   std::vector<TVMContext> ret;
   TVMContext ctx;
-  for (int i = 2; i < args.num_args; i += 2) {
+  for (int i = ctx_start_arg; i < args.num_args; i += 2) {
     int dev_type = args[i];
     ctx.device_type = static_cast<DLDeviceType>(dev_type);
     ctx.device_id = args[i + 1];
@@ -526,8 +564,14 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRet
   ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
                                  "at least 4, but it has "
                               << args.num_args;
-  const auto& contexts = GetAllContext(args);
-  *rv = GraphRuntimeCreate(args[0], args[1], contexts);
+  PackedFunc lookup_linked_param_func;
+  int ctx_start_arg = 2;
+  if (args[2].type_code() == kTVMPackedFuncHandle) {
+    lookup_linked_param_func = args[2];
+    ctx_start_arg++;
+  }
+  const auto& contexts = GetAllContext(args, ctx_start_arg);
+  *rv = GraphRuntimeCreate(args[0], args[1], contexts, lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

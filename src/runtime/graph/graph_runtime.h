@@ -94,10 +94,13 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    *  processor.
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
+   * \param lookup_linked_param_func If given, a PackedFunc invoked to lookup linked parameters
+   *  by storage_id. If not given, linked parameters are looked-up using an internal implementation,
+   *  which is not compatible with RPCModules.
    */
 
   void Init(const std::string& graph_json, tvm::runtime::Module module,
-            const std::vector<TVMContext>& ctxs);
+            const std::vector<TVMContext>& ctxs, const PackedFunc lookup_linked_param_func);
 
   /*!
    * \brief Get the input index given the name of input.
@@ -182,8 +185,8 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   struct PoolEntry {
     size_t size;
     int device_type;
-    void* pre_linked_param;
     int param_data_entry;
+    NDArray linked_param;
 //    PoolEntry(int s, int dev_type, void* pre_linked_param) :
 //        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
@@ -366,6 +369,8 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
+  /*! \brief PackedFunc to lookup a linked paramter from a local Module. */
+  static void DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv);
   /*! \brief Delete pre-allocated DLTensor. */
   static void PreAllocatedDLTensorDeleter(DLManagedTensor* tensor);
   /*! \brief Setup the temporal storage */
@@ -413,9 +418,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()>> op_execs_;
+  /*! \brief Linked parameter lookup function. */
+  PackedFunc lookup_linked_param_;
+
 };
 
-std::vector<TVMContext> GetAllContext(const TVMArgs& args);
+std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg);
 }  // namespace runtime
 }  // namespace tvm
 

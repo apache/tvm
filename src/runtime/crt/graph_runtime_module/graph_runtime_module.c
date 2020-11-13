@@ -88,7 +88,8 @@ int32_t TVMGraphRuntimeModule_GetInput(TVMValue* args, int* tcodes, int nargs, T
   uint32_t eid = TVMGraphRuntime_GetEntryId(
     graph_runtime.runtime, graph_runtime.runtime->input_nodes[index], 0);
   ret_values[0].v_handle = (void*) &graph_runtime.runtime->data_entry[eid].dl_tensor;
-  ret_tcodes[0] = kTVMNDArrayHandle;
+  ret_tcodes[0] = kTVMOpaqueHandle;
+  //ret_tcodes[0] = kTVMNDArrayHandle;
   return 0;
 }
 
@@ -131,7 +132,8 @@ int32_t TVMGraphRuntimeModule_GetOutput(TVMValue* args, int* tcodes, int nargs, 
   uint32_t eid = TVMGraphRuntime_GetEntryId(graph_runtime.runtime, nid, index);
 
   ret_values[0].v_handle = (void*) &(graph_runtime.runtime->data_entry[eid].dl_tensor);
-  ret_tcodes[0] = kTVMNDArrayHandle;
+//  ret_tcodes[0] = kTVMNDArrayHandle;
+  ret_tcodes[0] = kTVMOpaqueHandle;
   return 0;
 }
 

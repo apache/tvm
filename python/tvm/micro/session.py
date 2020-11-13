@@ -154,6 +154,20 @@ class Session:
         self.transport.__exit__(exc_type, exc_value, exc_traceback)
 
 
+def lookup_remote_linked_param(mod, storage_id, template_tensor, ctx):
+    try:
+        lookup_linked_param = mod.get_function('_lookup_linked_param')
+    except KeyError:
+        return None
+
+    remote_data = lookup_linked_param(storage_id)
+    if remote_data is None:
+        return None
+
+    return get_global_func('tvm.rpc.NDArrayFromRemoteOpaqueHandle')(
+        mod, remote_data, template_tensor, ctx, lambda: None)
+
+
 def create_local_graph_runtime(graph_json_str, mod, ctx):
     """Create a local graph runtime driving execution on the remote CPU context given.
 
@@ -175,4 +189,34 @@ def create_local_graph_runtime(graph_json_str, mod, ctx):
     """
     device_type_id = [ctx.device_type, ctx.device_id]
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return graph_runtime.GraphModule(fcreate(graph_json_str, mod, *device_type_id))
+    return graph_runtime.GraphModule(fcreate(graph_json_str, mod, lookup_remote_linked_param,
+                                             *device_type_id))
+
+
+def create_local_debug_runtime(graph_json_str, mod, ctx, dump_root=None):
+    """Create a local debug runtime driving execution on the remote CPU context given.
+
+    Parameters
+    ----------
+    graph_json_str : str
+        A string containing the graph representation.
+
+    mod : tvm.runtime.Module
+        The remote module containing functions in graph_json_str.
+
+    ctx : tvm.Context
+        The remote CPU execution context.
+
+    dump_root : Optional[str]
+        If given, passed as dump_root= to GraphModuleDebug.
+
+    Returns
+    -------
+    tvm.contrib.GraphRuntime :
+         A local graph runtime instance that executes on the remote device.
+    """
+    device_type_id = [ctx.device_type, ctx.device_id]
+    fcreate = get_global_func("tvm.graph_runtime_debug.create")
+    return debug_runtime.GraphModuleDebug(
+        fcreate(graph_json_str, mod, lookup_remote_linked_param, *device_type_id),
+        [ctx], graph_json_str, dump_root=dump_root)
