@@ -170,7 +170,7 @@ def _func_wrapper(que, func, args, kwargs):
         else:
             que.put(func(*args))
     # pylint: disable=broad-except
-    except Exception as e:
+    except Exception:
         que.put(Exception(make_traceback_info()))
 
 

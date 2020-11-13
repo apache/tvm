@@ -364,8 +364,9 @@ class TaskScheduler:
             ):
                 if self.tune_option.verbose >= 1:
                     print(
-                        "Stop early since no performance improvement in the last %d measurement trials"
-                        % tune_option.early_stopping
+                        "Stop early since no performance improvement in the last "
+                        + str(tune_option.early_stopping)
+                        + " measurement trials."
                     )
                 break
 
