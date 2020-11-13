@@ -19,7 +19,6 @@
 
 import tvm
 from tvm import te
-from tvm.contrib import util
 
 
 def gemm_4x4_int8_int8_int32(M, N, K, unroll, in_type):
