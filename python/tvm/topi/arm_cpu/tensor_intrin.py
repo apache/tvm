@@ -313,10 +313,10 @@ def gemm_4x4_int8_int8_int32(M, N, K, unroll, in_type):
                     accumulation_loop(M, N, ins, acc, i)
 
             # Final accumulations
-            # acc[i] contains the four partial sums of a[i, 0:K].*b[0,0:K], let's call them (a,b,c,d)
-            # acc[i+1] contains the four partial sums of a[i, 0:K].*b[1,0:K], let's call them (e,f,g,h)
-            # acc[i+2] contains the four partial sums of a[i, 0:K].*b[2,0:K], let's call them (i,j,k,l)
-            # acc[i+3] contains the four partial sums of a[i, 0:K].*b[3,0:K], let's call them (m,n,o,p)
+            # acc[i] contains the partial sums of a[i, 0:K].*b[0,0:K], let's call them (a,b,c,d)
+            # acc[i+1] contains the partial sums of a[i, 0:K].*b[1,0:K], let's call them (e,f,g,h)
+            # acc[i+2] contains the partial sums of a[i, 0:K].*b[2,0:K], let's call them (i,j,k,l)
+            # acc[i+3] contains the partial sums of a[i, 0:K].*b[3,0:K], let's call them (m,n,o,p)
 
             acc[0] = addp(acc[0], acc[1])  # (a+b, c+d, e+f, g+h)
             acc[1] = addp(acc[2], acc[3])  # (i+j, k+l, m+n, o+p)
