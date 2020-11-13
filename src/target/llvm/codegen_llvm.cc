@@ -26,13 +26,17 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/tir/op.h>
 
 #include <algorithm>
 
+#include "llvm/Support/raw_os_ostream.h"
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
+#include "../func_registry_generator.h"
 #include "codegen_cpu.h"
+#include "codegen_params.h"
 namespace tvm {
 namespace codegen {
 

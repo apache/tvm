@@ -22,6 +22,7 @@
  * \brief Code generation for TVM's graph runtime.
  */
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/expr.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/transform.h>
@@ -30,6 +31,7 @@
 
 #include <memory>
 
+#include "../../target/func_registry_generator.h"
 #include "../../target/source/codegen_source_base.h"
 #include "compile_engine.h"
 #include "utils.h"
@@ -84,6 +86,17 @@ struct GraphCodegen {
       // Implicit cast from runtime::String to std::string
       std::string key = expr;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
+    }
+    return ret;
+  }
+
+  std::unordered_map<std::string, int64_t> GetParamIds() {
+    std::unordered_map<std::string, int64_t> ret;
+    auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
+    for (const auto& expr : names) {
+      // Implicit cast from runtime::String to std::string
+      std::string key = expr;
+      ret[key] = CallFunc<int64_t>("get_param_id", key);
     }
     return ret;
   }
@@ -474,14 +487,6 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
-      Target target_host = GetTargetHost();
-
-      // If no target_host has been set, we choose a default one, which is
-      // llvm if "codegen.LLVMModuleCreate" is accessible.
-      const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
-      if (!target_host.defined())
-        target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
-
       if (target_host.defined() && target_host->kind->name == "llvm") {
         // If we can decide the target is LLVM, we then create an empty LLVM module.
         ret_.mod = (*pf)(target_host->str(), "empty_module");

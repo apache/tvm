@@ -56,7 +56,7 @@ struct LoweredOutput {
   std::string graph_json;
   Map<String, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
 };
 
 /*! \brief Node types */
@@ -203,7 +203,11 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     GetJSON(&writer);
     LoweredOutput ret;
     ret.graph_json = os.str();
-    ret.params = params_;
+    ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
+    for (auto param : params_) {
+      ret.params.emplace(
+        std::make_pair(param.first, std::make_pair(int(param_storage_ids_[param.first]), param.second)));
+    }
 
     for (auto& kv : lowered_funcs_) {
       if (ret.lowered_funcs.count(kv.first) == 0) {
@@ -312,9 +316,12 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     Expr expr = GetRef<Expr>(op);
     size_t index = params_.size();
     std::string name = "p" + std::to_string(index);
-    params_[name] = op->data;
     auto node = GraphInputNode::make_node_ptr(name, GraphAttrs());
-    return AddNode(node, expr);
+    auto to_return = AddNode(node, expr);
+    CHECK_EQ(to_return.size(), 1) << "Expected exactly 1 parameter node created";
+    param_storage_ids_[name] = nodes_.size() - 1;
+    params_[name] = op->data;
+    return to_return;
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const TupleNode* op) override {
@@ -531,8 +538,14 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
   TargetsMap targets_;
-  /*! \brief params */
+  /*!
+   * \brief parameters (i.e. ConstantNodes found in the graph).
+   * These are take as inputs to the GraphRuntime.
+   * Maps param name to a pair of storage_id and NDArray. At runtime, the storage_id can be
+   * used to lookup the parameter.
+   */
   std::unordered_map<std::string, runtime::NDArray> params_;
+  std::unordered_map<std::string, int64_t> param_storage_ids_;
   /*! \brief plan memory of device result */
   Map<Expr, Array<IntegerArray>> storage_device_map_;
   /*! \brief lowered funcs */
@@ -582,7 +595,13 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         String key = args[0];
         ICHECK_GT(this->output_.params.count(key), 0);
-        *rv = this->output_.params[key];
+        *rv = this->output_.params[key].second;
+      });
+    } else if (name == "get_param_id") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        String key = args[0];
+        ICHECK_GT(this->output_.params.count(key), 0);
+        *rv = this->output_.params[key].first;
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
