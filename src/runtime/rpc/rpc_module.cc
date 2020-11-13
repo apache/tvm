@@ -476,8 +476,8 @@ TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
     .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx,
                        PackedFunc deleter) -> NDArray {
       return NDArrayFromRemoteOpaqueHandle(
-          RPCModuleGetSession(mod), remote_array, template_tensor, ctx,
-          [](Object* context) {}, nullptr);
+          RPCModuleGetSession(mod), remote_array, template_tensor, ctx, [](Object* context) {},
+          nullptr);
     });
 
 }  // namespace runtime
