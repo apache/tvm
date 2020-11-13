@@ -250,6 +250,8 @@ class TaskScheduler:
         """
         # init members
         self.tune_option = tune_option
+        early_stopping = 1e20 if tune_option.early_stopping < 0 else tune_option.early_stopping
+
         self.measurer = ProgramMeasurer(
             tune_option.builder,
             tune_option.runner,
@@ -359,13 +361,13 @@ class TaskScheduler:
             if self.cur_score < self.best_score:
                 self.best_score = self.cur_score
                 self.best_ct = self.ct
-            elif self.ct - self.best_ct >= tune_option.early_stopping and all(
+            elif self.ct - self.best_ct >= early_stopping and all(
                 cost < 1e9 for cost in self.best_costs
             ):
                 if self.tune_option.verbose >= 1:
                     print(
                         "Stop early since no performance improvement in the last "
-                        + str(tune_option.early_stopping)
+                        + str(early_stopping)
                         + " measurement trials."
                     )
                 break
