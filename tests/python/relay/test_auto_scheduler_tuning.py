@@ -24,8 +24,6 @@ from test_auto_scheduler_task_extraction import get_network
 
 
 def tune_network(network, target):
-    auto_scheduler.enable_relay_integration()
-
     # Extract tasks
     mod, params = get_network(network)
     target = tvm.target.Target(target)

@@ -218,12 +218,11 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
 
             # register auto-scheduler implementations
             if judge_winograd_auto_scheduler:
-                strategy.add_auto_scheduler(
-                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc), name="conv2d_nhwc.winograd"
-                )
-            else:
-                strategy.add_auto_scheduler(
-                    wrap_compute_conv2d(topi.nn.conv2d_nhwc), name="conv2d_nhwc"
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
+                    wrap_topi_schedule(tvm.te.create_schedule),
+                    name="conv2d_nhwc.winograd",
+                    plevel=10,
                 )
 
         elif layout == "HWNC":
@@ -444,12 +443,6 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
                 ),
                 name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda",
             )
-
-        # register auto-scheduler implementations
-        strategy.add_auto_scheduler(
-            wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
-            name="conv2d_nhwc_winograd_without_weight_transform",
-        )
     else:
         raise RuntimeError(
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)

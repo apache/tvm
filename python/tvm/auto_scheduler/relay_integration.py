@@ -45,7 +45,9 @@ def call_all_topi_funcs(mod, params, target):
         grc.codegen(opt_mod["main"])
 
 
-def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
+def extract_tasks(
+    mod, params, target, include_simple_tasks=False, target_host=None, hardware_params=None
+):
     """Extract tuning tasks from a relay program.
 
     Parameters
@@ -54,6 +56,8 @@ def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
         The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
+    include_simple_tasks: bool
+        Whether to extract simple tasks that do not include complicated ops.
     target: Union[tvm.target.Target, str]
         The compilation target
     target_host: Optional[Union[tvm.target.Target, str]]
@@ -77,7 +81,9 @@ def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
         target_host = tvm.target.Target(target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
-    env = TracingEnvironment(TracingMode.EXTRACT_TASK)
+    env = TracingEnvironment(
+        TracingMode.EXTRACT_TASK if include_simple_tasks else TracingMode.EXTRACT_COMPLEX_TASK_ONLY
+    )
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
@@ -109,7 +115,8 @@ class TracingMode:
     """Two modes for tracing"""
 
     EXTRACT_TASK = 0  # trace all topi calls to extract tasks
-    PREPARE_LAYOUT_REWRITE = 1  # trace topi calls to prepare layout rewrite
+    EXTRACT_COMPLEX_TASK_ONLY = 1  # same as EXTRACT_TASK but ignore the task without complex ops
+    PREPARE_LAYOUT_REWRITE = 2  # trace topi calls to prepare layout rewrite
 
 
 class TracingEnvironment:
@@ -182,7 +189,7 @@ def traverse_to_get_io_tensors(outs):
 
 
 @tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
-def auto_schedule_topi(outs):
+def auto_schedule_topi(outs, has_complex_op):
     """Use auto-scheduler to schedule any topi compute function.
 
     Note: This is used internally for relay integration. Do
@@ -192,6 +199,8 @@ def auto_schedule_topi(outs):
     ----------
     outs: List[Tensor]
         The output tensors of topi compute functions
+    has_complex_op: bool
+        Whether the topi compute function includes at least one complex op.
 
     Returns
     -------
@@ -217,10 +226,12 @@ def auto_schedule_topi(outs):
 
         dag = ComputeDAG(io_tensors)
         schedule, _ = dag.apply_steps_from_state(state)
-    elif env.tracing_mode == TracingMode.EXTRACT_TASK:  # in the task extraction mode
-        engine = relay.backend.compile_engine.get()
-        ccache_key = engine.get_current_ccache_key()
-        env.add_workload_key(key, ccache_key)
+    elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
+        # in the task extraction mode
+        if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
+            engine = relay.backend.compile_engine.get()
+            ccache_key = engine.get_current_ccache_key()
+            env.add_workload_key(key, ccache_key)
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # todo(merrymercy, minminsun): port layout rewrite

@@ -287,7 +287,6 @@ def lower_call(call, inputs, target):
         best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
-        #   Currently, we just use the implementation with highest plevel
         best_impl, outputs = select_implementation(
             op, call.attrs, inputs, ret_type, target, use_autotvm=False
         )
