@@ -37,7 +37,6 @@
 namespace tvm {
 namespace runtime {
 
-
 // deleter of RPC remote array
 static void RemoteNDArrayDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
@@ -59,21 +58,22 @@ static void RemoteNDArrayDeleter(Object* obj) {
  *      needs to be explicitly deleted after the NDArray is freed, this function should do that.
  * \param deleter_ctx An opaque pointer passed to deleter to identify the tensor being deleted.
  */
-NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle, DLTensor* template_tensor, TVMContext ctx, ADTObj::FDeleter deleter, void* deleter_ctx) {
+NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
+                                      DLTensor* template_tensor, TVMContext ctx,
+                                      ADTObj::FDeleter deleter, void* deleter_ctx) {
   ICHECK_EQ(sess->table_index(), GetRPCSessionIndex(ctx))
-    << "The TVMContext given does not belong to the given session";
+      << "The TVMContext given does not belong to the given session";
   RemoteSpace* space = new RemoteSpace();
   space->sess = sess;
   space->data = handle;
   std::vector<int64_t> shape_vec{template_tensor->shape,
                                  template_tensor->shape + template_tensor->ndim};
-  NDArray::Container* data = new NDArray::Container(
-    static_cast<void*>(space), std::move(shape_vec), template_tensor->dtype, ctx);
+  NDArray::Container* data = new NDArray::Container(static_cast<void*>(space), std::move(shape_vec),
+                                                    template_tensor->dtype, ctx);
   data->manager_ctx = deleter_ctx;
   data->SetDeleter(deleter);
   return NDArray(GetObjectPtr<Object>(data));
 }
-
 
 /*!
  * \brief A wrapped remote function as a PackedFunc.
@@ -284,7 +284,9 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
     ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
     void* nd_handle = args[2];
-    *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor, AddRPCSessionMask(tensor->ctx, sess_->table_index()), RemoteNDArrayDeleter, nd_handle);
+    *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
+                                        AddRPCSessionMask(tensor->ctx, sess_->table_index()),
+                                        RemoteNDArrayDeleter, nd_handle);
   } else {
     ICHECK_EQ(args.size(), 2);
     *rv = args[1];
@@ -470,20 +472,23 @@ TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue*
   *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
 });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle").set_body_typed(
-  [](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx, PackedFunc deleter) -> NDArray {
-//    auto func = new std::function<void()>([deleter]() -> void {
-//      deleter();
-//    });
-    return NDArrayFromRemoteOpaqueHandle(
-      RPCModuleGetSession(mod), remote_array, template_tensor, ctx,
-      [](Object* context) {
-//        auto container = static_cast<NDArray::Container*>(context);
-//        auto cb_func = reinterpret_cast<std::function<void()>*>(container->manager_ctx);
-//        (*cb_func)();
-//        delete cb_func;
-      }, nullptr);//(void*) func);
-  });
+TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
+    .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx,
+                       PackedFunc deleter) -> NDArray {
+      //    auto func = new std::function<void()>([deleter]() -> void {
+      //      deleter();
+      //    });
+      return NDArrayFromRemoteOpaqueHandle(
+          RPCModuleGetSession(mod), remote_array, template_tensor, ctx,
+          [](Object* context) {
+            //        auto container = static_cast<NDArray::Container*>(context);
+            //        auto cb_func =
+            //        reinterpret_cast<std::function<void()>*>(container->manager_ctx);
+            //        (*cb_func)();
+            //        delete cb_func;
+          },
+          nullptr);  //(void*) func);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

@@ -187,8 +187,8 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     int device_type;
     int param_data_entry;
     NDArray linked_param;
-//    PoolEntry(int s, int dev_type, void* pre_linked_param) :
-//        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
+    //    PoolEntry(int s, int dev_type, void* pre_linked_param) :
+    //        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
   // Node entry
   struct NodeEntry {
@@ -420,7 +420,6 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   std::vector<std::function<void()>> op_execs_;
   /*! \brief Linked parameter lookup function. */
   PackedFunc lookup_linked_param_;
-
 };
 
 std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg);

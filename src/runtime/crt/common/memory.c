@@ -229,8 +229,8 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
     vleak_size++;
   }
 #if TVM_CRT_DEBUG > 1
-  TVMLogf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%zu",
-          data, start, mgr->ptable.max_pages, npage, vleak_size, size);
+  TVMLogf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%zu", data,
+          start, mgr->ptable.max_pages, npage, vleak_size, size);
 #endif  // TVM_CRT_DEBUG
   return data;
 }

@@ -243,9 +243,7 @@ inline const char* DeviceName(int type) {
 /*!
  * \brief Return true if a TVMContext is owned by an RPC session.
  */
-inline bool IsRPCSessionContext(TVMContext ctx) {
-  return (ctx.device_type / kRPCSessMask) > 0;
-}
+inline bool IsRPCSessionContext(TVMContext ctx) { return (ctx.device_type / kRPCSessMask) > 0; }
 
 /*!
  * \brief Return the RPCSessTable index of the RPC Session that owns this context.
@@ -279,9 +277,9 @@ inline std::ostream& operator<<(std::ostream& os, DLContext ctx);
  */
 inline TVMContext AddRPCSessionMask(TVMContext ctx, int session_table_index) {
   CHECK(!IsRPCSessionContext(ctx))
-    << "AddRPCSessionMask: ctx already non-zero RPCSessionIndex: " << ctx;
-  ctx.device_type = static_cast<DLDeviceType>(
-    ctx.device_type | (kRPCSessMask * (session_table_index + 1)));
+      << "AddRPCSessionMask: ctx already non-zero RPCSessionIndex: " << ctx;
+  ctx.device_type =
+      static_cast<DLDeviceType>(ctx.device_type | (kRPCSessMask * (session_table_index + 1)));
   return ctx;
 }
 

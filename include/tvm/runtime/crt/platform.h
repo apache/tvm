@@ -53,8 +53,8 @@ void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code);
  * \param args extra arguments to be formatted.
  * \return number of bytes written.
  */
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes,
-                                const char* fmt, va_list args);
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -261,8 +261,8 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   TVMContext ctx = args[3];
   // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
   // params are present.
-  tvm::runtime::PackedFunc pf = mod.GetFunction(
-    ::tvm::runtime::symbol::tvm_lookup_linked_param, true);
+  tvm::runtime::PackedFunc pf =
+      mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
   if (pf == nullptr) {
     *rv = nullptr;
     return;
@@ -274,9 +274,8 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
     return;
   }
 
-  std::vector<int64_t> shape_vec{
-      template_tensor->shape,
-      template_tensor->shape + template_tensor->ndim};
+  std::vector<int64_t> shape_vec{template_tensor->shape,
+                                 template_tensor->shape + template_tensor->ndim};
 
   std::unique_ptr<NDArray::Container> container{new NDArray::Container(
       static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, ctx)};
@@ -296,7 +295,6 @@ std::string List2String(std::vector<int64_t> shape) {
   ss << "]";
   return ss.str();
 }
-
 
 void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
@@ -335,10 +333,10 @@ void GraphRuntime::SetupStorage() {
     TVMRetValue lookup_rv;
     {
       std::vector<int64_t> shape_vec{attrs_.shape[i].begin(), attrs_.shape[i].end()};
-      DLTensor template_tensor{
-        nullptr, TVMContext{kDLCPU, 0}, static_cast<int>(shape_vec.size()), vtype[i], shape_vec.data(), nullptr, 0};
-      lookup_rv = lookup_linked_param_(
-        module_, sid, &template_tensor, ctxs_[0]);
+      DLTensor template_tensor{nullptr,  TVMContext{kDLCPU, 0}, static_cast<int>(shape_vec.size()),
+                               vtype[i], shape_vec.data(),      nullptr,
+                               0};
+      lookup_rv = lookup_linked_param_(module_, sid, &template_tensor, ctxs_[0]);
     }
     if (lookup_rv.type_code() != kTVMNullptr) {
       pool_entry[sid].linked_param = lookup_rv;

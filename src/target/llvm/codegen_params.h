@@ -24,9 +24,10 @@
 #ifndef TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
 #define TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
 
-#include "llvm_common.h"
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/ndarray.h>
+
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
@@ -35,14 +36,11 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
 
 void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os);
 
-void LLVMCodeGenParams(llvm::LLVMContext* ctx,
-                       llvm::Module* module,
-                       int64_t storage_id_offset,
+void LLVMCodeGenParams(llvm::LLVMContext* ctx, llvm::Module* module, int64_t storage_id_offset,
                        ::tvm::runtime::Array<String> param_names,
                        ::tvm::runtime::Array<runtime::NDArray> params_by_sid);
-
 
 }  // namespace codegen
 }  // namespace tvm
 
-#endif // TVM_TARGET_LLVM_CODEGEN_PARAMS_H_
+#endif  // TVM_TARGET_LLVM_CODEGEN_PARAMS_H_

@@ -206,11 +206,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     for (auto kv : mod->functions) {
       if (could_have_linked_params &&
           kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-        Map<String,ObjectRef> attrs_dict = Downcast<Map<String,ObjectRef>>(kv.second->attrs->dict);
+        Map<String, ObjectRef> attrs_dict =
+            Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
         CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
-          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
-        linked_params = Downcast<Map<String,LinkedParam>>(
-          attrs_dict[::tvm::tir::attr::kLinkedParams]);
+            << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+        linked_params =
+            Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
         found_linked_params = true;
         continue;
       }

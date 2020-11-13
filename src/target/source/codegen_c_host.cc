@@ -23,8 +23,8 @@
 #include "codegen_c_host.h"
 
 #include <tvm/runtime/container.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/crt/error_codes.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -67,8 +67,7 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
          << "int* out_ret_tcode, void* resource_handle) {\n";
   ICHECK_EQ(GetUniqueName(tvm::runtime::symbol::tvm_lookup_linked_param),
             tvm::runtime::symbol::tvm_lookup_linked_param)
-    << "builtin PackedFunc name already taken: "
-    << tvm::runtime::symbol::tvm_lookup_linked_param;
+      << "builtin PackedFunc name already taken: " << tvm::runtime::symbol::tvm_lookup_linked_param;
   stream << "    switch (((int64_t*) args)[0]) {\n"
          << "    default:\n"
          << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
@@ -86,15 +85,16 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
       num_elements *= dim;
     }
     PrintType(kv.second->param.DataType(), decl_stream);
-    decl_stream << " " << ::tvm::runtime::symbol::tvm_param_prefix
-                << kv.first << "[" << num_elements << "] = {\n";
+    decl_stream << " " << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << "["
+                << num_elements << "] = {\n";
     NDArrayDataToC(kv.second->param, 4, decl_stream);
     decl_stream << "};\n"
                 << "#ifdef __cplusplus\n"
                 << "}  // extern \"C\"\n"
                 << "#endif\n";
     stream << "    case " << kv.second->id << ":\n"
-           << "        ((uint64_t*)out_ret_value)[0] = (uint64_t) (uintptr_t) " << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
+           << "        ((uint64_t*)out_ret_value)[0] = (uint64_t) (uintptr_t) "
+           << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
            << "        out_ret_tcode[0] = " << kTVMOpaqueHandle << ";\n"
            << "        return 0;\n";
   }
@@ -352,17 +352,17 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts, target->str());
 
-  Map<String,LinkedParam> linked_params;
+  Map<String, LinkedParam> linked_params;
   bool found_linked_params = false;
   bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
   for (auto kv : mod->functions) {
     if (could_have_linked_params &&
         kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-      Map<String,ObjectRef> attrs_dict = Downcast<Map<String,ObjectRef>>(kv.second->attrs->dict);
+      Map<String, ObjectRef> attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
       CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
-        << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
-      linked_params = Downcast<Map<String,LinkedParam>>(
-        attrs_dict[::tvm::tir::attr::kLinkedParams]);
+          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+      linked_params =
+          Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
       found_linked_params = true;
       continue;
     }

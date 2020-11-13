@@ -544,9 +544,7 @@ uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint
  * \param runtime The graph runtime.
  * \return the number of input tensors allocated.
  */
-int TVMGraphRuntime_GetNumInputs(TVMGraphRuntime* runtime) {
-  return runtime->input_nodes_count;
-}
+int TVMGraphRuntime_GetNumInputs(TVMGraphRuntime* runtime) { return runtime->input_nodes_count; }
 
 /*!
  * \brief Get the input index given the name of input.
@@ -689,9 +687,7 @@ void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
  * \param runtime The graph runtime.
  * \return the number of output tensors allocated.
  */
-int TVMGraphRuntime_GetNumOutputs(TVMGraphRuntime* runtime) {
-  return runtime->outputs_count;
-}
+int TVMGraphRuntime_GetNumOutputs(TVMGraphRuntime* runtime) { return runtime->outputs_count; }
 
 int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out) {
   int status = 0;
@@ -721,7 +717,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     temp_args.tcodes[0] = kTVMArgInt;
     temp_args.values_count = 1;
     lookup_linked_param_valid =
-      (TVMPackedFunc_InitModuleFunc(&lookup_linked_param, runtime->module_handle, "_lookup_linked_param", &temp_args) == 0);
+        (TVMPackedFunc_InitModuleFunc(&lookup_linked_param, runtime->module_handle,
+                                      "_lookup_linked_param", &temp_args) == 0);
   }
 
   // Grab saved optimization plan from graph.
@@ -757,9 +754,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
 
   // Allocate the space.
   for (idx = 0; idx < pool_entry_count; idx++) {
-    runtime->storage_pool =
-        vrealloc(runtime->storage_pool,
-                 sizeof(TVMGraphRuntimeStorageEntry) * (runtime->storage_pool_count + 1));
+    runtime->storage_pool = vrealloc(runtime->storage_pool, sizeof(TVMGraphRuntimeStorageEntry) *
+                                                                (runtime->storage_pool_count + 1));
     TVMGraphRuntimePoolEntry pit = pool_entry[idx];
     TVMContext ctx = runtime->ctxs[0];
     uint8_t did_find_linked_param = 0;
@@ -787,7 +783,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
       DLDataType dtype = {kDLFloat, 32, 1};
       shape[0] = (pit.size + 3) / 4;
       runtime->storage_pool[runtime->storage_pool_count].is_linked_param = 0;
-      runtime->storage_pool[runtime->storage_pool_count].array = TVMNDArray_Empty(1, shape, dtype, ctx);
+      runtime->storage_pool[runtime->storage_pool_count].array =
+          TVMNDArray_Empty(1, shape, dtype, ctx);
       CHECK_NE(runtime->storage_pool[runtime->storage_pool_count].array.dl_tensor.data, 0,
                "fail to create storage_pool with idx=%d\n", idx);
     }
