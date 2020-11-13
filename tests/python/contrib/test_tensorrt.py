@@ -23,7 +23,7 @@ import tvm
 import tvm.relay.testing
 from tvm import relay
 from tvm.relay.op.contrib import tensorrt
-from tvm.contrib import graph_runtime
+from tvm.contrib import graph_runtime, utils
 from tvm.runtime.vm import VirtualMachine
 from tvm.relay import Any, GlobalVar, transform
 from mxnet.gluon.model_zoo.vision import get_model
@@ -233,14 +233,17 @@ def test_tensorrt_not_compatible():
                 results = exec.evaluate()(x_data)
 
 
-def test_tensorrt_serialize_graph_runtime(data_shape=(1, 3, 224, 224), data_type="float32"):
+def test_tensorrt_serialize_graph_runtime():
     if skip_codegen_test():
         return
 
+    data_shape = (1, 3, 224, 224)
+    data_type = "float32"
     i_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     block = get_model("resnet18_v1", pretrained=True)
     mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype=data_type)
     mod, config = tensorrt.partition_for_tensorrt(mod)
+    tmpdir = utils.tempdir()
 
     def compile_graph(mod, params):
         with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
@@ -257,19 +260,19 @@ def test_tensorrt_serialize_graph_runtime(data_shape=(1, 3, 224, 224), data_type
 
     def save_graph(graph, lib, params):
         # Serialize
-        with open("compiled.json", "w") as f_graph_json:
+        with open(tmpdir.relpath("compiled.json"), "w") as f_graph_json:
             f_graph_json.write(graph)
-        with open("compiled.params", "wb") as f_params:
+        with open(tmpdir.relpath("compiled.params"), "wb") as f_params:
             f_params.write(params)
-        lib.export_library("compiled.so")
+        lib.export_library(tmpdir.relpath("compiled.so"))
 
     def load_graph():
         # Deserialize
-        with open("compiled.json", "r") as f_graph_json:
+        with open(tmpdir.relpath("compiled.json"), "r") as f_graph_json:
             graph = f_graph_json.read()
-        with open("compiled.params", "rb") as f_params:
+        with open(tmpdir.relpath("compiled.params"), "rb") as f_params:
             params = bytearray(f_params.read())
-        lib = tvm.runtime.load_module("compiled.so")
+        lib = tvm.runtime.load_module(tmpdir.relpath("compiled.so"))
         return graph, lib, params
 
     # Test serialization with graph runtime
@@ -284,14 +287,17 @@ def test_tensorrt_serialize_graph_runtime(data_shape=(1, 3, 224, 224), data_type
         assert_result_dict_holds(result_dict)
 
 
-def test_tensorrt_serialize_vm(data_shape=(1, 3, 224, 224), data_type="float32"):
+def test_tensorrt_serialize_vm():
     if skip_codegen_test():
         return
 
+    data_shape = (1, 3, 224, 224)
+    data_type = "float32"
     i_data = np.random.uniform(0, 1, data_shape).astype(data_type)
     block = get_model("resnet18_v1", pretrained=True)
     mod, params = relay.frontend.from_mxnet(block, shape={"data": data_shape}, dtype=data_type)
     mod, config = tensorrt.partition_for_tensorrt(mod)
+    tmpdir = utils.tempdir()
 
     def compile_vm(mod, params):
         with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
@@ -307,13 +313,13 @@ def test_tensorrt_serialize_vm(data_shape=(1, 3, 224, 224), data_type="float32")
 
     def save_vm(code, lib):
         # save and load the code and lib file.
-        lib.export_library("path_lib.so")
-        with open("path_code.ro", "wb") as fo:
+        lib.export_library(tmpdir.relpath("path_lib.so"))
+        with open(tmpdir.relpath("path_code.ro"), "wb") as fo:
             fo.write(code)
 
     def load_vm():
-        lib = tvm.runtime.load_module("path_lib.so")
-        code = bytearray(open("path_code.ro", "rb").read())
+        lib = tvm.runtime.load_module(tmpdir.relpath("path_lib.so"))
+        code = bytearray(open(tmpdir.relpath("path_code.ro"), "rb").read())
         return lib, code
 
     # Test serialization with VM
@@ -972,16 +978,19 @@ def test_tensorrt_integration():
     test_densenet121()
 
 
-def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
+def test_dynamic_offload():
     """
     This test checks for proper dynamic offloading of relay graphs. An addition between
     the outputs of two conv2d's is performed, one of them having all static args whereas
     the other has a arg with dynamic shape. It is expected for the TRT partitioner to
     offload the conv2d with dynamic arg to TVM while running the other in TRT.
     """
-    
+
     if skip_codegen_test():
         return
+
+    data_shape = (1, 32, 8, 8)
+    k_shape = (1, 32, 3, 3)
 
     x = relay.var("x", shape=(data_shape[0], data_shape[1], Any(), Any()), dtype="float32")
     y = relay.var("y", shape=(data_shape), dtype="float32")
@@ -1029,44 +1038,7 @@ def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
     # Get the expected relay graph and compare
     mod_exp = get_expected()
     tvm.ir.assert_structural_equal(mod_trt, mod_exp, map_free_vars=True)
-    return
 
 
 if __name__ == "__main__":
-    test_tensorrt_not_compatible()
-    test_tensorrt_simple()
-    test_tensorrt_simple_cpu_io()
-    test_tensorrt_serialize_graph_runtime()
-    test_tensorrt_serialize_vm()
-    test_tensorrt_integration()
-    test_dynamic_offload()
-    test_conv2d()
-    test_conv2d_nhwc()
-    test_conv2d_weights_const()
-    test_conv2d_weights_transposed()
-    test_dense()
-    test_bias_add()
-    test_pool2d()
-    test_global_pool2d()
-    test_batch_flatten()
-    test_expand_dims()
-    test_squeeze()
-    test_concatenate()
-    test_conv2d_transpose()
-    test_reshape()
-    test_transpose()
-    test_float_const()
-    test_pad()
-    test_softmax()
-    test_batch_norm()
-    test_unary()
-    test_clip()
-    test_leaky_relu()
-    test_binary()
-    test_reduce()
-    test_strided_slice()
-    test_adaptive_pool2d()
-    test_multiple_outputs()
-    test_conv3d()
-    test_pool3d()
-    test_conv3d_transpose()
+    pytest.main([__file__])

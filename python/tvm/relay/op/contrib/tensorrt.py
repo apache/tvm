@@ -208,8 +208,10 @@ def _register_external_op_helper(op_name, supported=True):
         op_name, lambda attrs, args, op_name: supported
     )
 
+
 def _register_external_dynamic_check_func(op_name):
     """Wrapper to check dynamic shapes inside any of the args in the op."""
+
     def _decorator_helper(checker):
         @tvm.ir.register_op_attr(op_name, "target.tensorrt")
         def _func_wrapper(expr):
@@ -218,8 +220,11 @@ def _register_external_dynamic_check_func(op_name):
             if check_dynamism(args, op_name):
                 return False
             return checker(expr)
+
         return _func_wrapper
+
     return _decorator_helper
+
 
 # Ops which are always supported
 _register_external_op_helper("nn.relu")
@@ -300,6 +305,7 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("add: bug in TRT with adding batched constants.")
         return False
     return True
+
 
 @_register_external_dynamic_check_func("nn.batch_norm")
 def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
@@ -783,8 +789,6 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("nn.conv3d_transpose: output padding is not supported.")
         return False
     return True
-
-
 
 
 def is_valid_subgraph(params, body):
