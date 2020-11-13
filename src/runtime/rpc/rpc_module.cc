@@ -475,19 +475,9 @@ TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue*
 TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
     .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx,
                        PackedFunc deleter) -> NDArray {
-      //    auto func = new std::function<void()>([deleter]() -> void {
-      //      deleter();
-      //    });
       return NDArrayFromRemoteOpaqueHandle(
           RPCModuleGetSession(mod), remote_array, template_tensor, ctx,
-          [](Object* context) {
-            //        auto container = static_cast<NDArray::Container*>(context);
-            //        auto cb_func =
-            //        reinterpret_cast<std::function<void()>*>(container->manager_ctx);
-            //        (*cb_func)();
-            //        delete cb_func;
-          },
-          nullptr);  //(void*) func);
+          [](Object* context) {}, nullptr);
     });
 
 }  // namespace runtime
