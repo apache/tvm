@@ -22,7 +22,7 @@ from . import _ffi_api
 from .. import relay
 from .base import *
 from .hardware import *
-from .topology import Topology
+from .topology import Topology, analyze_topology
 
 import tvm
 from tvm.tir import expr
@@ -670,4 +670,5 @@ def create_quantizer(graph, hardware, strategy):
     # check model hash
     model_hash = tvm.ir.structural_hash(graph)
     assert model_hash == strategy.model_hash
-    return Quantizer(graph, hardware, strategy.topology, strategy.bits, strategy.thresholds)
+    topology = analyze_topology(graph, hardware)
+    return Quantizer(graph, hardware, topology, strategy.bits, strategy.thresholds)

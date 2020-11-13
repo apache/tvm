@@ -67,9 +67,10 @@ def get_model(model_name):
     return mod, params
 
 def main():
-    val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
+    # val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
+    val_path = '/home/ziheng/datasets1/imagenet/rec/val.rec'
     if args.run_all:
-        models = ['resnet50_v1', 'inceptionv3', 'mobilenetv2_1.0', 'mobilenet1.0', 'resnet18_v1',
+        models = ['squeezenet1.1', 'resnet50_v1', 'inceptionv3', 'mobilenetv2_1.0', 'mobilenet1.0', 'resnet18_v1',
                   'vgg16', 'densenet161']
     else:
         models = [args.model]

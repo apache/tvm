@@ -24,6 +24,10 @@ target = 'llvm -mcpu=core-avx2'
 ctx = tvm.context(target)
 # target = 'cuda'
 # ctx = tvm.gpu(3)
+# best configuration for resnet18_v1
+"""
+bits = [6, 7, 16, 14, 4, 16, 7, 7, 16, 14, 4, 8, 8, 16, 13, 15, 16, 4, 7, 8, 16, 12, 4, 8, 8, 16, 14, 16, 16, 4, 8, 8, 15, 14, 8, 8, 16, 14, 4, 6, 8, 15, 13, 16, 16, 4, 8, 8, 16, 15, 4, 8, 8, 16, 14, 16, 16, 4, 8, 8, 16, 15, 8, 8, 16, 14, 4, 8, 7, 13, 11, 15, 16, 4, 7, 8, 14, 12, 4, 8, 8, 11, 9, 16, 14, 4, 7, 8, 15, 14, 8, 8, 16, 11, 4, 7, 8, 14, 11, 12, 11, 4, 8, 8, 12, 9, 4, 7, 8, 12, 9, 6, 7, 5]
+"""
 
 #####################
 # Dataset prepartions
@@ -65,9 +69,16 @@ def create_hardware():
     act_dtype = "int16"
     hardware.add_op_desc("add", OpDesc(in_dtypes="float32", out_dtypes="float32"))
     hardware.add_op_desc("add", OpDesc(in_dtypes=act_dtype, out_dtypes=act_dtype))
+    hardware.add_op_desc("concatenate", OpDesc(in_dtypes="float32", out_dtypes="float32"))
+    hardware.add_op_desc("concatenate", OpDesc(in_dtypes="int8", out_dtypes="int8"))
+    hardware.add_op_desc("concatenate", OpDesc(in_dtypes="int32", out_dtypes="int32"))
     hardware.add_op_desc("nn.conv2d", OpDesc(in_dtypes="int8", out_dtypes=act_dtype))
     hardware.add_op_desc("nn.relu", OpDesc(in_dtypes=act_dtype, out_dtypes=act_dtype))
+    hardware.add_op_desc("clip", OpDesc(in_dtypes=act_dtype, out_dtypes=act_dtype))
     hardware.add_op_desc("nn.max_pool2d", OpDesc(in_dtypes=act_dtype, out_dtypes=act_dtype))
+    hardware.add_op_desc("nn.dropout", OpDesc(in_dtypes="float32", out_dtypes="float32"))
+    hardware.add_op_desc("nn.avg_pool2d", OpDesc(in_dtypes="float32", out_dtypes="float32"))
+    hardware.add_op_desc("nn.global_avg_pool2d", OpDesc(in_dtypes="float32", out_dtypes="float32"))
     return hardware
 
 ###############################################################################
@@ -85,7 +96,7 @@ def main():
     # val_path = '/home/ubuntu/tensorflow_datasets/downloads/manual/imagenet2012/val.rec'
     val_path = '/home/ziheng/datasets1/imagenet/rec/val.rec'
     if args.run_all:
-        models = ['vgg16', 'densenet161']
+        models = ['resnet18_v1', 'squeezenet1.1']
     else:
         models = [args.model]
     for model_name in models:
@@ -101,13 +112,13 @@ def main():
         # Quantize
         calib_dataset = get_calibration_dataset(val_data, batch_fn, var_name='data')
         fp32_mod, params = get_model(model_name)
+        print(fp32_mod)
         qconfig = hago.qconfig(use_channel_quantize=is_per_channel,
                                round_scale_to_pot=False,
-                               log_file='search.log')
+                               log_file='strategy_{}.log'.format(model_name))
 
         hardware = create_hardware()
-        bits = [6, 7, 16, 14, 4, 16, 7, 7, 16, 14, 4, 8, 8, 16, 13, 15, 16, 4, 7, 8, 16, 12, 4, 8, 8, 16, 14, 16, 16, 4, 8, 8, 15, 14, 8, 8, 16, 14, 4, 6, 8, 15, 13, 16, 16, 4, 8, 8, 16, 15, 4, 8, 8, 16, 14, 16, 16, 4, 8, 8, 16, 15, 8, 8, 16, 14, 4, 8, 7, 13, 11, 15, 16, 4, 7, 8, 14, 12, 4, 8, 8, 11, 9, 16, 14, 4, 7, 8, 15, 14, 8, 8, 16, 11, 4, 7, 8, 14, 11, 12, 11, 4, 8, 8, 12, 9, 4, 7, 8, 12, 9, 6, 7, 5]
-        quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig, hardware, bits, target, ctx)
+        quantized_func = quantize_hago(fp32_mod, params, calib_dataset, qconfig, hardware, 'greedy', target, ctx)
         acc = eval_acc(quantized_func, val_data, batch_fn, args, var_name='data', target=target, ctx=ctx)
         channel_or_tensor = "per_channel" if is_per_channel else "per_tensor"
         print("quantized_accuracy", model_name, channel_or_tensor, acc, sep=',')

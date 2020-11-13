@@ -3,20 +3,21 @@ from __future__ import absolute_import
 import json
 from json import JSONEncoder
 from enum import IntEnum
-from .topology import Topology
 
-HAGO_LOG_VERSION = 0.11
+HAGO_LOG_VERSION = 0.1
 
 class Strategy(object):
-    def __init__(self, model_hash, topology, bits, thresholds):
+    def __init__(self, model_hash, bits, thresholds):
         self.model_hash = model_hash
-        self.topology = topology
         self.bits = bits
-        self.thresholds = thresholds
+        self.thresholds = [float(th) for th in thresholds]
+
+    def to_json(self):
+        json_dict = self.__dict__.copy()
+        return json_dict
 
     def __str__(self):
         return 'Strategy(model_hash=' + str(self.model_hash) + \
-                ', topology=' + str(self.topology) + \
                 ', bits=' + str(self.bits) + \
                 ', thresholds=' + str(self.thresholds) + ')'
 
@@ -42,6 +43,10 @@ class MeasureResult(object):
         self.accuracy = accuracy
         self.kl_distance = kl_distance
 
+    def to_json(self):
+        json_dict = self.__dict__.copy()
+        return json_dict
+
     def __str__(self):
         keys = self.__dict__.keys()
         pairs = [key + '=' + str(getattr(self, key)) for key in keys]
@@ -52,6 +57,10 @@ class Measure(object):
         self.version = HAGO_LOG_VERSION
         self.strategy = strategy
         self.result = result
+
+    def to_json(self):
+        json_dict = self.__dict__.copy()
+        return json_dict
 
     def __str__(self):
         return 'Measure(version=' + str(self.version) + \
@@ -72,36 +81,28 @@ def best_measure(measures, kind):
 def serialize(obj):
     class Encoder(JSONEncoder):
         def default(self, obj):
-            print('serialize: {}'.format(obj))
-            if hasattr(obj, '__dict__'):
-                return obj.__dict__
+            if hasattr(obj, 'to_json'):
+                return obj.to_json()
             return json.JSONEncoder.default(self, obj)
-    return json.dumps(str(obj), cls=Encoder)
+    return json.dumps(obj, cls=Encoder, sort_keys=True)
 
 
 def deserialize(json_str):
-    def decode_topology(obj):
-        node_conds = obj['node_conds']
-        edge_conds = obj['edge_conds']
-        return Topology(node_conds, edge_conds)
-
     def decode_strategy(obj):
         model_hash = obj['model_hash']
-        topology = decode_topology(obj['topology'])
         bits = obj['bits']
         thresholds = obj['thresholds']
-        return Strategy(model_hash, topology, bits, thresholds)
+        return Strategy(model_hash, bits, thresholds)
     
     def decode_result(obj):
-        sim_acc = obj['accuracy']
+        accuracy = obj['accuracy']
         kl_distance = obj['kl_distance']
         return MeasureResult(accuracy, kl_distance)
     
     json_data = json.loads(json_str)
-    measure = {}
-    measure['strategy'] = decode_strategy(json_data['strategy'])
-    measure['result'] = decode_result(json_data['result'])
-    return measure
+    strategy = decode_strategy(json_data['strategy'])
+    result = decode_result(json_data['result'])
+    return Measure(strategy, result)
 
 
 def load_from_file(fname):
@@ -117,7 +118,7 @@ def load_from_file(fname):
 def pick_best(fname, key):
     records = load_from_file(fname)
     records.sort(key=lambda rec: getattr(rec['result'], key))
-    if key in ['sim_acc', 'quant_acc']:
+    if key in ['accuracy']:
         return records[-1]
     elif key in ['kl_divergence']:
         return records[0]
