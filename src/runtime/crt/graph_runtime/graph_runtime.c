@@ -765,10 +765,13 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     uint8_t did_find_linked_param = 0;
     if (lookup_linked_param_valid) {
       lookup_linked_param.args.values[0].v_int64 = idx;
-      if (lookup_linked_param.Call(&lookup_linked_param) == 0) {
+      CHECK_EQ(lookup_linked_param.Call(&lookup_linked_param), 0, "lookup_linked_param");
+
+      void* linked_param_data = lookup_linked_param.ret_value.values[0].v_handle;
+      if (linked_param_data != NULL) {
         runtime->storage_pool[runtime->storage_pool_count].is_linked_param = 1;
         DLTensor* tensor = &runtime->storage_pool[runtime->storage_pool_count].array.dl_tensor;
-        tensor->data = lookup_linked_param.ret_value.values[0].v_handle;
+        tensor->data = linked_param_data;
         tensor->ctx = ctx;
         tensor->ndim = attrs->ndim[pit.entry_id];
         tensor->shape = attrs->shape + idx * TVM_CRT_MAX_NDIM;

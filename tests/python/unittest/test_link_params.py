@@ -333,7 +333,6 @@ def test_c_link_params():
 def test_crt_link_params():
     import tvm.micro
 
-
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype)
@@ -395,4 +394,4 @@ def test_crt_link_params():
 
 
 if __name__ == '__main__':
-  sys.exit(pytest.main(sys.argv[1:]))
+  sys.exit(pytest.main([__file__] + sys.argv[1:]))

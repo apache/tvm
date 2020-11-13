@@ -257,7 +257,7 @@ void GraphRuntime::PreAllocatedDLTensorDeleter(DLManagedTensor* tensor) {
 void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   Module mod = args[0];
   int64_t storage_id = args[1];
-  NDArray template_tensor = args[2];
+  DLTensor* template_tensor = args[2];
   TVMContext ctx = args[3];
   // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
   // params are present.
@@ -274,8 +274,12 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
     return;
   }
 
+  std::vector<int64_t> shape_vec{
+      template_tensor->shape,
+      template_tensor->shape + template_tensor->ndim};
+
   std::unique_ptr<NDArray::Container> container{new NDArray::Container(
-      static_cast<void*>(opaque_handle), template_tensor.Shape(), template_tensor.DataType(), ctx)};
+      static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, ctx)};
   *rv = NDArray(GetObjectPtr<Object>(container.release()));
 }
 
