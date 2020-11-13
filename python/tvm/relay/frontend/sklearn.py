@@ -32,7 +32,7 @@ def _SimpleImputer(op, inexpr, dshape, dtype, columns=None):
     Scikit-Learn Transformer:
     Imputation transformer for completing missing values.
     """
-    boolean_mask = _op.isnan(inexpr)
+    boolean_mask = _op.logical_or(_op.isnan(inexpr), _op.isinf(inexpr))
     fill_col = _op.const(np.array(op.statistics_, dtype=dtype))
     input_shape = _op.shape_of(inexpr)
     reps = _op.take(input_shape, _op.const([0]))
@@ -56,11 +56,21 @@ def _RobustImputer(op, inexpr, dshape, dtype, columns=None):
         column_indices = _op.const(columns)
         inexpr = _op.take(inexpr, indices=column_indices, axis=1)
 
-    if op.mask_function is not None:
-        inf_mask = _op.isinf(inexpr)
-        nan_val = _op.full_like(inexpr, _op.const(np.array(np.nan, dtype=dtype)))
-        inexpr = _op.where(inf_mask, nan_val, inexpr)
     ret = _SimpleImputer(op.simple_imputer_, inexpr, dshape, dtype, columns)
+
+    return ret
+
+
+def _RobustMissingIndicator(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Imputation transformer for completing missing values with multi-column support.
+    """
+    if columns:
+        column_indices = _op.const(columns)
+        inexpr = _op.take(inexpr, indices=column_indices, axis=1)
+
+    ret = _op.logical_or(_op.isnan(inexpr), _op.isinf(inexpr))
 
     return ret
 
@@ -102,6 +112,28 @@ def _RobustStandardScaler(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
+def _FeatureUnion(op, inexpr, dshape, dtype, func_name, columns=None):
+    """
+    Scikit-Learn Pipeline:
+    Concatenates results of multiple transformer objects.
+    """
+    out = []
+    for _, mod in op.transformer_list:
+        out.append(sklearn_op_to_relay(mod, inexpr, dshape, dtype, func_name, None))
+
+    return _op.concatenate(out, axis=1)
+
+
+def _Pipeline(op, inexpr, dshape, dtype, func_name, columns=None):
+    """
+    Scikit-Learn Pipeline:
+    Pipeline of transforms with a final estimator.
+    """
+    for _, mod in op.steps:
+        inexpr = sklearn_op_to_relay(mod, inexpr, dshape, dtype, func_name, None)
+    return inexpr
+
+
 def _ColumnTransformer(op, inexpr, dshape, dtype, func_name, columns=None):
     """
     Scikit-Learn Compose:
@@ -109,9 +141,11 @@ def _ColumnTransformer(op, inexpr, dshape, dtype, func_name, columns=None):
     """
     out = []
     for _, pipe, cols in op.transformers_:
+        if pipe == "drop":
+            continue
         mod = pipe.steps[0][1]
         op_type = column_transformer_op_types[type(mod).__name__]
-        out.append(sklearn_op_to_relay(mod, inexpr[op_type], dshape, dtype, func_name, cols))
+        out.append(sklearn_op_to_relay(pipe, inexpr[op_type], dshape, dtype, func_name, cols))
 
     return _op.concatenate(out, axis=1)
 
@@ -292,7 +326,13 @@ def _RobustPCA(op, inexpr, dshape, dtype, columns=None):
     PCA transformation with existing eigen vector.
     """
     eigvec = _op.const(np.array(op.robust_pca_.components_, dtype))
+
+    if type(op.robust_pca_).__name__ == "PCA":
+        mean = _op.const(np.array(op.robust_pca_.mean_, dtype))
+        inexpr = _op.subtract(inexpr, mean)
+
     ret = _op.nn.dense(inexpr, eigvec)
+
     return ret
 
 
@@ -307,7 +347,10 @@ _convert_map = {
     "RobustOrdinalEncoder": {"transform": _RobustOrdinalEncoder},
     "KBinsDiscretizer": {"transform": _KBinsDiscretizer},
     "TfidfVectorizer": {"transform": _TfidfVectorizer},
+    "RobustMissingIndicator": {"transform": _RobustMissingIndicator},
     "RobustPCA": {"transform": _RobustPCA},
+    "FeatureUnion": {"transform": _FeatureUnion},
+    "Pipeline": {"transform": _Pipeline},
 }
 
 INPUT_FLOAT = 0
@@ -315,6 +358,9 @@ INPUT_STRING = 1
 
 column_transformer_op_types = {
     "RobustImputer": INPUT_FLOAT,
+    "RobustMissingIndicator": INPUT_FLOAT,
+    "FeatureUnion": INPUT_FLOAT,
+    "RobustStandardScaler": INPUT_FLOAT,
     "ThresholdOneHotEncoder": INPUT_STRING,
 }
 
@@ -334,7 +380,7 @@ def sklearn_op_to_relay(op, inexpr, dshape, dtype, func_name, columns=None):
             )
         )
 
-    if classname == "ColumnTransformer":
+    if classname in ["ColumnTransformer", "Pipeline", "FeatureUnion"]:
         return _convert_map[classname][func_name](op, inexpr, dshape, dtype, func_name, columns)
 
     return _convert_map[classname][func_name](op, inexpr, dshape, dtype, columns)

@@ -17,7 +17,7 @@
 import numpy as np
 
 from scipy.sparse import random as sparse_random
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA, TruncatedSVD
@@ -25,7 +25,7 @@ from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sagemaker_sklearn_extension.externals import AutoMLTransformer
 from sagemaker_sklearn_extension.externals import Header
-from sagemaker_sklearn_extension.impute import RobustImputer
+from sagemaker_sklearn_extension.impute import RobustImputer, RobustMissingIndicator
 from sagemaker_sklearn_extension.decomposition import RobustPCA
 from sagemaker_sklearn_extension.preprocessing import (
     RobustStandardScaler,
@@ -94,7 +94,7 @@ def test_simple_imputer():
 def test_robust_imputer():
     st_helper = SklearnTestHelper()
     data = np.array(
-        [[4, 5, np.nan, 7], [0, np.nan, 2, 3], [8, 9, 10, 11], [np.nan, 13, 14, 15]],
+        [[4, 5, np.nan, 7], [0, np.nan, 2, 3], [8, 9, 10, 11], [np.inf, 13, 14, 15]],
         dtype=np.float32,
     )
 
@@ -103,6 +103,20 @@ def test_robust_imputer():
 
     dshape = (relay.Any(), len(data[0]))
     _test_model_impl(st_helper, ri, dshape, data)
+
+
+def test_robust_missing_indicator():
+    st_helper = SklearnTestHelper()
+    data = np.array(
+        [[4, 5, np.nan, 7], [0, np.nan, 2, 3], [8, 9, 10, 11], [np.inf, 13, 14, 15]],
+        dtype=np.float32,
+    )
+
+    rmi = RobustMissingIndicator()
+    rmi.fit(data)
+
+    dshape = (relay.Any(), len(data[0]))
+    _test_model_impl(st_helper, rmi, dshape, data)
 
 
 def test_robust_scaler():
@@ -222,6 +236,27 @@ def test_automl():
     _test_model_impl(st_helper, automl_transformer, dshape, data, auto_ml=True)
 
 
+def test_feature_union():
+    st_helper = SklearnTestHelper()
+    rPCA = RobustPCA(n_components=2)
+    tSVD = RobustPCA(n_components=1)
+    tSVD.robust_pca_ = TruncatedSVD(n_components=1)
+    union = FeatureUnion([("pca", rPCA), ("svd", tSVD)])
+    data = np.array([[0.0, 1.0, 3], [2.0, 2.0, 5]], dtype=np.float32)
+    union.fit(data)
+    dshape = (relay.Any(), len(data[0]))
+    _test_model_impl(st_helper, union, dshape, data)
+
+
+def test_pipeline():
+    st_helper = SklearnTestHelper()
+    pipe = Pipeline([("imputer", RobustImputer()), ("scaler", RobustStandardScaler())])
+    data = np.array([[0.0, 1.0, 3], [2.0, 2.0, 5]], dtype=np.float32)
+    pipe.fit(data)
+    dshape = (relay.Any(), len(data[0]))
+    _test_model_impl(st_helper, pipe, dshape, data)
+
+
 def test_inverse_label_transformer():
     st_helper = SklearnTestHelper()
     rle = RobustLabelEncoder()
@@ -246,6 +281,7 @@ def test_inverse_label_transformer():
 if __name__ == "__main__":
     test_simple_imputer()
     test_robust_imputer()
+    test_robust_missing_indicator
     test_robust_scaler()
     test_threshold_onehot_encoder()
     test_robust_ordinal_encoder()
@@ -254,4 +290,5 @@ if __name__ == "__main__":
     # test_tfidf_vectorizer()
     test_pca()
     test_automl()
+    test_feature_union()
     test_inverse_label_transformer()
