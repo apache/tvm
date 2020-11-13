@@ -18,8 +18,6 @@ import numpy as np
 import time
 import pytest
 import itertools
-import mxnet as mx
-from mxnet.gluon.model_zoo.vision import get_model
 
 import tvm
 import tvm.relay.testing
@@ -113,6 +111,9 @@ def run_and_verify_func(config, target="cuda"):
 def run_and_verify_model(model):
     if skip_codegen_test():
         return
+
+    import mxnet as mx
+    from mxnet.gluon.model_zoo.vision import get_model
 
     def check_trt_used(mod):
         num_trt_subgraphs = sum(
@@ -237,6 +238,8 @@ def test_tensorrt_not_compatible():
 def test_tensorrt_serialize_graph_runtime():
     if skip_codegen_test():
         return
+    import mxnet as mx
+    from mxnet.gluon.model_zoo.vision import get_model
 
     data_shape = (1, 3, 224, 224)
     data_type = "float32"
@@ -291,6 +294,8 @@ def test_tensorrt_serialize_graph_runtime():
 def test_tensorrt_serialize_vm():
     if skip_codegen_test():
         return
+    import mxnet as mx
+    from mxnet.gluon.model_zoo.vision import get_model
 
     data_shape = (1, 3, 224, 224)
     data_type = "float32"
