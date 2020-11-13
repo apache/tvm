@@ -205,8 +205,8 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     ret.graph_json = os.str();
     ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
     for (auto param : params_) {
-      ret.params.emplace(
-        std::make_pair(param.first, std::make_pair(int(param_storage_ids_[param.first]), param.second)));
+      ret.params.emplace(std::make_pair(
+          param.first, std::make_pair(int(param_storage_ids_[param.first]), param.second)));
     }
 
     for (auto& kv : lowered_funcs_) {

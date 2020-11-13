@@ -200,7 +200,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     std::vector<PrimFunc> funcs;
     std::string entry_func;
-    Map<String,LinkedParam> linked_params;
+    Map<String, LinkedParam> linked_params;
     bool found_linked_params = false;
     bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
     for (auto kv : mod->functions) {

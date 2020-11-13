@@ -25,10 +25,10 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/runtime/ndarray.h>
 
 #include <string>
 
@@ -175,7 +175,6 @@ class LinkedParam : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
 };
-
 
 /*!
  * \brief PrimFunc specific attribute names.
