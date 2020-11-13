@@ -352,7 +352,7 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
    */
   void push_back(const ObjectRef item) {
     EnlargeBy(1);
-    SetItem(this->size_-1, item);
+    SetItem(this->size_ - 1, item);
   }
 
   /*!
