@@ -208,20 +208,18 @@ def _register_external_op_helper(op_name, supported=True):
         op_name, lambda attrs, args, op_name: supported
     )
 
-
-def _register_external_dynamic_check_func(op_name, checker):
+def _register_external_dynamic_check_func(op_name):
     """Wrapper to check dynamic shapes inside any of the args in the op."""
-
-    @tvm.ir.register_op_attr(op_name, "target.tensorrt")
-    def _func_wrapper(expr):
-        args = expr.args
-        # ops with dynamic shapes are offloaded to VM
-        if check_dynamism(args, op_name):
-            return False
-        return checker(expr)
-
-    return _func_wrapper
-
+    def _decorator_helper(checker):
+        @tvm.ir.register_op_attr(op_name, "target.tensorrt")
+        def _func_wrapper(expr):
+            args = expr.args
+            # ops with dynamic shapes are offloaded to VM
+            if check_dynamism(args, op_name):
+                return False
+            return checker(expr)
+        return _func_wrapper
+    return _decorator_helper
 
 # Ops which are always supported
 _register_external_op_helper("nn.relu")
@@ -284,6 +282,7 @@ _register_external_op_helper_with_checker("atan", trt_version_annotate_fn((5, 1,
 _register_external_op_helper_with_checker("ceil", trt_version_annotate_fn((5, 1, 5)))
 
 
+@_register_external_dynamic_check_func("add")
 def add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if add is supported by TensorRT."""
 
@@ -302,7 +301,7 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
         return False
     return True
 
-
+@_register_external_dynamic_check_func("nn.batch_norm")
 def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.batch_norm is supported by TensorRT."""
 
@@ -316,6 +315,7 @@ def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.softmax")
 def softmax_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.softmax is supported by TensorRT."""
 
@@ -329,6 +329,7 @@ def softmax_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.conv2d")
 def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv2d is supported by TensorRT."""
 
@@ -348,6 +349,7 @@ def conv2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.dense")
 def dense_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if dense is supported by TensorRT."""
 
@@ -366,6 +368,7 @@ def dense_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.bias_add")
 def bias_add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.bias_add is supported by TensorRT."""
 
@@ -380,6 +383,7 @@ def bias_add_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.max_pool2d")
 def max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.max_pool2d is supported by TensorRT."""
 
@@ -396,6 +400,7 @@ def max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.avg_pool2d")
 def avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.avg_pool2d is supported by TensorRT."""
 
@@ -425,6 +430,7 @@ def avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.global_max_pool2d")
 def global_max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.global_max_pool2d is supported by TensorRT."""
 
@@ -438,6 +444,7 @@ def global_max_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.global_avg_pool2d")
 def global_avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.global_avg_pool2d is supported by TensorRT."""
 
@@ -451,6 +458,7 @@ def global_avg_pool_2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("expand_dims")
 def expand_dims_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if expand_dims is supported by TensorRT."""
 
@@ -464,6 +472,7 @@ def expand_dims_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("squeeze")
 def squeeze_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if squeeze is supported by TensorRT."""
 
@@ -480,6 +489,7 @@ def squeeze_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("concatenate")
 def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if concatenate is supported by TensorRT."""
 
@@ -500,6 +510,7 @@ def concatenate_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.conv2d_transpose")
 def conv2d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv2d_transpose is supported by TensorRT."""
 
@@ -524,6 +535,7 @@ def conv2d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("transpose")
 def transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if transpose is supported by TensorRT."""
 
@@ -537,6 +549,7 @@ def transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("layout_transform")
 def layout_transform_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if layout_transform is supported by TensorRT."""
 
@@ -557,6 +570,7 @@ def layout_transform_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("reshape")
 def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if reshape is supported by TensorRT."""
 
@@ -589,6 +603,7 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.pad")
 def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.pad is supported by TensorRT."""
 
@@ -610,6 +625,7 @@ def pad_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("strided_slice")
 def strided_slice_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if strided_slice is supported by TensorRT."""
 
@@ -657,6 +673,7 @@ def strided_slice_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.adaptive_max_pool2d")
 def adaptive_max_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.adaptive_max_pool2d is supported by TensorRT."""
 
@@ -670,6 +687,7 @@ def adaptive_max_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.adaptive_avg_pool2d")
 def adaptive_avg_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.adaptive_avg_pool2d is supported by TensorRT."""
 
@@ -683,6 +701,7 @@ def adaptive_avg_pool2d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.conv3d")
 def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv3d is supported by TensorRT."""
 
@@ -704,6 +723,7 @@ def conv3d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.max_pool3d")
 def max_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.max_pool3d is supported by TensorRT."""
 
@@ -719,6 +739,7 @@ def max_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.avg_pool3d")
 def avg_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.avg_pool3d is supported by TensorRT."""
 
@@ -734,6 +755,7 @@ def avg_pool_3d_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+@_register_external_dynamic_check_func("nn.conv3d_transpose")
 def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if nn.conv3d_transpose is supported by TensorRT."""
 
@@ -763,31 +785,6 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
-_register_external_dynamic_check_func("add", add_annotate_fn)
-_register_external_dynamic_check_func("nn.batch_norm", batch_norm_annotate_fn)
-_register_external_dynamic_check_func("nn.softmax", softmax_annotate_fn)
-_register_external_dynamic_check_func("nn.conv2d", conv2d_annotate_fn)
-_register_external_dynamic_check_func("nn.dense", dense_annotate_fn)
-_register_external_dynamic_check_func("nn.bias_add", bias_add_annotate_fn)
-_register_external_dynamic_check_func("nn.max_pool2d", max_pool_2d_annotate_fn)
-_register_external_dynamic_check_func("nn.avg_pool2d", avg_pool_2d_annotate_fn)
-_register_external_dynamic_check_func("nn.global_max_pool2d", global_max_pool_2d_annotate_fn)
-_register_external_dynamic_check_func("nn.global_avg_pool2d", global_avg_pool_2d_annotate_fn)
-_register_external_dynamic_check_func("expand_dims", expand_dims_annotate_fn)
-_register_external_dynamic_check_func("squeeze", squeeze_annotate_fn)
-_register_external_dynamic_check_func("concatenate", concatenate_annotate_fn)
-_register_external_dynamic_check_func("nn.conv2d_transpose", conv2d_transpose_annotate_fn)
-_register_external_dynamic_check_func("transpose", transpose_annotate_fn)
-_register_external_dynamic_check_func("layout_transform", layout_transform_annotate_fn)
-_register_external_dynamic_check_func("reshape", reshape_annotate_fn)
-_register_external_dynamic_check_func("nn.pad", pad_annotate_fn)
-_register_external_dynamic_check_func("strided_slice", strided_slice_annotate_fn)
-_register_external_dynamic_check_func("nn.adaptive_max_pool2d", adaptive_max_pool2d_annotate_fn)
-_register_external_dynamic_check_func("nn.adaptive_avg_pool2d", adaptive_avg_pool2d_annotate_fn)
-_register_external_dynamic_check_func("nn.conv3d", conv3d_annotate_fn)
-_register_external_dynamic_check_func("nn.max_pool3d", max_pool_3d_annotate_fn)
-_register_external_dynamic_check_func("nn.avg_pool3d", avg_pool_3d_annotate_fn)
-_register_external_dynamic_check_func("nn.conv3d_transpose", conv3d_transpose_annotate_fn)
 
 
 def is_valid_subgraph(params, body):

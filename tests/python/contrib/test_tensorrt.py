@@ -979,6 +979,10 @@ def test_dynamic_offload(data_shape=(1, 32, 8, 8), k_shape=(1, 32, 3, 3)):
     the other has a arg with dynamic shape. It is expected for the TRT partitioner to
     offload the conv2d with dynamic arg to TVM while running the other in TRT.
     """
+    
+    if skip_codegen_test():
+        return
+
     x = relay.var("x", shape=(data_shape[0], data_shape[1], Any(), Any()), dtype="float32")
     y = relay.var("y", shape=(data_shape), dtype="float32")
     kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
