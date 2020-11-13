@@ -268,8 +268,8 @@ def split_workload(in_file, clean=True):
 
 def pick_best(in_file, out_file):
     """
-    Pick best entries from a file and store it to another file.
-    This distill the useful log entries from a large log file.
+    Pick the best entries from a file and store them to another file.
+    This function distills the useful log entries from a large log file.
     If out_file already exists, the best entries from both
     in_file and out_file will be saved.
 

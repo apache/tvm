@@ -76,11 +76,11 @@ print(task.compute_dag)
 
 ######################################################################
 # Next, we set parameters for the auto-scheduler. These parameters
-# mainly specify how we do the measurement during the search and auto-tuning.
+# mainly specify how we do the measurement during the search.
 #
-# * :code:`measure_ctx` launches a different process for measurement. This
-#   provides an isolation. It can protect the master process from GPU crashes
-#   happended during measurement and avoid other runtime conflicts.
+# * :code:`measure_ctx` launches a different process for measurement to
+#   provide isolation. It can protect the master process from GPU crashes
+#   during measurement and avoid other runtime conflicts.
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
 #   Typically, we recommend a value > 300 ms.
@@ -96,7 +96,7 @@ print(task.compute_dag)
 log_file = "conv2d.json"
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10,
+    num_measure_trials=10,  # change this to 1000 to achieve the best performance
     runner=measure_ctx.runner,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
 )

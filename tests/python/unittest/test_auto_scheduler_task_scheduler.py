@@ -34,9 +34,6 @@ def test_task_scheduler_round_robin():
     for n in [2, 4, 8]:
         tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
 
-    def objective_func(costs):
-        return sum(costs)
-
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
         num_trials_per_task = 2
@@ -49,7 +46,7 @@ def test_task_scheduler_round_robin():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func, strategy="round-robin")
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, strategy="round-robin")
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Check the result of round robin
@@ -65,7 +62,7 @@ def test_task_scheduler_round_robin():
 
         # test continuous tuning (restoring the status)
         task_scheduler = auto_scheduler.TaskScheduler(
-            tasks, objective_func, strategy="round-robin", load_log_file=log_file
+            tasks, strategy="round-robin", load_log_file=log_file
         )
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=len(tasks),
@@ -111,7 +108,7 @@ def test_task_scheduler_gradient():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func)
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func=objective_func)
 
         # Forcely rewrite the initial values.
         # This can make this test more stable on the slow CI machines
