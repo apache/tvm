@@ -25,7 +25,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 import threading
 
 import tvm
-from tvm import te, transform
+from tvm import autotvm, te, transform
 from tvm.te.tensor import ComputeOp, PlaceholderOp
 from .compute_dag import ComputeDAG
 from .dispatcher import DispatchContext
@@ -39,10 +39,16 @@ def call_all_topi_funcs(mod, params, target):
     from tvm import relay
     from tvm.relay.backend import graph_runtime_codegen
 
+    # Turn off AutoTVM config not found warnings
+    old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
+    autotvm.GLOBAL_SCOPE.silent = True
+
     with transform.PassContext(opt_level=3):
         opt_mod, _ = relay.optimize(mod, target, params)
         grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target, use_topi_schedule=False)
         grc.codegen(opt_mod["main"])
+
+    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(

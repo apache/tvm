@@ -129,7 +129,14 @@ class BuildModule(object):
         use_topi_schedule = not isinstance(
             auto_scheduler.DispatchContext.current, auto_scheduler.ApplyHistoryBest
         )
+
+        # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
+        old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
+        autotvm.GLOBAL_SCOPE.silent = not use_topi_schedule
+
         self._build(mod, target, target_host, use_topi_schedule)
+        autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+
         # Get artifacts
         graph_json = self.get_json()
         mod = self.get_module()
