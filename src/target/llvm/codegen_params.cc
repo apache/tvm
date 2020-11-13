@@ -25,6 +25,9 @@
 #include "codegen_params.h"
 
 #include <iomanip>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace codegen {
@@ -66,17 +69,17 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
       } else if (arr_type.bits() == 16) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::getSigned(element_type, ((int16_t*)tensor->dl_tensor.data)[i]));
+            llvm::ConstantInt::getSigned(element_type, reinterpret_cast<int16_t*>(tensor->dl_tensor.data)[i]));
         }
       } else if (arr_type.bits() == 32) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::getSigned(element_type, ((int32_t*)tensor->dl_tensor.data)[i]));
+            llvm::ConstantInt::getSigned(element_type, reinterpret_cast<int32_t*>(tensor->dl_tensor.data)[i]));
         }
       } else if (arr_type.bits() == 64) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::getSigned(element_type, ((int64_t*)tensor->dl_tensor.data)[i]));
+              llvm::ConstantInt::getSigned(element_type, reinterpret_cast<int64_t*>(tensor->dl_tensor.data)[i]));
         }
       } else {
         CHECK(false) << "should not get here";
@@ -93,22 +96,22 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
       if (arr_type.bits() == 8) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::get(element_type, ((int8_t*)tensor->dl_tensor.data)[i]));
+              llvm::ConstantInt::get(element_type, reinterpret_cast<int8_t*>(tensor->dl_tensor.data)[i]));
         }
       } else if (arr_type.bits() == 16) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::get(element_type, ((int16_t*)tensor->dl_tensor.data)[i]));
+              llvm::ConstantInt::get(element_type, reinterpret_cast<int16_t*>(tensor->dl_tensor.data)[i]));
         }
       } else if (arr_type.bits() == 32) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::get(element_type, ((int32_t*)tensor->dl_tensor.data)[i]));
+              llvm::ConstantInt::get(element_type, reinterpret_cast<int32_t*>(tensor->dl_tensor.data)[i]));
         }
       } else if (arr_type.bits() == 64) {
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantInt::get(element_type, ((int64_t*)tensor->dl_tensor.data)[i]));
+              llvm::ConstantInt::get(element_type, reinterpret_cast<int64_t*>(tensor->dl_tensor.data)[i]));
         }
       } else {
         CHECK(false) << "should not get here";
@@ -120,13 +123,13 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
         element_type = llvm::Type::getFloatTy(*ctx);
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantFP::get(element_type, ((float*)tensor->dl_tensor.data)[i]));
+            llvm::ConstantFP::get(element_type, reinterpret_cast<float*>(tensor->dl_tensor.data)[i]));
         }
       } else if (arr_type.bits() == 64) {
         element_type = llvm::Type::getDoubleTy(*ctx);
         for (int i = 0; i < num_elements; i++) {
           elements.emplace_back(
-              llvm::ConstantFP::get(element_type, ((double*)tensor->dl_tensor.data)[i]));
+            llvm::ConstantFP::get(element_type, reinterpret_cast<double*>(tensor->dl_tensor.data)[i]));
         }
       } else {
         CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "

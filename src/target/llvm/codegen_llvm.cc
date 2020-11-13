@@ -247,7 +247,7 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
     auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
     std::cout << "param " << kv.first << ": ";
     array->print(os);
-    std::string symbol_name = std::string{::tvm::runtime::symbol::tvm_param_prefix} + kv.first;
+    std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
     llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
         *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
 
