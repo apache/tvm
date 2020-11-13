@@ -38,7 +38,7 @@ def run_cmd(cmd):
     output : str
         resulting stdout capture from the subprocess
     """
-    _LOG.debug('execute: %s', ' '.join(cmd))
+    _LOG.debug("execute: %s", " ".join(cmd))
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (output, _) = proc.communicate()
     output = output.decode("utf-8")

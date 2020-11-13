@@ -237,7 +237,7 @@ def micro(model="unknown", options=None):
     }
     opts = _merge_opts(
         trans_table[model] + ["-runtime=c", "--system-lib", "--link-params", f"-model={model}"],
-        options
+        options,
     )
 
     # NOTE: in the future, the default micro target will be LLVM except when

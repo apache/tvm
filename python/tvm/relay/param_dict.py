@@ -83,9 +83,9 @@ def linkable_param_dict(graph_json, params, target):
     graph = json.loads(graph_json)
     data_by_sid = [None] * len(params)
     for param_name, param in params.items():
-        for node in graph['nodes']:
-            if node['name'] == param_name:
-                sid = node['storage_id']
+        for node in graph["nodes"]:
+            if node["name"] == param_name:
+                sid = node["storage_id"]
                 data_by_sid[sid] = param
 
     # GraphRuntimeCodegen is expected to allocated the first len(params) storage_ids to contain

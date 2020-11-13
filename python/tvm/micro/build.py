@@ -111,8 +111,13 @@ def default_options(target_include_dir):
 
 
 def build_static_runtime(
-    workspace, compiler, module, lib_opts=None, bin_opts=None, generated_lib_opts=None,
-    extra_libs=None
+    workspace,
+    compiler,
+    module,
+    lib_opts=None,
+    bin_opts=None,
+    generated_lib_opts=None,
+    extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
 
