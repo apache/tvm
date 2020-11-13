@@ -30,6 +30,7 @@ def test_array():
     assert len(a) == 4
     assert a[-1].value == 4
 
+
 def test_array_save_load_json():
     a = tvm.runtime.convert([1, 2, 3])
     json_str = tvm.ir.save_json(a)
