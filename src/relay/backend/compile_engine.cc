@@ -420,8 +420,28 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
     using tir::make_const;
     ICHECK(data_dependants_.size());
-    ICHECK(op->is_scalar());
     bool data_dependant = data_dependants_.back();
+    if (!op->is_scalar()) {
+      // This is a constant weight, extract the shape of the weight tensor.
+      // This can not be data dependent.
+      CHECK(!data_dependant);
+      auto ttype = op->checked_type().as<TensorTypeNode>();
+      int ndim = static_cast<int>(ttype->shape.size());
+      Array<PrimExpr> out_shape{ndim};
+      te::Tensor value = tvm::te::compute(
+          out_shape,
+          [&](const Array<tvm::tir::Var>& indices) {
+            auto idx = indices[0];
+            PrimExpr ret = make_const(DataType::Int(64), 0);
+            for (int i = 0; i < ndim; i++) {
+              ret = tvm::if_then_else(idx == i, ttype->shape[i], ret);
+            }
+            return ret;
+          },
+          "shape_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
+    }
     if (data_dependant) {
       void* data = op->data->data;
       DataType dtype = DataType(op->data->dtype);
