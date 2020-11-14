@@ -441,38 +441,37 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
           "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
+    }
+    if (data_dependant) {
+      void* data = op->data->data;
+      DataType dtype = DataType(op->data->dtype);
+      auto value = tvm::te::compute(
+          {},
+          [&](const Array<tvm::tir::Var>&) {
+            if (dtype == DataType::Int(32)) {
+              return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+            } else if (dtype == DataType::Int(64)) {
+              return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+            } else if (dtype == DataType::Float(32)) {
+              return make_const(dtype, static_cast<const float*>(data)[0]);
+            } else if (dtype == DataType::Float(64)) {
+              return make_const(dtype, static_cast<const double*>(data)[0]);
+            } else if (dtype == DataType::Bool()) {
+              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+            } else {
+              LOG(FATAL) << "not handled";
+              return tvm::PrimExpr();
+            }
+          },
+          "data_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
     } else {
-      if (data_dependant) {
-        void* data = op->data->data;
-        DataType dtype = DataType(op->data->dtype);
-        auto value = tvm::te::compute(
-            {},
-            [&](const Array<tvm::tir::Var>&) {
-              if (dtype == DataType::Int(32)) {
-                return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-              } else if (dtype == DataType::Int(64)) {
-                return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-              } else if (dtype == DataType::Float(32)) {
-                return make_const(dtype, static_cast<const float*>(data)[0]);
-              } else if (dtype == DataType::Float(64)) {
-                return make_const(dtype, static_cast<const double*>(data)[0]);
-              } else if (dtype == DataType::Bool()) {
-                return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
-              } else {
-                LOG(FATAL) << "not handled";
-                return tvm::PrimExpr();
-              }
-            },
-            "data_const", topi::kBroadcast);
-        scalars_.push_back(value);
-        return {value};
-      } else {
-        auto value = tvm::te::compute(
-            {}, [&](const Array<tvm::tir::Var>&) { return tir::make_const(DataType::Int(64), 0); },
-            "shape_const", topi::kBroadcast);
-        scalars_.push_back(value);
-        return {value};
-      }
+      auto value = tvm::te::compute(
+          {}, [&](const Array<tvm::tir::Var>&) { return tir::make_const(DataType::Int(64), 0); },
+          "shape_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
     }
   }
 
