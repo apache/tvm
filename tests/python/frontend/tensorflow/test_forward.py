@@ -2768,10 +2768,11 @@ def test_forward_unpack():
 
 def test_forward_range():
     """test operator Range"""
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        tf.range(1, 18, 3, name="range")
-        compare_tf_with_tvm([], [], "range:0")
+    for dtype in [tf.int32, tf.int64]:
+        tf.reset_default_graph()
+        with tf.Graph().as_default():
+            tf.range(1, 18, 3, name="range", dtype=dtype)
+            compare_tf_with_tvm([], [], "range:0")
 
     """test type assignment for operator Range"""
     tf.reset_default_graph()
