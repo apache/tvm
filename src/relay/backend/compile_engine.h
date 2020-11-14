@@ -199,10 +199,10 @@ class CompileEngineNode : public Object {
   /*!
    * \brief Get lowered result.
    * \param key The key to the cached function.
-   * \param use_topi_schedule Use TOPI-defined schedule or empty schedule
+   * \param use_auto_schedule Use auto_scheduler schedule or TOPI-defined schedules.
    * \return The result.
    */
-  virtual CachedFunc Lower(const CCacheKey& key, const bool use_topi_schedule = true) = 0;
+  virtual CachedFunc Lower(const CCacheKey& key, const bool use_auto_schedule = false) = 0;
   /*!
    * \brief Just in time compile to get a PackedFunc.
    * \param key The key to the cached function.

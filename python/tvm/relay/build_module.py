@@ -24,6 +24,7 @@ import numpy as np
 from tvm.ir import IRModule
 
 from tvm import auto_scheduler
+from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, autotvm
 from ..target import Target
@@ -124,17 +125,18 @@ class BuildModule(object):
         # Setup the params.
         if params:
             self._set_params(params)
+
         # Build the IR module. If auto_scheduler is not enabled,
         # then use the TOPI-defined schedule.
-        use_topi_schedule = not isinstance(
-            auto_scheduler.DispatchContext.current, auto_scheduler.ApplyHistoryBest
+        use_auto_schedule = PassContext.current().config.get(
+            "relay.backend.use_auto_schedule", False
         )
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = not use_topi_schedule
+        autotvm.GLOBAL_SCOPE.silent = use_auto_schedule
 
-        self._build(mod, target, target_host, use_topi_schedule)
+        self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts

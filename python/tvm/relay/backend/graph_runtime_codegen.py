@@ -42,7 +42,7 @@ from tvm.tir import expr as _expr
 class GraphRuntimeCodegen(object):
     """The compiler from Relay to the TVM runtime system."""
 
-    def __init__(self, mod, target, use_topi_schedule=True):
+    def __init__(self, mod, target, use_auto_schedule=False):
         self._mod = _build_module._GraphRuntimeCodegen()
         self._init = self._mod["init"]
         self._codegen = self._mod["codegen"]
@@ -50,9 +50,9 @@ class GraphRuntimeCodegen(object):
         self._list_params_name = self._mod["list_params_name"]
         self._get_param_by_name = self._mod["get_param_by_name"]
         self._get_irmodule = self._mod["get_irmodule"]
-        self._setup(mod, target, use_topi_schedule)
+        self._setup(mod, target, use_auto_schedule)
 
-    def _setup(self, mod, target, use_topi_schedule):
+    def _setup(self, mod, target, use_auto_schedule):
         tgts = {}
         if isinstance(target, dict):
             for dev, tgt in target.items():
@@ -61,7 +61,7 @@ class GraphRuntimeCodegen(object):
                 tgts[dev] = Target(tgt)
         elif isinstance(target, (str, Target)):
             tgts[_expr.IntImm("int32", 0)] = Target(target)
-        self._init(mod, tgts, use_topi_schedule)
+        self._init(mod, tgts, use_auto_schedule)
 
     def codegen(self, func):
         """Compile a single function into a graph.
