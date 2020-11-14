@@ -276,19 +276,6 @@ def run_tuning():
 # All measurement records are dumped into the log file during auto-tuning,
 # so we can read the log file and load the best schedules.
 
-#################################################################
-# .. note::
-#
-#   Since we usually do not spend time on tuning simple ops,
-#   you may see the warnings as following during the compilation about some configs
-#   are missing. In this case, TOPI schedule will be used to bridge the gap,
-#   so it is fine as long as the model can be successfully built.
-#
-#   .. code-block:: c
-#
-#     Cannot find tuned schedules for target=cuda, workload_key=["0fa2daa53cd4745e23369eb2e3375f19"].
-#     A fallback TOPI schedule is used, which may bring great performance regression or even compilation failure.
-
 # Compile with the history best
 print("Compile...")
 with auto_scheduler.ApplyHistoryBest(log_file):

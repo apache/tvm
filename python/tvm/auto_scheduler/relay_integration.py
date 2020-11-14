@@ -225,11 +225,11 @@ def auto_schedule_topi(outs, has_complex_op):
 
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
-        state = DispatchContext.current.query(tvm.target.Target.current(), key)
+        dag = ComputeDAG(io_tensors)
+        state = DispatchContext.current.query(tvm.target.Target.current(), key, has_complex_op, dag)
         if state is None:
             return None
 
-        dag = ComputeDAG(io_tensors)
         schedule, _ = dag.apply_steps_from_state(state)
     elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
         # in the task extraction mode
