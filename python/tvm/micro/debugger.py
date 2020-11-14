@@ -236,11 +236,11 @@ class GdbTransportDebugger(GdbDebugger):
             while timeout_sec == 0 or time.monotonic() < end_time:
                 try:
                     return self.gdb_transport_debugger.fd_transport.write(data, timeout_sec)
-                except OSError as e:
-                    if e.errno == errno.EAGAIN:
+                except OSError as exc:
+                    if exc.errno == errno.EAGAIN:
                         time.sleep(0.1)
                         continue
-                    raise e
+                    raise exc
 
             raise base.IoTimeoutError()
 
@@ -249,11 +249,11 @@ class GdbTransportDebugger(GdbDebugger):
             while timeout_sec == 0 or time.monotonic() < end_time:
                 try:
                     return self.gdb_transport_debugger.fd_transport.read(n, timeout_sec)
-                except OSError as e:
-                    if e.errno == errno.EAGAIN:
+                except OSError as exc:
+                    if exc.errno == errno.EAGAIN:
                         time.sleep(0.1)
                         continue
-                    raise e
+                    raise exc
 
             raise base.IoTimeoutError()
 

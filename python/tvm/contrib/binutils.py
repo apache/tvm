@@ -17,10 +17,7 @@
 
 """Utilities for binary file manipulation"""
 import logging
-import os
 import subprocess
-import tvm._ffi
-from . import utils
 
 _LOG = logging.getLogger(__name__)
 

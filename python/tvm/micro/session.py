@@ -155,6 +155,28 @@ class Session:
 
 
 def lookup_remote_linked_param(mod, storage_id, template_tensor, ctx):
+    """Lookup a parameter that has been pre-linked into a remote (i.e. over RPC) Module.
+
+    This function signature matches the signature built by
+
+    Parameters
+    ----------
+    mod : tvm.runtime.Module
+        The remote Module containing the pre-linked parameters.
+    storage_id : int
+        An integer identifying the pre-linked paramter to find
+    template_tensor : DLTensor
+        A DLTensor containing metadata that should be filled-in to the returned NDArray. This
+        function should mostly not inspect this, and just pass it along to
+        NDArrayFromRemoteOpaqueHandle.
+    ctx : TVMContext
+        The remote CPU context to be used with the returned NDArray.
+
+    Returns
+    -------
+    tvm.nd.NDArray :
+        NDArray containing the pre-linked parameter.
+    """
     try:
         lookup_linked_param = mod.get_function("_lookup_linked_param")
     except KeyError:
