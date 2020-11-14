@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test task extraction for auto-scheduler"""
-import pytest
-
 import tvm.relay.testing
 import tvm.testing
 from tvm import auto_scheduler, relay

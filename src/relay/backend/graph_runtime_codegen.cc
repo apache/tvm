@@ -369,7 +369,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
       CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key, true);
+      CachedFunc ext_func = (*pf1)(compile_engine_, key, false);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
