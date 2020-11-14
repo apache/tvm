@@ -240,13 +240,55 @@ inline const char* DeviceName(int type) {
   }
 }
 
+/*!
+ * \brief Return true if a TVMContext is owned by an RPC session.
+ */
+inline bool IsRPCSessionContext(TVMContext ctx) { return (ctx.device_type / kRPCSessMask) > 0; }
+
+/*!
+ * \brief Return the RPCSessTable index of the RPC Session that owns this context.
+ * \return the table index.
+ */
+inline int GetRPCSessionIndex(TVMContext ctx) {
+  ICHECK(IsRPCSessionContext(ctx)) << "GetRPCSessionIndex: ctx has no RPC session";
+  return ctx.device_type / kRPCSessMask - 1;
+}
+
+/*!
+ * \brief Remove the RPC session mask from a TVMContext.
+ * RPC clients typically do this when encoding a TVMContext for transmission to an RPC remote.
+ * On the wire, RPCContext are expected to be valid on the server without interpretation.
+ * \param ctx A TVMContext with non-zero RPC Session mask, valid on the RPC client.
+ * \return A TVMContext without any RPC Session mask, valid on the RPC server.
+ */
+inline TVMContext RemoveRPCSessionMask(TVMContext ctx) {
+  ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
+  return ctx;
+}
+
+inline std::ostream& operator<<(std::ostream& os, DLContext ctx);
+
+/*!
+ * \brief Add a RPC session mask to a TVMContext.
+ * RPC clients typically do this when decoding a TVMContext received from a RPC remote.
+ * \param ctx A TVMContext without any RPC Session mask, valid on the RPC server.
+ * \param session_table_index Numeric index of the RPC session in the session table.
+ * \return A TVMContext with RPC session mask added, valid on the RPC client.
+ */
+inline TVMContext AddRPCSessionMask(TVMContext ctx, int session_table_index) {
+  CHECK(!IsRPCSessionContext(ctx))
+      << "AddRPCSessionMask: ctx already non-zero RPCSessionIndex: " << ctx;
+  ctx.device_type =
+      static_cast<DLDeviceType>(ctx.device_type | (kRPCSessMask * (session_table_index + 1)));
+  return ctx;
+}
+
 inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
-  int device_type = static_cast<int>(ctx.device_type);
-  if (device_type > kRPCSessMask) {
-    os << "remote[" << (device_type / kRPCSessMask) << "]-";
-    device_type = device_type % kRPCSessMask;
+  if (IsRPCSessionContext(ctx)) {
+    os << "remote[" << GetRPCSessionIndex(ctx) << "]-";
+    ctx = RemoveRPCSessionMask(ctx);
   }
-  os << runtime::DeviceName(device_type) << "(" << ctx.device_id << ")";
+  os << runtime::DeviceName(static_cast<int>(ctx.device_type)) << "(" << ctx.device_id << ")";
   return os;
 }
 }  // namespace runtime
