@@ -944,7 +944,7 @@ class ReduceOpConverter : public TensorRTOpConverter {
 #if TRT_VERSION_GE(5, 1, 5)
 class StridedSliceOpConverter : public TensorRTOpConverter {
  public:
-  StridedSliceOpConverter() : TensorRTOpConverter({kTensor, kWeight, kWeight, kWeight}) {}
+  StridedSliceOpConverter() : TensorRTOpConverter({kTensor}) {}
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
