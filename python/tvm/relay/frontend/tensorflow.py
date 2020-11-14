@@ -1454,9 +1454,9 @@ def _shape():
                 break
 
         if is_symbolic_shape:
-            ret = _op.shape_of(inputs[0], dtype="int32")
+            ret = _op.shape_of(inputs[0], dtype=attr["out_type"].name)
         else:
-            ret = np.array(input_shape, dtype="int32")
+            ret = np.array(input_shape, dtype=attr["out_type"].name)
         return ret
 
     return _impl
@@ -1862,11 +1862,11 @@ def _range():
 
         dtype = attr["Tidx"].name if "Tidx" in attr else str(start.dtype)
         if isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)):
-            start = _expr.const(start)
+            start = _expr.const(start, dtype=dtype)
         if isinstance(limit, (np.int32, np.int64, int, np.float32, np.float64, float)):
-            limit = _expr.const(limit)
+            limit = _expr.const(limit, dtype=dtype)
         if isinstance(delta, (np.int32, np.int64, int, np.float32, np.float64, float)):
-            delta = _expr.const(delta)
+            delta = _expr.const(delta, dtype=dtype)
 
         return AttrCvt(
             op_name="arange",
