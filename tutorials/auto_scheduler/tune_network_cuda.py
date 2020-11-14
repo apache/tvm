@@ -148,13 +148,13 @@ log_file = "%s-%s-B%d.json" % (network, layout, batch_size)
 # latency of a task and :code:`weight[t]` is the weight of the task.
 # The task scheduler will just optimize this objective.
 
-# Enable auto-scheduler in relay
-auto_scheduler.enable_relay_integration()
-
 # Extract tasks from the network
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+for idx, task in enumerate(tasks):
+    print("Task %d, workload key %s, DAG:" % (idx, task.workload_key))
+    print(task.compute_dag)
 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
@@ -219,29 +219,32 @@ def run_tuning():
 #     ----------------------------------------------------------------------
 #     |  ID  | Latency (ms) | Speed (GFLOPS) | Trials |
 #     -------------------------------------------------
-#     |    0 |        0.014 |          72.07 |     64 |
-#     |    1 |        0.185 |        1250.68 |    128 |
-#     |    2 |        0.142 |        1626.36 |    192 |
-#     |    3 |        0.137 |        1689.42 |    128 |
-#     |    4 |        0.097 |        1189.75 |    128 |
-#     |    5 |        0.092 |        2505.25 |    128 |
-#     |    6 |        0.080 |        2893.08 |    128 |
-#     |    7 |        0.119 |        1947.84 |    128 |
-#     |    8 |        0.090 |        1292.62 |     64 |
-#     |    9 |        0.107 |        2172.30 |     64 |
-#     |   10 |        0.095 |        2439.36 |     64 |
-#     |   11 |        0.077 |        3003.22 |     64 |
-#     |   12 |        0.068 |        1695.13 |     64 |
-#     |   13 |        0.058 |        3979.29 |     64 |
-#     |   14 |        0.048 |        4859.95 |    128 |
-#     |   15 |        0.073 |        3151.76 |     64 |
-#     |   16 |        0.056 |        4265.94 |     64 |
-#     |   17 |        0.009 |        2754.90 |     64 |
-#     |   18 |        0.011 |        1156.08 |     64 |
-#     |   19 |        0.013 |         955.80 |     64 |
-#     |   20 |        0.029 |         437.71 |     64 |
+#     |    0 |        0.005 |           0.88 |     64 |
+#     |    1 |        0.012 |          82.79 |     64 |
+#     |    2 |        0.006 |          -0.00 |     64 |
+#     |    3 |        0.120 |        1928.26 |    384 |
+#     |    4 |        0.118 |        1956.68 |    384 |
+#     |    5 |        0.119 |        1945.56 |    384 |
+#     |    6 |        0.077 |        1510.25 |    320 |
+#     |    7 |        0.075 |        3085.63 |    320 |
+#     |    8 |        0.076 |        3041.89 |    256 |
+#     |    9 |        0.076 |        3026.34 |    320 |
+#     |   10 |        0.052 |        2245.29 |    192 |
+#     |   11 |        0.069 |        3339.48 |    256 |
+#     |   12 |        0.068 |        3379.30 |    192 |
+#     |   13 |        0.080 |        2894.11 |    256 |
+#     |   14 |        0.047 |        2485.50 |    192 |
+#     |   15 |        0.067 |        3462.22 |    256 |
+#     |   16 |        0.066 |        3516.05 |    384 |
+#     |   17 |        0.067 |        3428.39 |    192 |
+#     |   18 |        0.023 |          97.72 |     64 |
+#     |   19 |        0.070 |        3378.41 |    256 |
+#     |   20 |        0.012 |        2099.23 |     64 |
+#     |   21 |        0.011 |        1168.36 |     64 |
+#     |   22 |        0.013 |         998.81 |     64 |
+#     |   23 |        0.022 |         595.89 |     64 |
 #     -------------------------------------------------
-#     Estimated total latency: 1.649 ms  Trials: 1920  Used time : 3598 s  Next ID: 9
+#     Estimated total latency: 1.416 ms       Trials: 5056    Used time : 8159 s      Next ID: 8
 #
 #   This table lists the latency and (estimated) speed of all tasks.
 #   It also lists the allocation of measurement trials for all tasks.
@@ -272,6 +275,19 @@ def run_tuning():
 # After auto-tuning, we can compile the network with the best schedules we found.
 # All measurement records are dumped into the log file during auto-tuning,
 # so we can read the log file and load the best schedules.
+
+#################################################################
+# .. note::
+#
+#   Since we usually do not spend time on tuning simple ops,
+#   you may see the warnings as following during the compilation about some configs
+#   are missing. In this case, TOPI schedule will be used to bridge the gap,
+#   so it is fine as long as the model can be successfully built.
+#
+#   .. code-block:: c
+#
+#     Cannot find tuned schedules for target=cuda, workload_key=["0fa2daa53cd4745e23369eb2e3375f19"].
+#     A fallback TOPI schedule is used, which may bring great performance regression or even compilation failure.
 
 # Compile with the history best
 print("Compile...")

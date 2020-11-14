@@ -210,8 +210,9 @@ def auto_schedule_topi(outs, has_complex_op):
 
     Returns
     -------
-    sch: te.Schedule
-        A topi schedule function
+    sch: Optional[te.Schedule]
+        A tuned schedule or none (if not tuned) in the final build mode;
+        An initial schdule in the tracing mode.
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -226,9 +227,7 @@ def auto_schedule_topi(outs, has_complex_op):
     if env is None:  # in the final build mode
         state = DispatchContext.current.query(tvm.target.Target.current(), key)
         if state is None:
-            if "gpu" in tvm.target.Target.current().keys:
-                raise RuntimeError("Cannot compile for GPU targets if no valid schedule is found.")
-            return te.create_schedule([x.op for x in outs])
+            return None
 
         dag = ComputeDAG(io_tensors)
         schedule, _ = dag.apply_steps_from_state(state)

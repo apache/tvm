@@ -151,16 +151,22 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     te::Schedule schedule;
     // No need to register schedule for device copy op.
     if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      if (use_topi_schedule_) {
-        ICHECK(anchor_implementation_.defined());
-        schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
-      } else {
+      if (!use_topi_schedule_) {
         const auto* fauto_schedule =
             runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
         ICHECK(fauto_schedule != nullptr)
             << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
         bool has_complex_op = anchor_op_pattern_ >= kCommReduce;
-        schedule = (*fauto_schedule)(tensor_outs, has_complex_op);
+        ObjectRef obj = (*fauto_schedule)(tensor_outs, has_complex_op);
+        if (obj.defined()) {
+          schedule = Downcast<te::Schedule>(obj);
+        }
+      }
+
+      // Use TOPI schdule if user specificed, or the function has no auto_scheduler schedule.
+      if (!schedule.defined()) {
+        ICHECK(anchor_implementation_.defined());
+        schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
       }
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {

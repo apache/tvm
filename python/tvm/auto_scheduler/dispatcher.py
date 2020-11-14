@@ -250,8 +250,9 @@ class FallbackContext(DispatchContext):
         if not self.silent:
             msg = (
                 "Cannot find tuned schedules for target=%s, workload_key=%s. "
-                "A fallback schedule is used, "
-                "which may bring great performance regression." % (target, workload_key)
+                "A fallback TOPI schedule is used, "
+                "which may bring great performance regression or even compilation failure."
+                % (target, workload_key)
             )
             if msg not in self.messages:
                 self.messages.add(msg)
