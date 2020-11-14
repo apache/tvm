@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save parameter dicts."""
-import json
 import tvm
 import tvm._ffi
 
