@@ -57,6 +57,11 @@ ssize_t write_serial(void* unused_context, const uint8_t* data, size_t size) {
   return size;
 }
 
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
+  return vsnprintk(out_buf, out_buf_size_bytes, fmt, args);
+}
+
 void TVMPlatformAbort(tvm_crt_error_t error) {
   sys_reboot(SYS_REBOOT_COLD);
   for (;;)

@@ -25,6 +25,8 @@
 #ifndef TVM_RUNTIME_CRT_PLATFORM_H_
 #define TVM_RUNTIME_CRT_PLATFORM_H_
 
+#include <stdarg.h>
+#include <stddef.h>
 #include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
@@ -38,6 +40,21 @@ extern "C" {
  * \param code An error code.
  */
 void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code);
+
+/*! \brief Called by the microTVM RPC server to implement TVMLogf.
+ *
+ * Not required to be implemented when the RPC server is not linked into the binary. This
+ * function's signature matches that of vsnprintf, so trivial implementations can just call
+ * vsnprintf.
+ *
+ * \param out_buf A char buffer where the formatted string should be written.
+ * \param out_buf_size_bytes Number of bytes available for writing in out_buf.
+ * \param fmt The printf-style formatstring.
+ * \param args extra arguments to be formatted.
+ * \return number of bytes written.
+ */
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args);
 
 #ifdef __cplusplus
 }  // extern "C"
