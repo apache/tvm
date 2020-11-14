@@ -43,6 +43,11 @@ ssize_t UTvmWriteFunc(void* context, const uint8_t* data, size_t num_bytes) {
   return to_return;
 }
 
+size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
+                                va_list args) {
+  return vsnprintf(out_buf, out_buf_size_bytes, fmt, args);
+}
+
 void TVMPlatformAbort(tvm_crt_error_t error_code) {
   std::cerr << "TVMPlatformAbort: " << error_code << std::endl;
   throw "Aborted";
