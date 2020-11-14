@@ -282,20 +282,6 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   *rv = NDArray(GetObjectPtr<Object>(container.release()));
 }
 
-std::string List2String(std::vector<int64_t> shape) {
-  if (shape.size() == 0) {
-    return "[]";
-  }
-
-  std::stringstream ss;
-  ss << "[" << shape[0];
-  for (int i = 1; i < shape.size(); i++) {
-    ss << ", " << shape[i];
-  }
-  ss << "]";
-  return ss.str();
-}
-
 void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<DLDataType> vtype;
@@ -373,9 +359,6 @@ void GraphRuntime::SetupStorage() {
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    LOG(INFO) << "sid " << i << ": (" << List2String(storage_pool_[storage_id].Shape())
-              << ", dtype=" << storage_pool_[storage_id].DataType() << ")"
-              << ": setup view: " << List2String(attrs_.shape[i]);
     data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
 
     const DLTensor* tmp = data_entry_[i].operator->();
