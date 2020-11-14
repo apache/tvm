@@ -23,7 +23,6 @@ import numpy as np
 
 from tvm.ir import IRModule
 
-from tvm import auto_scheduler
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, autotvm
