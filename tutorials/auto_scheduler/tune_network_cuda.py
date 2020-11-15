@@ -105,7 +105,6 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
         mod, params = relay.testing.squeezenet.get_workload(
             version="1.1",
             batch_size=batch_size,
-            layout=layout,
             dtype=dtype,
             image_shape=image_shape,
         )
@@ -152,9 +151,6 @@ log_file = "%s-%s-B%d.json" % (network, layout, batch_size)
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-for idx, task in enumerate(tasks):
-    print("Task %d, workload key %s, DAG:" % (idx, task.workload_key))
-    print(task.compute_dag)
 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
