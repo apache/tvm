@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-scheduling matrix multiplication for CPU
+Auto-scheduling Matrix Multiplication for CPU
 =============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
+
+This is a tutorial on how to use the auto-scheduler for CPUs.
 
 Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any templates.
