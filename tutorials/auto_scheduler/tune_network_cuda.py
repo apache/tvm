@@ -254,7 +254,7 @@ def run_tuning():
 #   There will also be some "dmlc::Error"s and CUDA errors, because the
 #   auto-scheduler will try some invalid schedules.
 #   You can safely ignore them if the tuning can continue, because these
-#   errors are isolated from the master process.
+#   errors are isolated from the main process.
 #
 
 ######################################################################
