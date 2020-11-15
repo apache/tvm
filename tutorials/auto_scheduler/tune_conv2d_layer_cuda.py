@@ -101,6 +101,7 @@ tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,  # change this to 1000 to achieve the best performance
     runner=measure_ctx.runner,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    verbose=2,
 )
 
 ######################################################################

@@ -90,7 +90,9 @@ print(task.compute_dag)
 
 log_file = "matmul.json"
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
+    num_measure_trials=10,
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    verbose=2,
 )
 
 ######################################################################
