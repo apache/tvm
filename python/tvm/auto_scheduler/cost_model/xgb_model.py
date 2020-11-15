@@ -20,7 +20,6 @@
 import multiprocessing
 import logging
 from collections import defaultdict
-import time
 
 import numpy as np
 
@@ -138,7 +137,6 @@ class XGBModel(PythonBasedModel):
         if len(inputs) <= 0:
             return
         assert len(inputs) == len(results)
-        tic = time.time()
 
         self.inputs.extend(inputs)
         self.results.extend(results)
@@ -177,8 +175,6 @@ class XGBModel(PythonBasedModel):
                 )
             ],
         )
-
-        logger.info("XGBModel Training time: %.2f s", time.time() - tic)
 
     def predict(self, task, states):
         """Predict the scores of states

@@ -657,9 +657,9 @@ inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt1993
 
 /*! \brief Print a title */
 inline void PrintTitle(const std::string& title, int verbose) {
-  StdCout(verbose) << Chars('-', 60) << "\n"
-                   << Chars('-', 25) << "  [ " << title << " ]\n"
-                   << Chars('-', 60) << std::endl;
+  StdCout(verbose) << Chars('-', 70) << "\n"
+                   << Chars('-', 30) << "  [ " << title << " ]\n"
+                   << Chars('-', 70) << std::endl;
 }
 
 /*!

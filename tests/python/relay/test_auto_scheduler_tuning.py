@@ -30,17 +30,17 @@ def tune_network(network, target):
     mod, params = get_network(network)
     target = tvm.target.Target(target)
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-    objective = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
         # Tuning
         measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
-        tuner = auto_scheduler.TaskScheduler(tasks, objective)
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
         tune_option = auto_scheduler.TuningOptions(
-            num_measure_trials=4,
+            num_measure_trials=100,
             num_measures_per_round=2,
+            early_stopping=1,
             runner=measure_ctx.runner,
             builder=auto_scheduler.LocalBuilder(timeout=60),
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],

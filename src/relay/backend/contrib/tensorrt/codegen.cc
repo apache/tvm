@@ -140,18 +140,25 @@ class TensorRTJSONSerializer : public backend::contrib::JSONSerializer {
     std::vector<std::string> start, size, strides;
     for (size_t i = 0; i < attrs->begin.value().size(); ++i) {
       const int begin_value = process_slice_index(attrs->begin.value()[i], 0, ishape[i]);
-      const int end_value = process_slice_index(attrs->end.value()[i], ishape[i], ishape[i]);
+      ICHECK_GE(begin_value, 0);
+      start.push_back(std::to_string(begin_value));
       const int stride_value = (default_strides || i >= attrs->strides.value().size() ||
                                 !attrs->strides.value()[i].defined())
                                    ? 1
                                    : attrs->strides.value()[i].as<IntImmNode>()->value;
       ICHECK_GT(stride_value, 0);
-      const int size_value = (end_value - begin_value + stride_value - 1) / stride_value;
-      ICHECK_GE(begin_value, 0);
-      ICHECK_GT(size_value, 0);
-      start.push_back(std::to_string(begin_value));
-      size.push_back(std::to_string(size_value));
       strides.push_back(std::to_string(stride_value));
+      int size_value;
+      if (attrs->slice_mode == "end") {
+        const int end_value = process_slice_index(attrs->end.value()[i], ishape[i], ishape[i]);
+        size_value = (end_value - begin_value + stride_value - 1) / stride_value;
+      } else if (attrs->slice_mode == "size") {
+        // with slice_mode = "size", attrs->end_value mean the size of the slice
+        int end_value = attrs->end.value()[i].as<IntImmNode>()->value;
+        size_value = (end_value == -1) ? ishape[i] - begin_value : end_value;
+      }
+      ICHECK_GT(size_value, 0);
+      size.push_back(std::to_string(size_value));
     }
     std::vector<dmlc::any> start_attr, size_attr, strides_attr;
     start_attr.emplace_back(start);

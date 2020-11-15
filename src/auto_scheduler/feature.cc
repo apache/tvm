@@ -1345,11 +1345,6 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask&
                           GetPerStoreFeaturesWorkerFunc(task, states[i], max_n_bufs,
                                                         &(*features)[i], &error_ct);
                         });
-
-  if (error_ct > 0) {
-    std::cerr << "Encountered " << error_ct
-              << " errors during feature extraction, which are safely ignored." << std::endl;
-  }
 }
 
 void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector<SearchTask>& tasks,
@@ -1365,11 +1360,6 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
                           GetPerStoreFeaturesWorkerFunc(tasks[i], states[i], max_n_bufs,
                                                         &(*features)[i], &error_ct);
                         });
-
-  if (error_ct > 0) {
-    std::cerr << "Encountered " << error_ct
-              << " errors during feature extraction. which are safely ignored." << std::endl;
-  }
 }
 
 void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int max_n_bufs,

@@ -23,6 +23,7 @@ import multiprocessing.pool
 import queue
 import signal
 import threading
+import traceback
 import os
 
 import numpy as np
@@ -138,32 +139,49 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
         parent = psutil.Process(parent_pid)
     except psutil.NoSuchProcess:
         return
-    children = parent.children(recursive=True)
-    for process in children:
-        try:
+
+    try:
+        children = parent.children(recursive=True)
+        for process in children:
             process.send_signal(sig)
-        except psutil.NoSuchProcess:
-            return
+    except psutil.NoSuchProcess:
+        return
+
+
+# The maximum length of traceback information
+MAX_TRACEBACK_INFO_LEN = 512
+
+
+def make_traceback_info():
+    """ Get the error message from traceback. """
+    info = str(traceback.format_exc())
+    if len(info) > MAX_TRACEBACK_INFO_LEN:
+        info = (
+            info[: MAX_TRACEBACK_INFO_LEN // 2] + "\n...\n" + info[-MAX_TRACEBACK_INFO_LEN // 2 :]
+        )
+    return info
 
 
 def _func_wrapper(que, func, args, kwargs):
     """Call function and return the result over the queue."""
-    if kwargs:
-        que.put(func(*args, **kwargs))
-    else:
-        que.put(func(*args))
+    try:
+        if kwargs:
+            que.put(func(*args, **kwargs))
+        else:
+            que.put(func(*args))
+    # pylint: disable=broad-except
+    except Exception:
+        que.put(Exception(make_traceback_info()))
 
 
 def call_func_with_timeout(timeout, func, args=(), kwargs=None):
     """Call a function with timeout"""
-
     que = multiprocessing.Queue(2)
     process = multiprocessing.Process(target=_func_wrapper, args=(que, func, args, kwargs))
     process.start()
-    process.join(timeout)
 
     try:
-        res = que.get(block=False)
+        res = que.get(timeout=timeout)
     except queue.Empty:
         res = TimeoutError()
 
