@@ -17,10 +17,12 @@
 """
 .. _auto-scheduler-conv-gpu:
 
-Auto-scheduling a convolution layer for GPU
+Auto-scheduling a Convolution Layer for GPU
 ===========================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
+
+This is a tutorial on how to use the auto-scheduler for GPUs.
 
 Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any templates.
@@ -99,6 +101,7 @@ tune_option = auto_scheduler.TuningOptions(
     num_measure_trials=10,  # change this to 1000 to achieve the best performance
     runner=measure_ctx.runner,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    verbose=2,
 )
 
 ######################################################################
