@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-tuning a Neural Network for NVIDIA GPU
-===========================================
+Auto-scheduling a Neural Network for NVIDIA GPU
+===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
@@ -156,6 +156,10 @@ print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
+for idx, task in enumerate(tasks):
+    print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
+    print(task.compute_dag)
+
 #################################################################
 # Begin Tuning
 # ------------
@@ -250,7 +254,7 @@ def run_tuning():
 #   There will also be some "dmlc::Error"s and CUDA errors, because the
 #   auto-scheduler will try some invalid schedules.
 #   You can safely ignore them if the tuning can continue, because these
-#   errors are isolated from the master process.
+#   errors are isolated from the main process.
 #
 
 ######################################################################

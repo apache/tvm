@@ -17,7 +17,7 @@
 """
 .. _tune_relay_arm:
 
-Auto-tuning a convolutional network for ARM CPU
+Auto-tuning a Convolutional Network for ARM CPU
 ===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_, `Eddie Yan <https://github.com/eqy>`_
 
