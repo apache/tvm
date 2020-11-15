@@ -184,12 +184,9 @@ class GraphOpNode : public GraphNode {
 /*! \brief Code generator for graph runtime */
 class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets,
-                      const bool use_auto_schedule = false)
-      : mod_(mod) {
+  GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
-    use_auto_schedule_ = use_auto_schedule;
   }
 
   LoweredOutput Codegen(relay::Function func) {
@@ -369,7 +366,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = Target("ext_dev");
       CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key, false);
+      CachedFunc ext_func = (*pf1)(compile_engine_, key);
       ICHECK(ext_func.defined()) << "External function is not defined.";
       UpdateConstants(func, &params_);
       return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
@@ -397,7 +394,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
       target = targets_[call_dev_type];
     }
     CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key, use_auto_schedule_);
+    CachedFunc lowered_func = (*pf1)(compile_engine_, key);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = IRModule(Map<GlobalVar, BaseFunc>({}));
     }
@@ -534,8 +531,6 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
   std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
   TargetsMap targets_;
-  /*! \brief use auto_scheduler schedule or TOPI-defined schedules */
-  bool use_auto_schedule_;
   /*! \brief params */
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief plan memory of device result */
@@ -553,28 +548,20 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
   GraphRuntimeCodegenModule() {}
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "init") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-            auto num_args = args.num_args;
-            bool use_auto_schedule = false;
-            if (num_args == 3) {
-              use_auto_schedule = args[2];
-              num_args--;
-            }
-            ICHECK_EQ(num_args, 2)
-                << "The expected of arguments are: "
-                << "runtime::Module mod and Map<int, Target> targets bool use_auto_schedule=false";
-            void* mod = args[0];
-            Map<Integer, tvm::Target> tmp = args[1];
-            TargetsMap targets;
-            for (const auto& it : tmp) {
-              auto dev_type = it.first.as<tir::IntImmNode>();
-              ICHECK(dev_type);
-              targets[dev_type->value] = it.second;
-            }
-            codegen_ = std::make_shared<GraphRuntimeCodegen>(
-                reinterpret_cast<runtime::Module*>(mod), targets, use_auto_schedule);
-          });
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
+                                    << "runtime::Module mod and Map<int, Target> targets";
+        void* mod = args[0];
+        Map<Integer, tvm::Target> tmp = args[1];
+        TargetsMap targets;
+        for (const auto& it : tmp) {
+          auto dev_type = it.first.as<tir::IntImmNode>();
+          ICHECK(dev_type);
+          targets[dev_type->value] = it.second;
+        }
+        codegen_ =
+            std::make_shared<GraphRuntimeCodegen>(reinterpret_cast<runtime::Module*>(mod), targets);
+      });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Function func = args[0];

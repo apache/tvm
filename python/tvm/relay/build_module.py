@@ -127,13 +127,13 @@ class BuildModule(object):
 
         # Build the IR module. If auto_scheduler is not enabled,
         # then use the TOPI-defined schedule.
-        use_auto_schedule = PassContext.current().config.get(
-            "relay.backend.use_auto_schedule", False
+        use_auto_scheduler = PassContext.current().config.get(
+            "relay.backend.use_auto_scheduler", False
         )
 
         # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
         old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
-        autotvm.GLOBAL_SCOPE.silent = use_auto_schedule
+        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
 
         self._build(mod, target, target_host)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent

@@ -63,9 +63,7 @@ struct GraphCodegen {
   }
   ~GraphCodegen() {}
 
-  void Init(runtime::Module* m, TargetsMap targets, const bool use_auto_schedule) {
-    CallFunc("init", m, targets, use_auto_schedule);
-  }
+  void Init(runtime::Module* m, TargetsMap targets) { CallFunc("init", m, targets); }
 
   void Codegen(const Function& func) { CallFunc("codegen", func); }
 
@@ -435,14 +433,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Get the updated function.
     auto func = Downcast<Function>(relay_module->Lookup("main"));
 
-    // Check whether to use TOPI schedule.
-    bool use_auto_schedule = transform::PassContext::Current()
-                                 ->GetConfig<Bool>("relay.backend.use_auto_schedule", Bool(false))
-                                 .value();
-
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
-    graph_codegen_->Init(nullptr, targets_, use_auto_schedule);
+    graph_codegen_->Init(nullptr, targets_);
     graph_codegen_->Codegen(func);
 
     ret_.graph_json = graph_codegen_->GetJSON();

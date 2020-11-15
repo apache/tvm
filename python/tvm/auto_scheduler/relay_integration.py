@@ -43,16 +43,16 @@ def call_all_topi_funcs(mod, params, target):
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
     autotvm.GLOBAL_SCOPE.silent = True
 
-    with transform.PassContext(opt_level=3):
+    with transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         opt_mod, _ = relay.optimize(mod, target, params)
-        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target, use_auto_schedule=True)
+        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
         grc.codegen(opt_mod["main"])
 
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
-    mod, params, target, include_simple_tasks=False, target_host=None, hardware_params=None
+    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
 ):
     """Extract tuning tasks from a relay program.
 
@@ -62,14 +62,14 @@ def extract_tasks(
         The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
-    include_simple_tasks: bool
-        Whether to extract simple tasks that do not include complicated ops.
     target: Union[tvm.target.Target, str]
         The compilation target
     target_host: Optional[Union[tvm.target.Target, str]]
         The host compilation target
     hardware_params : Optional[HardwareParams]
         Hardware parameters used for the search tasks
+    include_simple_tasks: bool
+        Whether to extract simple tasks that do not include complicated ops.
 
     Returns
     -------

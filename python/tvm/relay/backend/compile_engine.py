@@ -308,7 +308,7 @@ class CompileEngine(Object):
     def __init__(self):
         raise RuntimeError("Cannot construct a CompileEngine")
 
-    def lower(self, source_func, target=None, use_auto_schedule=False):
+    def lower(self, source_func, target=None):
         """Lower a source_func to a CachedFunc.
 
         Parameters
@@ -319,9 +319,6 @@ class CompileEngine(Object):
         target : tvm.Target
             The target platform.
 
-        use_auto_schedule: bool
-            Use auto_scheduler schedule. If false, then TOPI-defined schdules will be used.
-
         Returns
         -------
         cached_func: CachedFunc
@@ -330,7 +327,7 @@ class CompileEngine(Object):
         # pylint: disable=broad-except, import-outside-toplevel
         try:
             key = _get_cache_key(source_func, target)
-            return _backend._CompileEngineLower(self, key, use_auto_schedule)
+            return _backend._CompileEngineLower(self, key)
         except Exception:
             import traceback
 
