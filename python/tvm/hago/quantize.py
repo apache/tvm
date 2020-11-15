@@ -448,7 +448,6 @@ class Simulator(tvm.relay.ExprMutator):
                     src, _ = edge
                     eidx = edge2idx[edge]
                     in_scale = infer_scale_for_node(src)
-                    print(type(in_scale))
                     in_scales.append(in_scale.tolist())
                     in_dtypes.append(prov_dtypes[node2idx[src]])
                     out_dtypes.append(req_dtypes[eidx])
@@ -462,7 +461,6 @@ class Simulator(tvm.relay.ExprMutator):
                         if isinstance(out_scale, float):
                             out_scale = np.float32(out_scale)
 
-                    print(type(out_scale))
                     out_scales.append(out_scale.tolist())
 
                 rectified_output_scales = None
@@ -576,7 +574,7 @@ class Realizer(tvm.relay.ExprMutator):
         new_node = super().visit_call(node)
         if new_node.op.name == "nn.simulated_quantize":
             print('---------')
-            # print('simulated_quantize({})'.format(node_str(node.args[0], self._snode2idx)))
+            print('simulated_quantize({})'.format(node_str(node.args[0], self._snode2idx)))
             new_node = self._realize_simulated_quantize(new_node)
             return new_node
         nidx = self._node2idx[self._snode2node[node]]
@@ -602,7 +600,7 @@ class Realizer(tvm.relay.ExprMutator):
         clip_max = to_scalar(clip_max)
         print('  in_scale: {}'.format(in_scale))
         print('  out_scale: {}'.format(out_scale))
-        print(' axis: {}'.format(axis))
+        print('  axis: {}'.format(axis))
 
         if in_dtype == 'float32' and out_dtype == 'float32':
             # do nothing
