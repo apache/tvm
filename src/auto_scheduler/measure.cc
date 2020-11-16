@@ -274,7 +274,7 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     if (error_ct > max_continuous_error) {
       LOG(WARNING) << "Too many errors happened during tuning. Switching to debug mode."
                    << std::endl;
-      verbose = 1;
+      verbose = 2;
     } else {
       verbose = old_verbosity;
     }
