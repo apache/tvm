@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test task extraction for auto-scheduler"""
+import pytest
+
 import tvm.relay.testing
 import tvm.testing
 from tvm import auto_scheduler, relay
@@ -159,6 +161,25 @@ def test_task_extraction():
         out = relay.image.affine_grid(data, (150, 150))
         return relay.Function([data], out)
 
+    def get_func_with_unsupported_op():
+        def get_postproc_func():
+            data = relay.var("data", shape=((1, 3, 6)), dtype=dtype)
+            out = relay.nn.relu(data)
+            func = relay.Function([data], out)
+            func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+            return func
+
+        cls_prob = relay.var("cls_prob", relay.ty.TensorType((1, 3, 3), "float32"))
+        loc_pred = relay.var("loc_pred", relay.ty.TensorType((1, 3 * 4), "float32"))
+        anchors = relay.var("anchors", relay.ty.TensorType((1, 3, 4), "float32"))
+
+        mtl = relay.vision.multibox_transform_loc(
+            cls_prob=cls_prob, loc_pred=loc_pred, anchor=anchors
+        )
+        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], mtl[0], return_indices=False)
+        out = relay.Call(get_postproc_func(), [nms])
+        return relay.Function([cls_prob, loc_pred, anchors], out)
+
     func = get_func()
     mod = tvm.IRModule.from_expr(func)
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
@@ -188,6 +209,17 @@ def test_task_extraction():
     )
 
     # Every Relay function becomes a task regardless what ops in its body.
+    assert len(tasks) == 1
+    assert len(task_weights) == 1
+
+    # Func1 (with NMS) -> Func2 (injective).
+    func = get_func_with_unsupported_op()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(
+        mod["main"], None, target, include_simple_tasks=True
+    )
+
+    # The function with NMS should fail, but the other function with ReLU should be a task.
     assert len(tasks) == 1
     assert len(task_weights) == 1
 

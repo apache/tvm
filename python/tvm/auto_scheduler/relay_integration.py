@@ -219,6 +219,8 @@ def auto_schedule_topi(outs, has_complex_op):
 
     io_tensors, has_layout_free = traverse_to_get_io_tensors(outs)
     key = register_workload_tensors(io_tensors)
+    if key is None:  # skip this compute if failed to register the workload
+        return None
 
     # only enable layout rewrite for cpu backend
     enable_layout_rewrite = "cpu" in tvm.target.Target.current().keys
