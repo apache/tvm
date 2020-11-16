@@ -90,6 +90,8 @@ include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
+include_directories("C:/llvm/llvm/build/include")
+include_directories("C:/llvm/llvm/include")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
