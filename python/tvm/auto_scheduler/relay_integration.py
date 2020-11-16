@@ -214,6 +214,8 @@ def auto_schedule_topi(outs):
     if env is None:  # in the final build mode
         state = DispatchContext.current.query(tvm.target.Target.current(), key)
         if state is None:
+            if "gpu" in tvm.target.Target.current().keys:
+                raise RuntimeError("Cannot compile for GPU targets if no valid schedule is found.")
             return te.create_schedule([x.op for x in outs])
 
         dag = ComputeDAG(io_tensors)
