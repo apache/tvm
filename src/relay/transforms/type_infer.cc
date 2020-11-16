@@ -76,6 +76,20 @@ bool TupleGetItemRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 TVM_REGISTER_NODE_TYPE(TupleGetItemAttrs);
 TVM_REGISTER_GLOBAL("tvm.relay.type_relation.TupleGetItem").set_body_typed(TupleGetItemRel);
 
+bool TupleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+              const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), num_inputs + 1);
+  Array<Type> fields;
+  for (int i = 0; i < num_inputs; i++) {
+    if (types[i].as<IncompleteTypeNode>()) return false;
+    fields.push_back(types[i]);
+  }
+  reporter->Assign(types[num_inputs], TupleType(fields));
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("tvm.relay.type_relation.Tuple").set_body_typed(TupleRel);
+
 struct ResolvedTypeInfo {
   explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args)
       : checked_type(checked_type), type_args(type_args) {}
@@ -211,11 +225,17 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   Type VisitExpr_(const ConstantNode* op) final { return op->tensor_type(); }
 
   Type VisitExpr_(const TupleNode* op) final {
+    if (!make_tuple_rel_.defined()) {
+      make_tuple_rel_ = Downcast<TypeRelationFn>(EnvFunc::Get("tvm.relay.type_relation.Tuple"));
+    }
     Array<Type> types;
     for (Expr field : op->fields) {
       types.push_back(GetType(field));
     }
-    return TupleType(types);
+    Type rtype = IncompleteType(Kind::kType);
+    types.push_back(rtype);
+    solver_.AddConstraint(TypeRelation(make_tuple_rel_, types, op->fields.size(), {}), op->span);
+    return rtype;
   }
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
@@ -536,6 +556,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       arg_types.push_back(GetType(param));
     }
     Type rtype = GetType(f->body);
+    solver_.Solve();
     if (auto* ft = rtype.as<FuncTypeNode>()) {
       rtype = InstantiateFuncType(ft);
     }

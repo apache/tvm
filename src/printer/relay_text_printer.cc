@@ -56,7 +56,8 @@ Doc RelayTextPrinter::PrintOptionalInfo(const Expr& expr) {
   Doc doc;
   // default annotations
   if (annotate_ == nullptr) {
-    if ((expr.as<ConstantNode>() || expr.as<CallNode>()) && expr->checked_type_.defined()) {
+    if ((expr.as<ConstantNode>() || expr.as<CallNode>() || expr.as<IfNode>()) &&
+        expr->checked_type_.defined()) {
       doc << " /* ty=" << Print(expr->checked_type()) << " */";
     }
   } else {

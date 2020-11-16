@@ -402,6 +402,24 @@ def @main(%f: float32) -> float32 {
     tvm.ir.assert_structural_equal(mod["main"].body.type_args, [relay.TensorType((), "float32")])
 
 
+def test_tuple_rel():
+    import numpy as np
+
+    choice_t = relay.FuncType([], relay.scalar_type("bool"))
+    f = relay.Var("f", choice_t)
+    ty = relay.TensorType([2], dtype="float32")
+    var = relay.Var("v0", type_annotation=ty)
+    fill = relay.op.full(relay.const(0), var, dtype="float32")
+    body = relay.If(
+        f(),
+        relay.const(np.random.uniform(0, 1, size=(1, 4)).astype("float32"), dtype="float32"),
+        fill,
+    )
+    body = relay.op._make.concatenate(relay.Tuple([body]), 0)
+    fchecked = infer_expr(body, False)
+    assert fchecked.checked_type == relay.TensorType([tvm.tir.Any(), tvm.tir.Any()], "float32")
+
+
 if __name__ == "__main__":
     import sys
 

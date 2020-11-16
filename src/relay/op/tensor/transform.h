@@ -49,19 +49,25 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
    * anything but an incomplete type we should signal an
    * error.
    */
+  if (types[0].as<IncompleteTypeNode>()) {
+    return false;
+  }
+
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
     throw Error(
         ErrorBuilder() << "concatenate requires a tuple of tensors as the first argument, found "
                        << PrettyPrint(types[0]));
-  } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
-    return false;
+  }
+
+  for (auto& ttype : tensor_tuple->fields) {
+    // Check whether any incomplete type exists
+    if (ttype.as<IncompleteTypeNode>()) {
+      return false;
+    }
   }
 
   const auto* param = attrs.as<AttrType>();
-  if (tensor_tuple->fields[0].as<IncompleteTypeNode>()) {
-    return false;
-  }
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
   // Sanity check: ndim and dtype.
   const int ndim = static_cast<int>(first->shape.size());
