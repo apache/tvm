@@ -240,7 +240,7 @@ def run_tuning():
 #     |   22 |        0.013 |         998.81 |     64 |
 #     |   23 |        0.022 |         595.89 |     64 |
 #     -------------------------------------------------
-#     Estimated total latency: 1.416 ms       Trials: 5056    Used time : 8159 s      Next ID: 8
+#     Estimated total latency: 1.416 ms  Trials: 5056  Used time : 8519 s  Next ID: 8
 #
 #   This table lists the latency and (estimated) speed of all tasks.
 #   It also lists the allocation of measurement trials for all tasks.
