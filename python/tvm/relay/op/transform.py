@@ -1242,6 +1242,8 @@ def sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value=0
 
     if default_value == 0:
         default_value = const(0)
+    if isinstance(output_shape, Expr):
+        return _dyn_make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
     return _make.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
 
 
