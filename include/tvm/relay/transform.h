@@ -48,6 +48,13 @@ using PassContextNode = tvm::transform::PassContextNode;
 using Sequential = tvm::transform::Sequential;
 
 /*
+ * \brief Function to get the device placement for an op.
+ *
+ * \return The context.device_type to be used for op expr
+ */
+using FTVMGetPlacement = runtime::TypedPackedFunc<int(const Expr& expr)>;
+
+/*
  * \brief Create a function pass.
  *
  * \param pass_func The packed function that contains the optimization.
@@ -430,6 +437,17 @@ TVM_DLL Pass SimplifyExpr();
  * \return The pass.
  */
 TVM_DLL Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets);
+
+/*!
+ * \brief Annotate ops for heterogeneous execution.
+ *
+ * \param get_placement a packed function of type int(Expr) which determines the
+ *        placement of each Expr. The returned int is the target device_type to use
+ *        for Expr or -1 for default placement.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass AnnotateDevicePlacement(FTVMGetPlacement get_placement);
 
 }  // namespace transform
 

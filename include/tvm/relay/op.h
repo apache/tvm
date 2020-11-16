@@ -36,6 +36,11 @@ using OpNode = tvm::OpNode;
 
 #define RELAY_REGISTER_OP(OpName) TVM_REGISTER_OP(OpName)
 
+namespace op {
+namespace annotation {
+Expr on_device(Expr data, int device_type);
+}  // namespace annotation
+}  // namespace op
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_H_

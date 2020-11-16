@@ -817,6 +817,18 @@ def Defunctionalization(func, mod):
     return _ffi_api.Defunctionalization(func, mod)
 
 
+def AnnotateDevicePlacement(get_placement):
+    """
+    Annotate a module with compiler_begin and compiler_end for partitioning and
+    heterogeneous execution.
+
+    Returns
+    -------
+    None
+    """
+    return _ffi_api.AnnotateDevicePlacement(get_placement)
+
+
 def to_cps(func, mod=None):
     """
     Turn expression into CPS expression.

@@ -36,16 +36,22 @@
 namespace tvm {
 namespace relay {
 
+namespace op {
+namespace annotation {
+Expr on_device(Expr data, int device_type) {
+  auto attrs = make_object<OnDeviceAttrs>();
+  attrs->device_type = device_type;
+  static const Op& op = Op::Get("on_device");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+}  // namespace annotation
+}  // namespace op
+
 // relay.annotation.on_device
 TVM_REGISTER_NODE_TYPE(OnDeviceAttrs);
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
-    .set_body_typed([](Expr data, int device_type) {
-      auto attrs = make_object<OnDeviceAttrs>();
-      attrs->device_type = device_type;
-      static const Op& op = Op::Get("on_device");
-      return Call(op, {data}, Attrs(attrs), {});
-    });
+    .set_body_typed(op::annotation::on_device);
 
 RELAY_REGISTER_OP("on_device")
     .describe(R"code(Annotate an expression with device type)code" TVM_ADD_FILELINE)
