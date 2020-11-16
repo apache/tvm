@@ -48,7 +48,9 @@ def tune_network(network, target):
 
         # Compile with the history best
         with auto_scheduler.ApplyHistoryBest(log_file):
-            with tvm.transform.PassContext(opt_level=3):
+            with tvm.transform.PassContext(
+                opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+            ):
                 lib = relay.build(mod, target=target, params=params)
 
     # Todo(merrymercy): when the cpu backend is upstreamed, do the following things:
