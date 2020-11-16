@@ -129,8 +129,7 @@ class Tuner(object):
 
             configs = self.next_batch(min(n_parallel, n_trial - i))
 
-            inputs = [MeasureInput(self.task.target, self.task, config)
-                      for config in configs]
+            inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
             results = measure_batch(inputs)
 
             # keep best config
@@ -177,8 +176,7 @@ class Tuner(object):
 
             if error_ct > 150:
                 logging.basicConfig()
-                logger.warning(
-                    "Too many errors happen in the tuning. Switching to debug mode.")
+                logger.warning("Too many errors happen in the tuning. Switching to debug mode.")
                 logger.setLevel(logging.DEBUG)
             else:
                 logger.setLevel(old_level)
