@@ -28,6 +28,7 @@ _reg.register_broadcast_schedule("dyn.tile")
 _reg.register_injective_schedule("dyn.one_hot")
 _reg.register_injective_schedule("dyn.full")
 _reg.register_injective_schedule("dyn.strided_slice")
+_reg.register_injective_schedule("dyn.sparse_to_dense")
 
 
 @script
@@ -198,3 +199,16 @@ def strided_slice_shape_func(attrs, inputs, _):
     """
     slice_mode = convert(0 if attrs.slice_mode == "end" else 1)
     return [_strided_slice_shape_func_input_data(*inputs, slice_mode)]
+
+
+@script
+def _sparse_to_dense_shape_func(output_shape, ndim):
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = int64(output_shape[i])
+    return out
+
+
+@_reg.register_shape_func("dyn.sparse_to_dense", True)
+def sparse_to_dense_shape_func(attrs, inputs, out_ndims):
+    return [_sparse_to_dense_shape_func(inputs[3], out_ndims[0])]

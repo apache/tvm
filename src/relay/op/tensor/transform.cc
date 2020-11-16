@@ -2837,9 +2837,9 @@ RELAY_REGISTER_OP("gather")
 
 E.g. for a 3D tensor, output is computed as:
 
-	out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
-	out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
-	out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+       out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+       out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+       out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
 
 ``indices`` must have same shape as ``data``, except at dimension ``axis``
 which must just be not null. Output will have same shape as ``indices``.
@@ -3179,16 +3179,21 @@ Array<te::Tensor> SparseToDenseCompute(const Attrs& attrs, const Array<te::Tenso
   ICHECK_EQ(inputs.size(), 3);
   const auto* param = attrs.as<SparseToDenseAttrs>();
   ICHECK(param != nullptr);
-  return {topi::sparse_to_dense(inputs[0], param->output_shape, inputs[1], inputs[2]())};
+  Array<IndexExpr> output_shape;
+  for (auto val : param->output_shape) {
+    output_shape.push_back(val);
+  }
+  return {topi::sparse_to_dense(inputs[0], output_shape, inputs[1], inputs[2]())};
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparse_to_dense")
-    .set_body_typed([](Expr indices, Array<Integer> output_shape, Expr values, Expr default_value) {
-      auto attrs = make_object<SparseToDenseAttrs>();
-      attrs->output_shape = std::move(output_shape);
-      static const Op& op = Op::Get("sparse_to_dense");
-      return Call(op, {indices, values, default_value}, Attrs(attrs));
-    });
+Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value) {
+  auto attrs = make_object<SparseToDenseAttrs>();
+  attrs->output_shape = std::move(output_shape);
+  static const Op& op = Op::Get("sparse_to_dense");
+  return Call(op, {indices, values, default_value}, Attrs(attrs));
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_to_dense").set_body_typed(MakeSparseToDense);
 
 RELAY_REGISTER_OP("sparse_to_dense")
     .describe(R"code(A dense tensor from a sparse representation.
