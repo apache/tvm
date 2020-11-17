@@ -98,13 +98,16 @@ def register_workload(func_name, f=None, override=False):
     return register
 
 
-def register_workload_tensors(tensors):
+def register_workload_tensors(tensors, func_name=None):
     """Register a workload by provding input/output tensors
 
     Parameters
     ----------
     tensors: List[Tensor]
         The input/output tensors of a compute DAG
+    func_name: Optional[str]
+        The function name of the compute DAG. If not presented,
+        the hash key of the compute DAG will be used.
 
     Returns
     -------
@@ -120,6 +123,7 @@ def register_workload_tensors(tensors):
         logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
 
+    key = func_name if func_name is not None else ComputeDAG(tensors).hash_key()
     WORKLOAD_FUNC_REGISTRY[key] = tensors
     return json.dumps((key,))
 

@@ -21,6 +21,7 @@ import tvm._ffi
 from tvm.runtime import Object
 
 from . import _ffi_api
+from .workload_registry import register_workload_tensors
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
@@ -63,6 +64,7 @@ class SearchTask(Object):
     def __setstate__(self, state):
         self.dag = state["dag"]
         self.workload_key = state["workload_key"]
+        register_workload_tensors(self.dag.tensors, func_name=self.workload_key)
         self.target = state["target"]
         self.target_host = state["target_host"]
         self.hardware_params = state["hardware_params"]
