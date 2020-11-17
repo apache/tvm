@@ -17,6 +17,8 @@
 
 """ The definiton of SearchTask """
 
+import json
+
 import tvm._ffi
 from tvm.runtime import Object
 
@@ -64,7 +66,11 @@ class SearchTask(Object):
     def __setstate__(self, state):
         self.dag = state["dag"]
         self.workload_key = state["workload_key"]
-        register_workload_tensors(self.dag.tensors, func_name=self.workload_key)
+        try:
+            func_name, _ = json.loads(self.workload_key)
+        except Exception as err: # pylint: disable=broad-except
+            raise RuntimeError("Invalid workload key %s" % self.workload_key)
+        register_workload_tensors(self.dag.tensors, func_name=func_name)
         self.target = state["target"]
         self.target_host = state["target_host"]
         self.hardware_params = state["hardware_params"]

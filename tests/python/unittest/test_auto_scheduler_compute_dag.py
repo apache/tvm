@@ -16,6 +16,7 @@
 # under the License.
 
 """Test ComputeDAG (replay, infer bound)"""
+import json
 import pickle
 
 import tvm
@@ -120,14 +121,16 @@ def test_stage_order():
     # Serialize and deserialize the search task.
     task = auto_scheduler.SearchTask(
         dag,
-        "test1",
+        json.dumps(("test-key",)),
         tvm.target.Target("llvm"),
         hardware_params=auto_scheduler.HardwareParams(100000, 16, 64),
     )
 
     auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY.clear()
     task2 = pickle.loads(pickle.dumps(task))
-    assert task2.workload_key in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
+    assert (
+        json.loads(task2.workload_key)[0] in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
+    )
     assert str(task.dag.get_init_state()) == str(task2.dag.get_init_state())
     assert len(task.dag.get_init_state().stage_ops) == len(task2.dag.get_init_state().stage_ops)
     assert task.workload_key == task2.workload_key
