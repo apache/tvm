@@ -25,7 +25,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 import threading
 
 import tvm
-from tvm import te, transform
+from tvm import autotvm, te, transform
 from tvm.te.tensor import ComputeOp, PlaceholderOp
 from .compute_dag import ComputeDAG
 from .dispatcher import DispatchContext
@@ -34,18 +34,26 @@ from .workload_registry import register_workload_tensors
 
 
 def call_all_topi_funcs(mod, params, target):
-    """Call all TOPI compute + schedule to extract tasks in a relay program"""
+    """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
     from tvm.relay.backend import graph_runtime_codegen
 
-    with transform.PassContext(opt_level=3):
+    # Turn off AutoTVM config not found warnings
+    old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
+    autotvm.GLOBAL_SCOPE.silent = True
+
+    with transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         opt_mod, _ = relay.optimize(mod, target, params)
         grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
         grc.codegen(opt_mod["main"])
 
+    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
-def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
+
+def extract_tasks(
+    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
+):
     """Extract tuning tasks from a relay program.
 
     Parameters
@@ -60,6 +68,8 @@ def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
         The host compilation target
     hardware_params : Optional[HardwareParams]
         Hardware parameters used for the search tasks
+    include_simple_tasks: bool
+        Whether to extract simple tasks that do not include complicated ops.
 
     Returns
     -------
@@ -77,7 +87,9 @@ def extract_tasks(mod, params, target, target_host=None, hardware_params=None):
         target_host = tvm.target.Target(target_host)
 
     # Run the compiler to collect all TOPI calls during compilation.
-    env = TracingEnvironment(TracingMode.EXTRACT_TASK)
+    env = TracingEnvironment(
+        TracingMode.EXTRACT_TASK if include_simple_tasks else TracingMode.EXTRACT_COMPLEX_TASK_ONLY
+    )
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
@@ -109,7 +121,8 @@ class TracingMode:
     """Two modes for tracing"""
 
     EXTRACT_TASK = 0  # trace all topi calls to extract tasks
-    PREPARE_LAYOUT_REWRITE = 1  # trace topi calls to prepare layout rewrite
+    EXTRACT_COMPLEX_TASK_ONLY = 1  # same as EXTRACT_TASK but ignore the task without complex ops
+    PREPARE_LAYOUT_REWRITE = 2  # trace topi calls to prepare layout rewrite
 
 
 class TracingEnvironment:
@@ -181,11 +194,8 @@ def traverse_to_get_io_tensors(outs):
     return inputs + list(outs), has_layout_free
 
 
-# The suffix of implementations that use the auto-scheduler in the OpStrategy.
-auto_schedule_impl_suffix = ".auto_scheduler"
-
-
-def auto_schedule_topi(outs):
+@tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
+def auto_schedule_topi(outs, has_complex_op):
     """Use auto-scheduler to schedule any topi compute function.
 
     Note: This is used internally for relay integration. Do
@@ -195,35 +205,40 @@ def auto_schedule_topi(outs):
     ----------
     outs: List[Tensor]
         The output tensors of topi compute functions
+    has_complex_op: bool
+        Whether the topi compute function includes at least one complex op.
 
     Returns
     -------
-    sch: te.Schedule
-        A topi schedule function
+    sch: Optional[te.Schedule]
+        A tuned schedule or none (if not tuned) in the final build mode;
+        An initial schdule in the tracing mode.
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
 
     io_tensors, has_layout_free = traverse_to_get_io_tensors(outs)
     key = register_workload_tensors(io_tensors)
+    if key is None:  # skip this compute if failed to register the workload
+        return None
 
     # only enable layout rewrite for cpu backend
     enable_layout_rewrite = "cpu" in tvm.target.Target.current().keys
 
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
-        state = DispatchContext.current.query(tvm.target.Target.current(), key)
-        if state is None:
-            if "gpu" in tvm.target.Target.current().keys:
-                raise RuntimeError("Cannot compile for GPU targets if no valid schedule is found.")
-            return te.create_schedule([x.op for x in outs])
-
         dag = ComputeDAG(io_tensors)
+        state = DispatchContext.current.query(tvm.target.Target.current(), key, has_complex_op, dag)
+        if state is None:
+            return None
+
         schedule, _ = dag.apply_steps_from_state(state)
-    elif env.tracing_mode == TracingMode.EXTRACT_TASK:  # in the task extraction mode
-        engine = relay.backend.compile_engine.get()
-        ccache_key = engine.get_current_ccache_key()
-        env.add_workload_key(key, ccache_key)
+    elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
+        # in the task extraction mode
+        if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
+            engine = relay.backend.compile_engine.get()
+            ccache_key = engine.get_current_ccache_key()
+            env.add_workload_key(key, ccache_key)
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # todo(merrymercy, minminsun): port layout rewrite

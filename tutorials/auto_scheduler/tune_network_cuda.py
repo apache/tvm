@@ -102,10 +102,10 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
             batch_size=batch_size, layout=layout, dtype=dtype, image_shape=image_shape
         )
     elif name == "squeezenet_v1.1":
+        assert layout == "NCHW", "squeezenet_v1.1 only supports NCHW layout"
         mod, params = relay.testing.squeezenet.get_workload(
             version="1.1",
             batch_size=batch_size,
-            layout=layout,
             dtype=dtype,
             image_shape=image_shape,
         )
@@ -147,9 +147,6 @@ log_file = "%s-%s-B%d.json" % (network, layout, batch_size)
 # as :code:`sum(latency[t] * weight[t])`, where :code:`latency[t]` is the
 # latency of a task and :code:`weight[t]` is the weight of the task.
 # The task scheduler will just optimize this objective.
-
-# Enable auto-scheduler in relay
-auto_scheduler.enable_relay_integration()
 
 # Extract tasks from the network
 print("Extract tasks...")
@@ -219,29 +216,32 @@ def run_tuning():
 #     ----------------------------------------------------------------------
 #     |  ID  | Latency (ms) | Speed (GFLOPS) | Trials |
 #     -------------------------------------------------
-#     |    0 |        0.014 |          72.07 |     64 |
-#     |    1 |        0.185 |        1250.68 |    128 |
-#     |    2 |        0.142 |        1626.36 |    192 |
-#     |    3 |        0.137 |        1689.42 |    128 |
-#     |    4 |        0.097 |        1189.75 |    128 |
-#     |    5 |        0.092 |        2505.25 |    128 |
-#     |    6 |        0.080 |        2893.08 |    128 |
-#     |    7 |        0.119 |        1947.84 |    128 |
-#     |    8 |        0.090 |        1292.62 |     64 |
-#     |    9 |        0.107 |        2172.30 |     64 |
-#     |   10 |        0.095 |        2439.36 |     64 |
-#     |   11 |        0.077 |        3003.22 |     64 |
-#     |   12 |        0.068 |        1695.13 |     64 |
-#     |   13 |        0.058 |        3979.29 |     64 |
-#     |   14 |        0.048 |        4859.95 |    128 |
-#     |   15 |        0.073 |        3151.76 |     64 |
-#     |   16 |        0.056 |        4265.94 |     64 |
-#     |   17 |        0.009 |        2754.90 |     64 |
-#     |   18 |        0.011 |        1156.08 |     64 |
-#     |   19 |        0.013 |         955.80 |     64 |
-#     |   20 |        0.029 |         437.71 |     64 |
+#     |    0 |        0.005 |           0.88 |     64 |
+#     |    1 |        0.010 |          99.10 |     64 |
+#     |    2 |        0.006 |           0.00 |     64 |
+#     |    3 |        0.145 |         979.78 |    384 |
+#     |    4 |        0.130 |        1097.02 |    384 |
+#     |    5 |        0.143 |         992.69 |    384 |
+#     |    6 |        0.076 |        1526.86 |    192 |
+#     |    7 |        0.115 |         999.44 |    320 |
+#     |    8 |        0.079 |        1449.39 |    320 |
+#     |    9 |        0.122 |         938.73 |    384 |
+#     |   10 |        0.063 |        1832.98 |    192 |
+#     |   11 |        0.072 |        1763.62 |    256 |
+#     |   12 |        0.062 |        2036.40 |    192 |
+#     |   13 |        0.068 |        1874.44 |    192 |
+#     |   14 |        0.049 |        2346.50 |    128 |
+#     |   15 |        0.076 |        1694.31 |    256 |
+#     |   16 |        0.067 |        1933.30 |    448 |
+#     |   17 |        0.076 |        1680.90 |    256 |
+#     |   18 |        0.022 |          98.43 |     64 |
+#     |   19 |        0.076 |        3112.55 |    192 |
+#     |   20 |        0.013 |        2026.44 |     64 |
+#     |   21 |        0.011 |        1136.69 |     64 |
+#     |   22 |        0.013 |         992.47 |     64 |
+#     |   23 |        0.020 |         627.56 |     64 |
 #     -------------------------------------------------
-#     Estimated total latency: 1.649 ms  Trials: 1920  Used time : 3598 s  Next ID: 9
+#     Estimated total latency: 1.587 ms  Trials: 4992  Used time : 13296 s  Next ID: 3
 #
 #   This table lists the latency and (estimated) speed of all tasks.
 #   It also lists the allocation of measurement trials for all tasks.
@@ -276,7 +276,7 @@ def run_tuning():
 # Compile with the history best
 print("Compile...")
 with auto_scheduler.ApplyHistoryBest(log_file):
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         lib = relay.build(mod, target=target, params=params)
 
 # Create graph runtime

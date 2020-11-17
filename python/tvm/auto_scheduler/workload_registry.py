@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """
 Workload registration and serialization.
@@ -29,12 +30,14 @@ These strings are efficient for serialization/matching and won't be too long.
 When we need the dag, we decode the string and call the function, which will return the dag.
 """
 
+import logging
 import pickle
 import json
 
 import tvm._ffi
 from .utils import serialize_args, deserialize_args, get_func_name
 
+logger = logging.getLogger("auto_scheduler")
 
 # Global workload function and hash key registry
 # It stores two types of workload:
@@ -105,13 +108,18 @@ def register_workload_tensors(tensors):
 
     Returns
     -------
-    key: str
-        The workload key
+    key: Optional[str]
+        The workload key, or None if failed to create a compute DAG.
     """
     # pylint: disable=import-outside-toplevel
     from .compute_dag import ComputeDAG
 
-    key = ComputeDAG(tensors).hash_key()
+    try:
+        key = ComputeDAG(tensors).hash_key()
+    except tvm.error.TVMError as err:
+        logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
+        return None
+
     WORKLOAD_FUNC_REGISTRY[key] = tensors
     return json.dumps((key,))
 

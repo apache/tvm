@@ -24,8 +24,6 @@ from test_auto_scheduler_task_extraction import get_network
 
 
 def tune_network(network, target):
-    auto_scheduler.enable_relay_integration()
-
     # Extract tasks
     mod, params = get_network(network)
     target = tvm.target.Target(target)
@@ -50,14 +48,14 @@ def tune_network(network, target):
 
         # Compile with the history best
         with auto_scheduler.ApplyHistoryBest(log_file):
-            with tvm.transform.PassContext(opt_level=3):
+            with tvm.transform.PassContext(
+                opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+            ):
                 lib = relay.build(mod, target=target, params=params)
 
     # Todo(merrymercy): when the cpu backend is upstreamed, do the following things:
     # 1. compile without history to test the fallback mechanism
     # 2. check the correctness of layout rewrite / winograd pre-transform
-
-    auto_scheduler.enable_relay_integration(False)
 
 
 @tvm.testing.requires_cuda
