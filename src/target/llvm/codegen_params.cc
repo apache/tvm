@@ -24,6 +24,7 @@
 
 #include "codegen_params.h"
 
+#include <memory>
 #include <vector>
 
 namespace tvm {
