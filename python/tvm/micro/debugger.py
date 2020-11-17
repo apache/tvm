@@ -160,6 +160,7 @@ class GdbDebugger(Debugger):
     def stop(self):
         self._child_exited_event.wait()
 
+
 atexit.register(GdbDebugger._stop_all)
 
 
@@ -198,9 +199,13 @@ class GdbTransportDebugger(GdbDebugger):
                     ["-O", "settings set target.run-args {}".format(" ".join(self.args[1:]))]
                 )
         elif sysname == "Linux":
-            args = (
-                ["gdb", "-ex", f"file {self.args[0]}", "-ex", f"set args {' '.join(shlex.quote(a) for a in self.args[1:])} </dev/fd/{stdin_read} >/dev/fd/{stdout_write}"]
-            )
+            args = [
+                "gdb",
+                "-ex",
+                f"file {self.args[0]}",
+                "-ex",
+                f"set args {' '.join(shlex.quote(a) for a in self.args[1:])} </dev/fd/{stdin_read} >/dev/fd/{stdout_write}",
+            ]
         else:
             raise NotImplementedError(f"System {sysname} is not yet supported")
 

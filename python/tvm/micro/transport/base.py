@@ -211,7 +211,7 @@ class TransportLogger(Transport):
         return self.child.close()
 
     def read(self, n, timeout_sec):
-        timeout_str = f'{timeout_sec:5.2f}s' if timeout_sec is not None else ' None '
+        timeout_str = f"{timeout_sec:5.2f}s" if timeout_sec is not None else " None "
         try:
             data = self.child.read(n, timeout_sec)
         except IoTimeoutError:
@@ -261,7 +261,7 @@ class TransportLogger(Transport):
         return data
 
     def write(self, data, timeout_sec):
-        timeout_str = f'{timeout_sec:5.2f}s' if timeout_sec is not None else ' None '
+        timeout_str = f"{timeout_sec:5.2f}s" if timeout_sec is not None else " None "
         try:
             bytes_written = self.child.write(data, timeout_sec)
         except IoTimeoutError:
