@@ -238,14 +238,13 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
 
   builder_->SetInsertPoint(default_block);
   {
-    auto ret_types_array =
-        builder_->CreateBitCast(
+    auto ret_types_array = builder_->CreateBitCast(
 #if TVM_LLVM_VERSION >= 50
-          &function->arg_begin()[4],
+        &function->arg_begin()[4],
 #else
-          &(*(std::next(function->arg_begin(), 4))),
+        &(*(std::next(function->arg_begin(), 4))),
 #endif
-          llvm::ArrayType::get(t_int_, 1)->getPointerTo());
+        llvm::ArrayType::get(t_int_, 1)->getPointerTo());
 
     builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMNullptr),
                           builder_->CreateGEP(ret_types_array, zero_array_index_list));
@@ -274,16 +273,15 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
     builder_->CreateStore(
         builder_->CreatePointerCast(param_symbol, t_void_->getPointerTo(GetGlobalAddressSpace())),
         builder_->CreateGEP(retval_array, zero_array_index_list));
-    auto ret_types_array =
-        builder_->CreateBitCast(
+    auto ret_types_array = builder_->CreateBitCast(
 #if TVM_LLVM_VERSION >= 50
-          &function->arg_begin()[4],
+        &function->arg_begin()[4],
 #else
         &(*std::next(function->arg_begin(), 4)),
 #endif
-          llvm::ArrayType::get(t_int_, 1)->getPointerTo());
-   builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle),
-                         builder_->CreateGEP(ret_types_array, zero_array_index_list));
+        llvm::ArrayType::get(t_int_, 1)->getPointerTo());
+    builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle),
+                          builder_->CreateGEP(ret_types_array, zero_array_index_list));
     builder_->CreateRet(ConstInt32(0));
   }
 }
