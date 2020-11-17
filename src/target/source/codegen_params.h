@@ -24,8 +24,9 @@
 #ifndef TVM_TARGET_SOURCE_CODEGEN_PARAMS_H_
 #define TVM_TARGET_SOURCE_CODEGEN_PARAMS_H_
 
-#include <iostream>
 #include <tvm/runtime/ndarray.h>
+
+#include <iostream>
 
 namespace tvm {
 namespace codegen {

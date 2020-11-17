@@ -34,7 +34,7 @@ class DLManagedTensorDeleter {
  public:
   void operator()(DLManagedTensor* ptr) { ptr->deleter(ptr); }
 };
-}
+}  // namespace
 
 llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::NDArray arr) {
   llvm::Type* element_type = nullptr;

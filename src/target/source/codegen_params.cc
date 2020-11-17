@@ -23,10 +23,11 @@
 
 #include "codegen_params.h"
 
+#include <dlpack/dlpack.h>
+
 #include <iomanip>
 #include <memory>
 #include <string>
-#include <dlpack/dlpack.h>
 
 namespace tvm {
 namespace codegen {
@@ -36,7 +37,7 @@ class DLManagedTensorDeleter {
  public:
   void operator()(DLManagedTensor* ptr) { ptr->deleter(ptr); }
 };
-}
+}  // namespace
 
 static constexpr const int kMaxLineLength = 80;
 
@@ -291,5 +292,5 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
   os.flags(old_fmtflags);
 }
 
-}  // codegen codegen
-}  // codegen tvm
+}  // namespace codegen
+}  // namespace tvm
