@@ -228,7 +228,7 @@ class RPCRunner(Runner):
         self.host = host
         self.port = port
         self.priority = priority
-        self.timeout = timeout * (self.n_parallel + 1 )
+        self.timeout = timeout
 
         self.number = number
         self.repeat = repeat
@@ -240,7 +240,7 @@ class RPCRunner(Runner):
         self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
 
-        self.executor = LocalExecutor(timeout=self.timeout)
+        self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1 ))
 
     def set_task(self, task):
         self.task = task
