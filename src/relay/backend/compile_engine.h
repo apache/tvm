@@ -69,6 +69,27 @@ class LoweredOutput : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(LoweredOutput, ObjectRef, LoweredOutputNode);
 };
 
+/*! \brief Node container to represent a Tensor Expression graph. */
+struct TEGraphNode : public Object {
+  /* \brief The inputs to the graph */
+  tvm::Array<te::Tensor> inputs;
+  /* \brief The outputs to the graph */
+  tvm::Array<te::Tensor> outputs;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("inputs", &inputs);
+    v->Visit("outputs", &outputs);
+  }
+
+  static constexpr const char* _type_key = "relay.TEGraph";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TEGraphNode, Object);
+};
+
+class TEGraph : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TEGraph, ObjectRef, TEGraphNode);
+};
+
 /*! \brief Node container to represent a cached function. */
 struct CachedFuncNode : public Object {
   /* \brief compiled target */

@@ -52,6 +52,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(LoweredOutputNode);
+TVM_REGISTER_NODE_TYPE(TEGraphNode);
 TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
@@ -125,14 +126,13 @@ class TETranslator : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
   explicit TETranslator(Target target) : target_(target), device_copy_op_(Op::Get("device_copy")) {}
 
-  CachedFunc Translate(const Function& prim_func) {
-    auto cache_node = make_object<CachedFuncNode>();
-    cache_node->target = target_;
+  TEGraph Translate(const Function& prim_func) {
+    auto graph_node = make_object<TEGraphNode>();
     for (Var param : prim_func->params) {
       Array<tvm::te::Tensor> inputs;
       if (const auto* ttype = param->checked_type().as<TensorTypeNode>()) {
         tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
-        cache_node->inputs.push_back(tensor);
+        graph_node->inputs.push_back(tensor);
         inputs.push_back(tensor);
       } else {
         // flatten tuple of tensor type.
@@ -142,14 +142,14 @@ class TETranslator : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
           // TODO(@icemelon): Allow recursive tuple
           ICHECK(ttype != nullptr);
           tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
-          cache_node->inputs.push_back(tensor);
+          graph_node->inputs.push_back(tensor);
           inputs.push_back(tensor);
         }
       }
       memo_[param] = inputs;
     }
-    cache_node->outputs = this->VisitExpr(prim_func->body);
-    return CachedFunc(cache_node);
+    graph_node->outputs = this->VisitExpr(prim_func->body);
+    return TEGraph(graph_node);
   }
 
   Array<te::Tensor> VisitExpr_(const VarNode* op) final {
@@ -253,11 +253,11 @@ class ScheduleGetter : public ExprVisitor {
 
   CachedFunc Create(const Function& prim_func) {
     auto translator = TETranslator(target_);
-    auto te_cache_func = translator.Translate(prim_func);
+    auto te_graph = translator.Translate(prim_func);
     auto cache_node = make_object<CachedFuncNode>();
-    cache_node->target = te_cache_func->target;
-    cache_node->inputs = te_cache_func->inputs;
-    cache_node->outputs = te_cache_func->outputs;
+    cache_node->target = target_;
+    cache_node->inputs = te_graph->inputs;
+    cache_node->outputs = te_graph->outputs;
     readable_name_stream_ << "fused";
     this->VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
