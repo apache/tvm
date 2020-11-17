@@ -203,34 +203,35 @@ class TransportLogger(Transport):
         return self.child.timeouts()
 
     def open(self):
-        self.logger.log(self.level, "opening transport")
+        self.logger.log(self.level, "%s: opening transport", self.name)
         self.child.open()
 
     def close(self):
-        self.logger.log(self.level, "closing transport")
+        self.logger.log(self.level, "%s: closing transport", self.name)
         return self.child.close()
 
     def read(self, n, timeout_sec):
+        timeout_str = f'{timeout_sec:5.2f}s' if timeout_sec is not None else ' None '
         try:
             data = self.child.read(n, timeout_sec)
         except IoTimeoutError:
             self.logger.log(
                 self.level,
-                "%s read {%5.2fs} %4d B -> [IoTimeoutError %.2f s]",
+                "%s: read {%s} %4d B -> [IoTimeoutError %s]",
                 self.name,
-                timeout_sec,
+                timeout_str,
                 n,
-                timeout_sec,
+                timeout_str,
             )
             raise
         except Exception as err:
             self.logger.log(
                 self.level,
-                "%s read {%5.2fs} %4d B -> [err: %s]",
+                "%s: read {%s} %4d B -> [err: %s]",
                 self.name,
-                timeout_sec,
+                timeout_str,
                 n,
-                str(err),
+                err.__class__.__name__,
                 exc_info=1,
             )
             raise err
@@ -239,9 +240,9 @@ class TransportLogger(Transport):
         if len(hex_lines) > 1:
             self.logger.log(
                 self.level,
-                "%s read {%5.2fs} %4d B -> [%3d B]:\n%s",
+                "%s: read {%s} %4d B -> [%3d B]:\n%s",
                 self.name,
-                timeout_sec,
+                timeout_str,
                 n,
                 len(data),
                 "\n".join(hex_lines),
@@ -249,9 +250,9 @@ class TransportLogger(Transport):
         else:
             self.logger.log(
                 self.level,
-                "%s read {%5.2fs} %4d B -> [%3d B]: %s",
+                "%s: read {%s} %4d B -> [%3d B]: %s",
                 self.name,
-                timeout_sec,
+                timeout_str,
                 n,
                 len(data),
                 hex_lines[0],
@@ -260,24 +261,27 @@ class TransportLogger(Transport):
         return data
 
     def write(self, data, timeout_sec):
+        timeout_str = f'{timeout_sec:5.2f}s' if timeout_sec is not None else ' None '
         try:
             bytes_written = self.child.write(data, timeout_sec)
         except IoTimeoutError:
             self.logger.log(
                 self.level,
-                "%s write                <- [%3d B]: [IoTimeoutError %.2f s]",
+                "%s: write {%s}       <- [%3d B]: [IoTimeoutError %s]",
                 self.name,
+                timeout_str,
                 len(data),
-                timeout_sec,
+                timeout_str,
             )
             raise
         except Exception as err:
             self.logger.log(
                 self.level,
-                "%s write                <- [%3d B]: [err: %s]",
+                "%s: write {%s}       <- [%3d B]: [err: %s]",
                 self.name,
+                timeout_str,
                 len(data),
-                str(err),
+                err.__class__.__name__,
                 exc_info=1,
             )
             raise err
@@ -286,16 +290,18 @@ class TransportLogger(Transport):
         if len(hex_lines) > 1:
             self.logger.log(
                 self.level,
-                "%s write                <- [%3d B]:\n%s",
+                "%s: write {%s}        <- [%3d B]:\n%s",
                 self.name,
+                timeout_str,
                 bytes_written,
                 "\n".join(hex_lines),
             )
         else:
             self.logger.log(
                 self.level,
-                "%s write                <- [%3d B]: %s",
+                "%s: write {%s}        <- [%3d B]: %s",
                 self.name,
+                timeout_str,
                 bytes_written,
                 hex_lines[0],
             )
