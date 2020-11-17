@@ -22,6 +22,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
+import logging
 import threading
 
 import tvm
@@ -31,6 +32,8 @@ from .compute_dag import ComputeDAG
 from .dispatcher import DispatchContext
 from .search_task import SearchTask
 from .workload_registry import register_workload_tensors
+
+logger = logging.getLogger("auto_scheduler")
 
 
 def call_all_topi_funcs(mod, params, target):
@@ -218,16 +221,19 @@ def auto_schedule_topi(outs, has_complex_op):
     from tvm import relay
 
     io_tensors, has_layout_free = traverse_to_get_io_tensors(outs)
-    key = register_workload_tensors(io_tensors)
-    if key is None:  # skip this compute if failed to register the workload
+    try:
+        dag = ComputeDAG(io_tensors)
+    except tvm.error.TVMError as err:
+        logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
+
+    key = register_workload_tensors(dag.hash_key(), io_tensors)
 
     # only enable layout rewrite for cpu backend
     enable_layout_rewrite = "cpu" in tvm.target.Target.current().keys
 
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
-        dag = ComputeDAG(io_tensors)
         state = DispatchContext.current.query(tvm.target.Target.current(), key, has_complex_op, dag)
         if state is None:
             return None
