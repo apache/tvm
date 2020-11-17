@@ -179,7 +179,7 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, ctx):
     """
     try:
         lookup_linked_param = mod.get_function("_lookup_linked_param")
-    except KeyError:
+    except AttributeError:
         return None
 
     remote_data = lookup_linked_param(storage_id)
