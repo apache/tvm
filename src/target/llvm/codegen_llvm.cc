@@ -197,7 +197,7 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   // tcodes
   param_types.push_back(t_int_->getPointerTo(GetGlobalAddressSpace()));
   // num_args
-  param_types.push_back(t_int64_);
+  param_types.push_back(t_int_);
   // ret_args
   param_types.push_back(t_void_->getPointerTo(GetGlobalAddressSpace()));
   // ret_tcodes
@@ -219,15 +219,19 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
   builder_->SetInsertPoint(entry);
   std::vector<llvm::Value*> zero_index_list{llvm::ConstantInt::get(t_int32_, 0)};
+  std::vector<llvm::Value*> zero_array_index_list{llvm::ConstantInt::get(t_int32_, 0),
+                                                  llvm::ConstantInt::get(t_int32_, 0)};
   auto args_array = builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
       &function->arg_begin()[0],
+#else
+      &(*(function->arg_begin())),
+#endif
       llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1));
   llvm::Value* sid = builder_->CreateBitCast(
       builder_->CreateLoad(t_void_->getPointerTo(GetGlobalAddressSpace()),
                            builder_->CreateInBoundsGEP(args_array, zero_index_list)),
       t_int64_);
-  //
-  //    builder_->CreateGEP(&function->arg_begin()[0], zero_index_list), t_int64_);
 
   llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
   llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
@@ -235,9 +239,16 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   builder_->SetInsertPoint(default_block);
   {
     auto ret_types_array =
-        builder_->CreateBitCast(&function->arg_begin()[4], llvm::ArrayType::get(t_int_, 1));
+        builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
+          &function->arg_begin()[4],
+#else
+          &(*(std::next(function->arg_begin(), 4))),
+#endif
+          llvm::ArrayType::get(t_int_, 1)->getPointerTo());
+
     builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMNullptr),
-                          builder_->CreateGEP(ret_types_array, zero_index_list));
+                          builder_->CreateGEP(ret_types_array, zero_array_index_list));
     builder_->CreateRet(ConstInt32(kTvmErrorNoError));
   }
 
@@ -245,8 +256,6 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
 
   for (auto kv : params) {
     auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
-    std::cout << "param " << kv.first << ": ";
-    array->print(os);
     std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
     llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
         *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
@@ -256,42 +265,27 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
         llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
     builder_->SetInsertPoint(case_block);
     auto retval_array = builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
         &function->arg_begin()[3],
-        llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1));
+#else
+        &(*std::next(function->arg_begin(), 3)),
+#endif
+        llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1)->getPointerTo());
     builder_->CreateStore(
         builder_->CreatePointerCast(param_symbol, t_void_->getPointerTo(GetGlobalAddressSpace())),
-        builder_->CreateGEP(retval_array, zero_index_list));
+        builder_->CreateGEP(retval_array, zero_array_index_list));
     auto ret_types_array =
-        builder_->CreateBitCast(&function->arg_begin()[4], llvm::ArrayType::get(t_int_, 1));
-    builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle),
-                          builder_->CreateGEP(ret_types_array, zero_index_list));
+        builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
+          &function->arg_begin()[4],
+#else
+        &(*std::next(function->arg_begin(), 4)),
+#endif
+          llvm::ArrayType::get(t_int_, 1)->getPointerTo());
+   builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle),
+                         builder_->CreateGEP(ret_types_array, zero_array_index_list));
     builder_->CreateRet(ConstInt32(0));
   }
-
-  std::cout << "generated function: " << std::endl;
-  function->print(os);
-
-  // llvm::Value* sid_start = module_->getGlobalVariable(module::tvm_param_array_sid_start);
-  // llvm::Value* cond = builder_->CreateAnd(
-  //   builder_->CreateICmpSGE(sid, sid_start),
-  //   builder_->CreateICmpSLT(sid,
-  //                           module_->getGlobalVariable(module::tvm_param_array_sid_end)));
-
-  // BasicBlock* then_block = BasicBlock::Create(*ctx_, "if_then", function_);
-  // builder_->CreateCondBr(cond, then_block, else_block);
-
-  // // SID valid block (fetch sid data pointer and write to ret_values).
-  // builder_->SetInsertPoint(then_block);
-  // std::vector<llvm::Value> sid_index_list{builder_->CreateISub(sid, sid_start)};
-  // builder_->CreateStore(
-  //   builder_->CreateGEP(module_->getGlobalVariable(module::tvm_param_array), sid_index_list),
-  //   builder_->CreateBitCast(
-  //     builder_->CreateGEP(function->getArg(3), zero_index_list), t_int64_ty_));
-  // NOTE: set ret_tcode[0] to kTVMOpaqueHandle because the 'data' pointer of a DLTensor is returned
-  // here, *not* a proper DLTensor. It is up to the caller to create a DLTensor that correctly
-  // describes the returned data pointer.
-
-  // SID invalid block (return invalid SID error).
 }
 
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
