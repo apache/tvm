@@ -72,7 +72,7 @@ class TuningOptions(Object):
         The number of schedules to be measured at each search round.
         The whole schedule search process will try a total number of `num_measure_trials` in several
         rounds.
-    verbose: int = 0
+    verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
         ProgramBuilder which builds the program.
@@ -89,7 +89,7 @@ class TuningOptions(Object):
         num_measure_trials=0,
         early_stopping=None,
         num_measures_per_round=64,
-        verbose=0,
+        verbose=1,
         builder="local",
         runner="local",
         measure_callbacks=None,
