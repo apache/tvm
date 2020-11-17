@@ -19,7 +19,7 @@
 from __future__ import absolute_import as _abs
 from . import cpp
 from .. import te, tir
-from .util import get_const_tuple
+from .utils import get_const_tuple
 
 
 def elemwise_sum(xs):
