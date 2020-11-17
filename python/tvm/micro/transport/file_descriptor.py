@@ -20,6 +20,7 @@
 import fcntl
 import os
 import select
+import time
 from . import base
 
 
