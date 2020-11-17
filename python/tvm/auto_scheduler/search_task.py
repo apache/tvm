@@ -68,7 +68,7 @@ class SearchTask(Object):
         self.workload_key = state["workload_key"]
         try:
             func_name, _ = json.loads(self.workload_key)
-        except Exception as err: # pylint: disable=broad-except
+        except Exception as err:  # pylint: disable=broad-except
             raise RuntimeError("Invalid workload key %s" % self.workload_key)
         register_workload_tensors(self.dag.tensors, func_name=func_name)
         self.target = state["target"]
