@@ -21,7 +21,8 @@ from tvm.te.hybrid import script
 from tvm import topi
 from tvm.runtime import convert
 
-from .op import register_compute, register_shape_func
+from . import strategy
+from .op import register_compute, register_shape_func, register_strategy
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
 
@@ -283,3 +284,23 @@ register_shape_func("log2", False, elemwise_shape_func)
 register_shape_func("sigmoid", False, elemwise_shape_func)
 register_shape_func("tanh", False, elemwise_shape_func)
 register_shape_func("logical_not", False, elemwise_shape_func)
+
+# segment_max
+register_strategy("segment_max", strategy.segment_max_strategy)
+register_pattern("segment_max", OpPattern.OPAQUE)
+
+# segment_min
+register_strategy("segment_min", strategy.segment_min_strategy)
+register_pattern("segment_min", OpPattern.OPAQUE)
+
+# segment_mean
+register_strategy("segment_mean", strategy.segment_mean_strategy)
+register_pattern("segment_mean", OpPattern.OPAQUE)
+
+# segment_sum
+register_strategy("segment_sum", strategy.segment_sum_strategy)
+register_pattern("segment_sum", OpPattern.OPAQUE)
+
+# segment_prod
+register_strategy("segment_prod", strategy.segment_prod_strategy)
+register_pattern("segment_prod", OpPattern.OPAQUE)

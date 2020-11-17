@@ -23,6 +23,8 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 from tvm.topi import utils
+from tvm.topi import util
+import tensorflow as tf
 
 
 def test_util():
@@ -234,8 +236,91 @@ def test_fastmath():
     )
 
 
+_segment_implement = {
+    "segment_max": {
+        "generic": (topi.segment_max, topi.generic.schedule_segment_max),
+    },
+    "segment_min": {
+        "generic": (topi.segment_min, topi.generic.schedule_segment_min),
+    },
+    "segment_mean": {
+        "generic": (topi.segment_mean, topi.generic.schedule_segment_mean),
+    },
+    "segment_sum": {
+        "generic": (topi.segment_sum, topi.generic.schedule_segment_sum),
+    },
+    "segment_prod": {
+        "generic": (topi.segment_prod, topi.generic.schedule_segment_prod),
+    },
+}
+
+
+def verify_segmet(name, data_shape, segmnet_size):
+    def get_segment_ids(length, size):
+        segment_ids = [0]
+        for i in range(size):
+            if np.array(segment_ids).sum() < length:
+                for _ in range(i):
+                    segment_ids.append(i)
+            else:
+                break
+        length = length - len(segment_ids)
+        for i in range(length):
+            segment_ids.append(segment_ids[-1])
+        return np.array(segment_ids).astype("int32")
+
+    def get_ref_data():
+        tf.reset_default_graph()
+        np_data = np.random.uniform(0, 100, size=data_shape).astype("float32")
+        segment_ids = get_segment_ids(data_shape[0], segmnet_size)
+        num_out = segment_ids[-1] + 1
+        segment_op = getattr(tf.math, name)
+        out_calcu = segment_op(np_data, segment_ids)
+        with tf.Session() as sess:
+            tf_out = sess.run(out_calcu)
+        return np_data, segment_ids, num_out, tf_out
+
+    device = "llvm"
+    ctx = tvm.context(device, 0)
+    print("Running on target: %s" % device)
+    data = te.placeholder(data_shape)
+    segment_ids = te.placeholder([data_shape[0]], dtype="int32")
+    np_data, np_segment_ids, num_out, np_out = get_ref_data()
+    with tvm.target.create(device):
+        fcompute, fschedule = tvm.topi.testing.dispatch(device, _segment_implement[name])
+        out = fcompute(data, segment_ids, num_out=num_out)
+        s = fschedule(out)
+        f = tvm.build(s, [data, segment_ids, out], device)
+        tvm_data = tvm.nd.array(np_data, ctx=ctx)
+        tvm_segment_ids = tvm.nd.array(np_segment_ids, ctx=ctx)
+        tvm_out = tvm.nd.empty(ctx=ctx, shape=out.shape, dtype=out.dtype)
+        f(tvm_data, tvm_segment_ids, tvm_out)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
+
+
+def test_segment():
+    # segmet_max, segmet_min, segmet_mean, segmet_sum, segmet_prod
+
+    verify_segmet("segment_max", [100], 20)
+    verify_segmet("segment_max", [10, 3, 4], 5)
+    verify_segmet("segment_max", [10, 3, 4, 4], 10)
+    verify_segmet("segment_min", [100], 20)
+    verify_segmet("segment_min", [10, 3, 4], 5)
+    verify_segmet("segment_min", [10, 3, 4, 4], 10)
+    verify_segmet("segment_mean", [100], 20)
+    verify_segmet("segment_mean", [10, 3, 4], 5)
+    verify_segmet("segment_mean", [10, 3, 4, 4], 10)
+    verify_segmet("segment_sum", [100], 20)
+    verify_segmet("segment_sum", [10, 3, 4], 5)
+    verify_segmet("segment_sum", [10, 3, 4, 4], 10)
+    verify_segmet("segment_prod", [100], 20)
+    verify_segmet("segment_prod", [10, 3, 4], 5)
+    verify_segmet("segment_prod", [10, 3, 4, 4], 10)
+
+
 if __name__ == "__main__":
     test_util()
     test_ewise()
     test_cast()
     test_fastmath()
+    test_segment()

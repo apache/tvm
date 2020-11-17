@@ -912,6 +912,22 @@ def _unravel_index():
     return _impl
 
 
+def _unsorted_segment(name):
+    def _impl(inputs, attr, params, mod):
+        # op description: https://www.tensorflow.org/api_docs/python/tf/math/unsorted_segment_max
+        try:
+            num_segments = _infer_value(inputs[2], params).asnumpy().tolist()
+        except Exception:
+            raise tvm.error.OpAttributeInvalid("Can't find num_segments.")
+        return AttrCvt(
+            op_name="segment_" + name,
+            ignores=["Tdim", "Tidx", "Tindices", "Tnumsegments"],
+            extras={"num_segments": num_segments},
+        )([inputs[0], inputs[1]], attr)
+
+    return _impl
+
+
 def _crop_and_resize():
     def _impl(inputs, attr, params, mod):
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
@@ -2617,6 +2633,23 @@ def _squared_difference():
     return _impl
 
 
+def _segment(opname):
+    def _impl(inputs, attr, params, mod):
+        # op description: https://www.tensorflow.org/api_docs/python/tf/math/segment_max
+        try:
+            segment_ids = _infer_value(inputs[1], params)
+        except Exception:
+            raise tvm.error.OpAttributeInvalid("Can't get value of segment_ids.")
+
+        num_out = segment_ids.asnumpy().max() + 1
+        out = AttrCvt(op_name=opname, ignores=["T", "Tindices"], extras={"num_segments": num_out})(
+            inputs, attr
+        )
+        return out
+
+    return _impl
+
+
 def _size():
     def _impl(inputs, attr, params, mod):
         new_attr = attr
@@ -2864,6 +2897,11 @@ _convert_map = {
     "SelectV2": _where(),
     "Selu": _selu(),
     "Shape": _shape(),
+    "SegmentMax": _segment("segment_max"),
+    "SegmentMean": _segment("segment_mean"),
+    "SegmentMin": _segment("segment_min"),
+    "SegmentProd": _segment("segment_prod"),
+    "SegmentSum": _segment("segment_sum"),
     "Sigmoid": AttrCvt("sigmoid"),
     "Sign": AttrCvt("sign"),
     "Sin": AttrCvt("sin"),
@@ -2915,6 +2953,11 @@ _convert_map = {
     "UniqueWithCounts": _unique(True),
     "Unpack": _unpack(),
     "UnravelIndex": _unravel_index(),
+    "UnsortedSegmentMax": _unsorted_segment("max"),
+    "UnsortedSegmentMin": _unsorted_segment("min"),
+    "UnsortedSegmentMean": _unsorted_segment("mean"),
+    "UnsortedSegmentProd": _unsorted_segment("prod"),
+    "UnsortedSegmentSum": _unsorted_segment("sum"),
     "Where": _where(),
     "ZerosLike": AttrCvt("zeros_like"),
 }

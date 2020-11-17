@@ -478,6 +478,16 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
   }
 };  // struct UniqueAttrs
 
+/*! \brief Attributes used in segment_max, segment_min,
+    segment_mean, segment_sum, segment_prod operator */
+struct SegmentAttrs : public tvm::AttrsNode<SegmentAttrs> {
+  int num_segments;
+
+  TVM_DECLARE_ATTRS(SegmentAttrs, "relay.attrs.SegmentAttrs") {
+    TVM_ATTR_FIELD(num_segments).set_default(0).describe("The maximum of segment_ids.");
+  }
+};  // struct SegmentAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

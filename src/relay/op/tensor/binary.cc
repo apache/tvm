@@ -161,5 +161,115 @@ RELAY_REGISTER_CMP_OP("greater_equal")
     .set_support_level(4)
     .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::greater_equal));
 
+// segment_max
+TVM_REGISTER_NODE_TYPE(SegmentAttrs);
+
+bool SegmentRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+
+  auto segment_attrs = attrs.as<SegmentAttrs>();
+  int num_segments = segment_attrs->num_segments;
+
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto& dshape = data->shape;
+  Array<IndexExpr> oshape(dshape);
+  oshape.Set(0, num_segments);
+
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeSegmentMax(Expr data, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SegmentAttrs>();
+  attrs->num_segments = num_segments;
+  static const Op& op = Op::Get("segment_max");
+  return Call(op, {data, segment_ids}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.segment_max").set_body_typed(MakeSegmentMax);
+
+RELAY_REGISTER_OP("segment_max")
+    .describe(R"doc(Computes the maximum along segments of a tensor.
+)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_argument("segment_ids", "Tensor", "Segments tensor.")
+    .set_support_level(5)
+    .add_type_rel("SegmentMax", SegmentRel);
+
+Expr MakeSegmentMin(Expr data, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SegmentAttrs>();
+  attrs->num_segments = num_segments;
+  static const Op& op = Op::Get("segment_min");
+  return Call(op, {data, segment_ids}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.segment_min").set_body_typed(MakeSegmentMin);
+
+RELAY_REGISTER_OP("segment_min")
+    .describe(R"doc(Computes the minimum along segments of a tensor.
+)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_argument("segment_ids", "Tensor", "Segments tensor.")
+    .set_support_level(5)
+    .add_type_rel("SegmentMin", SegmentRel);
+
+Expr MakeSegmentMean(Expr data, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SegmentAttrs>();
+  attrs->num_segments = num_segments;
+  static const Op& op = Op::Get("segment_mean");
+  return Call(op, {data, segment_ids}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.segment_mean").set_body_typed(MakeSegmentMean);
+
+RELAY_REGISTER_OP("segment_mean")
+    .describe(R"doc(Computes the mean along segments of a tensor.
+)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_argument("segment_ids", "Tensor", "Segments tensor.")
+    .set_support_level(5)
+    .add_type_rel("SegmentMean", SegmentRel);
+
+Expr MakeSegmentSum(Expr data, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SegmentAttrs>();
+  attrs->num_segments = num_segments;
+  static const Op& op = Op::Get("segment_sum");
+  return Call(op, {data, segment_ids}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.segment_sum").set_body_typed(MakeSegmentSum);
+
+RELAY_REGISTER_OP("segment_sum")
+    .describe(R"doc(Computes the sum along segments of a tensor.
+)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_argument("segment_ids", "Tensor", "Segments tensor.")
+    .set_support_level(5)
+    .add_type_rel("SegmentSum", SegmentRel);
+
+Expr MakeSegmentProd(Expr data, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SegmentAttrs>();
+  attrs->num_segments = num_segments;
+  static const Op& op = Op::Get("segment_prod");
+  return Call(op, {data, segment_ids}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.segment_prod").set_body_typed(MakeSegmentProd);
+
+RELAY_REGISTER_OP("segment_prod")
+    .describe(R"doc(Computes the prod along segments of a tensor.
+)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_argument("segment_ids", "Tensor", "Segments tensor.")
+    .set_support_level(5)
+    .add_type_rel("SegmentProd", SegmentRel);
+
 }  // namespace relay
 }  // namespace tvm

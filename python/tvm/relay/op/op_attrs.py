@@ -329,6 +329,11 @@ class ProposalAttrs(Attrs):
     """Attributes used in proposal operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.SegmentAttrs")
+class SegmentAttrs(Attrs):
+    """Attributes used in segment operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.MaxPool2DAttrs")
 class MaxPool2DAttrs(Attrs):
     """Attributes used in max_pool2d operators"""

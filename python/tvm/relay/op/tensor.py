@@ -1285,3 +1285,113 @@ def isinf(data):
         The computed result.
     """
     return _make.isinf(data)
+
+
+def segment_max(data, segment_ids, num_segments):
+    """Computes the maximum along segments of a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    segment_ids : relay.Expr
+        The segments data
+
+    num_segments : int
+        The maximum of segment_ids.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.segment_max(data, segment_ids, num_segments)
+
+
+def segment_min(data, segment_ids, num_segments):
+    """Computes the minimum along segments of a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    segment_ids : relay.Expr
+        The segments data
+
+    num_segments : int
+        The maximum of segment_ids.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.segment_min(data, segment_ids, num_segments)
+
+
+def segment_mean(data, segment_ids, num_segments):
+    """Computes the mean along segments of a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    segment_ids : relay.Expr
+        The segments data
+
+    num_segments : int
+        The maximum of segment_ids.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.segment_mean(data, segment_ids, num_segments)
+
+
+def segment_sum(data, segment_ids, num_segments):
+    """Computes the sum along segments of a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    segment_ids : relay.Expr
+        The segments data
+
+    num_segments : int
+        The maximum of segment_ids.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.segment_sum(data, segment_ids, num_segments)
+
+
+def segment_prod(data, segment_ids, num_segments):
+    """Computes the prod along segments of a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    segment_ids : relay.Expr
+        The segments data
+
+    num_segments : int
+        The maximum of segment_ids.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.segment_prod(data, segment_ids, num_segments)
