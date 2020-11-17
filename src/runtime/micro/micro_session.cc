@@ -172,7 +172,7 @@ class MicroTransportChannel : public RPCChannel {
     if (session_start_timeout_ == microseconds::zero() &&
         session_start_retry_timeout_ == microseconds::zero()) {
       ICHECK(ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, nullptr))
-        << "ReceiveUntil indicated timeout expired, but no timeout set!";
+          << "ReceiveUntil indicated timeout expired, but no timeout set!";
       ICHECK(session_.IsEstablished()) << "Session not established, but should be";
       return true;
     }
@@ -186,15 +186,13 @@ class MicroTransportChannel : public RPCChannel {
     }
 
     while (!session_.IsEstablished()) {
-      microseconds time_remaining = ::std::max(
-        microseconds{0},
-        duration_cast<microseconds>(end_time - steady_clock::now()));
+      microseconds time_remaining =
+          ::std::max(microseconds{0}, duration_cast<microseconds>(end_time - steady_clock::now()));
       if (ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, &time_remaining)) {
         break;
       }
 
-      if (session_start_timeout_ != microseconds::zero() &&
-          end_time >= session_start_end_time) {
+      if (session_start_timeout_ != microseconds::zero() && end_time >= session_start_end_time) {
         return false;
       }
       end_time += session_start_retry_timeout_;
@@ -245,7 +243,7 @@ class MicroTransportChannel : public RPCChannel {
       did_receive_message_ = false;
       if (session_established_timeout_ == ::std::chrono::microseconds::zero()) {
         ICHECK(ReceiveUntil([this]() -> bool { return did_receive_message_; }, nullptr))
-          << "ReceiveUntil timeout expired, but no timeout configured!";
+            << "ReceiveUntil timeout expired, but no timeout configured!";
       } else {
         if (!ReceiveUntil([this]() -> bool { return did_receive_message_; },
                           &session_established_timeout_)) {
@@ -288,7 +286,7 @@ class MicroTransportChannel : public RPCChannel {
                                            pending_chunk_.size(), &bytes_consumed);
 
       ICHECK(bytes_consumed <= pending_chunk_.size())
-        << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
+          << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
       pending_chunk_ = pending_chunk_.substr(bytes_consumed);
       if (unframer_error < 0) {
         LOG(ERROR) << "unframer got error code: " << unframer_error;
@@ -373,8 +371,7 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
                                 ::std::chrono::microseconds(uint64_t(args[5])));
   if (!micro_channel->StartSession()) {
     std::stringstream ss;
-    ss << "MicroSessionTimeoutError: session start handshake failed after "
-       << double(args[4]) / 1e6
+    ss << "MicroSessionTimeoutError: session start handshake failed after " << double(args[4]) / 1e6
        << "s";
     throw std::runtime_error(ss.str());
   }
