@@ -108,11 +108,12 @@ class Transport(metaclass=abc.ABCMeta):
         ----------
         n : int
             Maximum number of bytes to read from the transport.
-        timeout_sec : float
+        timeout_sec : Union[float, None]
             Number of seconds to wait for all `n` bytes to be received before timing out. The
             transport can wait additional time to account for transport latency or bandwidth
             limitations based on the selected configuration and number of bytes being received. If
             timeout_sec is 0, read should attempt to service the request in a non-blocking fashion.
+            If timeout_sec is None, read should block until at least 1 byte of data can be returned.
 
         Returns
         -------
@@ -142,17 +143,19 @@ class Transport(metaclass=abc.ABCMeta):
         ----------
         data : bytes
             The data to write over the channel.
-        timeout_sec : float
-            Number of seconds to wait for all `n` bytes to be received before timing out. The
+        timeout_sec : Union[float, None]
+            Number of seconds to wait for at least one byte to be written before timing out. The
             transport can wait additional time to account for transport latency or bandwidth
             limitations based on the selected configuration and number of bytes being received. If
-            timeout_sec is 0, read should attempt to service the request in a non-blocking fashion.
+            timeout_sec is 0, write should attempt to service the request in a non-blocking fashion.
+            If timeout_sec is None, write should block until at least 1 byte of data can be
+            returned.
 
         Returns
         -------
         int :
             The number of bytes written to the underlying channel. This can be less than the length
-            of `data`, but cannot be 0.
+            of `data`, but cannot be 0 (raise an exception instead).
 
         Raises
         ------

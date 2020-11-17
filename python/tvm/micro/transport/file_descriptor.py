@@ -65,12 +65,7 @@ class FdTransport(base.Transport):
         if self.write_fd is not None:
             os.close(self.write_fd)
 
-    def _await_ready(self, rlist, wlist, timeout_sec=None, end_time=None):
-        if end_time is None:
-            return True
-
-        if timeout_sec is None:
-            timeout_sec = max(0, end_time - time.monotonic())
+    def _await_ready(self, rlist, wlist, timeout_sec=None):
         rlist, wlist, xlist = select.select(rlist, wlist, rlist + wlist, timeout_sec)
         if not rlist and not wlist and not xlist:
             raise base.IoTimeoutError()
@@ -78,9 +73,10 @@ class FdTransport(base.Transport):
         return True
 
     def read(self, n, timeout_sec):
-        end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
+        if self.read_fd is None:
+            raise base.TransportClosedError()
 
-        self._await_ready([self.read_fd], [], end_time=end_time)
+        self._await_ready([self.read_fd], [], timeout_sec)
         to_return = os.read(self.read_fd, n)
 
         if not to_return:
@@ -90,11 +86,12 @@ class FdTransport(base.Transport):
         return to_return
 
     def write(self, data, timeout_sec):
-        end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
+        if self.write_fd is None:
+            raise base.TransportClosedError()
 
         data_len = len(data)
         while data:
-            self._await_ready(end_time, [], [self.write_fd])
+            self._await_ready([], [self.write_fd], timeout_sec)
             num_written = os.write(self.write_fd, data)
             if not num_written:
                 self.close()
