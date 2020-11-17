@@ -44,7 +44,7 @@ class DispatchContext(object):
     def __init__(self):
         self._old_ctx = DispatchContext.current
 
-    def query(self, target, workload_key):
+    def query(self, target, workload_key, has_complex_op, dag):
         """
         Query the context to get the specific config for a workload.
         If cannot find the result inside this context, this function will query it
@@ -56,6 +56,10 @@ class DispatchContext(object):
             The current target
         workload_key : str
             The workload key
+        has_complex_op: bool
+            Whether this workload has at least one complex op.
+        dag: ComputeDAG
+            The ComputeDAG of the workload.
 
         Returns
         -------
@@ -64,7 +68,7 @@ class DispatchContext(object):
         """
         ret = self._query_inside(target, workload_key)
         if ret is None:
-            ret = self._old_ctx.query(target, workload_key)
+            ret = self._old_ctx.query(target, workload_key, has_complex_op, dag)
         return ret
 
     def update(self, target, workload_key, state):
@@ -220,11 +224,11 @@ class ApplyHistoryBest(DispatchContext):
 
     def update(self, target, workload_key, state):
         model = target.model
-        key = (model, workload)
+        key = (model, workload_key)
         self._best_user_defined[key] = state
 
         for k in target.keys:
-            key = (k, workload)
+            key = (k, workload_key)
             self._best_user_defined[key] = state
 
 
@@ -237,21 +241,27 @@ class FallbackContext(DispatchContext):
     def __init__(self):
         super(FallbackContext, self).__init__()
         self.memory = {}
-        self.silent = False
+
+        # Verbose level:
+        # 0: Completely silent.
+        # 1: Warning the missing configs for querying complex tasks.
+        # 2: Warning the missing configs for querying all tasks.
+        self.verbose = 1
 
         # a set to prevent print duplicated message
         self.messages = set()
 
-    def query(self, target, workload_key):
+    def query(self, target, workload_key, has_complex_op, dag):
         key = (str(target), workload_key)
         if key in self.memory:
             return self.memory[key]
 
-        if not self.silent:
+        if self.verbose == 2 or (has_complex_op and self.verbose == 1):
             msg = (
-                "Cannot find tuned schedules for target=%s, workload_key=%s. "
-                "A fallback schedule is used, "
-                "which may bring great performance regression." % (target, workload_key)
+                "Cannot find tuned schedules for target=%s, workload_key=%s, compute:\n%s"
+                "A fallback TOPI schedule is used, "
+                "which may bring great performance regression or even compilation failure."
+                % (target, workload_key, dag)
             )
             if msg not in self.messages:
                 self.messages.add(msg)
