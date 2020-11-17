@@ -114,7 +114,7 @@ int32_t TVMGraphRuntimeModule_GetNumOutputs(TVMValue* args, int* tcodes, int nar
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  ret_values[0].v_int64 = TVMGraphRuntime_GetNumOutputs();
+  ret_values[0].v_int64 = TVMGraphRuntime_GetNumOutputs(graph_runtime.runtime);
   ret_tcodes[0] = kTVMArgInt;
   return 0;
 }
@@ -131,7 +131,7 @@ int32_t TVMGraphRuntimeModule_GetOutput(TVMValue* args, int* tcodes, int nargs,
   }
 
   int output_index = args[0].v_int64;
-  if (output_index < 0 || output_index > TVMGraphRuntime_GetNumOutputs()) {
+  if (output_index < 0 || output_index > TVMGraphRuntime_GetNumOutputs(graph_runtime.runtime)) {
     return kTvmErrorGraphModuleNoSuchInput;
   }
 
