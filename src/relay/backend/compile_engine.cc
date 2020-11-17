@@ -306,7 +306,6 @@ class ScheduleGetter : public ExprVisitor {
       }
     }
     cache_node->schedule = std::move(schedule);
-    ;
     return CachedFunc(cache_node);
   }
 
