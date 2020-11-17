@@ -33,7 +33,7 @@
 #include "../../support/str_escape.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
-#include "../llvm/codegen_params.h"
+#include "codegen_params.h"
 
 namespace tvm {
 namespace codegen {
