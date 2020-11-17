@@ -665,7 +665,7 @@ def _conv3d(opname):
     return _impl
 
 
-def _nms():
+def _nms(return_scores=False):
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         try:
@@ -724,6 +724,16 @@ def _nms():
         ret = get_relay_op("strided_slice")(
             data_slice, begin=_expr.const([0]), end=size, slice_mode="size"
         )
+
+        # NonMaxSuppressionV5 returns scores. pad_output is always False for NMSv5.
+        if return_scores:
+            if "soft_nms_sigma" in attr and attr["soft_nms_sigma"] != 0.0:
+                raise tvm.error.OpAttributeUnImplemented(
+                    "soft_nms_sigma for NonMaxSuppressionV5 is not supported"
+                )
+            ret_scores = _op.take(inputs[1], ret, axis=0)
+            return _expr.TupleWrapper(_expr.Tuple([ret, ret_scores, size]), 3)
+
         return ret
 
     return _impl
@@ -2354,6 +2364,7 @@ _convert_map = {
     "NonMaxSuppressionV2": _nms(),
     "NonMaxSuppressionV3": _nms(),
     "NonMaxSuppressionV4": _nms(),
+    "NonMaxSuppressionV5": _nms(True),
     "NoOp": _no_op(),
     "NotEqual": _broadcast("not_equal"),
     "OneHot": _one_hot(),
