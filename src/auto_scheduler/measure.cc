@@ -218,6 +218,8 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     batch_size = builder->n_parallel * 2;
   }
 
+  int old_verbosity = verbose;
+
   StdCout(verbose) << "Get " << inputs.size() << " programs to measure." << std::endl;
 
   for (size_t i = 0; i < inputs.size(); i += batch_size) {
@@ -270,7 +272,11 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     }
 
     if (error_ct > max_continuous_error) {
-      LOG(FATAL) << "Too many errors happened during tuning";
+      LOG(WARNING) << "Too many errors happened during tuning. Switching to debug mode."
+                   << std::endl;
+      verbose = 2;
+    } else {
+      verbose = old_verbosity;
     }
   }
 
