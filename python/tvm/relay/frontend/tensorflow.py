@@ -2060,8 +2060,6 @@ def _logical(name):
 
 def _space_to_batch_nd():
     def _impl(inputs, attr, params, mod):
-        input_node = inputs[0]
-        input_shape = _infer_shape(input_node, mod)
         try:
             block_shape = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
@@ -2075,48 +2073,18 @@ def _space_to_batch_nd():
             if len(paddings.shape) == 1:
                 paddings = np.expand_dims(paddings, axis=0)
             paddings = paddings.tolist()
-        N = len(input_shape)
-        M = len(block_shape)
-        batch = input_shape[0]
-        remaining_shape_length = N - M - 1
-        paddings = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
-        # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/space-to-batch-n-d:
-        # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
-        # to produce padded of shape padded_shape.
-        padded = tvm.relay.nn.pad(input_node, pad_width=paddings)
-        # Reshape padded to reshaped_padded of shape:
-        # [batch] + [padded_shape[1] / block_shape[0], block_shape[0], ...,
-        # padded_shape[M] / block_shape[M-1], block_shape[M-1]] + remaining_shape
-        shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
-        reshaped_padded = tvm.relay.reshape(padded, newshape=shape1)
-        # Permute dimensions of reshaped_padded to produce permuted_reshaped_padded of shape:
-        # block_shape + [batch] + [padded_shape[1] / block_shape[0], ...,
-        # padded_shape[M] / block_shape[M-1]] + remaining_shape
-        axes = (
-            [2 * i + 2 for i in range(M)]
-            + [0]
-            + [2 * i + 1 for i in range(M)]
-            + list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
-        )
-        permuted_reshaped_padded = tvm.relay.transpose(reshaped_padded, axes=axes)
-        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded, mod)
-        # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
-        # producing an output tensor of shape:
-        # [batch * prod(block_shape)] + [padded_shape[1] / block_shape[0], ...,
-        # padded_shape[M] / block_shape[M-1]] + remaining_shape
-        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1 :]
-        reshaped_permuted_reshaped_padded = tvm.relay.reshape(
-            permuted_reshaped_padded, newshape=shape2
-        )
-        return reshaped_permuted_reshaped_padded
+
+        attr["block_shape"] = block_shape
+        attr["paddings"] = paddings
+        out = AttrCvt("space_to_batch_nd", ignores=["Tblock_shape", "Tpaddings"])([inputs[0]], attr)
+
+        return out
 
     return _impl
 
 
 def _batch_to_space_nd():
     def _impl(inputs, attr, params, mod):
-        input_node = inputs[0]
-        input_shape = _infer_shape(input_node, mod)
         try:
             block_shape = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
@@ -2130,46 +2098,12 @@ def _batch_to_space_nd():
             if len(crops.shape) == 1:
                 crops = np.expand_dims(crops, axis=0)
             crops = crops.tolist()
-        M = len(block_shape)
-        batch = input_shape[0]
-        # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d:
-        # Reshape input to reshaped of shape:
-        # [block_shape[0], ..., block_shape[M-1], batch / prod(block_shape),
-        #  input_shape[1], ..., input_shape[N-1]]
-        shape1 = block_shape + [batch // np.prod(block_shape)] + list(input_shape[1:])
-        reshaped = tvm.relay.reshape(input_node, newshape=shape1)
-        # Permute dimensions of reshaped to produce permuted of shape
-        # [batch / prod(block_shape), input_shape[1], block_shape[0], ...,
-        # input_shape[M], block_shape[M-1], input_shape[M+1], ..., input_shape[N-1]]
-        axes = (
-            [M]
-            + [axis for i in range(M) for axis in [M + i + 1, i]]
-            + list(range(2 * M + 1, len(shape1)))
-        )
-        permuted = tvm.relay.transpose(reshaped, axes=axes)
-        # Reshape permuted to produce reshaped_permuted of shape
-        # [batch / prod(block_shape), input_shape[1] * block_shape[0], ...,
-        #  input_shape[M] * block_shape[M-1], input_shape[M+1], ..., input_shape[N-1]]
-        shape2 = [0] + [-3] * M + [-2]
-        reshaped_permuted = tvm.relay.reshape(permuted, newshape=shape2)
-        # Crop the start and end of dimensions [1, ..., M] of reshaped_permuted according to crops
-        # to produce the output of shape:
-        # [batch / prod(block_shape), input_shape[1] * block_shape[0] - crops[0,0] - crops[0,1],
-        #  ..., input_shape[M] * block_shape[M-1] - crops[M-1,0] - crops[M-1,1],
-        #  input_shape[M+1], ..., input_shape[N-1]]
-        reshaped_permuted_shape = _infer_shape(reshaped_permuted, mod)
-        cropped = reshaped_permuted
-        for axis in range(1, M + 1):
-            crop = crops[axis - 1]
-            if crop != [0, 0]:
-                indices = tvm.relay.arange(
-                    _expr.const(crop[0]),
-                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
-                    dtype="int32",
-                )
-                cropped = tvm.relay.take(cropped, indices=indices, axis=axis)
 
-        return cropped
+        attr["block_shape"] = block_shape
+        attr["crops"] = crops
+        out = AttrCvt("batch_to_space_nd", ignores=["Tblock_shape", "Tcrops"])([inputs[0]], attr)
+
+        return out
 
     return _impl
 
