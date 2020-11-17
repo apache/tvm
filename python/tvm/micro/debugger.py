@@ -204,7 +204,10 @@ class GdbTransportDebugger(GdbDebugger):
                 "-ex",
                 f"file {self.args[0]}",
                 "-ex",
-                f"set args {' '.join(shlex.quote(a) for a in self.args[1:])} </dev/fd/{stdin_read} >/dev/fd/{stdout_write}",
+                (
+                    f"set args {' '.join(shlex.quote(a) for a in self.args[1:])} "
+                    f"</dev/fd/{stdin_read} >/dev/fd/{stdout_write}"
+                ),
             ]
         else:
             raise NotImplementedError(f"System {sysname} is not yet supported")
