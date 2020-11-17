@@ -189,7 +189,6 @@ class TETranslator : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
     } else {
       LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_, false);
       outputs = lowered_out->outputs;
-      impl = lowered_out->implementation;
     }
 
     if (outputs.size() != 1) {
