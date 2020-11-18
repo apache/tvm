@@ -20,6 +20,7 @@
 import fcntl
 import os
 import select
+import time
 from . import base
 
 
@@ -61,10 +62,18 @@ class FdTransport(base.Transport):
     def close(self):
         if self.read_fd is not None:
             os.close(self.read_fd)
+            self.read_fd = None
+
         if self.write_fd is not None:
             os.close(self.write_fd)
+            self.write_fd = None
 
-    def _await_ready(self, rlist, wlist, timeout_sec=None):
+    def _await_ready(self, rlist, wlist, timeout_sec=None, end_time=None):
+        if end_time is None:
+            return True
+
+        if timeout_sec is None:
+            timeout_sec = max(0, end_time - time.monotonic())
         rlist, wlist, xlist = select.select(rlist, wlist, rlist + wlist, timeout_sec)
         if not rlist and not wlist and not xlist:
             raise base.IoTimeoutError()
@@ -75,7 +84,9 @@ class FdTransport(base.Transport):
         if self.read_fd is None:
             raise base.TransportClosedError()
 
-        self._await_ready([self.read_fd], [], timeout_sec)
+        end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
+
+        self._await_ready([self.read_fd], [], end_time=end_time)
         to_return = os.read(self.read_fd, n)
 
         if not to_return:
@@ -88,9 +99,11 @@ class FdTransport(base.Transport):
         if self.write_fd is None:
             raise base.TransportClosedError()
 
+        end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
+
         data_len = len(data)
         while data:
-            self._await_ready([], [self.write_fd], timeout_sec)
+            self._await_ready(end_time, [], [self.write_fd])
             num_written = os.write(self.write_fd, data)
             if not num_written:
                 self.close()

@@ -19,6 +19,7 @@
 
 import atexit
 import abc
+import errno
 import logging
 import os
 import shlex
@@ -27,12 +28,14 @@ import subprocess
 import sys
 import termios
 import threading
+import time
 
 import psutil
 
 from .._ffi import register_func
 from . import class_factory
 from . import transport
+from .transport.file_descriptor import FdTransport
 
 
 _LOG = logging.getLogger(__name__)
@@ -212,7 +215,8 @@ class GdbTransportDebugger(GdbDebugger):
         else:
             raise NotImplementedError(f"System {sysname} is not yet supported")
 
-        self.fd_transport = fd.FdTransport(stdout_read, stdin_write)
+        self.fd_transport = FdTransport(
+            stdout_read, stdin_write, transport.debug_transport_timeouts())
         self.fd_transport.open()
 
         return {
