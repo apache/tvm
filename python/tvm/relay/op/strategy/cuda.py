@@ -101,6 +101,18 @@ def schedule_lrn_cuda(attrs, outs, target):
         return topi.cuda.schedule_lrn(outs)
 
 
+def naive_schedule(_, outs, target):
+    """Return the naive default schedule"""
+    if "gpu" in target.keys:
+        # For GPU, we at least need thread binding to make a valid schedule.
+        # So the naive schedule cannot be compiled.
+        raise RuntimeError(
+            "Cannot compile for GPU targets if no tuned schedule is found."
+            "Please see the warning messages above for more information about the failed workloads."
+        )
+    return tvm.te.create_schedule(outs[-1].op)
+
+
 @conv2d_strategy.register(["cuda", "gpu"])
 def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d cuda strategy"""
@@ -224,7 +236,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             if use_auto_scheduler and judge_winograd_auto_scheduler:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
-                    wrap_topi_schedule(tvm.te.create_schedule),
+                    naive_schedule,  # this implementation should never be picked by autotvm
                     name="conv2d_nhwc.winograd",
                     plevel=15,
                 )
@@ -451,7 +463,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
         if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
-                wrap_topi_schedule(tvm.te.create_schedule),
+                naive_schedule,  # this implementation should never be picked by autotvm
                 name="conv2d_nhwc_winograd_without_weight_transform",
                 plevel=15,
             )
