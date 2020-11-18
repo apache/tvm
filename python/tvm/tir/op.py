@@ -346,7 +346,7 @@ def max_value(dtype, span=None):
     value : tvm.Expr
         The maximum value of dtype.
     """
-    return _ffi_api.max_value(dtype, None, span)
+    return _ffi_api.max_value(dtype, span)
 
 
 def exp(x):
