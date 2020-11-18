@@ -66,11 +66,19 @@ class SearchTask(Object):
     def __setstate__(self, state):
         self.dag = state["dag"]
         self.workload_key = state["workload_key"]
+
+        # Register the workload if needed
         try:
-            func_name = json.loads(self.workload_key)[0]
+            workload = json.loads(self.workload_key)
         except Exception:  # pylint: disable=broad-except
             raise RuntimeError("Invalid workload key %s" % self.workload_key)
-        register_workload_tensors(func_name, self.dag.tensors)
+
+        # The workload from a compute DAG does not have arguments and is not registered
+        # by default so we register it here. If the workload has already been registered,
+        # the later registration overrides the prvious one.
+        if len(workload) == 1:
+            register_workload_tensors(workload[0], self.dag.tensors)
+
         self.target = state["target"]
         self.target_host = state["target_host"]
         self.hardware_params = state["hardware_params"]
