@@ -331,13 +331,6 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[3], os);
     os << ")";
   } else if (op->op.same_as(builtin::text2d_load())) {
-    /*
-      float4 read_imagef(read_only image2d_t image,
-      sampler_t sampler,
-      int2 coord)
-    */
-    // std::cout << "LOAD\n";
-    // std::cout << op->args << std::endl;
     os << "read_imagef(";
     this->PrintExpr(op->args[0], os);
     os << ", ";
