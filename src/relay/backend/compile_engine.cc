@@ -187,7 +187,7 @@ class TETranslator : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
       const auto* copy_input = inputs[0].operator->();
       outputs.push_back(te::Tensor(copy_input->shape, copy_input->dtype, te::Operation(), 0));
     } else {
-      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_, false);
+      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_, true);
       outputs = lowered_out->outputs;
     }
 
@@ -322,6 +322,7 @@ class ScheduleGetter : public ExprVisitor {
     int count_tuple = 0;
     Array<te::Tensor> inputs;
     for (Expr arg : call_node->args) {
+      VisitExpr(arg);
       if (const auto* ttype = arg->checked_type().as<TensorTypeNode>()) {
         tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
         inputs.push_back(tensor);
@@ -350,7 +351,7 @@ class ScheduleGetter : public ExprVisitor {
       readable_name_stream_ << "__copy";
       return;
     }
-    LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_, true);
+    LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_, false);
     OpImplementation impl = lowered_out->implementation;
 
     int op_pattern = fpattern[op];
