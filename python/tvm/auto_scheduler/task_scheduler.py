@@ -283,8 +283,10 @@ class TaskScheduler:
         )
 
         # do a round robin first to warm up
-        for i in range(len(self.tasks)):
-            self._tune_task(i)
+        for idx in range(len(self.tasks)):
+            # skip warming up this task if it has been tuned before (restored from the log file)
+            if not self.task_cts[idx]:
+                self._tune_task(idx)
         self.best_ct = self.ct
         self.best_score = self.cur_score
 
@@ -472,5 +474,7 @@ class TaskScheduler:
             # `num_measures_per_round` is different from the last tuning.
             self.task_cts[i] = int(self.task_cts[i] / num_measures_per_round + 0.5)
             self.task_costs_history[i].append(self.best_costs[i])
+
+        self.cur_score = self._compute_score(self.best_costs)
 
         logger.info("TaskScheduler: Loaded %d measurement records from %s", total_ct + 1, log_file)
