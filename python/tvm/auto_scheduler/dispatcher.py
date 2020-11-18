@@ -258,10 +258,11 @@ class FallbackContext(DispatchContext):
 
         if self.verbose == 2 or (has_complex_op and self.verbose == 1):
             msg = (
-                "Cannot find tuned schedules for target=%s, workload_key=%s, compute:\n%s"
+                "-----------------------------------\n"
+                "Cannot find tuned schedules for target=%s, workload_key=%s. "
                 "A fallback TOPI schedule is used, "
-                "which may bring great performance regression or even compilation failure."
-                % (target, workload_key, dag)
+                "which may bring great performance regression or even compilation failure. "
+                "Compute DAG info:\n%s" % (target, workload_key, dag)
             )
             if msg not in self.messages:
                 self.messages.add(msg)
