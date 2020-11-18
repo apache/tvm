@@ -216,7 +216,8 @@ class GdbTransportDebugger(GdbDebugger):
             raise NotImplementedError(f"System {sysname} is not yet supported")
 
         self.fd_transport = FdTransport(
-            stdout_read, stdin_write, transport.debug_transport_timeouts())
+            stdout_read, stdin_write, transport.debug_transport_timeouts()
+        )
         self.fd_transport.open()
 
         return {
