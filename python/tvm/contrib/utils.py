@@ -112,7 +112,7 @@ class TempDirectory(object):
             self.TEMPDIRS.add(self.temp_dir)
 
     def remove(self):
-        """Remote the tmp dir"""
+        """Remove the tmp dir"""
         if self.temp_dir:
             if not self._created_with_keep_for_debug:
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
