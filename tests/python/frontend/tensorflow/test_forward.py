@@ -4422,7 +4422,7 @@ def test_forward_segment():
         tf_segment_ids = tf.constant(segment_ids)
         segment_op = getattr(tf.math, name)
         result = segment_op(in_data, tf_segment_ids, name=name)
-        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, False)
+        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, no_gpu=True)
 
     _test_forward_segment("segment_max", [100], 20)
     _test_forward_segment("segment_max", [10, 3, 4], 5)
@@ -4468,7 +4468,7 @@ def test_forward_unsorted_segment():
         tf_segment_ids = tf.constant(segment_ids)
         segment_op = getattr(tf.math, name)
         result = segment_op(in_data, tf_segment_ids, num_segments, name=name)
-        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, False)
+        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, no_gpu=True)
 
     _test_forward_unsorted_segment("unsorted_segment_max", [100], 20)
     _test_forward_unsorted_segment("unsorted_segment_max", [10, 3, 4], 5)
