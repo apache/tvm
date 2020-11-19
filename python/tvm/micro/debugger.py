@@ -113,27 +113,23 @@ class GdbDebugger(Debugger):
 
     @classmethod
     def _sigusr1_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
-        if cls._STARTED_INSTANCE is not None:
-            signal.signal(signal.SIGINT, cls._STARTED_INSTANCE.old_sigint_handler)
-            signal.signal(signal.SIGUSR1, cls._STARTED_INSTANCE.old_sigusr1_handler)
-            cls._STARTED_INSTANCE._signals_reset_event.set()
-            return
-
-        raise Exception()
+        assert cls._STARTED_INSTANCE is not None, (
+            "overridden sigusr1 handler should not be invoked when GDB not started")
+        signal.signal(signal.SIGINT, cls._STARTED_INSTANCE.old_sigint_handler)
+        signal.signal(signal.SIGUSR1, cls._STARTED_INSTANCE.old_sigusr1_handler)
+        cls._STARTED_INSTANCE._signals_reset_event.set()
 
     @classmethod
     def _sigint_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
-        if cls._STARTED_INSTANCE is not None:
-            with cls._STARTED_INSTANCE._is_running_lock:
-                exists = cls._STARTED_INSTANCE._is_running
-            if exists:
-                try:
-                    os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
-                    return
-                except ProcessLookupError:
-                    pass
-
-        raise Exception()
+        assert cls._STARTED_INSTANCE is not None, (
+            "overridden sigint handler should not be invoked when GDB not started")
+        with cls._STARTED_INSTANCE._is_running_lock:
+            exists = cls._STARTED_INSTANCE._is_running
+        if exists:
+            try:
+                os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
+            except ProcessLookupError:
+                pass
 
     def start(self):
         with self._is_running_lock:
