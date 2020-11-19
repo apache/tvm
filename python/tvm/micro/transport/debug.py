@@ -31,7 +31,6 @@ class DebugWrapperTransport(Transport):
         self.debugger = debugger
         self.transport = transport
         self.disable_session_start_retry = disable_session_start_retry
-        self.debugger.on_terminate_callbacks.append(self.transport.close)
 
     def timeouts(self):
         child_timeouts = self.transport.timeouts()

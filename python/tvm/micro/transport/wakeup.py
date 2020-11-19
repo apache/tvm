@@ -45,9 +45,14 @@ class WakeupTransport(base.Transport):
         return self.child_transport.timeouts()
 
     def _await_wakeup(self, end_time):
+        def _time_remaining():
+            if end_time is None:
+                return None
+            return max(0, end_time - time.monotonic())
+
         if not self.found_wakeup_sequence:
             while self.wakeup_sequence not in self.wakeup_sequence_buffer:
-                x = self.child_transport.read(1, max(0, end_time - time.monotonic()))
+                x = self.child_transport.read(1, _time_remaining())
                 self.wakeup_sequence_buffer.extend(x)
                 if x[0] in (b"\n", b"\xff"):
                     _LOG.debug("%s", self.wakeup_sequence_buffer[self.line_start_index : -1])
@@ -57,7 +62,7 @@ class WakeupTransport(base.Transport):
             self.found_wakeup_sequence = True
             time.sleep(0.2)
 
-        return max(0, end_time - time.monotonic())
+        return _time_remaining()
 
     def read(self, n, timeout_sec):
         if not self.found_wakeup_sequence:
