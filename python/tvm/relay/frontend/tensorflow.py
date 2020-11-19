@@ -940,9 +940,7 @@ def _sparse_tensor_dense_matmul():
         weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
         weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
 
-        ret = _op.nn.sparse_dense(
-                data, [weight_data, weight_indices, weight_indptrs], sparse_lhs
-        )
+        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs], sparse_lhs)
 
         if not sparse_lhs:
             ret = _op.transpose(ret)
