@@ -39,7 +39,7 @@ static const PackedFunc* make_begin_op =
     runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
 static const PackedFunc* make_end_op =
     runtime::Registry::Get("relay.op.annotation._make.compiler_end");
-static const std::string default_target = "default";
+static const char default_target[] = "default";
 // A helper class to insert annotation boundaries for all the ops of a program
 // region that will be handled by a specific compiler.
 class AnnotateTargetRewriter : public ExprRewriter {
@@ -167,7 +167,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
   }
 
  public:
-  virtual Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     // Supported targets for this node. The order implies the priority.
     std::vector<std::string> supported_targets;
 
@@ -266,7 +266,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
 
   virtual std::unique_ptr<Call> RewriteVarCall(const Call& post_call) { return nullptr; }
 
-  virtual Expr Rewrite_(const TupleNode* op, const Expr& post) override {
+  Expr Rewrite_(const TupleNode* op, const Expr& post) override {
     auto expr = Downcast<Tuple>(post);
 
     auto target_n_args = AnnotateArgs(expr->fields);
@@ -275,7 +275,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) override {
+  Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) override {
     auto expr = Downcast<TupleGetItem>(post);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->tuple}));
@@ -284,7 +284,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const FunctionNode* fn, const Expr& post) override {
+  Expr Rewrite_(const FunctionNode* fn, const Expr& post) override {
     Function func;
     Expr new_body;
     // don't step into composite functions
@@ -298,7 +298,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return Function(func->params, new_body, func->ret_type, func->type_params, func->attrs);
   }
 
-  virtual Expr Rewrite_(const LetNode* op, const Expr& post) override {
+  Expr Rewrite_(const LetNode* op, const Expr& post) override {
     auto let = Downcast<Let>(post);
 
     Expr new_expr;
@@ -315,7 +315,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const IfNode* op, const Expr& post) override {
+  Expr Rewrite_(const IfNode* op, const Expr& post) override {
     auto expr = Downcast<If>(post);
     Expr new_cond = InsertCompilerEndAndPropogateTarget(expr->cond);
     Expr new_true_branch = InsertCompilerEndAndPropogateTarget(expr->true_branch);
@@ -325,7 +325,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const RefCreateNode* op, const Expr& post) override {
+  Expr Rewrite_(const RefCreateNode* op, const Expr& post) override {
     auto expr = Downcast<RefCreate>(post);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->value}));
@@ -334,7 +334,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const RefReadNode* op, const Expr& post) override {
+  Expr Rewrite_(const RefReadNode* op, const Expr& post) override {
     auto expr = Downcast<RefRead>(post);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref}));
@@ -343,7 +343,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const RefWriteNode* op, const Expr& post) override {
+  Expr Rewrite_(const RefWriteNode* op, const Expr& post) override {
     auto expr = Downcast<RefWrite>(post);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref, expr->value}));
@@ -360,7 +360,7 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
   explicit CallOpsTargetRewriter(Array<runtime::String> targets)
       : AnnotateTargetRewriter(std::move(targets)) {}
 
-  virtual std::unique_ptr<Call> RewriteVarCall(const Call& post_call) override {
+  std::unique_ptr<Call> RewriteVarCall(const Call& post_call) override {
     Array<Expr> ends;
     for (auto arg : post_call->args) {
       ends.push_back(InsertCompilerEndAndPropogateTarget(arg));
@@ -370,7 +370,7 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
     return new_call;
   }
 
-  virtual Expr Rewrite_(const TupleNode* op, const Expr& post) override {
+  Expr Rewrite_(const TupleNode* op, const Expr& post) override {
     auto expr = Downcast<Tuple>(post);
     Array<Expr> new_fields;
     for (auto f : expr->fields) {
@@ -379,12 +379,12 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
     return std::move(Tuple(new_fields));
   }
 
-  virtual Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) override {
+  Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) override {
     auto expr = Downcast<TupleGetItem>(post);
     return std::move(TupleGetItem(InsertCompilerEndAndPropogateTarget(expr->tuple), expr->index));
   }
 
-  virtual Expr Rewrite_(const IfNode* op, const Expr& post) override {
+  Expr Rewrite_(const IfNode* op, const Expr& post) override {
     auto expr = Downcast<If>(post);
     Expr new_cond = InsertCompilerEndAndPropogateTarget(expr->cond);
     Expr new_true_branch = InsertCompilerEndAndPropogateTarget(expr->true_branch);
@@ -394,19 +394,19 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const RefCreateNode* op, const Expr& post) override {
+  Expr Rewrite_(const RefCreateNode* op, const Expr& post) override {
     auto expr = Downcast<RefCreate>(post);
     auto new_expr = RefCreate(InsertCompilerEndAndPropogateTarget(expr->value));
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const RefReadNode* op, const Expr& post) override {
+  Expr Rewrite_(const RefReadNode* op, const Expr& post) override {
     auto expr = Downcast<RefRead>(post);
     auto new_expr = RefRead(InsertCompilerEndAndPropogateTarget(expr->ref));
     return std::move(new_expr);
   }
 
-  virtual Expr Rewrite_(const RefWriteNode* op, const Expr& post) override {
+  Expr Rewrite_(const RefWriteNode* op, const Expr& post) override {
     auto expr = Downcast<RefWrite>(post);
     auto new_expr = RefWrite(InsertCompilerEndAndPropogateTarget(expr->ref),
                              InsertCompilerEndAndPropogateTarget(expr->value));
