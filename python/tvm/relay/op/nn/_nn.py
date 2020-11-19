@@ -47,7 +47,7 @@ reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 @reg.register_legalize("nn.dense")
 def legalize_dense(attrs, inputs, types):
-    """Legalize conv2d op.
+    """Legalize dense op.
 
     Parameters
     ----------
@@ -83,7 +83,7 @@ reg.register_pattern("nn.fifo_buffer", OpPattern.OPAQUE)
 
 @reg.register_legalize("nn.batch_matmul")
 def legalize_batch_matmul(attrs, inputs, types):
-    """Legalize conv2d op.
+    """Legalize batch_matmul op.
 
     Parameters
     ----------

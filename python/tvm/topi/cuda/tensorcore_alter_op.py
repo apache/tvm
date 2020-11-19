@@ -32,7 +32,7 @@ logger = logging.getLogger('topi')
 
 @nn.batch_matmul_legalize.register("cuda")
 def _batch_matmul_legalize(attrs, inputs, arg_types):
-    """Legalizes Conv2D op.
+    """Legalizes batch_matmul op.
 
     Parameters
     ----------
@@ -40,7 +40,7 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
-    types : list of types
+    arg_types : list of types
         List of input and output types
 
     Returns
@@ -96,7 +96,7 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
 
 @nn.dense_legalize.register("cuda")
 def _dense_legalize(attrs, inputs, arg_types):
-    """Legalizes Conv2D op.
+    """Legalizes dense op.
 
     Parameters
     ----------
@@ -141,13 +141,13 @@ def _dense_legalize(attrs, inputs, arg_types):
             # no need to pad
             return None
 
-        (dm, dk, dn), extra_flops = pad_to_tensorcore(M, K, N)
+        (dm, dk, dn), extra_flops_ratio = pad_to_tensorcore(M, K, N)
 
-        if extra_flops > 2:
-            logger.info("dense pad_to_tensorcore skipped, extra_flops %s" % extra_flops)
+        if extra_flops_ratio > 2:
+            logger.info("dense pad_to_tensorcore skipped, extra_flops_ratio %s" % extra_flops_ratio)
             return None
 
-        logger.info("dense pad_to_tensorcore, extra_flops %s" % extra_flops)
+        logger.info("dense pad_to_tensorcore, extra_flops_ratio %s" % extra_flops_ratio)
 
         x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk)))
         y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk)))
@@ -168,7 +168,7 @@ def pad_to_tensorcore(M, K, N):
     best_pad = (0, 0, 0)
     for padding in candidates:
         dm, dk, dn = _pad_to(M, K, N, padding)
-        e = dm * (K+dk) * (N+dn) + dk * (N+dn) * (M+dm) + dn * (K+dk) * (M+dm)
+        e = (M + dm) * (N + dn) * (K + dk) - M * N * K
         # print(dm, dk, dn, e, flops)
         if e < extra_flops:
             extra_flops = e
