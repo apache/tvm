@@ -221,7 +221,7 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
 
     def add_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
         shapes = [
-            [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in args.checked_type.shape]
+            [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in arg.checked_type.shape]
             for arg in args
         ]
 
