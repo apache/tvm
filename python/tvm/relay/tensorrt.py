@@ -27,7 +27,7 @@ from tvm import relay
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.transform import _ffi_api
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 
 class LegalizeLayoutTranform(ExprMutator):
@@ -220,24 +220,30 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
     # _register_external_op_helper("slice_like")
 
     def add_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
-        for arg in args:
-            if not arg.checked_type.shape:
+        shapes = [
+            [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in args.checked_type.shape]
+            for arg in args
+        ]
+
+        for shape in shapes:
+            if len(shape) < 1:
                 return False
+
         if any([x.checked_type.dtype != "float32" for x in args]):
             print("Only float32 inputs are supported for TensorRT.")
             return False
 
         if (
             (isinstance(args[0], Constant) or isinstance(args[1], Constant))
-            and args[0].checked_type.shape[0] == args[0].checked_type.shape[0]
-            and args[0].checked_type.shape[0] != 1
-            and (len(args[0].checked_type.shape) > 3 or len(args[1].checked_type.shape) > 3)
+            and shapes[0][0] == shapes[1][0]
+            and shapes[0][0] != 1
+            and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
         ):
             print("add: bug in TRT with adding batched constants.")
             return False
 
         # Skip this add op in TRT to avoid accuracy mismatch
-        if all([list(map(int, arg.checked_type.shape)) == [1, 546, 1, 1] for arg in args]):
+        if all([list(map(int, shape)) == [1, 546, 1, 1] for shape in shapes]):
             print("add: bug in TRT with add of shape (1, 546, 1, 1).")
             return False
 
@@ -439,25 +445,50 @@ def register_tensorrt_annotations(trt_version, use_implicit_batch=True):
             print("reshape: new shape dims must be explicit.")
             return False
         if use_implicit_batch:
-            shape = list(map(int, args[0].checked_type.shape))
-            new_shape = list(map(int, attrs.newshape))
+            shape = args[0].checked_type.shape
+            new_shape = attrs.newshape
             if len(new_shape) == 0 or len(shape) == 0:
                 print("reshape: Can't reshape to or from scalar.")
                 return False
-            # TRT cannot modify batch dimension.
-            original_volume = np.prod(shape)
-            # First, resolve 0.
-            for i, value in enumerate(new_shape):
-                if value == 0:
-                    new_shape[i] = shape[i]
-            # Resolve -1.
-            for i, value in enumerate(new_shape):
-                if value == -1:
-                    new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
-            # Remove batch dimension and see if volumes match
-            if shape[0] != new_shape[0]:
-                print("reshape: can't modify batch dimension.")
-                return False
+
+            dynamic_reshape = any([isinstance(x, tvm.tir.expr.Any) for x in shape])
+
+            if dynamic_reshape:
+                # Make sure that the batch dim is unmodified.
+                if int(new_shape[0]) < 0:
+                    for shape_val, new_shape_val in enumerate(shape[1:], new_shape[1:]):
+                        if not (
+                            isinstance(shape_val, int)
+                            and isinstance(new_shape_val, int)
+                            and int(shape_val) == int(new_shape_val)
+                        ):
+                            return False
+                elif int(new_shape[0]) > 0:
+                    if not (
+                        isinstance(shape[0], int)
+                        and isinstance(new_shape[0], int)
+                        and int(shape[0]) == int(new_shape[0])
+                    ):
+                        return False
+                return True
+            else:
+                shape = list(map(int, shape))
+                new_shape = list(map(int, new_shape))
+
+                # TRT cannot modify batch dimension.
+                original_volume = np.prod(shape)
+                # First, resolve 0.
+                for i, value in enumerate(new_shape):
+                    if value == 0:
+                        new_shape[i] = shape[i]
+                # Resolve -1.
+                for i, value in enumerate(new_shape):
+                    if value == -1:
+                        new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
+                # Remove batch dimension and see if volumes match
+                if shape[0] != new_shape[0]:
+                    print("reshape: can't modify batch dimension.")
+                    return False
         return True
 
     def pad_whitelist_fn(attrs, args):  # pylint: disable=unused-variable
@@ -718,6 +749,38 @@ class SubgraphRemover(ExprMutator):
         return super().visit_call(call)
 
 
+class IsComputeIntensiveGraph(ExprVisitor):
+    """
+    Visits the Graph recursively and checks if it contains compute heavy ops like convolutions and
+    its transpose, dense and batch mat-mul.
+    """
+
+    def __init__(self):
+        ExprVisitor.__init__(self)
+        self.is_compute_intensive = False
+
+    def visit_call(self, call):
+        heavy_ops = set(
+            [
+                "nn.conv2d",
+                "nn.conv2d_transpose",
+                "nn.conv3d",
+                "nn.conv3d_transpose",
+                "nn.dense",
+                "nn.batch_matmul",
+            ]
+        )
+        if isinstance(call.op, tvm.tir.op.Op):
+            if str(call.op) in heavy_ops:
+                self.is_compute_intensive = True
+
+        return super().visit_call(call)
+
+    def is_graph_compute_intensive(self, subgraph):
+        self.visit(subgraph)
+        return self.is_compute_intensive
+
+
 def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_macs=False):
     """
     If use_implicit_batch is True, removes subgraphs which were originally partitioned for TRT
@@ -771,7 +834,8 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
                 # Scalar inputs not allowed
                 if len(var.checked_type.shape) == 0:
                     return False
-                input_batch_sizes.append(int(var.checked_type.shape[0]))
+                if not isinstance(var.checked_type.shape[0], tvm.tir.expr.Any):
+                    input_batch_sizes.append(int(var.checked_type.shape[0]))
         if len(input_batch_sizes) > 1 and any(
             [x != input_batch_sizes[0] for x in input_batch_sizes[1:]]
         ):
@@ -794,7 +858,7 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
 
     # Remove subgraphs with no multiply-accumulates
     if prune_no_macs:
-        subgraph_with_macs = []
+        subgraph_with_compute_intensive_filter = []
         for subgraph in mod.get_global_vars():
             name = subgraph.name_hint
             if (
@@ -805,10 +869,16 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
                 continue
             if not mod[name].attrs or mod[name].attrs["Compiler"] != compiler:
                 continue
-            num_macs = relay.analysis.get_total_mac_number(mod[name])
-            subgraph_with_macs.append([name, num_macs])
-        print("Subgraphs with computed # of MACS:", subgraph_with_macs)
-        subgraphs_to_remove.extend([name for name, num_macs in subgraph_with_macs if num_macs == 0])
+            is_compute_intensive = IsComputeIntensiveGraph().is_graph_compute_intensive(mod[name])
+            subgraph_with_compute_intensive_filter.append([name, is_compute_intensive])
+        print("Subgraphs with compute heavy filter", subgraph_with_compute_intensive_filter)
+        subgraphs_to_remove.extend(
+            [
+                name
+                for name, is_compute_intensive in subgraph_with_compute_intensive_filter
+                if not is_compute_intensive
+            ]
+        )
     if len(subgraphs_to_remove) == 0:
         return mod
     print("Will remove these subgraphs:", subgraphs_to_remove)

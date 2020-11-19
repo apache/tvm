@@ -33,6 +33,7 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../file_util.h"
@@ -45,11 +46,17 @@
 namespace tvm {
 namespace runtime {
 
+struct PairHash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2>& pair) const {
+    return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+  }
+};
+
 /*! \brief A module for TensorRT runtime. */
 class TensorRTModule : public runtime::ModuleNode {
  public:
-  explicit TensorRTModule(
-      const std::unordered_map<std::string, std::string>& serialized_subgraphs)
+  explicit TensorRTModule(const std::unordered_map<std::string, std::string>& serialized_subgraphs)
       : serialized_subgraphs_(serialized_subgraphs) {
     max_workspace_size_ = dmlc::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", size_t(1) << 31);
     use_implicit_batch_ = dmlc::GetEnv("TVM_TENSORRT_USE_IMPLICIT_BATCH", true);
@@ -67,8 +74,7 @@ class TensorRTModule : public runtime::ModuleNode {
 #endif  // TVM_GRAPH_RUNTIME_TENSORRT
   }
 
-  PackedFunc GetFunction(const std::string& name,
-                         const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Returning nullptr tells TVM that the function is not in this module, so
     // it can look for the correct one.
     auto it_subgraph = serialized_subgraphs_.find(name);
@@ -78,22 +84,23 @@ class TensorRTModule : public runtime::ModuleNode {
 #if TVM_GRAPH_RUNTIME_TENSORRT
     // Generate an external packed function
     return PackedFunc([this, name](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-      auto it = trt_engine_cache_.find(name);
+      auto inputs = ConvertInputs(args);
+      const int batch_size = inputs[0]->shape[0];
+      auto it = trt_engine_cache_.find(std::make_pair(name, batch_size));
       if (it == trt_engine_cache_.end()) {
         // Build new trt engine and place in cache.
-        LOG(INFO) << "Building new TensorRT engine for subgraph " << name;
-        auto func = Downcast<relay::Function>(
-            LoadJSON(this->serialized_subgraphs_[name]));
+        LOG(INFO) << "Building new TensorRT engine for subgraph " << name << " with batch size "
+                  << batch_size;
+        auto func = Downcast<relay::Function>(LoadJSON(this->serialized_subgraphs_[name]));
         auto inputs = ConvertInputs(args);
         std::string key = GetSubgraphKey(serialized_subgraphs_[name]);
-        this->serialized_subgraphs_[name].clear();
         relay::contrib::TensorRTBuilder builder(&logger_, inputs, max_workspace_size_,
                                                 use_implicit_batch_);
         auto engine_and_context = builder.BuildEngine(func);
         CacheEngineToDisk(key, engine_and_context);
         LOG(INFO) << "Finished building TensorRT engine for subgraph " << name;
-        this->trt_engine_cache_[name] = engine_and_context;
-        this->ExecuteEngine(&this->trt_engine_cache_[name], args, rv);
+        this->trt_engine_cache_[std::make_pair(name, batch_size)] = engine_and_context;
+        this->ExecuteEngine(&this->trt_engine_cache_[std::make_pair(name, batch_size)], args, rv);
       } else {
         this->ExecuteEngine(&it->second, args, rv);
       }
@@ -107,16 +114,13 @@ class TensorRTModule : public runtime::ModuleNode {
 
   const char* type_key() const { return "tensorrt"; }
 
-  void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
+  void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = runtime::GetFileFormat(file_name, format);
     CHECK_EQ(fmt, type_key()) << "Can only save to format=" << type_key();
     SaveBinaryToFile(file_name, SerializeModuleToString());
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
-    stream->Write(SerializeModuleToString());
-  }
+  void SaveToBinary(dmlc::Stream* stream) final { stream->Write(SerializeModuleToString()); }
 
   static Module LoadFromFile(const std::string& path) {
     std::ifstream filep(path);
@@ -147,7 +151,7 @@ class TensorRTModule : public runtime::ModuleNode {
 
 #if TVM_GRAPH_RUNTIME_TENSORRT
   /*! \brief Map of function name to TRT engine if built already. */
-  std::unordered_map<std::string, TrtEngineAndContext> trt_engine_cache_;
+  std::unordered_map<std::pair<std::string, int>, TrtEngineAndContext, PairHash> trt_engine_cache_;
 
   /*! \brief TensorRT object used to log warnings and errors. */
   TensorRTLogger logger_;
@@ -286,8 +290,8 @@ class TensorRTModule : public runtime::ModuleNode {
       // Deserialize engine
       nvinfer1::IRuntime* runtime = nvinfer1::createInferRuntime(logger_);
       TrtEngineAndContext engine_and_context;
-      engine_and_context.engine = runtime->deserializeCudaEngine(
-          &serialized_engine[0], serialized_engine.size(), nullptr);;
+      engine_and_context.engine =
+          runtime->deserializeCudaEngine(&serialized_engine[0], serialized_engine.size(), nullptr);
       engine_and_context.context = engine_and_context.engine->createExecutionContext();
       // Load metadata
       std::string meta_path = cache_dir + "/" + key + ".meta";
@@ -300,7 +304,8 @@ class TensorRTModule : public runtime::ModuleNode {
       helper.DeclareField("input_is_baked", &engine_and_context.input_is_baked);
       helper.DeclareField("outputs", &engine_and_context.outputs);
       helper.ReadAllFields(&reader);
-      trt_engine_cache_[it.first] = engine_and_context;
+      const int batch_size = 1;
+      trt_engine_cache_[std::make_pair(it.first, batch_size)] = engine_and_context;
     }
   }
 
@@ -373,13 +378,12 @@ Module TensorRTModuleCreate(
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_tensorrt")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_tensorrt").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = TensorRTModule::LoadFromFile(args[0]);
 });
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_tensorrt")
-.set_body_typed(TensorRTModule::LoadFromBinary);
+    .set_body_typed(TensorRTModule::LoadFromBinary);
 
 }  // namespace runtime
 }  // namespace tvm

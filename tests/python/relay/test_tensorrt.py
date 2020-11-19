@@ -849,6 +849,60 @@ def test_tensorrt_serialize(data_shape=(1, 3, 224, 224)):
     assert_result_matches(res_vm_serialized, res_graph_serialized)
 
 
+def test_tensorrt_dynamic_batch():
+    if should_skip():
+        return
+
+    batches_to_test = [1, 1, 2, 3, 1, 3, 2]
+    x_shape = (relay.Any(), 1, 8, 8)
+    x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
+    result_dict = {}
+    for use_trt in [True, False]:
+        x = relay.var("x", shape=x_shape, dtype="float32")
+        out = relay.nn.relu(x)
+        f = relay.Function([x], out)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        if use_trt:
+            mod = relay.tensorrt.EnableTrt(mod)
+        with relay.build_config(opt_level=3):
+            relay_exec = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
+
+        for i, batch_size in enumerate(batches_to_test):
+            result_dict[(i, use_trt)] = relay_exec.evaluate()(x_data[:batch_size, ...])
+
+    for i in range(len(batches_to_test)):
+        assert_result_matches(result_dict[(i, True)], result_dict[(i, False)])
+
+
+def test_tensorrt_dynamic_batch_conv():
+    if should_skip():
+        return
+    batches_to_test = [1, 1, 2, 3, 1, 3, 2]
+    x_shape = (relay.Any(), 32, 8, 8)
+    x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
+    k_shape = (16, 32, 3, 3)
+    params = {"kernel": np.random.uniform(-1, 1, k_shape).astype("float32")}
+    result_dict = {}
+    for use_trt in [True, False]:
+        x = relay.var("x", shape=x_shape, dtype="float32")
+        kernel = relay.var("kernel", shape=k_shape, dtype="float32")
+        out = relay.nn.conv2d(x, kernel, channels=16, kernel_size=(3, 3), groups=1)
+        f = relay.Function([x, kernel], out)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        if use_trt:
+            mod = relay.tensorrt.EnableTrt(mod, params)
+        with relay.build_config(opt_level=3):
+            relay_exec = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
+
+        for i, batch_size in enumerate(batches_to_test):
+            result_dict[(i, use_trt)] = relay_exec.evaluate()(x=x_data[:batch_size, ...], **params)
+
+    for i in range(len(batches_to_test)):
+        assert_result_matches(result_dict[(i, True)], result_dict[(i, False)])
+
+
 if __name__ == "__main__":
     test_tensorrt_ops()
     test_tensorrt_simple()
@@ -856,3 +910,5 @@ if __name__ == "__main__":
     test_tensorrt_not_compatible()
     test_tensorrt_integration()
     test_tensorrt_serialize()
+    test_tensorrt_dynamic_batch()
+    test_tensorrt_dynamic_batch_conv()
