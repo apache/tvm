@@ -103,7 +103,7 @@ class BufferVar(ObjectGeneric):
         index = self._linear_index(index)
         if t.lanes > 1:
             base = index * t.lanes
-            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
+            index = _expr.Ramp(base, 1, t.lanes)
         return _expr.Load(self._content_type, self._buffer_var, index)
 
     def __setitem__(self, index, value):
@@ -116,7 +116,7 @@ class BufferVar(ObjectGeneric):
         t = DataType(self._content_type)
         if t.lanes > 1:
             base = index * t.lanes
-            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
+            index = _expr.Ramp(base, 1, t.lanes)
         self._builder.emit(_stmt.Store(self._buffer_var, value, index))
 
 
