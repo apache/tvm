@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, used-before-assignment, unused-import
 """Scikit-learn frontend."""
 import numpy as np
+import tvm
 from tvm import relay
 from tvm.ir import IRModule
 
@@ -25,6 +26,8 @@ from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from .common import infer_type as _infer_type
+from .common import infer_value as _infer_value
 
 
 def _SimpleImputer(op, inexpr, dshape, dtype, columns=None):
@@ -336,6 +339,133 @@ def _RobustPCA(op, inexpr, dshape, dtype, columns=None):
     return ret
 
 
+def _qt_transform_col(X_col, quantiles, inverse, qt, references):
+    """
+    Column transformation for Quantile-type Transformers
+    """
+    x_shape_n = _op.shape_of(X_col)
+
+    if not inverse:
+        lower_bound_x = _op.take(quantiles, indices=_expr.const(0))
+        upper_bound_x = _op.take(
+            quantiles,
+            indices=_op.subtract(_op.take(x_shape_n, indices=_expr.const([0])), _expr.const(1)),
+        )
+        lower_bound_y = _expr.const(0)
+        upper_bound_y = _expr.const(1)
+    else:
+        lower_bound_y = _op.take(quantiles, indices=_expr.const(0))
+        upper_bound_y = _op.take(quantiles, indices=_expr.const(1))
+        lower_bound_x = _expr.const(0)
+        upper_bound_x = _expr.const(1)
+
+    lower_bounds_idx = _op.equal(
+        _op.cast(X_col, "float32"), _op.broadcast_to(lower_bound_x, x_shape_n)
+    )
+    upper_bounds_idx = _op.equal(
+        _op.cast(X_col, "float32"), _op.broadcast_to(upper_bound_x, x_shape_n)
+    )
+
+    isfinite_mask = _op.logical_not(_op.isnan(X_col))
+
+    X_col_finite = _op.reshape(
+        _op.multiply(X_col, _op.cast(isfinite_mask, "float32")), newshape=(-1)
+    )
+
+    if not inverse:
+        interp1 = _op.interpolate(
+            X_col_finite,
+            _op.reshape(quantiles, qt.quantiles_.shape[0]),
+            _op.cast(references, "float32"),
+        )
+
+        interp2 = _op.interpolate(
+            _op.negative(X_col_finite),
+            _op.reverse(_op.negative(_op.reshape(quantiles, qt.quantiles_.shape[0])), axis=0),
+            _op.reverse(_op.negative(_op.cast(references, "float32")), axis=0),
+        )
+
+        mul1 = _op.subtract(interp1, interp2)
+        mul_out = _op.multiply(_op.cast(_expr.const(0.5), "float"), _op.cast(mul1, "float"))
+    else:
+        interp_out = _op.interpolate(X_col_finite, qt.references_, quantiles)
+        mul_out = interp_out
+
+    out = _op.where(_op.reshape(isfinite_mask, newshape=(-1)), mul_out, X_col_finite)
+
+    upper_bound_y = _op.full(upper_bound_y, x_shape_n, dtype="float32")
+    out = _op.where(
+        _op.reshape(upper_bounds_idx, newshape=-(1)), _op.reshape(upper_bound_y, newshape=(-1)), out
+    )
+
+    lower_bound_y = _op.full(lower_bound_y, x_shape_n, dtype="float32")
+    out = _op.where(
+        _op.reshape(lower_bounds_idx, newshape=-(1)), _op.reshape(lower_bound_y, newshape=(-1)), out
+    )
+
+    return _op.reshape(out, newshape=(-1, 1))
+
+
+def _QuantileTransformer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Scikit-Learn Transformer:
+    Transform features using quantiles information.
+    """
+    out = []
+    inverse = False
+    quantiles = op.quantiles_
+    features = quantiles.shape[1]
+
+    input_cols = _op.split(inexpr, features, axis=1)
+    q_cols = _op.split(_expr.const(quantiles), features, axis=1)
+
+    for feature_idx in range(features):
+        feature = _qt_transform_col(
+            input_cols[feature_idx],
+            q_cols[feature_idx],
+            inverse,
+            op,
+            _expr.const(op.references_),
+        )
+
+        out.append(feature)
+
+    return _op.reshape(_op.concatenate(out, 1), _op.shape_of(inexpr))
+
+
+def _QuantileExtremeValuesTransformer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Transform features that contain "extreme" values using quantiles information.
+    """
+    out = []
+    inverse = False
+
+    columns_to_transform = op.cols_to_transform_
+    quantiles = op.quantile_transformer_.quantiles_
+    features = quantiles.shape[1]
+
+    input_cols = _op.split(inexpr, features, axis=1)
+    q_cols = _op.split(_expr.const(quantiles), features, axis=1)
+
+    for feature_idx in range(features):
+        if feature_idx in columns_to_transform:
+            references = np.linspace(0, 1, quantiles.shape[0], endpoint=True)
+            feature = _qt_transform_col(
+                input_cols[feature_idx],
+                q_cols[feature_idx],
+                inverse,
+                op.quantile_transformer_,
+                _expr.const(tvm.nd.array(references)),
+            )
+        else:
+            feature = input_cols[feature_idx]
+
+        out.append(feature)
+
+    return _op.reshape(_op.concatenate(tuple(out), 1), _op.shape_of(inexpr))
+
+
 _convert_map = {
     "ColumnTransformer": {"transform": _ColumnTransformer},
     "SimpleImputer": {"transform": _SimpleImputer},
@@ -351,6 +481,8 @@ _convert_map = {
     "RobustPCA": {"transform": _RobustPCA},
     "FeatureUnion": {"transform": _FeatureUnion},
     "Pipeline": {"transform": _Pipeline},
+    "QuantileTransformer": {"transform": _QuantileTransformer},
+    "QuantileExtremeValuesTransformer": {"transform": _QuantileExtremeValuesTransformer},
 }
 
 INPUT_FLOAT = 0

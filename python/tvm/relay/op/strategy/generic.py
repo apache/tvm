@@ -1047,6 +1047,14 @@ def schedule_scatter_add(attrs, outs, target):
         return topi.generic.schedule_scatter_add(outs)
 
 
+# interpolate
+@generic_func
+def schedule_interpolate(attrs, outs, target):
+    """schedule interpolate"""
+    with target:
+        return topi.generic.schedule_interpolate(outs)
+
+
 # bitserial_conv2d
 def wrap_compute_bitserial_conv2d(topi_compute):
     """wrap bitserial_conv2d topi compute"""

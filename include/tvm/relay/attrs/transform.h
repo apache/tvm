@@ -174,6 +174,14 @@ struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
   }
 };  // struct MeshgridAttrs
 
+struct InterpolateAttrs : public tvm::AttrsNode<InterpolateAttrs> {
+  std::string mode;
+
+  TVM_DECLARE_ATTRS(InterpolateAttrs, "relay.attrs.InterpolateAttrs") {
+    TVM_ATTR_FIELD(mode).describe("Type of inteprolation to use.").set_default("linear");
+  }
+};  // struct InterpolateAttrs
+
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
   Integer axis;

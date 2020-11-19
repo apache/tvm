@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=used-before-assignment
 import numpy as np
 
 from scipy.sparse import random as sparse_random
@@ -41,8 +42,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm import relay
-from tvm.contrib import graph_runtime
-import scipy
+import tvm.testing
 
 
 class SklearnTestHelper:
@@ -66,13 +66,13 @@ class SklearnTestHelper:
 
 def _test_model_impl(helper, model, dshape, input_data, auto_ml=False):
     helper.compile(model, dshape, "float32", "transform", None, auto_ml)
+    tvm_out = helper.run(input_data)
     if auto_ml:
         sklearn_out = model.feature_transformer.transform(input_data)
     elif type(model).__name__ == "ThresholdOneHotEncoder":
         sklearn_out = model.transform(input_data).toarray()
     else:
         sklearn_out = model.transform(input_data)
-    tvm_out = helper.run(input_data)
 
     tvm.testing.assert_allclose(sklearn_out, tvm_out, rtol=1e-5, atol=1e-5)
 
@@ -257,6 +257,59 @@ def test_pipeline():
     _test_model_impl(st_helper, pipe, dshape, data)
 
 
+def _test_quantile_transformer(shape, n_quantiles):
+    from sklearn.preprocessing import QuantileTransformer
+
+    st_helper = SklearnTestHelper()
+
+    rng = np.random.RandomState(0)
+    data = np.sort(rng.normal(loc=0.5, scale=0.25, size=shape), axis=0)
+
+    qt = QuantileTransformer(n_quantiles=n_quantiles, random_state=0)
+    qt.fit_transform(data)
+
+    dshape = (relay.Any(), len(data[0]))
+    _test_model_impl(st_helper, qt, dshape, data.astype("float32"))
+
+
+def test_quantile_transformer():
+    _test_quantile_transformer((25, 1), 10)
+    _test_quantile_transformer((25, 1), 30)
+    _test_quantile_transformer((25, 1), 98)
+    _test_quantile_transformer((12, 3), 10)
+    _test_quantile_transformer((12, 3), 30)
+    _test_quantile_transformer((12, 3), 98)
+
+
+def test_quantile_extremevalues_transformer():
+    from sagemaker_sklearn_extension.preprocessing import QuantileExtremeValuesTransformer
+
+    st_helper = SklearnTestHelper()
+
+    data = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [-1.0, 1.0, 1.0],
+            [-2.0, 2.0, 2.0],
+            [-3.0, 3.0, 3.0],
+            [-4.0, 4.0, 4.0],
+            [-5.0, 5.0, 5.0],
+            [-6.0, 6.0, 6.0],
+            [-7.0, 7.0, 7.0],
+            [-8.0, 8.0, 8.0],
+            [-9.0, 9.0, 9.0],
+            [-10.0, 10.0, 10.0],
+            [-1e5, 1e6, 11.0],
+        ]
+    )
+
+    qt = QuantileExtremeValuesTransformer(threshold_std=2.0)
+    qt.fit_transform(data)
+
+    dshape = (relay.Any(), len(data[0]))
+    _test_model_impl(st_helper, qt, dshape, data.astype("float32"))
+
+
 def test_inverse_label_transformer():
     st_helper = SklearnTestHelper()
     rle = RobustLabelEncoder()
@@ -292,3 +345,5 @@ if __name__ == "__main__":
     test_automl()
     test_feature_union()
     test_inverse_label_transformer()
+    test_quantile_transformer()
+    test_quantile_extremevalues_transformer()
