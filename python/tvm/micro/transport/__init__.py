@@ -22,5 +22,6 @@ from .base import Transport
 from .base import TransportClosedError
 from .base import TransportLogger
 from .base import TransportTimeouts
+from .base import debug_transport_timeouts
 from .debug import DebugWrapperTransport
 from .subprocess import SubprocessTransport

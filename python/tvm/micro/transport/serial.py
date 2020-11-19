@@ -90,6 +90,10 @@ class SerialTransport(Transport):
         self._port = None
 
     def read(self, n, timeout_sec):
+        if timeout_sec is None:
+            self._port.timeout = None
+            return self._port.read(n)
+
         end_time = time.monotonic() + timeout_sec
         to_return = bytearray()
         while True:
