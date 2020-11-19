@@ -20,21 +20,6 @@ import numpy as np
 import tvm.testing
 
 
-def test_allocate_with_lanes():
-    ib = tvm.tir.ir_builder.create()
-    n = te.size_var("n")
-    A = ib.allocate("float32x4", n, name="A", scope="global")
-    B = ib.allocate("float32x4", n, name="A", scope="global")
-    A[0] = tvm.tir.const(0, "float32x4")
-    B[0] = A[0]
-    body = ib.get()
-    assert A == A
-    print(body)
-    assert isinstance(body, tvm.tir.AttrStmt)
-    body = body.body
-    assert isinstance(body, tvm.tir.Allocate)
-
-
 def test_for():
     ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
@@ -192,6 +177,5 @@ if __name__ == "__main__":
     test_prefetch()
     test_if()
     test_for()
-    test_allocate_with_lanes()
     test_cpu()
     test_gpu()
