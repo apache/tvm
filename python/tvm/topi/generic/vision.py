@@ -178,81 +178,13 @@ def schedule_proposal(outs):
     return _default_schedule(outs, False)
 
 
-def schedule_segment_max(outs):
+def schedule_segment_op(outs):
     """Schedule for segment_max operator.
 
     Parameters
     ----------
     outs: Array of Tensor
       The computation graph description of segment_max
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-def schedule_segment_min(outs):
-    """Schedule for segment_min operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of segment_min
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-def schedule_segment_mean(outs):
-    """Schedule for segment_mean operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of segment_mean
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-def schedule_segment_sum(outs):
-    """Schedule for segment_sum operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of segment_sum
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-def schedule_segment_prod(outs):
-    """Schedule for segment_prod operator.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of segment_prod
       in the format of an array of tensors.
 
     Returns

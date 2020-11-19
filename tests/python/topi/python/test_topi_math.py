@@ -23,8 +23,6 @@ from tvm import topi
 import tvm.testing
 import tvm.topi.testing
 from tvm.topi import utils
-from tvm.topi import util
-import tensorflow as tf
 
 
 def test_util():
@@ -236,59 +234,21 @@ def test_fastmath():
     )
 
 
-_segment_implement = {
-    "segment_max": {
-        "generic": (topi.segment_max, topi.generic.schedule_segment_max),
-    },
-    "segment_min": {
-        "generic": (topi.segment_min, topi.generic.schedule_segment_min),
-    },
-    "segment_mean": {
-        "generic": (topi.segment_mean, topi.generic.schedule_segment_mean),
-    },
-    "segment_sum": {
-        "generic": (topi.segment_sum, topi.generic.schedule_segment_sum),
-    },
-    "segment_prod": {
-        "generic": (topi.segment_prod, topi.generic.schedule_segment_prod),
-    },
-}
-
-
-def verify_segmet(name, data_shape, segmnet_size):
-    def get_segment_ids(length, size):
-        segment_ids = [0]
-        for i in range(size):
-            if np.array(segment_ids).sum() < length:
-                for _ in range(i):
-                    segment_ids.append(i)
-            else:
-                break
-        length = length - len(segment_ids)
-        for i in range(length):
-            segment_ids.append(segment_ids[-1])
-        return np.array(segment_ids).astype("int32")
-
-    def get_ref_data():
-        tf.reset_default_graph()
-        np_data = np.random.uniform(0, 100, size=data_shape).astype("float32")
-        segment_ids = get_segment_ids(data_shape[0], segmnet_size)
-        num_out = segment_ids[-1] + 1
-        segment_op = getattr(tf.math, name)
-        out_calcu = segment_op(np_data, segment_ids)
-        with tf.Session() as sess:
-            tf_out = sess.run(out_calcu)
-        return np_data, segment_ids, num_out, tf_out
-
+def verify_segment(name, np_data, np_segment_ids, np_out):
     device = "llvm"
     ctx = tvm.context(device, 0)
     print("Running on target: %s" % device)
-    data = te.placeholder(data_shape)
-    segment_ids = te.placeholder([data_shape[0]], dtype="int32")
-    np_data, np_segment_ids, num_out, np_out = get_ref_data()
-    with tvm.target.create(device):
-        fcompute, fschedule = tvm.topi.testing.dispatch(device, _segment_implement[name])
-        out = fcompute(data, segment_ids, num_out=num_out)
+    data = te.placeholder(np_data.shape)
+    segment_ids = te.placeholder(np_segment_ids.shape, dtype="int32")
+    num_out = np_segment_ids[-1] + 1
+    with tvm.target.Target(device):
+        fcompute, fschedule = tvm.topi.testing.dispatch(
+            device,
+            {
+                "generic": (topi.segment_op, topi.generic.schedule_segment_op),
+            },
+        )
+        out = fcompute(data, segment_ids, num_out, name)
         s = fschedule(out)
         f = tvm.build(s, [data, segment_ids, out], device)
         tvm_data = tvm.nd.array(np_data, ctx=ctx)
@@ -300,22 +260,125 @@ def verify_segmet(name, data_shape, segmnet_size):
 
 def test_segment():
     # segmet_max, segmet_min, segmet_mean, segmet_sum, segmet_prod
+    np_data = np.array([0, 0.8, 1, 20, -25, 45, 1, 0.7, -30, 60, 50, 80]).astype("float32")
+    segment_ids = np.array([0, 1, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6]).astype("int32")
+    np_result = np.array([0, 1, 45, 1, 0.7, 60, 80])
+    verify_segment("max", np_data, segment_ids, np_result)
 
-    verify_segmet("segment_max", [100], 20)
-    verify_segmet("segment_max", [10, 3, 4], 5)
-    verify_segmet("segment_max", [10, 3, 4, 4], 10)
-    verify_segmet("segment_min", [100], 20)
-    verify_segmet("segment_min", [10, 3, 4], 5)
-    verify_segmet("segment_min", [10, 3, 4, 4], 10)
-    verify_segmet("segment_mean", [100], 20)
-    verify_segmet("segment_mean", [10, 3, 4], 5)
-    verify_segmet("segment_mean", [10, 3, 4, 4], 10)
-    verify_segmet("segment_sum", [100], 20)
-    verify_segmet("segment_sum", [10, 3, 4], 5)
-    verify_segmet("segment_sum", [10, 3, 4, 4], 10)
-    verify_segmet("segment_prod", [100], 20)
-    verify_segmet("segment_prod", [10, 3, 4], 5)
-    verify_segmet("segment_prod", [10, 3, 4, 4], 10)
+    np_data = np.array(
+        [
+            [0, 0.8, 1, 20, -25, 45],
+            [1, 0.7, 30, 60, 50, 80],
+            [0, 0.4, 4, 21, 19, 40],
+            [2, -0.9, 35, 61, 52, 79],
+            [1, 0.5, 100, 60, 70, 110],
+        ]
+    ).astype("float32")
+    segment_ids = np.array([0, 0, 1, 1, 2]).astype("int32")
+    np_result = np.array(
+        [
+            [1, 0.8, 30, 60, 50, 80],
+            [2, 0.4, 35, 61, 52, 79],
+            [1, 0.5, 100, 60, 70, 110],
+        ]
+    )
+    verify_segment("max", np_data, segment_ids, np_result)
+
+    np_data = np.array([0, 0.8, 1, 20, -25, 45, 1, 0.7, -30, 60, 50, 80]).astype("float32")
+    segment_ids = np.array([0, 1, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6]).astype("int32")
+    np_result = np.array([0, 0.8, -25, 1, 0.7, -30, 80])
+    verify_segment("min", np_data, segment_ids, np_result)
+
+    np_data = np.array(
+        [
+            [0, 0.8, 1, 20, -25, 45],
+            [1, 0.7, 30, 60, 50, 80],
+            [0, 0.4, 4, 21, 19, 40],
+            [2, -0.9, 35, 61, 52, 79],
+            [1, 0.5, 100, 60, 70, 110],
+        ]
+    ).astype("float32")
+    segment_ids = np.array([0, 0, 1, 1, 2]).astype("int32")
+    np_result = np.array(
+        [
+            [0.0, 0.7, 1.0, 20.0, -25.0, 45.0],
+            [0.0, -0.9, 4.0, 21.0, 19.0, 40.0],
+            [1.0, 0.5, 100.0, 60.0, 70.0, 110.0],
+        ]
+    )
+    verify_segment("min", np_data, segment_ids, np_result)
+
+    np_data = np.array([0, 0.8, 1, 20, -25, 45, 1, 0.7, -30, 60, 50, 80]).astype("float32")
+    segment_ids = np.array([0, 1, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6]).astype("int32")
+    np_result = np.array([0.0, 0.9, 13.333333, 1.0, 0.7, 26.666666, 80.0])
+    verify_segment("mean", np_data, segment_ids, np_result)
+
+    np_data = np.array(
+        [
+            [0, 0.8, 1, 20, -25, 45],
+            [1, 0.7, 30, 60, 50, 80],
+            [0, 0.4, 4, 21, 19, 40],
+            [2, -0.9, 35, 61, 52, 79],
+            [1, 0.5, 100, 60, 70, 110],
+        ]
+    ).astype("float32")
+    segment_ids = np.array([0, 0, 1, 1, 2]).astype("int32")
+    np_result = np.array(
+        [
+            [0.5, 0.75, 15.5, 40.0, 12.5, 62.5],
+            [1.0, -0.25, 19.5, 41.0, 35.5, 59.5],
+            [1.0, 0.5, 100.0, 60.0, 70.0, 110.0],
+        ]
+    )
+    verify_segment("mean", np_data, segment_ids, np_result)
+
+    np_data = np.array([0, 0.8, 1, 20, -25, 45, 1, 0.7, -30, 60, 50, 80]).astype("float32")
+    segment_ids = np.array([0, 1, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6]).astype("int32")
+    np_result = np.array([0.0, 1.8, 40.0, 1.0, 0.7, 80.0, 80.0])
+    verify_segment("sum", np_data, segment_ids, np_result)
+
+    np_data = np.array(
+        [
+            [0, 0.8, 1, 20, -25, 45],
+            [1, 0.7, 30, 60, 50, 80],
+            [0, 0.4, 4, 21, 19, 40],
+            [2, -0.9, 35, 61, 52, 79],
+            [1, 0.5, 100, 60, 70, 110],
+        ]
+    ).astype("float32")
+    segment_ids = np.array([0, 0, 1, 1, 2]).astype("int32")
+    np_result = np.array(
+        [
+            [1.0, 1.5, 31.0, 80.0, 25.0, 125.0],
+            [2.0, -0.5, 39.0, 82.0, 71.0, 119.0],
+            [1.0, 0.5, 100.0, 60.0, 70.0, 110.0],
+        ]
+    )
+    verify_segment("sum", np_data, segment_ids, np_result)
+
+    np_data = np.array([0, 0.8, 1, 20, -25, 45, 1, 0.7, -30, 60, 50, 80]).astype("float32")
+    segment_ids = np.array([0, 1, 1, 2, 2, 2, 3, 4, 5, 5, 5, 6]).astype("int32")
+    np_result = np.array([0.0, 0.8, -22500.0, 1.0, 0.7, -90000, 80])
+    verify_segment("prod", np_data, segment_ids, np_result)
+
+    np_data = np.array(
+        [
+            [0, 0.8, 1, 20, -25, 45],
+            [1, 0.7, 30, 60, 50, 80],
+            [0, 0.4, 4, 21, 19, 40],
+            [2, -0.9, 35, 61, 52, 79],
+            [1, 0.5, 100, 60, 70, 110],
+        ]
+    ).astype("float32")
+    segment_ids = np.array([0, 0, 1, 1, 2]).astype("int32")
+    np_result = np.array(
+        [
+            [0.0, 0.56, 30.0, 1200.0, -1250.0, 3600.0],
+            [0.0, -0.36, 140.0, 1281.0, 988.0, 3160.0],
+            [1.0, 0.5, 100.0, 60.0, 70, 110],
+        ]
+    )
+    verify_segment("prod", np_data, segment_ids, np_result)
 
 
 if __name__ == "__main__":

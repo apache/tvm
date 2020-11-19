@@ -4398,7 +4398,7 @@ def test_forward_rint():
     _test_forward_rint([2, 5, 2, 5])
 
 
-def test_forwars_segment():
+def test_forward_segment():
     """test operator segmet_max, segmet_min, segmet_mean, segmet_sum, segmet_prod """
 
     def _get_segment_ids(length, size):
@@ -4414,34 +4414,34 @@ def test_forwars_segment():
             segment_ids.append(segment_ids[-1])
         return np.array(segment_ids).astype("int32")
 
-    def _test_forwars_segment(name, data_shape, size):
-        np_data = np.random.uniform(0, 100, size=data_shape).astype(np.float32)
+    def _test_forward_segment(name, data_shape, size):
+        np_data = np.random.uniform(-100, 100, size=data_shape).astype(np.float32)
         tf.reset_default_graph()
         in_data = tf.placeholder(tf.float32, data_shape, name="in_data")
         segment_ids = _get_segment_ids(data_shape[0], size)
         tf_segment_ids = tf.constant(segment_ids)
         segment_op = getattr(tf.math, name)
         result = segment_op(in_data, tf_segment_ids, name=name)
-        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, True)
+        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, False)
 
-    _test_forwars_segment("segment_max", [100], 20)
-    _test_forwars_segment("segment_max", [10, 3, 4], 5)
-    _test_forwars_segment("segment_max", [10, 3, 4, 4], 10)
-    _test_forwars_segment("segment_min", [100], 20)
-    _test_forwars_segment("segment_min", [10, 3, 4], 5)
-    _test_forwars_segment("segment_min", [10, 3, 4, 4], 10)
-    _test_forwars_segment("segment_mean", [100], 20)
-    _test_forwars_segment("segment_mean", [10, 3, 4], 5)
-    _test_forwars_segment("segment_mean", [10, 3, 4, 4], 10)
-    _test_forwars_segment("segment_sum", [100], 20)
-    _test_forwars_segment("segment_sum", [10, 3, 4], 5)
-    _test_forwars_segment("segment_sum", [10, 3, 4, 4], 10)
-    _test_forwars_segment("segment_prod", [100], 20)
-    _test_forwars_segment("segment_prod", [10, 3, 4], 5)
-    _test_forwars_segment("segment_prod", [10, 3, 4, 4], 10)
+    _test_forward_segment("segment_max", [100], 20)
+    _test_forward_segment("segment_max", [10, 3, 4], 5)
+    _test_forward_segment("segment_max", [10, 3, 4, 4], 10)
+    _test_forward_segment("segment_min", [100], 20)
+    _test_forward_segment("segment_min", [10, 3, 4], 5)
+    _test_forward_segment("segment_min", [10, 3, 4, 4], 10)
+    _test_forward_segment("segment_mean", [100], 20)
+    _test_forward_segment("segment_mean", [10, 3, 4], 5)
+    _test_forward_segment("segment_mean", [10, 3, 4, 4], 10)
+    _test_forward_segment("segment_sum", [100], 20)
+    _test_forward_segment("segment_sum", [10, 3, 4], 5)
+    _test_forward_segment("segment_sum", [10, 3, 4, 4], 10)
+    _test_forward_segment("segment_prod", [100], 20)
+    _test_forward_segment("segment_prod", [10, 3, 4], 5)
+    _test_forward_segment("segment_prod", [10, 3, 4, 4], 10)
 
 
-def test_forwars_unsorted_segment():
+def test_forward_unsorted_segment():
     """test operator unsorted_segment_max, unsorted_segmet_min,
     unsorted_segmet_mean, unsorted_segmet_sum, unsorted_segmet_prod"""
 
@@ -4460,31 +4460,31 @@ def test_forwars_unsorted_segment():
         segment_ids = np.array(segment_ids).astype("int32")
         return segment_ids, segment_ids.max() + 1
 
-    def _test_forwars_unsorted_segment(name, data_shape, size):
-        np_data = np.random.uniform(0, 100, size=data_shape).astype(np.float32)
+    def _test_forward_unsorted_segment(name, data_shape, size):
+        np_data = np.random.uniform(-100, 100, size=data_shape).astype(np.float32)
         tf.reset_default_graph()
         in_data = tf.placeholder(tf.float32, data_shape, name="in_data")
         segment_ids, num_segments = _get_segment_ids(data_shape[0], size)
         tf_segment_ids = tf.constant(segment_ids)
         segment_op = getattr(tf.math, name)
         result = segment_op(in_data, tf_segment_ids, num_segments, name=name)
-        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, True)
+        compare_tf_with_tvm([np_data, segment_ids], ["in_data:0"], result.name, False)
 
-    _test_forwars_unsorted_segment("unsorted_segment_max", [100], 20)
-    _test_forwars_unsorted_segment("unsorted_segment_max", [10, 3, 4], 5)
-    _test_forwars_unsorted_segment("unsorted_segment_max", [10, 3, 4, 4], 10)
-    _test_forwars_unsorted_segment("unsorted_segment_min", [100], 20)
-    _test_forwars_unsorted_segment("unsorted_segment_min", [10, 3, 4], 5)
-    _test_forwars_unsorted_segment("unsorted_segment_min", [10, 3, 4, 4], 10)
-    _test_forwars_unsorted_segment("unsorted_segment_mean", [100], 20)
-    _test_forwars_unsorted_segment("unsorted_segment_mean", [10, 3, 4], 5)
-    _test_forwars_unsorted_segment("unsorted_segment_mean", [10, 3, 4, 4], 10)
-    _test_forwars_unsorted_segment("unsorted_segment_sum", [100], 20)
-    _test_forwars_unsorted_segment("unsorted_segment_sum", [10, 3, 4], 5)
-    _test_forwars_unsorted_segment("unsorted_segment_sum", [10, 3, 4, 4], 10)
-    _test_forwars_unsorted_segment("unsorted_segment_prod", [100], 20)
-    _test_forwars_unsorted_segment("unsorted_segment_prod", [10, 3, 4], 5)
-    _test_forwars_unsorted_segment("unsorted_segment_prod", [10, 3, 4, 4], 10)
+    _test_forward_unsorted_segment("unsorted_segment_max", [100], 20)
+    _test_forward_unsorted_segment("unsorted_segment_max", [10, 3, 4], 5)
+    _test_forward_unsorted_segment("unsorted_segment_max", [10, 3, 4, 4], 10)
+    _test_forward_unsorted_segment("unsorted_segment_min", [100], 20)
+    _test_forward_unsorted_segment("unsorted_segment_min", [10, 3, 4], 5)
+    _test_forward_unsorted_segment("unsorted_segment_min", [10, 3, 4, 4], 10)
+    _test_forward_unsorted_segment("unsorted_segment_mean", [100], 20)
+    _test_forward_unsorted_segment("unsorted_segment_mean", [10, 3, 4], 5)
+    _test_forward_unsorted_segment("unsorted_segment_mean", [10, 3, 4, 4], 10)
+    _test_forward_unsorted_segment("unsorted_segment_sum", [100], 20)
+    _test_forward_unsorted_segment("unsorted_segment_sum", [10, 3, 4], 5)
+    _test_forward_unsorted_segment("unsorted_segment_sum", [10, 3, 4, 4], 10)
+    _test_forward_unsorted_segment("unsorted_segment_prod", [100], 20)
+    _test_forward_unsorted_segment("unsorted_segment_prod", [10, 3, 4], 5)
+    _test_forward_unsorted_segment("unsorted_segment_prod", [10, 3, 4, 4], 10)
 
 
 def test_forward_negative():
