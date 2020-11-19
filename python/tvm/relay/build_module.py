@@ -201,6 +201,8 @@ class BuildModule(object):
 
 
 def build(mod, target=None, target_host=None, params=None, mod_name="default"):
+    # fmt: off
+    # pylint: disable=line-too-long
     """Helper function that builds a Relay function to run on TVM graph runtime.
 
     Parameters
@@ -239,6 +241,8 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     params : dict
         The parameters of the final graph.
     """
+    # pylint: enable=line-too-long
+    # fmt: on
     if not isinstance(mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
