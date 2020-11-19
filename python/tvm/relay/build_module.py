@@ -201,16 +201,14 @@ class BuildModule(object):
 
 
 def build(mod, target=None, target_host=None, params=None, mod_name="default"):
-    """Helper function that builds a Relay function to run on TVM graph
-    runtime.
+    """Helper function that builds a Relay function to run on TVM graph runtime.
 
     Parameters
     ----------
     mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
-    name) to str/tvm.target.Target, optional
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context name) to str/tvm.target.Target, optional
         For heterogeneous compilation, it is a dictionary indicating context to
         target mapping. For homogeneous compilation, it is a build target.
 
