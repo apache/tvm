@@ -2021,7 +2021,7 @@ def sparse_dense(data, weight, sparse_lhs=False):
         The sparse weight matrix for the matrix multiplication.
 
     sparse_lhs : bool, optional
-        Indicates whether lhs or rhs matrix is sparse.
+        Indicates whether lhs or rhs matrix is sparse. Default value is False.
 
     Returns
     -------

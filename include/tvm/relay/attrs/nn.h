@@ -942,7 +942,9 @@ struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
   TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
     TVM_ATTR_FIELD(sparse_lhs)
         .set_default(false)
-        .describe("Indicate whether lhs or rhs matrix is sparse. True if lhs matrix is sparse");
+        .describe(
+            "Indicate whether sparse matrix is multiplied on the right or the left. If true, then "
+            "the operation is S * D^T (D dense, S sparse). If false, the operation is D * S^T");
   }
 };
 

@@ -97,31 +97,30 @@ def sparse_dense_v1(data_data, data_indices, data_indptr, weight):
 def sparse_dense(dense_data, sparse_data, sparse_indices, sparse_indptr, sparse_lhs=False):
     """
     Computes sparse-dense matrix multiplication of `data` and
-    `(weight_data, weight_indices, weight_indptr).T`
+    `(weight_data, weight_indices, weight_indptr).T`, if sparse_lhs=False
     or
     Computes sparse-dense matrix multiplication of
-    `(data_data, data_indices, data_indptr)` and `weight.T`
+    `(data_data, data_indices, data_indptr)` and `weight.T`, if sparse_lhs=True
 
     Parameters
     ----------
     dense_data : tvm.te.Tensor
-        data:
-        2-D with shape [M, K], float32 when input data is dense or
+        2-D with shape [M, K], float32
 
     sparse_data : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
-        3-D with shape [num_blocks, bs_r, bs_c] (BSR) or
+        3-D with shape [num_blocks, bs_r, bs_c] (BSR)
 
     sparse_indices : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
-        1-D with shape [num_blocks] (BSR) or
+        1-D with shape [num_blocks] (BSR)
 
     sparse_indptr : tvm.te.Tensor
         1-D with shape [N + 1] (CSR) or
         1-D with shape [(N + 1) // bs_r] (BSR)
 
     sparse_lhs : bool, optional
-        Indicates whether lhs or rhs matrix is sparse.
+        Indicates whether lhs or rhs matrix is sparse. Default value is False.
 
     Returns
     -------
