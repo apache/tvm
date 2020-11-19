@@ -937,12 +937,12 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
 
 /*! \brief Attributes for sparse_dense operator */
 struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
-  bool sparse_data;
+  bool sparse_lhs;
 
   TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
-    TVM_ATTR_FIELD(sparse_data)
+    TVM_ATTR_FIELD(sparse_lhs)
         .set_default(false)
-        .describe("Indicate whether data or weight is sparse. True if data is sparse");
+        .describe("Indicate whether lhs or rhs matrix is sparse. True if lhs matrix is sparse");
   }
 };
 

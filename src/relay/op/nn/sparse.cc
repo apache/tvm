@@ -42,11 +42,11 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const auto* param = attrs.as<SparseDenseAttrs>();
   ICHECK(param != nullptr);
 
-  if (param->sparse_data) {
-    const auto* weight = types[3].as<TensorTypeNode>();
-    const auto* data_data = types[0].as<TensorTypeNode>();
+  if (param->sparse_lhs) {
+    const auto* weight = types[0].as<TensorTypeNode>();
+    const auto* data_data = types[1].as<TensorTypeNode>();
     ICHECK(data_data->shape.size() == 1 || data_data->shape.size() == 3);
-    const auto* data_indptr = types[2].as<TensorTypeNode>();
+    const auto* data_indptr = types[3].as<TensorTypeNode>();
     if (weight == nullptr) return false;
 
     if (data_data->shape.size() == 1) {
@@ -94,9 +94,9 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr,
-                     bool sparse_data) {
+                     bool sparse_lhs) {
   auto attrs = make_object<SparseDenseAttrs>();
-  attrs->sparse_data = std::move(sparse_data);
+  attrs->sparse_lhs = std::move(sparse_lhs);
   static const Op& op = Op::Get("nn.sparse_dense");
   return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
@@ -117,11 +117,10 @@ RELAY_REGISTER_OP("nn.sparse_dense")
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<SparseDenseAttrs>()
     .set_num_inputs(4)
-    .add_argument("input_tensor1", "nD Tensor",
-                  "Input data if dense, otherwise data_data matrix if sparse.")
-    .add_argument("input_tensor2", "nD Tensor", "Weight_data matrix or data_indices matrix.")
-    .add_argument("input_tensor3", "nD Tensor", "Weight_indices matrix or data_indptr matrix.")
-    .add_argument("input_tensor4", "nD Tensor", "Weight_indptr matrix or weight matrix if dense.")
+    .add_argument("dense_data", "nD Tensor", "Input dense data.")
+    .add_argument("sparse_data", "1D or 3D Tensor", "Sparse data matrix.")
+    .add_argument("sparse_indices", "1D Tensor", "Sparse indices matrix.")
+    .add_argument("sparse_indptr", "1D Tensor", "Sparse indptr matrix.")
     .set_support_level(1)
     .add_type_rel("SparseDense", SparseDenseRel);
 

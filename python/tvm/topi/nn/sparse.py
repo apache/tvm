@@ -94,7 +94,7 @@ def sparse_dense_v1(data_data, data_indices, data_indptr, weight):
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
-def sparse_dense(input_1, input_2, input_3, input_4, sparse_data=False):
+def sparse_dense(dense_data, sparse_data, sparse_indices, sparse_indptr, sparse_lhs=False):
     """
     Computes sparse-dense matrix multiplication of `data` and
     `(weight_data, weight_indices, weight_indptr).T`
@@ -104,49 +104,34 @@ def sparse_dense(input_1, input_2, input_3, input_4, sparse_data=False):
 
     Parameters
     ----------
-    input_1 : tvm.te.Tensor
+    dense_data : tvm.te.Tensor
         data:
         2-D with shape [M, K], float32 when input data is dense or
 
-        data_data:
-        1-D with shape [nnz] (CSR) or
-        3-D with shape [num_blocks, bs_r, bs_c] (BSR)
-
-    input_2 : tvm.te.Tensor
-        weight_data:
+    sparse_data : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
         3-D with shape [num_blocks, bs_r, bs_c] (BSR) or
 
-        data_indices:
-        1-D with shape [nnz] (CSR) or
-        1-D with shape [num_blocks] (BSR)
-
-    input_3 : tvm.te.Tensor
-        weight_indices:
+    sparse_indices : tvm.te.Tensor
         1-D with shape [nnz] (CSR) or
         1-D with shape [num_blocks] (BSR) or
 
-        data_indptr:
-        1-D with shape [M + 1] (CSR) or
-        1-D with shape [(M + 1) // bs_r] (BSR)
-
-    input_4 : tvm.te.Tensor
-        weight_indptr:
+    sparse_indptr : tvm.te.Tensor
         1-D with shape [N + 1] (CSR) or
         1-D with shape [(N + 1) // bs_r] (BSR)
 
-        weight:
-        2-D with shape [N, K], float32 when weight is dense
+    sparse_lhs : bool, optional
+        Indicates whether lhs or rhs matrix is sparse.
 
     Returns
     -------
     output : tvm.te.Tensor
         2-D with shape [M, N]
     """
-    if sparse_data:
-        return sparse_dense_v1(input_1, input_2, input_3, input_4)
+    if sparse_lhs:
+        return sparse_dense_v1(sparse_data, sparse_indices, sparse_indptr, dense_data)
     else:
-        return sparse_dense_v2(input_1, input_2, input_3, input_4)
+        return sparse_dense_v2(dense_data, sparse_data, sparse_indices, sparse_indptr)
 
 
 def _sparse_dense_csrmm_v1(data_data, data_indices, data_indptr, weight):

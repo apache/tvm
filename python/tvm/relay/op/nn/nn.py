@@ -1994,7 +1994,7 @@ def batch_matmul(x, y):
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
-def sparse_dense(data, weight, sparse_data=False):
+def sparse_dense(data, weight, sparse_lhs=False):
     r"""
     Computes the matrix multiplication of `data` and `weight`, where `data` is
     a dense matrix and `weight` is a sparse (either BSR or CSR) namedtuple with
@@ -2020,19 +2020,18 @@ def sparse_dense(data, weight, sparse_data=False):
     weight : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
         The sparse weight matrix for the matrix multiplication.
 
+    sparse_lhs : bool, optional
+        Indicates whether lhs or rhs matrix is sparse.
+
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
     if hasattr(weight, "indices"):
-        return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr, sparse_data)
-    elif isinstance(weight, (tuple, list)):
-        return _make.sparse_dense(data, weight[0], weight[1], weight[2], sparse_data)
-    elif hasattr(data, "indices"):
-        return _make.sparse_dense(data.data, data.indices, data.indptr, weight, sparse_data)
+        return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr, sparse_lhs)
     else:
-        return _make.sparse_dense(data[0], data[1], data[2], weight, sparse_data)
+        return _make.sparse_dense(data, weight[0], weight[1], weight[2], sparse_lhs)
 
 
 def sparse_transpose(x):

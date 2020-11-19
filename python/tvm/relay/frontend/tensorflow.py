@@ -917,11 +917,11 @@ def _sparse_tensor_dense_matmul():
         data = inputs[3]
 
         # By default, in tensorflow the first input ,i.e., data is sparse
-        sparse_data = True
+        sparse_lhs = True
 
         # If both are true means First input was dense and second was sparse
         if attr.get("adjoint_a") and attr.get("adjoint_b"):
-            sparse_data = False
+            sparse_lhs = False
 
         rows = [x[0] for x in indices_tensor]
         cols = [x[1] for x in indices_tensor]
@@ -931,7 +931,7 @@ def _sparse_tensor_dense_matmul():
             (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
         )
 
-        if sparse_data:
+        if sparse_lhs:
             data = _op.transpose(data)
         else:
             weight_sp = csr_matrix(weight_sp.transpose())
@@ -940,12 +940,11 @@ def _sparse_tensor_dense_matmul():
         weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
         weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
 
-        if sparse_data:
-            ret = _op.nn.sparse_dense(
-                [weight_data, weight_indices, weight_indptrs], data, sparse_data=True
-            )
-        else:
-            ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
+        ret = _op.nn.sparse_dense(
+                data, [weight_data, weight_indices, weight_indptrs], sparse_lhs
+        )
+
+        if not sparse_lhs:
             ret = _op.transpose(ret)
 
         # Case 1. If both are true means first input was dense and second was sparse
