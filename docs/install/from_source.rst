@@ -102,7 +102,7 @@ The configuration of TVM can be modified by `config.cmake`.
   - You can also use `LLVM Nightly Ubuntu Build <https://apt.llvm.org/>`_
 
     - Note that apt-package append ``llvm-config`` with version number.
-      For example, set ``set(LLVM_CONFIG llvm-config-4.0)`` if you installed 4.0 package
+      For example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 package
 
 - We can then build tvm and related libraries.
 
@@ -122,27 +122,56 @@ The configuration of TVM can be modified by `config.cmake`.
 
 If everything goes well, we can go to :ref:`python-package-installation`
 
+.. _build-with-conda:
+
+Building with a Conda Environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Conda is a very handy way to the necessary obtain dependencies needed for running TVM.
+First, follow the `conda's installation guide <https://docs.conda.io/projects/conda/en/latest/user-guide/install/>`_
+to install miniconda or anaconda if you do not yet have conda in your system. Run the following command in a conda environment:
+
+.. code:: bash
+
+    conda env update -f conda/build-environment.yaml
+    conda activate tvm-build
+
+The above command will install all necessary build dependencies such as cmake and LLVM. You can then run the standard build process in the last section.
+
+If you want to use the compiled binary outside the conda environment,
+you can set LLVM to static linking mode ``set(USE_LLVM "llvm-config --link-static")``.
+In this way, the resulting library won't depend on the dynamic LLVM libraries in the conda environment.
+
+The above instructions show how to use conda to provide the necessary build dependencies to build libtvm.
+If you are already using conda as your package manager and wish to directly build and install tvm as a conda package, you can follow the instructions below:
+
+.. code:: bash
+
+   conda build --output-folder=conda/pkg  conda/recipe
+   # Run conda/build_cuda.sh to build with cuda enabled
+   conda install tvm -c ./conda/pkg
+
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
-
-TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
-In order to generate the VS solution file using cmake, make sure you have a recent version of cmake added to your path and then from the TVM directory:
-
-.. code:: bash
-
-  mkdir build
-  cd build
-  cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
-
-Starting with Visual Studio 2019 the architecture is specified differently so use this command
+TVM support build via MSVC using cmake. You will need to ontain a visual studio compiler.
+The minimum required VS version is **Visual Studio Community 2015 Update 3**.
+We recommend following :ref:`build-with-conda` to obtain necessary dependencies and
+get an activated tvm-build environment. Then you can run the following command to build
 
 .. code:: bash
 
-  cmake -G "Visual Studio 16 2019" -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
+    mkdir build
+    cd build
+    cmake -A x64 -Thost=x64 ..
+    cd ..
 
-This will generate the VS project using the MSVC 64 bit generator.
-Open the .sln file in the build directory and build with Visual Studio.
-In order to build with LLVM in windows, you will need to build LLVM from source.
+The above command generates the solution file under the build directory.
+You can then run the following command to build
+
+.. code:: bash
+
+    cmake --build build --config Release -- /m
+
 
 Building ROCm support
 ~~~~~~~~~~~~~~~~~~~~~
