@@ -794,7 +794,7 @@ def test_free_vars_zeros():
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
-    # test_extern_dnnl_mobilenet()
+    test_extern_dnnl_mobilenet()
     test_multiple_ends()
     test_type_propagation()
     test_tuple()
@@ -803,4 +803,7 @@ if __name__ == "__main__":
     test_while_let()
     test_if_free_vars()
     test_free_vars_zeros()
-    test_two_targets_tuple()
+    test_different_targets()
+    test_double_target()
+    test_ends_with_tuple()
+    test_ref_create_read_write()
