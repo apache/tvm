@@ -113,15 +113,16 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 #
 # Possible values:
 # - ON: enable llvm with cmake's find search
-# - OFF: disable llvm
+# - OFF: disable llvm, note this will disable CPU codegen
+#        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM OFF)
+set(USE_LLVM ON)
 
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
 # Whether to build with BYODT software emulated posit custom datatype
-# 
+#
 # Possible values:
 # - ON: enable BYODT posit, requires setting UNIVERSAL_PATH
 # - OFF: disable BYODT posit
@@ -230,7 +231,7 @@ set(USE_TENSORRT_RUNTIME OFF)
 
 # Whether use VITIS-AI codegen
 set(USE_VITIS_AI OFF)
- 
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)

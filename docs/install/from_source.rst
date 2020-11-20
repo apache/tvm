@@ -90,7 +90,7 @@ The configuration of TVM can be modified by `config.cmake`.
     you want to build for (OpenCL, RCOM, METAL, VULKAN, ...).
   - To help with debugging, ensure the embedded graph runtime and debugging functions are enabled with ``set(USE_GRAPH_RUNTIME ON)`` and ``set(USE_GRAPH_RUNTIME_DEBUG ON)``
 
-- TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
+- TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
   - LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
