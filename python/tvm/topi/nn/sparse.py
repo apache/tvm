@@ -78,7 +78,7 @@ def sparse_dense_v1(data_data, data_indices, data_indptr, weight):
         1-D with shape [(M + 1) // bs_r] (BSR)
 
     weight:
-        2-D with shape [N, K], float32 when weight is dense
+        2-D with shape [N, K], float32
 
     Returns
     -------
