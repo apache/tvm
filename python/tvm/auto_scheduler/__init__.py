@@ -19,7 +19,6 @@
 
 from . import compute_dag
 from . import dispatcher
-from . import env
 from . import feature
 from . import loop_state
 from . import measure
@@ -36,7 +35,6 @@ from .auto_schedule import TuningOptions, HardwareParams, create_task, auto_sche
 from .compute_dag import ComputeDAG
 from .cost_model import RandomModel, XGBModel
 from .dispatcher import DispatchContext, ApplyHistoryBest
-from .env import enable_relay_integration, is_relay_integration_enabled
 from .measure import (
     MeasureInput,
     MeasureResult,

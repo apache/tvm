@@ -169,6 +169,10 @@ TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue*
   *rv = strided_slice(args[0], args[1], args[2], args[3], args[4]);
 });
 
+TVM_REGISTER_GLOBAL("topi.dynamic_strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = dynamic_strided_slice(args[0], args[1], args[2], args[3]);
+});
+
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {
   int depth = args[3];
   int axis = args[4];

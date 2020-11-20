@@ -62,6 +62,9 @@ Expr MakeRepeat(Expr data, int repeats, int axis);
 
 Expr MakeReshape(Expr data, Array<Integer> newshape);
 
+Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
+                     Integer rhs_end);
+
 Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 
 Expr MakeSqueeze(Expr data, Array<Integer> axis);
@@ -90,6 +93,8 @@ Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis
 
 Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
                 String coordinate_transformation_mode, DataType out_dtype);
+
+Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
 
 }  // namespace relay
 }  // namespace tvm

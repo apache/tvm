@@ -3,7 +3,7 @@ TVM Documentations
 This folder contains the source of TVM documents
 
 - A hosted version of doc is at https://tvm.apache.org/docs
-- pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark "Pillow<7" autodocsumm
+- pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark "Pillow<7" autodocsumm tlcpack-sphinx-addon
 - Build tvm first in the root folder.
 - Run the following command
 ```bash
@@ -51,3 +51,8 @@ You will need a gpu CI environment.
 ```bash
 ./tests/scripts/task_python_docs.sh
 ```
+
+Define the Order of Tutorials
+-----------------------------
+You can define the order of tutorials with `conf.py::subsection_order` and `conf.py::within_subsection_order`.
+By default, the tutorials within one subsection is sorted by filename.

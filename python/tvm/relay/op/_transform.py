@@ -113,7 +113,7 @@ def compute_scatter_add(attrs, inputs, output_type):
     return [topi.scatter_add(inputs[0], inputs[1], inputs[2], attrs.axis)]
 
 
-_reg.register_schedule("scatter_add", strategy.schedule_scatter_add)
+_reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 
 #####################
 #  Shape functions  #

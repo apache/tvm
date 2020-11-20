@@ -20,15 +20,16 @@ import numpy as np
 
 import tvm
 from tvm import relay
+from tvm import testing
 
-from .infrastructure import (
+from test_arm_compute_lib.infrastructure import (
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,
     verify,
     verify_codegen,
 )
-from .infrastructure import Device
+from test_arm_compute_lib.infrastructure import Device
 
 
 def _calculate_output_shape(shape, sizes, padding, strides):
@@ -167,6 +168,7 @@ def test_pooling():
     uint8_dtype = ("uint8", 0, 255, 1, 0)
 
     trials = [
+        ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 0), False, False, (27, 27, 512)],
         ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
         ["nn.max_pool2d", fp32_dtype, (3, 3), (2, 2), (1, 1), True, True, (15, 15, 16)],
         ["nn.max_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), False, False, (16, 16, 16)],
@@ -175,7 +177,8 @@ def test_pooling():
         ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (1, 1), False, False, (16, 16, 16)],
         ["nn.avg_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 0), False, True, (16, 16, 16)],
         ["nn.avg_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 1), True, False, (15, 15, 16)],
-        ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), False, True, (16, 16, 16)],
+        # 20.05: "exclude_padding equal false is not supported for AVG Pooling with padding on quantized types"
+        # ["nn.avg_pool2d", uint8_dtype, (2, 2), (2, 2), (1, 1), False, True, (16, 16, 16)],
         ["nn.avg_pool2d", uint8_dtype, (3, 3), (2, 2), (0, 1), False, False, (16, 16, 16)],
         ["nn.l2_pool2d", fp32_dtype, (2, 2), (2, 2), (0, 1), True, False, (16, 16, 16)],
         ["nn.l2_pool2d", fp32_dtype, (3, 3), (2, 2), (0, 0), False, False, (16, 16, 16)],
@@ -211,6 +214,7 @@ def test_pooling():
             "padding": pad,
             "ceil_mode": ceil_mode,
             "count_include_pad": count_include_pad,
+            "inputs": inputs,
         }
         verify_saturation = True if dtype == "uint8" else False
 
@@ -255,7 +259,6 @@ def test_global_pooling():
         }
 
         func = _get_global_pooling_model(shape, dtype, typef, iter(inputs))
-
         config = {
             "shape": shape,
             "pooling type": typef,

@@ -48,8 +48,6 @@ where
 // TODO(@jroesch): convert to use generics instead of casting inside
 // the implementation.
 external! {
-    #[name("node.ArrayGetItem")]
-   fn array_get_item(array: ObjectRef, index: isize) -> ObjectRef;
    #[name("node.MapSize")]
    fn map_size(map: ObjectRef) -> i64;
    #[name("node.MapGetItem")]

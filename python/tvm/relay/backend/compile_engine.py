@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import logging
 import numpy as np
 import tvm
-from tvm import te, autotvm, auto_scheduler
+from tvm import te, autotvm
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -196,25 +196,13 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
-    # If auto-scheduler is enabled for Relay, always prefer auto-scheduler
-    if auto_scheduler.is_relay_integration_enabled():
-        auto_scheduler_impls = []
-        for impl in all_impls:
-            if impl.name.endswith(auto_scheduler.relay_integration.auto_schedule_impl_suffix):
-                auto_scheduler_impls.append(impl)
-
-        if auto_scheduler_impls:
-            assert len(auto_scheduler_impls) == 1
-            impl = auto_scheduler_impls[0]
-            outs = impl.compute(attrs, inputs, out_type)
-            return impl, outs
-
     # Otherwise, try autotvm templates
     outputs = {}
     workloads = {}
     best_autotvm_impl = None
     best_cfg = None
     dispatch_ctx = autotvm.task.DispatchContext.current
+    old_silent = autotvm.GLOBAL_SCOPE.silent
     autotvm.GLOBAL_SCOPE.silent = True
     for impl in all_impls:
         outs = impl.compute(attrs, inputs, out_type)
@@ -232,7 +220,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
-    autotvm.GLOBAL_SCOPE.silent = False
+    autotvm.GLOBAL_SCOPE.silent = old_silent
 
     if best_autotvm_impl:
         # The best autotvm implementation definitely doesn't use fallback config
@@ -251,7 +239,10 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             "is used, which may bring great performance regression."
             % (target, workloads[best_plevel_impl])
         )
-        if msg not in autotvm.task.DispatchContext.warning_messages:
+        if (
+            not autotvm.env.GLOBAL_SCOPE.silent
+            and msg not in autotvm.task.DispatchContext.warning_messages
+        ):
             autotvm.task.DispatchContext.warning_messages.add(msg)
             autotvm_logger.warning(msg)
     logger.info(
@@ -300,7 +291,6 @@ def lower_call(call, inputs, target):
         best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
-        #   Currently, we just use the implementation with highest plevel
         best_impl, outputs = select_implementation(
             op, call.attrs, inputs, ret_type, target, use_autotvm=False
         )

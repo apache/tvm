@@ -74,7 +74,7 @@ def verify_conv2d_nhwc(
     bias_shape = get_const_tuple(bias.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_conv2d_nhwc.verify_conv2d_nhwc")
+    @memoize("topi.tests.test_topi_conv2d_nhwc_winograd.verify_conv2d_nhwc")
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)

@@ -161,14 +161,12 @@ def conv2d_winograd_nhwc_auto_scheduler_test(
     r = KW
     m = tile_size
     alpha = m + r - 1
-    A, B, G = winograd_transform_matrices(m, r, "float32")
+    A, B, _ = winograd_transform_matrices(m, r, "float32")
 
     H = (H + 2 * HPAD - KH) // HSTR + 1
     W = (W + 2 * WPAD - KW) // WSTR + 1
     nH, nW = (H + m - 1) // m, (W + m - 1) // m
     P = N * nH * nW
-    r_kh = te.reduce_axis((0, KH), name="r_kh")
-    r_kw = te.reduce_axis((0, KW), name="r_kw")
     kshape = (alpha, alpha, CI, CO)
     kernel_pack = te.placeholder(kshape, inputs.dtype, name="weight")
 

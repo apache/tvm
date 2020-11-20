@@ -36,7 +36,7 @@ bool TopKRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const TopKAttrs* param = attrs.as<TopKAttrs>();
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  ICHECK(data);
+  if (data == nullptr) return false;
   int ndim = data->shape.size();
   int axis = param->axis;
   if (axis < 0) {

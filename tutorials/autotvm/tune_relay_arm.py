@@ -17,7 +17,7 @@
 """
 .. _tune_relay_arm:
 
-Auto-tuning a convolutional network for ARM CPU
+Auto-tuning a Convolutional Network for ARM CPU
 ===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_, `Eddie Yan <https://github.com/eqy>`_
 
@@ -66,9 +66,7 @@ import os
 
 import numpy as np
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm import relay
+from tvm import relay, autotvm
 import tvm.relay.testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.contrib.utils import tempdir
@@ -104,7 +102,7 @@ def get_network(name, batch_size):
             batch_size=batch_size, version="1.1", dtype=dtype
         )
     elif name == "inception_v3":
-        input_shape = (1, 3, 299, 299)
+        input_shape = (batch_size, 3, 299, 299)
         mod, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == "mxnet":
         # an example for mxnet model

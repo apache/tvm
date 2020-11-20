@@ -22,7 +22,7 @@ from tvm import te
 from tvm import relay
 import tvm.testing
 
-# TODO(mbrookhart): Enable when VM supports heterogenus execution
+# TODO(mbrookhart): Enable when we can get it working
 # @tvm.testing.uses_gpu
 def test_dynamic_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype):

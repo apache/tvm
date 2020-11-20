@@ -108,11 +108,10 @@ class RPCWrappedFunc : public Object {
 
   // remove a remote session mask
   TVMContext RemoveSessMask(TVMContext ctx) const {
-    int dev_type = ctx.device_type;
-    ICHECK_EQ(dev_type / kRPCSessMask, sess_->table_index() + 1)
-        << "Can not pass in local context or context with a different remote session";
-    ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
-    return ctx;
+    ICHECK(IsRPCSessionContext(ctx)) << "Can not pass in local context";
+    ICHECK_EQ(GetRPCSessionIndex(ctx), sess_->table_index())
+        << "Can not pass in context with a different remote session";
+    return RemoveRPCSessionMask(ctx);
   }
 
   // deleter of RPC remote array
@@ -141,13 +140,12 @@ class RPCWrappedFunc : public Object {
     // setup dtype
     data->dl_tensor.dtype = tensor->dtype;
     // setup ctx, encode as remote session
-    data->dl_tensor.ctx.device_id = tensor->ctx.device_id;
-    data->dl_tensor.ctx.device_type = static_cast<DLDeviceType>(
-        static_cast<int>(tensor->ctx.device_type) + kRPCSessMask * (sess_->table_index() + 1));
+    data->dl_tensor.ctx = AddRPCSessionMask(tensor->ctx, sess_->table_index());
     // check strides.
     ICHECK(tensor->strides == nullptr);
     // setup byteoffset
     data->dl_tensor.byte_offset = tensor->byte_offset;
+
     return ret;
   }
 };
@@ -189,10 +187,9 @@ class RPCModuleNode final : public ModuleNode {
                               int min_repeat_ms, const std::string& f_preproc_name) {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass ctx by parts.
-    int dev_type = ctx.device_type;
-    ICHECK_EQ(dev_type / kRPCSessMask, sess_->table_index() + 1)
+    ICHECK_EQ(GetRPCSessionIndex(ctx), sess_->table_index())
         << "ValueError: Need to pass the matched remote context to RPCModule.GetTimeEvaluator";
-    ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
+    ctx = RemoveRPCSessionMask(ctx);
 
     if (module_handle_ != nullptr) {
       return remote_get_time_evaluator_(GetRef<Module>(this), name,

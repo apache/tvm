@@ -870,7 +870,7 @@ class FuseMutator : private ExprMutator {
       auto* ret_group = gmap_.at(call)->FindRoot();
       Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 
-      auto new_call = Call(call->op, new_args, call->attrs, call->type_args);
+      auto new_call = Call(call->op, new_args, call->attrs, call->type_args, call->span);
 
       if (ret_group->root_ref == call) {
         // This is the root of the group

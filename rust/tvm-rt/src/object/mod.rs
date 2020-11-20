@@ -40,6 +40,7 @@ pub trait IsObjectRef:
     + TryFrom<RetValue, Error = Error>
     + for<'a> Into<ArgValue<'a>>
     + for<'a> TryFrom<ArgValue<'a>, Error = Error>
+    + std::fmt::Debug
 {
     type Object: IsObject;
     fn as_ptr(&self) -> Option<&ObjectPtr<Self::Object>>;
@@ -88,14 +89,9 @@ pub trait IsObjectRef:
 
 external! {
     #[name("ir.DebugPrint")]
-    fn debug_print(object: ObjectRef) -> CString;
+    pub fn debug_print(object: ObjectRef) -> CString;
     #[name("node.StructuralHash")]
-    fn structural_hash(object: ObjectRef, map_free_vars: bool) -> ObjectRef;
+    fn structural_hash(object: ObjectRef, map_free_vars: bool) -> i64;
     #[name("node.StructuralEqual")]
-    fn structural_equal(lhs: ObjectRef, rhs: ObjectRef, assert_mode: bool, map_free_vars: bool) -> ObjectRef;
+    fn structural_equal(lhs: ObjectRef, rhs: ObjectRef, assert_mode: bool, map_free_vars: bool) -> bool;
 }
-
-// external! {
-//     #[name("ir.TextPrinter")]
-//     fn as_text(object: ObjectRef) -> CString;
-// }

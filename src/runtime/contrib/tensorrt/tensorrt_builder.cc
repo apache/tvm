@@ -37,9 +37,12 @@ namespace tvm {
 namespace runtime {
 namespace contrib {
 
-TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger, size_t max_workspace_size,
-                                 bool use_implicit_batch, bool use_fp16, int batch_size)
-    : max_workspace_size_(max_workspace_size),
+TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
+                                 const std::vector<const DLTensor*>& data_entry,
+                                 size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
+                                 int batch_size)
+    : data_entry_(data_entry),
+      max_workspace_size_(max_workspace_size),
       use_implicit_batch_(use_implicit_batch),
       use_fp16_(use_fp16),
       batch_size_(batch_size) {
@@ -63,7 +66,7 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger, size_t max_workspace_si
 #endif
 }
 
-void TensorRTBuilder::AddInput(int nid, const JSONGraphNode& node) {
+void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& node) {
   auto node_name = node.GetOpName();
   auto shapes = node.GetOpShape();
   auto dtypes = node.GetOpDataType();
@@ -80,7 +83,8 @@ void TensorRTBuilder::AddInput(int nid, const JSONGraphNode& node) {
     ICHECK(TypeMatch(dtypes[i], kDLFloat, 32)) << "Only FP32 inputs are supported.";
     auto input_tensor = network_->addInput(name.c_str(), nvinfer1::DataType::kFLOAT, dims);
     node_output_map_[nid].push_back(TensorRTOpInput(input_tensor));
-    network_input_names_.push_back(input_tensor->getName());
+    network_input_names_.push_back(name);
+    entry_id_map_[name] = entry_id + i;
   }
 }
 
@@ -94,14 +98,15 @@ void TensorRTBuilder::AddConstant(int nid, const DLTensor* data) {
   node_output_map_[nid] = {TensorRTOpInput(weight, shape)};
 }
 
-void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node) {
+void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node, uint32_t entry_id) {
   auto it = node_output_map_.find(node.id_);
   ICHECK(it != node_output_map_.end()) << "Output was not found.";
   auto out_tensor = it->second[node.index_].tensor;
   std::string name = "tensorrt_output_" + std::to_string(network_output_names_.size());
   out_tensor->setName(name.c_str());
   network_->markOutput(*out_tensor);
-  network_output_names_.push_back(out_tensor->getName());
+  network_output_names_.push_back(name);
+  entry_id_map_[name] = entry_id;
 }
 
 void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
@@ -168,7 +173,16 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   ICHECK_EQ(engine->getNbBindings(), network_input_names_.size() + network_output_names_.size());
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   CleanUp();
-  return {engine, context, network_input_names_, network_output_names_};
+
+  // Allocate I/O buffers on GPU for TVM inputs which are on a different context.
+  std::vector<runtime::NDArray> device_buffers(engine->getNbBindings());
+  for (size_t i = 0; i < network_input_names_.size(); ++i) {
+    AllocateDeviceBuffer(engine, network_input_names_[i], &device_buffers);
+  }
+  for (size_t i = 0; i < network_output_names_.size(); ++i) {
+    AllocateDeviceBuffer(engine, network_output_names_[i], &device_buffers);
+  }
+  return {engine, context, network_input_names_, network_output_names_, device_buffers};
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
@@ -214,6 +228,19 @@ void TensorRTBuilder::CleanUp() {
     } else {
       delete[] static_cast<const uint16_t*>(weight.values);
     }
+  }
+}
+
+void TensorRTBuilder::AllocateDeviceBuffer(nvinfer1::ICudaEngine* engine, const std::string& name,
+                                           std::vector<runtime::NDArray>* device_buffers) {
+  const uint32_t entry_id = entry_id_map_[name];
+  if (data_entry_[entry_id]->ctx.device_type != kDLGPU) {
+    const int binding_index = engine->getBindingIndex(name.c_str());
+    ICHECK_NE(binding_index, -1);
+    std::vector<int64_t> shape(data_entry_[entry_id]->shape,
+                               data_entry_[entry_id]->shape + data_entry_[entry_id]->ndim);
+    device_buffers->at(binding_index) =
+        runtime::NDArray::Empty(shape, data_entry_[entry_id]->dtype, {kDLGPU, 0});
   }
 }
 

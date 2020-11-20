@@ -22,7 +22,7 @@ from tvm import te
 from tvm import topi
 from . import cpp
 from . import tag
-from .utils import within_index, make_idx
+from .utils import within_index, make_idx, const_vector
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -200,6 +200,20 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     -------
     ret : tvm.te.Tensor
     """
+    if (
+        isinstance(begin, tvm.te.Tensor)
+        or isinstance(end, tvm.te.Tensor)
+        or isinstance(strides, tvm.te.Tensor)
+    ):
+        if not isinstance(begin, tvm.te.Tensor):
+            begin = const_vector(begin)
+        if not isinstance(end, tvm.te.Tensor):
+            end = const_vector(end)
+        if strides is None:
+            strides = [1] * begin.shape[0].value
+        if not isinstance(strides, tvm.te.Tensor):
+            strides = const_vector(strides)
+        return cpp.dynamic_strided_slice(a, begin, end, strides)
     if strides is None:
         strides = []
     return cpp.strided_slice(a, begin, end, strides, slice_mode)

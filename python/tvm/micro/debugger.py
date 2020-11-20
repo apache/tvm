@@ -19,19 +19,23 @@
 
 import atexit
 import abc
+import errno
 import logging
 import os
+import shlex
 import signal
 import subprocess
 import sys
 import termios
 import threading
+import time
 
 import psutil
 
 from .._ffi import register_func
 from . import class_factory
 from . import transport
+from .transport.file_descriptor import FdTransport
 
 
 _LOG = logging.getLogger(__name__)
@@ -39,9 +43,6 @@ _LOG = logging.getLogger(__name__)
 
 class Debugger(metaclass=abc.ABCMeta):
     """An interface for controlling micro TVM debuggers."""
-
-    def __init__(self):
-        self.on_terminate_callbacks = []
 
     @abc.abstractmethod
     def start(self):
@@ -55,13 +56,6 @@ class Debugger(metaclass=abc.ABCMeta):
     def stop(self):
         """Terminate the debugger."""
         raise NotImplementedError()
-
-    def _run_on_terminate_callbacks(self):
-        for callback in self.on_terminate_callbacks:
-            try:
-                callback()
-            except Exception:  # pylint: disable=broad-except
-                _LOG.warning("on_terminate_callback raised exception", exc_info=True)
 
 
 class GdbDebugger(Debugger):
@@ -82,73 +76,90 @@ class GdbDebugger(Debugger):
     def __init__(self):
         super(GdbDebugger, self).__init__()
         self._is_running = False
-        self._child_alive_lock = threading.RLock()
-        self._is_child_alive = False
+        self._is_running_lock = threading.RLock()
+        self._child_exited_event = threading.Event()
+        self._signals_reset_event = threading.Event()
 
     @abc.abstractmethod
     def popen_kwargs(self):
         raise NotImplementedError()
 
-    def _wait_for_child(self):
-        self.popen.wait()
-        with self._child_alive_lock:
-            self._is_child_alive = True
-
-    @classmethod
-    def _sigint_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
-        if cls._STARTED_INSTANCE is not None:
-            with cls._STARTED_INSTANCE._child_alive_lock:
-                exists = cls._STARTED_INSTANCE._is_child_alive
-            if exists:
-                try:
-                    os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
-                    return
-                except ProcessLookupError:
-                    pass
-
-        raise Exception()
-
-    def start(self):
-        assert not self._is_running
-        assert not self._STARTED_INSTANCE
-
-        kwargs = self.popen_kwargs()
-        self.did_start_new_session = kwargs.setdefault("start_new_session", True)
-
-        self.old_termios = termios.tcgetattr(sys.stdin.fileno())
-        self.popen = subprocess.Popen(**kwargs)
-        self._is_running = True
-        self.__class__._STARTED_INSTANCE = self
-        try:
-            self.child_pgid = os.getpgid(self.popen.pid)
-        except Exception:
-            self.stop()
-            raise
-        with self._child_alive_lock:
-            self._is_child_alive = True
-        self.old_sigint_handler = signal.signal(signal.SIGINT, self._sigint_handler)
-        t = threading.Thread(target=self._wait_for_child)
-        t.daemon = True
-        t.start()
-
-    def stop(self):
+    def _internal_stop(self):
         if not self._is_running:
             return
 
-        signal.signal(signal.SIGINT, self.old_sigint_handler)
+        os.kill(os.getpid(), signal.SIGUSR1)
+        self._signals_reset_event.wait()
         termios.tcsetattr(sys.stdin.fileno(), termios.TCSAFLUSH, self.old_termios)
 
         try:
             children = psutil.Process(self.popen.pid).children(recursive=True)
             for c in children:
                 c.terminate()
-            _, alive = psutil.wait_procs(children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
-            for a in alive:
-                a.kill()
+                _, alive = psutil.wait_procs(children, timeout=self._GRACEFUL_SHUTDOWN_TIMEOUT_SEC)
+                for a in alive:
+                    a.kill()
+        except psutil.NoSuchProcess:
+            pass
         finally:
             self.__class__._STARTED_INSTANCE = None
             self._is_running = False
-            self._run_on_terminate_callbacks()
+            self._child_exited_event.set()
+
+    def _wait_for_child(self):
+        self.popen.wait()
+        with self._is_running_lock:
+            self._internal_stop()
+
+    @classmethod
+    def _sigusr1_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
+        assert (
+            cls._STARTED_INSTANCE is not None
+        ), "overridden sigusr1 handler should not be invoked when GDB not started"
+        signal.signal(signal.SIGINT, cls._STARTED_INSTANCE.old_sigint_handler)
+        signal.signal(signal.SIGUSR1, cls._STARTED_INSTANCE.old_sigusr1_handler)
+        cls._STARTED_INSTANCE._signals_reset_event.set()
+
+    @classmethod
+    def _sigint_handler(cls, signum, stack_frame):  # pylint: disable=unused-argument
+        assert (
+            cls._STARTED_INSTANCE is not None
+        ), "overridden sigint handler should not be invoked when GDB not started"
+        with cls._STARTED_INSTANCE._is_running_lock:
+            exists = cls._STARTED_INSTANCE._is_running
+        if exists:
+            try:
+                os.killpg(cls._STARTED_INSTANCE.child_pgid, signal.SIGINT)
+            except ProcessLookupError:
+                pass
+
+    def start(self):
+        with self._is_running_lock:
+            assert not self._is_running
+            assert not self._STARTED_INSTANCE
+
+            kwargs = self.popen_kwargs()
+            self.did_start_new_session = kwargs.setdefault("start_new_session", True)
+
+            self.old_termios = termios.tcgetattr(sys.stdin.fileno())
+            self.popen = subprocess.Popen(**kwargs)
+            self._is_running = True
+            self.old_sigint_handler = signal.signal(signal.SIGINT, self._sigint_handler)
+            self.old_sigusr1_handler = signal.signal(signal.SIGUSR1, self._sigusr1_handler)
+            self.__class__._STARTED_INSTANCE = self
+            try:
+                self.child_pgid = os.getpgid(self.popen.pid)
+            except Exception:
+                self.stop()
+                raise
+            with self._is_running_lock:
+                self._is_child_alive = True
+            t = threading.Thread(target=self._wait_for_child)
+            t.daemon = True
+            t.start()
+
+    def stop(self):
+        self._child_exited_event.wait()
 
 
 atexit.register(GdbDebugger._stop_all)
@@ -189,13 +200,22 @@ class GdbTransportDebugger(GdbDebugger):
                     ["-O", "settings set target.run-args {}".format(" ".join(self.args[1:]))]
                 )
         elif sysname == "Linux":
-            args = (
-                ["gdb", "--args"] + self.args + ["</dev/fd/{stdin_read}", ">/dev/fd/{stdout_write}"]
-            )
+            args = [
+                "gdb",
+                "-ex",
+                f"file {self.args[0]}",
+                "-ex",
+                (
+                    f"set args {' '.join(shlex.quote(a) for a in self.args[1:])} "
+                    f"</dev/fd/{stdin_read} >/dev/fd/{stdout_write}"
+                ),
+            ]
         else:
             raise NotImplementedError(f"System {sysname} is not yet supported")
 
-        self.fd_transport = fd.FdTransport(stdout_read, stdin_write)
+        self.fd_transport = FdTransport(
+            stdout_read, stdin_write, transport.debug_transport_timeouts()
+        )
         self.fd_transport.open()
 
         return {
@@ -203,18 +223,9 @@ class GdbTransportDebugger(GdbDebugger):
             "pass_fds": [stdin_read, stdout_write],
         }
 
-    def _wait_for_process_death(self):
-        self.popen.wait()
+    def _internal_stop(self):
         self.fd_transport.close()
-
-    def start(self):
-        to_return = super(GdbTransportDebugger, self).start()
-        threading.Thread(target=self._wait_for_process_death, daemon=True).start()
-        return to_return
-
-    def stop(self):
-        self.fd_transport.close()
-        super(GdbTransportDebugger, self).stop()
+        super(GdbTransportDebugger, self)._internal_stop()
 
     class _Transport(transport.Transport):
         def __init__(self, gdb_transport_debugger):
@@ -227,10 +238,38 @@ class GdbTransportDebugger(GdbDebugger):
             pass  # Pipes opened by parent class.
 
         def write(self, data, timeout_sec):
-            return self.gdb_transport_debugger.fd_transport.write(data, timeout_sec)
+            end_time = time.monotonic() + timeout_sec if timeout_sec is not None else None
+            while True:
+                try:
+                    return self.gdb_transport_debugger.fd_transport.write(data, timeout_sec)
+                except OSError as exc:
+                    # NOTE: this error sometimes happens when writes are initiated before the child
+                    # process launches.
+                    if exc.errno == errno.EAGAIN:
+                        if end_time is None or time.monotonic() < end_time:
+                            time.sleep(0.1)  # sleep to avoid excessive CPU usage
+                            continue
+
+                    raise exc
+
+            raise base.IoTimeoutError()
 
         def read(self, n, timeout_sec):
-            return self.gdb_transport_debugger.fd_transport.read(n, timeout_sec)
+            end_time = time.monotonic() + timeout_sec if timeout_sec is not None else None
+            while True:
+                try:
+                    return self.gdb_transport_debugger.fd_transport.read(n, timeout_sec)
+                except OSError as exc:
+                    # NOTE: this error sometimes happens when reads are initiated before the child
+                    # process launches.
+                    if exc.errno == errno.EAGAIN:
+                        if end_time is None or time.monotonic() < end_time:
+                            time.sleep(0.1)  # sleep to avoid excessive CPU usage
+                            continue
+
+                    raise exc
+
+            raise base.IoTimeoutError()
 
         def close(self):
             pass  # Pipes closed by parent class.
@@ -343,7 +382,6 @@ class RpcDebugger(Debugger):
     def stop(self):
         try:
             self.stop_debugger()
-            self._run_on_terminate_callbacks()
         finally:
             if self.wrapping_context_manager is not None:
                 self.wrapping_context_manager.__exit__(None, None, None)

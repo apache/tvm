@@ -76,6 +76,20 @@ def test_add_sub_bound():
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == 1
 
+    ## constants with negative or positive max(int64) occassionally show up
+    ## in models, this is to ensure we can handle those cases
+    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.NEG_INF), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
+    bd = analyzer.const_int_bound(x + y)
+    assert bd.min_value == bd.NEG_INF
+    assert bd.max_value == bd.POS_INF
+
+    analyzer.update(x, tvm.arith.ConstIntBound(bd.POS_INF, bd.POS_INF), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
+    bd = analyzer.const_int_bound(x + y)
+    assert bd.min_value == bd.NEG_INF
+    assert bd.max_value == bd.POS_INF
+
 
 def test_mul_bound():
     analyzer = tvm.arith.Analyzer()

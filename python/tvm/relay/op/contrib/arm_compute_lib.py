@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name, unused-argument
 """Arm Compute Library supported operators."""
 import tvm
+import numpy as np
+
 from tvm.relay.expr import const
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
@@ -167,7 +169,7 @@ def arm_compute_lib_pattern_table():
         call = extract
         while call.op.name != "nn.conv2d":
             call = call.args[0]
-        return conv2d(call.attrs, call.args)
+        return conv2d(call)
 
     def check_qnn_conv(extract):
         """Check qnn conv pattern is supported by ACL."""
@@ -176,14 +178,14 @@ def arm_compute_lib_pattern_table():
         call = extract
         while call.op.name != "qnn.conv2d":
             call = call.args[0]
-        return qnn_conv2d(call.attrs, call.args)
+        return qnn_conv2d(call)
 
     def check_dense(extract):
         """Check conv pattern is supported by ACL."""
         call = extract
         while call.op.name != "nn.dense":
             call = call.args[0]
-        return dense(call.attrs, call.args)
+        return dense(call)
 
     def check_qnn_dense(extract):
         """Check qnn conv pattern is supported by ACL."""
@@ -192,7 +194,7 @@ def arm_compute_lib_pattern_table():
         call = extract
         while call.op.name != "qnn.dense":
             call = call.args[0]
-        return qnn_dense(call.attrs, call.args)
+        return qnn_dense(call)
 
     def check_avg_pool2d(extract):
         """Check average pool2d pattern is supported by ACL."""
@@ -201,12 +203,12 @@ def arm_compute_lib_pattern_table():
         pool = extract.args[0]
         if pool.args[0].attrs.dtype != "int32":
             return False
-        return avg_pool2d(pool.attrs, pool.args, from_quantized_composite=True)
+        return avg_pool2d(pool, from_quantized_composite=True)
 
     def check_l2_pool2d(extract):
         """Check l2 pool2d pattern is supported by ACL."""
         pool = extract.args[0]
-        return avg_pool2d(pool.attrs, pool.args)
+        return avg_pool2d(pool)
 
     return [
         ("arm_compute_lib.conv2d", conv_pattern(), check_conv),
@@ -221,7 +223,7 @@ def arm_compute_lib_pattern_table():
 
 def _register_external_op_helper(op_name, supported=True):
     @tvm.ir.register_op_attr(op_name, "target.arm_compute_lib")
-    def _func_wrapper(attrs, args):
+    def _func_wrapper(expr):
         return supported
 
     return _func_wrapper
@@ -231,8 +233,9 @@ _register_external_op_helper("reshape")
 
 
 @tvm.ir.register_op_attr("nn.conv2d", "target.arm_compute_lib")
-def conv2d(attrs, args):
+def conv2d(expr):
     """Check if the external ACL codegen for conv2d should be used."""
+    attrs, args = expr.attrs, expr.args
     if attrs.groups != 1:
         return False
     if attrs.data_layout != "NHWC":
@@ -248,8 +251,9 @@ def conv2d(attrs, args):
     return True
 
 
-def qnn_conv2d(attrs, args):
+def qnn_conv2d(expr):
     """Check if the external ACL codegen for qnn.conv2d should be used."""
+    attrs, args = expr.attrs, expr.args
     if attrs.groups != 1:
         return False
     if attrs.data_layout != "NHWC":
@@ -266,8 +270,9 @@ def qnn_conv2d(attrs, args):
 
 
 @tvm.ir.register_op_attr("nn.dense", "target.arm_compute_lib")
-def dense(attrs, args):
+def dense(expr):
     """Check if the external ACL codegen for dense should be used."""
+    attrs, args = expr.attrs, expr.args
     data_typ = args[0].checked_type
     if data_typ.dtype != "float32":
         return False
@@ -276,11 +281,12 @@ def dense(attrs, args):
         return False
     if attrs.out_dtype != "float32" and attrs.out_dtype != "":
         return False
-    return True
+    return not require_padding([*args, expr.checked_type])
 
 
-def qnn_dense(attrs, args):
+def qnn_dense(expr):
     """Check if the external ACL codegen for qnn.dense should be used."""
+    attrs, args = expr.attrs, expr.args
     data_typ = args[0].checked_type
     if data_typ.dtype != "uint8":
         return False
@@ -289,24 +295,53 @@ def qnn_dense(attrs, args):
         return False
     if attrs.out_dtype != "int32":
         return False
-    return True
+    return not require_padding([*args, expr.checked_type])
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.arm_compute_lib")
-def max_pool2d(attrs, args):
+def max_pool2d(expr):
     """Check if the external ACL codegen for maxpool2d should be used."""
+    attrs, args = expr.attrs, expr.args
     if attrs.layout != "NHWC":
         return False
     typ = args[0].checked_type
     if typ.dtype not in ["float32", "uint8"]:
         return False
-    return True
+    return not require_padding([*args, expr.checked_type])
+
+
+def require_padding(inputs):
+    """Checks whether supplied data will require padding.
+    Most of the operators ACL up to 20.11 uses padded data.
+    """
+
+    def _check(shape, dtype):
+        """NEON has 128bits/16bytes per vector"""
+        if len(shape) == 0:
+            return False
+        return (shape[-1] * np.dtype(dtype).itemsize) % 16 != 0
+
+    for i in inputs:
+        if isinstance(i, (tvm.relay.expr.Var, tvm.relay.expr.Call)):
+            if _check(i.checked_type.shape, i.checked_type.dtype):
+                return True
+        elif isinstance(i, tvm.relay.expr.Constant):
+            if _check(i.data.shape, i.data.dtype):
+                return True
+        elif isinstance(i, tvm.ir.tensor_type.TensorType):
+            if _check(i.shape, i.dtype):
+                return True
+        else:
+            raise RuntimeException("Not supported input type: %s" % type(i))
+    return False
 
 
 @tvm.ir.register_op_attr("nn.avg_pool2d", "target.arm_compute_lib")
-def avg_pool2d(attrs, args, from_quantized_composite=False):
+def avg_pool2d(expr, from_quantized_composite=False):
     """Check if the external ACL codegen for avgpool2d should be used."""
+    attrs, args = expr.attrs, expr.args
     typ = args[0].checked_type
+
     if from_quantized_composite:
         if typ.dtype != "int32":
             return False
@@ -315,42 +350,47 @@ def avg_pool2d(attrs, args, from_quantized_composite=False):
             return False
     if attrs.layout != "NHWC":
         return False
-    return True
+
+    return not require_padding([*args, expr.checked_type])
 
 
 @tvm.ir.register_op_attr("nn.global_max_pool2d", "target.arm_compute_lib")
-def global_max_pool2d(attrs, args):
+def global_max_pool2d(expr):
     """Check if the external ACL codegen for gloval_maxpool2d should be used."""
+    attrs, args = expr.attrs, expr.args
     typ = args[0].checked_type
     if typ.dtype not in ["float32", "uint8"]:
         return False
     if attrs.layout != "NHWC":
         return False
-    return True
+    return not require_padding([*args, expr.checked_type])
 
 
 @tvm.ir.register_op_attr("nn.global_avg_pool2d", "target.arm_compute_lib")
-def global_avg_pool2d(attrs, args):
+def global_avg_pool2d(expr):
     """Check if the external ACL codegen for global_avgpool2d should be used."""
+    attrs, args = expr.attrs, expr.args
     typ = args[0].checked_type
     if typ.dtype not in ["float32"]:
         return False
     if attrs.layout != "NHWC":
         return False
-    return True
+    return not require_padding([*args, expr.checked_type])
 
 
 @tvm.ir.register_op_attr("maximum", "target.arm_compute_lib")
-def maximum(attrs, args):
+def maximum(expr):
     """Check if the external ACL codegen for maximum should be used."""
+    args = expr.args
     type_a = args[0].checked_type
     type_b = args[0].checked_type
     return (type_a.dtype == "float32") and (type_b.dtype == "float32")
 
 
 @tvm.ir.register_op_attr("add", "target.arm_compute_lib")
-def add(attrs, args):
+def add(expr):
     """Check if the external ACL codegen for add should be used."""
+    args = expr.args
     for typ in [args[0].checked_type, args[1].checked_type]:
         if typ.dtype != "float32":
             return False
@@ -359,8 +399,9 @@ def add(attrs, args):
 
 
 @tvm.ir.register_op_attr("qnn.add", "target.arm_compute_lib")
-def qnn_add(attrs, args):
+def qnn_add(expr):
     """Check if the external ACL codegen for add should be used."""
+    args = expr.args
     for typ in [args[0].checked_type, args[1].checked_type]:
         if typ.dtype != "uint8":
             return False

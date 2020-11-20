@@ -175,15 +175,11 @@ using FTVMLegalize = runtime::TypedPackedFunc<Expr(const Attrs& attrs, const Arr
 /*!
  * \brief Annotates an expression to indicate if an op should be compiled using
  * the given compiler/target.
- *
- * \param attrs The attribute of the original expr.
- * \param args The arguments of the original expr.
- *
+ * \param expr The original expr.
  * \return true if this op should be registered to invoke a specific compiler
  * for codegen, otherwise, false.
  */
-using FTVMAnnotateTarget = runtime::TypedPackedFunc<bool(const Attrs& attrs,  // NOLINT(*)
-                                                         const Array<Expr>& args)>;
+using FTVMAnnotateTarget = runtime::TypedPackedFunc<bool(const Expr& expr)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.

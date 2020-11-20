@@ -20,6 +20,7 @@ from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.relay.testing import run_infer_type
 
 
 def dequantize_test_driver(in_dtype, quant_args, in_data, verify_output_data, axis):
@@ -118,9 +119,36 @@ def test_channelwise_axis_0():
     )
 
 
+def test_dynamic_dequantize():
+    x = relay.var("x", shape=(1, 2, 3, 4), dtype="int8")
+    scale_var = relay.var("scale", shape=(), dtype="float32")
+    zp_var = relay.var("zp", shape=(), dtype="int32")
+
+    deq_x = relay.qnn.op.dequantize(x, scale_var * scale_var, zp_var + zp_var)
+    tt = run_infer_type(deq_x)
+
+    assert tt.checked_type == relay.TensorType((1, 2, 3, 4), "float32")
+    func = relay.Function([x, scale_var, zp_var], deq_x)
+    data = np.random.uniform(size=(1, 2, 3, 4)).astype("int8")
+    scale = np.array(1).astype("float32")
+    zp = np.array(0).astype("int32")
+
+    mod = tvm.ir.IRModule.from_expr(func)
+
+    for target, ctx in tvm.testing.enabled_targets():
+        # TODO: (electriclilies) enable AlterOpLayout when it is fixed
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            lib = relay.build(mod, target=target)
+
+    module = graph_runtime.GraphModule(lib["default"](ctx))
+    module.set_input(**{"x": data, "scale": scale, "zp": zp})
+    module.run()
+
+
 if __name__ == "__main__":
     test_uint8_to_float32()
     test_int8_to_float32()
     test_int32_to_float32()
     test_channelwise_axis_1()
     test_channelwise_axis_0()
+    test_dynamic_dequantize()
