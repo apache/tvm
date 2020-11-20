@@ -54,6 +54,25 @@ def get_sample_compiled_module(target_dir):
     return tvmc.compiler.compile_model(model_file, target="llvm")
 
 
+def get_sample_opencl_compiled_module(target_dir):
+    """Support function that returns a TFLite compiled module"""
+    base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
+    model_url = "mobilenet_v1_2018_02_22/mobilenet_v1_0.25_128.tgz"
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
+        "mobilenet_v1_0.25_128.tflite",
+        temp_dir=target_dir,
+    )
+    return tvmc.compiler.compile_model(
+        model_file,
+        target="opencl",
+        target_host="llvm",
+        model_format="tflite",
+        dump_code="ll",
+        alter_layout="NCHW",
+    )
+
+
 # PyTest fixtures
 
 
@@ -148,3 +167,16 @@ def imagenet_cat(tmpdir_factory):
     np.savez(cat_file_full_path, input=image_data)
 
     return cat_file_full_path
+
+
+@pytest.fixture(scope="session")
+def tflite_mobilenet_v1_0_25_128(tmpdir_factory):
+    base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
+    model_url = "mobilenet_v1_2018_02_22/mobilenet_v1_0.25_128.tgz"
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
+        "mobilenet_v1_0.25_128.tflite",
+        temp_dir=tmpdir_factory.mktemp("data"),
+    )
+
+    return model_file
