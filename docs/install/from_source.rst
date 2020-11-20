@@ -133,7 +133,9 @@ to install miniconda or anaconda if you do not yet have conda in your system. Ru
 
 .. code:: bash
 
-    conda env update -f conda/build-environment.yaml
+    # Create a conda environment with the dependencies specified by the yaml
+    conda env create --file conda/build-environment.yaml
+    # Activate the created environment
     conda activate tvm-build
 
 The above command will install all necessary build dependencies such as cmake and LLVM. You can then run the standard build process in the last section.
