@@ -461,15 +461,67 @@ def test_multiple_runs():
         return mod
 
     for annotate_non_call_ops in [True, False]:
-        mod = transform.AnnotateTarget("target.A", annotate_non_call_ops)(before())
+        mod = transform.AnnotateTarget("A", annotate_non_call_ops)(before())
         print("======================A: \n", mod.astext(True), "\n")
-        mod = transform.AnnotateTarget("target.B", annotate_non_call_ops)(mod)
+        mod = transform.AnnotateTarget("B", annotate_non_call_ops)(mod)
         print("======================B: \n", mod.astext(True), "\n")
-        expected = transform.AnnotateTarget(["target.A", "target.B"], annotate_non_call_ops)(
-            before()
-        )
+        expected = transform.AnnotateTarget(["A", "B"], annotate_non_call_ops)(before())
         print("Expected: \n", expected.astext(True), "\n")
         assert tvm.ir.structural_equal(expected, mod)
+
+
+def test_ends_with_tuple():
+    trgt = "clip"
+
+    @tvm.ir.register_op_attr("clip", "target." + trgt)
+    def relu(expr):  # pylint: disable=unused-variable
+        return True
+
+    def get_model(get_item):
+        """Return a model"""
+        a = relay.var("a", shape=(1, 16, 16, 4), dtype="uint8")
+        z = relay.op.clip(a, 0, 255)
+        b = relay.op.clip(z, 0, 15)
+        c = relay.op.clip(z, 16, 31)
+        t = relay.Tuple((c, b))
+        tgi = relay.TupleGetItem(t, 1) if get_item else t
+        foo = relay.Function([a], tgi)
+        return tvm.IRModule.from_expr(tgi)
+
+    def get_expected(annotate_non_call_ops, get_item):
+        a_ = relay.var("a", shape=(1, 16, 16, 4), dtype="uint8")
+        a = relay.annotation.compiler_begin(a_, trgt)
+        z = relay.op.clip(a, 0, 255)
+        z1 = relay.annotation.compiler_end(z, trgt)
+        z1 = relay.annotation.compiler_begin(z1, trgt)
+        b = relay.op.clip(z1, 0, 15)
+        b = relay.annotation.compiler_end(b, trgt)
+        b = relay.annotation.compiler_begin(b, trgt) if annotate_non_call_ops else b
+        z2 = relay.annotation.compiler_end(z, trgt)
+        z2 = relay.annotation.compiler_begin(z2, trgt)
+        c = relay.op.clip(z2, 16, 31)
+        c = relay.annotation.compiler_end(c, trgt)
+        c = relay.annotation.compiler_begin(c, trgt) if annotate_non_call_ops else c
+        t = relay.Tuple((c, b))
+        t = relay.annotation.compiler_end(t, trgt) if annotate_non_call_ops else t
+        if get_item:
+            t = relay.annotation.compiler_begin(t, trgt) if annotate_non_call_ops else t
+            tgi = relay.TupleGetItem(t, 1)
+            tgi = relay.annotation.compiler_end(tgi, trgt) if annotate_non_call_ops else tgi
+        else:
+            tgi = t
+        foo = relay.Function([a_], tgi)
+        return tvm.IRModule.from_expr(foo)
+
+    for get_item in [True, False]:
+        for annotate_non_call_ops in [False, True]:
+            mod = get_model(get_item)
+            print("======================MOD:", annotate_non_call_ops, "\n", mod.astext(True), "\n")
+            mod = transform.AnnotateTarget("clip", annotate_non_call_ops)(mod)
+            print("======================A:", annotate_non_call_ops, "\n", mod.astext(True), "\n")
+            expected = transform.InferType()(get_expected(annotate_non_call_ops, get_item))
+            print("Expected:", annotate_non_call_ops, "\n", expected.astext(True), "\n")
+            assert tvm.ir.structural_equal(expected, mod)
 
 
 def test_if_else():
