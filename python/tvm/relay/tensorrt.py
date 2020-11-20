@@ -121,7 +121,7 @@ def check_dynamism(args, op_name):
     """
     for arg in args:
         if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
-            for dim_shape in arg.checked_type.shape:
+            for dim_shape in arg.checked_type.shape[1:]:
                 if isinstance(dim_shape, tvm.tir.expr.Any):
                     print(
                         "Dynamic inputs are not supported for TensorRT for ",
@@ -154,11 +154,15 @@ def _register_external_op_helper(op_name, supported=True):
         # Since the Neo-service uses implicit batch mode=True, this is a temporary workaround.
         # A more generalizable workaround is in the works for a future update.
         if op_name == "multiply":
-            if all(
+            shapes = [
                 [
-                    list(map(int, arg.checked_type.shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]]
-                    for arg in args
+                    int(x) if not isinstance(x, tvm.tir.expr.Any) else -1
+                    for x in arg.checked_type.shape
                 ]
+                for arg in args
+            ]
+            if all(
+                [list(map(int, shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]] for shape in shapes]
             ):
                 return False
 
