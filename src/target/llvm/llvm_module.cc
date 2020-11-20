@@ -218,7 +218,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       cg->AddFunction(f);
     }
 
-    if (entry_func.length() != 0) {
+    if (entry_func.length() != 0 && !system_lib) {
       cg->AddMainFunction(entry_func);
     }
 
