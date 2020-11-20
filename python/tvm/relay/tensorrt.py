@@ -833,7 +833,8 @@ def PruneSubgraphs(mod, compiler="tensorrt", use_implicit_batch=True, prune_no_m
                     # Scalar inputs not allowed
                     if len(tupe_type.shape) == 0:
                         return False
-                    input_batch_sizes.append(int(tupe_type.shape[0]))
+                    if not isinstance(tupe_type.shape[0], tvm.tir.expr.Any):
+                        input_batch_sizes.append(int(tupe_type.shape[0]))
             else:
                 # Scalar inputs not allowed
                 if len(var.checked_type.shape) == 0:
