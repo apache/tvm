@@ -770,5 +770,30 @@ def test_vm_reshape_tuple(x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
         tvm.testing.assert_allclose(res.asnumpy(), np.reshape(x_data, (1, -1)))
 
 
+def test_constant_shape_with_external_codegen():
+    mod = tvm.IRModule()
+    shape = (relay.Any(), 25)
+    dtype = "float32"
+
+    # external function
+    x = relay.var("x", shape=shape, dtype=dtype)
+    weight = relay.const(np.random.rand(5, 25).astype("float32"), dtype="float32")
+    out = relay.nn.dense(x, weight)
+    f1 = relay.Function([x], out)
+    f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+    f1 = f1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+    f1 = f1.with_attr("Compiler", "a")
+    glb_f1 = relay.GlobalVar("f1")
+    mod[glb_f1] = f1
+    mod = relay.transform.InferType()(mod)
+
+    # Main function
+    x = relay.var("x", shape=shape, dtype=dtype)
+    mod["main"] = relay.Function([x], glb_f1(x))
+    comp = relay.vm.VMCompiler()
+    opt_mod, _ = comp.optimize(mod, target="llvm")
+    assert "shape_func" in opt_mod.astext(False)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

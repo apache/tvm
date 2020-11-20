@@ -99,7 +99,7 @@ class Session:
     def _wrap_transport_read(self, n, timeout_microsec):
         try:
             return self.transport.read(
-                n, float(timeout_microsec) / 1e6 if timeout_microsec is not None else 0
+                n, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
             )
         except IoTimeoutError:
             return bytes([])
@@ -107,7 +107,7 @@ class Session:
     def _wrap_transport_write(self, data, timeout_microsec):
         try:
             return self.transport.write(
-                data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else 0
+                data, float(timeout_microsec) / 1e6 if timeout_microsec is not None else None
             )
         except IoTimeoutError:
             return 0

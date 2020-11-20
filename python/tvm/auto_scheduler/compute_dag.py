@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """ The auto-scheduler's computational graph and related program analyses. """
 
@@ -187,6 +188,20 @@ class ComputeDAG(Object):
 
         str_key = str_key.encode(encoding="utf-8")
         return hashlib.md5(str_key).hexdigest()
+
+    def __str__(self):
+        # pretty print
+        MAX_LINE_WIDTH = 256
+
+        raw_lines = super().__str__().split("\n")
+        lines = []
+        for line in raw_lines:
+            if len(line) > MAX_LINE_WIDTH:
+                line = (
+                    line[: MAX_LINE_WIDTH // 2] + " ..(OMITTED).. " + line[-MAX_LINE_WIDTH // 2 :]
+                )
+            lines.append(line)
+        return "\n".join(lines)
 
     def __getstate__(self):
         return {"compute": SaveJSON(self.compute), "sche": SaveJSON(self.sche)}

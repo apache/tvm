@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 import tvm
 from tvm import te
 from tvm import relay
@@ -457,17 +458,65 @@ def test_dynamic_to_static_strided_slice():
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
 
 
+@tvm.testing.uses_gpu
+def test_dyn_to_static_sparse_to_dense():
+    def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
+        sparse_indices_data = np.array(sparse_indices)
+        sparse_values_data = np.array(sparse_values)
+        default_value_data = np.array(default_value)
+        output_shape_data = np.array(output_shape)
+
+        a = relay.var(
+            "a", relay.TensorType(sparse_indices_data.shape, str(sparse_indices_data.dtype))
+        )
+        b = relay.var(
+            "b", relay.TensorType(sparse_values_data.shape, str(sparse_values_data.dtype))
+        )
+        output_shape_const = relay.const(output_shape_data)
+
+        if default_value is None:
+            args = [a, b]
+            d = relay.sparse_to_dense(a, output_shape_const, b)
+        else:
+            c = relay.var(
+                "c", relay.TensorType(default_value_data.shape, str(default_value_data.dtype))
+            )
+            args = [a, b, c]
+            d = relay.sparse_to_dense(a, output_shape_const, b, c)
+
+        zz = run_infer_type(d)
+        assert len(zz.checked_type.shape) == len(output_shape)
+
+        func = relay.Function(args, d)
+
+        func2 = run_opt_pass(run_opt_pass(func, transform.DynamicToStatic()), transform.InferType())
+        assert isinstance(func2.body, relay.Call)
+        assert func2.body.op == relay.op.get("sparse_to_dense")
+
+        if default_value is None:
+            arguments = [sparse_indices_data, sparse_values_data]
+        else:
+            arguments = [sparse_indices_data, sparse_values_data, default_value_data]
+
+        verify_func(func2, arguments, xpected)
+
+    verify_sparse_to_dense(1, 3, 0, [5], [0, 3, 0, 0, 0])  # scalar
+    verify_sparse_to_dense([0, 1, 4], [3, 3, 3], 0, [5], [3, 3, 0, 0, 3])  # vector
+    verify_sparse_to_dense(
+        [[0, 0], [1, 2]], [1, 2], 0, [3, 4], [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]]
+    )  # nXd
+    verify_sparse_to_dense(
+        [[0, 0, 0], [1, 2, 3]],
+        [1, 2],
+        4,
+        [2, 3, 4],
+        [[[1, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]], [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 2]]],
+    )  # nXd
+    verify_sparse_to_dense(
+        [0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1]
+    )  # floats
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+
+
 if __name__ == "__main__":
-    test_dynamic_to_static_reshape()
-    test_dynamic_to_static_double_reshape()
-    test_dynamic_to_static_quad_reshape()
-    test_dynamic_to_static_tile()
-    test_dynamic_to_static_topk()
-    test_dynamic_to_static_broadcast_to()
-    test_dynamic_to_static_zeros_ones()
-    test_dynamic_to_static_resize()
-    test_dynamic_to_static_one_hot()
-    test_dynamic_to_static_full()
-    test_dynamic_to_static_upsampling()
-    test_dynamic_to_static_pad()
-    test_dynamic_to_static_strided_slice()
+    pytest.main([__file__])

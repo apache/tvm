@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-tuning a convolutional network for Mobile GPU
+Auto-tuning a Convolutional Network for Mobile GPU
 ==================================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Eddie Yan <https://github.com/eqy>`_
 

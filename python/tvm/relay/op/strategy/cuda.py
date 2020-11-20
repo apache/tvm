@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
 import tvm
+from tvm.ir.transform import PassContext
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm._ffi import get_global_func
@@ -100,6 +101,18 @@ def schedule_lrn_cuda(attrs, outs, target):
         return topi.cuda.schedule_lrn(outs)
 
 
+def naive_schedule(_, outs, target):
+    """Return the naive default schedule"""
+    if "gpu" in target.keys:
+        # For GPU, we at least need thread binding to make a valid schedule.
+        # So the naive schedule cannot be compiled.
+        raise RuntimeError(
+            "Cannot compile for GPU targets if no tuned schedule is found."
+            "Please see the warning messages above for more information about the failed workloads."
+        )
+    return tvm.te.create_schedule(outs[-1].op)
+
+
 @conv2d_strategy.register(["cuda", "gpu"])
 def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d cuda strategy"""
@@ -142,10 +155,6 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     name="conv2d_nchw_winograd.cuda",
                     plevel=5,
                 )
-
-            strategy.add_auto_scheduler(
-                wrap_compute_conv2d(topi.nn.conv2d_nchw), name="conv2d_nchw"
-            )
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(
@@ -221,13 +230,15 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 )
 
             # register auto-scheduler implementations
-            if judge_winograd_auto_scheduler:
-                strategy.add_auto_scheduler(
-                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc), name="conv2d_nhwc.winograd"
-                )
-            else:
-                strategy.add_auto_scheduler(
-                    wrap_compute_conv2d(topi.nn.conv2d_nhwc), name="conv2d_nhwc"
+            use_auto_scheduler = PassContext.current().config.get(
+                "relay.backend.use_auto_scheduler", False
+            )
+            if use_auto_scheduler and judge_winograd_auto_scheduler:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nhwc.winograd",
+                    plevel=15,
                 )
 
         elif layout == "HWNC":
@@ -286,21 +297,11 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
                 name="depthwise_conv2d_nchw.cuda",
             )
-
-            strategy.add_auto_scheduler(
-                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.cuda",
-            )
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nhwc),
-                name="depthwise_conv2d_nhwc.cuda",
-            )
-
-            strategy.add_auto_scheduler(
-                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.cuda",
             )
         else:
@@ -459,11 +460,13 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
                 name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda",
             )
 
-        # register auto-scheduler implementations
-        strategy.add_auto_scheduler(
-            wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
-            name="conv2d_nhwc_winograd_without_weight_transform",
-        )
+        if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
+                naive_schedule,  # this implementation should never be picked by autotvm
+                name="conv2d_nhwc_winograd_without_weight_transform",
+                plevel=15,
+            )
     else:
         raise RuntimeError(
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
@@ -553,11 +556,6 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                 name="conv3d_ncdhw_winograd.cuda",
                 plevel=5,
             )
-
-        strategy.add_auto_scheduler(
-            wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-            name="conv3d_ncdhw.cuda",
-        )
     else:  # layout == "NDHWC":
         strategy.add_implementation(
             wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
@@ -580,11 +578,6 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                         name="conv3d_ndhwc_tensorcore.cuda",
                         plevel=20,
                     )
-
-        strategy.add_auto_scheduler(
-            wrap_compute_conv3d(topi.nn.conv3d_ndhwc),
-            name="conv3d_ndhwc.cuda",
-        )
 
     if target.kind.name == "cuda" and "cudnn" in target.libs:
         strategy.add_implementation(
@@ -679,11 +672,6 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.cuda.dense_small_batch),
             wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
             name="dense_small_batch.cuda",
-        )
-
-        strategy.add_auto_scheduler(
-            wrap_compute_dense(topi.nn.dense),
-            name="dense",
         )
 
         with SpecializedCondition(b >= 32):

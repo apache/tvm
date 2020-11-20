@@ -1511,7 +1511,7 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
  * \param tag output tensor tag.
  * \return Tensor of output_shape.
  */
-inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<Integer>& output_shape,
+inline Tensor sparse_to_dense(const Tensor& sparse_indices, const Array<PrimExpr>& output_shape,
                               const Tensor& sparse_values, const PrimExpr& default_value,
                               const std::string name = "T_sparse_to_dense",
                               const std::string tag = kInjective) {
