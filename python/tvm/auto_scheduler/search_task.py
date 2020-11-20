@@ -17,10 +17,13 @@
 
 """ The definiton of SearchTask """
 
+import json
+
 import tvm._ffi
 from tvm.runtime import Object
 
 from . import _ffi_api
+from .workload_registry import register_workload_tensors
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
@@ -63,6 +66,19 @@ class SearchTask(Object):
     def __setstate__(self, state):
         self.dag = state["dag"]
         self.workload_key = state["workload_key"]
+
+        # Register the workload if needed
+        try:
+            workload = json.loads(self.workload_key)
+        except Exception:  # pylint: disable=broad-except
+            raise RuntimeError("Invalid workload key %s" % self.workload_key)
+
+        # The workload from a compute DAG does not have arguments and is not registered
+        # by default so we register it here. If the workload has already been registered,
+        # the later registration overrides the prvious one.
+        if len(workload) == 1:
+            register_workload_tensors(workload[0], self.dag.tensors)
+
         self.target = state["target"]
         self.target_host = state["target_host"]
         self.hardware_params = state["hardware_params"]
