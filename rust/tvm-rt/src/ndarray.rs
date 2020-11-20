@@ -65,7 +65,7 @@ use crate::object::{Object, ObjectPtr};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 #[repr(C)]
-#[derive(Object)]
+#[derive(Object, Debug)]
 #[ref_name = "NDArray"]
 #[type_key = "runtime.NDArray"]
 pub struct NDArrayContainer {

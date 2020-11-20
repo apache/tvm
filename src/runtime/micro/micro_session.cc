@@ -55,8 +55,11 @@ class CallbackWriteStream : public WriteStream {
     TVMByteArray bytes;
     bytes.data = (const char*)data;
     bytes.size = data_size_bytes;
-    int64_t n = fsend_(bytes, write_timeout_.count());
-    return n;
+    if (write_timeout_ == ::std::chrono::microseconds::zero()) {
+      return static_cast<int64_t>(fsend_(bytes, nullptr));
+    } else {
+      return static_cast<int64_t>(fsend_(bytes, write_timeout_.count()));
+    }
   }
 
   void PacketDone(bool is_valid) override {}
@@ -76,6 +79,21 @@ class MicroTransportChannel : public RPCChannel {
     kSessionEstablished = 2,  // session is alive.
   };
 
+  /*!
+   * \brief Construct a new MicroTransportChannel.
+   * \param fsend A PackedFunc accepting (data_bytes, timeout_usec) and returning the number of
+   *  bytes sent. If a timeout_usec elapses before all data is sent, it should return 0.
+   * \param frecv A PackedFunc accepting (num_bytes, timeout_usec) and returning a string containing
+   *  the received data. Must not return an empty string, except to indicate a timeout.
+   * \param session_start_retry_timeout During session initialization, the session start message is
+   *  re-sent after this many microseconds elapse without a reply. If 0, the session start message
+   *  is sent only once.
+   * \param session_start_timeout Session initialization is considered "timed out" if no reply is
+   *  received this many microseconds after the session start is sent. If 0, a session start never
+   *  times out.
+   * \param session_established_timeout Timeout used for the Recv() function. This is used for
+   *  messages sent after a session is already established. If 0, Recv() never times out.
+   */
   MicroTransportChannel(PackedFunc fsend, PackedFunc frecv,
                         ::std::chrono::microseconds session_start_retry_timeout,
                         ::std::chrono::microseconds session_start_timeout,
@@ -93,41 +111,46 @@ class MicroTransportChannel : public RPCChannel {
         frecv_{frecv},
         message_buffer_{nullptr} {}
 
-  bool ReceiveUntil(TypedPackedFunc<bool(void)> pf, ::std::chrono::microseconds timeout) {
-    size_t bytes_received = 0;
+ private:
+  static constexpr const size_t kReceiveBufferSizeBytes = 128;
+
+  /*
+   * \brief Receive data until either pf() returns true or a timeout occurs.
+   *
+   * The condition function is called first, so this function may return without performing a read.
+   * Following this call, received data is consumed and frecv_ is invoked until the timeout occurs
+   * or the condition function passes.
+   *
+   * \param pf A condition function that returns true when enough data has been received for the
+   *  caller to proceed.
+   * \param timeout Pointer to number of microseconds to wait before timing out. If nullptr, no
+   *  timeout ever occurs in this function, so it may block forever. If 0, a single non-blocking
+   *  read is performed, and any data returned is processed.
+   * \return true if the condition passed, false if the timeout expired.
+   */
+  bool ReceiveUntil(TypedPackedFunc<bool(void)> pf, ::std::chrono::microseconds* timeout) {
     if (pf()) {
       return true;
     }
 
-    auto end_time = ::std::chrono::steady_clock::now() + timeout;
+    auto end_time = ::std::chrono::steady_clock::now();
+    if (timeout != nullptr) {
+      end_time += *timeout;
+    }
     for (;;) {
-      while (pending_chunk_.size() > 0) {
-        size_t bytes_consumed = 0;
-        int unframer_error = unframer_.Write((const uint8_t*)pending_chunk_.data(),
-                                             pending_chunk_.size(), &bytes_consumed);
-
-        ICHECK(bytes_consumed <= pending_chunk_.size())
-            << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
-        pending_chunk_ = pending_chunk_.substr(bytes_consumed);
-        bytes_received += bytes_consumed;
-        if (unframer_error < 0) {
-          LOG(ERROR) << "unframer got error code: " << unframer_error;
-        } else {
-          if (pf()) {
-            return true;
-          }
-        }
+      if (ConsumeReceivedPayload(pf)) {
+        return true;
       }
 
       ::std::string chunk;
-      if (timeout != ::std::chrono::microseconds::zero()) {
+      if (timeout != nullptr) {
         ::std::chrono::microseconds iter_timeout{
             ::std::max(::std::chrono::microseconds{0},
                        ::std::chrono::duration_cast<::std::chrono::microseconds>(
                            end_time - ::std::chrono::steady_clock::now()))};
-        chunk = frecv_(128, iter_timeout.count()).operator std::string();
+        chunk = frecv_(kReceiveBufferSizeBytes, iter_timeout.count()).operator std::string();
       } else {
-        chunk = frecv_(128, nullptr).operator std::string();
+        chunk = frecv_(kReceiveBufferSizeBytes, nullptr).operator std::string();
       }
       pending_chunk_ = chunk;
       if (pending_chunk_.size() == 0) {
@@ -137,41 +160,61 @@ class MicroTransportChannel : public RPCChannel {
     }
   }
 
-  bool StartSession() {
-    ICHECK(state_ == State::kReset)
-        << "MicroSession: state_: expected kReset, got " << uint8_t(state_);
+  bool StartSessionInternal() {
+    using ::std::chrono::duration_cast;
+    using ::std::chrono::microseconds;
+    using ::std::chrono::steady_clock;
 
-    ::std::chrono::steady_clock::time_point start_time = ::std::chrono::steady_clock::now();
+    steady_clock::time_point start_time = steady_clock::now();
+    ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
+    ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
+
+    if (session_start_timeout_ == microseconds::zero() &&
+        session_start_retry_timeout_ == microseconds::zero()) {
+      ICHECK(ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, nullptr))
+          << "ReceiveUntil indicated timeout expired, but no timeout set!";
+      ICHECK(session_.IsEstablished()) << "Session not established, but should be";
+      return true;
+    }
+
     auto session_start_end_time = start_time + session_start_timeout_;
-
-    ::std::chrono::steady_clock::time_point end_time;
+    steady_clock::time_point end_time;
     if (session_start_retry_timeout_ != ::std::chrono::microseconds::zero()) {
       end_time = start_time + session_start_retry_timeout_;
     } else {
       end_time = session_start_end_time;
     }
+
     while (!session_.IsEstablished()) {
+      microseconds time_remaining =
+          ::std::max(microseconds{0}, duration_cast<microseconds>(end_time - steady_clock::now()));
+      if (ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, &time_remaining)) {
+        break;
+      }
+
+      if (session_start_timeout_ != microseconds::zero() && end_time >= session_start_end_time) {
+        return false;
+      }
+      end_time += session_start_retry_timeout_;
+
       ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
       ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
-
-      ::std::chrono::microseconds time_remaining = ::std::max(
-          ::std::chrono::microseconds{0}, ::std::chrono::duration_cast<::std::chrono::microseconds>(
-                                              end_time - ::std::chrono::steady_clock::now()));
-
-      if (!ReceiveUntil([this]() -> bool { return session_.IsEstablished(); }, time_remaining)) {
-        if (session_start_timeout_ != ::std::chrono::microseconds::zero() &&
-            end_time >= session_start_end_time) {
-          break;
-        }
-        end_time += session_start_retry_timeout_;
-      }
     }
 
-    if (session_.IsEstablished()) {
+    return true;
+  }
+
+ public:
+  bool StartSession() {
+    ICHECK(state_ == State::kReset)
+        << "MicroSession: state_: expected kReset, got " << uint8_t(state_);
+
+    bool to_return = StartSessionInternal();
+    if (to_return) {
       write_stream_.SetWriteTimeout(session_established_timeout_);
     }
 
-    return session_.IsEstablished();
+    return to_return;
   }
 
   size_t Send(const void* data, size_t size) override {
@@ -198,9 +241,12 @@ class MicroTransportChannel : public RPCChannel {
       }
 
       did_receive_message_ = false;
-      if (!ReceiveUntil([this]() -> bool { return did_receive_message_; },
-                        session_established_timeout_)) {
-        if (session_established_timeout_ != ::std::chrono::microseconds::zero()) {
+      if (session_established_timeout_ == ::std::chrono::microseconds::zero()) {
+        ICHECK(ReceiveUntil([this]() -> bool { return did_receive_message_; }, nullptr))
+            << "ReceiveUntil timeout expired, but no timeout configured!";
+      } else {
+        if (!ReceiveUntil([this]() -> bool { return did_receive_message_; },
+                          &session_established_timeout_)) {
           std::stringstream ss;
           ss << "MicroSessionTimeoutError: failed to read reply message after timeout "
              << session_established_timeout_.count() / 1e6 << "s";
@@ -223,6 +269,37 @@ class MicroTransportChannel : public RPCChannel {
   }
 
  private:
+  /*!
+   * \brief Consume the entire received payload, unless the pf condition is met halfway through.
+   *
+   * This function expects pending_chunk_ to contain a chunk of unprocessed packet data. It
+   * repeatedly writes the chunk to the Unframer until either a) pf() returns True or b) no more
+   * data remains to be written.
+   *
+   * \param pf A PackedFunc which returns true when ReceiveUntil should return.
+   * \returns true if pf() returned true during processing; false otherwise.
+   */
+  bool ConsumeReceivedPayload(TypedPackedFunc<bool(void)> pf) {
+    while (pending_chunk_.size() > 0) {
+      size_t bytes_consumed = 0;
+      int unframer_error = unframer_.Write((const uint8_t*)pending_chunk_.data(),
+                                           pending_chunk_.size(), &bytes_consumed);
+
+      ICHECK(bytes_consumed <= pending_chunk_.size())
+          << "consumed " << bytes_consumed << " want <= " << pending_chunk_.size();
+      pending_chunk_ = pending_chunk_.substr(bytes_consumed);
+      if (unframer_error < 0) {
+        LOG(ERROR) << "unframer got error code: " << unframer_error;
+      } else {
+        if (pf()) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   static void HandleMessageReceivedCb(void* context, MessageType message_type, FrameBuffer* buf) {
     static_cast<MicroTransportChannel*>(context)->HandleMessageReceived(message_type, buf);
   }

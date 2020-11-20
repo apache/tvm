@@ -20,8 +20,8 @@ import numpy as np
 
 import tvm
 from tvm import relay
-
-from .infrastructure import (
+from tvm import testing
+from test_arm_compute_lib.infrastructure import (
     Device,
     skip_runtime_test,
     skip_codegen_test,
@@ -185,18 +185,34 @@ def test_dense():
     np.random.seed(0)
 
     dtype = ["float32"]
-    shape = [((1, 128), (16, 128), 16), ((32, 32), (32, 32), 32), ((1, 64), (1, 64), 1)]
+    shape = [
+        (1, (1, 128), (16, 128), 16),
+        (1, (32, 32), (32, 32), 32),
+        (0, (1, 64), (1, 64), 1),
+        (0, (11, 2), (2, 2), 2),
+    ]
     composite = [False, True]
     trials = generate_trials([dtype, shape, composite], 3)
 
-    for dtype, (shape, weight_shape, units), composite in trials:
+    for dtype, (acl_partitions, shape, weight_shape, units), composite in trials:
         outputs = []
         inputs = {"a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype))}
         func, params = _get_model(
             shape, weight_shape, units, dtype, var_names=iter(inputs), has_bias=composite
         )
         for acl in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_acl=acl)[0])
+            outputs.append(
+                build_and_run(
+                    func,
+                    inputs,
+                    1,
+                    params,
+                    device,
+                    enable_acl=acl,
+                    tvm_ops=(1 - acl_partitions) * (2 - int(not composite)),
+                    acl_partitions=acl_partitions,
+                )[0]
+            )
 
         config = {
             "shape": shape,
@@ -215,18 +231,18 @@ def test_codegen_dense():
     np.random.seed(0)
 
     dtype = ["float32"]
-    shape = [((1, 128), (16, 128), 16), ((32, 32), (32, 32), 32), ((1, 64), (1, 64), 1)]
+    shape = [(1, (1, 128), (16, 128), 16), (1, (32, 32), (32, 32), 32), (0, (1, 64), (1, 64), 1)]
     composite = [False, True]
     trials = generate_trials([dtype, shape, composite], 3)
 
-    for dtype, (shape, weight_shape, units), composite in trials:
+    for dtype, (acl_partitions, shape, weight_shape, units), composite in trials:
         inputs = {"a"}
 
         args = (shape, weight_shape, units, dtype)
 
         func, params = _get_model(*args, var_names=iter(inputs), has_bias=composite)
         exp_codegen = _get_expected_codegen(*args, has_bias=composite)
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, acl_partitions, 1 - acl_partitions)
 
 
 def test_qnn_dense():
@@ -239,11 +255,18 @@ def test_qnn_dense():
     np.random.seed(0)
 
     dtype = ["uint8"]
-    shape = [((1, 128), (16, 128), 16), ((32, 32), (32, 32), 32), ((1, 64), (1, 64), 1)]
+    shape = [
+        (0, (4, 4), (4, 4), 4),
+        (1, (16, 16), (4, 16), 4),
+        (1, (1, 128), (16, 128), 16),
+        (1, (32, 32), (32, 32), 32),
+        (0, (1, 64), (1, 64), 1),
+    ]
+
     composite = [False, True]
     trials = generate_trials([dtype, shape, composite], 3)
 
-    for dtype, (shape, weight_shape, units), composite in trials:
+    for dtype, (acl_partitions, shape, weight_shape, units), composite in trials:
         outputs = []
         inputs = {"a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))}
         input_zp = 100
@@ -270,7 +293,18 @@ def test_qnn_dense():
         )
 
         for acl in [False, True]:
-            outputs.append(build_and_run(func, inputs, 1, params, device, enable_acl=acl)[0])
+            outputs.append(
+                build_and_run(
+                    func,
+                    inputs,
+                    1,
+                    params,
+                    device,
+                    tvm_ops=(1 - acl_partitions) * (3 - int(not composite)),
+                    acl_partitions=acl_partitions,
+                    enable_acl=acl,
+                )[0]
+            )
 
         config = {
             "shape": shape,
@@ -295,11 +329,11 @@ def test_codegen_qnn_dense():
     np.random.seed(0)
 
     dtype = ["uint8"]
-    shape = [((1, 128), (16, 128), 16), ((32, 32), (32, 32), 32), ((1, 64), (1, 64), 1)]
+    shape = [(1, (1, 128), (16, 128), 16), (1, (32, 32), (32, 32), 32), (0, (1, 64), (1, 64), 1)]
     composite = [False, True]
     trials = generate_trials([dtype, shape, composite], 3)
 
-    for dtype, (shape, weight_shape, units), composite in trials:
+    for dtype, (acl_partitions, shape, weight_shape, units), composite in trials:
         inputs = {"a"}
         args = (shape, weight_shape, units, dtype)
 
@@ -323,7 +357,7 @@ def test_codegen_qnn_dense():
             has_bias=composite,
         )
         exp_codegen = _get_expected_codegen(*args, has_bias=composite)
-        verify_codegen(func, exp_codegen, 1)
+        verify_codegen(func, exp_codegen, acl_partitions, 2 - 2 * acl_partitions)
 
 
 if __name__ == "__main__":

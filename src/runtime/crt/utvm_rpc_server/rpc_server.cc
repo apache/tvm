@@ -219,7 +219,7 @@ void TVMLogf(const char* format, ...) {
   va_list args;
   char log_buffer[256];
   va_start(args, format);
-  size_t num_bytes_logged = vsnprintf(log_buffer, sizeof(log_buffer), format, args);
+  size_t num_bytes_logged = TVMPlatformFormatMessage(log_buffer, sizeof(log_buffer), format, args);
   va_end(args);
 
   // Most header-based logging frameworks tend to insert '\n' at the end of the log message.

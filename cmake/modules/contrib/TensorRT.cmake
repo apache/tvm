@@ -18,6 +18,9 @@
 # TensorRT Codegen only. This can be enabled independently of USE_TENSORRT_RUNTIME to enable
 # compilation of TensorRT modules without requiring TensorRT to be installed. The compiled modules
 # will only be able to be executed using a TVM built with USE_TENSORRT_RUNTIME=ON.
+
+include (FindPackageHandleStandardArgs)
+
 if(USE_TENSORRT_CODEGEN)
     message(STATUS "Build with TensorRT codegen")
     file(GLOB COMPILER_TENSORRT_SRCS src/relay/backend/contrib/tensorrt/*.cc)

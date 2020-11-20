@@ -24,7 +24,7 @@ use tvm_macros::Object;
 macro_rules! define_node {
     ($name:ident, $ref:expr, $typekey:expr; $node:ident { $($id:ident : $t:ty),*}) => {
         #[repr(C)]
-        #[derive(Object)]
+        #[derive(Object, Debug)]
         #[ref_name = $ref]
         #[type_key = $typekey]
         pub struct $node {

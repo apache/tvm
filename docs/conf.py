@@ -204,6 +204,74 @@ subsection_order = ExplicitOrder(
     ]
 )
 
+# Explicitly define the order within a subsection.
+# The listed files are sorted according to the list.
+# The unlisted files are sorted by filenames.
+# The unlisted files always appear after listed files.
+within_subsection_order = {
+    "get_started": [
+        "relay_quick_start.py",
+        "tensor_expr_get_started.py",
+        "tvmc_command_line_driver.py",
+        "cross_compilation_and_rpc.py",
+    ],
+    "frontend": [
+        "from_pytorch.py",
+        "from_tensorflow.py",
+        "from_mxnet.py",
+        "from_onnx.py",
+        "from_keras.py",
+        "from_tflite.py",
+        "from_coreml.py",
+        "from_darknet.py",
+        "from_caffe2.py",
+    ],
+    "language": [
+        "schedule_primitives.py",
+        "reduciton.py",
+        "intrin_math.py",
+        "scan.py",
+        "extern_op.py",
+        "tensorize.py",
+        "tuple_inputs.py",
+        "tedd.py",
+    ],
+    "optimize": [
+        "opt_gemm.py",
+        "opt_conv_cuda.py",
+        "opt_conv_tensorcore.py",
+        "opt_matmul_auto_tensorcore.py",
+    ],
+    "autotvm": [
+        "tune_simple_template.py",
+        "tune_conv2d_cuda.py",
+        "tune_relay_cuda.py",
+        "tune_relay_x86.py",
+        "tune_relay_arm.py",
+        "tune_relay_mobile_gpu.py",
+    ],
+    "auto_scheduler": ["tune_matmul_x86.py", "tune_conv2d_layer_cuda.py"],
+}
+
+
+class WithinSubsectionOrder:
+    def __init__(self, src_dir):
+        self.src_dir = src_dir.split("/")[-1]
+
+    def __call__(self, filename):
+        # If the order is provided, use the provided order
+        if (
+            self.src_dir in within_subsection_order
+            and filename in within_subsection_order[self.src_dir]
+        ):
+            index = within_subsection_order[self.src_dir].index(filename)
+            assert index < 1e10
+            return "\0%010d" % index
+
+        # Otherwise, sort by filename
+        return filename
+
+
 sphinx_gallery_conf = {
     "backreferences_dir": "gen_modules/backreferences",
     "doc_module": ("tvm", "numpy"),
@@ -213,6 +281,7 @@ sphinx_gallery_conf = {
         "numpy": "https://numpy.org/doc/stable",
     },
     "examples_dirs": examples_dirs,
+    "within_subsection_order": WithinSubsectionOrder,
     "gallery_dirs": gallery_dirs,
     "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", ".py"),
@@ -233,6 +302,63 @@ tvm_alias_check_map = {
     "tvm.tir": ["tvm.ir", "tvm.runtime"],
     "tvm.relay": ["tvm.ir", "tvm.tir"],
 }
+
+## Setup header and other configs
+import tlcpack_sphinx_addon
+
+footer_copyright = "© 2020 Apache Software Foundation | All right reserved"
+footer_note = " ".join(
+    """
+Apache TVM is an effort undergoing incubation at The Apache Software Foundation (ASF),
+sponsored by the Apache Incubator. Incubation is required of all newly accepted projects
+until a further review indicates that the infrastructure, communications, and decision making
+process have stabilized in a manner consistent with other successful ASF projects. While
+incubation status is not necessarily a reflection of the completeness or stability of the code,
+it does indicate that the project has yet to be fully endorsed by the ASF.
+Copyright © 2020 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+and the Apache TVM project logo are either trademarks or registered trademarks of
+the Apache Software Foundation.""".split(
+        "\n"
+    )
+).strip()
+
+header_logo = "https://tvm.apache.org/assets/images/logo.svg"
+header_logo_link = "https://tvm.apache.org/"
+
+header_links = [
+    ("Community", "https://tvm.apache.org/community"),
+    ("Download", "https://tvm.apache.org/download"),
+    ("VTA", "https://tvm.apache.org/vta"),
+    ("Blog", "https://tvm.apache.org/blog"),
+    ("Docs", "https://tvm.apache.org/docs"),
+    ("Conference", "https://tvmconf.org"),
+    ("Github", "https://github.com/apache/incubator-tvm/"),
+]
+
+header_dropdown = {
+    "name": "ASF",
+    "items": [
+        ("Apache Homepage", "https://apache.org/"),
+        ("License", "https://www.apache.org/licenses/"),
+        ("Sponsorship", "https://www.apache.org/foundation/sponsorship.html"),
+        ("Security", "https://www.apache.org/security/"),
+        ("Thanks", "https://www.apache.org/foundation/thanks.html"),
+        ("Events", "https://www.apache.org/events/current-event"),
+    ],
+}
+
+html_context = {
+    "footer_copyright": footer_copyright,
+    "footer_note": footer_note,
+    "header_links": header_links,
+    "header_dropdown": header_dropdown,
+    "header_logo": header_logo,
+    "header_logo_link": header_logo_link,
+}
+
+# add additional overrides
+templates_path += [tlcpack_sphinx_addon.get_templates_path()]
+html_static_path += [tlcpack_sphinx_addon.get_static_path()]
 
 
 def update_alias_docstring(name, obj, lines):
@@ -282,4 +408,3 @@ def process_docstring(app, what, name, obj, options, lines):
 
 def setup(app):
     app.connect("autodoc-process-docstring", process_docstring)
-    app.add_css_file("css/tvm_theme.css")

@@ -19,6 +19,7 @@
 
 use std::convert::TryFrom;
 use std::ffi::CString;
+use std::fmt;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicI32;
 
@@ -147,6 +148,18 @@ impl Object {
     }
 }
 
+// impl fmt::Debug for Object {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         let index =
+//             format!("{} // key: {}", self.type_index, "the_key");
+
+//         f.debug_struct("Object")
+//          .field("type_index", &index)
+//          // TODO(@jroesch: do we expose other fields?)
+//          .finish()
+//     }
+// }
+
 /// An unsafe trait which should be implemented for an object
 /// subtype.
 ///
@@ -154,7 +167,7 @@ impl Object {
 /// index, a method for accessing the base object given the
 /// subtype, and a typed delete method which is specialized
 /// to the subtype.
-pub unsafe trait IsObject: AsRef<Object> {
+pub unsafe trait IsObject: AsRef<Object> + std::fmt::Debug {
     const TYPE_KEY: &'static str;
 
     unsafe extern "C" fn typed_delete(object: *mut Self) {
@@ -264,6 +277,13 @@ impl<T: IsObject> std::ops::Deref for ObjectPtr<T> {
     }
 }
 
+impl<T: IsObject> fmt::Debug for ObjectPtr<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::ops::Deref;
+        write!(f, "{:?}", self.deref())
+    }
+}
+
 impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
     fn from(object_ptr: ObjectPtr<T>) -> RetValue {
         let raw_object_ptr = ObjectPtr::leak(object_ptr) as *mut T as *mut std::ffi::c_void;
@@ -341,6 +361,24 @@ impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
         }
     }
 }
+
+impl<T: IsObject> std::hash::Hash for ObjectPtr<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_i64(
+            super::structural_hash(ObjectRef(Some(self.clone().upcast())), false).unwrap(),
+        )
+    }
+}
+
+impl<T: IsObject> PartialEq for ObjectPtr<T> {
+    fn eq(&self, other: &Self) -> bool {
+        let lhs = ObjectRef(Some(self.clone().upcast()));
+        let rhs = ObjectRef(Some(other.clone().upcast()));
+        super::structural_equal(lhs, rhs, false, false).unwrap()
+    }
+}
+
+impl<T: IsObject> Eq for ObjectPtr<T> {}
 
 #[cfg(test)]
 mod tests {

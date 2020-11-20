@@ -77,6 +77,11 @@ class BufferNode : public Object {
   int offset_factor;
   /*! \brief buffer type */
   BufferType buffer_type;
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
   /*! \brief constructor */
   BufferNode() {}
 
@@ -135,7 +140,7 @@ class Buffer : public ObjectRef {
   // A default value will be picked.
   TVM_DLL Buffer(Var ptr, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                  PrimExpr elem_offset, String name, String scope, int data_alignment,
-                 int offset_factor, BufferType buffer_type);
+                 int offset_factor, BufferType buffer_type, Span span = Span());
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -183,11 +188,12 @@ class Buffer : public ObjectRef {
  * \param shape The shape of the buffer,
  * \param dtype The content data type.
  * \param name The name of the buffer
+ * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer");
+                           String name = "buffer", Span span = Span());
 
 /*!
  * \brief Base node for data producers.

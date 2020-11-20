@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-scheduling matrix multiplication for CPU
+Auto-scheduling Matrix Multiplication for CPU
 =============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
 
-Different from the existing :ref:`autotvm <tutorials-autotvm-sec>` which relies on 
+This is a tutorial on how to use the auto-scheduler for CPUs.
+
+Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any templates.
 Users only need to write the computation declaration without any schedule commands or templates.
 The auto-scheduler can automatically generate a large search space and
@@ -88,7 +90,9 @@ print(task.compute_dag)
 
 log_file = "matmul.json"
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10, measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
+    num_measure_trials=10,
+    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    verbose=2,
 )
 
 ######################################################################

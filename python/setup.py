@@ -183,7 +183,7 @@ setup(
         "decorator",
         "attrs",
         "psutil",
-        "typed_ast",
+        "synr>=0.2.1",
     ],
     extras_require={
         "test": ["pillow<7", "matplotlib"],

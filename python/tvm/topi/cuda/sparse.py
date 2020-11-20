@@ -180,7 +180,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         assert (
             mb >= mi
         ), "Number of block rows in dense matrix must be larger than warp size: {} vs {}.".format(
-            warp_size, m
+            warp_size, mb
         )
         mo = ceil_div(mb, mi)
         ni = 1  # TODO(tkonolige): how do I compute the number of warps per block?
@@ -367,9 +367,14 @@ def _alter_sparse_dense_layout(_attrs, inputs, _tinfos, _out_type):
         and isinstance(inputs[2], relay.Constant)
         and isinstance(inputs[3], relay.Constant)
     ):
-        sparse_matrix = sp.bsr_matrix(
-            (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
-        )
+        if len(inputs[1].data.asnumpy().shape) == 1:
+            sparse_matrix = sp.csr_matrix(
+                (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
+            ).tobsr()
+        else:
+            sparse_matrix = sp.bsr_matrix(
+                (inputs[1].data.asnumpy(), inputs[2].data.asnumpy(), inputs[3].data.asnumpy())
+            )
         warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
         sparse_matrix = pad_sparse_matrix(sparse_matrix, warp_size)
         return relay.nn._make.sparse_dense_padded(

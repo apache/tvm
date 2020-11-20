@@ -922,4 +922,8 @@ TVM_REGISTER_GLOBAL("tir._OpIfThenElse")
       return if_then_else(cond, true_value, false_value);
     });
 
+TVM_REGISTER_GLOBAL("tir.const_true").set_body_typed([](DataType t) {
+  return const_true(t.lanes());
+});
+
 }  // namespace tvm

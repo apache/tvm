@@ -29,6 +29,22 @@ from tvm import rpc
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 
+# tkonolige: The issue as I understand it is this: multiprocessing's spawn
+# method launches a new process and then imports the relevant modules. This
+# means that all registered functions must exist at the top level scope. In
+# this file they are, so all is well when we run this file directly.
+# However, when run under pytest, the functions aren't registered on the
+# server. I believe this is because pytest is also using multiprocessing to
+# run individual functions. Somewhere along the way, the imports are being
+# lost, so the server ends up not registering the functions.
+pytestmark = pytest.mark.skipif(
+    multiprocessing.get_start_method() != "fork",
+    reason=(
+        "pytest + multiprocessing spawn method causes tvm.register_func to "
+        "not work on the rpc.Server."
+    ),
+)
+
 
 @tvm.testing.requires_rpc
 def test_bigendian_rpc():

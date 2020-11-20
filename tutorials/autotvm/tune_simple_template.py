@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Writing tunable template and Using auto-tuner
-=============================================
+Writing Tunable Templates and Using the Auto-tuner
+==================================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 This is an introduction tutorial to the auto-tuning module in TVM.
@@ -59,7 +59,7 @@ import sys
 
 import numpy as np
 import tvm
-from tvm import te
+from tvm import te, testing
 
 # the module is called `autotvm`
 from tvm import autotvm

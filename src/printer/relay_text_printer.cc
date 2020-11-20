@@ -489,7 +489,11 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
     // don't print as a call if it's a 0-arity cons
     return doc;
   } else {
-    return doc << "(" << Doc::Concat(args) << ")";
+    doc << "(" << Doc::Concat(args) << ")";
+    if (op->span.defined()) {
+      doc << " /* " << PrintSpan(op->span) << " */";
+    }
+    return doc;
   }
 }
 
@@ -838,6 +842,14 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
     docs.push_back(doc);
   }
   return docs;
+}
+
+Doc RelayTextPrinter::PrintSpan(const Span& span) {
+  Doc doc;
+  const auto* span_node = span.as<SpanNode>();
+  ICHECK(span_node);
+  doc << span_node->source_name->name;
+  return doc;
 }
 
 TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {

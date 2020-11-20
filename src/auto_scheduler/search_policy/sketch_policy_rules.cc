@@ -54,21 +54,32 @@ std::vector<std::pair<State, int>> RuleSkipStage::Apply(const SketchPolicyNode& 
 }
 
 /********** RuleAlwaysInline **********/
+inline bool ShouldAlwaysBeInlined(const SketchPolicyNode& policy, const State& state,
+                                  int stage_id) {
+  const SearchTask& task = policy.search_task;
+  const Stage& stage = state->stages[stage_id];
+
+  // Check the inline limitation of TE
+  if (stage->op_type == StageKind::kPlaceholder || IsOutputOp(task, state, stage_id) ||
+      HasReduceIter(stage)) {
+    return false;
+  }
+
+  if (IsGPUTask(task)) {  // Greedily inline all inlinable ops on gpu
+    return true;
+  } else {
+    // Only always-inline strict-inlinable ops on cpu.
+    // The computation location of other ops will be tuned by InitChangeComputeLocation
+    // and MutateComputeLocation.
+    return IsStrictlyInlineable(task, state, stage_id);
+  }
+}
 
 SketchGenerationRule::ConditionKind RuleAlwaysInline::MeetCondition(const SketchPolicyNode& policy,
                                                                     const State& state,
                                                                     int stage_id) const {
-  const Stage& stage = state->stages[stage_id];
-  // Check the inline limitation of TE first
-  if (stage->op_type == StageKind::kPlaceholder ||
-      IsOutputOp(policy.search_task, state, stage_id) || HasReduceIter(stage)) {
-    return ConditionKind::kSkip;
-  }
-
-  // Always do compute inline if it's strictly inlineable or is in GPU policy
-  return IsStrictlyInlineable(policy.search_task, state, stage_id) || IsGPUTask(policy.search_task)
-             ? ConditionKind::kApplyAndSkipRest
-             : ConditionKind::kSkip;
+  return ShouldAlwaysBeInlined(policy, state, stage_id) ? ConditionKind::kApplyAndSkipRest
+                                                        : ConditionKind::kSkip;
 }
 
 std::vector<std::pair<State, int>> RuleAlwaysInline::Apply(const SketchPolicyNode& policy,
@@ -417,6 +428,10 @@ SketchGenerationRule::ConditionKind RuleSpecialComputeLocationGPU::MeetCondition
     return ConditionKind::kSkip;
   }
 
+  if (!ShouldAlwaysBeInlined(policy, state, stage_id)) {
+    return ConditionKind::kSkip;
+  }
+
   const std::set<int>& consumers = GetConsumers(policy.search_task, state, stage_id);
   if (consumers.size() == 1 && state->stages[*consumers.begin()]->op->attrs.count(
                                    SearchPolicyKey::simplify_const_tensor_indices)) {
@@ -450,6 +465,7 @@ std::vector<std::pair<State, int>> RuleSpecialComputeLocationGPU::Apply(
 
 PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* policy, State* state,
                                                              std::mt19937* rand_gen) const {
+  SplitFactorizationMemo split_memo;
   int max_innermost_split_factor =
       GetIntParam(policy->params, SketchParamKey::max_innermost_split_factor);
 
@@ -470,8 +486,9 @@ PopulationGenerationRule::ResultKind InitFillTileSize::Apply(SketchPolicyNode* p
 
       ICHECK(ps->extent);
       int extent = GetIntImm(ps->extent.value());
-      const auto& candidate_lens = policy->split_memo.GetFactorizationSchemes(
-          extent, ps->lengths.size(), max_innermost_split_factor);
+      const auto& candidate_lens = split_memo.GetFactorizationSchemes(extent, ps->lengths.size(),
+                                                                      max_innermost_split_factor);
+      ICHECK(!candidate_lens.empty());
       const auto& candidate_lengths = candidate_lens[(*rand_gen)() % candidate_lens.size()];
 
       pstate->transform_steps.Set(

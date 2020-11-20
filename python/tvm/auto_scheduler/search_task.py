@@ -42,6 +42,35 @@ class SearchTask(Object):
     """
 
     def __init__(self, dag, workload_key, target, target_host=None, hardware_params=None):
+        self.dag = dag
+        self.workload_key = workload_key
+        self.target = target
+        self.target_host = target_host
+        self.hardware_params = hardware_params
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask, dag, workload_key, target, target_host, hardware_params
+        )
+
+    def __getstate__(self):
+        return {
+            "dag": self.dag,
+            "workload_key": self.workload_key,
+            "target": self.target,
+            "target_host": self.target_host,
+            "hardware_params": self.hardware_params,
+        }
+
+    def __setstate__(self, state):
+        self.dag = state["dag"]
+        self.workload_key = state["workload_key"]
+        self.target = state["target"]
+        self.target_host = state["target_host"]
+        self.hardware_params = state["hardware_params"]
+        self.__init_handle_by_constructor__(
+            _ffi_api.SearchTask,
+            self.dag,
+            self.workload_key,
+            self.target,
+            self.target_host,
+            self.hardware_params,
         )

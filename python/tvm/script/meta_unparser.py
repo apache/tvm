@@ -17,34 +17,29 @@
 """Unparse meta AST node into a dict"""
 # pylint: disable=invalid-name
 
-from typed_ast import ast3 as ast
+from synr import Transformer
 
 
-class MetaUnparser(ast.NodeVisitor):
+class MetaUnparser(Transformer):
     """Python AST Visitor to unparse meta AST node into a dict"""
 
-    def visit_Dict(self, node):
+    def transform(self, node):
+        method = "transform_" + node.__class__.__name__
+        visitor = getattr(self, method, None)
+        if visitor is None:
+            self.error(f"Unexpected node type {type(node)} when parsing __tvm_meta__", node.span)
+        return visitor(node)
+
+    def transform_DictLiteral(self, node):
         keys = [self.visit(key) for key in node.keys]
         values = [self.visit(value) for value in node.values]
         return dict(zip(keys, values))
 
-    def visit_Tuple(self, node):
+    def transform_Tuple(self, node):
         return tuple(self.visit(element) for element in node.elts)
 
-    def visit_List(self, node):
+    def transform_ArrayLiteral(self, node):
         return [self.visit(element) for element in node.elts]
 
-    def visit_keyword(self, node):
-        return node.arg, self.visit(node.value)
-
-    def visit_NameConstant(self, node):
+    def transform_Constant(self, node):
         return node.value
-
-    def visit_Constant(self, node):
-        return node.value
-
-    def visit_Num(self, node):
-        return node.n
-
-    def visit_Str(self, node):
-        return node.s

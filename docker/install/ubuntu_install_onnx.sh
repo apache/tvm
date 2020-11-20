@@ -28,4 +28,4 @@ pip3 install onnxruntime==1.0.0
 # not expose that in the wheel!!!
 pip3 install future
 
-pip3 install torch==1.4.0 torchvision==0.5.0
+pip3 install torch==1.7.0 torchvision==0.8.1
