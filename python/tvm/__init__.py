@@ -93,6 +93,7 @@ def tvm_wrap_excepthook(exception_hook):
             raise ValueError("invalid value for TVM_BACKTRACE {}")
 
         if exctype is error.DiagnosticError and not _should_print_backtrace():
+            # TODO(@jroesch): consider moving to C++?
             print("note: run with `TVM_BACKTRACE=1` environment variable to display a backtrace.")
         else:
             exception_hook(exctype, value, trbk)
