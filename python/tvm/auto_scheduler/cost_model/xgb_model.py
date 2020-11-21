@@ -23,15 +23,12 @@ from collections import defaultdict
 
 import numpy as np
 
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
-
 from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
 from ..measure_record import RecordReader
+
+xgb = None
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -92,9 +89,12 @@ class XGBModel(PythonBasedModel):
     """
 
     def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
-
-        if xgb is None:
-            raise ImportError(
+        global xgb
+        try:
+            if xgb is None:
+                xgb = __import__("xgboost")
+        except ImportError:
+            print(
                 "XGBoost is required for XGBModel. "
                 "Please install its python package first. "
                 "Help: (https://xgboost.readthedocs.io/en/latest/) "

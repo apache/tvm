@@ -99,7 +99,12 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
   explicit ScheduleGetter(Target target)
-      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
+      : target_(target), device_copy_op_(Op::Get("device_copy")) {
+    // Whether to use auto_scheduler schedule.
+    use_auto_scheduler_ = transform::PassContext::Current()
+                              ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
+                              .value();
+  }
 
   CachedFunc Create(const Function& prim_func) {
     auto cache_node = make_object<CachedFuncNode>();
@@ -145,11 +150,27 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
         tensor_outs.push_back(tensor);
       }
     }
+
     te::Schedule schedule;
     // No need to register schedule for device copy op.
     if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      ICHECK(anchor_implementation_.defined());
-      schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
+      if (use_auto_scheduler_) {
+        const auto* fauto_schedule =
+            runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
+        ICHECK(fauto_schedule != nullptr)
+            << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
+        bool has_complex_op = anchor_op_pattern_ >= kCommReduce;
+        ObjectRef obj = (*fauto_schedule)(tensor_outs, has_complex_op);
+        if (obj.defined()) {
+          schedule = Downcast<te::Schedule>(obj);
+        }
+      }
+
+      // Use TOPI schdule if user specificed, or the function has no auto_scheduler schedule.
+      if (!schedule.defined()) {
+        ICHECK(anchor_implementation_.defined());
+        schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
+      }
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {
           schedule[scalar].compute_inline();
@@ -228,9 +249,9 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     }
 
     int op_pattern = fpattern[op];
-    if (op_pattern >= kCommReduce) {
+    if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
       ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
-          << "Two complicated op in a primitive function "
+          << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
           << " anchor=" << anchor_op_ << " current=" << op;
     }
     if (op_pattern >= anchor_op_pattern_) {
@@ -295,6 +316,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
+  bool use_auto_scheduler_;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
@@ -811,6 +833,8 @@ CompileEngine& CompileEngine::Global() {
   static CompileEngine* inst = new CompileEngine(make_object<CompileEngineImpl>());
   return *inst;
 }
+
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
     .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {

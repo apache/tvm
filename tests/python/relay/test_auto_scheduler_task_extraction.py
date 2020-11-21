@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test task extraction for auto-scheduler"""
+import pytest
+
 import tvm.relay.testing
 import tvm.testing
 from tvm import auto_scheduler, relay
@@ -45,7 +47,6 @@ def get_network(name, batch_size=1, layout="NHWC"):
         )
     elif name == "winograd-test":
         input_shape = [1, 7, 7, 64]
-        output_shape = input_shape
 
         data = relay.var("data", shape=input_shape, dtype="float32")
         net = relay.testing.layers.conv2d(
@@ -96,7 +97,6 @@ def get_network(name, batch_size=1, layout="NHWC"):
 
 @tvm.testing.requires_cuda
 def test_task_extraction_cuda():
-    auto_scheduler.enable_relay_integration()
     target = tvm.target.Target("cuda")
 
     mod, params = get_network("mlp")
@@ -108,24 +108,122 @@ def test_task_extraction_cuda():
         mod, params = get_network("resnet-18", layout=layout)
         tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
-        assert len(tasks) == 21
-        assert sum(task_weights) == 22
+        assert len(tasks) == 24
+        assert sum(task_weights) == 25
 
         mod, params = get_network("mobilenet", layout=layout)
         tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
-        assert len(tasks) == 20
-        assert sum(task_weights) == 28
+        assert len(tasks) == 22
+        assert sum(task_weights) == 30
 
     for layout in ["NCDHW", "NDHWC"]:
         mod, params = get_network("resnet3d-18", layout=layout)
         tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
 
-        assert len(tasks) == 21
-        assert sum(task_weights) == 22
+        assert len(tasks) == 23
+        assert sum(task_weights) == 24, sum(task_weights)
 
-    auto_scheduler.enable_relay_integration(False)
+
+def test_task_extraction():
+    ishape = (1, 3, 224, 224)
+    w1shape = (32, 3, 3, 3)
+    w2shape = (32, 32, 3, 3)
+    dtype = "float32"
+    target = tvm.target.Target("llvm")
+
+    def get_func():
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        weight2 = relay.var("weight2", shape=(w2shape), dtype=dtype)
+
+        conv2d = relay.nn.conv2d(data, weight1, kernel_size=(3, 3), padding=(1, 1))
+        relu = relay.nn.relu(conv2d)
+        conv2d = relay.nn.conv2d(relu, weight2, kernel_size=(3, 3), padding=(1, 1))
+        out = relay.nn.relu(conv2d)
+        return relay.Function([data, weight1, weight2], out)
+
+    def get_fused_func():
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        weight2 = relay.var("weight2", shape=(w2shape), dtype=dtype)
+
+        fused_func = get_func()
+
+        # Set to primitive to keep fuse_ops untouch.
+        fused_func = fused_func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+
+        call = relay.Call(fused_func, [data, weight1, weight2])
+        return relay.Function([data, weight1, weight2], call)
+
+    def get_simple_func():
+        data = relay.var("data", relay.TensorType((1, 2, 3), "float32"))
+        out = relay.image.affine_grid(data, (150, 150))
+        return relay.Function([data], out)
+
+    def get_func_with_unsupported_op():
+        def get_postproc_func():
+            data = relay.var("data", shape=((1, 3, 6)), dtype=dtype)
+            out = relay.nn.relu(data)
+            func = relay.Function([data], out)
+            func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+            return func
+
+        cls_prob = relay.var("cls_prob", relay.ty.TensorType((1, 3, 3), "float32"))
+        loc_pred = relay.var("loc_pred", relay.ty.TensorType((1, 3 * 4), "float32"))
+        anchors = relay.var("anchors", relay.ty.TensorType((1, 3, 4), "float32"))
+
+        mtl = relay.vision.multibox_transform_loc(
+            cls_prob=cls_prob, loc_pred=loc_pred, anchor=anchors
+        )
+        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], mtl[0], return_indices=False)
+        out = relay.Call(get_postproc_func(), [nms])
+        return relay.Function([cls_prob, loc_pred, anchors], out)
+
+    func = get_func()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+
+    # Relay FuseOps puts two conv2ds to separate functions and results in two tasks.
+    assert len(tasks) == 2
+    assert len(task_weights) == 2
+
+    func = get_fused_func()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+
+    # By setting the function to primitive, Relay FuseOps will not break it and result in one task.
+    assert len(tasks) == 1
+    assert len(task_weights) == 1
+
+    func = get_simple_func()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+
+    # The Relay function without complex ops will not form a task by default.
+    assert len(tasks) == 0
+    assert len(task_weights) == 0
+
+    tasks, task_weights = auto_scheduler.extract_tasks(
+        mod["main"], None, target, include_simple_tasks=True
+    )
+
+    # Every Relay function becomes a task regardless what ops in its body.
+    assert len(tasks) == 1
+    assert len(task_weights) == 1
+
+    # Func1 (with NMS) -> Func2 (injective).
+    func = get_func_with_unsupported_op()
+    mod = tvm.IRModule.from_expr(func)
+    tasks, task_weights = auto_scheduler.extract_tasks(
+        mod["main"], None, target, include_simple_tasks=True
+    )
+
+    # The function with NMS should fail, but the other function with ReLU should be a task.
+    assert len(tasks) == 1
+    assert len(task_weights) == 1
 
 
 if __name__ == "__main__":
     test_task_extraction_cuda()
+    test_task_extraction()

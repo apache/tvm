@@ -23,15 +23,12 @@ import time
 
 import numpy as np
 
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
-
 from .. import feature
 from ..utils import get_rank
 from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
+
+xgb = None
 
 logger = logging.getLogger("autotvm")
 
@@ -75,10 +72,13 @@ class XGBoostCostModel(CostModel):
     def __init__(
         self, task, feature_type, loss_type, num_threads=None, log_interval=25, upper_model=None
     ):
+        global xgb
         super(XGBoostCostModel, self).__init__()
-
-        if xgb is None:
-            raise RuntimeError(
+        try:
+            if xgb is None:
+                xgb = __import__("xgboost")
+        except ImportError:
+            print(
                 "XGBoost is required for XGBoostCostModel. "
                 "Please install its python package first. "
                 "Help: (https://xgboost.readthedocs.io/en/latest/) "

@@ -1141,6 +1141,60 @@ def test_grid_sample():
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
 
 
+@tvm.testing.uses_gpu
+def test_space_to_batch_nd():
+    def verify_space_to_batch_nd(dshape, block_shape, paddings):
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        pad_before, pad_after = map(list, zip(*paddings))
+        ref_res = tvm.topi.testing.space_to_batch_nd_python(
+            x_data, block_shape, pad_before, pad_after
+        )
+
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.nn.space_to_batch_nd(x, block_shape, paddings)
+        assert "block_shape=" in z.astext()
+        assert "paddings=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+
+    verify_space_to_batch_nd([3, 3, 2, 1], [3], [[0, 0]])
+    verify_space_to_batch_nd([2, 2, 4, 1], [2, 2], [[0, 0], [2, 0]])
+
+
+@tvm.testing.uses_gpu
+def test_batch_to_space_nd():
+    def verify_batch_to_space_nd(dshape, block_shape, crops):
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        crop_begin_list, crop_end_list = map(list, zip(*crops))
+        ref_res = tvm.topi.testing.batch_to_space_nd_python(
+            x_data, block_shape, crop_begin_list, crop_end_list
+        )
+
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.nn.batch_to_space_nd(x, block_shape, crops)
+        assert "block_shape=" in z.astext()
+        assert "crops=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+
+    verify_batch_to_space_nd([4, 1, 1, 3], [2, 2], [[0, 0], [0, 0]])
+    verify_batch_to_space_nd([8, 1, 3, 1], [2, 2], [[0, 0], [2, 0]])
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
@@ -1163,3 +1217,5 @@ if __name__ == "__main__":
     test_dilation2d_run()
     test_affine_grid()
     test_grid_sample()
+    test_space_to_batch_nd()
+    test_batch_to_space_nd()

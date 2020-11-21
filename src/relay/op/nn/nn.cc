@@ -1145,5 +1145,223 @@ RELAY_REGISTER_OP("nn.space_to_depth")
     .set_support_level(5)
     .add_type_rel("SpaceToDepth", SpaceToDepthRel);
 
+// Positional relay function to create SpaceToBatchND operator
+// used by frontend FFI
+TVM_REGISTER_NODE_TYPE(SpaceToBatchNDAttrs);
+
+Expr MakeSpaceToBatchND(Expr data, Array<Integer> block_shape, Array<Array<IndexExpr>> paddings,
+                        double pad_value) {
+  auto attrs = make_object<SpaceToBatchNDAttrs>();
+  attrs->block_shape = std::move(block_shape);
+  attrs->paddings = std::move(paddings);
+  attrs->pad_value = pad_value;
+  static const Op& op = Op::Get("nn.space_to_batch_nd");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+bool SpaceToBatchNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                       const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+
+  auto* input = types[0].as<TensorTypeNode>();
+  // Input must be a TensorType
+  if (input == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "SpaceToBatchND: expect input type to be TensorType but got " << types[0];
+    return false;
+  }
+
+  if (input->shape.size() <= 1) return false;
+
+  const auto* param = attrs.as<SpaceToBatchNDAttrs>();
+  CHECK(param != nullptr);
+
+  auto block_shape = param->block_shape;
+  auto paddings = param->paddings;
+  const int bdims = static_cast<int>(block_shape.size());
+  const int pdims = static_cast<int>(paddings.size());
+  // Paddings must be provided for each spatial dim.
+  CHECK(pdims == bdims) << "SpaceToBatchND: Paddings must be provided for each spatial dim";
+
+  // Apply paddings to input
+  auto in_shape = input->shape;
+  std::vector<IndexExpr> padded_shape(input->shape.begin(), input->shape.end());
+  for (size_t i = 0; i < paddings.size(); i++) {
+    CHECK_EQ(paddings[i].size(), 2U);
+    auto pad_before = tir::as_const_int(param->paddings[i][0]);
+    auto pad_after = tir::as_const_int(param->paddings[i][1]);
+    auto padding = tir::make_const(input->shape[i].dtype(), *pad_before + *pad_after);
+    padded_shape[i + 1] = in_shape[i + 1] + padding;
+  }
+
+  auto block_shape_numele = tir::make_const(DataType::Int(32), 1);
+  for (size_t i = 0; i < block_shape.size(); i++) {
+    block_shape_numele *= block_shape[i];
+  }
+
+  // Construct output shape
+  std::vector<IndexExpr> out_shape(padded_shape);
+  out_shape[0] = in_shape[0] * block_shape_numele;
+  for (size_t i = 1; i <= block_shape.size(); i++) {
+    out_shape[i] = div(padded_shape[i], block_shape[i - 1]);
+  }
+
+  // Assign output shape
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(out_shape), input->dtype));
+  return true;
+}
+
+Array<te::Tensor> SpaceToBatchNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                        const Type& out_type) {
+  const auto* param = attrs.as<SpaceToBatchNDAttrs>();
+  CHECK(param != nullptr);
+
+  auto b_shape = param->block_shape;
+  auto paddings = param->paddings;
+  Array<IndexExpr> pad_before;
+  Array<IndexExpr> pad_after;
+
+  for (size_t i = 0; i < paddings.size(); ++i) {
+    pad_before.push_back(paddings[i][0]);
+  }
+  for (size_t i = 0; i < paddings.size(); ++i) {
+    pad_after.push_back(paddings[i][1]);
+  }
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return Array<te::Tensor>{
+      topi::space_to_batch_nd(inputs[0], b_shape, pad_before, pad_after,
+                              tvm::tir::make_const(out_ttype->dtype, param->pad_value))};
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.space_to_batch_nd").set_body_typed(MakeSpaceToBatchND);
+
+RELAY_REGISTER_OP("nn.space_to_batch_nd")
+    .describe(R"code(Divide spatial dimensions of the input into a grid of blocks
+and interleave them into batch dim.
+
+- **data**: data is a ND array of shape
+            (batch, spatial_shapes, remaining_shapes) for NHWC
+
+- **out**: Output is a ND array of shape
+           (batch * prod(block_shape), padded_data[1] / block_shape[0], ..., padded_data[M] / block_shape[M-1],
+            remaining_shape) for NHWC, where M is the number of spatial dimensions.
+
+Example::
+
+  x = [[[[1], [2]], [[3], [4]]]]
+
+  space_to_batch_nd(x, block_shape = [2, 2]) =
+    [[[[1]]], [[[2]]], [[[3]]], [[[4]]]]
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<SpaceToBatchNDAttrs>()
+    .set_support_level(5)
+    .add_type_rel("SpaceToBatchND", SpaceToBatchNDRel)
+    .set_attr<FTVMCompute>("FTVMCompute", SpaceToBatchNDCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+/*****************************************************************/
+
+// Positional relay function to create BatchToSpaceND operator
+// used by frontend FFI
+TVM_REGISTER_NODE_TYPE(BatchToSpaceNDAttrs);
+
+Expr MakeBatchToSpaceND(Expr data, Array<Integer> block_shape, Array<Array<IndexExpr>> crops) {
+  auto attrs = make_object<BatchToSpaceNDAttrs>();
+  attrs->block_shape = std::move(block_shape);
+  attrs->crops = std::move(crops);
+  static const Op& op = Op::Get("nn.batch_to_space_nd");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+bool BatchToSpaceNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                       const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+
+  auto* input = types[0].as<TensorTypeNode>();
+  // Input must be a TensorType
+  if (input == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "BatchToSpaceND: expect input type to be TensorType but got " << types[0];
+    return false;
+  }
+
+  if (input->shape.size() <= 1) return false;
+
+  const auto* param = attrs.as<BatchToSpaceNDAttrs>();
+  CHECK(param != nullptr);
+
+  auto block_shape = param->block_shape;
+  auto crops = param->crops;
+  const int bdims = static_cast<int>(block_shape.size());
+  const int cdims = static_cast<int>(crops.size());
+  const int indims = static_cast<int>(input->shape.size());
+  // crops must be provided for each spatial dim.
+  CHECK(cdims == bdims) << "BatchToSpaceND: crops must be provided for each spatial dim";
+  CHECK(bdims < indims) << "BatchToSpaceND: block_shape must be less than input shape";
+
+  auto block_shape_numele = tir::make_const(DataType::Int(32), 1);
+  for (size_t i = 0; i < block_shape.size(); i++) {
+    block_shape_numele *= block_shape[i];
+  }
+
+  auto in_shape = input->shape;
+
+  // Construct output shape
+  // Start with input shape, only batch and spatial dims shapes are modified.
+  std::vector<IndexExpr> out_shape(input->shape.begin(), input->shape.end());
+  out_shape[0] = in_shape[0] / block_shape_numele;
+  for (size_t i = 1; i <= block_shape.size(); i++) {
+    out_shape[i] = (in_shape[i] * block_shape[i - 1]) - crops[i - 1][0] - crops[i - 1][1];
+  }
+  for (int i = bdims + 1; i < indims; i++) {
+    out_shape[i] = in_shape[i];
+  }
+
+  // Assign output shape
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(out_shape), input->dtype));
+  return true;
+}
+
+Array<te::Tensor> BatchToSpaceNDCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                        const Type& out_type) {
+  const auto* param = attrs.as<BatchToSpaceNDAttrs>();
+  CHECK(param != nullptr);
+
+  auto b_shape = param->block_shape;
+  auto crops = param->crops;
+  Array<IndexExpr> crop_begin_list, crop_end_list;
+  for (size_t i = 0; i < crops.size(); ++i) {
+    crop_begin_list.push_back(crops[i][0]);
+    crop_end_list.push_back(crops[i][1]);
+  }
+
+  return Array<te::Tensor>{
+      topi::batch_to_space_nd(inputs[0], b_shape, crop_begin_list, crop_end_list)};
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_to_space_nd").set_body_typed(MakeBatchToSpaceND);
+
+RELAY_REGISTER_OP("nn.batch_to_space_nd")
+    .describe(R"code(Reshape the batch dimension into spatial dimensions.
+
+Example::
+
+  x = [[[[1]]], [[[2]]], [[[3]]], [[[4]]]]
+
+  batch_to_space_nd(x, block_shape = [2, 2]) =
+    [[[[1], [2]], [[3], [4]]]]
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<BatchToSpaceNDAttrs>()
+    .set_support_level(5)
+    .add_type_rel("BatchToSpaceND", BatchToSpaceNDRel)
+    .set_attr<FTVMCompute>("FTVMCompute", BatchToSpaceNDCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 }  // namespace relay
 }  // namespace tvm

@@ -54,7 +54,7 @@ def test_task_scheduler_round_robin():
         for task in tasks:
             counters[task.workload_key] = 0
 
-        for inp, res in auto_scheduler.load_records(log_file):
+        for inp, _ in auto_scheduler.load_records(log_file):
             counters[inp.task.workload_key] += 1
 
         for task in tasks:
@@ -121,7 +121,7 @@ def test_task_scheduler_gradient():
         for task in tasks:
             counters[task.workload_key] = 0
 
-        for inp, res in auto_scheduler.load_records(log_file):
+        for inp, _ in auto_scheduler.load_records(log_file):
             counters[inp.task.workload_key] += 1
 
         assert counters[tasks[0].workload_key] == n_trials - 1

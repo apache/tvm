@@ -3158,3 +3158,64 @@ def correlation(
     return _make.correlation(
         data1, data2, kernel_size, max_displacement, stride1, stride2, padding, is_multiply, layout
     )
+
+
+def space_to_batch_nd(data, block_shape, paddings, pad_value=0):
+    r"""Divide spatial dimensions of the data into a grid of blocks
+    and interleave them into batch dim.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        N-D with shape [batch, spatial_shape, remaining_shape]
+
+    block_shape : relay.Expr
+        1-D of size [M] where M is number of spatial dims, specifies block size
+        for each spatial dimension.
+
+    paddings : relay.Expr
+        2-D of shape [M, 2] where M is number of spatial dims, specifies
+        [before, after] paddings for each spatial dimension.
+
+    pad_value : float, or relay.Expr, optional, default=0
+        The value used for padding.
+
+    Returns
+    -------
+    result : relay.Expr
+        N-D Tensor with shape
+        [in_batch * prod(block_shape),
+        padded_data[1] / block_shape[0], ..., padded_data[M] / block_shape[M-1],
+        remaining_shape]
+    """
+
+    return _make.space_to_batch_nd(data, block_shape, paddings, pad_value)
+
+
+def batch_to_space_nd(data, block_shape, crops):
+    r"""Reshape the batch dimension into spatial dimensions.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        N-D with shape [batch, spatial_shape, remaining_shape]
+
+    block_shape : relay.Expr
+        1-D of size [M] where M is number of spatial dims, specifies block size
+        for each spatial dimension.
+
+    crops : relay.Expr
+        2-D of shape [M, 2] where M is number of spatial dims, specifies
+        [begin, end] crop size for each spatial dimension.
+
+    Returns
+    -------
+    result : relay.Expr
+        N-D Tensor with shape
+        [batch / prod(block_shape),
+        in_shape[1] * block_shape[0] - crops[0,0] - crops[0,1], ...,
+        in_shape[M] * block_shape[M-1] - crops[M-1, 0] - crops[M-1, 1],
+        remaining_shape]
+    """
+
+    return _make.batch_to_space_nd(data, block_shape, crops)

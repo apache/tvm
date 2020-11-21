@@ -292,6 +292,10 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if add is supported by TensorRT."""
 
     args = expr.args
+    # RelayVM + TRT doesn't support scalar addition yet.
+    for arg in args:
+        if not arg.checked_type.shape:
+            return False
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False

@@ -1324,6 +1324,34 @@ struct CorrelationAttrs : public tvm::AttrsNode<CorrelationAttrs> {
   }
 };  // struct CorrelationAttrs
 
+/*! \brief Attributes used in SpaceToBatchND operator */
+struct SpaceToBatchNDAttrs : public tvm::AttrsNode<SpaceToBatchNDAttrs> {
+  Array<Integer> block_shape;
+  Array<Array<IndexExpr>> paddings;
+  double pad_value;
+
+  TVM_DECLARE_ATTRS(SpaceToBatchNDAttrs, "relay.attrs.SpaceToBatchNDAttrs") {
+    TVM_ATTR_FIELD(block_shape)
+        .set_default(Array<Integer>({1, 1}))
+        .describe("1-D containing block size for each spatial dimension.");
+    TVM_ATTR_FIELD(paddings).describe("2-D containing paddings for each spatial dimension.");
+    TVM_ATTR_FIELD(pad_value).set_default(0.0).describe("The value used for padding.");
+  }
+};  // struct SpaceToBatchNDAttrs
+
+/*! \brief Attributes used in BatchToSpaceND operator */
+struct BatchToSpaceNDAttrs : public tvm::AttrsNode<BatchToSpaceNDAttrs> {
+  Array<Integer> block_shape;
+  Array<Array<IndexExpr>> crops;
+
+  TVM_DECLARE_ATTRS(BatchToSpaceNDAttrs, "relay.attrs.BatchToSpaceNDAttrs") {
+    TVM_ATTR_FIELD(block_shape)
+        .set_default(Array<Integer>({1, 1}))
+        .describe("1-D containing block size for each spatial dimension.");
+    TVM_ATTR_FIELD(crops).describe("2-D containing amount to crop from spatial dimension.");
+  }
+};  // struct BatchToSpaceNDAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_

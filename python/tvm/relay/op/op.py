@@ -18,7 +18,6 @@
 """The base node types for the Relay language."""
 import tvm._ffi
 import tvm.ir
-from tvm.auto_scheduler.relay_integration import auto_schedule_topi, auto_schedule_impl_suffix
 from tvm.driver import lower, build
 from tvm.target import get_native_generic_func, GenericFunc
 from tvm.runtime import Object
@@ -143,30 +142,6 @@ class OpStrategy(Object):
             The priority level of implementation.
         """
         _OpStrategyAddImplementation(self, compute, schedule, name, plevel)
-
-    def add_auto_scheduler(self, compute, name, plevel=10):
-        """Add an implementation using the auto-scheduler.
-
-        Parameters
-        ----------
-        compute : function (attrs: Attrs, inputs: List[Tensor], out_type: Type)
-                           -> List[Tensor]
-            The compute function.
-
-        name : str
-            The name of implementation.
-
-        plevel : int
-            The priority level of implementation.
-        """
-
-        def wrap_schedule(attrs, outs, target):
-            with target:
-                return auto_schedule_topi(outs)
-
-        self.add_implementation(
-            compute, wrap_schedule, name=name + auto_schedule_impl_suffix, plevel=plevel
-        )
 
 
 def _wrap_default_fstrategy(compute, schedule, name):
