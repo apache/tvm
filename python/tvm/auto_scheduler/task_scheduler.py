@@ -168,6 +168,8 @@ class TaskScheduler:
         The parameter used for 'gradient' strategy
     backward_window_size: int = 3
         The parameter used for 'gradient' strategy
+    callbacks: Optional[List[TaskSchedulerCallback]]
+        The task scheduler callbacks that will be called before and after tuning a task.
     """
 
     def __init__(
