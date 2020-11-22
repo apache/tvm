@@ -64,7 +64,7 @@ def register_workload(func_name, f=None, override=False):
     f : Optional[Function]
         The generation function to be registered.
     override : boolean = False
-        Whether override existing entry.
+        Whether to override existing entry.
 
     Examples
     --------
@@ -98,30 +98,26 @@ def register_workload(func_name, f=None, override=False):
     return register
 
 
-def register_workload_tensors(tensors):
-    """Register a workload by provding input/output tensors
+def register_workload_tensors(func_name, tensors, override=True):
+    """Register a workload by provding input/output tensors. Since this function is used
+    when extracting/deserializing tasks, it expects duplicated registrations by default.
 
     Parameters
     ----------
+    func_name: str
+        The function name or the hash key of the compute DAG.
     tensors: List[Tensor]
         The input/output tensors of a compute DAG
+    override : boolean = True
+        Whether to override existing entry.
 
     Returns
     -------
-    key: Optional[str]
-        The workload key, or None if failed to create a compute DAG.
+    key: str
+        The serialized JSON string as the workload key.
     """
-    # pylint: disable=import-outside-toplevel
-    from .compute_dag import ComputeDAG
-
-    try:
-        key = ComputeDAG(tensors).hash_key()
-    except tvm.error.TVMError as err:
-        logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
-        return None
-
-    WORKLOAD_FUNC_REGISTRY[key] = tensors
-    return json.dumps((key,))
+    register_workload(func_name, override=override)(tensors)
+    return json.dumps((func_name,))
 
 
 def make_workload_key(func, args):

@@ -61,7 +61,7 @@ class ComputeDAG(Object):
         if isinstance(compute_or_sche, str):
             compute = workload_key_to_tensors(compute_or_sche)
             sche = None
-        elif isinstance(compute_or_sche, list):
+        elif isinstance(compute_or_sche, (list, tvm.ir.container.Array)):
             for item in compute_or_sche:
                 if not isinstance(item, tvm.te.Tensor):
                     raise ValueError(
