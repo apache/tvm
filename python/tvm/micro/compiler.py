@@ -21,6 +21,7 @@ import abc
 import glob
 import os
 import re
+import subprocess
 
 import tvm.target
 from . import build
