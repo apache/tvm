@@ -151,6 +151,14 @@ class PrimFunc : public BaseFunc {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
 };
 
+/*!
+ * \brief Describes one parameter that should be linked into the generated module.
+ *
+ * When parameters are to be linked in with generated code (i.e. on target_host-compatible
+ * backends), Relay attaches instances of this object to a global TIR function. Code-generators
+ * use the information contained in this node to include the parameter data in the generated
+ * module.
+ */
 class LinkedParamNode : public Object {
  public:
   /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
@@ -168,9 +176,12 @@ class LinkedParamNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
 };
 
+/*!
+ * \brief Managed reference to LinkedParamNode.
+ */
 class LinkedParam : public ObjectRef {
  public:
-  LinkedParam(int64_t id, ::tvm::runtime::NDArray param);
+  TVM_DLL LinkedParam(int64_t id, ::tvm::runtime::NDArray param);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);

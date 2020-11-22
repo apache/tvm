@@ -595,14 +595,16 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_param_by_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         String key = args[0];
-        ICHECK_GT(this->output_.params.count(key), 0);
-        *rv = this->output_.params[key].second;
+        auto it = this->output_.params.find(key);
+        CHECK(it != this->output_.params.end()) << "no such parameter " << key;
+        *rv = (*it).second.second;
       });
     } else if (name == "get_param_id") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         String key = args[0];
-        ICHECK_GT(this->output_.params.count(key), 0);
-        *rv = this->output_.params[key].first;
+        auto it = this->output_.params.find(key);
+        CHECK(it != this->output_.params.end()) << "no such parameter " << key;
+        *rv = (*it).second.first;
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

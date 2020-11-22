@@ -41,7 +41,9 @@ namespace runtime {
 static void RemoteNDArrayDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
-  space->sess->FreeHandle(ptr->manager_ctx, kTVMNDArrayHandle);
+  if (ptr->manager_ctx != nullptr) {
+    space->sess->FreeHandle(ptr->manager_ctx, kTVMNDArrayHandle);
+  }
   delete space;
   delete ptr;
 }
@@ -54,13 +56,11 @@ static void RemoteNDArrayDeleter(Object* obj) {
  * \param template_tensor An empty DLTensor whose shape and dtype fields are used to fill the newly
  *     created array. Needed because it's difficult to pass a shape vector as a PackedFunc arg.
  * \param ctx Remote context used with this tensor. Must have non-zero RPCSessMask.
- * \param deleter A function invoked when the local NDArray object is no longer used. If `handle`
- *      needs to be explicitly deleted after the NDArray is freed, this function should do that.
- * \param deleter_ctx An opaque pointer passed to deleter to identify the tensor being deleted.
+ * \param remote_ndarray_handle The handle returned by RPC server to identify the NDArray.
  */
 NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
                                       DLTensor* template_tensor, TVMContext ctx,
-                                      ADTObj::FDeleter deleter, void* deleter_ctx) {
+                                      void* remote_ndarray_handle) {
   ICHECK_EQ(sess->table_index(), GetRPCSessionIndex(ctx))
       << "The TVMContext given does not belong to the given session";
   RemoteSpace* space = new RemoteSpace();
@@ -70,8 +70,8 @@ NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* ha
                                  template_tensor->shape + template_tensor->ndim};
   NDArray::Container* data = new NDArray::Container(static_cast<void*>(space), std::move(shape_vec),
                                                     template_tensor->dtype, ctx);
-  data->manager_ctx = deleter_ctx;
-  data->SetDeleter(deleter);
+  data->manager_ctx = remote_ndarray_handle;
+  data->SetDeleter(RemoteNDArrayDeleter);
   return NDArray(GetObjectPtr<Object>(data));
 }
 
@@ -286,7 +286,7 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
     void* nd_handle = args[2];
     *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
                                         AddRPCSessionMask(tensor->ctx, sess_->table_index()),
-                                        RemoteNDArrayDeleter, nd_handle);
+                                        nd_handle);
   } else {
     ICHECK_EQ(args.size(), 2);
     *rv = args[1];
@@ -474,10 +474,9 @@ TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue*
 
 TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
     .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx,
-                       PackedFunc deleter) -> NDArray {
+                       void* ndarray_handle) -> NDArray {
       return NDArrayFromRemoteOpaqueHandle(
-          RPCModuleGetSession(mod), remote_array, template_tensor, ctx, [](Object* context) {},
-          nullptr);
+          RPCModuleGetSession(mod), remote_array, template_tensor, ctx, ndarray_handle);
     });
 
 }  // namespace runtime

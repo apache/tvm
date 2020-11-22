@@ -75,7 +75,9 @@ void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module modu
   ctxs_ = ctxs;
   lookup_linked_param_ = lookup_linked_param_func;
   if (lookup_linked_param_ == nullptr) {
-    lookup_linked_param_ = PackedFunc(&GraphRuntime::DefaultLookupLinkedParam);
+    lookup_linked_param_ = PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+                                        this->DefaultLookupLinkedParam(args, rv);
+                                      });
   }
   this->SetupStorage();
   this->SetupOpExecs();
@@ -249,9 +251,10 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
   this->SetupOpExecs();
 }
 
-void GraphRuntime::PreAllocatedDLTensorDeleter(DLManagedTensor* tensor) {
-  // ctx is the DLTensor which needs to get deleted. The data member points to global const memory.
-  delete reinterpret_cast<DLTensor*>(tensor);
+void GraphRuntime::LinkedNDArrayDeleter(Object* container) {
+  // container is the NDArray::Container which needs to get deleted.
+  // The data member points to global const memory, so it does not need deleting.
+  delete reinterpret_cast<NDArray::Container*>(container);
 }
 
 void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
@@ -261,14 +264,16 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   TVMContext ctx = args[3];
   // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
   // params are present.
-  tvm::runtime::PackedFunc pf =
+  if (!module_lookup_linked_param_valid_) {
+    module_lookup_linked_param_ =
       mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
-  if (pf == nullptr) {
+  }
+  if (module_lookup_linked_param_ == nullptr) {
     *rv = nullptr;
     return;
   }
 
-  TVMRetValue opaque_handle = pf(storage_id);
+  TVMRetValue opaque_handle = module_lookup_linked_param_(storage_id);
   if (opaque_handle.type_code() == kTVMNullptr) {
     *rv = nullptr;
     return;
@@ -279,6 +284,7 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
 
   std::unique_ptr<NDArray::Container> container{new NDArray::Container(
       static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, ctx)};
+  container->SetDeleter(GraphRuntime::LinkedNDArrayDeleter);
   *rv = NDArray(GetObjectPtr<Object>(container.release()));
 }
 

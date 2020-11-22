@@ -75,6 +75,8 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
   llvm::Type* element_type = nullptr;
 
   auto arr_type = arr.DataType();
+  CHECK(arr.IsContiguous()) << "CodegenParams: only support contiguous arrays";
+  CHECK_EQ(arr->ctx.device_type, kDLCPU) << "CodegenParams: only support contiguous arrays";
   CHECK_EQ(arr_type.lanes(), 1) << "CodegenParams: only support generating 1-lane parameters; saw "
                                 << arr_type.lanes();
 
@@ -84,7 +86,6 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
     num_elements *= shape_elem;
   }
 
-  std::unique_ptr<DLManagedTensor, DLManagedTensorDeleter> tensor(arr.ToDLPack());
   std::vector<llvm::Constant*> elements;
 
   switch (arr_type.code()) {
@@ -97,16 +98,16 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
 
       switch (arr_type.bits()) {
       case 8:
-        BuildLLVMVector<int8_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<int8_t>(element_type, arr->data, num_elements, &elements);
         break;
       case 16:
-        BuildLLVMVector<int16_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<int16_t>(element_type, arr->data, num_elements, &elements);
         break;
       case 32:
-        BuildLLVMVector<int32_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<int32_t>(element_type, arr->data, num_elements, &elements);
         break;
       case 64:
-        BuildLLVMVector<int64_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<int64_t>(element_type, arr->data, num_elements, &elements);
         break;
       default:
         ICHECK(false) << "should not get here";
@@ -123,16 +124,16 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
 
       switch (arr_type.bits()) {
       case 8:
-        BuildLLVMVector<uint8_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<uint8_t>(element_type, arr->data, num_elements, &elements);
         break;
       case 16:
-        BuildLLVMVector<uint16_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<uint16_t>(element_type, arr->data, num_elements, &elements);
         break;
       case 32:
-        BuildLLVMVector<uint32_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<uint32_t>(element_type, arr->data, num_elements, &elements);
         break;
       case 64:
-        BuildLLVMVector<uint64_t>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<uint64_t>(element_type, arr->data, num_elements, &elements);
         break;
       default:
         ICHECK(false) << "should not get here";
@@ -144,11 +145,11 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
       switch (arr_type.bits()) {
       case 32:
         element_type = llvm::Type::getFloatTy(*ctx);
-        BuildLLVMVector<float>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<float>(element_type, arr->data, num_elements, &elements);
         break;
       case 64:
         element_type = llvm::Type::getDoubleTy(*ctx);
-        BuildLLVMVector<double>(element_type, tensor->dl_tensor.data, num_elements, &elements);
+        BuildLLVMVector<double>(element_type, arr->data, num_elements, &elements);
         break;
       default:
         CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "

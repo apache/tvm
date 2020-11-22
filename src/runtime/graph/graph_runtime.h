@@ -370,9 +370,9 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
   /*! \brief PackedFunc to lookup a linked paramter from a local Module. */
-  static void DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv);
-  /*! \brief Delete pre-allocated DLTensor. */
-  static void PreAllocatedDLTensorDeleter(DLManagedTensor* tensor);
+  void DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv);
+  /*! \brief Delete NDArray::Container with linked (i.e. static) data. */
+  static void LinkedNDArrayDeleter(Object* container);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors. */
@@ -420,6 +420,13 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   std::vector<std::function<void()>> op_execs_;
   /*! \brief Linked parameter lookup function. */
   PackedFunc lookup_linked_param_;
+  /*! \brief Module's _lookup_linked_param function, used by DefaultLookupLinkedParam. */
+  PackedFunc module_lookup_linked_param_;
+  /*!
+   * \brief True when module_lookup_linked_param_ is valid.
+   * When the module does not include linked parmeters, module_lookup_linked_param_ will be nullptr.
+   */
+  bool module_lookup_linked_param_valid_;
 };
 
 std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg);
