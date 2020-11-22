@@ -75,9 +75,8 @@ void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module modu
   ctxs_ = ctxs;
   lookup_linked_param_ = lookup_linked_param_func;
   if (lookup_linked_param_ == nullptr) {
-    lookup_linked_param_ = PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-                                        this->DefaultLookupLinkedParam(args, rv);
-                                      });
+    lookup_linked_param_ = PackedFunc(
+        [this](TVMArgs args, TVMRetValue* rv) { this->DefaultLookupLinkedParam(args, rv); });
   }
   this->SetupStorage();
   this->SetupOpExecs();
@@ -266,7 +265,7 @@ void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   // params are present.
   if (!module_lookup_linked_param_valid_) {
     module_lookup_linked_param_ =
-      mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
+        mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
   }
   if (module_lookup_linked_param_ == nullptr) {
     *rv = nullptr;

@@ -233,18 +233,18 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
   auto ret_types_array = builder_->CreateBitCast(
 #if TVM_LLVM_VERSION >= 50
-    &function->arg_begin()[4],
+      &function->arg_begin()[4],
 #else
-    &(*(std::next(function->arg_begin(), 4))),
+      &(*(std::next(function->arg_begin(), 4))),
 #endif
-    llvm::ArrayType::get(t_int_, 1)->getPointerTo());
-    auto retval_array = builder_->CreateBitCast(
+      llvm::ArrayType::get(t_int_, 1)->getPointerTo());
+  auto retval_array = builder_->CreateBitCast(
 #if TVM_LLVM_VERSION >= 50
-        &function->arg_begin()[3],
+      &function->arg_begin()[3],
 #else
-        &(*std::next(function->arg_begin(), 3)),
+      &(*std::next(function->arg_begin(), 3)),
 #endif
-        llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1)->getPointerTo());
+      llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1)->getPointerTo());
   llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
 
   builder_->SetInsertPoint(default_block);

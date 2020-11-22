@@ -475,8 +475,8 @@ TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue*
 TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
     .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx,
                        void* ndarray_handle) -> NDArray {
-      return NDArrayFromRemoteOpaqueHandle(
-          RPCModuleGetSession(mod), remote_array, template_tensor, ctx, ndarray_handle);
+      return NDArrayFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array, template_tensor,
+                                           ctx, ndarray_handle);
     });
 
 }  // namespace runtime

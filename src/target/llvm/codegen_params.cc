@@ -43,30 +43,30 @@ struct LLVMConstantGetter {
 };
 
 template <typename T>
-struct LLVMConstantGetter<T, std::enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value)>> {
+struct LLVMConstantGetter<
+    T, std::enable_if_t<(std::is_integral<T>::value && std::is_signed<T>::value)>> {
   static llvm::Constant* getElement(llvm::Type* ty, T t) {
     return llvm::ConstantInt::getSigned(ty, t);
   }
 };
 
 template <typename T>
-struct LLVMConstantGetter<T, std::enable_if_t<(std::is_integral<T>::value && !std::is_signed<T>::value)>> {
-  static llvm::Constant* getElement(llvm::Type* ty, T t) {
-    return llvm::ConstantInt::get(ty, t);
-  }
+struct LLVMConstantGetter<
+    T, std::enable_if_t<(std::is_integral<T>::value && !std::is_signed<T>::value)>> {
+  static llvm::Constant* getElement(llvm::Type* ty, T t) { return llvm::ConstantInt::get(ty, t); }
 };
 
 template <typename T>
 struct LLVMConstantGetter<T, std::enable_if_t<std::is_floating_point<T>::value>> {
-  static llvm::Constant* getElement(llvm::Type* ty, T t) {
-    return llvm::ConstantFP::get(ty, t);
-  }
+  static llvm::Constant* getElement(llvm::Type* ty, T t) { return llvm::ConstantFP::get(ty, t); }
 };
 
 template <typename T, typename = std::enable_if<std::is_pod<T>::value>>
-void BuildLLVMVector(llvm::Type* element_type, void* tensor_data, size_t num_elements, std::vector<llvm::Constant*>* elements) {
+void BuildLLVMVector(llvm::Type* element_type, void* tensor_data, size_t num_elements,
+                     std::vector<llvm::Constant*>* elements) {
   for (size_t i = 0; i < num_elements; i++) {
-    auto llvm_element = LLVMConstantGetter<T>::getElement(element_type, static_cast<T*>(tensor_data)[i]);
+    auto llvm_element =
+        LLVMConstantGetter<T>::getElement(element_type, static_cast<T*>(tensor_data)[i]);
     elements->emplace_back(llvm_element);
   }
 }
@@ -97,21 +97,21 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
       element_type = llvm::Type::getIntNTy(*ctx, arr_type.bits());
 
       switch (arr_type.bits()) {
-      case 8:
-        BuildLLVMVector<int8_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 16:
-        BuildLLVMVector<int16_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 32:
-        BuildLLVMVector<int32_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 64:
-        BuildLLVMVector<int64_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      default:
-        ICHECK(false) << "should not get here";
-        break;
+        case 8:
+          BuildLLVMVector<int8_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 16:
+          BuildLLVMVector<int16_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 32:
+          BuildLLVMVector<int32_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 64:
+          BuildLLVMVector<int64_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        default:
+          ICHECK(false) << "should not get here";
+          break;
       }
       break;
 
@@ -123,38 +123,38 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
       element_type = llvm::Type::getIntNTy(*ctx, arr_type.bits());
 
       switch (arr_type.bits()) {
-      case 8:
-        BuildLLVMVector<uint8_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 16:
-        BuildLLVMVector<uint16_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 32:
-        BuildLLVMVector<uint32_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 64:
-        BuildLLVMVector<uint64_t>(element_type, arr->data, num_elements, &elements);
-        break;
-      default:
-        ICHECK(false) << "should not get here";
-        break;
+        case 8:
+          BuildLLVMVector<uint8_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 16:
+          BuildLLVMVector<uint16_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 32:
+          BuildLLVMVector<uint32_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 64:
+          BuildLLVMVector<uint64_t>(element_type, arr->data, num_elements, &elements);
+          break;
+        default:
+          ICHECK(false) << "should not get here";
+          break;
       }
       break;
 
     case runtime::DataType::TypeCode::kFloat:
       switch (arr_type.bits()) {
-      case 32:
-        element_type = llvm::Type::getFloatTy(*ctx);
-        BuildLLVMVector<float>(element_type, arr->data, num_elements, &elements);
-        break;
-      case 64:
-        element_type = llvm::Type::getDoubleTy(*ctx);
-        BuildLLVMVector<double>(element_type, arr->data, num_elements, &elements);
-        break;
-      default:
-        CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
-                     << arr_type.bits() << "-bit array";
-        break;
+        case 32:
+          element_type = llvm::Type::getFloatTy(*ctx);
+          BuildLLVMVector<float>(element_type, arr->data, num_elements, &elements);
+          break;
+        case 64:
+          element_type = llvm::Type::getDoubleTy(*ctx);
+          BuildLLVMVector<double>(element_type, arr->data, num_elements, &elements);
+          break;
+        default:
+          CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
+                       << arr_type.bits() << "-bit array";
+          break;
       }
       break;
 
