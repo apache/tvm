@@ -73,7 +73,8 @@ template <typename T, typename = std::enable_if<std::is_floating_point<T>::value
 void PrintArray(void* data, size_t num_elements, int one_element_size_bytes, int elements_per_row,
                 std::string indent_str, std::ostream& os) {
   std::stringstream ss;
-  ss.setf(std::ios::hex | (std::is_signed<T>::value ? std::ios::showbase : 0) | std::ios::fixed | std::ios::scientific,
+  ss.setf(std::ios::hex | (std::is_signed<T>::value ? std::ios::showbase : 0) | std::ios::fixed |
+              std::ios::scientific,
           std::ios::basefield | std::ios::showbase | std::ios::floatfield);
   for (int i = 0; i < num_elements; i++) {
     T elem = static_cast<T*>(data)[i];
@@ -96,7 +97,6 @@ void PrintArray(void* data, size_t num_elements, int one_element_size_bytes, int
     }
   }
 }
-
 
 void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os) {
   auto arr_type = arr.DataType();
@@ -167,11 +167,14 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
       if (arr_type.bits() == 8) {
         PrintArray<uint8_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 16) {
-        PrintArray<uint16_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
+        PrintArray<uint16_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str,
+                             os);
       } else if (arr_type.bits() == 32) {
-        PrintArray<uint32_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
+        PrintArray<uint32_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str,
+                             os);
       } else if (arr_type.bits() == 64) {
-        PrintArray<uint64_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
+        PrintArray<uint64_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str,
+                             os);
       } else {
         CHECK(false) << "should not get here";
       }
@@ -181,9 +184,11 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
       os.fill(' ');
       os.setf(std::ios::left, std::ios::adjustfield);
       if (arr_type.bits() == 32) {
-        PrintArray<float>(tensor->dl_tensor.data, num_elements, one_element_size_bytes, elements_per_row, indent_str, os);
+        PrintArray<float>(tensor->dl_tensor.data, num_elements, one_element_size_bytes,
+                          elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 64) {
-        PrintArray<double>(tensor->dl_tensor.data, num_elements, one_element_size_bytes, elements_per_row, indent_str, os);
+        PrintArray<double>(tensor->dl_tensor.data, num_elements, one_element_size_bytes,
+                           elements_per_row, indent_str, os);
       } else {
         CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
                      << arr_type.bits() << "-bit array";

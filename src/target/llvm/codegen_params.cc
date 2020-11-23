@@ -66,7 +66,8 @@ void BuildLLVMVector(llvm::Type* element_type, void* tensor_data, size_t num_ele
                      std::vector<llvm::Constant*>* elements) {
   elements->resize(num_elements, nullptr);
   std::transform(static_cast<T*>(tensor_data), static_cast<T*>(tensor_data) + num_elements,
-                 elements->begin(), [&](T t) { return LLVMConstantGetter<T>::getElement(element_type, t); });
+                 elements->begin(),
+                 [&](T t) { return LLVMConstantGetter<T>::getElement(element_type, t); });
 }
 
 llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::NDArray arr) {
