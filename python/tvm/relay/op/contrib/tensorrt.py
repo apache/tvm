@@ -23,7 +23,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 logger = logging.getLogger("TensorRT")
 
@@ -828,6 +828,38 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+class IsComputeIntensiveGraph(ExprVisitor):
+    """
+    Visits the Graph recursively and checks if it contains compute heavy ops like convolutions and
+    its transpose, dense and batch mat-mul.
+    """
+
+    def __init__(self):
+        ExprVisitor.__init__(self)
+        self.is_compute_intensive = False
+
+    def visit_call(self, call):
+        heavy_ops = set(
+            [
+                "nn.conv2d",
+                "nn.conv2d_transpose",
+                "nn.conv3d",
+                "nn.conv3d_transpose",
+                "nn.dense",
+                "nn.batch_matmul",
+            ]
+        )
+        if isinstance(call.op, tvm.tir.op.Op):
+            if str(call.op) in heavy_ops:
+                self.is_compute_intensive = True
+
+        return super().visit_call(call)
+
+    def is_graph_compute_intensive(self, subgraph):
+        self.visit(subgraph)
+        return self.is_compute_intensive
+
+
 def is_valid_subgraph(params, body):
     """Final check on whether the subgraph is valid and should be offloaded to TensorRT."""
     # Remove invalid subgraphs for implicit batch mode.
@@ -841,19 +873,19 @@ def is_valid_subgraph(params, body):
                     if len(tupe_type.shape) == 0:
                         logger.info("tensorrt: scalar inputs not supported")
                         return False
-                    input_batch_sizes.append(int(tupe_type.shape[0]))
+                    if not isinstance(tupe_type.shape[0], tvm.tir.expr.Any):
+                        input_batch_sizes.append(int(tupe_type.shape[0]))
             else:
                 # Scalar inputs not allowed
                 if len(var.checked_type.shape) == 0:
                     logger.info("tensorrt: scalar inputs not supported")
                     return False
-                input_batch_sizes.append(int(var.checked_type.shape[0]))
+                if not isinstance(var.checked_type.shape[0], tvm.tir.expr.Any):
+                    input_batch_sizes.append(int(var.checked_type.shape[0]))
         if len(input_batch_sizes) > 1 and len(set(input_batch_sizes)) != 1:
             logger.info("tensorrt: inputs have different batch sizes")
             return False
-    # Remove subgraphs with no multiply-accumulates
-    if get_tensorrt_remove_no_mac_subgraphs() and relay.analysis.get_total_mac_number(body) == 0:
-        return False
+
     return True
 
 
@@ -898,7 +930,10 @@ def prune_tensorrt_subgraphs(mod):
         name = subgraph.name_hint
         if not mod[name].attrs or mod[name].attrs["Compiler"] != "tensorrt":
             continue
-        if not is_valid_subgraph(mod[name].params, mod[name].body):
+        if not (
+            is_valid_subgraph(mod[name].params, mod[name].body)
+            and IsComputeIntensiveGraph().is_graph_compute_intensive(mod[name])
+        ):
             subgraphs_to_remove.append(name)
     # Create new pruned module
     new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
