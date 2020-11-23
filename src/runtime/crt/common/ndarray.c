@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/crt/internal/common/ndarray.h>
 #include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/platform.h>
 
 #include "crt_config.h"
 
@@ -34,7 +35,9 @@ TVMNDArray TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType 
   TVMNDArray ret;
   memset(&ret, 0, sizeof(TVMNDArray));
   ret.dl_tensor.ndim = ndim;
-  ret.dl_tensor.shape = (int64_t*)vmalloc(sizeof(int64_t) * ndim);  // NOLINT(*)
+  tvm_crt_error_t err;
+  DLContext dlctx = {kDLCPU, 0};
+  err = TVMPlatformMemoryAllocate(sizeof(int64_t) * ndim, dlctx, (void*) &ret.dl_tensor.shape);
   memcpy(ret.dl_tensor.shape, shape, sizeof(int64_t) * ndim);
   ret.dl_tensor.dtype = dtype;
   ret.dl_tensor.ctx = ctx;
@@ -122,9 +125,20 @@ TVMNDArray TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int3
 }
 
 int TVMNDArray_Release(TVMNDArray* arr) {
-  vfree(arr->dl_tensor.data);
+  tvm_crt_error_t err;
+  DLContext ctx = {kDLCPU, 0};
+
+  err = TVMPlatformMemoryFree(arr->dl_tensor.data, ctx);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+
   arr->dl_tensor.data = 0;
-  vfree(arr->dl_tensor.shape);
+  err = TVMPlatformMemoryFree(arr->dl_tensor.shape, ctx);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+
   arr->dl_tensor.shape = 0;
   return 0;
 }
