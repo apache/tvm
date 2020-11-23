@@ -203,7 +203,7 @@ class TaskScheduler:
         self.beta = beta
         self.gamma = gamma
         self.backward_window_size = backward_window_size
-        self.callbacks = [PrintTableInfo()] if callbacks is not None else []
+        self.callbacks = callbacks if callbacks is not None else [PrintTableInfo()]
 
         assert len(self.tasks) != 0, "No tasks"
         assert self.strategy in ["round-robin", "gradient"]
