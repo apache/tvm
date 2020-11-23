@@ -453,9 +453,9 @@ def dot_int8_int8_int32(int32_lanes, dtype="uint"):
 
     Parameters
     ----------
-    int32_lanes: int
+    int32_lanes : int
         How many int32/uint32 to produce
-    dtype: str, optional, {"uint", "int"}
+    dtype : str, optional, {"uint", "int"}
         Whether it works on unsigned int or signed int
 
     Returns
@@ -546,16 +546,16 @@ def select_word(vec, lane, dtype_vec):
 
      Parameters
     ----------
-    vec: tvm.tir.Expr
+    vec : tvm.tir.Expr
          int8x16 vector expression
-    lane: int
+    lane : int
         vector lane we want to replicate
-    dtype_vec: str
+    dtype_vec : str
         vector data type (e.g., int8x16)
 
     Returns
     ----------
-    output: tvm.tir.Expr
+    output : tvm.tir.Expr
         replicated vector
     """
     # Reinterpret vec_a as 4 int32 words
@@ -592,7 +592,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
 
     Parameters
     ----------
-    dtype: str, {"uint8", "int8"}
+    dtype : str, {"uint8", "int8"}
         Whether it works on unsigned int or signed int
 
     Returns
@@ -723,9 +723,9 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
 
     Parameters
     ----------
-    dtype: str, {"uint8", "int8"}
+    dtype : str, {"uint8", "int8"}
         Whether it works on unsigned int or signed int
-    rows: int
+    rows : int
         Number of of the output rows "n"
 
     Returns
@@ -934,7 +934,7 @@ def gemm_acc_2x2_int8_int8_int32(dtype):
 
     Parameters
     ----------
-    dtype: str, {"uint8", "int8"}
+    dtype : str, {"uint8", "int8"}
         Whether it works on unsigned int or signed int
 
     Returns
