@@ -21,13 +21,35 @@ import abc
 import glob
 import os
 import re
+import subprocess
 
-from tvm.contrib import binutils
 import tvm.target
 from . import build
 from . import class_factory
 from . import debugger
 from . import transport
+
+
+def run_cmd(cmd):
+    """Runs `cmd` in a subprocess and awaits its completion.
+
+    Parameters
+    ----------
+    cmd : List[str]
+        list of command-line arguments
+
+    Returns
+    -------
+    output : str
+        resulting stdout capture from the subprocess
+    """
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (output, _) = proc.communicate()
+    output = output.decode("utf-8")
+    if proc.returncode != 0:
+        cmd_str = " ".join(cmd)
+        msg = f'error while running command "{cmd_str}":\n{output}'
+        raise RuntimeError(msg)
 
 
 class DetectTargetError(Exception):
@@ -232,13 +254,13 @@ class DefaultCompiler(Compiler):
 
             output_filename = f"{src_base}.o"
             output_abspath = os.path.join(output, output_filename)
-            binutils.run_cmd(args + ["-c", "-o", output_abspath, src])
+            run_cmd(args + ["-c", "-o", output_abspath, src])
             outputs.append(output_abspath)
 
         output_filename = f"{os.path.basename(output)}.a"
         output_abspath = os.path.join(output, output_filename)
-        binutils.run_cmd([prefix + "ar", "-r", output_abspath] + outputs)
-        binutils.run_cmd([prefix + "ranlib", output_abspath])
+        run_cmd([prefix + "ar", "-r", output_abspath] + outputs)
+        run_cmd([prefix + "ranlib", output_abspath])
 
         return tvm.micro.MicroLibrary(output, [output_filename])
 
@@ -273,7 +295,7 @@ class DefaultCompiler(Compiler):
             for lib_name in obj.library_files:
                 args.append(obj.abspath(lib_name))
 
-        binutils.run_cmd(args)
+        run_cmd(args)
         return tvm.micro.MicroBinary(output, output_filename, [])
 
     @property
