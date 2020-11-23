@@ -46,15 +46,15 @@ def gemm_4x4_int8_int8_int32(M, N, K, unroll, in_type):
 
     Parameters
     ----------
-    M: int
+    M : int
         rows of the matrix A
-    N: int
+    N : int
         columns of the matrix B
-    K: int
+    K : int
         columns of matrix A
-    unroll: boolean
+    unroll : bool
         Unroll the loop accumulation if True
-    in_type: str, {'uint8', 'int8'}
+    in_type : str, {'uint8', 'int8'}
 
     Returns
     -------
@@ -214,12 +214,17 @@ def gemm_4x4_int8_int8_int32(M, N, K, unroll, in_type):
 
         Parameters:
         ----------
-        M: number of total rows of the output matrix
-        N: number of total rows of the output matrix
-        ins: input buffers
-        acc: bank of register accumulators
-        tiled_idx: index of a sub-tile of A and B in A[tile_idx][:][:] and B[tile_idx][:][:].
-           Please note that  0 <= tile_idx <= K//16
+        M : int
+            Number of total rows of the output matrix
+        N : int
+            Number of total columns of the output matrix
+        ins : list of tvm.tir.buffer
+            Input buffers
+        acc : tvm.tir.ir_builder.BufferVar
+            Bank of register accumulators
+        tiled_idx : int
+            Index of a sub-tile of A and B in A[tile_idx][:][:] and B[tile_idx][:][:].
+            Please note that  0 <= tile_idx <= K//16
 
         """
         a0 = ins[0].vload([tile_idx, 0, 0], dtype_vec)
