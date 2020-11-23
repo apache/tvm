@@ -73,10 +73,14 @@ template <typename T, typename = std::enable_if<std::is_floating_point<T>::value
 void PrintArray(void* data, size_t num_elements, int one_element_size_bytes, int elements_per_row,
                 std::string indent_str, std::ostream& os) {
   std::stringstream ss;
-  ss.setf(std::ios::hex | (std::is_signed<T>::value ? std::ios::showbase : 0) | std::ios::fixed |
-              std::ios::scientific,
-          std::ios::basefield | std::ios::showbase | std::ios::floatfield);
-  for (int i = 0; i < num_elements; i++) {
+  if (std::is_signed<T>::value) {
+    ss.setf(std::ios::hex | std::ios::showbase | std::ios::fixed | std::ios::scientific,
+            std::ios::basefield | std::ios::showbase | std::ios::floatfield);
+  } else {
+    ss.setf(std::ios::hex | std::ios::fixed | std::ios::scientific,
+            std::ios::basefield | std::ios::showbase | std::ios::floatfield);
+  }
+  for (size_t i = 0; i < num_elements; i++) {
     T elem = static_cast<T*>(data)[i];
     if (std::isinf(elem)) {
       // C99 standard.
