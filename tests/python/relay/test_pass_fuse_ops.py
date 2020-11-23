@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
@@ -44,7 +43,6 @@ def test_fuse_simple():
         return relay.Function([x], y)
 
     z = before()
-    zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(zz, after)
