@@ -24,6 +24,7 @@
 
 #include "codegen_params.h"
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
