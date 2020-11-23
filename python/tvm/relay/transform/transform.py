@@ -268,6 +268,18 @@ def FuseOps(fuse_opt_level=-1):
     return _ffi_api.FuseOps(fuse_opt_level)
 
 
+def DefuseOps():
+    """The inverse operation of FuseOps. It transforms a fused program returned by FuseOps into the
+    program before FuseOps. (i.e., x == DefuseOps(FuseOps(x)))
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for operator defusion.
+    """
+    return _ffi_api.DefuseOps()
+
+
 def CombineParallelConv2D(min_num_branches=3):
     """Combine multiple conv2d operators into one.
 
