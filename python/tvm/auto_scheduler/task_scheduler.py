@@ -170,6 +170,7 @@ class TaskScheduler:
         The parameter used for 'gradient' strategy
     callbacks: Optional[List[TaskSchedulerCallback]]
         The task scheduler callbacks that will be called before and after tuning a task.
+        If None, then PrintTableInfo callback will be used.
     """
 
     def __init__(
@@ -202,7 +203,7 @@ class TaskScheduler:
         self.beta = beta
         self.gamma = gamma
         self.backward_window_size = backward_window_size
-        self.callbacks = callbacks if callbacks is not None else []
+        self.callbacks = [PrintTableInfo()] if callbacks is not None else []
 
         assert len(self.tasks) != 0, "No tasks"
         assert self.strategy in ["round-robin", "gradient"]
@@ -474,7 +475,7 @@ class TaskSchedulerCallback:
         task_id: int
             The task ID going to be tuned.
         """
-        pass
+        # Do nothing by default
 
     def post_tune(self, task_scheduler, task_id):
         """The callback after tuning each task.
@@ -486,10 +487,10 @@ class TaskSchedulerCallback:
         task_id: int
             The task ID be tuned.
         """
-        pass
+        # Do nothing by default
 
 
-class PrintTableInfoCallback(TaskSchedulerCallback):
+class PrintTableInfo(TaskSchedulerCallback):
     """The callback that prints a table of current progress."""
 
     def pre_tune(self, task_scheduler, task_id):
@@ -534,7 +535,7 @@ class PrintTableInfoCallback(TaskSchedulerCallback):
         )
 
 
-class LogEstimatedLatencyCallback(TaskSchedulerCallback):
+class LogEstimatedLatency(TaskSchedulerCallback):
     """Log the estimated latency to the file after tuning a task.
 
     Parameters
