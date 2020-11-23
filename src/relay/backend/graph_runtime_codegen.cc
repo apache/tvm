@@ -320,7 +320,7 @@ class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<G
     auto node = GraphInputNode::make_node_ptr(name, GraphAttrs());
     auto to_return = AddNode(node, expr);
     CHECK_EQ(to_return.size(), 1) << "Expected exactly 1 parameter node created";
-    param_storage_ids_[name] = nodes_.size() - 1;
+    param_storage_ids_[name] = storage_device_map_[expr][0][0]->value;
     params_[name] = op->data;
     return to_return;
   }

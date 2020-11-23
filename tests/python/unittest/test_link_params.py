@@ -31,7 +31,10 @@ import tvm.testing
 from tvm.contrib import utils
 
 
-TEST_SHAPE = (3, 4, 5)
+INPUT_SHAPE = (1, 3, 16, 16)
+
+
+KERNEL_SHAPE = (3, 3, 3, 3)
 
 
 # The data types that are linkable.
@@ -55,23 +58,22 @@ def dtype_info(dtype):
 RANDOM_TENSOR_START = None
 
 
-def _make_random_tensor(dtype):
-    """Create a random test tensor of shape TEST_SHAPE and the given dtype."""
+def _make_random_tensor(dtype, shape):
+    """Create a random test tensor with given shape and dtype."""
     global RAND_SEED
     if RANDOM_TENSOR_START is not None:
         to_return = np.arange(
-            RANDOM_TENSOR_START, RANDOM_TENSOR_START + np.prod(TEST_SHAPE), dtype=dtype
-        ).reshape(TEST_SHAPE)
-        RAND_SEED += np.prod(TEST_SHAPE)
+            RANDOM_TENSOR_START, RANDOM_TENSOR_START + np.prod(shape), dtype=dtype
+        ).reshape(shape)
+        RAND_SEED += np.prod(shape)
         return to_return
 
     dinfo = dtype_info(dtype)
     if "int" in dtype:
-        return np.random.randint(dinfo.min, dinfo.max, TEST_SHAPE, dtype=dtype)
+        return np.random.randint(dinfo.min, dinfo.max, shape, dtype=dtype)
     else:
-        to_return = np.random.uniform(0, dinfo.max, TEST_SHAPE)
-        #        to_return = dinfo.min + (np.random.random(TEST_SHAPE) * dinfo.max)
-        np.reshape(to_return, np.prod(TEST_SHAPE))[::2] *= -1
+        to_return = np.random.uniform(0, dinfo.max, shape).astype(dtype)
+        np.reshape(to_return, np.prod(shape))[::2] *= -1
         return to_return
 
 
@@ -94,10 +96,11 @@ def _lookup_sid(graph, name):
     num_outputs_seen = 0
     for i, n in enumerate(graph["nodes"]):
         if n["name"] == name:
+            print('sid', name, graph["attrs"]["storage_id"][1], num_outputs_seen)
             return graph["attrs"]["storage_id"][1][num_outputs_seen]
         else:
             if "attrs" in n and "num_outputs" in n["attrs"]:
-                num_outputs_seen += n["attrs"]["num_outputs"]
+                num_outputs_seen += int(n["attrs"]["num_outputs"])
             else:
                 num_outputs_seen += 1
 
@@ -122,15 +125,14 @@ def _verify_linked_param(dtype, lib, mod, graph, name):
     # NOTE: query_imports=True because when loading a module from disk (i.e. for C backend),
     # a GraphRuntimeFactory module is created instead of the module itself.
     param_ptr = mod.get_function("_lookup_linked_param", True)(sid)
-    print("verify", param_ptr)
-    arr_data = (_get_ctypes_dtype(dtype) * np.prod(TEST_SHAPE)).from_address(param_ptr.value)
     gen_param = lib.params[name]
-    print("gen param dtype", gen_param.dtype)
+    arr_data = (_get_ctypes_dtype(dtype) * np.prod(gen_param.shape)).from_address(param_ptr.value)
     arr = np.ndarray(shape=gen_param.shape, dtype=gen_param.dtype, buffer=arr_data, order="C")
     if "int" in gen_param.dtype:
         np.testing.assert_equal(gen_param.asnumpy(), arr)
     else:
         np.testing.assert_allclose(gen_param.asnumpy(), arr)
+    return dtype == gen_param.dtype
 
 
 def _make_mod_and_params(dtype):
@@ -139,27 +141,31 @@ def _make_mod_and_params(dtype):
     param_init = {}
 
     def _add_decl(name, dtype):
-        param_decls[name] = f"%{name} : Tensor[{TEST_SHAPE}, {dtype}]"
-        param_init[name] = _make_random_tensor(dtype)
+        param_decls[name] = f"%{name} : Tensor[{KERNEL_SHAPE}, {dtype}]"
+        param_init[name] = _make_random_tensor(dtype, KERNEL_SHAPE)
 
+    # Add several parameters so that the number of parameters
     _add_decl(f"{dtype}_a", dtype)
     _add_decl(f"{dtype}_b", dtype)
 
     mod_lines = [
         '#[version = "0.0.5"]',
-        f"def @main(%rand_input : Tensor[{TEST_SHAPE}, {dtype}], { ', '.join(param_decls.values()) } )  {{",
+        f"def @main(%rand_input : Tensor[{INPUT_SHAPE}, {dtype}], { ', '.join(param_decls.values()) } )  {{",
+        # This program ensures that GraphPlanMemory alternates between the same two storage IDs for a
+        # while. In doing this, it ensures that param %{dtype}_b will be placed into the graph at an
+        # index unequal to its storage_id. This ensures that GraphRuntimeCodegen encodes the storage_id
+        # and not the parameter index into the graph.
+        (f'    %0 = nn.conv2d(%rand_input, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
+         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
+        (f'    %1 = nn.conv2d(%0, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
+         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
+        (f'    %2 = nn.conv2d(%1, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
+         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
+        (f'    %3 = nn.conv2d(%2, %{dtype}_b, data_layout="NCHW", kernel_layout="OIHW", '
+         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
+        "    %3",
+        "}",
     ]
-    if "int" in dtype:
-        mod_lines.append(
-            #            f'    %0 = bitwise_xor(%rand_input, bitwise_xor(%{dtype}_a, %{dtype}_b));')
-            f"    %0 = add(%rand_input, %{dtype}_a);"
-        )
-    else:
-        mod_lines.append(
-            f'    %0 = cast(add(%rand_input, cast(add(%{dtype}_a, %{dtype}_b), dtype="{dtype}")), dtype="{dtype}");'
-        )
-    #             f'    %0 = cast(add(%rand_input, %{dtype}_a), dtype="{dtype}");')
-    mod_lines.extend(["    %0", "}"])
 
     mod = tvm.parser.fromtext("\n".join(mod_lines))
     return mod, param_init
@@ -169,16 +175,17 @@ def _make_mod_and_params(dtype):
 def test_llvm_link_params():
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
-        rand_input = _make_random_tensor(dtype)
+        rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
         main_func = mod["main"]
         target = "llvm --runtime=c --system-lib --link-params"
         with tvm.transform.PassContext(opt_level=3):
             lib = tvm.relay.build(mod, target, params=param_init)
-            assert set(lib.params.keys()) == {"p0"}  # NOTE: op folded
+            assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
+            print('graph', lib.graph_json)
             graph = json.loads(lib.graph_json)
             for p in lib.params:
-                _verify_linked_param(dtype, lib, lib.lib, graph, p)
+                _verify_linked_param(dtype, lib, lib.lib, graph, p) or found_one
 
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib):
@@ -244,18 +251,18 @@ def test_c_link_params():
     temp_dir = utils.tempdir()
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
-        rand_input = _make_random_tensor(dtype)
+        rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
         main_func = mod["main"]
         target = "c --link-params"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             lib = tvm.relay.build(mod, target, params=param_init)
-            assert set(lib.params.keys()) == {"p0"}  # NOTE: op folded
+            assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
             src = lib.lib.get_source()
             lib.lib.save("test.c", "cc")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
-            param = lib.params["p0"].asnumpy().reshape(np.prod(TEST_SHAPE))
+            param = lib.params["p0"].asnumpy().reshape(np.prod(KERNEL_SHAPE))
             param_def = f"static const {c_dtype} __tvm_param__p0[{np.prod(param.shape)}] = {{"
             for i, line in enumerate(src_lines):
                 if line == param_def:
@@ -269,7 +276,6 @@ def test_c_link_params():
             if dtype.startswith("int"):
                 width += 1  # Account for sign
 
-            print("check printing of", param)
             while "};" not in src_lines[i]:
                 for match in HEX_NUM_RE.finditer(src_lines[i]):
                     assert match.group() == _format_c_value(dtype, width, param[cursor]), (
@@ -296,7 +302,6 @@ def test_c_link_params():
             def _run_linked(lib_mod):
                 graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
                 graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
-                print("linked", graph_rt.get_input("p0"))
                 graph_rt.run()
 
                 return graph_rt.get_output(0)
@@ -311,8 +316,6 @@ def test_c_link_params():
             lib_path = temp_dir.relpath(f"test-{dtype}-unlinked.so")
             lib.export_library(lib_path)
             lib_mod = tvm.runtime.load_module(lib_path)
-
-            print("unlinked", params)
 
             def _run_unlinked(lib_mod):
                 graph_rt = tvm.contrib.graph_runtime.GraphModule(lib_mod["default"](tvm.cpu(0)))
@@ -334,12 +337,12 @@ def test_crt_link_params():
 
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
-        rand_input = _make_random_tensor(dtype)
+        rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
         main_func = mod["main"]
         target = "c -mcpu=native --system-lib --runtime=c --link-params"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             graph_json, lib, params = tvm.relay.build(mod, target, params=param_init)
-            assert set(params.keys()) == {"p0"}  # NOTE: op folded
+            assert set(params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
             workspace = tvm.micro.Workspace()
             compiler = tvm.micro.DefaultCompiler(target=target)
@@ -383,9 +386,9 @@ def test_crt_link_params():
                 graph_rt = tvm.contrib.graph_runtime.create(graph_json, mod, tvm.cpu(0))
                 graph_rt.set_input("rand_input", rand_input, **lowered_params)
                 graph_rt.run()
-                return graph_rt.get_output(0)
+                return graph_rt.get_output(0).asnumpy()
 
-            unlinked_output = _run_unlinked(lib).asnumpy()
+            unlinked_output = _run_unlinked(lib)
 
         if "int" in dtype:
             np.testing.assert_equal(unlinked_output, linked_output)
