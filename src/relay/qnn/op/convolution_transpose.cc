@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/qnn/op/convolution.cc
- * \brief Property def of qnn convolution operator.
+ * \file src/relay/qnn/op/convolution_transpose.cc
+ * \brief Property def of qnn transpose convolution operator.
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>

@@ -330,11 +330,27 @@ def conv2d_transpose(
     weight : tvm.relay.Expr
         The weight expressions.
 
+    input_zero_point: tvm.relay.Expr
+           The zero point of the data distribution.
+
+    kernel_zero_point: tvm.relay.Expr
+           The zero point of the quantized_kernel distribution.
+
+    input_scale: tvm.relay.Expr
+           The scale for the input tensor. The scale for the input tensor is
+           stored purely for convenience here. See more commentary below.
+
+    kernel_scale: tvm.relay.Expr
+           The scale for the weight tensor. The scale for the weight tensor is
+           stored for access to this during relay. This information is not
+           needed in the pass pipeline after qnn.transpose_conv2d is lowered to the
+           sequence of steps as in nn.transpose_conv2d. See also input_scale in Requantize.
+
     strides : Tuple[int], optional
         The strides of convolution.
 
     padding : Tuple[int], optional
-        The padding of convolution on both sides of inputs.
+        The padding of convolution.
 
     dilation : Tuple[int], optional
         Specifies the dilation rate to be used for dilated convolution.
@@ -343,7 +359,7 @@ def conv2d_transpose(
         Number of output channels of this convolution.
 
     kernel_size : tuple of int, optional
-        The spatial of the convolution kernel.
+        The spatial dimensions of the convolution kernel.
 
     groups : int, optional
         Number of groups for grouped convolution.
@@ -358,7 +374,8 @@ def conv2d_transpose(
         Layout of the output, by default, out_layout is the same as data_layout
 
     output_padding : Tuple[int], optional
-        Used to disambiguate the output shape.
+        Used to identify the padding within the output shape
+        (only used in training, where transpose_conv represents the gradient of a convolution )
 
     out_dtype : str, optional
         Specifies the output data type for mixed precision conv2d.
