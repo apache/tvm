@@ -146,7 +146,6 @@ class AnnotateTargetRewriter : public ExprRewriter {
     const CallNode* call = expr.as<CallNode>();
     if (op_expr_to_target_.find(expr) != op_expr_to_target_.end()) {
       // Check whether expr has args, if not - do not insert compiler_end.
-      expr->IsInstance<RefWriteNode>();
       if (expr->IsInstance<RefWriteNode>() || expr->IsInstance<RefCreateNode>() ||
           expr->IsInstance<RefReadNode>() || expr->IsInstance<TupleNode>() ||
           expr->IsInstance<TupleGetItemNode>() || (call && !call->args.empty())) {

@@ -214,9 +214,7 @@ def test_multiple_ends():
 
     for annotate_non_call_ops in [False, True]:
         result = transform.AnnotateTarget("test", annotate_non_call_ops)(before())
-        print("Result", annotate_non_call_ops, "\n", result, "\n")
         expected = transform.InferType()(after())
-        print("Expected", annotate_non_call_ops, "\n", expected, "\n")
         assert tvm.ir.structural_equal(expected, result)
 
 
@@ -284,9 +282,7 @@ def test_ref_create_read_write():
 
     for annotate_non_call_ops in [True, False, True]:
         result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
-        print("Actual", annotate_non_call_ops, "\n", result.astext(True), "\n")
         expected = transform.InferType()(after(annotate_non_call_ops))
-        print("Expected", annotate_non_call_ops, "\n", expected.astext(True), "\nExp")
         assert tvm.ir.structural_equal(expected, result)
 
 
@@ -340,9 +336,7 @@ def test_tuple():
 
     for annotate_non_call_ops in [False, True]:
         result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
-        print("RESULT", annotate_non_call_ops, "\n", result.astext(True), "\nResult")
         expected = transform.InferType()(after(annotate_non_call_ops))
-        print("EXPECT", annotate_non_call_ops, "\n", expected.astext(True), "\nExpect")
         assert tvm.ir.structural_equal(expected, result)
 
 
@@ -404,11 +398,8 @@ def test_double_target():
 
     for annotate_non_call_ops in [True, False]:
         mod = before()
-        print("======================BEFORE: \n", mod.astext(True), "\n")
         mod1 = transform.AnnotateTarget("double.A", annotate_non_call_ops)(mod)
-        print("====================== FIRST: \n", mod1.astext(True), "\n")
         mod2 = transform.AnnotateTarget("double.A", annotate_non_call_ops)(mod1)
-        print("====================== SECOND: \n", mod2.astext(True), "\n")
         assert tvm.ir.structural_equal(mod1, mod2)
 
 
@@ -430,13 +421,9 @@ def test_different_targets():
 
     for annotate_non_call_ops in [True, False]:
         mod = before()
-        print("======================BEFORE: \n", mod.astext(True), "\n")
         mod1 = transform.AnnotateTarget("different.A", annotate_non_call_ops)(mod)
-        print("======================A: \n", mod1.astext(True), "\n")
         mod1 = transform.AnnotateTarget("different.B", annotate_non_call_ops)(mod1)
-        print("======================B: \n", mod1.astext(True), "\n")
         mod2 = transform.AnnotateTarget(["different.A", "different.B"], annotate_non_call_ops)(mod)
-        print("======================B: \n", mod2.astext(True), "\n")
         assert tvm.ir.structural_equal(mod1, mod2)
 
 
@@ -462,11 +449,8 @@ def test_multiple_runs():
 
     for annotate_non_call_ops in [True, False]:
         mod = transform.AnnotateTarget("A", annotate_non_call_ops)(before())
-        print("======================A: \n", mod.astext(True), "\n")
         mod = transform.AnnotateTarget("B", annotate_non_call_ops)(mod)
-        print("======================B: \n", mod.astext(True), "\n")
         expected = transform.AnnotateTarget(["A", "B"], annotate_non_call_ops)(before())
-        print("Expected: \n", expected.astext(True), "\n")
         assert tvm.ir.structural_equal(expected, mod)
 
 
@@ -516,11 +500,8 @@ def test_ends_with_tuple():
     for get_item in [True, False]:
         for annotate_non_call_ops in [False, True]:
             mod = get_model(get_item)
-            print("======================MOD:", annotate_non_call_ops, "\n", mod.astext(True), "\n")
             mod = transform.AnnotateTarget("clip", annotate_non_call_ops)(mod)
-            print("======================A:", annotate_non_call_ops, "\n", mod.astext(True), "\n")
             expected = transform.InferType()(get_expected(annotate_non_call_ops, get_item))
-            print("Expected:", annotate_non_call_ops, "\n", expected.astext(True), "\n")
             assert tvm.ir.structural_equal(expected, mod)
 
 
@@ -590,9 +571,7 @@ def test_if_else():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    print("BEFORE\n", before(), "\nbefore")
     expected = transform.InferType()(after())
-    print("EXPECTED\n", expected, "\nexpected")
     for annotate_non_call_ops in [True, False]:
         result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
         assert tvm.ir.structural_equal(expected, result)
@@ -693,12 +672,9 @@ def test_while_let():
         mod = tvm.IRModule.from_expr(func_2)
         return mod
 
-    print("BEFORE\n", before(), "\nbefore")
     for annotate_non_call_ops in [False, True]:
         result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
-        print("RESULT", annotate_non_call_ops, "\n", result.astext(True), "\nresult")
         expected = transform.InferType()(after(annotate_non_call_ops))
-        print("EXPECTED", annotate_non_call_ops, "\n", expected.astext(True), "\nexpected")
         assert tvm.ir.structural_equal(expected, result)
 
 
@@ -762,12 +738,9 @@ def test_if_free_vars():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    print("BEFORE\n", before(), "\nbefore")
     for annotate_non_call_ops in [True, False, True]:
         result = transform.AnnotateTarget(target)(before())
-        print("RESULT", annotate_non_call_ops, "\n", result.astext(True), "\nresult")
         expected = transform.InferType()(after())
-        print("EXPECTED", annotate_non_call_ops, "\n", expected.astext(True), "\nexpected")
         assert tvm.ir.structural_equal(expected, result)
 
 
@@ -794,7 +767,7 @@ def test_free_vars_zeros():
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
-    test_extern_dnnl_mobilenet()
+    # test_extern_dnnl_mobilenet()
     test_multiple_ends()
     test_type_propagation()
     test_tuple()
