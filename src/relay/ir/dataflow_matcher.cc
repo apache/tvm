@@ -643,8 +643,6 @@ class PatternGrouper {
     auto extractor = MatchExtractor(inputs);
     auto body = extractor.Mutate(expr);
 
-    // Verify the pattern still holds
-    ICHECK(DFPatternMatcher(body).Match(pattern_, body));
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
     group.name = extractor.GetName();
     // Check to make sure we aren't overlapping with another group or creating an invalid fusion
