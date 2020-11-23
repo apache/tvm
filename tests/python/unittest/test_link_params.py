@@ -96,7 +96,7 @@ def _lookup_sid(graph, name):
     num_outputs_seen = 0
     for i, n in enumerate(graph["nodes"]):
         if n["name"] == name:
-            print('sid', name, graph["attrs"]["storage_id"][1], num_outputs_seen)
+            print("sid", name, graph["attrs"]["storage_id"][1], num_outputs_seen)
             return graph["attrs"]["storage_id"][1][num_outputs_seen]
         else:
             if "attrs" in n and "num_outputs" in n["attrs"]:
@@ -155,14 +155,22 @@ def _make_mod_and_params(dtype):
         # while. In doing this, it ensures that param %{dtype}_b will be placed into the graph at an
         # index unequal to its storage_id. This ensures that GraphRuntimeCodegen encodes the storage_id
         # and not the parameter index into the graph.
-        (f'    %0 = nn.conv2d(%rand_input, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
-         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
-        (f'    %1 = nn.conv2d(%0, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
-         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
-        (f'    %2 = nn.conv2d(%1, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
-         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
-        (f'    %3 = nn.conv2d(%2, %{dtype}_b, data_layout="NCHW", kernel_layout="OIHW", '
-         f'kernel_size=[3, 3], out_dtype="{dtype}");'),
+        (
+            f'    %0 = nn.conv2d(%rand_input, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
+            f'kernel_size=[3, 3], out_dtype="{dtype}");'
+        ),
+        (
+            f'    %1 = nn.conv2d(%0, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
+            f'kernel_size=[3, 3], out_dtype="{dtype}");'
+        ),
+        (
+            f'    %2 = nn.conv2d(%1, %{dtype}_a, data_layout="NCHW", kernel_layout="OIHW", '
+            f'kernel_size=[3, 3], out_dtype="{dtype}");'
+        ),
+        (
+            f'    %3 = nn.conv2d(%2, %{dtype}_b, data_layout="NCHW", kernel_layout="OIHW", '
+            f'kernel_size=[3, 3], out_dtype="{dtype}");'
+        ),
         "    %3",
         "}",
     ]
@@ -182,7 +190,7 @@ def test_llvm_link_params():
             lib = tvm.relay.build(mod, target, params=param_init)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            print('graph', lib.graph_json)
+            print("graph", lib.graph_json)
             graph = json.loads(lib.graph_json)
             for p in lib.params:
                 _verify_linked_param(dtype, lib, lib.lib, graph, p) or found_one
