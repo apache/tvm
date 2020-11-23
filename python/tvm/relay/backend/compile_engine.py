@@ -289,9 +289,7 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     # check if auto_scheduler is enabled, and use pevel to select the implementation if so
-    use_auto_scheduler = PassContext.current().config.get(
-        "relay.backend.use_auto_scheduler", False
-    )
+    use_auto_scheduler = PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
 
     if not is_dyn and not use_auto_scheduler:
         best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
