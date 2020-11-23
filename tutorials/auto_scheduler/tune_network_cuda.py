@@ -168,10 +168,6 @@ for idx, task in enumerate(tasks):
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
 #   Typically, we recommend a value > 300 ms.
-# * :code:`callbacks` could be a list of task scheduler callbacks during the tuning.
-#   You can use callbacks such as LogEstimatedLatency to log the estimated total latency
-#   to a file for better analysis. When not specified, PrintTableInfo is used to print
-#   a timely progress table.
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the tuning.
 #   You can set it to a small number (e.g., 200) for a fast demonstrative run.
 #   In practice, we recommend setting it around :code:`1000 * len(tasks)`,
