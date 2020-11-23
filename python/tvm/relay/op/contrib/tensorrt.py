@@ -599,24 +599,50 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("reshape: new shape dims must be explicit.")
         return False
     if get_tensorrt_use_implicit_batch_mode():
-        shape = list(map(int, args[0].checked_type.shape))
-        new_shape = list(map(int, attrs.newshape))
+        shape = args[0].checked_type.shape
+        new_shape = attrs.newshape
         if len(new_shape) == 0 or len(shape) == 0:
             logger.info("reshape: Can't reshape to or from scalar.")
             return False
-        # TRT cannot modify batch dimension.
-        original_volume = np.prod(shape)
-        # First, resolve 0.
-        for i, value in enumerate(new_shape):
-            if value == 0:
-                new_shape[i] = shape[i]
-        # Resolve -1.
-        for i, value in enumerate(new_shape):
-            if value == -1:
-                new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
-        if shape[0] != new_shape[0]:
-            logger.info("reshape: can't modify batch dimension.")
-            return False
+
+        dynamic_reshape = any([isinstance(x, tvm.tir.expr.Any) for x in shape])
+
+        if dynamic_reshape:
+            # Make sure that the batch dim is unmodified.
+            if int(new_shape[0]) < 0:
+                for shape_val, new_shape_val in enumerate(shape[1:], new_shape[1:]):
+                    if not (
+                        isinstance(shape_val, int)
+                        and isinstance(new_shape_val, int)
+                        and int(shape_val) == int(new_shape_val)
+                    ):
+                        return False
+            elif int(new_shape[0]) > 0:
+                if not (
+                    isinstance(shape[0], int)
+                    and isinstance(new_shape[0], int)
+                    and int(shape[0]) == int(new_shape[0])
+                ):
+                    return False
+            return True
+        else:
+            shape = list(map(int, shape))
+            new_shape = list(map(int, new_shape))
+
+            # TRT cannot modify batch dimension.
+            original_volume = np.prod(shape)
+            # First, resolve 0.
+            for i, value in enumerate(new_shape):
+                if value == 0:
+                    new_shape[i] = shape[i]
+            # Resolve -1.
+            for i, value in enumerate(new_shape):
+                if value == -1:
+                    new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
+            # Remove batch dimension and see if volumes match
+            if shape[0] != new_shape[0]:
+                print("reshape: can't modify batch dimension.")
+                return False
     return True
 
 
