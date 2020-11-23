@@ -46,7 +46,8 @@ struct MemoryManagerInterface {
    * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.
    * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
    */
-  tvm_crt_error_t (*Allocate)(MemoryManagerInterface* interface, size_t num_bytes, DLContext ctx, void** out_ptr);
+  tvm_crt_error_t (*Allocate)(MemoryManagerInterface* interface, size_t num_bytes, DLContext ctx,
+                              void** out_ptr);
 
   /*!
    * \brief Free a chunk of previously-used memory.

@@ -138,8 +138,8 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode* node, JSONReader* reader) {
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(TVMGraphRuntimeNodeEntry) * num_inputs, ctx, (void**) &node->inputs);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeNodeEntry) * num_inputs,
+                                                      ctx, (void**)&node->inputs);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         return -1;
@@ -265,8 +265,8 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        TVM_CRT_STRLEN_DLTYPE * num_items, ctx, (void**) &attr->dltype);
+      tvm_crt_error_t err =
+          TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_DLTYPE * num_items, ctx, (void**)&attr->dltype);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         return -1;
@@ -323,8 +323,8 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(uint32_t) * num_items, ctx, (void**) &attr->storage_id);
+      tvm_crt_error_t err =
+          TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, ctx, (void**)&attr->storage_id);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         return -1;
@@ -376,13 +376,13 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
       }
       DLContext ctx = {kDLCPU, 0};
       tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(int64_t) * TVM_CRT_MAX_NDIM * num_items, ctx, (void**) &attr->shape);
+          sizeof(int64_t) * TVM_CRT_MAX_NDIM * num_items, ctx, (void**)&attr->shape);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
         break;
       }
-      err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, ctx, (void**) &attr->ndim);
+      err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, ctx, (void**)&attr->ndim);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
@@ -450,8 +450,8 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr* attr, JSONReader* re
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(uint32_t) * num_items, ctx, (void**) &attr->device_index);
+      tvm_crt_error_t err =
+          TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, ctx, (void**)&attr->device_index);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
@@ -583,8 +583,8 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(TVMGraphRuntimeNode) * num_items, ctx, (void**) &runtime->nodes);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeNode) * num_items, ctx,
+                                                      (void**)&runtime->nodes);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
@@ -618,8 +618,8 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(uint32_t) * num_items, ctx, (void**) &runtime->input_nodes);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, ctx,
+                                                      (void**)&runtime->input_nodes);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
@@ -645,8 +645,8 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(uint32_t) * num_items, ctx, (void**) &runtime->node_row_ptr);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * num_items, ctx,
+                                                      (void**)&runtime->node_row_ptr);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
@@ -673,8 +673,8 @@ int TVMGraphRuntime_Load(TVMGraphRuntime* runtime, JSONReader* reader) {
         break;
       }
       DLContext ctx = {kDLCPU, 0};
-      tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-        sizeof(TVMGraphRuntimeNodeEntry) * num_items, ctx, (void**) &runtime->outputs);
+      tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimeNodeEntry) * num_items,
+                                                      ctx, (void**)&runtime->outputs);
       if (err != kTvmErrorNoError) {
         fprintf(stderr, "memory allocate error: %08x", err);
         status = -1;
@@ -782,8 +782,8 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime* runtime, const char* param_blob,
   // read names
   char* names = NULL;
   DLContext ctx = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-    TVM_CRT_STRLEN_NAME * runtime->nodes_count, ctx, (void**) &names);
+  tvm_crt_error_t err =
+      TVMPlatformMemoryAllocate(TVM_CRT_STRLEN_NAME * runtime->nodes_count, ctx, (void**)&names);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     status = -1;
@@ -901,8 +901,8 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   TVMGraphRuntimeGraphAttr* attrs = &(runtime->attrs);
   DLDataType* vtype = NULL;
   DLContext alloc_ctx = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-    sizeof(DLDataType) * attrs->dltype_count, alloc_ctx, (void**) &vtype);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(DLDataType) * attrs->dltype_count,
+                                                  alloc_ctx, (void**)&vtype);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
@@ -913,8 +913,8 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
 
   // Size and device type of each storage pool entry.
   TVMGraphRuntimePoolEntry* pool_entry = NULL;
-  err = TVMPlatformMemoryAllocate(
-    sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count, alloc_ctx, (void**) &pool_entry);
+  err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count,
+                                  alloc_ctx, (void**)&pool_entry);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
@@ -940,8 +940,8 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   }
 
   // Allocate the space.
-  err = TVMPlatformMemoryAllocate(
-    sizeof(TVMNDArray) * pool_entry_count, alloc_ctx, (void**) &runtime->storage_pool);
+  err = TVMPlatformMemoryAllocate(sizeof(TVMNDArray) * pool_entry_count, alloc_ctx,
+                                  (void**)&runtime->storage_pool);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
@@ -964,8 +964,8 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
   // memory assignment for each node entry. The allocated memory on each device
   // is mapped to this pool.
   runtime->data_entry_count = runtime->node_row_ptr[runtime->node_row_ptr_count - 1];
-  err = TVMPlatformMemoryAllocate(
-    sizeof(TVMNDArray) * runtime->data_entry_count, alloc_ctx, (void**) &runtime->data_entry);
+  err = TVMPlatformMemoryAllocate(sizeof(TVMNDArray) * runtime->data_entry_count, alloc_ctx,
+                                  (void**)&runtime->data_entry);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;
@@ -1001,8 +1001,8 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime* runtime) {
   uint32_t nid, idx;
   runtime->op_execs_count = runtime->nodes_count;
   DLContext ctx = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-    sizeof(TVMPackedFunc) * runtime->op_execs_count, ctx, (void**) &runtime->op_execs);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMPackedFunc) * runtime->op_execs_count,
+                                                  ctx, (void**)&runtime->op_execs);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     status = -1;
@@ -1106,7 +1106,7 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
  * \return 0 on success.
  */
 int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const TVMModule* module,
-                          const TVMContext* ctxs) {
+                         const TVMContext* ctxs) {
   JSONReader reader;
   tvm_crt_error_t err = JSONReader_Create(graph_json, &reader);
   if (err != kTvmErrorNoError) {
@@ -1126,9 +1126,10 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const
     return status;
   }
   status = TVMGraphRuntime_SetupOpExecs(runtime);
-  if (status != 0) {  if (status != 0) {
-    return status;
-  }
+  if (status != 0) {
+    if (status != 0) {
+      return status;
+    }
 
     return status;
   }
@@ -1136,11 +1137,10 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const
   return status;
 }
 
-int TVMGraphRuntime_Create(const char* sym_json, const TVMModule* m,
-                           const TVMContext* ctxs, TVMGraphRuntime** runtime) {
+int TVMGraphRuntime_Create(const char* sym_json, const TVMModule* m, const TVMContext* ctxs,
+                           TVMGraphRuntime** runtime) {
   DLContext ctx = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(
-    sizeof(TVMGraphRuntime), ctx, (void**) runtime);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntime), ctx, (void**)runtime);
   if (err != kTvmErrorNoError) {
     fprintf(stderr, "memory allocate error: %08x", err);
     return -1;

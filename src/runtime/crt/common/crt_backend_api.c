@@ -38,8 +38,8 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
   assert(nbytes > 0);
   err = TVMPlatformMemoryAllocate(nbytes, ctx, &ptr);
   CHECK_EQ(err, kTvmErrorNoError,
-           "TVMBackendAllocWorkspace(%d, %d, %" PRIu64 ", %d, %d) -> %" PRId32,
-           device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint, err);
+           "TVMBackendAllocWorkspace(%d, %d, %" PRIu64 ", %d, %d) -> %" PRId32, device_type,
+           device_id, nbytes, dtype_code_hint, dtype_bits_hint, err);
   return ptr;
 }
 

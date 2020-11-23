@@ -66,8 +66,8 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
  * \param runtime Pointer which receives a pointer to the newly-created instance.
  * \return 0 if successful.
  */
-int TVMGraphRuntime_Create(const char* sym_json, const struct TVMModule* m,
-                           const TVMContext* ctxs, TVMGraphRuntime** runtime);
+int TVMGraphRuntime_Create(const char* sym_json, const struct TVMModule* m, const TVMContext* ctxs,
+                           TVMGraphRuntime** runtime);
 
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 

@@ -123,8 +123,9 @@ void MultiMap_Insert(struct MultiMap* map, uint32_t npage, Page* p) {
  * \param size The size of memory
  * \return The virtual address
  */
-tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t num_bytes, DLContext ctx, void** out_ptr) {
-  MemoryManager* mgr = (MemoryManager*) interface;
+tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t num_bytes,
+                                       DLContext ctx, void** out_ptr) {
+  MemoryManager* mgr = (MemoryManager*)interface;
 
   *out_ptr = 0;
   PageTable* ptable = &(mgr->ptable);
@@ -141,7 +142,7 @@ tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t
     npage = p.num_pages;
   } else {
     start = ptable->num_pages;
-    if ((unsigned) (start + npage) > ptable->max_pages) {
+    if ((unsigned)(start + npage) > ptable->max_pages) {
 #if TVM_CRT_DEBUG > 1
       TVMLogf("insufficient memory, start=%" PRId32 ", npage=%" PRId32 ", total=%" PRId32 " / %zu",
               (int32_t)start, (int32_t)npage, (int32_t)(start + npage), mgr->pmap.max_pages);
@@ -169,8 +170,9 @@ tvm_crt_error_t MemoryManager_Allocate(MemoryManagerInterface* interface, size_t
  * \param num_bytes The size of memory now required.
  * \return kTvmErrorNoError on success.
  */
-tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** ptr, tvm_index_t num_bytes) {
-  MemoryManager* mgr = (MemoryManager*) interface;
+tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** ptr,
+                                      tvm_index_t num_bytes) {
+  MemoryManager* mgr = (MemoryManager*)interface;
 
   uint8_t* data = *((uint8_t**)ptr);  // NOLINT(*)
   PageTable* ptable = &(mgr->ptable);
@@ -233,14 +235,14 @@ tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** 
         TVMLogf("insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
                 start, npage, start + npage);
 #endif
-      /* insert page entry */
-      Page p = PageCreate(mgr->ptable.memory_pool, mgr->ptable.page_size_bytes, start, npage);
-      ptable->resize(ptable, start + npage, &p);
-      data = p.data;
-      TLB* pmap = &(mgr->pmap);
-      pmap->set(pmap, data, &p);
+        /* insert page entry */
+        Page p = PageCreate(mgr->ptable.memory_pool, mgr->ptable.page_size_bytes, start, npage);
+        ptable->resize(ptable, start + npage, &p);
+        data = p.data;
+        TLB* pmap = &(mgr->pmap);
+        pmap->set(pmap, data, &p);
       }
-    mgr->interface.vleak_size++;
+      mgr->interface.vleak_size++;
     }
   }
 #if TVM_CRT_DEBUG > 1
@@ -259,7 +261,7 @@ tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** 
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
 tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr, DLContext ctx) {
-  MemoryManager* mgr = (MemoryManager*) interface;
+  MemoryManager* mgr = (MemoryManager*)interface;
 
   TLB* pmap = &(mgr->pmap);
   CHECK_NE(pmap->num_pages, 0, "invalid translation look-aside buffer.");
@@ -288,11 +290,11 @@ tvm_crt_error_t MemoryManagerCreate(MemoryManagerInterface** interface, uint8_t*
   size_t num_pages = (memory_pool_size_bytes - sizeof(MemoryManager)) / bytes_needed_per_page;
 
   uint8_t* metadata_cursor = memory_pool + (num_pages << page_size_bytes_log2);
-  MemoryManager* manager = (MemoryManager*) metadata_cursor;
+  MemoryManager* manager = (MemoryManager*)metadata_cursor;
   *interface = &manager->interface;
   /* handle MemoryManager member functions */
   manager->interface.Allocate = MemoryManager_Allocate;
-//  manager->Realloc = MemoryManager_Reallocate;
+  //  manager->Realloc = MemoryManager_Reallocate;
   manager->interface.Free = MemoryManager_Free;
 
   metadata_cursor += sizeof(MemoryManager);

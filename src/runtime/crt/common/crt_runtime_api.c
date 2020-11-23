@@ -84,9 +84,7 @@ int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment, DLDa
   return TVMPlatformMemoryAllocate(nbytes, ctx, out_data);
 }
 
-int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) {
-  return TVMPlatformMemoryFree(ptr, ctx);
-}
+int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr) { return TVMPlatformMemoryFree(ptr, ctx); }
 
 int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
                             size_t num_bytes, TVMContext ctx_from, TVMContext ctx_to,
@@ -313,8 +311,8 @@ tvm_crt_error_t TVMInitializeRuntime() {
   system_lib_handle = kTVMModuleHandleUninitialized;
 
   DLContext ctx = {kDLCPU, 0};
-  error = TVMPlatformMemoryAllocate(
-    TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx, &func_registry_memory);
+  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx,
+                                    &func_registry_memory);
   if (error != kTvmErrorNoError) {
     return error;
   }
@@ -322,13 +320,13 @@ tvm_crt_error_t TVMInitializeRuntime() {
   system_lib_handle = kTVMModuleHandleUninitialized;
 
   void* registry_backing_memory;
-  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx, &registry_backing_memory);
+  error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx,
+                                    &registry_backing_memory);
   if (error != kTvmErrorNoError) {
     return error;
   }
 
-  TVMMutableFuncRegistry_Create(&global_func_registry,
-                                registry_backing_memory,
+  TVMMutableFuncRegistry_Create(&global_func_registry, registry_backing_memory,
                                 TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES);
   for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
     registered_modules[idx] = NULL;

@@ -37,7 +37,7 @@ TVMNDArray TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType 
   ret.dl_tensor.ndim = ndim;
   tvm_crt_error_t err;
   DLContext dlctx = {kDLCPU, 0};
-  err = TVMPlatformMemoryAllocate(sizeof(int64_t) * ndim, dlctx, (void*) &ret.dl_tensor.shape);
+  err = TVMPlatformMemoryAllocate(sizeof(int64_t) * ndim, dlctx, (void*)&ret.dl_tensor.shape);
   memcpy(ret.dl_tensor.shape, shape, sizeof(int64_t) * ndim);
   ret.dl_tensor.dtype = dtype;
   ret.dl_tensor.ctx = ctx;

@@ -210,13 +210,13 @@ utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* w
   }
   auto receive_buffer = new (receive_buffer_memory) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
   void* rpc_server_memory;
-  err = TVMPlatformMemoryAllocate(
-    sizeof(tvm::runtime::micro_rpc::MicroRPCServer), ctx, &rpc_server_memory);
+  err = TVMPlatformMemoryAllocate(sizeof(tvm::runtime::micro_rpc::MicroRPCServer), ctx,
+                                  &rpc_server_memory);
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }
   auto rpc_server = new (rpc_server_memory) tvm::runtime::micro_rpc::MicroRPCServer(
-    receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
+      receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
   g_rpc_server = static_cast<utvm_rpc_server_t>(rpc_server);
   rpc_server->Initialize();
   return g_rpc_server;

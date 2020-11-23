@@ -86,14 +86,14 @@ void SeqPop(Seq* seq) {
 
 tvm_crt_error_t SeqCreate(uint64_t len, Seq** seq) {
   DLContext ctx = {kDLCPU, 0};
-  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(Seq), ctx, (void**) seq);
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(Seq), ctx, (void**)seq);
   if (err != kTvmErrorNoError) {
     return err;
   }
   memset(*seq, 0, sizeof(Seq));
   (*seq)->allocated = len;
 
-  err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * len, ctx, (void**) &(*seq)->data);
+  err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * len, ctx, (void**)&(*seq)->data);
   if (err != kTvmErrorNoError) {
     return err;
   }
@@ -216,7 +216,8 @@ int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size
       break;
     }
     if (ch == EOF || ch == '\r' || ch == '\n') {
-      fprintf(stderr, "Error at line %zu, Expect \'\"\' but reach end of line\n", reader->line_count_n_);
+      fprintf(stderr, "Error at line %zu, Expect \'\"\' but reach end of line\n",
+              reader->line_count_n_);
       break;
     }
   }
@@ -288,7 +289,8 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
       next = 0;
     } else {
       if (ch != ',') {
-        fprintf(stderr, "Error at line %zu, JSON object expect \'}\' or \',\' but got \'%c\'\n", reader->line_count_n_, ch);
+        fprintf(stderr, "Error at line %zu, JSON object expect \'}\' or \',\' but got \'%c\'\n",
+                reader->line_count_n_, ch);
       }
     }
   } else {
@@ -310,7 +312,8 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
     }
     int ch = reader->NextNonSpace(reader);
     if (ch != ':') {
-      fprintf(stderr, "Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_, ch);
+      fprintf(stderr, "Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_,
+              ch);
     }
     return 1;
   }
@@ -353,7 +356,8 @@ uint8_t JSONReader_NextArrayItem(JSONReader* reader) {
       next = 0;
     } else {
       if (ch != ',') {
-        fprintf(stderr, "Error at line %zu, JSON object expect \']\' or \',\' but got \'%c\'\n", reader->line_count_n_, ch);
+        fprintf(stderr, "Error at line %zu, JSON object expect \']\' or \',\' but got \'%c\'\n",
+                reader->line_count_n_, ch);
       }
     }
   } else {
@@ -445,7 +449,6 @@ int JSONReader_ArrayLength(JSONReader* reader, size_t* num_elements) {
   return status;
 }
 
-
 /*!
  * \brief Constructor.
  * \param is the input source.
@@ -470,7 +473,7 @@ tvm_crt_error_t JSONReader_Create(const char* is, JSONReader* reader) {
   reader->ArrayLength = JSONReader_ArrayLength;
 
   DLContext ctx = {kDLCPU, 0};
-  err = TVMPlatformMemoryAllocate(strlen(is) + 1, ctx, (void**) &reader->is_);
+  err = TVMPlatformMemoryAllocate(strlen(is) + 1, ctx, (void**)&reader->is_);
   if (err != kTvmErrorNoError) {
     return err;
   }
