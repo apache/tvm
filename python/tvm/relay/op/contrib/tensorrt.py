@@ -292,19 +292,26 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if add is supported by TensorRT."""
 
     args = expr.args
+
+    shapes = [
+        [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in arg.checked_type.shape]
+        for arg in args
+    ]
+
     # RelayVM + TRT doesn't support scalar addition yet.
-    for arg in args:
-        if not arg.checked_type.shape:
+    for shape in shapes:
+        if len(shape) < 1:
             return False
+
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
     if (
         not get_tensorrt_use_implicit_batch_mode()
         and (isinstance(args[0], Constant) or isinstance(args[1], Constant))
-        and args[0].checked_type.shape[0] == args[1].checked_type.shape[0]
-        and args[0].checked_type.shape[0] != 1
-        and (len(args[0].checked_type.shape) > 3 or len(args[1].checked_type.shape) > 3)
+        and shapes[0][0] == shapes[1][0]
+        and shapes[0][0] != 1
+        and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
     ):
         logger.info("add: bug in TRT with adding batched constants.")
         return False
