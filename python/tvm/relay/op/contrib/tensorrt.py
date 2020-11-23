@@ -173,7 +173,7 @@ def check_dynamism(args, op_name):
     """
     for arg in args:
         if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
-            for dim_shape in arg.checked_type.shape:
+            for dim_shape in arg.checked_type.shape[1:]:
                 if isinstance(dim_shape, tvm.tir.expr.Any):
                     return True
         elif isinstance(arg, Tuple):
@@ -198,6 +198,18 @@ def _register_external_op_helper_with_checker(op_name, checker):
         if any([x.checked_type.dtype != "float32" for x in args]):
             logger.info("Only float32 inputs are supported for TensorRT.")
             return False
+        if op_name == "multiply":
+            shapes = [
+                [
+                    int(x) if not isinstance(x, tvm.tir.expr.Any) else -1
+                    for x in arg.checked_type.shape
+                ]
+                for arg in args
+            ]
+            if all(
+                [list(map(int, shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]] for shape in shapes]
+            ):
+                return False
         return checker(attrs, args, op_name)
 
     return _func_wrapper
