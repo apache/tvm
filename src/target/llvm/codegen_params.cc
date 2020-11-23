@@ -64,11 +64,9 @@ struct LLVMConstantGetter<T, std::enable_if_t<std::is_floating_point<T>::value>>
 template <typename T, typename = std::enable_if<std::is_pod<T>::value>>
 void BuildLLVMVector(llvm::Type* element_type, void* tensor_data, size_t num_elements,
                      std::vector<llvm::Constant*>* elements) {
-  for (size_t i = 0; i < num_elements; i++) {
-    auto llvm_element =
-        LLVMConstantGetter<T>::getElement(element_type, static_cast<T*>(tensor_data)[i]);
-    elements->emplace_back(llvm_element);
-  }
+  elements->resize(num_elements, nullptr);
+  std::transform(static_cast<T*>(tensor_data), static_cast<T*>(tensor_data) + num_elements,
+                 elements->begin(), [&](T t) { return LLVMConstantGetter<T>::getElement(element_type, t); });
 }
 
 llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::NDArray arr) {

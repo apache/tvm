@@ -42,6 +42,62 @@ class DLManagedTensorDeleter {
 
 static constexpr const int kMaxLineLength = 80;
 
+template <typename T, typename = std::enable_if<std::is_integral<T>::value>>
+void PrintArray(void* data, size_t num_elements, int elements_per_row, std::string indent_str,
+                std::ostream& os) {
+  for (size_t i = 0; i < num_elements; i++) {
+    int64_t elem = static_cast<T*>(data)[i];
+    if (std::is_signed<T>::value) {
+      uint64_t to_print;
+      if (elem < 0) {
+        os << "-";
+        to_print = -elem;
+      } else {
+        os << "+";
+        to_print = elem;
+      }
+      os << "0x" << std::setw(sizeof(T) * 8 / 4) << static_cast<std::uint64_t>(to_print);
+    } else {
+      os << "0x" << std::setw(sizeof(T) * 8 / 4) << static_cast<std::uint64_t>(elem);
+    }
+    if (i < num_elements - 1) {
+      os << ", ";
+    }
+    if (((i + 1) % elements_per_row) == 0) {
+      os << "\n" << indent_str;
+    }
+  }
+}
+
+template <typename T, typename = std::enable_if<std::is_floating_point<T>::value>>
+void PrintArray(void* data, size_t num_elements, int one_element_size_bytes, int elements_per_row,
+                std::string indent_str, std::ostream& os) {
+  std::stringstream ss;
+  ss.setf(std::ios::hex | (std::is_signed<T>::value ? std::ios::showbase : 0) | std::ios::fixed | std::ios::scientific,
+          std::ios::basefield | std::ios::showbase | std::ios::floatfield);
+  for (int i = 0; i < num_elements; i++) {
+    T elem = static_cast<T*>(data)[i];
+    if (std::isinf(elem)) {
+      // C99 standard.
+      os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
+    } else if (std::isnan(elem)) {
+      // GNU extension, implemenatation-dependent.
+      os << std::setw(one_element_size_bytes) << "NAN";
+    } else {
+      ss << elem;
+      os << std::setw(one_element_size_bytes) << ss.str();
+      ss.str("");
+    }
+    if (i < num_elements - 1) {
+      os << ", ";
+    }
+    if (((i + 1) % elements_per_row) == 0) {
+      os << "\n" << indent_str;
+    }
+  }
+}
+
+
 void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream& os) {
   auto arr_type = arr.DataType();
   CHECK_EQ(arr_type.lanes(), 1) << "CodegenParams: only support generating 1-lane parameters; saw "
@@ -49,13 +105,13 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
 
   int one_element_size_bytes = (arr_type.bits() / 4) + (2 /* "0x" */) + (2 /* ", " */);
   if (arr_type.code() == runtime::DataType::TypeCode::kInt) {
-    one_element_size_bytes += 1;  // sign bit
+    one_element_size_bytes += 1;  // sign character
     if (arr_type.bits() > 32) {
-      one_element_size_bytes += 2;  // "UL"
+      one_element_size_bytes += 2;  // "LL"
     }
   } else if (arr_type.code() == runtime::DataType::TypeCode::kUInt) {
     if (arr_type.bits() > 32) {
-      one_element_size_bytes += 1;  // "L"
+      one_element_size_bytes += 3;  // "ULL"
     }
   } else if (arr_type.code() == runtime::DataType::TypeCode::kFloat) {
     // Floats and doubles are printed as hex but casted.
@@ -89,85 +145,14 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
             arr_type.bits() == 64)
           << "CodegenParams: only support generating 8-, 16-, 32-, or 64-bit integer params; saw "
           << arr_type.bits() << "-bit array";
-
       if (arr_type.bits() == 8) {
-        for (int i = 0; i < num_elements; i++) {
-          // NOTE: for special types int8_t and uint8_t, need to promote to int type to avoid
-          // printing as a char.
-          int8_t elem = static_cast<int8_t*>(tensor->dl_tensor.data)[i];
-          uint16_t to_print;
-          if (elem < 0) {
-            os << "-";
-            to_print = -elem;
-          } else {
-            os << "+";
-            to_print = elem;
-          }
-          os << "0x" << std::setw(2) << +static_cast<std::uint8_t>(to_print);
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<int8_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 16) {
-        for (int i = 0; i < num_elements; i++) {
-          int16_t elem = static_cast<int16_t*>(tensor->dl_tensor.data)[i];
-          uint16_t to_print;
-          if (elem < 0) {
-            os << "-";
-            to_print = -elem;
-          } else {
-            os << "+";
-            to_print = elem;
-          }
-          os << "0x" << std::setw(4) << to_print;
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<int16_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 32) {
-        for (int i = 0; i < num_elements; i++) {
-          int32_t elem = static_cast<int32_t*>(tensor->dl_tensor.data)[i];
-          uint32_t to_print;
-          if (elem < 0) {
-            os << "-";
-            to_print = -elem;
-          } else {
-            os << "+";
-            to_print = elem;
-          }
-          os << "0x" << std::setw(8) << to_print;
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<int32_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 64) {
-        for (int i = 0; i < num_elements; i++) {
-          int64_t elem = static_cast<int64_t*>(tensor->dl_tensor.data)[i];
-          uint64_t to_print;
-          if (elem < 0) {
-            os << "-";
-            to_print = -elem;
-          } else {
-            os << "+";
-            to_print = elem;
-          }
-          os << "0x" << std::setw(16) << to_print;
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<int64_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else {
         CHECK(false) << "should not get here";
       }
@@ -180,102 +165,25 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
           << arr_type.bits() << "-bit array";
 
       if (arr_type.bits() == 8) {
-        for (int i = 0; i < num_elements; i++) {
-          // NOTE: for special types int8_t and uint8_t, need to promote to int type to avoid
-          // printing as a char.
-          os << "0x" << std::setw(2)
-             << +static_cast<std::uint8_t>(static_cast<uint8_t*>(tensor->dl_tensor.data)[i]);
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<uint8_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 16) {
-        for (int i = 0; i < num_elements; i++) {
-          os << "0x" << std::setw(4) << static_cast<uint16_t*>(tensor->dl_tensor.data)[i];
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<uint16_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 32) {
-        for (int i = 0; i < num_elements; i++) {
-          os << "0x" << std::setw(8) << static_cast<uint32_t*>(tensor->dl_tensor.data)[i];
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<uint32_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 64) {
-        for (int i = 0; i < num_elements; i++) {
-          os << "0x" << std::setw(16) << static_cast<uint64_t*>(tensor->dl_tensor.data)[i] << "UL";
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<uint64_t>(tensor->dl_tensor.data, num_elements, elements_per_row, indent_str, os);
       } else {
         CHECK(false) << "should not get here";
       }
       break;
 
     case runtime::DataType::TypeCode::kFloat: {
-      std::stringstream ss;
-      ss.setf(std::ios::hex | std::ios::showbase | std::ios::fixed | std::ios::scientific,
-              std::ios::basefield | std::ios::showbase | std::ios::floatfield);
       os.fill(' ');
       os.setf(std::ios::left, std::ios::adjustfield);
       if (arr_type.bits() == 32) {
-        for (int i = 0; i < num_elements; i++) {
-          float elem = static_cast<float*>(tensor->dl_tensor.data)[i];
-          if (std::isinf(elem)) {
-            // C99 standard.
-            os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
-          } else if (std::isnan(elem)) {
-            // GNU extension, implemenatation-dependent.
-            os << std::setw(one_element_size_bytes) << "NAN";
-          } else {
-            ss << elem;
-            os << std::setw(one_element_size_bytes) << ss.str();
-            ss.str("");
-          }
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
-        std::cout << "\n";
+        PrintArray<float>(tensor->dl_tensor.data, num_elements, one_element_size_bytes, elements_per_row, indent_str, os);
       } else if (arr_type.bits() == 64) {
-        for (int i = 0; i < num_elements; i++) {
-          double elem = static_cast<double*>(tensor->dl_tensor.data)[i];
-          if (std::isinf(elem)) {
-            // C99 standard.
-            os << (elem < 0 ? "-" : " ") << std::setw(one_element_size_bytes - 1) << "INFINITY";
-          } else if (std::isnan(elem)) {
-            // GNU extension, implemenatation-dependent.
-            os << std::setw(one_element_size_bytes) << "NAN";
-          } else {
-            ss << elem;
-            os << std::setw(one_element_size_bytes) << ss.str();
-            ss.str("");
-          }
-          if (i < num_elements - 1) {
-            os << ", ";
-          }
-          if (((i + 1) % elements_per_row) == 0) {
-            os << "\n" << indent_str;
-          }
-        }
+        PrintArray<double>(tensor->dl_tensor.data, num_elements, one_element_size_bytes, elements_per_row, indent_str, os);
       } else {
         CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
                      << arr_type.bits() << "-bit array";
