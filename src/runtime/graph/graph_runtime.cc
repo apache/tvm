@@ -346,10 +346,8 @@ void GraphRuntime::SetupStorage() {
     });
     TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
     if (pit.linked_param.defined()) {
-      LOG(DEBUG) << "param " << storage_pool_.size() << " pre-loaded!";
       storage_pool_.push_back(pit.linked_param);
     } else {
-      LOG(DEBUG) << "param " << storage_pool_.size() << " blank!";
       std::vector<int64_t> shape;
       shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
       storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
