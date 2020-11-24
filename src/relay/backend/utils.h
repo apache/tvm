@@ -160,11 +160,7 @@ inline std::vector<int64_t> GetIntShape(const Array<IndexExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
     const int64_t* pval = tir::as_const_int(dim);
-    ret.push_back(pval ? *pval : -2);
-    // ICHECK(pval) << "Expect integer, but received: " << dim->GetTypeKey();
-    // _shape.push_back(val ? val->value : -1);
-
-    // ret.push_back(*pval);
+    ret.push_back(pval ? *pval : -1);
   }
   return ret;
 }
