@@ -24,12 +24,12 @@
 #include "codegen_params.h"
 
 #include <dlpack/dlpack.h>
+#include <strings.h>
 
 #include <cmath>
 #include <iomanip>
 #include <memory>
 #include <string>
-#include <strings.h>
 
 namespace tvm {
 namespace codegen {
@@ -104,9 +104,8 @@ void PrintIntegralArray(void* data, size_t num_elements, int indent_chars, std::
 template <typename T, typename Enable = std::enable_if<std::is_floating_point<T>::value>>
 void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, std::ostream& os) {
   // Floats and doubles are printed as hex but casted.
-  int one_element_size_bytes =
-    (sizeof(T) / 4) + (2 /* "0x" */) + (2 /* ", " */)
-    + 1 /* sign */ + 1 /* decimal point */ + 1 /* exponent sign */;
+  int one_element_size_bytes = (sizeof(T) / 4) + (2 /* "0x" */) + (2 /* ", " */) + 1 /* sign */ +
+                               1 /* decimal point */ + 1 /* exponent sign */;
   if (sizeof(T) == 64 / 8) {
     one_element_size_bytes += 2; /* 4 decimal digits in exponent, relative to bits / 4 */
   } else if (sizeof(T) == 32 / 8) {
@@ -227,8 +226,8 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     case runtime::DataType::TypeCode::kBFloat: {
       // NOTE: print types not widely supported by C as uint16_t.
       CHECK(arr_type.bits() == 16)
-          << "CodegenParams: only support generating 16-bit bfloat params; saw "
-          << arr_type.bits() << "-bit array";
+          << "CodegenParams: only support generating 16-bit bfloat params; saw " << arr_type.bits()
+          << "-bit array";
       PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os);
       break;
     }

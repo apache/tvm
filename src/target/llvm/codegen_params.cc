@@ -157,8 +157,8 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
       break;
 
     case runtime::DataType::TypeCode::kBFloat:
-      CHECK(arr_type.bits() == 16) << "CodegenParams: only support 16-bit bfloat; saw "
-                                   << arr_type.bits() << "-bit array";
+      CHECK(arr_type.bits() == 16)
+          << "CodegenParams: only support 16-bit bfloat; saw " << arr_type.bits() << "-bit array";
       element_type = llvm::Type::getIntNTy(*ctx, arr_type.bits());
       BuildLLVMVector<uint16_t>(element_type, arr->data, num_elements, &elements);
 
