@@ -33,6 +33,7 @@ from typing import Dict, Tuple, Union
 from packaging import version as package_version
 from tvm.contrib.download import download
 import cv2
+from tvm.relay.op.contrib import tensorrt
 
 sys.setrecursionlimit(10000)
 
@@ -3383,25 +3384,12 @@ def convert_traced_model_to_vm_trt(
     return vm_trt_exec
 
 
-def test_maskrcnn_resnet50():
+def test_maskrcnn_resnet50() -> None:
     """
     This function tests the working of pytorch maskrcnn with resnet50 as backbone with
     VM and VM + TRT. Since the order of compiled model outputs is a bit different from
     original pytorch model, it uses a custom logic for comparison check.
     """
-
-    def dict_to_tuple(
-        out_dict: Dict,
-    ) -> Union[
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
-    ]:
-        """
-        This function converts the dictionary output of maskrcnn to a tuple for downstream tracing
-        """
-        if "masks" in out_dict.keys():
-            return out_dict["boxes"], out_dict["scores"], out_dict["labels"], out_dict["masks"]
-        return out_dict["boxes"], out_dict["scores"], out_dict["labels"]
 
     class TraceWrapper(torch.nn.Module):
         """
@@ -3414,12 +3402,9 @@ def test_maskrcnn_resnet50():
 
         def forward(
             self, inp: torch.Tensor
-        ) -> Union[
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
-        ]:
+        ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
             out = self.model(inp)
-            return dict_to_tuple(out[0])
+            return out[0]["boxes"], out[0]["scores"], out[0]["labels"], out[0]["masks"]
 
     def get_traced_maskrcnn_model(np_sample_input: np.ndarray) -> torch.jit.TopLevelTracedModule:
         """
@@ -3460,171 +3445,201 @@ def test_maskrcnn_resnet50():
     in_size = 300
     np_sample_input = get_maskrcnn_input(in_size)
     traced_module = get_traced_maskrcnn_model(np_sample_input)
-    vm_trt_exec = convert_traced_model_to_vm_trt(traced_module, np_sample_input, target)
+    vm_trt_exec = convert_traced_model_to_vm_trt(traced_module, np_sample_input, target="llvm")
+    ctx = tvm.cpu()
+    vm = tvm.runtime.vm.VirtualMachine(vm_trt_exec, ctx)
+    vm.set_input("main", **{"input0": np_sample_input})
+    tvm_res = vm.run()
+
+    # Descending sort by scores and get the high confidence indices. In this example 9 is chosen,
+    # because this image has 9 boxes over 0.9 confidence
+    num_high_confidence_boxes = 9
+    tvm_indices = np.argsort(-1 * tvm_res[1].asnumpy())[:num_high_confidence_boxes]
+
+    with torch.no_grad():
+        out = traced_module(torch.Tensor(np_sample_input))
+        # Descending sort by scores and get the high confidence indices
+        pt_indices = np.argsort(-1 * out[1].numpy())[:num_high_confidence_boxes]
+
+    tol = [1e-1, 5e-3, 1e-5, 4e-1]  # [Box Tol, Score Tol, Label Tol, Mask Tol]
+    # Because of certain ops, there are certain minor differences in TVM outputs and PT outputs,
+    # This means that the tolerance can't be 1e-4 or 1e-5 throughout. The ideal way to get around
+    # this is to test it on an entire dataset and compare mAP with the original model.
+    # However, since that is not practically possible on CI, the following compromise is made.
+    # These tolerances are chosen based on their impact or lack thereof to the mAP score, e.g:
+    # 0.1 pixel difference of a box in a 300X300 image wont make any change.
+    for i, tol_val in zip(range(4), tol):
+        np.testing.assert_allclose(
+            tvm_res[i].asnumpy()[tvm_indices],
+            out[i].numpy()[pt_indices],
+            rtol=tol_val,
+            atol=tol_val,
+        )
 
 
 if __name__ == "__main__":
-    # some structural tests
-    test_forward_traced_function()
-    test_forward_dtypes()
-    test_weight_names()
-    test_duplicate_weight_use()
+    test_maskrcnn_resnet50()
+    # # some structural tests
+    # test_forward_traced_function()
+    # test_forward_dtypes()
+    # test_weight_names()
+    # test_duplicate_weight_use()
 
-    # Single operator tests
-    test_forward_pixel_shuffle()
-    test_forward_add()
-    test_forward_subtract()
-    test_forward_multiply()
-    test_forward_matmul()
-    test_forward_rsub()
-    test_forward_onehot()
-    test_forward_embedding()
-    test_forward_reshape()
-    test_forward_reciprocal()
-    test_forward_repeat()
-    test_forward_repeat_interleave()
-    test_forward_squeeze()
-    test_forward_unsqueeze()
-    test_forward_concatenate()
-    test_forward_reduce_sum()
-    test_forward_reduce_prod()
-    test_forward_argmin()
-    test_forward_argmax()
-    test_forward_norm()
-    test_forward_frobenius_norm()
-    test_forward_std()
-    test_forward_variance()
-    test_forward_relu()
-    test_forward_prelu()
-    test_forward_leakyrelu()
-    test_forward_elu()
-    test_forward_celu()
-    test_forward_gelu()
-    test_forward_selu()
-    test_forward_log_sigmoid()
-    test_forward_adaptiveavgpool()
-    test_forward_maxpool2d()
-    test_forward_maxpool1d()
-    test_forward_maxpool3d()
-    test_forward_hardtanh()
-    test_forward_conv()
-    test_forward_conv_transpose()
-    test_forward_threshold()
-    test_forward_contiguous()
-    test_forward_batchnorm()
-    test_forward_instancenorm()
-    test_forward_layernorm()
-    test_forward_groupnorm()
-    test_forward_transpose()
-    test_forward_size()
-    test_forward_view()
-    test_forward_select()
-    test_forward_take()
-    test_forward_topk()
-    test_forward_where()
-    test_forward_addcdiv()
-    test_forward_addcmul()
-    test_forward_true_divide()
-    test_forward_clone()
-    test_forward_softplus()
-    test_forward_softsign()
-    test_forward_logsoftmax()
-    test_forward_sigmoid()
-    test_forward_dense()
-    test_forward_avgpool()
-    test_forward_avgpool3d()
-    test_forward_dropout()
-    test_forward_slice()
-    test_forward_mean()
-    test_forward_expand()
-    test_forward_pow()
-    test_forward_unary()
-    test_forward_clamp()
-    test_forward_clamp_()
-    test_forward_logical_not()
-    test_forward_bitwise_not()
-    test_forward_bitwise_xor()
-    test_forward_logical_xor()
-    test_forward_isfinite()
-    test_forward_isnan()
-    test_forward_isinf()
-    test_forward_ones()
-    test_forward_ones_like()
-    test_forward_zeros()
-    test_forward_zeros_like()
-    test_forward_full()
-    test_forward_full_like()
-    test_forward_linspace()
-    test_forward_arange()
-    test_forward_mesh_grid()
-    test_forward_chunk()
-    test_forward_split()
-    test_forward_gather()
-    test_upsample()
-    test_forward_upsample3d()
-    test_forward_nms()
-    test_forward_roi_align()
-    test_to()
-    test_flatten()
-    test_type_as()
-    test_forward_functional_pad()
-    test_forward_zero_pad2d()
-    test_forward_constant_pad1d()
-    test_forward_constant_pad2d()
-    test_forward_constant_pad3d()
-    test_forward_reflection_pad1d()
-    test_forward_reflection_pad2d()
-    test_forward_replication_pad1d()
-    test_forward_replication_pad2d()
-    test_forward_replication_pad3d()
-    test_adaptive_pool3d()
-    test_conv3d()
-    test_conv3d_transpose()
-    test_forward_index()
-    test_min_max()
-    test_logsumexp()
-    test_stack()
-    test_stack_dynamic()
-    test_forward_unbind()
-    test_forward_nonzero()
-    test_forward_scatter()
-    test_numel()
-    test_bincount()
+    # # Single operator tests
+    # test_forward_pixel_shuffle()
+    # test_forward_add()
+    # test_forward_subtract()
+    # test_forward_multiply()
+    # test_forward_matmul()
+    # test_forward_rsub()
+    # test_forward_onehot()
+    # test_forward_embedding()
+    # test_forward_reshape()
+    # test_forward_reciprocal()
+    # test_forward_repeat()
+    # test_forward_repeat_interleave()
+    # test_forward_squeeze()
+    # test_forward_unsqueeze()
+    # test_forward_concatenate()
+    # test_forward_reduce_sum()
+    # test_forward_reduce_prod()
+    # test_forward_argmin()
+    # test_forward_argmax()
+    # test_forward_norm()
+    # test_forward_frobenius_norm()
+    # test_forward_std()
+    # test_forward_variance()
+    # test_forward_relu()
+    # test_forward_prelu()
+    # test_forward_leakyrelu()
+    # test_forward_elu()
+    # test_forward_celu()
+    # test_forward_gelu()
+    # test_forward_selu()
+    # test_forward_log_sigmoid()
+    # test_forward_adaptiveavgpool()
+    # test_forward_maxpool2d()
+    # test_forward_maxpool1d()
+    # test_forward_maxpool3d()
+    # test_forward_hardtanh()
+    # test_forward_conv()
+    # test_forward_conv_transpose()
+    # test_forward_threshold()
+    # test_forward_contiguous()
+    # test_forward_batchnorm()
+    # test_forward_instancenorm()
+    # test_forward_layernorm()
+    # test_forward_groupnorm()
+    # test_forward_transpose()
+    # test_forward_size()
+    # test_forward_view()
+    # test_forward_select()
+    # test_forward_take()
+    # test_forward_topk()
+    # test_forward_where()
+    # test_forward_addcdiv()
+    # test_forward_addcmul()
+    # test_forward_true_divide()
+    # test_forward_clone()
+    # test_forward_softplus()
+    # test_forward_softsign()
+    # test_forward_logsoftmax()
+    # test_forward_sigmoid()
+    # test_forward_dense()
+    # test_forward_avgpool()
+    # test_forward_avgpool3d()
+    # test_forward_dropout()
+    # test_forward_slice()
+    # test_forward_mean()
+    # test_forward_expand()
+    # test_forward_pow()
+    # test_forward_unary()
+    # test_forward_clamp()
+    # test_forward_clamp_()
+    # test_forward_logical_not()
+    # test_forward_bitwise_not()
+    # test_forward_bitwise_xor()
+    # test_forward_logical_xor()
+    # test_forward_isfinite()
+    # test_forward_isnan()
+    # test_forward_isinf()
+    # test_forward_ones()
+    # test_forward_ones_like()
+    # test_forward_zeros()
+    # test_forward_zeros_like()
+    # test_forward_full()
+    # test_forward_full_like()
+    # test_forward_linspace()
+    # test_forward_arange()
+    # test_forward_mesh_grid()
+    # test_forward_chunk()
+    # test_forward_split()
+    # test_forward_gather()
+    # test_upsample()
+    # test_forward_upsample3d()
+    # test_forward_nms()
+    # test_forward_roi_align()
+    # test_to()
+    # test_flatten()
+    # test_type_as()
+    # test_forward_functional_pad()
+    # test_forward_zero_pad2d()
+    # test_forward_constant_pad1d()
+    # test_forward_constant_pad2d()
+    # test_forward_constant_pad3d()
+    # test_forward_reflection_pad1d()
+    # test_forward_reflection_pad2d()
+    # test_forward_replication_pad1d()
+    # test_forward_replication_pad2d()
+    # test_forward_replication_pad3d()
+    # test_adaptive_pool3d()
+    # test_conv3d()
+    # test_conv3d_transpose()
+    # test_forward_index()
+    # test_min_max()
+    # test_logsumexp()
+    # test_stack()
+    # test_stack_dynamic()
+    # test_forward_unbind()
+    # test_forward_nonzero()
+    # test_forward_scatter()
+    # test_numel()
+    # test_bincount()
 
-    # Model tests
-    test_resnet18()
-    test_squeezenet1_0()
-    test_squeezenet1_1()
-    test_densenet121()
-    # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
-    # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
-    # test_inception_v3()
-    test_googlenet()
-    test_mnasnet0_5()
-    test_mobilenet_v2()
+    # # Model tests
+    # test_resnet18()
+    # test_squeezenet1_0()
+    # test_squeezenet1_1()
+    # test_densenet121()
+    # # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
+    # # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
+    # # test_inception_v3()
+    # test_googlenet()
+    # test_mnasnet0_5()
+    # test_mobilenet_v2()
 
-    test_custom_conversion_map()
+    # test_custom_conversion_map()
 
-    test_segmentaton_models()
-    test_3d_models()
+    # test_segmentaton_models()
+    # test_3d_models()
 
-    # Quantization test
-    from qnn_test import test_quantized_imagenet, test_quantized_modules
+    # # Quantization test
+    # from qnn_test import test_quantized_imagenet, test_quantized_modules
 
-    test_quantized_modules()
-    test_quantized_imagenet()
+    # test_quantized_modules()
+    # test_quantized_imagenet()
 
-    # Test simple conditionals and loop
-    test_control_flow()
-    test_simple_rnn()
+    # # Test simple conditionals and loop
+    # test_control_flow()
+    # test_simple_rnn()
 
-    # More complex recurrent models
-    from test_lstm import test_custom_lstm
+    # # More complex recurrent models
+    # from test_lstm import test_custom_lstm
 
-    test_custom_lstm()
+    # test_custom_lstm()
 
-    # Test bert model
-    test_forward_pretrained_bert_base_uncased()
+    # # Test bert model
+    # test_forward_pretrained_bert_base_uncased()
 
-    # Test convert torch script(jit) with specific inputs' types
-    test_convert_torch_script_with_input_types()
+    # # Test convert torch script(jit) with specific inputs' types
+    # test_convert_torch_script_with_input_types()
