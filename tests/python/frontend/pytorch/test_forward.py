@@ -29,7 +29,10 @@ from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
+from typing import Dict, Tuple, Union
 from packaging import version as package_version
+from tvm.contrib.download import download
+import cv2
 
 sys.setrecursionlimit(10000)
 
@@ -3361,6 +3364,77 @@ def test_bincount():
     verify_trace_model(test_fn, [inp], ["llvm"])
     verify_trace_model(test_fn, [inp, weights], ["llvm"])
     verify_trace_model(test_fn, [inp, weights.to(torch.float64)], ["llvm"])
+
+
+def test_maskrcnn_resnet50():
+    def dict_to_tuple(
+        out_dict: Dict,
+    ) -> Union[
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
+        """
+        This function converts the dictionary output of maskrcnn to a tuple for downstream tracing
+        """
+        if "masks" in out_dict.keys():
+            return out_dict["boxes"], out_dict["scores"], out_dict["labels"], out_dict["masks"]
+        return out_dict["boxes"], out_dict["scores"], out_dict["labels"]
+
+    class TraceWrapper(torch.nn.Module):
+        """
+        This class is a wrapper over the torch module to convert the outputs into traceable form
+        """
+
+        def __init__(self, model: torch.nn.Module) -> None:
+            super().__init__()
+            self.model = model
+
+        def forward(self, inp: torch.Tensor) -> Union[
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            out = self.model(inp)
+            return dict_to_tuple(out[0])
+
+    def get_traced_maskrcnn_model(np_sample_input: np.ndarray) -> torch.jit.TopLevelTracedModule:
+        """
+        This function takes a sample input and returns the traced maskrcnn model
+        """
+        model_func = torchvision.models.detection.maskrcnn_resnet50_fpn
+        model = TraceWrapper(model_func(pretrained=True))
+        model.eval()
+        inp = torch.Tensor(np.random.uniform(0.0, 250.0, size=np_sample_input.shape))
+
+        with torch.no_grad():
+            out = model(inp)
+            script_module = torch.jit.trace(model, inp)
+            script_module.eval()
+
+        return script_module
+
+    def get_maskrcnn_input(in_size: int) -> np.ndarray:
+        """
+        This function gets a real image with multiple objects of interest and returns it.  
+        """
+        input_shape = (1, 3, in_size, in_size)
+        img_path = "test_street_small.jpg"
+        img_url = (
+            "https://raw.githubusercontent.com/dmlc/web-data/"
+            "master/gluoncv/detection/street_small.jpg"
+        )
+        download(img_url, img_path)
+
+        img = cv2.imread(img_path).astype("float32")
+        img = cv2.resize(img, (in_size, in_size))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = np.transpose(img / 255.0, [2, 0, 1])
+        img = np.expand_dims(img, axis=0)
+
+        return img
+
+    in_size = 300
+    np_sample_input = get_maskrcnn_input(in_size)
+    script_module = get_traced_maskrcnn_model(np_sample_input)
+        # vm_trt_exec = convert_scripted_model_to_vm_trt(script_module, np_sample_input, target)
 
 
 if __name__ == "__main__":
