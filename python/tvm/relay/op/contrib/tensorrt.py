@@ -959,7 +959,6 @@ class RemoveDropout(ExprMutator):
     """
 
     def visit_tuple_getitem(self, op):
-        print("HERE")
         visit = super().visit_tuple_getitem(op)
         if visit.index != 0:
             return visit
