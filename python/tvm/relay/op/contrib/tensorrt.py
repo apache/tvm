@@ -637,24 +637,23 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
                 ):
                     return False
             return True
-        else:
-            shape = list(map(int, shape))
-            new_shape = list(map(int, new_shape))
+        shape = list(map(int, shape))
+        new_shape = list(map(int, new_shape))
 
-            # TRT cannot modify batch dimension.
-            original_volume = np.prod(shape)
-            # First, resolve 0.
-            for i, value in enumerate(new_shape):
-                if value == 0:
-                    new_shape[i] = shape[i]
-            # Resolve -1.
-            for i, value in enumerate(new_shape):
-                if value == -1:
-                    new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
-            # Remove batch dimension and see if volumes match
-            if shape[0] != new_shape[0]:
-                print("reshape: can't modify batch dimension.")
-                return False
+        # TRT cannot modify batch dimension.
+        original_volume = np.prod(shape)
+        # First, resolve 0.
+        for i, value in enumerate(new_shape):
+            if value == 0:
+                new_shape[i] = shape[i]
+        # Resolve -1.
+        for i, value in enumerate(new_shape):
+            if value == -1:
+                new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
+        # Remove batch dimension and see if volumes match
+        if shape[0] != new_shape[0]:
+            print("reshape: can't modify batch dimension.")
+            return False
     return True
 
 
@@ -949,7 +948,7 @@ def prune_tensorrt_subgraphs(mod):
         name = subgraph.name_hint
         if not mod[name].attrs or mod[name].attrs["Compiler"] != "tensorrt":
             continue
-        if not (is_valid_subgraph(mod[name].params, mod[name].body)):
+        if not is_valid_subgraph(mod[name].params, mod[name].body):
             subgraphs_to_remove.append(name)
     # Create new pruned module
     new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
