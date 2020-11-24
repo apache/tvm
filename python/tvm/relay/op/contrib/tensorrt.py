@@ -959,12 +959,10 @@ class RemoveDropout(ExprMutator):
     """
 
     def visit_tuple_getitem(self, op):
+        print("HERE")
         visit = super().visit_tuple_getitem(op)
         if visit.index != 0:
             return visit
-        # if isinstance(visit.tuple_value, Call):
-        #     print("Name of VISIT OP", str(visit.tuple_value.op))
-        #     print(" IS IT DROPOUT", str(visit.tuple_value.op) == "nn.dropout")
         if (
             isinstance(visit.tuple_value, Call)
             and visit.tuple_value.op.name == "nn.dropout"
