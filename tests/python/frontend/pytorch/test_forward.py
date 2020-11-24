@@ -3365,8 +3365,28 @@ def test_bincount():
     verify_trace_model(test_fn, [inp, weights], ["llvm"])
     verify_trace_model(test_fn, [inp, weights.to(torch.float64)], ["llvm"])
 
+def convert_traced_model_to_vm_trt(traced_module: torch.jit.TopLevelTracedModule, 
+                                    np_sample_input: np.ndarray, 
+                                    target: str) -> tvm.runtime.vm.Executable:
+    """
+    This function converts a traced pytorch model to VM + TRT.
+    """
+    input_shape = np_sample_input.shape
+    input_name = "input0"
+    shape_list = [(input_name, input_shape)]
+    mod, params = relay.frontend.from_pytorch(traced_module, shape_list)
+    mod, config = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
+        vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
+
+    return vm_trt_exec
 
 def test_maskrcnn_resnet50():
+    """
+    This function tests the working of pytorch maskrcnn with resnet50 as backbone with 
+    VM and VM + TRT. Since the order of compiled model outputs is a bit different from 
+    original pytorch model, it uses a custom logic for comparison check. 
+    """
     def dict_to_tuple(
         out_dict: Dict,
     ) -> Union[
@@ -3406,10 +3426,10 @@ def test_maskrcnn_resnet50():
 
         with torch.no_grad():
             out = model(inp)
-            script_module = torch.jit.trace(model, inp)
-            script_module.eval()
+            traced_module = torch.jit.trace(model, inp)
+            traced_module.eval()
 
-        return script_module
+        return traced_module
 
     def get_maskrcnn_input(in_size: int) -> np.ndarray:
         """
@@ -3433,8 +3453,8 @@ def test_maskrcnn_resnet50():
 
     in_size = 300
     np_sample_input = get_maskrcnn_input(in_size)
-    script_module = get_traced_maskrcnn_model(np_sample_input)
-        # vm_trt_exec = convert_scripted_model_to_vm_trt(script_module, np_sample_input, target)
+    traced_module = get_traced_maskrcnn_model(np_sample_input)
+    vm_trt_exec = convert_traced_model_to_vm_trt(traced_module, np_sample_input, target)
 
 
 if __name__ == "__main__":
