@@ -121,7 +121,7 @@ void NDArrayDataToC(::tvm::runtime::NDArray arr, int indent_chars, std::ostream&
     // Floats and doubles are printed as hex but casted.
     one_element_size_bytes += 1 /* sign */ + 1 /* decimal point */ + 1 /* exponent sign */;
     if (arr_type.bits() == 64) {
-      one_element_size_bytes += 2;  /* 4 decimal digits in exponent, relative to bits / 4 */
+      one_element_size_bytes += 2; /* 4 decimal digits in exponent, relative to bits / 4 */
     } else if (arr_type.bits() == 32) {
       one_element_size_bytes += 1; /* extra decimal digit in exponent, relative to bits / 4 */
     }
