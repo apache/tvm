@@ -31,13 +31,6 @@
 namespace tvm {
 namespace codegen {
 
-namespace {
-class DLManagedTensorDeleter {
- public:
-  void operator()(DLManagedTensor* ptr) { ptr->deleter(ptr); }
-};
-}  // namespace
-
 template <typename T, typename E = void>
 struct LLVMConstantGetter {
   static llvm::Constant* getElement(llvm::Type* ty, T t);
@@ -143,6 +136,11 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
 
     case runtime::DataType::TypeCode::kFloat:
       switch (arr_type.bits()) {
+        case 16:
+          // NOTE: float16 is treated as uint16_t.
+          element_type = llvm::Type::getIntNTy(*ctx, arr_type.bits());
+          BuildLLVMVector<uint16_t>(element_type, arr->data, num_elements, &elements);
+          break;
         case 32:
           element_type = llvm::Type::getFloatTy(*ctx);
           BuildLLVMVector<float>(element_type, arr->data, num_elements, &elements);
@@ -157,6 +155,12 @@ llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::
           break;
       }
       break;
+
+    case runtime::DataType::TypeCode::kBFloat:
+      CHECK(arr_type.bits() == 16) << "CodegenParams: only support 16-bit bfloat; saw "
+                                   << arr_type.bits() << "-bit array";
+      element_type = llvm::Type::getIntNTy(*ctx, arr_type.bits());
+      BuildLLVMVector<uint16_t>(element_type, arr->data, num_elements, &elements);
 
     default:
       CHECK(false) << "Data type not supported";

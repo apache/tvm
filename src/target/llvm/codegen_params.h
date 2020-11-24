@@ -32,11 +32,16 @@
 namespace tvm {
 namespace codegen {
 
+/*!
+ * \brief Convert an NDArray to an LLVM array of constants.
+ *
+ * The supplied NDArray is flattened, and each element is converted to the appropriate LLVM type.
+ *
+ * \param ctx LLVM context used to create the various primitive datatypes.
+ * \param arr NDArray to convert.
+ * \return LLVM array containing the array data.
+ */
 llvm::ConstantArray* NDArrayToLLVMArray(llvm::LLVMContext* ctx, ::tvm::runtime::NDArray arr);
-
-void LLVMCodeGenParams(llvm::LLVMContext* ctx, llvm::Module* module, int64_t storage_id_offset,
-                       ::tvm::runtime::Array<String> param_names,
-                       ::tvm::runtime::Array<runtime::NDArray> params_by_sid);
 
 }  // namespace codegen
 }  // namespace tvm
