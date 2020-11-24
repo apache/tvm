@@ -213,7 +213,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // Build engine.
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)] = builder.BuildEngine();
     LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-              << " with batch size" << batch_size_;
+              << " with batch size " << batch_size_;
     CacheEngineToDisk();
   }
 
