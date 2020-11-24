@@ -1638,7 +1638,8 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         # axis
-        axis = tuple(self.get_tensor_value(input_tensors[1]))
+        axis_value = self.get_tensor_value(input_tensors[1])
+        axis = tuple(axis_value) if len(axis_value.shape) > 0 else tuple((axis_value.item(),))
 
         # Options - keep_dims (bool)
         assert op.BuiltinOptionsType() == BuiltinOptions.ReducerOptions
