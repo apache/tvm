@@ -954,7 +954,8 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     TVMContext ctx = runtime->ctxs[0];
     DLDataType dtype = {kDLFloat, 32, 1};
     shape[0] = (pit.size + 3) / 4;
-    int status = TVMNDArray_Empty(1, shape, dtype, ctx, &runtime->storage_pool[runtime->storage_pool_count]);
+    int status =
+        TVMNDArray_Empty(1, shape, dtype, ctx, &runtime->storage_pool[runtime->storage_pool_count]);
     CHECK_EQ(status, 0, "fail to create storage_pool with idx=%d\n", idx);
     runtime->storage_pool_count++;
   }
@@ -973,12 +974,9 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     uint32_t storage_id = attrs->storage_id[idx];
     CHECK(storage_id < runtime->storage_pool_count);
     int status = TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
-                                       attrs->shape + idx * TVM_CRT_MAX_NDIM,
-                                       attrs->ndim[idx],
-                                       vtype[idx],
-                                       &runtime->data_entry[idx]);
-    CHECK_EQ(status, 0,
-             "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
+                                       attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx],
+                                       vtype[idx], &runtime->data_entry[idx]);
+    CHECK_EQ(status, 0, "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
   }
 
   // Release memory

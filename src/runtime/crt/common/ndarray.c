@@ -30,8 +30,8 @@
 
 #include "crt_config.h"
 
-int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
-                      DLContext ctx, TVMNDArray* array) {
+int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLContext ctx,
+                      TVMNDArray* array) {
   memset(array, 0, sizeof(TVMNDArray));
   array->dl_tensor.ndim = ndim;
   tvm_crt_error_t err;
@@ -47,8 +47,8 @@ int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
   return 0;
 }
 
-int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
-                     DLContext ctx, TVMNDArray* array) {
+int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLContext ctx,
+                     TVMNDArray* array) {
   int status = TVMNDArray_Create(ndim, shape, dtype, ctx, array);
   if (status != 0) {
     return status;
@@ -125,8 +125,8 @@ int TVMNDArray_Load(TVMNDArray* ret, const char** strm) {
   return status;
 }
 
-int TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndim,
-                          DLDataType dtype, TVMNDArray* array_view) {
+int TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndim, DLDataType dtype,
+                          TVMNDArray* array_view) {
   int status = TVMNDArray_Create(ndim, shape, dtype, arr->dl_tensor.ctx, array_view);
   if (status != 0) {
     return status;
