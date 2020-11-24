@@ -94,7 +94,7 @@ if(USE_MICRO)
     set(make_quiet )
     endif(${VERBOSE})
 
-    list(APPEND crt_libraries graph_runtime utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
+    list(APPEND crt_libraries memory graph_runtime utvm_rpc_server utvm_rpc_common common)  # NOTE: listed in link order.
     foreach(crt_lib_name IN LISTS crt_libraries)
       list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
     endforeach()
