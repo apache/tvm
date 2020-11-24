@@ -22,6 +22,7 @@ import logging
 import numpy as np
 import tvm
 from tvm import te, autotvm
+from tvm.ir.transform import PassContext
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -287,7 +288,10 @@ def lower_call(call, inputs, target):
             env.tracing = False
             reenable_tracing = True
 
-    if not is_dyn:
+    # check if auto_scheduler is enabled, and use pevel to select the implementation if so
+    use_auto_scheduler = PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
+
+    if not is_dyn and not use_auto_scheduler:
         best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
