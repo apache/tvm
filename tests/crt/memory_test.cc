@@ -38,7 +38,7 @@ class MemoryManagerTest : public ::testing::Test {
     memset(raw_memory_pool, 0, sizeof(raw_memory_pool));
     memory_pool = (uint8_t*)(ROUND_UP(((uintptr_t)raw_memory_pool), (1 << kPageSizeBytesLog)));
     MemoryManagerCreate(&interface, memory_pool, kMemoryPoolSizeBytes, kPageSizeBytesLog);
-    mgr = (MemoryManager*) interface;
+    mgr = (MemoryManager*)interface;
     ASSERT_EQ(kNumUsablePages, mgr->ptable.max_pages);
     ctx_ = {kDLCPU, 0};
   }
