@@ -94,7 +94,7 @@ class XGBModel(PythonBasedModel):
             if xgb is None:
                 xgb = __import__("xgboost")
         except ImportError:
-            print(
+            raise ImportError(
                 "XGBoost is required for XGBModel. "
                 "Please install its python package first. "
                 "Help: (https://xgboost.readthedocs.io/en/latest/) "
