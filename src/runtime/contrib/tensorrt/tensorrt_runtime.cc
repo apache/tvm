@@ -249,7 +249,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
     helper.DeclareField("inputs", &engine_and_context.inputs);
     helper.DeclareField("outputs", &engine_and_context.outputs);
     helper.ReadAllFields(&reader);
-    // trt_engine_cache_[symbol_name_] = engine_and_context;
     const int batch_size = 1;
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
     return true;
