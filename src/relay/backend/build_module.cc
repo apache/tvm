@@ -462,6 +462,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
     if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
 
+    // Generate a placeholder function that attaches linked params as its arguments.
     if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
       CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
       auto param_ids = graph_codegen_->GetParamIds();
