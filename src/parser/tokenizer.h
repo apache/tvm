@@ -328,7 +328,7 @@ struct Tokenizer {
       }
     } else if (next == '"') {
       // TODO(@jroesch): Properly tokenize escape sequences in strings.
-      // see https://github.com/apache/incubator-tvm/issues/6153.
+      // see https://github.com/apache/tvm/issues/6153.
       Next();
       std::stringstream string_content;
       while (More() && Peek() != '"') {

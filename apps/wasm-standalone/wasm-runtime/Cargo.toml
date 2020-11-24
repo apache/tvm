@@ -21,7 +21,7 @@ version = "0.1.0"
 authors = ["TVM Contributors"]
 edition = "2018"
 description = "WebAssembly runtime to deep learning frameworks using wasmtime"
-repository = "https://github.com/apache/incubator-tvm"
+repository = "https://github.com/apache/tvm"
 license = "Apache-2.0"
 keywords = ["wasm", "machine learning", "wasmtime"]
 

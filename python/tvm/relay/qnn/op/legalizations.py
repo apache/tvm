@@ -75,7 +75,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     """Converts QNN operators into a sequence of Relay operators that are friendly to HW that do
     not have fast Int8 arithmetic. For example, for ARM, LLVM utilizes the assembly instructions
     much more efficiently if the convolution or dense operator input datatypes are int16 instead of
-    int8. More details are present at https://github.com/apache/incubator-tvm/pull/4277.
+    int8. More details are present at https://github.com/apache/tvm/pull/4277.
 
     Parameters
     ----------
