@@ -3365,9 +3365,10 @@ def test_bincount():
     verify_trace_model(test_fn, [inp, weights], ["llvm"])
     verify_trace_model(test_fn, [inp, weights.to(torch.float64)], ["llvm"])
 
-def convert_traced_model_to_vm_trt(traced_module: torch.jit.TopLevelTracedModule, 
-                                    np_sample_input: np.ndarray, 
-                                    target: str) -> tvm.runtime.vm.Executable:
+
+def convert_traced_model_to_vm_trt(
+    traced_module: torch.jit.TopLevelTracedModule, np_sample_input: np.ndarray, target: str
+) -> tvm.runtime.vm.Executable:
     """
     This function converts a traced pytorch model to VM + TRT.
     """
@@ -3381,12 +3382,14 @@ def convert_traced_model_to_vm_trt(traced_module: torch.jit.TopLevelTracedModule
 
     return vm_trt_exec
 
+
 def test_maskrcnn_resnet50():
     """
-    This function tests the working of pytorch maskrcnn with resnet50 as backbone with 
-    VM and VM + TRT. Since the order of compiled model outputs is a bit different from 
-    original pytorch model, it uses a custom logic for comparison check. 
+    This function tests the working of pytorch maskrcnn with resnet50 as backbone with
+    VM and VM + TRT. Since the order of compiled model outputs is a bit different from
+    original pytorch model, it uses a custom logic for comparison check.
     """
+
     def dict_to_tuple(
         out_dict: Dict,
     ) -> Union[
@@ -3409,9 +3412,12 @@ def test_maskrcnn_resnet50():
             super().__init__()
             self.model = model
 
-        def forward(self, inp: torch.Tensor) -> Union[
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        def forward(
+            self, inp: torch.Tensor
+        ) -> Union[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+        ]:
             out = self.model(inp)
             return dict_to_tuple(out[0])
 
@@ -3433,7 +3439,7 @@ def test_maskrcnn_resnet50():
 
     def get_maskrcnn_input(in_size: int) -> np.ndarray:
         """
-        This function gets a real image with multiple objects of interest and returns it.  
+        This function gets a real image with multiple objects of interest and returns it.
         """
         input_shape = (1, 3, in_size, in_size)
         img_path = "test_street_small.jpg"
