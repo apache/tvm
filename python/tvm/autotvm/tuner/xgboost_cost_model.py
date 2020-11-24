@@ -78,7 +78,7 @@ class XGBoostCostModel(CostModel):
             if xgb is None:
                 xgb = __import__("xgboost")
         except ImportError:
-            print(
+            raise ImportError(
                 "XGBoost is required for XGBoostCostModel. "
                 "Please install its python package first. "
                 "Help: (https://xgboost.readthedocs.io/en/latest/) "
