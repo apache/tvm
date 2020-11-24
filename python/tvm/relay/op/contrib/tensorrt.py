@@ -898,6 +898,13 @@ def is_valid_subgraph(params, body):
             logger.info("tensorrt: inputs have different batch sizes")
             return False
 
+        # and not IsComputeIntensiveGraph().is_compute_intensive(body) == 0
+    # relay.analysis.get_total_mac_number(body) == 0
+    if (
+        get_tensorrt_remove_no_mac_subgraphs()
+        and not IsComputeIntensiveGraph().is_graph_compute_intensive(body)
+    ):
+        return False
     return True
 
 
@@ -942,10 +949,7 @@ def prune_tensorrt_subgraphs(mod):
         name = subgraph.name_hint
         if not mod[name].attrs or mod[name].attrs["Compiler"] != "tensorrt":
             continue
-        if not (
-            is_valid_subgraph(mod[name].params, mod[name].body)
-            and IsComputeIntensiveGraph().is_graph_compute_intensive(mod[name])
-        ):
+        if not (is_valid_subgraph(mod[name].params, mod[name].body)):
             subgraphs_to_remove.append(name)
     # Create new pruned module
     new_mod = tvm.IRModule(mod.functions, mod.type_definitions)
@@ -960,6 +964,11 @@ class RemoveDropout(ExprMutator):
 
     def visit_tuple_getitem(self, op):
         visit = super().visit_tuple_getitem(op)
+        if visit.index != 0:
+            return visit
+        # if isinstance(visit.tuple_value, Call):
+        #     print("Name of VISIT OP", str(visit.tuple_value.op))
+        #     print(" IS IT DROPOUT", str(visit.tuple_value.op) == "nn.dropout")
         if (
             isinstance(visit.tuple_value, Call)
             and visit.tuple_value.op.name == "nn.dropout"
