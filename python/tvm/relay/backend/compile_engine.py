@@ -186,7 +186,8 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
 
-    # check if auto_scheduler is enabled, and disable autotvm if so
+    # Disable autotvm if auto_scheduler is enabled.
+    # (i.e. always return the implementation with the highest priority for auto-scheduler).
     if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
         use_autotvm = False
 
