@@ -24,7 +24,6 @@
 #include "codegen_params.h"
 
 #include <dlpack/dlpack.h>
-#include <strings.h>
 
 #include <cmath>
 #include <iomanip>
@@ -44,7 +43,13 @@ static int ComputeNumElementsPerRow(int one_element_size_bytes, int indent_chars
   // When multiple elements fit per line, divide the available space by the size of one element,
   // and return the largest power of 2 less than the result. Using power-of-2-sized elements allows
   // for easily traversing the generated code.
-  return 1 << (fls((kMaxLineLength - indent_chars) / one_element_size_bytes) - 1);
+  int elements_per_row = (kMaxLineLength - indent_chars) / one_element_size_bytes;
+
+  // Implementation of fls. Iteratively clear the LSB until one bit remains.
+  while ((elements_per_row & (elements_per_row - 1)) > 0) {
+    elements_per_row &= elements_per_row - 1;
+  }
+  return elements_per_row;
 }
 
 template <typename T, typename Enable = std::enable_if<std::is_integral<T>::value>>
