@@ -75,17 +75,12 @@ namespace support {
  * \param error_value The error value returned by the call on retry failure.
  * \return The return code returned by function f or error_value on retry failure.
  */
-template <typename T>
-T retry_call(std::function<T()> f, T error_value) {
-  errno = 0;
-  T rc = error_value;
-  for (size_t retry = 0; retry < 8; ++retry) {
+template <typename FUNC>
+ssize_t RetryCallOnEINTR(FUNC f) {
+  size_t retry_count = 8;
+  ssize_t rc = f();
+  while (--retry_count && rc == -1 && errno == EINTR) {
     rc = f();
-    if (errno == EINTR) {
-      rc = error_value;
-    } else {
-      break;
-    }
   }
   return rc;
 }
@@ -429,8 +424,7 @@ class TCPSocket : public Socket {
    * \return The accepted socket connection.
    */
   TCPSocket Accept() {
-    SockType newfd =
-        retry_call<SockType>([&]() { return accept(sockfd, nullptr, nullptr); }, INVALID_SOCKET);
+    SockType newfd = RetryCallOnEINTR([&]() { return accept(sockfd, nullptr, nullptr); });
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }
@@ -443,9 +437,8 @@ class TCPSocket : public Socket {
    */
   TCPSocket Accept(SockAddr* addr) {
     socklen_t addrlen = sizeof(addr->addr);
-    SockType newfd = retry_call<SockType>(
-        [&]() { return accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen); },
-        INVALID_SOCKET);
+    SockType newfd = RetryCallOnEINTR(
+        [&]() { return accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr), &addrlen); });
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept addr");
     }
@@ -485,8 +478,8 @@ class TCPSocket : public Socket {
    */
   ssize_t Send(const void* buf_, size_t len, int flag = 0) {
     const char* buf = reinterpret_cast<const char*>(buf_);
-    ssize_t count = retry_call<ssize_t>(
-        [&]() { return send(sockfd, buf, static_cast<sock_size_t>(len), flag); }, -1);
+    ssize_t count =
+        RetryCallOnEINTR([&]() { return send(sockfd, buf, static_cast<sock_size_t>(len), flag); });
     return count;
   }
   /*!
@@ -499,8 +492,8 @@ class TCPSocket : public Socket {
    */
   ssize_t Recv(void* buf_, size_t len, int flags = 0) {
     char* buf = reinterpret_cast<char*>(buf_);
-    ssize_t count = retry_call<ssize_t>(
-        [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); }, -1);
+    ssize_t count =
+        RetryCallOnEINTR([&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len), flags); });
     return count;
   }
   /*!
@@ -514,8 +507,8 @@ class TCPSocket : public Socket {
     const char* buf = reinterpret_cast<const char*>(buf_);
     size_t ndone = 0;
     while (ndone < len) {
-      ssize_t ret = retry_call<ssize_t>(
-          [&]() { return send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0); }, -1);
+      ssize_t ret = RetryCallOnEINTR(
+          [&]() { return send(sockfd, buf, static_cast<ssize_t>(len - ndone), 0); });
       if (ret == -1) {
         if (LastErrorWouldBlock()) return ndone;
         Socket::Error("SendAll");
@@ -536,9 +529,8 @@ class TCPSocket : public Socket {
     char* buf = reinterpret_cast<char*>(buf_);
     size_t ndone = 0;
     while (ndone < len) {
-      ssize_t ret = retry_call<ssize_t>(
-          [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL); },
-          -1);
+      ssize_t ret = RetryCallOnEINTR(
+          [&]() { return recv(sockfd, buf, static_cast<sock_size_t>(len - ndone), MSG_WAITALL); });
       if (ret == -1) {
         if (LastErrorWouldBlock()) {
           LOG(FATAL) << "would block";
