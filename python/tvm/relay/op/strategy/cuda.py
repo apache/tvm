@@ -107,7 +107,7 @@ def naive_schedule(_, outs, target):
         # For GPU, we at least need thread binding to make a valid schedule.
         # So the naive schedule cannot be compiled.
         raise RuntimeError(
-            "Cannot compile for GPU targets if no tuned schedule is found."
+            "Cannot compile for GPU targets if no tuned schedule is found. "
             "Please see the warning messages above for more information about the failed workloads."
         )
     return tvm.te.create_schedule(outs[-1].op)
