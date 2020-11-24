@@ -1210,7 +1210,7 @@ def test_partition_overused():
 
 
 def test_partition_check():
-    pattern = is_op("nn.relu")(is_op("nn.conv2d")(wildcard(), wildcard()))
+    pattern = is_op("nn.relu")(is_op("nn.conv2d")(is_var("input"), wildcard()))
 
     def check(pre):
         return pre.args[0].attrs.data_layout == "NCHW"
