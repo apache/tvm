@@ -113,8 +113,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     BuildEngine();
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
-
-    // batch_size_ = GetBatchSize();
     auto& engine_and_context = trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
     auto engine = engine_and_context.engine;
     auto context = engine_and_context.context;
@@ -178,7 +176,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * do nothing.
    */
   void BuildEngine() {
-    // batch_size_ = GetBatchSize();
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) return;
     LOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_ << " with batch size "
@@ -262,8 +259,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * directory so it can be loaded later.
    */
   void CacheEngineToDisk() {
-    // batch_size_ = GetBatchSize();
-
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
     std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return;
@@ -303,8 +298,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
       auto nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
         // Get batch size from first input.
-
-        LOG(INFO) << "Current Batch Size " << nodes_[nid].GetOpShape()[0][0];
         return nodes_[nid].GetOpShape()[0][0];
       }
     }
