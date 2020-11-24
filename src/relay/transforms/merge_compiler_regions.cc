@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*
+/*!
  * \file src/relay/transforms/merge_compiler_regions.cc
  *
  * \brief After operators have been annotated with the targets that support
