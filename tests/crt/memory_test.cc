@@ -28,7 +28,7 @@
 
 static constexpr const unsigned int kTotalPages = 128;
 static constexpr const unsigned int kNumUsablePages =
-    (sizeof(void*) == 8 ? 94 : (sizeof(void*) == 4 ? 98 : 0));
+    (sizeof(void*) == 8 ? 94 : (sizeof(void*) == 4 ? 99 : 0));
 static constexpr const unsigned int kPageSizeBytesLog = 8;  // 256 byte pages.
 static constexpr const unsigned int kMemoryPoolSizeBytes = kTotalPages * (1 << kPageSizeBytesLog);
 
