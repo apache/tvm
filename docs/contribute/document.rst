@@ -68,7 +68,7 @@ Be careful to leave blank lines between sections of your documents.
 In the above case, there has to be a blank line before `Parameters`, `Returns` and `Examples`
 in order for the doc to be built correctly. To add a new function to the doc,
 we need to add the `sphinx.autodoc <http://www.sphinx-doc.org/en/master/ext/autodoc.html>`_
-rules to the `docs/api/python <https://github.com/apache/incubator-tvm/tree/main/docs/api/python>`_).
+rules to the `docs/api/python <https://github.com/apache/tvm/tree/main/docs/api/python>`_).
 You can refer to the existing files under this folder on how to add the functions.
 
 
@@ -96,7 +96,7 @@ to add comments about code logics to improve readability.
 Write Tutorials
 ---------------
 We use the `sphinx-gallery <https://sphinx-gallery.github.io/>`_ to build python tutorials.
-You can find the source code under `tutorials <https://github.com/apache/incubator-tvm/tree/main/tutorials>`_ quite self explanatory.
+You can find the source code under `tutorials <https://github.com/apache/tvm/tree/main/tutorials>`_ quite self explanatory.
 One thing that worth noting is that the comment blocks are written in reStructuredText instead of markdown so be aware of the syntax.
 
 The tutorial code will run on our build server to generate the document page.

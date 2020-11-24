@@ -1100,7 +1100,7 @@ def test_forward_convolution():
             [1, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC", quantized=True
         )
 
-        # Disable as tests are flaky - https://github.com/apache/incubator-tvm/issues/6064
+        # Disable as tests are flaky - https://github.com/apache/tvm/issues/6064
         # depthwise convolution
         # _test_tflite2_quantized_depthwise_convolution([1, 8, 8, 128], [1, 1, 128, 1], [1, 1], [1, 1],
         #                                               'SAME', 'NHWC', 1)

@@ -116,7 +116,7 @@ tvm.target.datatype.register("myfloat", 150)
 
 ######################################################################
 # Note that the type code, 150, is currently chosen manually by the user.
-# See ``TVMTypeCode::kCustomBegin`` in `include/tvm/runtime/c_runtime_api.h <https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/data_type.h>`_.
+# See ``TVMTypeCode::kCustomBegin`` in `include/tvm/runtime/c_runtime_api.h <https://github.com/apache/tvm/blob/main/include/tvm/runtime/data_type.h>`_.
 # Now we can generate our program again:
 
 x_myfloat = relay.cast(x, dtype="custom[myfloat]32")
@@ -176,7 +176,7 @@ tvm.target.datatype.register_op(
 # To provide for the general case, we have made a helper function, ``create_lower_func(...)``,
 # which does just this: given a dictionary, it replaces the given operation with a ``Call`` to the appropriate function name provided based on the op and the bit widths.
 # It additionally removes usages of the custom datatype by storing the custom datatype in an opaque ``uint`` of the appropriate width; in our case, a ``uint32_t``.
-# For more information, see `the source code <https://github.com/apache/incubator-tvm/blob/main/python/tvm/target/datatype.py>`_.
+# For more information, see `the source code <https://github.com/apache/tvm/blob/main/python/tvm/target/datatype.py>`_.
 
 # We can now re-try running the program:
 try:

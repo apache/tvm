@@ -278,11 +278,11 @@ to represent tensor, tuple/list, and closure data, respectively. More details
 for each of them can be found at `include/tvm/runtime/ndarray.h`_,
 `include/tvm/runtime/vm/vm.h`_, and `include/tvm/runtime/container.h`_, respectively.
 
-.. _include/tvm/runtime/ndarray.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/ndarray.h
+.. _include/tvm/runtime/ndarray.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/ndarray.h
 
-.. _include/tvm/runtime/vm/vm.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/vm/vm.h
+.. _include/tvm/runtime/vm/vm.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/vm/vm.h
 
-.. _include/tvm/runtime/container.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/container.h
+.. _include/tvm/runtime/container.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/container.h
 
 Stack and State
 ~~~~~~~~~~~~~~~
@@ -326,7 +326,7 @@ The functions contain metadata about the function as well as its compiled byteco
 object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the
 data structures, please see `include/tvm/runtime/vm/executable.h`_ and `include/tvm/runtime/vm/vm.h`_.
 
-.. _include/tvm/runtime/vm/executable.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/vm/executable.h
+.. _include/tvm/runtime/vm/executable.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/vm/executable.h
 
 Optimizations
 ~~~~~~~~~~~~~
@@ -343,11 +343,11 @@ Optimizations marked with `TODO` are not implemented yet.
 - Tail Call Optimization (TODO)
 - Liveness Analysis (TODO)
 
-.. _src/relay/vm/lambda_lift.cc: https://github.com/apache/incubator-tvm/blob/main/src/relay/backend/vm/lambda_lift.cc
+.. _src/relay/vm/lambda_lift.cc: https://github.com/apache/tvm/blob/main/src/relay/backend/vm/lambda_lift.cc
 
-.. _src/relay/vm/inline_primitives.cc: https://github.com/apache/incubator-tvm/blob/main/src/relay/backend/vm/inline_primitives.cc
+.. _src/relay/vm/inline_primitives.cc: https://github.com/apache/tvm/blob/main/src/relay/backend/vm/inline_primitives.cc
 
-.. _src/relay/backend/vm/compiler.cc: https://github.com/apache/incubator-tvm/blob/main/src/relay/backend/vm/compiler.cc
+.. _src/relay/backend/vm/compiler.cc: https://github.com/apache/tvm/blob/main/src/relay/backend/vm/compiler.cc
 
 Serialization
 ~~~~~~~~~~~~~
@@ -386,7 +386,7 @@ load the serialized kernel binary and executable related binary code, which will
 instantiate a VM object. Please refer to the `test_vm_serialization.py`_ file for more
 examples.
 
-.. _test_vm_serialization.py: https://github.com/apache/incubator-tvm/blob/main/tests/python/relay/test_vm_serialization.py
+.. _test_vm_serialization.py: https://github.com/apache/tvm/blob/main/tests/python/relay/test_vm_serialization.py
 
 Unresolved Questions
 ~~~~~~~~~~~~~~~~~~~~

@@ -63,11 +63,11 @@ This command will create the tvmjs library that we can use to interface with the
 
 Check code snippet in
 
-- [tests/python/prepare_test_libs.py](https://github.com/apache/incubator-tvm/tree/main/web/tests/python/prepare_test_libs.py)
+- [tests/python/prepare_test_libs.py](https://github.com/apache/tvm/tree/main/web/tests/python/prepare_test_libs.py)
   shows how to create a wasm library that links with tvm runtime.
   - Note that all wasm libraries have to created using the `--system-lib` option
   - emcc.create_wasm will automatically link the runtime library `dist/wasm/libtvm_runtime.bc`
-- [tests/web/test_module_load.js](https://github.com/apache/incubator-tvm/tree/main/web/tests/node/test_module_load.js) demonstrate
+- [tests/web/test_module_load.js](https://github.com/apache/tvm/tree/main/web/tests/node/test_module_load.js) demonstrate
   how to run the generated library through tvmjs API.
 
 
