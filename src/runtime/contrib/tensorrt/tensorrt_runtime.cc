@@ -178,8 +178,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void BuildEngine() {
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) return;
-    LOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_ << " with batch size "
-              << batch_size_;
+    DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_
+               << " with batch size " << batch_size_;
     const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size_);
@@ -212,8 +212,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
     // Build engine.
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)] = builder.BuildEngine();
-    LOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
-              << " with batch size " << batch_size_;
+    DLOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
+               << " with batch size " << batch_size_;
     CacheEngineToDisk();
   }
 
