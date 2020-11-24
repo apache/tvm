@@ -186,6 +186,10 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
 
+    # check if auto_scheduler is enabled, and disable autotvm if so
+    if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+        use_autotvm = False
+
     # If not use autotvm, always return the implementation with the highest priority
     if not use_autotvm:
         logger.info(
@@ -288,10 +292,7 @@ def lower_call(call, inputs, target):
             env.tracing = False
             reenable_tracing = True
 
-    # check if auto_scheduler is enabled, and use pevel to select the implementation if so
-    use_auto_scheduler = PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
-
-    if not is_dyn and not use_auto_scheduler:
+    if not is_dyn:
         best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
