@@ -148,9 +148,10 @@ class MicroTransportChannel : public RPCChannel {
             ::std::max(::std::chrono::microseconds{0},
                        ::std::chrono::duration_cast<::std::chrono::microseconds>(
                            end_time - ::std::chrono::steady_clock::now()))};
-        chunk = frecv_(kReceiveBufferSizeBytes, iter_timeout.count()).operator std::string();
+        chunk =
+            frecv_(size_t(kReceiveBufferSizeBytes), iter_timeout.count()).operator std::string();
       } else {
-        chunk = frecv_(kReceiveBufferSizeBytes, nullptr).operator std::string();
+        chunk = frecv_(size_t(kReceiveBufferSizeBytes), nullptr).operator std::string();
       }
       pending_chunk_ = chunk;
       if (pending_chunk_.size() == 0) {
