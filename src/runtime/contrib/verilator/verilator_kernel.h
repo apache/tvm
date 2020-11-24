@@ -32,7 +32,8 @@ namespace tvm {
 namespace runtime {
 namespace contrib {
 
-extern "C" TVM_DLL void verilator_add(VerilatorHandle handle, int* a, int* b, int* y, int h, int w);
+extern "C" TVM_DLL void verilator_add(VerilatorHandle handle, int* data, int* weight, int* out,
+                                      int p_h_, int p_w_);
 
 }  // namespace contrib
 }  // namespace runtime
