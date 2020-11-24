@@ -896,9 +896,6 @@ def is_valid_subgraph(params, body):
         if len(input_batch_sizes) > 1 and len(set(input_batch_sizes)) != 1:
             logger.info("tensorrt: inputs have different batch sizes")
             return False
-
-        # and not IsComputeIntensiveGraph().is_compute_intensive(body) == 0
-    # relay.analysis.get_total_mac_number(body) == 0
     if (
         get_tensorrt_remove_no_mac_subgraphs()
         and not IsComputeIntensiveGraph().is_graph_compute_intensive(body)
