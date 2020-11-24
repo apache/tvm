@@ -19,7 +19,7 @@
 Deploy TVM Module using C++ API
 ===============================
 
-We provide an example on how to deploy TVM modules in `apps/howto_deploy <https://github.com/apache/incubator-tvm/tree/main/apps/howto_deploy>`_
+We provide an example on how to deploy TVM modules in `apps/howto_deploy <https://github.com/apache/tvm/tree/main/apps/howto_deploy>`_
 
 To run the example, you can use the following command
 
@@ -38,17 +38,17 @@ TVM provides a minimum runtime, which costs around 300K to 600K depending on how
 In most cases, we can use ``libtvm_runtime.so`` that comes with the build.
 
 If somehow you find it is hard to build ``libtvm_runtime``, checkout
-`tvm_runtime_pack.cc <https://github.com/apache/incubator-tvm/tree/main/apps/howto_deploy/tvm_runtime_pack.cc>`_.
+`tvm_runtime_pack.cc <https://github.com/apache/tvm/tree/main/apps/howto_deploy/tvm_runtime_pack.cc>`_.
 It is an example all in one file that gives you TVM runtime.
 You can compile this file using your build system and include this into your project.
 
-You can also checkout `apps <https://github.com/apache/incubator-tvm/tree/main/apps/>`_ for example applications build with TVM on iOS, Android and others.
+You can also checkout `apps <https://github.com/apache/tvm/tree/main/apps/>`_ for example applications build with TVM on iOS, Android and others.
 
 Dynamic Library vs. System Module
 ---------------------------------
 TVM provides two ways to use the compiled library.
-You can checkout `prepare_test_libs.py <https://github.com/apache/incubator-tvm/tree/main/apps/howto_deploy/prepare_test_libs.py>`_
-on how to generate the library and `cpp_deploy.cc <https://github.com/apache/incubator-tvm/tree/main/apps/howto_deploy/cpp_deploy.cc>`_ on how to use them.
+You can checkout `prepare_test_libs.py <https://github.com/apache/tvm/tree/main/apps/howto_deploy/prepare_test_libs.py>`_
+on how to generate the library and `cpp_deploy.cc <https://github.com/apache/tvm/tree/main/apps/howto_deploy/cpp_deploy.cc>`_ on how to use them.
 
 - Store library as a shared library and dynamically load the library into your project.
 - Bundle the compiled library into your project in system module mode.

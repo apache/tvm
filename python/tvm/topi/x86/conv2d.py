@@ -263,7 +263,7 @@ def schedule_conv2d_NCHWc(cfg, outs):
     return s
 
 
-# FIXME - https://github.com/apache/incubator-tvm/issues/4122
+# FIXME - https://github.com/apache/tvm/issues/4122
 # _declaration_conv_nhwc_pack expects kernel layout to be HWOI. However, the tests use HWIO
 # layout. Commenting until we have clarity about the nhwc_pack implementation from the author.
 # elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":

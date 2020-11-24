@@ -45,7 +45,7 @@ PackedFunc
 `PackedFunc`_ is a simple but elegant solution
 we find to solve the challenges listed. The following code block provides an example in C++
 
-.. _PackedFunc: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/packed_func.h
+.. _PackedFunc: https://github.com/apache/tvm/blob/main/include/tvm/runtime/packed_func.h
 
 .. code:: c
 
@@ -131,9 +131,9 @@ which allows us to embed the PackedFunc into any languages. Besides python, so f
 `java`_ and `javascript`_.
 This philosophy of embedded API is very like Lua, except that we don't have a new language but use C++.
 
-.. _minimum C API: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/c_runtime_api.h
-.. _java: https://github.com/apache/incubator-tvm/tree/main/jvm
-.. _javascript: https://github.com/apache/incubator-tvm/tree/main/web
+.. _minimum C API: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h
+.. _java: https://github.com/apache/tvm/tree/main/jvm
+.. _javascript: https://github.com/apache/tvm/tree/main/web
 
 
 One fun fact about PackedFunc is that we use it for both compiler and deployment stack.
@@ -141,7 +141,7 @@ One fun fact about PackedFunc is that we use it for both compiler and deployment
 - All TVM's compiler pass functions are exposed to frontend as PackedFunc, see `here`_
 - The compiled module also returns the compiled function as PackedFunc
 
-.. _here: https://github.com/apache/incubator-tvm/tree/main/src/api
+.. _here: https://github.com/apache/tvm/tree/main/src/api
 
 To keep the runtime minimum, we isolated the IR Object support from the deployment runtime. The resulting runtime takes around 200K - 600K depending on how many runtime driver modules (e.g., CUDA) get included.
 
@@ -162,7 +162,7 @@ TVM defines the compiled object as `Module`_.
 The user can get the compiled function from Module as PackedFunc.
 The generated compiled code can dynamically get function from Module in runtime. It caches the function handle in the first call and reuses in subsequent calls. We use this to link device code and callback into any PackedFunc(e.g., python) from generated code.
 
-.. _Module: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/module.h
+.. _Module: https://github.com/apache/tvm/blob/main/include/tvm/runtime/module.h
 
 The ModuleNode is an abstract class that can be implemented by each type of device.
 So far we support modules for CUDA, Metal, OpenCL and loading dynamic shared libraries. This abstraction makes introduction
@@ -198,7 +198,7 @@ All the language object in the compiler stack is a subclass of ``Object``. Each 
 the type of object. We choose string instead of int as type key so new ``Object`` class can be added in the decentralized fashion without
 adding the code back to the central repo. To ease the speed of dispatching, we allocate an integer type_index at runtime for each type_key.
 
-.. _Object: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/object.h
+.. _Object: https://github.com/apache/tvm/blob/main/include/tvm/runtime/object.h
 
 Since usually one ``Object`` could be referenced in multiple places in the language, we use a shared_ptr to keep
 track of reference. We use ``ObjectRef`` class to represent a reference to the ``Object``.
@@ -279,17 +279,17 @@ Each argument in PackedFunc contains a union value `TVMValue`_
 and a type code. This design allows the dynamically typed language to convert to the corresponding type directly, and statically typed language to
 do runtime type checking during conversion.
 
-.. _TVMValue: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/c_runtime_api.h#L122
+.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h#L122
 
 The relevant files are
 
 - `packed_func.h`_ for C++ API
 - `c_runtime_api.cc`_ for C API and how to provide callback.
 
-.. _packed_func.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/runtime/packed_func.h
-.. _c_runtime_api.cc: https://github.com/apache/incubator-tvm/blob/main/src/runtime/c_runtime_api.cc#L262
+.. _packed_func.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/packed_func.h
+.. _c_runtime_api.cc: https://github.com/apache/tvm/blob/main/src/runtime/c_runtime_api.cc#L262
 
 To support extension types, we used a registry system to register type related information, like support of any
 in C++, see `Extension types`_ for more details.
 
-.. _Extension types: https://github.com/apache/incubator-tvm/tree/main/apps/extension
+.. _Extension types: https://github.com/apache/tvm/tree/main/apps/extension

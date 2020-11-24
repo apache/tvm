@@ -124,7 +124,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
 @tvm.testing.uses_gpu
 @pytest.mark.skip(
     "Skip this test as it is intermittent."
-    "See https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094"
+    "See https://github.com/apache/tvm/pull/4901#issuecomment-595040094"
 )
 def test_get_valid_counts():
     verify_get_valid_counts((1, 1000, 5), 0.5, -1, 0)

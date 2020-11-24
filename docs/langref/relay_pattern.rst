@@ -35,7 +35,7 @@ There are quite a few properties of operators that are worth matching. Below we 
 demonstrates how to write patterns. It is recommended to check `tests/python/relay/test_dataflow_pattern.py`_
 for more use cases.
 
-.. _tests/python/relay/test_dataflow_pattern.py: https://github.com/apache/incubator-tvm/blob/main/tests/python/relay/test_dataflow_pattern.py
+.. _tests/python/relay/test_dataflow_pattern.py: https://github.com/apache/tvm/blob/main/tests/python/relay/test_dataflow_pattern.py
 
 .. note::
 

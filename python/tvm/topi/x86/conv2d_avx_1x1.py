@@ -229,7 +229,7 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     packing of weight to make the address access be friendly to int8
     intrinsic
     """
-    # FIXME - https://github.com/apache/incubator-tvm/issues/3598
+    # FIXME - https://github.com/apache/tvm/issues/3598
     # pylint: disable=unreachable
     return s
 

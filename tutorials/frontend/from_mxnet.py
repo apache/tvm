@@ -33,7 +33,7 @@ A quick solution is
     pip install mxnet --user
 
 or please refer to offical installation guide.
-https://mxnet.incubator.apache.org/versions/master/install/index.html
+https://mxnet.apache.org/versions/master/install/index.html
 """
 # some standard imports
 import mxnet as mx
