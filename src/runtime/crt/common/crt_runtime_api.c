@@ -64,7 +64,11 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   DLContext ctx;
   ctx.device_type = (DLDeviceType)device_type;
   ctx.device_id = device_id;
-  TVMNDArray arr = TVMNDArray_Empty(ndim, shape, dtype, ctx);
+  TVMNDArray arr;
+  int status = TVMNDArray_Empty(ndim, shape, dtype, ctx, &arr);
+  if (status != 0) {
+    return status;
+  }
   **out = arr.dl_tensor;
   return 0;
 }
