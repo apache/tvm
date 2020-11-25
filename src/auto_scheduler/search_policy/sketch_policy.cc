@@ -168,7 +168,7 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
         PrintTitle("Train cost model", verbose);
         program_cost_model->Update(inputs, results);
 
-        PrintTimeElapsed(t_begin, verbose);
+        PrintTimeElapsed(t_begin, "training", verbose);
       }
 
       // Search one round to get promising states
@@ -260,7 +260,7 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
   PrintTitle("Train cost model", verbose);
   program_cost_model->Update(inputs, results);
 
-  PrintTimeElapsed(t_begin, verbose);
+  PrintTimeElapsed(t_begin, "training", verbose);
 
   return std::make_pair(std::move(inputs), std::move(results));
 }

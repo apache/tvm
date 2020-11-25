@@ -282,7 +282,7 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     }
   }
 
-  PrintTimeElapsed(t_begin, verbose);
+  PrintTimeElapsed(t_begin, "measurement", verbose);
 
   return results;
 }
