@@ -443,7 +443,7 @@ def take_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
-    if tvm.relay.ty.is_dynamic(inputs[0].checked_type):
+    if tvm.relay.ty.is_dynamic(types[0]):
         return tvm.relay.take(tvm.relay.annotation.stop_fusion(inputs[0]), inputs[1], **attrs)
     return None
 
