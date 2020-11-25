@@ -3363,23 +3363,6 @@ def test_bincount():
     verify_trace_model(test_fn, [inp, weights.to(torch.float64)], ["llvm"])
 
 
-def convert_traced_model_to_vm_trt(
-    traced_module: torch.jit.TopLevelTracedModule, np_sample_input: np.ndarray, target: str
-) -> tvm.runtime.vm.Executable:
-    """
-    This function converts a traced pytorch model to VM + TRT.
-    """
-    input_shape = np_sample_input.shape
-    input_name = "input0"
-    shape_list = [(input_name, input_shape)]
-    mod, params = relay.frontend.from_pytorch(traced_module, shape_list)
-    mod, config = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
-        vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
-
-    return vm_trt_exec
-
-
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
