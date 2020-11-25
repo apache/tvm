@@ -22,7 +22,6 @@ import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import free_vars
 import pytest
-import sys
 
 DEBUG_PRINT = False
 
@@ -46,46 +45,6 @@ def show(text):
     if DEBUG_PRINT:
         print("---------------------------")
         print(text)
-
-
-def get_darknet(model_name):
-    from tvm.contrib.download import download_testdata
-    from tvm.relay.testing.darknet import __darknetffi__
-    import tvm.relay.testing.yolo_detection
-    import tvm.relay.testing.darknet
-
-    CFG_NAME = model_name + ".cfg"
-    WEIGHTS_NAME = model_name + ".weights"
-    REPO_URL = "https://github.com/dmlc/web-data/blob/main/darknet/"
-    CFG_URL = REPO_URL + "cfg/" + CFG_NAME + "?raw=true"
-    WEIGHTS_URL = "https://pjreddie.com/media/files/" + WEIGHTS_NAME
-
-    cfg_path = download_testdata(CFG_URL, CFG_NAME, module="darknet")
-    weights_path = download_testdata(WEIGHTS_URL, WEIGHTS_NAME, module="darknet")
-
-    # Download and Load darknet library
-    if sys.platform in ["linux", "linux2"]:
-        DARKNET_LIB = "libdarknet2.0.so"
-        DARKNET_URL = REPO_URL + "lib/" + DARKNET_LIB + "?raw=true"
-    elif sys.platform == "darwin":
-        DARKNET_LIB = "libdarknet_mac2.0.so"
-        DARKNET_URL = REPO_URL + "lib_osx/" + DARKNET_LIB + "?raw=true"
-    else:
-        err = "Darknet lib is not supported on {} platform".format(sys.platform)
-        raise NotImplementedError(err)
-
-    lib_path = download_testdata(DARKNET_URL, DARKNET_LIB, module="darknet")
-
-    DARKNET_LIB = __darknetffi__.dlopen(lib_path)
-    net = DARKNET_LIB.load_network(cfg_path.encode("utf-8"), weights_path.encode("utf-8"), 0)
-    dtype = "float32"
-    batch_size = 1
-
-    data = np.empty([batch_size, net.c, net.h, net.w], dtype)
-    shape_dict = {"data": data.shape}
-    mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
-    mod = relay.transform.InferType()(mod)
-    return mod, params
 
 
 def test_func():
@@ -232,11 +191,6 @@ def test_densenet():
     astext(net)
 
 
-def test_yolov3():
-    net, _ = get_darknet("yolov3")
-    astext(net)
-
-
 def test_call_node_order():
     x = relay.var("x")
     y = relay.var("y")
@@ -316,4 +270,4 @@ def test_span():
 
 
 if __name__ == "__main__":
-    pytest.main(sys.argv)
+    pytest.main([__file__])
