@@ -24,6 +24,29 @@ import tvm.testing
 
 
 @tvm.testing.uses_gpu
+def test_sort():
+    def verify_sort(shape, axis, is_ascend):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.sort(x, axis=axis, is_ascend=is_ascend)
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(size=shape).astype("float32")
+        if is_ascend:
+            ref_res = np.sort(x_data, axis=axis)
+        else:
+            ref_res = -np.sort(-x_data, axis=axis)
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_sort((2, 3, 4), axis=0, is_ascend=False)
+    verify_sort((1, 4, 6), axis=1, is_ascend=True)
+    verify_sort((3, 5, 6), axis=-1, is_ascend=False)
+
+
+@tvm.testing.uses_gpu
 def test_argsort():
     def verify_argsort(shape, axis, is_ascend, dtype):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -95,5 +118,6 @@ def test_topk():
 
 
 if __name__ == "__main__":
+    test_sort()
     test_argsort()
     test_topk()

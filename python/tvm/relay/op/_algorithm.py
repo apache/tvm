@@ -26,6 +26,10 @@ from . import op as _reg
 from .op import OpPattern, register_pattern
 from .op import register_strategy
 
+# sort
+register_strategy("sort", strategy.sort_strategy)
+register_pattern("sort", OpPattern.OPAQUE)
+
 # argsort
 register_strategy("argsort", strategy.argsort_strategy)
 register_pattern("argsort", OpPattern.OPAQUE)
