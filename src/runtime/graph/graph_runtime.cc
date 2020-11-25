@@ -253,7 +253,7 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
 void GraphRuntime::LinkedNDArrayDeleter(Object* container) {
   // container is the NDArray::Container which needs to get deleted.
   // The data member points to global const memory, so it does not need deleting.
-  delete reinterpret_cast<NDArray::Container*>(container);
+  delete static_cast<NDArray::Container*>(container);
 }
 
 void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
