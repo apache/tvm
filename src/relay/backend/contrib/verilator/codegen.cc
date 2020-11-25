@@ -33,9 +33,8 @@
 #include <numeric>
 #include <sstream>
 
-#include "../../utils.h"
-
 #include "../../../../runtime/contrib/json/json_node.h"
+#include "../../utils.h"
 #include "../codegen_json/codegen_json.h"
 
 namespace tvm {

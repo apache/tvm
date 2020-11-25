@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_KERNEL_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+
 #include "verilator_device.h"
 
 namespace tvm {
