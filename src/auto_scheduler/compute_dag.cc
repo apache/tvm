@@ -662,7 +662,7 @@ void CheckComputeValidity(const te::Schedule& sch) {
   // Check the validity of a compute definition:
   // The name of each iterator should be unique.
   for (auto stage : sch->stages) {
-    if (const auto* op = stage->op.as<te::ComputeOpNode>()) {
+    if (stage->op->IsInstance<te::ComputeOpNode>()) {
       std::unordered_set<std::string> names;
       for (const auto& x : stage->leaf_iter_vars) {
         ICHECK(!names.count(x->var->name_hint))
