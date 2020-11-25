@@ -38,4 +38,4 @@ extern "C" TVM_DLL void verilator_add(VerilatorHandle handle, int* data, int* we
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_CONTRIB_VERILATORL_VERILATOR_KERNEL_H_
+#endif  // TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_KERNEL_H_

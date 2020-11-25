@@ -54,4 +54,4 @@ extern "C" TVM_DLL void VerilatorRun(VerilatorHandle handle, int n);
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_CONTRIB_VERILATORL_VERILATOR_DEVICE_H_
+#endif  // TVM_RUNTIME_CONTRIB_VERILATOR_VERILATOR_DEVICE_H_
