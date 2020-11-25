@@ -103,8 +103,8 @@ inline Tensor pool_impl(const Tensor& x, const Array<PrimExpr>& kernel_size,
   auto out_width =
       analyzer.Simplify(indexdiv(width - kernel_width + pad_left + pad_right, stride_width) + 1);
 
-  auto dheight = tvm::te::reduce_axis(Range(0, kernel_height));
-  auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width));
+  auto dheight = tvm::te::reduce_axis(Range(0, kernel_height), "dh");
+  auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width), "dw");
 
   Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < out_shape.size(); ++i) {
@@ -220,8 +220,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   auto out_width =
       analyzer.Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
 
-  auto dheight = tvm::te::reduce_axis(Range(0, kernel_height));
-  auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width));
+  auto dheight = tvm::te::reduce_axis(Range(0, kernel_height), "dh");
+  auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width), "dw");
 
   Array<PrimExpr> data_shape = x->shape;
   for (size_t i = 0; i < data_shape.size(); ++i) {
@@ -245,8 +245,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     ravel_shape.Set(width_axis, ravel_shape[width_axis] + pad_left + pad_right);
 
     auto windowh =
-        tvm::te::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height));
-    auto windoww = tvm::te::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
+        tvm::te::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height), "wh");
+    auto windoww =
+        tvm::te::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width), "ww");
 
     auto argmax = MakeArgmaxReducer();
     auto pad_x = do_pad ? pad(x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
@@ -293,8 +294,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
         "T_pool_grad", "pool_grad_max");
   } else if (pool_type == kAvgPool) {
     auto windowh =
-        tvm::te::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height));
-    auto windoww = tvm::te::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
+        tvm::te::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height), "wh");
+    auto windoww =
+        tvm::te::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width), "ww");
     return tvm::te::compute(
         data_shape,
         [&](const Array<Var>& inds) {
@@ -696,7 +698,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
       pad_tail[i] += stride[i] - 1;
     }
 
-    daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i])));
+    daxis.push_back(tvm::te::reduce_axis(Range(0, kernel[i]), "rv" + std::to_string(i)));
 
     pad_before.Set(ii, pad_head[i]);
     pad_after.Set(ii, pad_tail[i]);
