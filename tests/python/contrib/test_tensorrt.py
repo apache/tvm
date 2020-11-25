@@ -28,7 +28,6 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.relay import Any, GlobalVar, transform
 from typing import Dict, Tuple, Union
 from tvm.contrib.download import download
-import cv2
 from tvm.relay.op.contrib import tensorrt
 
 
@@ -1106,6 +1105,7 @@ def test_maskrcnn_resnet50() -> None:
             "master/gluoncv/detection/street_small.jpg"
         )
         download(img_url, img_path)
+        import cv2
 
         img = cv2.imread(img_path).astype("float32")
         img = cv2.resize(img, (in_size, in_size))
