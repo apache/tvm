@@ -29,11 +29,7 @@ from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
-from typing import Dict, Tuple, Union
 from packaging import version as package_version
-from tvm.contrib.download import download
-import cv2
-from tvm.relay.op.contrib import tensorrt
 
 sys.setrecursionlimit(10000)
 
