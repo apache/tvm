@@ -1038,6 +1038,23 @@ def test_dynamic_offload():
     tvm.ir.assert_structural_equal(mod_trt, mod_exp, map_free_vars=True)
 
 
+def convert_traced_model_to_vm_trt(
+    traced_module: torch.jit.TopLevelTracedModule, np_sample_input: np.ndarray, target: str
+) -> tvm.runtime.vm.Executable:
+    """
+    This function converts a traced pytorch model to VM + TRT.
+    """
+    input_shape = np_sample_input.shape
+    input_name = "input0"
+    shape_list = [(input_name, input_shape)]
+    mod, params = relay.frontend.from_pytorch(traced_module, shape_list)
+    mod, config = tensorrt.partition_for_tensorrt(mod, params, remove_no_mac_subgraphs=True)
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
+        vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
+
+    return vm_trt_exec
+
+
 def test_maskrcnn_resnet50() -> None:
     """
     This function tests the working of pytorch maskrcnn with resnet50 as backbone with
