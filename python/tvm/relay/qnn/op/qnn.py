@@ -296,6 +296,118 @@ def conv2d(
     )
 
 
+def conv2d_transpose(
+    data,
+    weight,
+    input_zero_point,
+    kernel_zero_point,
+    input_scale,
+    kernel_scale,
+    strides=(1, 1),
+    padding=(0, 0),
+    dilation=(1, 1),
+    groups=1,
+    channels=None,
+    kernel_size=None,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
+    out_layout="",
+    output_padding=(0, 0),
+    out_dtype="",
+):
+    """This operator deconvolves quantized data with quantized kernel. The scale of
+    the output quantized tensor is the product of the kernel_scale and
+    input_scale of the input quantized tensors. The zero point of the output
+    quantized tensor is 0. By default, the dtype of output is int32. Please also
+    refer to Requantize operator to understand how to scale back the int32
+    output to (u)int8.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    input_zero_point: tvm.relay.Expr
+           The zero point of the data distribution.
+
+    kernel_zero_point: tvm.relay.Expr
+           The zero point of the quantized_kernel distribution.
+
+    input_scale: tvm.relay.Expr
+           The scale for the input tensor. The scale for the input tensor is
+           stored purely for convenience here. See more commentary below.
+
+    kernel_scale: tvm.relay.Expr
+           The scale for the weight tensor. The scale for the weight tensor is
+           stored for access to this during relay. This information is not
+           needed in the pass pipeline after qnn.transpose_conv2d is lowered to the
+           sequence of steps as in nn.transpose_conv2d. See also input_scale in Requantize.
+
+    strides : Tuple[int], optional
+        The strides of convolution.
+
+    padding : Tuple[int], optional
+        The padding of convolution.
+
+    dilation : Tuple[int], optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial dimensions of the convolution kernel.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    output_padding : Tuple[int], optional
+        Used to identify the padding within the output shape
+        (only used in training, where transpose_conv represents the gradient of a convolution )
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
+    return _make.conv2d_transpose(
+        data,
+        weight,
+        input_zero_point,
+        kernel_zero_point,
+        input_scale,
+        kernel_scale,
+        strides,
+        padding,
+        dilation,
+        groups,
+        channels,
+        kernel_size,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        output_padding,
+        out_dtype,
+    )
+
+
 def add(
     lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale, output_zero_point
 ):
