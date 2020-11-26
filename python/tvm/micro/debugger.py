@@ -272,7 +272,7 @@ class GdbTransportDebugger(GdbDebugger):
             raise base.IoTimeoutError()
 
         def close(self):
-            pass  # Pipes closed by parent class.
+            pass  # Pipes closed by parent class (DebugWrapperTransport calls stop() next).
 
     def transport(self):
         return self._Transport(self)

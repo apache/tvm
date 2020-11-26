@@ -18,39 +18,25 @@
  */
 
 /*!
- * \file include/tvm/runtime/crt/module.h
- * \brief Runtime container of the functions
+ * \file graph_runtime.h
+ * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
  */
-#ifndef TVM_RUNTIME_CRT_MODULE_H_
-#define TVM_RUNTIME_CRT_MODULE_H_
-
-#include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/crt/func_registry.h>
+#ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_MODULE_H_
+#define TVM_RUNTIME_CRT_GRAPH_RUNTIME_MODULE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*!
- * \brief Module container of TVM.
- */
-typedef struct TVMModule {
-  /*! \brief The function registry associated with this mdoule. */
-  const TVMFuncRegistry* registry;
-} TVMModule;
+#include <tvm/runtime/crt/error_codes.h>
 
 /*!
- * \brief Create a new module handle from the given TVMModule instance.
- * \param mod The module instance to register.
- * \param out_handle Pointer to recieve the newly-minted handle for this module.
- * \return 0 on success, non-zero on error.
+ * \brief Register the "tvm.graph_runtime.create" constructor PackedFunc.
  */
-int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle);
-
-/*! \brief Entry point for the system lib module. */
-const TVMModule* TVMSystemLibEntryPoint(void);
+tvm_crt_error_t TVMGraphRuntimeModule_Register();
 
 #ifdef __cplusplus
-}
+}  // extern "C"
 #endif
-#endif  // TVM_RUNTIME_CRT_MODULE_H_
+
+#endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_MODULE_H_
