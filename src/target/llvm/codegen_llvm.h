@@ -99,6 +99,18 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   void AddLinkModule(std::unique_ptr<llvm::Module>&& mod);
   /*!
+   * \brief Link parameters into the module so they don't need to be supplied at runtime.
+   * Parameters can be linked into the module so that the generated code is easier to use, or so
+   * that RAM space doesn't need to be allocated for them. This function adds the given parameters
+   * to the generated LLVM module.
+   * \param storage_id_offset Offset added to the index of each entry in params_by_sid to form the
+   *     storage_id of that parameter. Storage ids for parameters are expected to be contiguous.
+   * \param params_by_sid Array of NDArray. Each entry is a parameter. The index of the array (added
+   *     to sid_offset) is the storage_id of the param.
+   * \param param_names Array containing the name for each param in params_by_sid.
+   */
+  void LinkParameters(const Map<String, LinkedParam> params);
+  /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
    * \return created value.

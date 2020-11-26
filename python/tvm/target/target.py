@@ -236,7 +236,8 @@ def micro(model="unknown", options=None):
         "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     }
     opts = _merge_opts(
-        trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"], options
+        trans_table[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
+        options,
     )
 
     # NOTE: in the future, the default micro target will be LLVM except when
