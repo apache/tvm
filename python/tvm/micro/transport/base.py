@@ -64,7 +64,7 @@ TransportTimeouts = collections.namedtuple(
 )
 
 
-def debug_transport_timeouts(session_start_retry_timeout_sec=0.0):
+def debug_transport_timeouts(session_start_retry_timeout_sec=0):
     return TransportTimeouts(
         session_start_retry_timeout_sec=session_start_retry_timeout_sec,
         session_start_timeout_sec=0,

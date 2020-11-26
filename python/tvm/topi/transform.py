@@ -426,6 +426,28 @@ def take(a, indices, axis=None, mode="clip"):
     return cpp.take(a, indices, int(axis), mode)
 
 
+@tvm.target.generic_func
+def take_legalize(attrs, inputs, types):
+    """Legalizes dyn.topk op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    if tvm.relay.ty.is_dynamic(types[0]):
+        return tvm.relay.take(tvm.relay.annotation.stop_fusion(inputs[0]), inputs[1], **attrs)
+    return None
+
+
 def gather(data, axis, indices):
     """Gather values along given axis from given indices.
 

@@ -21,7 +21,11 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} --version OUTPUT_VARIABLE clang_full_version)
   string (REGEX REPLACE ".*clang version ([0-9]+\\.[0-9]+).*" "\\1" CLANG_VERSION ${clang_full_version})
   message(STATUS "CLANG_VERSION ${CLANG_VERSION}")
-  if (CLANG_VERSION VERSION_GREATER_EQUAL 10.0)
+  # cmake 3.2 does not support VERSION_GREATER_EQUAL
+  set(CLANG_MINIMUM_VERSION 10.0)
+  if ((CLANG_VERSION VERSION_GREATER ${CLANG_MINIMUM_VERSION})
+      OR
+      (CLANG_VERSION VERSION_GREATER ${CLANG_MINIMUM_VERSION}))
     message(STATUS "Setting enhanced clang warning flags")
 
     # These warnings are only enabled when clang's -Weverything flag is enabled

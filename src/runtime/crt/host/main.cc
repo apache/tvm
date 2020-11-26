@@ -33,6 +33,10 @@
 
 #include "crt_config.h"
 
+#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
+#include <tvm/runtime/crt/graph_runtime_module.h>
+#endif
+
 using namespace std::chrono;
 
 extern "C" {
@@ -110,6 +114,11 @@ int main(int argc, char** argv) {
   }
 
   utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
+
+#ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
+  CHECK_EQ(TVMGraphRuntimeModule_Register(), kTvmErrorNoError,
+           "failed to register GraphRuntime TVMModule");
+#endif
 
   if (TVMFuncRegisterGlobal("tvm.testing.reset_server", (TVMFunctionHandle)&testonly_reset_server,
                             0)) {

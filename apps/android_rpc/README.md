@@ -28,7 +28,7 @@ You will need JDK, [Android NDK](https://developer.android.com/ndk) and an Andro
 
 We use [Gradle](https://gradle.org) to build. Please follow [the installation instruction](https://gradle.org/install) for your operating system.
 
-Before you build the Android application, please refer to [TVM4J Installation Guide](https://github.com/apache/incubator-tvm/blob/main/jvm/README.md) and install tvm4j-core to your local maven repository. You can find tvm4j dependency declare in `app/build.gradle`. Modify it if it is necessary.
+Before you build the Android application, please refer to [TVM4J Installation Guide](https://github.com/apache/tvm/blob/main/jvm/README.md) and install tvm4j-core to your local maven repository. You can find tvm4j dependency declare in `app/build.gradle`. Modify it if it is necessary.
 
 ```
 dependencies {
@@ -146,7 +146,7 @@ android   1      1     0
 ```
 
 
-Then checkout [android\_rpc/tests/android\_rpc\_test.py](https://github.com/apache/incubator-tvm/blob/main/apps/android_rpc/tests/android_rpc_test.py) and run,
+Then checkout [android\_rpc/tests/android\_rpc\_test.py](https://github.com/apache/tvm/blob/main/apps/android_rpc/tests/android_rpc_test.py) and run,
 
 ```bash
 # Specify the RPC tracker
@@ -157,7 +157,7 @@ export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/aarch64-linux-android-g++
 python android_rpc_test.py
 ```
 
-This will compile TVM IR to shared libraries (CPU, OpenCL and Vulkan) and run vector addition on your Android device. To verify compiled TVM IR shared libraries on OpenCL target set `'test_opencl = True'` and on Vulkan target set `'test_vulkan = True'` in  [tests/android_rpc_test.py](https://github.com/apache/incubator-tvm/blob/main/apps/android_rpc/tests/android_rpc_test.py), by default on CPU target will execute.
+This will compile TVM IR to shared libraries (CPU, OpenCL and Vulkan) and run vector addition on your Android device. To verify compiled TVM IR shared libraries on OpenCL target set `'test_opencl = True'` and on Vulkan target set `'test_vulkan = True'` in  [tests/android_rpc_test.py](https://github.com/apache/tvm/blob/main/apps/android_rpc/tests/android_rpc_test.py), by default on CPU target will execute.
 On my test device, it gives following results.
 
 ```bash

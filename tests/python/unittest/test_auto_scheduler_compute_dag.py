@@ -25,6 +25,7 @@ from tvm import auto_scheduler, te
 
 from test_auto_scheduler_common import (
     get_tiled_matmul,
+    invalid_compute_definition,
     matmul_auto_scheduler_test,
     parallel_matmul_auto_scheduler_test,
 )
@@ -137,8 +138,20 @@ def test_stage_order():
     assert task.hardware_params.cache_line_bytes == task2.hardware_params.cache_line_bytes
 
 
+def test_invalid_compute_dag():
+    failed = False
+    try:
+        A, B = invalid_compute_definition()
+        dag = auto_scheduler.ComputeDAG([A, B])
+    except tvm.TVMError as e:
+        failed = True
+
+    assert failed
+
+
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
     test_estimate_flop()
     test_stage_order()
+    test_invalid_compute_dag()

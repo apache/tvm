@@ -23,6 +23,8 @@ import os
 import re
 from tvm.contrib import utils
 
+from .micro_library import MicroLibrary
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -163,6 +165,10 @@ def build_static_runtime(
 
     libs = []
     for mod_or_src_dir in (extra_libs or []) + RUNTIME_LIB_SRC_DIRS:
+        if isinstance(mod_or_src_dir, MicroLibrary):
+            libs.append(mod_or_src_dir)
+            continue
+
         lib_src_dir = mod_or_src_dir
         lib_name = os.path.basename(lib_src_dir)
         lib_build_dir = workspace.relpath(f"build/{lib_name}")

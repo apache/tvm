@@ -399,8 +399,8 @@ information about the pass manager interface can be found in :ref:`pass-infra`.
 Relay's standard passes are listed in `include/tvm/relay/transform.h`_ and implemented
 in `src/relay/pass/`_.
 
-.. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/main/include/tvm/relay/transform.h
+.. _include/tvm/relay/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/relay/transform.h
 
-.. _src/relay/pass/: https://github.com/apache/incubator-tvm/tree/main/src/relay/pass
+.. _src/relay/pass/: https://github.com/apache/tvm/tree/main/src/relay/pass
 
-.. _src/relay/transforms/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/main/src/relay/transforms/fold_constant.cc
+.. _src/relay/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relay/transforms/fold_constant.cc

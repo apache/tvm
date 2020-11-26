@@ -139,7 +139,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
 
 ## List of Contributors
-- [Full List of Contributors](https://github.com/apache/incubator-tvm/graphs/contributors)
+- [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)
   - To contributors: please add your name to the list.
 - [Qiao Zhang](https://github.com/zhangqiaorjc)
 - [Haolong Zhang](https://github.com/haolongzhangm)

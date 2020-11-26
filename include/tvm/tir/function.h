@@ -25,6 +25,7 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -151,6 +152,42 @@ class PrimFunc : public BaseFunc {
 };
 
 /*!
+ * \brief Describes one parameter that should be linked into the generated module.
+ *
+ * When parameters are to be linked in with generated code (i.e. on target_host-compatible
+ * backends), Relay attaches instances of this object to a global TIR function. Code-generators
+ * use the information contained in this node to include the parameter data in the generated
+ * module.
+ */
+class LinkedParamNode : public Object {
+ public:
+  /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
+  int64_t id;
+
+  /*! \brief Parameter data which should get linked into the final module. */
+  ::tvm::runtime::NDArray param;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("id", &id);
+    v->Visit("param", &param);
+  }
+
+  static constexpr const char* _type_key = "tir.LinkedParam";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
+};
+
+/*!
+ * \brief Managed reference to LinkedParamNode.
+ */
+class LinkedParam : public ObjectRef {
+ public:
+  TVM_DLL LinkedParam(int64_t id, ::tvm::runtime::NDArray param);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
+};
+
+/*!
  * \brief PrimFunc specific attribute names.
  *
  * \sa tvm::attr
@@ -192,6 +229,17 @@ constexpr const char* kNoAlias = "tir.noalias";
  * \note There can only be one entry function per module.
  */
 constexpr const char* kIsEntryFunc = "tir.is_entry_func";
+
+/*!
+ * \brief Parameters used in the module that should be linked by the codegen.
+ *
+ * Type: Map<String, LinkableParam>
+ *
+ * \note This should be present only on a function named
+ *     tvm::target::packed_func::kLookupLinkedParam.
+ */
+constexpr const char* kLinkedParams = "tir.linked_params";
+
 }  // namespace attr
 }  // namespace tir
 }  // namespace tvm

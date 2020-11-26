@@ -64,14 +64,20 @@ void GraphRuntime::Run() {
  * processor.
  * \param ctxs The context of the host and devices where graph nodes will be
  * executed on.
+ * \param lookup_linked_param_func Linked parameter lookup function.
  */
 void GraphRuntime::Init(const std::string& graph_json, tvm::runtime::Module module,
-                        const std::vector<TVMContext>& ctxs) {
+                        const std::vector<TVMContext>& ctxs, PackedFunc lookup_linked_param_func) {
   std::istringstream is(graph_json);
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   module_ = module;
   ctxs_ = ctxs;
+  lookup_linked_param_ = lookup_linked_param_func;
+  if (lookup_linked_param_ == nullptr) {
+    lookup_linked_param_ = PackedFunc(
+        [this](TVMArgs args, TVMRetValue* rv) { this->DefaultLookupLinkedParam(args, rv); });
+  }
   this->SetupStorage();
   this->SetupOpExecs();
   for (size_t i = 0; i < input_nodes_.size(); i++) {
@@ -244,6 +250,43 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
   this->SetupOpExecs();
 }
 
+void GraphRuntime::LinkedNDArrayDeleter(Object* container) {
+  // container is the NDArray::Container which needs to get deleted.
+  // The data member points to global const memory, so it does not need deleting.
+  delete static_cast<NDArray::Container*>(container);
+}
+
+void GraphRuntime::DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
+  Module mod = args[0];
+  int64_t storage_id = args[1];
+  DLTensor* template_tensor = args[2];
+  TVMContext ctx = args[3];
+  // Get pre-linked parameter lookup function, if it was generated. When pf == nullptr, no linked
+  // params are present.
+  if (!module_lookup_linked_param_valid_) {
+    module_lookup_linked_param_ =
+        mod.GetFunction(::tvm::runtime::symbol::tvm_lookup_linked_param, true);
+  }
+  if (module_lookup_linked_param_ == nullptr) {
+    *rv = nullptr;
+    return;
+  }
+
+  TVMRetValue opaque_handle = module_lookup_linked_param_(storage_id);
+  if (opaque_handle.type_code() == kTVMNullptr) {
+    *rv = nullptr;
+    return;
+  }
+
+  std::vector<int64_t> shape_vec{template_tensor->shape,
+                                 template_tensor->shape + template_tensor->ndim};
+
+  std::unique_ptr<NDArray::Container> container{new NDArray::Container(
+      static_cast<void*>(opaque_handle), shape_vec, template_tensor->dtype, ctx)};
+  container->SetDeleter(GraphRuntime::LinkedNDArrayDeleter);
+  *rv = NDArray(GetObjectPtr<Object>(container.release()));
+}
+
 void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<DLDataType> vtype;
@@ -278,21 +321,37 @@ void GraphRuntime::SetupStorage() {
       ICHECK(pool_entry[sid].device_type == -1 || pool_entry[sid].device_type == device_type)
           << "The same pool entry cannot be assigned to multiple devices";
     }
+    TVMRetValue lookup_rv;
+    {
+      std::vector<int64_t> shape_vec{attrs_.shape[i].begin(), attrs_.shape[i].end()};
+      DLTensor template_tensor{nullptr,  TVMContext{kDLCPU, 0}, static_cast<int>(shape_vec.size()),
+                               vtype[i], shape_vec.data(),      nullptr,
+                               0};
+      lookup_rv = lookup_linked_param_(module_, sid, &template_tensor, ctxs_[0]);
+    }
+    if (lookup_rv.type_code() != kTVMNullptr) {
+      pool_entry[sid].linked_param = lookup_rv;
+    }
+    pool_entry[sid].param_data_entry = i;
     pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
   }
 
   // Allocate the space.
   for (const auto& pit : pool_entry) {
-    std::vector<int64_t> shape;
     // This for loop is very fast since there are usually only a couple of
     // devices available on the same hardware.
     const auto& cit = std::find_if(ctxs_.begin(), ctxs_.end(), [&pit](const TVMContext& c) {
       return pit.device_type == static_cast<int>(c.device_type);
     });
     TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
-    shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
-    storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
+    if (pit.linked_param.defined()) {
+      storage_pool_.push_back(pit.linked_param);
+    } else {
+      std::vector<int64_t> shape;
+      shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
+      storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
+    }
   }
 
   // Assign the pooled entries. A unified memory pool is used to simplifiy
@@ -304,6 +363,7 @@ void GraphRuntime::SetupStorage() {
     int storage_id = attrs_.storage_id[i];
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
     data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
+
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = details::GetDataAlignment(*tmp);
   }
@@ -462,18 +522,19 @@ PackedFunc GraphRuntime::GetFunction(const std::string& name,
 }
 
 Module GraphRuntimeCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                          const std::vector<TVMContext>& ctxs) {
+                          const std::vector<TVMContext>& ctxs,
+                          const PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntime>();
-  exec->Init(sym_json, m, ctxs);
+  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
   return Module(exec);
 }
 
 // Get all context for the host and other runtime devices.
-std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
+std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg) {
   // Reserve the first item as the fallback device.
   std::vector<TVMContext> ret;
   TVMContext ctx;
-  for (int i = 2; i < args.num_args; i += 2) {
+  for (int i = ctx_start_arg; i < args.num_args; i += 2) {
     int dev_type = args[i];
     ctx.device_type = static_cast<DLDeviceType>(dev_type);
     ctx.device_id = args[i + 1];
@@ -491,8 +552,14 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create").set_body([](TVMArgs args, TVMRet
   ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
                                  "at least 4, but it has "
                               << args.num_args;
-  const auto& contexts = GetAllContext(args);
-  *rv = GraphRuntimeCreate(args[0], args[1], contexts);
+  PackedFunc lookup_linked_param_func;
+  int ctx_start_arg = 2;
+  if (args[2].type_code() == kTVMPackedFuncHandle) {
+    lookup_linked_param_func = args[2];
+    ctx_start_arg++;
+  }
+  const auto& contexts = GetAllContext(args, ctx_start_arg);
+  *rv = GraphRuntimeCreate(args[0], args[1], contexts, lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm

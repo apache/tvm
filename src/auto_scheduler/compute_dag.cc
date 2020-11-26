@@ -658,6 +658,22 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
   int cur_type_code_;
 };
 
+void CheckComputeValidity(const te::Schedule& sch) {
+  // Check the validity of a compute definition:
+  // The name of each iterator should be unique.
+  for (auto stage : sch->stages) {
+    if (stage->op->IsInstance<te::ComputeOpNode>()) {
+      std::unordered_set<std::string> names;
+      for (const auto& x : stage->leaf_iter_vars) {
+        ICHECK(!names.count(x->var->name_hint))
+            << "Find duplicated iterator names in the compute definition: " << x->var->name_hint
+            << ". Please use different names for different iterators.";
+        names.insert(x->var->name_hint);
+      }
+    }
+  }
+}
+
 ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   auto node = make_object<ComputeDAGNode>();
   node->tensors = std::move(tensors);
@@ -674,6 +690,9 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
     node->ops.push_back(stage->op);
   }
 
+  // Make sure it is a valid compute definition
+  CheckComputeValidity(sch);
+
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
@@ -681,6 +700,9 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
 
 ComputeDAG::ComputeDAG(const te::Schedule& sch) {
   auto node = make_object<ComputeDAGNode>();
+
+  // Make sure it is a valid compute definition
+  CheckComputeValidity(sch);
 
   // Initialize ops. Here we enforce the order of ops and stages are consistent
   for (auto stage : sch->stages) {

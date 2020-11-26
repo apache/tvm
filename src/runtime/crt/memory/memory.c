@@ -246,9 +246,8 @@ tvm_crt_error_t MemoryManager_Realloc(MemoryManagerInterface* interface, void** 
     }
   }
 #if TVM_CRT_DEBUG > 1
-  TVMLogf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%" PRId64
-          "\n",
-          data, start, mgr->ptable.max_pages, npage, mgr->interface.vleak_size, size);
+  TVMLogf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%zu", data,
+          start, mgr->ptable.max_pages, npage, mgr->interface.vleak_size, size);
 #endif  // TVM_CRT_DEBUG
   return kTvmErrorNoError;
 }
@@ -272,9 +271,8 @@ tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr,
   free_map->insert(free_map, p->num_pages, p);
   mgr->interface.vleak_size--;
 #if TVM_CRT_DEBUG > 1
-  TVMLogf("release: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", ptr,
-          entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages,
-          mgr->interface.vleak_size);
+  TVMLogf("release: addr=%p, start=%" PRId64 "/%zu, npage=%zu, vleak=%d", ptr,
+          entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages, mgr->interface.vleak_size);
 #endif  // TVM_CRT_DEBUG
   return kTvmErrorNoError;
 }

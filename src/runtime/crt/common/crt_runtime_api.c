@@ -127,7 +127,7 @@ static TVMModuleHandle EncodeModuleHandle(tvm_module_index_t module_index) {
   return (TVMModuleHandle)((uintptr_t)(module_index | 0x8000));
 }
 
-static int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
+int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
   tvm_module_index_t idx;
 
   for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
@@ -229,17 +229,17 @@ int TVMFuncCall(TVMFunctionHandle func_handle, TVMValue* arg_values, int* type_c
   return func(arg_values, type_codes, num_args, ret_val, ret_type_code, resource_handle);
 }
 
-static int FindFunctionOrSetAPIError(tvm_module_index_t module_index,
-                                     const TVMFuncRegistry* registry, const char* name,
-                                     TVMFunctionHandle* out) {
+static tvm_crt_error_t FindFunctionOrSetAPIError(tvm_module_index_t module_index,
+                                                 const TVMFuncRegistry* registry, const char* name,
+                                                 TVMFunctionHandle* out) {
   tvm_function_index_t function_index;
-  if (TVMFuncRegistry_Lookup(registry, name, &function_index) != 0) {
-    TVMAPIErrorf("failed to get function: mod_index=%04" PRIx16 ", name=%s", module_index, name);
-    return -1;
+  tvm_crt_error_t err = TVMFuncRegistry_Lookup(registry, name, &function_index);
+  if (err != kTvmErrorNoError) {
+    return err;
   }
 
   *out = EncodeFunctionHandle(module_index, function_index);
-  return 0;
+  return kTvmErrorNoError;
 }
 
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
@@ -279,6 +279,14 @@ int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* r
 
   if (to_return == 0) {
     ret_type_codes[0] = kTVMPackedFuncHandle;
+  } else {
+    ret_value->v_handle = NULL;
+  }
+
+  // NOTE: For compatibility with C++ runtime API, return no error (but NULL function) when the
+  // function lookup failed.
+  if (to_return == kTvmErrorFunctionNameNotFound) {
+    to_return = kTvmErrorNoError;
   }
 
   return to_return;
