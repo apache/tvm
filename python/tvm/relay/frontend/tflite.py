@@ -2736,7 +2736,7 @@ class OperatorConverter(object):
         # Weights
         weights_tensor_type = weights_tensor.tensor.Type()
         # weights tensor type should be UINT8 (quantization) or FLOAT32
-        assert weights_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weights_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
         weight_value_ohwi = self.get_tensor_value(weights_tensor)
         # Relay kernel_layout should be OIHW
@@ -2758,19 +2758,40 @@ class OperatorConverter(object):
         else:
             padding = (0, 0, 0, 0)
 
-        out = _op.nn.conv2d_transpose(
-            in_expr,
-            weight_expr_iohw,
-            strides=(stride_h, stride_w),
-            padding=padding,
-            channels=int(out_channels),
-            kernel_size=(int(kernel_h), int(kernel_w)),
-            data_layout="NHWC",
-            kernel_layout="OIHW",
-            out_dtype=output_tensor_type_str,
-        )
+        if input_tensor.qnn_params:
+            input_zero_point = input_tensor.qnn_params["zero_point"]
+            kernel_zero_point = weights_tensor.qnn_params["zero_point"]
+            input_scale = input_tensor.qnn_params["scale"]
+            kernel_scale = weights_tensor.qnn_params["scale"]
+            out = _qnn.op.conv2d_transpose(
+                in_expr,
+                weight_expr_iohw,
+                input_zero_point,
+                kernel_zero_point,
+                input_scale,
+                kernel_scale,
+                strides=(stride_h, stride_w),
+                padding=padding,
+                channels=int(out_channels),
+                kernel_size=(int(kernel_h), int(kernel_w)),
+                data_layout="NHWC",
+                kernel_layout="OIHW",
+                out_dtype="int32",
+            )
+        else:
+            out = _op.nn.conv2d_transpose(
+                in_expr,
+                weight_expr_iohw,
+                strides=(stride_h, stride_w),
+                padding=padding,
+                channels=int(out_channels),
+                kernel_size=(int(kernel_h), int(kernel_w)),
+                data_layout="NHWC",
+                kernel_layout="OIHW",
+                out_dtype=output_tensor_type_str,
+            )
 
-        # if we have bias
+        # Checking if there is a fused bias
         if len(input_tensors) == 4:
             bias_tensor = input_tensors[3]
             bias_tensor_type = bias_tensor.tensor.Type()
@@ -2783,6 +2804,31 @@ class OperatorConverter(object):
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
+        if output_tensor.qnn_params:
+            # Calculate the intermediate scale and zero point of the int32 output.
+            data_scale = input_tensor.qnn_params["scale"]
+            data_scale_val = get_scalar_from_constant(data_scale)
+
+            weight_scale = weights_tensor.qnn_params["scale"]
+            # If weight scale is scalar, it is per-tensor quantization
+            if isinstance(weight_scale, float):
+                weight_scale_val = get_scalar_from_constant(weight_scale)
+            else:
+                weight_scale_val = get_tensor_from_constant(weight_scale)
+
+            new_input_scale_val = data_scale_val * weight_scale_val
+            new_input_scale = relay.const(new_input_scale_val, "float32")
+            new_input_zero_point = relay.const(0, "int32")
+
+            out = _qnn.op.requantize(
+                out,
+                input_scale=new_input_scale,
+                input_zero_point=new_input_zero_point,
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+                axis=3,
+            )
         return out
 
     def convert_quantize(self, op):

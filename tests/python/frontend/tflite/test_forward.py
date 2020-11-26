@@ -1115,7 +1115,9 @@ def test_forward_convolution():
 # ---------------------
 
 
-def _test_transpose_conv(tensor_in_sizes, filter_in_sizes, output_shape, strides, padding):
+def _test_transpose_conv(
+    tensor_in_sizes, filter_in_sizes, output_shape, strides, padding, quantized=False
+):
     """ One iteration of transpose convolution with given shapes and attributes """
 
     total_size_1 = 1
@@ -1124,53 +1126,124 @@ def _test_transpose_conv(tensor_in_sizes, filter_in_sizes, output_shape, strides
         total_size_1 *= s
     for s in filter_in_sizes:
         total_size_2 *= s
-    # Initializes the input tensor with array containing incrementing
-    # numbers from 1.
-    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
-    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
 
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype="float32")
-        in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype="float32")
-        strides = [1] + strides + [1]
-        # in_filter layout is HWOI
-        out = nn_ops.conv2d_transpose(
-            in_data, in_filter, output_shape=output_shape, strides=strides, padding=padding
-        )
-        data_array = np.reshape(data_array, tensor_in_sizes).astype("float32")
-        compare_tflite_with_tvm(data_array, "Placeholder:0", [in_data], [out])
+        if quantized:
+            # Initializes the input tensor with array containing incrementing
+            # numbers from 1.
+            data_array = [max(f, 255) for f in range(1, total_size_1 + 1)]
+            filter_array = [max(f, 255) for f in range(1, total_size_2 + 1)]
+            data_array = np.reshape(data_array, tensor_in_sizes).astype("uint8")
+            filter_array = np.reshape(filter_array, filter_in_sizes).astype("uint8")
+
+            in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype="float32", name="in_data")
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=-100, max=100, name="q_data"
+            )
+            input_range = {"q_data": (-100, 100)}
+
+            in_filter = constant_op.constant(
+                filter_array, shape=filter_in_sizes, dtype="float32", name="in_filter"
+            )
+            inq_filter = tf.quantization.fake_quant_with_min_max_args(
+                in_filter, min=-100, max=100, name="q_filter"
+            )
+
+            strides = [1] + strides + [1]
+
+            out = nn_ops.conv2d_transpose(
+                inq_data, inq_filter, output_shape=output_shape, strides=strides, padding=padding
+            )
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
+            compare_tflite_with_tvm(
+                [data_array], ["q_data"], [inq_data], [out], quantized=True, input_range=input_range
+            )
+        else:
+            # Initializes the input tensor with array containing incrementing
+            # numbers from 1.
+            data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+            filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+            in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype="float32", name="in_data")
+            in_filter = constant_op.constant(
+                filter_array, shape=filter_in_sizes, dtype="float32", name="in_filter"
+            )
+            strides = [1] + strides + [1]
+            # in_filter layout is HWOI
+            out = nn_ops.conv2d_transpose(
+                in_data, in_filter, output_shape=output_shape, strides=strides, padding=padding
+            )
+            data_array = np.reshape(data_array, tensor_in_sizes).astype("float32")
+            compare_tflite_with_tvm([data_array], ["in_data"], [in_data], [out])
 
 
 def test_forward_transpose_conv():
-    # kernel 3x3, padding VALID
-    _test_transpose_conv([4, 32, 32, 16], [3, 3, 5, 16], [4, 34, 34, 5], [1, 1], "VALID")
-    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], "VALID")
-    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], "VALID")
+    for quantized in [True, False]:
+        # kernel 3x3, padding VALID
+        _test_transpose_conv(
+            [4, 32, 32, 16], [3, 3, 5, 16], [4, 34, 34, 5], [1, 1], "VALID", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 65, 5], [2, 2], "VALID", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [3, 3, 5, 16], [1, 65, 34, 5], [2, 1], "VALID", quantized
+        )
 
-    # kernel 3x3, padding SAME
-    _test_transpose_conv([4, 32, 32, 16], [3, 3, 5, 16], [4, 32, 32, 5], [1, 1], "SAME")
-    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 64, 5], [2, 2], "SAME")
-    _test_transpose_conv([1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 32, 5], [2, 1], "SAME")
+        # kernel 3x3, padding SAME
+        _test_transpose_conv(
+            [4, 32, 32, 16], [3, 3, 5, 16], [4, 32, 32, 5], [1, 1], "SAME", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 64, 5], [2, 2], "SAME", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [3, 3, 5, 16], [1, 64, 32, 5], [2, 1], "SAME", quantized
+        )
 
-    # kernel 2x2, padding VALID
-    _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], "VALID")
-    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], "VALID")
-    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], "VALID")
+        # kernel 2x2, padding VALID
+        _test_transpose_conv(
+            [4, 32, 32, 16], [2, 2, 5, 16], [4, 33, 33, 5], [1, 1], "VALID", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], "VALID", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 33, 5], [2, 1], "VALID", quantized
+        )
 
-    # kernel 2x2, padding SAME
-    _test_transpose_conv([4, 32, 32, 16], [2, 2, 5, 16], [4, 32, 32, 5], [1, 1], "SAME")
-    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], "SAME")
-    _test_transpose_conv([1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 32, 5], [2, 1], "SAME")
+        # kernel 2x2, padding SAME
+        _test_transpose_conv(
+            [4, 32, 32, 16], [2, 2, 5, 16], [4, 32, 32, 5], [1, 1], "SAME", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 64, 5], [2, 2], "SAME", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [2, 2, 5, 16], [1, 64, 32, 5], [2, 1], "SAME", quantized
+        )
 
-    # kernel 1x1, padding VALID
-    _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], "VALID")
-    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], "VALID")
-    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "VALID")
+        # kernel 1x1, padding VALID
+        _test_transpose_conv(
+            [4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], "VALID", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], "VALID", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "VALID", quantized
+        )
 
-    # kernel 1x1, padding SAME
-    _test_transpose_conv([4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], "SAME")
-    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], "SAME")
-    _test_transpose_conv([1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "SAME")
+        # kernel 1x1, padding SAME
+        _test_transpose_conv(
+            [4, 32, 32, 16], [1, 1, 5, 16], [4, 32, 32, 5], [1, 1], "SAME", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 63, 5], [2, 2], "SAME", quantized
+        )
+        _test_transpose_conv(
+            [1, 32, 32, 16], [1, 1, 5, 16], [1, 63, 32, 5], [2, 1], "SAME", quantized
+        )
 
 
 #######################################################################
