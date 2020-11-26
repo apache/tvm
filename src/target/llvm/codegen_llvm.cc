@@ -25,6 +25,7 @@
 #include "codegen_llvm.h"
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/op.h>
 
@@ -32,7 +33,10 @@
 
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
+#include "../func_registry_generator.h"
 #include "codegen_cpu.h"
+#include "codegen_params.h"
+#include "llvm/Support/raw_os_ostream.h"
 namespace tvm {
 namespace codegen {
 
@@ -180,6 +184,90 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   if (ret_void) {
     builder_->CreateRetVoid();
   } else {
+    builder_->CreateRet(ConstInt32(0));
+  }
+}
+
+void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
+  // It would be nice to de-dupe these declarations frm src/tir/transforms/make_packed_api.cc,
+  // but they are at a different layer in the compiler...
+  std::vector<llvm::Type*> param_types;
+  // args
+  param_types.push_back(t_void_->getPointerTo(GetGlobalAddressSpace()));
+  // tcodes
+  param_types.push_back(t_int_->getPointerTo(GetGlobalAddressSpace()));
+  // num_args
+  param_types.push_back(t_int_);
+  // ret_args
+  param_types.push_back(t_void_->getPointerTo(GetGlobalAddressSpace()));
+  // ret_tcodes
+  param_types.push_back(t_int_->getPointerTo(GetGlobalAddressSpace()));
+  // resource_handle
+  param_types.push_back(t_void_->getPointerTo(GetGlobalAddressSpace()));
+
+  llvm::FunctionType* ftype = llvm::FunctionType::get(t_int_, param_types, false);
+
+  llvm::Function* function =
+      llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                             ::tvm::runtime::symbol::tvm_lookup_linked_param, module_.get());
+  function->setCallingConv(llvm::CallingConv::C);
+  function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+
+  llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx_, "entry", function);
+  builder_->SetInsertPoint(entry);
+  std::vector<llvm::Value*> zero_index_list{llvm::ConstantInt::get(t_int32_, 0)};
+  std::vector<llvm::Value*> zero_array_index_list{llvm::ConstantInt::get(t_int32_, 0),
+                                                  llvm::ConstantInt::get(t_int32_, 0)};
+  auto args_array = builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
+      &function->arg_begin()[0],
+#else
+      &(*(function->arg_begin())),
+#endif
+      llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1));
+  llvm::Value* sid = builder_->CreateBitCast(
+      builder_->CreateLoad(t_void_->getPointerTo(GetGlobalAddressSpace()),
+                           builder_->CreateInBoundsGEP(args_array, zero_index_list)),
+      t_int64_);
+
+  llvm::BasicBlock* default_block = llvm::BasicBlock::Create(*ctx_, "default_block", function);
+  auto ret_types_array = builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
+      &function->arg_begin()[4],
+#else
+      &(*(std::next(function->arg_begin(), 4))),
+#endif
+      llvm::ArrayType::get(t_int_, 1)->getPointerTo());
+  auto retval_array = builder_->CreateBitCast(
+#if TVM_LLVM_VERSION >= 50
+      &function->arg_begin()[3],
+#else
+      &(*std::next(function->arg_begin(), 3)),
+#endif
+      llvm::ArrayType::get(t_void_->getPointerTo(GetGlobalAddressSpace()), 1)->getPointerTo());
+  llvm::SwitchInst* switch_inst = builder_->CreateSwitch(sid, default_block, params.size() + 1);
+
+  builder_->SetInsertPoint(default_block);
+  builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMNullptr),
+                        builder_->CreateInBoundsGEP(ret_types_array, zero_array_index_list));
+  builder_->CreateRet(ConstInt32(kTvmErrorNoError));
+
+  // Add data to the global section.
+  for (auto kv : params) {
+    auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
+    std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
+    llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
+        *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
+
+    llvm::BasicBlock* case_block = llvm::BasicBlock::Create(*ctx_, "case_" + symbol_name, function);
+    switch_inst->addCase(
+        llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
+    builder_->SetInsertPoint(case_block);
+    builder_->CreateStore(
+        builder_->CreatePointerCast(param_symbol, t_void_->getPointerTo(GetGlobalAddressSpace())),
+        builder_->CreateInBoundsGEP(retval_array, zero_array_index_list));
+    builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle),
+                          builder_->CreateInBoundsGEP(ret_types_array, zero_array_index_list));
     builder_->CreateRet(ConstInt32(0));
   }
 }

@@ -44,6 +44,7 @@ if(USE_MICRO)
          "src/runtime/crt/include *.h -> include"
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
          "src/runtime/crt/graph_runtime *.c -> src/runtime/crt/graph_runtime"
+         "src/runtime/crt/graph_runtime_module *.c -> src/runtime/crt/graph_runtime_module"
          "src/runtime/crt/host crt_config.h -> src/runtime/crt/host"
          "src/runtime/crt/utvm_rpc_common *.cc -> src/runtime/crt/utvm_rpc_common"
          "src/runtime/crt/utvm_rpc_server *.cc -> src/runtime/crt/utvm_rpc_server"

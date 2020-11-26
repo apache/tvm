@@ -151,8 +151,8 @@ void* MemoryManager_Alloc(MemoryManager* mgr, tvm_index_t size) {
   }
   vleak_size++;
 #if TVM_CRT_DEBUG > 1
-  printf("allocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", data, start,
-         ptable->max_pages, npage, vleak_size);
+  TVMLogf("allocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", data, start,
+          ptable->max_pages, npage, vleak_size);
 #endif  // TVM_CRT_DEBUG
   return data;
 }
@@ -229,9 +229,8 @@ void* MemoryManager_Realloc(MemoryManager* mgr, void* ptr, tvm_index_t size) {
     vleak_size++;
   }
 #if TVM_CRT_DEBUG > 1
-  printf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%" PRId64
-         "\n",
-         data, start, mgr->ptable.max_pages, npage, vleak_size, size);
+  TVMLogf("reallocate: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d, size=%zu", data,
+          start, mgr->ptable.max_pages, npage, vleak_size, size);
 #endif  // TVM_CRT_DEBUG
   return data;
 }
@@ -251,8 +250,8 @@ void MemoryManager_Free(MemoryManager* mgr, void* ptr) {
   free_map->insert(free_map, p->num_pages, p);
   vleak_size--;
 #if TVM_CRT_DEBUG > 1
-  printf("release: addr=%p, start=%" PRId64 "/%zu, npage=%" PRId64 ", vleak=%d\n", ptr,
-         entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages, vleak_size);
+  TVMLogf("release: addr=%p, start=%" PRId64 "/%zu, npage=%zu, vleak=%d", ptr,
+          entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages, vleak_size);
 #endif  // TVM_CRT_DEBUG
 }
 
