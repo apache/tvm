@@ -1001,7 +1001,7 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
       };
       shape[0] = (pit.size + 3) / 4;
       int status = TVMNDArray_Empty(1, shape, dtype, ctx,
-                                    &runtime->storage_pool[runtime->storage_pool_count]);
+                                    &runtime->storage_pool[runtime->storage_pool_count].array);
       CHECK_EQ(status, 0, "fail to create storage_pool with idx=%d\n", idx);
     }
     runtime->storage_pool_count++;
@@ -1151,8 +1151,8 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
  * executed on.
  * \return 0 on success.
  */
-int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const TVMModule* module,
-                         const TVMContext* ctxs) {
+int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
+                         TVMModuleHandle module_handle, const TVMContext* ctxs) {
   JSONReader reader;
   tvm_crt_error_t err = JSONReader_Create(graph_json, &reader);
   if (err != kTvmErrorNoError) {
@@ -1219,7 +1219,7 @@ int TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
   }
   for (idx = 0; idx < runtime->storage_pool_count; ++idx) {
     if (runtime->storage_pool[idx].is_linked_param == 0) {
-      status = TVMNDArray_Release(&(runtime->storage_pool[idx]));
+      status = TVMNDArray_Release(&(runtime->storage_pool[idx]).array);
       if (status != 0) {
         return status;
       }
