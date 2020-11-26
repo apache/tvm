@@ -338,7 +338,7 @@ def legalize_dyn_topk(attrs, inputs, types):
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current op
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     types : list of types
