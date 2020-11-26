@@ -58,7 +58,8 @@ int32_t TVMGraphRuntimeModule_Create(TVMValue* args, int* tcodes, int nargs, TVM
   }
 
   TVMContext ctx = {(DLDeviceType)args[2].v_int64, (int)args[3].v_int64};
-  int ret_value = TVMGraphRuntime_Create(args[0].v_str, args[1].v_handle, &ctx, &graph_runtime.runtime);
+  int ret_value =
+      TVMGraphRuntime_Create(args[0].v_str, args[1].v_handle, &ctx, &graph_runtime.runtime);
   if (ret_value != 0) {
     return ret_value;
   }
