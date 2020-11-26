@@ -40,7 +40,7 @@ def _darknet_not_support(attr, op="relay"):
 
 def _get_params_prefix(opname, layer_num):
     """Makes the params prefix name from opname and layer number."""
-    return str(opname) + str(layer_num)
+    return str(opname).replace(".", "_") + str(layer_num)
 
 
 def _get_params_name(prefix, item):
