@@ -272,7 +272,8 @@ tvm_crt_error_t MemoryManager_Free(MemoryManagerInterface* interface, void* ptr,
   mgr->interface.vleak_size--;
 #if TVM_CRT_DEBUG > 1
   TVMLogf("release: addr=%p, start=%" PRId64 "/%zu, npage=%zu, vleak=%d", ptr,
-          entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages, mgr->interface.vleak_size);
+          entry->page.ptable_begin, mgr->ptable.max_pages, entry->page.num_pages,
+          mgr->interface.vleak_size);
 #endif  // TVM_CRT_DEBUG
   return kTvmErrorNoError;
 }

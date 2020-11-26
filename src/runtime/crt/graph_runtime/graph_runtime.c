@@ -1000,8 +1000,8 @@ int TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
           0,
       };
       shape[0] = (pit.size + 3) / 4;
-      int status =
-          TVMNDArray_Empty(1, shape, dtype, ctx, &runtime->storage_pool[runtime->storage_pool_count]);
+      int status = TVMNDArray_Empty(1, shape, dtype, ctx,
+                                    &runtime->storage_pool[runtime->storage_pool_count]);
       CHECK_EQ(status, 0, "fail to create storage_pool with idx=%d\n", idx);
     }
     runtime->storage_pool_count++;
@@ -1184,8 +1184,8 @@ int TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const
   return status;
 }
 
-int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle, const TVMContext* ctxs,
-                           TVMGraphRuntime** runtime) {
+int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
+                           const TVMContext* ctxs, TVMGraphRuntime** runtime) {
   DLContext ctx = {kDLCPU, 0};
   tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(TVMGraphRuntime), ctx, (void**)runtime);
   if (err != kTvmErrorNoError) {
