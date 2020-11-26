@@ -625,6 +625,14 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NHWC")
 
 
+    def test_forward_time_distributed(self, keras):
+        inputs = keras.Input(shape=(10, 128, 128, 3))
+        conv_2d_layer = keras.layers.Conv2D(64, (3, 3))
+        time_distributed = keras.layers.TimeDistributed(conv_2d_layer)(inputs)
+        keras_model = keras.models.Model(inputs, time_distributed)
+        verify_keras_frontend(keras_model, layout="NDHWC")
+
+
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
         sut = TestKeras()
@@ -662,3 +670,4 @@ if __name__ == "__main__":
         sut.test_forward_embedding(keras=k)
         sut.test_forward_repeat_vector(keras=k)
         sut.test_forward_l2_normalize(keras=k)
+        sut.test_forward_time_distributed(keras=k)

@@ -20,7 +20,7 @@ import dis
 import sys
 import numpy as np
 import tvm
-from tvm.ir import IRModule
+from tvm.ir import IRModule, TensorType, TupleType
 
 from .. import analysis
 from .. import expr as _expr
@@ -424,6 +424,7 @@ def _convert_convolution(inexpr, keras_layer, etab):
         act_type = keras_layer.activation.__name__
     if act_type != "linear":
         out = _convert_activation(out, act_type, etab)
+
     return out
 
 
@@ -1096,6 +1097,50 @@ def _convert_lambda(inexpr, keras_layer, etab):
     )
 
 
+def _convert_time_distributed(inexpr, keras_layer, etab):
+    # print('inexpr: ', dir(inexpr))
+    # print('inexpr type: ', inexpr.type_annotation)
+    # print('input_shape: ', keras_layer.input_shape)
+    # # print('keras_layer: ', dir(keras_layer))
+    # print('inner layer: ', keras_layer.layer)
+    # # assert False
+
+    # TimeDistributed: split input tensor along the second dimension (assumed to be time),
+    # apply inner layer to each split individually,
+    # and then combine the results
+    assert len(keras_layer.input_shape) >= 2, "Input to TimeDistributed must have at least two dimensions"
+    assert etab.data_layout == 'NDHWC', "TimeDistributed requires NDHWC layout"
+
+    inner_layer = keras_layer.layer
+
+    # some code duplication from keras_op_to_relay
+    # but it's useful to avoid cluttering the etab
+    inner_layer_op_name = type(keras_layer.layer).__name__
+    if inner_layer_op_name not in _convert_map:
+        raise tvm.error.OpNotImplemented(
+            ("The inner layer for TimeDistributed {}"
+             + " is not supported for frontend Keras.").format(
+                inner_layer_op_name))
+
+    conversion_func = lambda expr: _convert_map[inner_layer_op_name](expr, inner_layer, etab)
+
+    split_dim = keras_layer.input_shape[1]
+    split_input = _op.split(inexpr, split_dim, 1)
+
+    split_shape = list(keras_layer.input_shape)
+    if split_shape[0] is None:
+        split_shape[0] = 1
+    split_shape[1] = 1
+
+    split_var = new_var('time_distributed_split', type_annotation=TupleType([TensorType(split_shape, dtype="float32") for i in range(split_dim)]))
+
+    # For each split, apply the inner layer
+    splits = [conversion_func(_expr.TupleGetItem(split_var, i))
+              for i in range(split_dim)]
+
+    return _expr.Let(split_var, split_input.astuple(), _op.concatenate(splits, 1))
+
+
 def _default_skip(inexpr, keras_layer, _):  # pylint: disable=unused-argument
     """Layers that can be skipped because they are train time only."""
     return inexpr
@@ -1161,13 +1206,14 @@ _convert_map = {
     "Embedding": _convert_embedding,
     "RepeatVector": _convert_repeat_vector,
     "Lambda": _convert_lambda,
+    "TimeDistributed": _convert_time_distributed,
     "InputLayer": _default_skip,
     "Dropout": _default_skip,
     "AlphaDropout": _default_skip,
     "SpatialDropout2D": _default_skip,
     "SpatialDropout1D": _default_skip,
     "GaussianDropout": _default_skip,
-    "GaussianNoise": _default_skip,
+    "GaussianNoise": _default_skip
 }
 
 
@@ -1382,6 +1428,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         etab.get_expr(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2]))
         for oc in model._output_coordinates
     ]
+    print(outexpr)
     outexpr = outexpr[0] if len(outexpr) == 1 else _expr.Tuple(outexpr)
     func = _function.Function(analysis.free_vars(outexpr), outexpr)
     params = {k: _nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
