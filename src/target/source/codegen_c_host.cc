@@ -23,6 +23,8 @@
 #include "codegen_c_host.h"
 
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/crt/error_codes.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -31,6 +33,7 @@
 #include "../../support/str_escape.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
+#include "codegen_params.h"
 
 namespace tvm {
 namespace codegen {
@@ -55,6 +58,48 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
   function_names_.emplace_back(global_symbol.value());
 
   CodeGenC::AddFunction(f);
+}
+
+void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
+  PrintFuncPrefix();
+  stream << " " << tvm::runtime::symbol::tvm_lookup_linked_param
+         << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
+         << "int* out_ret_tcode, void* resource_handle) {\n";
+  ICHECK_EQ(GetUniqueName(tvm::runtime::symbol::tvm_lookup_linked_param),
+            tvm::runtime::symbol::tvm_lookup_linked_param)
+      << "builtin PackedFunc name already taken: " << tvm::runtime::symbol::tvm_lookup_linked_param;
+  stream << "    switch (((int64_t*) args)[0]) {\n"
+         << "    default:\n"
+         << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
+         << "        return 0;\n";
+
+  function_names_.emplace_back(tvm::runtime::symbol::tvm_lookup_linked_param);
+  for (auto kv : params) {
+    decl_stream << "\n"
+                << "#ifdef __cplusplus\n"
+                << "extern \"C\" {\n"
+                << "#endif\n"
+                << "static const ";
+    int64_t num_elements = 1;
+    for (int64_t dim : kv.second->param.Shape()) {
+      num_elements *= dim;
+    }
+    PrintType(kv.second->param.DataType(), decl_stream);
+    decl_stream << " " << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << "["
+                << num_elements << "] = {\n";
+    NDArrayDataToC(kv.second->param, 4, decl_stream);
+    decl_stream << "};\n"
+                << "#ifdef __cplusplus\n"
+                << "}  // extern \"C\"\n"
+                << "#endif\n";
+    stream << "    case " << kv.second->id << ":\n"
+           << "        ((uint64_t*)out_ret_value)[0] = (uint64_t) (uintptr_t) "
+           << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
+           << "        out_ret_tcode[0] = " << kTVMOpaqueHandle << ";\n"
+           << "        return 0;\n";
+  }
+  stream << "    }\n"
+         << "}\n";
 }
 
 void CodeGenCHost::PrintFuncPrefix() {  // NOLINT(*)
@@ -307,10 +352,29 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts, target->str());
 
+  Map<String, LinkedParam> linked_params;
+  bool found_linked_params = false;
+  bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
   for (auto kv : mod->functions) {
+    if (could_have_linked_params &&
+        kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
+      Map<String, ObjectRef> attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
+      CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
+          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+      linked_params =
+          Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
+      found_linked_params = true;
+      continue;
+    }
+
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     cg.AddFunction(f);
+  }
+
+  if (could_have_linked_params) {
+    ICHECK(found_linked_params) << "-link-params given but none found";
+    cg.LinkParameters(linked_params);
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
