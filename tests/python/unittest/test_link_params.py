@@ -369,7 +369,7 @@ def test_crt_link_params():
                 bin_opts=opts["bin_opts"],
                 extra_libs=[
                     os.path.join(tvm.micro.CRT_ROOT_DIR, m)
-                    for m in ("graph_runtime_module", "graph_runtime")
+                    for m in ("memory", "graph_runtime_module", "graph_runtime")
                 ],
             )
 
