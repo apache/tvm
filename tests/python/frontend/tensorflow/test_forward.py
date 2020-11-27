@@ -193,7 +193,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     tensor = [sess.graph.get_tensor_by_name(output_name) for output_name in output_node]
 
     input_dict = {e: input_data[i] for i, e in enumerate(input_node)}
-    if input_node[0] == "":
+    if len(input_node) == 1 and input_node[0] == "":
         output_data = sess.run(tensor)
     else:
         output_data = sess.run(tensor, input_dict)
