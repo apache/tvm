@@ -1136,7 +1136,7 @@ void VMCompiler::Codegen() {
   }
 
   auto compile_engine = CompileEngine::Global();
-  auto ext_mods = compile_engine->LowerExternalFunctions();
+  auto all_mods = compile_engine->LowerExternalFunctions();
   if (funcs.size() > 0) {
     Map<String, IRModule> build_funcs;
     for (const auto& i : funcs) {
@@ -1146,11 +1146,10 @@ void VMCompiler::Codegen() {
   } else {
     // There is no function handled by TVM. We create a virtual main module
     // to make sure a DSO module will be also available.
-    exec_->lib = codegen::CSourceModuleCreate(";", "");
+    exec_->lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
-  if (!ext_mods.empty()) {
-    exec_->lib = codegen::CreateMetadataModule(params_, exec_->lib, ext_mods);
-  }
+  all_mods.push_back(exec_->lib);
+  exec_->lib = codegen::CreateMetadataModule(params_, all_mods, target_host_);
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {

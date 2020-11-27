@@ -40,7 +40,7 @@ def test_fastmath():
 
         # Check that the op related to fast math have been convered to function in lib
         func_name = "fused_" + name
-        assert lib.get_function(func_name)
+        assert lib.imported_modules[0].get_function(func_name)
 
         ctx = tvm.cpu(0)
         m = graph_runtime.create(graph, lib, ctx)

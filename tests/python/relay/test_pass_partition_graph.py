@@ -172,9 +172,7 @@ class MobileNetAnnotator(ExprMutator):
         return new_call
 
 
-def check_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
-):
+def check_result(mod, map_inputs, out_shape, result, tol=1e-5, ctx=tvm.cpu(), params=None):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
@@ -194,7 +192,7 @@ def check_result(
 
         return lib
 
-    def check_vm_result():
+    def check_vm_result(target):
         compile_engine.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
@@ -208,7 +206,7 @@ def check_result(
         for out, ref in zip(outs, results):
             tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result():
+    def check_graph_runtime_result(target):
         compile_engine.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
@@ -228,8 +226,10 @@ def check_result(
             out = rt_mod.get_output(idx, out)
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
 
-    check_vm_result()
-    check_graph_runtime_result()
+    targets = ["llvm", "llvm -runtime=c --system-lib"]
+    for tgt in targets:
+        check_vm_result(tgt)
+        check_graph_runtime_result(tgt)
 
 
 def test_multi_node_compiler():

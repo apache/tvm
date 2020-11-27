@@ -24,13 +24,18 @@
 #ifndef TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_
 #define TVM_TARGET_FUNC_REGISTRY_GENERATOR_H_
 
+#include <tvm/runtime/container.h>
+
 #include <string>
 #include <vector>
+
+using tvm::runtime::Array;
+using tvm::runtime::String;
 
 namespace tvm {
 namespace target {
 
-std::string GenerateFuncRegistryNames(const std::vector<std::string>& function_names);
+std::string GenerateFuncRegistryNames(const Array<String>& function_names);
 
 }  // namespace target
 }  // namespace tvm

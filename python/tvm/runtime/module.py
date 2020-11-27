@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-import, import-outside-toplevel
+# pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
 import os
 import ctypes
@@ -252,7 +252,7 @@ class Module(object):
     def _dso_exportable(self):
         return self.type_key == "llvm" or self.type_key == "c"
 
-    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
+    def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
         """Export the module and its imported device code one library.
 
         This function only works on host llvm modules.
@@ -267,6 +267,11 @@ class Module(object):
             Compilation function to use create dynamic library.
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
+
+        workspace_dir : str, optional
+            The name of the workspace dir to create intermediary
+            artifacts for the process exporting of the library.
+            If this is not provided a temporary dir will be created.
 
         kwargs : dict, optional
             Additional arguments passed to fcompile
@@ -292,7 +297,9 @@ class Module(object):
             return
 
         modules = self._collect_dso_modules()
-        temp = _utils.tempdir()
+        if workspace_dir is None:
+            temp = _utils.tempdir()
+            workspace_dir = temp.temp_dir
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
@@ -307,7 +314,7 @@ class Module(object):
                     assert module.type_key == "c"
                     object_format = "cc"
                     has_c_module = True
-            path_obj = temp.relpath("lib" + str(index) + "." + object_format)
+            path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
             files.append(path_obj)
             is_system_lib = (
@@ -330,12 +337,12 @@ class Module(object):
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_triple:
-                path_obj = temp.relpath("devc." + object_format)
+                path_obj = os.path.join(workspace_dir, f"devc.{object_format}")
                 m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
                 m.save(path_obj)
                 files.append(path_obj)
             else:
-                path_cc = temp.relpath("devc.cc")
+                path_cc = os.path.join(workspace_dir, "devc.cc")
                 with open(path_cc, "w") as f:
                     f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
                 files.append(path_cc)
@@ -348,7 +355,7 @@ class Module(object):
             opts = options + ["-I" + path for path in find_include_path()]
             kwargs.update({"options": opts})
 
-        fcompile(file_name, files, **kwargs)
+        return fcompile(file_name, files, **kwargs)
 
 
 def system_lib():

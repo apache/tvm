@@ -155,8 +155,8 @@ def test_partition():
         graph_json, mod1, params = relay.build(mod, target)
 
     assert mod1.type_key == "metadata"
-    assert mod1.imported_modules[0].type_key == "llvm"
-    assert mod1.imported_modules[0].get_source()
+    assert mod1.imported_modules[0].imported_modules[0].type_key == "llvm"
+    assert mod1.imported_modules[0].imported_modules[0].get_source()
     assert mod1.imported_modules[1].type_key == "onnx"
     assert mod1.imported_modules[1].get_source()
 
