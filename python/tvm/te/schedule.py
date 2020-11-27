@@ -73,7 +73,7 @@ class Schedule(Object):
             raise ValueError("Cannot find the operation %s in schedule" % (str(k)))
         return self.stage_map[k]
 
-    def normalize(self);
+    def normalize(self):
         """Build a normalized schedule from the current schedule.
 
         Insert necessary rebase to make certain iter var to start from 0.
