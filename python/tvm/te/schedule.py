@@ -73,7 +73,7 @@ class Schedule(Object):
             raise ValueError("Cannot find the operation %s in schedule" % (str(k)))
         return self.stage_map[k]
 
-    def normalize(self, feature_extraction_mode=False):
+    def normalize(self);
         """Build a normalized schedule from the current schedule.
 
         Insert necessary rebase to make certain iter var to start from 0.
@@ -83,11 +83,8 @@ class Schedule(Object):
         -------
         sch : Schedule
             The normalized schedule.
-        feature_extraction_mode: bool = False
-            Whether to enable feature extraction mode for
-            fast compilation and feature extraction in autotvm/auto-scheduler.
         """
-        return _ffi_api.ScheduleNormalize(self, feature_extraction_mode)
+        return _ffi_api.ScheduleNormalize(self)
 
     def create_group(self, outputs, inputs, include_inputs=False):
         """Create stage group by giving output and input boundary.

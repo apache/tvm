@@ -375,11 +375,21 @@ class Schedule : public ObjectRef {
    *  Insert necessary RebaseNode to make sure all leaf_iter_vars
    *  are in form [0, extent)
    *
-   * \param feature_extraction_mode Whether to enable feature extraction mode for
-   *   fast compilation and feature extraction in autotvm/auto-scheduler.
    * \return A normalized schedule, can be same as current one.
    */
-  Schedule normalize(bool feature_extraction_mode);
+  Schedule normalize();
+
+  /*!
+   * \brief Normalize the schedule for feature extraction in auto-scheduler.
+   * This is similar to `Schedule::normalize`. But we do aggresive simplification
+   * for faster compilation and feature extraction.
+   * The resulted schedule may be wrong. But it is good enough for feature extraction
+   * purposes.
+   *
+   * \return A normalized schedule, can be same as current one.
+   */
+  Schedule normalize_for_feature_extraction();
+
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

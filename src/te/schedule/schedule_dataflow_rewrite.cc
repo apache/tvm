@@ -528,6 +528,7 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
         if (feature_extraction_mode && compute->attrs.count("const_matrix")) {
           // Use constant value to replace access of const matrices.
           // This produces wrong IR but is good enough for feature extraction purposes.
+          // This simplification can accelerate the feature extration and evolutionary search.
           body = make_const(compute->output_dtype(0), 1.0f);
         } else {
           body = compute->body[0];
@@ -705,9 +706,17 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
   }
 }
 
-Schedule Schedule::normalize(bool feature_extraction_mode) {
+Schedule Schedule::normalize() {
   Schedule sn = copy();
-  InjectInline(sn.operator->(), feature_extraction_mode);
+  InjectInline(sn.operator->(), false);
+  RebaseNonZeroMinLoop(sn.operator->());
+  LegalizeInvalidAttach(sn.operator->());
+  return sn;
+}
+
+Schedule Schedule::normalize_for_feature_extraction() {
+  Schedule sn = copy();
+  InjectInline(sn.operator->(), true);
   RebaseNonZeroMinLoop(sn.operator->());
   LegalizeInvalidAttach(sn.operator->());
   return sn;

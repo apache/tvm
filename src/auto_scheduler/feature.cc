@@ -1267,7 +1267,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
   Array<te::Tensor> tensors;
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
-  sch = sch.normalize(true);
+  sch = sch.normalize_for_feature_extraction();
   auto bounds = te::InferBound(sch);
 
   try {

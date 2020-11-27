@@ -132,7 +132,7 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   Array<ObjectRef> out_arg_list;
   auto pass_ctx = transform::PassContext::Current();
 
-  sch = sch.normalize(false);
+  sch = sch.normalize();
 
   // Before TIR transformation.
   auto bounds = te::InferBound(sch);
