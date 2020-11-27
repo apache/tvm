@@ -583,6 +583,24 @@ def _test_stridedslice(
 def test_forward_stridedslice():
     """test StridedSlice"""
     for quantized in [False, True]:
+        _test_stridedslice(
+            (1, 3, 3),
+            [0, 0, 0],
+            [3, 3, 3],
+            [1, 1, 1],
+            "float32",
+            shrink_axis_mask=7,
+            quantized=quantized,
+        )
+        _test_stridedslice(
+            (1, 3, 3),
+            [0, 0, 0],
+            [3, 3, 3],
+            [1, 1, 1],
+            "float32",
+            shrink_axis_mask=5,
+            quantized=quantized,
+        )
         _test_stridedslice((2), [1], [1], [1], "float32", shrink_axis_mask=1, quantized=quantized)
         _test_stridedslice(
             (3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], "float32", quantized=quantized
