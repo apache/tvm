@@ -270,7 +270,7 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
 def test_command(args):
     user_box_dir = os.path.join(THIS_DIR, args.platform)
     base_box_dir = os.path.join(THIS_DIR, args.platform, "base-box")
-    test_config_file = os.path.join(base_box_dir, "test-config.json")
+    test_config_file = os.path.join(base_box_dir, "test.config")
     with open(test_config_file) as f:
         test_config = json.load(f)
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
@@ -313,9 +313,9 @@ def test_command(args):
 
 
 def release_command(args):
-    #  subprocess.check_call(["vagrant", "cloud", "version", "create", f"tlcpack/microtvm-{args.platform}", args.version])
-    if not args.version:
-        sys.exit(f"--version must be specified")
+    subprocess.check_call(["vagrant", "cloud", "version", "create", f"tlcpack/microtvm-{args.platform}", args.release_version])
+    if not args.release_version:
+        sys.exit(f"--release-version must be specified")
 
     for provider_name in args.provider.split(","):
         subprocess.check_call(
@@ -325,7 +325,7 @@ def release_command(args):
                 "publish",
                 "-f",
                 f"tlcpack/microtvm-{args.platform}",
-                args.version,
+                args.release_version,
                 provider_name,
                 os.path.join(
                     THIS_DIR,
