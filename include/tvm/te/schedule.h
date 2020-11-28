@@ -381,9 +381,9 @@ class Schedule : public ObjectRef {
 
   /*!
    * \brief Normalize the schedule for feature extraction in auto-scheduler.
-   * This is similar to `Schedule::normalize`. But we do aggresive simplification
-   * for faster compilation and feature extraction.
-   * The resulted schedule may be wrong. But it is good enough for feature extraction
+   * This is similar to `Schedule::normalize`, but we do aggressive simplification
+   * to the TE compute with const_matrix=True for faster compilation and feature extraction.
+   * The resulted schedule may be wrong, but it is good enough for feature extraction
    * purposes.
    *
    * \return A normalized schedule, can be same as current one.
