@@ -1235,7 +1235,7 @@ State ComputeDAG::InferBound(const State& state) const {
   Array<te::Tensor> tensors;
   // Replay steps to tvm::Schedule
   std::tie(sch, tensors) = ApplySteps(pstate->transform_steps, &stages, &stage_to_axes);
-  sch = sch.normalize();
+  sch = sch.normalize_for_feature_extraction();
   // Get bound information from TVM schedule
   Map<IterVar, Range> bounds = te::InferBound(sch);
 
