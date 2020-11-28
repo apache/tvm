@@ -337,7 +337,7 @@ def const_matrix(matrix, name="const_matrix"):
                 )
         return now
 
-    return te.compute(matrix.shape, select_array, name=name)
+    return te.compute(matrix.shape, select_array, name=name, attrs={"const_matrix": True})
 
 
 def get_max_power2_factor(n, max_value=None):
