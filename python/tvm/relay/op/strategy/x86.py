@@ -117,7 +117,6 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_nhwc),
                 wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
