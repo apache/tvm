@@ -232,7 +232,7 @@ set(USE_TENSORRT_RUNTIME OFF)
 # Whether use VITIS-AI codegen
 set(USE_VITIS_AI OFF)
 
-# Build Verilator codegen and runtime, example located in 3rdparty/hw-widgets
+# Build Verilator codegen and runtime, example located in 3rdparty/vta-hw/apps/verilator
 set(USE_VERILATOR_HW OFF)
 
 # Build ANTLR parser for Relay text format
