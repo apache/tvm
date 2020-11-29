@@ -51,7 +51,8 @@ TVMNDArray TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType d
   for (idx = 0; idx < ret.dl_tensor.ndim; ++idx) {
     num_elems *= shape[idx];
   }
-  ret.dl_tensor.data = TVMBackendAllocWorkspace(kDLCPU, 0, num_elems, dtype.code, dtype.bits);
+  ret.dl_tensor.data =
+      TVMBackendAllocWorkspace(kDLCPU, 0, num_elems * dtype.bits / 8, dtype.code, dtype.bits);
   memset(ret.dl_tensor.data, 0, num_elems * elem_bytes);
   return ret;
 }
