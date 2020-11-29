@@ -151,7 +151,7 @@ class SketchPolicy(SearchPolicy):
         "sample_init_min_population": 50,
         "sample_init_use_measured_ratio": 0.2,
         "evolutionary_search_population": 2048,
-        "evolutionary_search_num_iters": 3,
+        "evolutionary_search_num_iters": 4,
         "evolutionary_search_mutation_prob": 0.85,
         "cpu_multi_level_tiling_structure": "SSRSRS",
         "gpu_multi_level_tiling_structure": "SSSRRSRS",
