@@ -1122,7 +1122,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
 }
 
 bool HasLayoutFreeTensors(const ComputeDAG& dag) {
-  for (const auto& op: dag->ops) {
+  for (const auto& op : dag->ops) {
     if (!op->IsInstance<te::ComputeOpNode>()) {
       continue;
     }
@@ -1137,8 +1137,7 @@ bool HasLayoutFreeTensors(const ComputeDAG& dag) {
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
     LayoutRewriteOption layout_rewrite) const {
-  if (layout_rewrite != LayoutRewriteOption::NoRewrite && 
-      HasLayoutFreeTensors(*this) &&
+  if (layout_rewrite != LayoutRewriteOption::NoRewrite && HasLayoutFreeTensors(*this) &&
       !transform_steps.empty()) {
     Array<Step> steps = transform_steps;
     const auto& dag = RewriteLayout(&steps, layout_rewrite);
