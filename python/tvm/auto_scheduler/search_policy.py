@@ -147,7 +147,7 @@ class SketchPolicy(SearchPolicy):
 
     DEFAULT_PARAMS = {
         "eps_greedy": 0.05,
-        "retry_search_one_round_on_empty": 10,
+        "retry_search_one_round_on_empty": 1,
         "sample_init_min_population": 50,
         "sample_init_use_measured_ratio": 0.2,
         "evolutionary_search_population": 2048,
