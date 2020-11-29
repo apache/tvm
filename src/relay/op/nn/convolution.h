@@ -220,7 +220,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // If the layout is rewritten by auto-scheduler,
       // we just forcly apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
-      ;  // do nothing
+      {}  // do nothing
     }
   } else {
     // use weight to infer the conv shape.
