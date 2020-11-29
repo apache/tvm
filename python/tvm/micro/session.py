@@ -124,7 +124,7 @@ class Session:
             self.transport_context_manager = self.flasher.flash(self.binary)
 
         self.transport = TransportLogger(
-            self.session_name, self.transport_context_manager, level=logging.INFO
+            self.session_name, self.transport_context_manager, level=logging.DEBUG
         ).__enter__()
 
         try:

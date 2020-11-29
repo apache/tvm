@@ -669,7 +669,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     math_op_counter(node->value);
     std::vector<float> mem_bytes_list;
     std::vector<float> compute_ops_list;
-    int cur_compute_ops;
+    double cur_compute_ops;
 
     // Group 1: Computation related features
     ExtractComputationFeature(node, math_op_counter);
@@ -768,7 +768,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
   // Extract buffer access related features (group 2)
   void ExtractBufferAccessFeature(const BufferStoreNode* node, const MathOpCounter& math_op_counter,
-                                  int* cur_compute_ops, std::vector<float>* compute_ops_list,
+                                  double* cur_compute_ops, std::vector<float>* compute_ops_list,
                                   std::vector<float>* mem_bytes_list) {
     FeatureSet& fea = buffer_features[node->buffer];
 
@@ -920,7 +920,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   // Extract arithmetic intensity related feature (group 3)
-  void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, int cur_compute_ops,
+  void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, double cur_compute_ops,
                                          const std::vector<float>& compute_ops_list,
                                          const std::vector<float>& mem_bytes_list) {
     FeatureSet& fea = buffer_features[node->buffer];
@@ -1267,7 +1267,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
   Array<te::Tensor> tensors;
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
-  sch = sch.normalize();
+  sch = sch.normalize_for_feature_extraction();
   auto bounds = te::InferBound(sch);
 
   try {
