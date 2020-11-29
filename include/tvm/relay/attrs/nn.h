@@ -216,7 +216,6 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
   std::string data_layout;
   std::string kernel_layout;
   std::string out_layout;
-  std::string auto_scheduler_rewritten_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DWinogradAttrs, "relay.attrs.Conv2DWinogradAttrs") {
@@ -269,9 +268,6 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
             "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
             "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
             "dimensions respectively. Default to be same as input layout.");
-    TVM_ATTR_FIELD(auto_scheduler_rewritten_layout)
-        .set_default("")
-        .describe("New kernel layout after auto-scheduler's layout rewrite.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)

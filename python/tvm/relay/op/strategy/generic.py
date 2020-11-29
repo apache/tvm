@@ -168,7 +168,11 @@ def schedule_bitpack(attrs, outs, target):
 
 # conv2d
 def wrap_compute_conv2d(
-    topi_compute, need_data_layout=False, need_out_layout=False, has_groups=False
+    topi_compute,
+    need_data_layout=False,
+    need_out_layout=False,
+    has_groups=False,
+    need_auto_scheduler_layout=False,
 ):
     """Wrap conv2d topi compute"""
 
@@ -189,7 +193,8 @@ def wrap_compute_conv2d(
         if need_out_layout:
             args.append(out_layout)
         args.append(out_dtype)
-        args.append(auto_scheduler_rewritten_layout)
+        if need_auto_scheduler_layout:
+            args.append(auto_scheduler_rewritten_layout)
         return [topi_compute(*args)]
 
     return _compute_conv2d

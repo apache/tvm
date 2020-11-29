@@ -83,8 +83,6 @@ class FuncMutator : public ExprMutator {
       Attrs updated_attrs;
       if (auto pattr = call->attrs.as<Conv2DAttrs>()) {
         updated_attrs = CopyAttrsWithNewLayout(pattr, new_layout);
-      } else if (auto pattr = call->attrs.as<Conv2DWinogradAttrs>()) {
-        updated_attrs = CopyAttrsWithNewLayout(pattr, new_layout);
       }
       new_n = Call(call->op, updated_args, updated_attrs);
     }
@@ -95,8 +93,7 @@ class FuncMutator : public ExprMutator {
   std::deque<std::string> ori_layouts_queue_;
   std::deque<std::string> new_layouts_queue_;
 
-  std::vector<std::string> target_ops_{"nn.contrib_conv2d_winograd_without_weight_transform",
-                                       "nn.conv2d"};
+  std::vector<std::string> target_ops_{"nn.conv2d"};
 };
 
 Expr AutoSchedulerLayoutRewriter::VisitExpr_(const CallNode* n) {

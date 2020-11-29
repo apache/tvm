@@ -544,7 +544,9 @@ def _timed_func(inp_serialized, build_func, verbose):
     args = []
 
     try:
-        sch, args = task.compute_dag.apply_steps_from_state(inp.state, layout_rewrite=True)
+        sch, args = task.compute_dag.apply_steps_from_state(
+            inp.state, layout_rewrite=ComputeDAG.RewriteForPreTransformed
+        )
     # pylint: disable=broad-except
     except Exception:
         error_no = MeasureErrorNo.INSTANTIATION_ERROR

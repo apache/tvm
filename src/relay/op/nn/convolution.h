@@ -143,13 +143,6 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
-  // If the layout is rewritten by auto-scheduler,
-  // we just forcly apply the layout provided by auto-scheduler and
-  // skip the normal inference logic.
-  if (param->auto_scheduler_rewritten_layout.size() > 0) {
-    return false;
-  }
-
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
   if (!trans_in_layout.defined()) {
     reporter->GetDiagCtx().Emit(
@@ -219,8 +212,16 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (weight != nullptr) {
       weight_dtype = weight->dtype;
     }
-    // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+
+    if (param->auto_scheduler_rewritten_layout.size() == 0) {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    } else {
+      // If the layout is rewritten by auto-scheduler,
+      // we just forcly apply the layout provided by auto-scheduler and
+      // skip the normal inference logic.
+      ;  // do nothing
+    }
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
