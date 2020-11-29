@@ -1121,6 +1121,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
   return new_dag;
 }
 
+// Return whether a DAG has placeholders that are marked as "layout free".
 bool HasLayoutFreeTensors(const ComputeDAG& dag) {
   for (const auto& op : dag->ops) {
     if (!op->IsInstance<te::ComputeOpNode>()) {
