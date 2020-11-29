@@ -96,6 +96,11 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
+    from envparse import env
+
+    direct_conv = env.bool('TVM_DIRECT_CONV', default=False)
+    # print(f"Direct conv: {os.environ['TVM_DIRECT_CONV']}, {bool(os.environ['TVM_DIRECT_CONV'])}\n\n\n\n")
+
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -103,14 +108,21 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.x86.conv2d_nchw_int8),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_int8),
-                    name="conv2d_nchw_int8.x86",
-                )
+                    name="conv2d_nchw_int8.x86")
+            elif direct_conv:
+                print('using direct convolution')
+                assert kernel_layout == "OIHW"
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.x86.conv2d_nchw_direct),
+                    # wrap_topi_schedule(topi.generic.schedule_conv2d_nchw),
+                    wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_direct),
+                    name="conv2d_nchw.x86")
             else:
+                print('using spatial pack convolution')
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.x86.conv2d_nchw),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
-                    name="conv2d_nchw.x86",
-                )
+                    name="conv2d_nchw.x86")
         elif _NCHWc_matcher.match(layout):  # check if layout is NCHWxc
             assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)

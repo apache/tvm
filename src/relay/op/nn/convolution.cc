@@ -119,6 +119,44 @@ with the layer input to produce a tensor of outputs.
     .add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
+// relay.nn.conv2d_sparse
+TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_sparse")
+.set_body_typed([](Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr,
+                   Array<IndexExpr> strides, Array<IndexExpr> padding,
+                   Array<IndexExpr> dilation, int groups, IndexExpr channels,
+                   Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
+                   String out_layout, DataType out_dtype) {
+                  return MakeSparseConv<Conv2DAttrs>(data, weight_data, weight_data, weight_indptr,
+                                                      strides, padding, dilation, groups, channels,
+                                                      kernel_size, data_layout, kernel_layout, out_layout, out_dtype,
+                                                      "nn.conv2d_sparse");
+    });
+
+RELAY_REGISTER_OP("nn.conv2d_sparse")
+    .describe(R"code(2D convolution layer (e.g. spatial convolution over images).
+
+This layer creates a convolution kernel that is convolved
+with the layer input to produce a tensor of outputs.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, in_channels, height, width) if `layout` is `NCHW`.
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
+- **out**:  This depends on the `layout` parameter. Output is 4D array of shape
+            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<Conv2DAttrs>()
+.set_num_inputs(4)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight_data", "Tensor", "The weight tensor.")
+.add_argument("weight_indices", "Tensor", "The weight tensor.")
+.add_argument("weight_indptr", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.add_type_rel("Conv2DSparse", Conv2DSparseRel<Conv2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
+  
 // relay.nn.conv3d
 TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
 

@@ -19,3 +19,4 @@
 
 from . import bsr_dense
 from . import simplify_fc_transpose
+from . import csr_conv2d

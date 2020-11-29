@@ -154,6 +154,13 @@ def conv2d_infer_layout(workload, cfg):
     raise ValueError("missing register for topi.nn.conv2d_infer_layout")
 
 
+def conv2d_sparse(input, filter_data, filter_idx, filter_idxs,
+                  strides, padding, dilation, layout='NCHW', out_dtype=None):
+    from .conv2d_sparse import gemm_conv2d_sparse
+    return gemm_conv2d_sparse(input, filter_data, filter_idx, filter_idxs,
+                              strides, padding, dilation, out_dtype)
+
+
 def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
     """ Get the workload structure. """
     if data_layout == "NCHW":

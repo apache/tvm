@@ -287,6 +287,9 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   if (!success) {
     return Expr(nullptr);
   }
+  if (old_in.size() != new_in.size()) {
+    return Expr(nullptr);
+  }
   CHECK_EQ(old_in.size(), new_in.size());
 
   // if new_in == 'undef':  new_in = old_in

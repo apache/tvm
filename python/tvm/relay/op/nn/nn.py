@@ -219,6 +219,9 @@ def conv2d(
         dilation = (dilation, dilation)
     # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
     # convert 2-way padding to 4-way padding
+    if channels is None:
+        if kernel_layout is 'OIHW':
+            channels = weight.type_annotation.shape[0]
     padding = get_pad_tuple2d(padding)
     return _make.conv2d(
         data,

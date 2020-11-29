@@ -193,6 +193,87 @@ def wrap_compute_conv2d(
     return _compute_conv2d
 
 
+def wrap_compute_conv2d_sparse(topi_compute, need_data_layout=False, need_out_layout=False,
+                        has_groups=False):
+    """Wrap conv2d_sparse topi compute"""
+    def _compute_conv2d_sparse(attrs, inputs, out_type):
+        padding = get_const_tuple(attrs.padding)
+        channels = attrs.channels
+        strides = get_const_tuple(attrs.strides)
+        kdim_h, kdim_w  = get_const_tuple(attrs.kernel_size)
+        dilation = get_const_tuple(attrs.dilation)
+        data_layout = attrs.get_str("data_layout")
+        out_layout = attrs.get_str("out_layout")
+        out_dtype = attrs.out_dtype
+        out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                     else out_dtype)
+        args = [inputs[0], inputs[1], inputs[2], inputs[3],
+                channels, kdim_h, kdim_w,
+                strides, padding, dilation]
+        if has_groups:
+            args.append(attrs.groups)
+        if need_data_layout:
+            args.append(data_layout)
+        if need_out_layout:
+            args.append(out_layout)
+        args.append(out_dtype)
+        return [topi_compute(*args)]
+    return _compute_conv2d_sparse
+
+
+@override_native_generic_func("conv2d_sparse_strategy")
+def conv2d_sparse_strategy(attrs, inputs, out_type, target):
+    """conv2d_sparse generic strategy"""
+    logger.warning("conv2d_sparse is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    data, kernel_data, kernel_indices, kernel_indptr  = inputs
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+    (dilation_h, dilation_w) = dilation
+    if dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    print(f'using sparse conv2d groups:{groups}')
+    from envparse import env
+    direct_conv = env.bool('TVM_DIRECT_CONV', default=False)
+    if groups == 1:
+        if direct_conv:
+            if layout == "NCHW":
+                print('Running my sparse system')
+                assert kernel_layout == "OIHW"
+                strategy.add_implementation(
+                    wrap_compute_conv2d_sparse(topi.nn.conv2d_sparse_direct_nchw),
+                    # wrap_topi_schedule(topi.generic.schedule_conv2d_sparse_nchw),
+                    wrap_topi_schedule(topi.nn.schedule_conv2d_direct_sparse_nchw),
+                    name="conv2d_sparse.generic")
+            else:
+                raise RuntimeError("Unsupported conv2d layout {}".format(layout))
+        else:
+            print('Sparse GEMM Conv2d')
+            if layout == "NCHW":
+                assert kernel_layout == "OIHW"
+                strategy.add_implementation(
+                    wrap_compute_conv2d_sparse(topi.nn.conv2d_sparse_gemm_nchw),
+                    wrap_topi_schedule(topi.generic.schedule_conv2d_sparse_nchw),
+                    name="conv2d_sparse.generic")
+            else:
+                raise RuntimeError("Unsupported conv2d layout {}".format(layout))
+    elif groups > 1:
+        print('Sparse depthwise')
+        if layout == "NCHW":
+            assert kernel_layout == "OIHW"
+            strategy.add_implementation(
+                wrap_compute_conv2d_sparse(topi.nn.conv2d_sparse_nchw),
+                wrap_topi_schedule(topi.generic.schedule_conv2d_sparse_nchw),
+                name="conv2d_sparse.generic")
+        else:
+            raise RuntimeError("Unsupported conv2d layout {}".format(layout))
+
+    return strategy
+
+
 @override_native_generic_func("conv2d_strategy")
 def conv2d_strategy(attrs, inputs, out_type, target):
     """conv2d generic strategy"""
