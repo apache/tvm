@@ -1121,10 +1121,25 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
   return new_dag;
 }
 
+// Return whether a DAG has placeholders that are marked as "layout free".
+bool HasLayoutFreeTensors(const ComputeDAG& dag) {
+  for (const auto& op : dag->ops) {
+    if (!op->IsInstance<te::ComputeOpNode>()) {
+      continue;
+    }
+    if (op->attrs.count(ComputeDAG::layout_free_placeholders_key)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 std::pair<te::Schedule, Array<te::Tensor>> ComputeDAG::ApplySteps(
     const Array<Step>& transform_steps, Array<te::Stage>* stages, StageToAxesMap* stage_to_axes,
     LayoutRewriteOption layout_rewrite) const {
-  if (layout_rewrite != LayoutRewriteOption::NoRewrite && !transform_steps.empty()) {
+  if (layout_rewrite != LayoutRewriteOption::NoRewrite && HasLayoutFreeTensors(*this) &&
+      !transform_steps.empty()) {
     Array<Step> steps = transform_steps;
     const auto& dag = RewriteLayout(&steps, layout_rewrite);
     return dag.ApplySteps(steps);
