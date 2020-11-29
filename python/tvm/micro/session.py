@@ -187,7 +187,7 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, ctx):
         return None
 
     return get_global_func("tvm.rpc.NDArrayFromRemoteOpaqueHandle")(
-        mod, remote_data, template_tensor, ctx, lambda: None
+        mod, remote_data, template_tensor, ctx, None
     )
 
 
