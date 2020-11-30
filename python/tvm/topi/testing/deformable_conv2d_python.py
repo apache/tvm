@@ -124,7 +124,7 @@ def deformable_conv2d_nchw_python(
 def deformable_conv2d_nhwc_python(
     a_np, offset_np, w_np, stride, padding, dilation, deformable_groups, groups
 ):
-    """Deformable convolution operator in NCHW layout.
+    """Deformable convolution operator in NHWC layout.
 
     Parameters
     ----------
