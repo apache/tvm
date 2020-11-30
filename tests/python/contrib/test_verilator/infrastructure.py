@@ -16,6 +16,8 @@
 # under the License.
 """Verilator utility functions"""
 
+import sys
+
 import tvm
 from tvm import relay
 import tvm.relay.testing
@@ -42,6 +44,17 @@ def _register_verilator_op(op_name, supported=True):
         return supported
 
     return _func_wrapper
+
+
+def skip_test():
+    """Skip test if it requires the Verilator codegen and it's not present."""
+    if not tvm.get_global_func("relay.ext.verilator", True):
+        print("Skip test because Verilator codegen is not available.")
+        return True
+    if sys.platform == "win32":
+        print("Skip test on Windows for now")
+        return True
+    return False
 
 
 def offload(mod):
