@@ -652,7 +652,7 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
                 new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
         # Remove batch dimension and see if volumes match
         if shape[0] != new_shape[0]:
-            print("reshape: can't modify batch dimension.")
+            logger.info("reshape: can't modify batch dimension.")
             return False
     return True
 
@@ -850,7 +850,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
         self.is_compute_intensive = False
 
     def visit_call(self, call):
-        heavy_ops = set(
+        compute_intensive_ops = set(
             [
                 "nn.conv2d",
                 "nn.conv2d_transpose",
@@ -861,12 +861,15 @@ class IsComputeIntensiveGraph(ExprVisitor):
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
-            if str(call.op) in heavy_ops:
+            if str(call.op) in compute_intensive_ops:
                 self.is_compute_intensive = True
 
         return super().visit_call(call)
 
-    def is_graph_compute_intensive(self, subgraph):
+    def is_graph_compute_intensive(self, subgraph) -> bool:
+        """
+        This function recursively visits the graph and checks if it's compute intensive"
+        """
         self.visit(subgraph)
         return self.is_compute_intensive
 
