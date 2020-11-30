@@ -78,12 +78,12 @@ namespace support {
 template <typename FUNC>
 ssize_t RetryCallOnEINTR(FUNC f) {
   size_t retry_count = 8;
-  ssize_t rc = f();
-  while (--retry_count && rc == -1 && errno == EINTR) {
-    rc = f();
+  ssize_t rc = -1;
+  while (--retry_count && (rc = f()) == -1 && errno == EINTR) {
   }
   return rc;
 }
+
 
 /*!
  * \brief Get current host name.
