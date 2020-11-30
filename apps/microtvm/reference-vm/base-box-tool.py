@@ -318,7 +318,16 @@ def test_command(args):
 
 
 def release_command(args):
-    subprocess.check_call(["vagrant", "cloud", "version", "create", f"tlcpack/microtvm-{args.platform}", args.release_version])
+    subprocess.check_call(
+        [
+            "vagrant",
+            "cloud",
+            "version",
+            "create",
+            f"tlcpack/microtvm-{args.platform}",
+            args.release_version,
+        ]
+    )
     if not args.release_version:
         sys.exit(f"--release-version must be specified")
 
@@ -366,7 +375,7 @@ def parse_args():
     parser.add_argument(
         "--provider",
         choices=ALL_PROVIDERS,
-        action='append',
+        action="append",
         default=[],
         help="Name of the provider or providers to act on; if not specified, act on all",
     )
