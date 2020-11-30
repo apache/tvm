@@ -206,6 +206,9 @@ def _register_external_op_helper_with_checker(op_name, checker):
                 ]
                 for arg in args
             ]
+            # Batched multiply operations don't work in implicit batch mode. The following shapes
+            # have been excluded because they occur in PT MaskRCNN model. The long term solution is
+            # to switch to explicit batch mode after performance regressions are solved.
             if all(
                 [list(map(int, shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]] for shape in shapes]
             ):
@@ -881,12 +884,15 @@ def is_valid_subgraph(params, body):
         input_batch_sizes = []
         for var in params:
             # In implicit batch mode, all inputs must have same batch size
+            # TODO: (codeislife99) : Fix different dynamic batch size inputs
+
             if isinstance(var.checked_type, relay.TupleType):
                 for tupe_type in var.checked_type.fields:
                     # Scalar inputs not allowed
                     if len(tupe_type.shape) == 0:
                         logger.info("tensorrt: scalar inputs not supported")
                         return False
+
                     if not isinstance(tupe_type.shape[0], tvm.tir.expr.Any):
                         input_batch_sizes.append(int(tupe_type.shape[0]))
             else:
