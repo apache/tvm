@@ -21,10 +21,10 @@ import numpy as np
 import tvm
 from tvm import relay
 
-import infrastructure as infra
+from .infrastructure import _register_verilator_op, skip_test, compile_module, run_module
 
 
-infra._register_verilator_op("add")
+_register_verilator_op("add")
 
 
 def create_module_add(shape, dtype):
@@ -42,17 +42,17 @@ def run_check_add(exe, shape, dtype):
     y_data = np.random.randint(5, size=shape, dtype=dtype)
     ref = x_data + y_data
     inputs = {"x": x_data, "y": y_data}
-    out = infra.run_module(exe, inputs)
+    out = run_module(exe, inputs)
     tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
 
 
 def test_add():
-    infra.skip_test()
+    skip_test()
     dtype = "int32"
     shape = (8, 4)
     mod = create_module_add(shape, dtype)
-    mod = infra.offload(mod)
-    exe = infra.compile_module(mod)
+    mod = offload(mod)
+    exe = compile_module(mod)
     run_check_add(exe, shape, dtype)
 
 
