@@ -286,7 +286,7 @@ def test_command(args):
         test_config["vid_hex"] = test_config["vid_hex"].lower()
         test_config["pid_hex"] = test_config["pid_hex"].lower()
 
-    providers = args.provider.split(",")
+    providers = args.provider
     provider_passed = {p: False for p in providers}
 
     release_test_dir = os.path.join(THIS_DIR, "release-test")
@@ -322,7 +322,7 @@ def release_command(args):
     if not args.release_version:
         sys.exit(f"--release-version must be specified")
 
-    for provider_name in args.provider.split(","):
+    for provider_name in args.provider:
         subprocess.check_call(
             [
                 "vagrant",
@@ -366,6 +366,8 @@ def parse_args():
     parser.add_argument(
         "--provider",
         choices=ALL_PROVIDERS,
+        action='append',
+        default=[],
         help="Name of the provider or providers to act on; if not specified, act on all",
     )
     parser.add_argument(
@@ -396,6 +398,9 @@ def main():
     args = parse_args()
     if os.path.sep in args.platform or not os.path.isdir(os.path.join(THIS_DIR, args.platform)):
         sys.exit(f"<platform> must be a sub-direcotry of {THIS_DIR}; got {args.platform}")
+
+    if not args.provider:
+        args.provider = list(ALL_PROVIDERS)
 
     todo = []
     for phase in args.command.split(","):
