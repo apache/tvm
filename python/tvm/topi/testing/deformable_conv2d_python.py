@@ -163,7 +163,8 @@ def deformable_conv2d_nhwc_python(
     a_np = np.transpose(a_np, [0, 3, 1, 2])  # NHWC -> NCHW
     offset_np = np.transpose(offset_np, [0, 3, 1, 2])  # NHWC -> NCHW
     w_np = np.transpose(w_np, [3, 2, 0, 1])  # HWIO -> OIHW
-    b_np = deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilation,
-                                         deformable_groups, groups)
+    b_np = deformable_conv2d_nchw_python(
+        a_np, offset_np, w_np, stride, padding, dilation, deformable_groups, groups
+    )
     b_np = np.transpose(b_np, [0, 2, 3, 1])  # NCHW -> NHWC
     return b_np

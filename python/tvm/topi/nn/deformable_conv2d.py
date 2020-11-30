@@ -210,16 +210,22 @@ def deformable_conv2d_nhwc(
         (batch, kernel_h, kernel_w, in_channel, out_height, out_width),
         lambda n, kh, kw, c, y, x: _bilinear(
             n,
-            y * stride_h - pad_top + kh * dilation_h
+            y * stride_h
+            - pad_top
+            + kh * dilation_h
             + offset[
                 n, y, x, c // ic_per_dgroup * (kernel_w * kernel_h * 2) + (kh * kernel_w + kw) * 2
             ],
-            x * stride_w - pad_left + kw * dilation_w
+            x * stride_w
+            - pad_left
+            + kw * dilation_w
             + offset[
-                n, y, x, c // ic_per_dgroup * (kernel_w * kernel_h * 2) + (kh * kernel_w + kw) * 2
-                + 1,
+                n,
+                y,
+                x,
+                c // ic_per_dgroup * (kernel_w * kernel_h * 2) + (kh * kernel_w + kw) * 2 + 1,
             ],
-            c
+            c,
         ),
         tag="data_deform",
     )

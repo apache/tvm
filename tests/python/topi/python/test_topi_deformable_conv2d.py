@@ -35,6 +35,7 @@ _deformable_conv2d_nhwc_implement = {
     "generic": (topi.nn.deformable_conv2d_nhwc, topi.generic.schedule_deformable_conv2d_nhwc),
 }
 
+
 def verify_deformable_conv2d_nchw(
     batch,
     in_channel,
