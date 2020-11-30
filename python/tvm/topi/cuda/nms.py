@@ -53,6 +53,51 @@ tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectK
 def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
+def rearrange_indices_out_ir(data, out, valid_box_count):
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+
+    ib = tvm.tir.ir_builder.create()
+    data = ib.buffer_ptr(data)
+    out = ib.buffer_ptr(out)
+    valid_box_count = ib.buffer_ptr(valid_box_count)
+
+    one_count = tvm.tir.const(1, dtype="int32")
+    atomic_add_return = ib.allocate(
+        valid_box_count.dtype, (batch_size,), name="atomic_add_return", scope="local"
+    )
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+    tx = te.thread_axis("threadIdx.x")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    len_inner_for = (batch_size * num_anchors) // nthread_tx + 1
+
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
+
+    with ib.for_range(0, len_inner_for, name="i") as i:
+        idx = tx * len_inner_for + i
+        batch_idx = idxd(idx, num_anchors)
+        with ib.if_scope(idx < batch_size):
+            valid_box_count[idx] = 0
+            atomic_add_return[idx] = 0
+        with ib.if_scope(idx < batch_size * num_anchors):
+            with ib.if_scope(data[idx] >= 0):
+                out[batch_idx * num_anchors + valid_box_count[batch_idx]] = data[idx]
+                atomic_add_return[batch_idx] = atomic_add(
+                    tvm.tir.call_intrin("handle", "tir.address_of", valid_box_count[batch_idx]), one_count
+                )
+            with ib.if_scope(tvm.tir.any(data[idx] > num_anchors, data[idx] < -num_anchors)):
+                out[batch_idx * num_anchors + valid_box_count[batch_idx]] = 0.0
+                atomic_add_return[batch_idx] = atomic_add(
+                    tvm.tir.call_intrin("handle", "tir.address_of", valid_box_count[batch_idx]), one_count
+                )
+            with ib.if_scope(idxm(idx, num_anchors) >= atomic_add_return[batch_idx]):
+                out[idx] = -1.0
+
+    return ib.get()
+
 
 def get_valid_counts_ir(
     data, valid_count, out, out_indices, score_threshold, id_index, score_index
@@ -527,6 +572,15 @@ def non_max_suppression(
     )
     # TODO(yongwww): Update cuda nms to be consistent with cpu version
     if return_indices:
-        return box_indices
+        out_buf = tvm.tir.decl_buffer(out.shape, out.dtype, "out_buf", data_alignment=8)
+        return te.extern(
+            [out.shape, valid_count.shape],
+            [out],
+            lambda ins, outs: rearrange_indices_out_ir(ins[0], outs[0], outs[1]),
+            dtype=[out.dtype, valid_count.dtype],
+            in_buffers=[out_buf],
+            name="rearrange_indices_out",
+            tag="rearrange_indices_out",
+        )
 
     return out

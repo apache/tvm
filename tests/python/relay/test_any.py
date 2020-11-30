@@ -25,6 +25,10 @@ from tvm.relay.testing import run_infer_type as infer_type
 from utils.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
+import os
+#print(os.getpid())
+#input("dummy breakpoint")
+
 
 def int32(val):
     return relay.const(val, "int32")
@@ -1369,6 +1373,41 @@ def test_any_where():
         any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
     )
 
+@tvm.testing.uses_gpu
+def test_non_max_suppression():
+    dshape = (te.size_var("n"), 5, 6)
+    x0 = relay.var("x0", relay.ty.TensorType((1, relay.Any(), 5), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((1,), "int32"))
+    x2 = relay.var("x2", relay.ty.TensorType((1, relay.Any()), "int32"))
+    x3 = relay.var("x3", relay.ty.TensorType((), "int32"))
+    z = relay.vision.non_max_suppression(
+            x0,
+            x1,
+            x2,
+            x3,
+            iou_threshold=0.6,
+            force_suppress=True,
+            top_k=-1,
+            coord_start=1,
+            score_index=0,
+            id_index=-1,
+            return_indices=True,
+            invalid_to_bottom=False
+        )
+    z = z.astuple()
+    func = relay.Function([x0, x1, x2, x3], z)
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mod = tvm.relay.transform.InferType()(mod)
+    print(mod)
+    with tvm.transform.PassContext(
+            opt_level=3,
+            disabled_pass=["FoldScaleAxis"],
+            ):
+        vm_exec = relay.vm.compile(mod, target='cuda', params=dict())
+        code, lib = vm_exec.save()
+        lib.export_library('/tmp/my_lib.so')
+
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_non_max_suppression()
