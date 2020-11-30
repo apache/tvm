@@ -20,5 +20,5 @@
 from __future__ import absolute_import as _abs
 
 from .csrmv import csrmv
-from .csrmm import csrmm
+from .csrmm import csrmm, batch_csrmm, csrmm_default
 from .dense import dense
