@@ -21,8 +21,6 @@ import itertools
 
 import tvm
 import tvm.relay.testing
-import torch
-import torchvision
 
 from tvm import relay
 from tvm.relay.op.contrib import tensorrt
@@ -1040,7 +1038,20 @@ def test_dynamic_offload():
     tvm.ir.assert_structural_equal(mod_trt, mod_exp, map_free_vars=True)
 
 
-def convert_traced_model_to_vm_trt(
+
+def test_maskrcnn_resnet50() -> None:
+    """
+    This function tests the working of pytorch maskrcnn with resnet50 as backbone with
+    VM and VM + TRT. Since the order of compiled model outputs is a bit different from
+    original pytorch model, it uses a custom logic for comparison check.
+    """
+    if skip_codegen_test():
+        return
+
+    import torch
+    import torchvision
+
+    def convert_traced_model_to_vm_trt(
     traced_module: torch.jit.TopLevelTracedModule, np_sample_input: np.ndarray, target: str
 ) -> tvm.runtime.vm.Executable:
     """
@@ -1055,16 +1066,6 @@ def convert_traced_model_to_vm_trt(
         vm_trt_exec = relay.vm.compile(mod, target=target, params=params)
 
     return vm_trt_exec
-
-
-def test_maskrcnn_resnet50() -> None:
-    """
-    This function tests the working of pytorch maskrcnn with resnet50 as backbone with
-    VM and VM + TRT. Since the order of compiled model outputs is a bit different from
-    original pytorch model, it uses a custom logic for comparison check.
-    """
-    if skip_codegen_test() or skip_runtime_test():
-        return
 
     class TraceWrapper(torch.nn.Module):
         """
@@ -1122,6 +1123,10 @@ def test_maskrcnn_resnet50() -> None:
     np_sample_input = get_maskrcnn_input(in_size)
     traced_module = get_traced_maskrcnn_model(np_sample_input)
     vm_trt_exec = convert_traced_model_to_vm_trt(traced_module, np_sample_input, target="llvm")
+
+    if skip_runtime_test():
+        return 
+
     ctx = tvm.cpu()
     vm = tvm.runtime.vm.VirtualMachine(vm_trt_exec, ctx)
     vm.set_input("main", **{"input0": np_sample_input})
