@@ -113,6 +113,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     BuildEngine();
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
+    if (batch_size_ == 0) return;
     auto& engine_and_context = trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
     auto engine = engine_and_context.engine;
     auto context = engine_and_context.context;
