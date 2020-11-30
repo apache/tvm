@@ -40,7 +40,13 @@ logger = logging.getLogger("auto_scheduler")
 
 
 def make_search_policies(
-    search_policy, tasks, num_measures_per_round, verbose, load_model_file=None, load_log_file=None
+    search_policy,
+    search_policy_params,
+    tasks,
+    num_measures_per_round,
+    verbose,
+    load_model_file=None,
+    load_log_file=None,
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -49,6 +55,8 @@ def make_search_policies(
     ----------
     search_policy: Union[str, List[SearchPolicy]]
         The name of search policy.
+    search_policy_params: Dict[str, Any]]
+        The parameters of the search policy.
     tasks: List[SearchTask]
         The list of all tasks
     num_measures_per_round: int
@@ -86,7 +94,10 @@ def make_search_policies(
             raise ValueError("Invalid search policy: " + search_policy)
 
         if policy_type == "sketch":
-            search_policies = [SketchPolicy(task, cost_model, verbose=verbose) for task in tasks]
+            search_policies = [
+                SketchPolicy(task, cost_model, params=search_policy_params, verbose=verbose)
+                for task in tasks
+            ]
         else:
             raise ValueError("Invalid search policy: " + search_policy)
     else:
@@ -240,18 +251,21 @@ class TaskScheduler:
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-    def tune(self, tune_option, search_policy="default"):
+    def tune(self, tune_option, search_policy="default", search_policy_params=None):
         """Tune a batch of tasks together.
 
         Parameters
         ----------
         tune_option: TuningOptions
             The options of tuning
-        search_policy: : Union[str, List[SearchPolicy]]
+        search_policy: : Union[str, List[SearchPolicy]] = "default"
             The list of search policies.
-            If it is str.
-            "sketch.xgb" for SketchPolicy + XGBModel
-            "sketch.random" for SketchPolicy + RandomModel
+            If it is str,
+            "default" for the default policy (SketchPolicy + XGBModel),
+            "sketch.xgb" for SketchPolicy + XGBModel,
+            "sketch.random" for SketchPolicy + RandomModel.
+        search_policy_params : Optional[Dict[str, Any]]
+            The parameters of the search policy
         """
         # init members
         self.tune_option = tune_option
@@ -280,6 +294,7 @@ class TaskScheduler:
         # make one search policy for one task
         self.search_policies = make_search_policies(
             search_policy,
+            search_policy_params,
             self.tasks,
             self.num_measures_per_round,
             tune_option.verbose,

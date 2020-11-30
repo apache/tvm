@@ -482,8 +482,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
 
   bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
-  if (!is_cost_model_reasonable && num_iters > 3) {
-    num_iters = 3;
+  if (!is_cost_model_reasonable && num_iters > 2) {
+    num_iters = 2;
     StdCout(verbose) << "GA iteration number has been adjusted to " << num_iters
                      << " due to random cost model" << std::endl;
   }
