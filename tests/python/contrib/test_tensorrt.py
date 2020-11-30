@@ -21,6 +21,9 @@ import itertools
 
 import tvm
 import tvm.relay.testing
+import torch
+import torchvision
+
 from tvm import relay
 from tvm.relay.op.contrib import tensorrt
 from tvm.contrib import graph_runtime, utils
@@ -29,8 +32,6 @@ from tvm.relay import Any, GlobalVar, transform
 from typing import Dict, Tuple, Union
 from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
-import torch
-import torchvision
 
 
 def skip_codegen_test():
@@ -1153,5 +1154,4 @@ def test_maskrcnn_resnet50() -> None:
 
 
 if __name__ == "__main__":
-    test_maskrcnn_resnet50()
-    # pytest.main([__file__])
+    pytest.main([__file__])
