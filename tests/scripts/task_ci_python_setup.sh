@@ -31,3 +31,4 @@ set -o pipefail
 echo "Addtiional setup in" ${CI_IMAGE_NAME}
 
 python3 -m pip install --user tlcpack-sphinx-addon==0.1.2 synr==0.2.1
+python3 -m pip install --user torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
