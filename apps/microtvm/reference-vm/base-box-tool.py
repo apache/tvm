@@ -232,7 +232,8 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
             box_package = os.path.join(
                 base_box_dir, f"output-packer-{provider_name}", "package.box"
             )
-            f.write(f'{m.group(1)} = "{os.path.relpath(box_package, release_test_dir)}"\n')
+            box_relpath = os.path.relpath(box_package, release_test_dir)
+            f.write(f'{m.group(1)} = "{box_relpath}"\n')
             found_box_line = True
 
     if not found_box_line:
@@ -242,6 +243,10 @@ def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provi
         )
         return False
 
+    # Delete the old box registered with Vagrant, which may lead to a falsely-passing release test.
+    remove_args = ["vagrant", "box", "remove", box_relpath]
+    return_code = subprocess.call(remove_args, cwd=release_test_dir)
+    assert return_code in (0, 1), f'{" ".join(remove_args)} returned exit code {return_code}'
     subprocess.check_call(["vagrant", "up", f"--provider={provider_name}"], cwd=release_test_dir)
 
     return True
