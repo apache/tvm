@@ -378,6 +378,18 @@ class Schedule : public ObjectRef {
    * \return A normalized schedule, can be same as current one.
    */
   Schedule normalize();
+
+  /*!
+   * \brief Normalize the schedule for feature extraction in auto-scheduler.
+   * This is similar to `Schedule::normalize`, but we do aggressive simplification
+   * to the TE compute with const_matrix=True for faster compilation and feature extraction.
+   * The resulted schedule may be wrong, but it is good enough for feature extraction
+   * purposes.
+   *
+   * \return A normalized schedule, can be same as current one.
+   */
+  Schedule normalize_for_feature_extraction();
+
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

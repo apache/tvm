@@ -85,7 +85,7 @@ print(task.compute_dag)
 #   during measurement and avoid other runtime conflicts.
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
-#   Typically, we recommend a value > 300 ms.
+#   Typically, we recommend a value >= 300 ms.
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.

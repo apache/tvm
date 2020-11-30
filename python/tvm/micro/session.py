@@ -124,7 +124,7 @@ class Session:
             self.transport_context_manager = self.flasher.flash(self.binary)
 
         self.transport = TransportLogger(
-            self.session_name, self.transport_context_manager, level=logging.INFO
+            self.session_name, self.transport_context_manager, level=logging.DEBUG
         ).__enter__()
 
         try:
@@ -187,7 +187,7 @@ def lookup_remote_linked_param(mod, storage_id, template_tensor, ctx):
         return None
 
     return get_global_func("tvm.rpc.NDArrayFromRemoteOpaqueHandle")(
-        mod, remote_data, template_tensor, ctx, lambda: None
+        mod, remote_data, template_tensor, ctx, None
     )
 
 

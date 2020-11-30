@@ -232,6 +232,9 @@ set(USE_TENSORRT_RUNTIME OFF)
 # Whether use VITIS-AI codegen
 set(USE_VITIS_AI OFF)
 
+# Build Verilator codegen and runtime, example located in 3rdparty/hw-widgets
+set(USE_VERILATOR_HW OFF)
+
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
