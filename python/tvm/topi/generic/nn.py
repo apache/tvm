@@ -463,7 +463,8 @@ def schedule_deformable_conv2d_nchw(outs):
 
 
 def schedule_deformable_conv2d_nhwc(outs):
-    """Schedule for deformable_conv2d_nhwc
+    """Schedule for deformable_conv2d_nhwc.
+    We only use the default schedule here and rely on auto_scheduler.
 
     Parameters
     ----------
