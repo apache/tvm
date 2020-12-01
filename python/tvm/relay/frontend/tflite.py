@@ -3210,7 +3210,7 @@ def get_pad_value(data, kernel, stride):
     """
 
     out = int(math.ceil(float(data) / float(stride)))
-    pad = max(0, (out - 1) * stride + kernel - data)
+    pad = max(0, (out - 1) * int(stride) + int(kernel) - int(data))
     pad_before = pad // 2
     pad_after = pad - pad_before
     return pad_before, pad_after

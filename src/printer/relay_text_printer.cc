@@ -305,6 +305,8 @@ Doc RelayTextPrinter::ScalarLiteral(DataType dtype, const T& value) {
   std::ostringstream os;
   if (dtype == DataType::Int(32)) {
     os << value;
+  } else if (dtype == DataType::Int(64)) {
+    os << value << "i64";
   } else if (dtype == DataType::Float(32)) {
     os << value << 'f';
   } else if (dtype == DataType::Float(64)) {
