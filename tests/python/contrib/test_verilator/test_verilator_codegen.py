@@ -53,7 +53,8 @@ def run_check_add(exe, shape, dtype):
 
 
 def test_add():
-    skip_test()
+    if skip_test():
+        return
     dtype = "int32"
     shape = (8, 4)
     mod = create_module_add(shape, dtype)
