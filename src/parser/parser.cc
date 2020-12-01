@@ -935,10 +935,7 @@ class Parser {
             exprs.push_back(ParseMatch(is_total));
             break;
           }
-          case TokenType::kIf: {
-            exprs.push_back(ParseIf());
-            break;
-          }
+
           // %x ...
           case TokenType::kGraph:
             if (Lookahead(2)->token_type == TokenType::kEqual) {
@@ -1562,6 +1559,10 @@ class Parser {
           Expr e = ParseFunctionDef();
           ICHECK(e->span.defined()) << "function spans must be defined.\n" << e;
           return e;
+        }
+        case TokenType::kIf: {
+           Expr e = ParseIf();
+           return e;
         }
         case TokenType::kRef: {
           Consume(TokenType::kRef);
