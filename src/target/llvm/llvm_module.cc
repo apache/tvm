@@ -63,6 +63,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else if (name == "get_func_names") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
+    } else if (name == "get_symbol") {
+      return PackedFunc(nullptr);
+    } else if (name == "get_const_vars") {
+      return PackedFunc(nullptr);
     } else if (name == "_get_target_triple") {
       std::string target_triple = tm_->getTargetTriple().str();
       // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
