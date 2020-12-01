@@ -26,6 +26,7 @@ from test_verilator.infrastructure import (
     skip_test,
     compile_module,
     run_module,
+    offload,
 )
 
 
