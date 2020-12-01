@@ -609,7 +609,8 @@ class Parser {
     std::string type_key;
     uint64_t node_index;
     Span span;
-    MetaRef(std::string type_key, uint64_t node_index, Span span) : type_key(type_key), node_index(node_index), span(span) {}
+    MetaRef(std::string type_key, uint64_t node_index, Span span)
+        : type_key(type_key), node_index(node_index), span(span) {}
   };
 
   MetaRef MetaRefFromToken(const Token& tok) {
@@ -634,8 +635,8 @@ class Parser {
         return nodes[meta_ref.node_index];
       } else {
         this->diag_ctx.Emit(Diagnostic::Error(meta_ref.span)
-                            << "the node index `" << index << "` is out of bounds for `" << meta_ref.type_key
-                            << "`");
+                            << "the node index `" << index << "` is out of bounds for `"
+                            << meta_ref.type_key << "`");
         return ObjectRef();
       }
     } else {
