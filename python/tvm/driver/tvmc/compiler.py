@@ -178,18 +178,18 @@ def compile_model(
         mod = common.convert_graph_layout(mod, alter_layout)
 
     tvm_target = common.target_from_cli(target)
-    target_host = target_host or ""
+    target_host = tvm_target if not target_host else target_host
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
         with autotvm.apply_history_best(tuning_records):
             with tvm.transform.PassContext(opt_level=3):
                 logger.debug("building relay graph with tuning records")
-                graph_module = relay.build(mod, tvm_target, params=params, target_host=tvm_target)
+                graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
     else:
         with tvm.transform.PassContext(opt_level=3):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, tvm_target, params=params, target_host=tvm_target)
+            graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
 
     # Generate output dump files with sources
     dump_code = dump_code or []
