@@ -198,7 +198,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     temp_valid_count = ib.buffer_ptr(temp_valid_count)
     score = ib.buffer_ptr(temp_score)
 
-    threshold = tvm.ir.make_node("FloatImm", dtype="float32", value=threshold)
+    threshold = tvm.tir.FloatImm("float32", threshold)
 
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads

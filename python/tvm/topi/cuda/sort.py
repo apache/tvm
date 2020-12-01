@@ -207,7 +207,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
-    is_ascend = tvm.ir.make_node("IntImm", dtype="int32", value=is_ascend)
+    is_ascend = tvm.tir.IntImm("int32", is_ascend)
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
