@@ -57,6 +57,7 @@ from .depth_to_space import depth_to_space_python
 from .space_to_depth import space_to_depth_python
 from .crop_and_resize_python import crop_and_resize_python
 from .common import (
+    compare_numpy_tvm,
     get_injective_schedule,
     get_reduce_schedule,
     get_broadcast_schedule,

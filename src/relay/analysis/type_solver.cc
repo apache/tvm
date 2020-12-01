@@ -246,7 +246,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     for (size_t i = 0; i < tt1->shape.size(); i++) {
       auto dim = UnifyDim(tt1->shape[i], tt2->shape[i]);
       if (!dim.defined()) {
-        // NB: We push an arbitrary dimension here so we can continue error propogation.
+        // NB: We push an arbitrary dimension here so we can continue error propagation.
         shape.push_back(tt1->shape[i]);
         tvm::PrimExpr shape1 = tt1->shape[i];
         tvm::PrimExpr shape2 = tt2->shape[i];
@@ -259,10 +259,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     if (mismatches.size() != 0) {
       auto err = Diagnostic::Error(this->span);
-      err << "in particular ";
+      err << "The Relay type checker is unable to show the following types match.\n";
+      err << "In particular ";
       for (auto mismatch : mismatches) {
-        err << "dimension " << std::get<0>(mismatch) << " conflicts " << std::get<1>(mismatch)
-            << " does not match " << std::get<2>(mismatch);
+        err << "dimension " << std::get<0>(mismatch) << " conflicts: " << std::get<1>(mismatch)
+            << " does not match " << std::get<2>(mismatch) << ".";
       }
       this->solver_->diag_ctx_.Emit(err);
       return Type(nullptr);

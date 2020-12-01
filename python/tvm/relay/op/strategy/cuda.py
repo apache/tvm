@@ -776,6 +776,19 @@ def scatter_add_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@scatter_nd_strategy.register(["cuda", "gpu"])
+def scatter_nd_cuda(attrs, inputs, out_type, target):
+    """scatter_nd cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scatter_nd(topi.cuda.scatter_nd),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="scatter_nd.cuda",
+        plevel=10,
+    )
+    return strategy
+
+
 @argsort_strategy.register(["cuda", "gpu"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):
     """argsort cuda strategy"""
