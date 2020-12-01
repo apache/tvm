@@ -75,7 +75,7 @@ def _should_print_backtrace():
     try:
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
-        raise ValueError("invalid value for TVM_BACKTRACE `{tvm_backtrace}`, please set to 0 or 1.")
+        raise ValueError(f"invalid value for TVM_BACKTRACE `{tvm_backtrace}`, please set to 0 or 1.")
 
     return in_pytest or tvm_backtrace
 
@@ -86,12 +86,6 @@ def tvm_wrap_excepthook(exception_hook):
     def wrapper(exctype, value, trbk):
         """Clean subprocesses when TVM is interrupted."""
         in_pytest = "PYTEST_CURRENT_TEST" in os.environ
-        tvm_backtrace = os.environ.get("TVM_BACKTRACE", "0")
-
-        try:
-            tvm_backtrace = int(tvm_backtrace)
-        except ValueError:
-            raise ValueError("invalid value for TVM_BACKTRACE {}")
 
         if exctype is error.DiagnosticError and not _should_print_backtrace():
             # TODO(@jroesch): consider moving to C++?

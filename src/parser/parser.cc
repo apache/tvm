@@ -635,7 +635,7 @@ class Parser {
         return nodes[meta_ref.node_index];
       } else {
         this->diag_ctx.Emit(Diagnostic::Error(meta_ref.span)
-                            << "the node index `" << index << "` is out of bounds for `"
+                            << "the node index `" << meta_ref.node_index << "` is out of bounds for `"
                             << meta_ref.type_key << "`");
         return ObjectRef();
       }
