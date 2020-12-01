@@ -117,10 +117,10 @@ inline PrimExpr bilinear_sample_nhwc(const Tensor& input, const Array<PrimExpr>&
   auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
   auto x_lerp = in_x - xf;
 
-  auto A = input(indices[0], indices[3], y0, x0);
-  auto B = input(indices[0], indices[3], y0, x1);
-  auto C = input(indices[0], indices[3], y1, x0);
-  auto D = input(indices[0], indices[3], y1, x1);
+  auto A = input(indices[0], y0, x0, indices[3]);
+  auto B = input(indices[0], y0, x1, indices[3]);
+  auto C = input(indices[0], y1, x0, indices[3]);
+  auto D = input(indices[0], y1, x1, indices[3]);
 
   return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
          D * x_lerp * y_lerp;

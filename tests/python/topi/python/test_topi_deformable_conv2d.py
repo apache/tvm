@@ -201,6 +201,9 @@ def test_deformable_conv2d_nchw():
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 1, 1, 0, deformable_groups=4)
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 3, 1, 1, dilation=2, deformable_groups=4)
     verify_deformable_conv2d_nchw(1, 16, 7, 16, 3, 1, 2, dilation=2)
+
+
+def test_deformable_conv2d_nhwc():
     verify_deformable_conv2d_nhwc(1, 16, 7, 16, 1, 1, 0, deformable_groups=4)
     verify_deformable_conv2d_nhwc(1, 16, 7, 16, 3, 1, 1, dilation=2, deformable_groups=4)
     verify_deformable_conv2d_nhwc(1, 16, 7, 16, 3, 1, 2, dilation=2)
@@ -208,3 +211,4 @@ def test_deformable_conv2d_nchw():
 
 if __name__ == "__main__":
     test_deformable_conv2d_nchw()
+    test_deformable_conv2d_nhwc()
