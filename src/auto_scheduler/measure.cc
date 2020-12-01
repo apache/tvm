@@ -210,6 +210,8 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
                                                   const SearchPolicy& policy,
                                                   const Array<MeasureInput>& inputs,
                                                   int batch_size) {
+  auto t_begin = std::chrono::high_resolution_clock::now();
+
   Array<MeasureResult> results;
   results.reserve(inputs.size());
 
@@ -220,7 +222,7 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
 
   int old_verbosity = verbose;
 
-  StdCout(verbose) << "Get " << inputs.size() << " programs to measure." << std::endl;
+  StdCout(verbose) << "Get " << inputs.size() << " programs to measure:" << std::endl;
 
   for (size_t i = 0; i < inputs.size(); i += batch_size) {
     Array<MeasureInput> input_batch(inputs.begin() + i,
@@ -279,6 +281,8 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
       verbose = old_verbosity;
     }
   }
+
+  PrintTimeElapsed(t_begin, "measurement", verbose);
 
   return results;
 }

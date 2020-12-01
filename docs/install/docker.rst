@@ -28,7 +28,7 @@ Get a tvm source distribution or clone the github repo to get the auxiliary scri
 
 .. code:: bash
 
-    git clone --recursive https://github.com/apache/incubator-tvm tvm
+    git clone --recursive https://github.com/apache/tvm tvm
 
 
 We can then use the following command to launch a docker image.
@@ -67,7 +67,7 @@ with ``localhost`` when pasting it into browser.
 
 Docker Source
 -------------
-Check out `The docker source <https://github.com/apache/incubator-tvm/tree/main/docker>`_ if you are interested in
+Check out `The docker source <https://github.com/apache/tvm/tree/main/docker>`_ if you are interested in
 building your own docker images.
 
 

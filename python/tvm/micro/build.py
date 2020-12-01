@@ -23,6 +23,8 @@ import os
 import re
 from tvm.contrib import utils
 
+from .micro_library import MicroLibrary
+
 
 _LOG = logging.getLogger(__name__)
 
@@ -109,7 +111,13 @@ def default_options(target_include_dir):
 
 
 def build_static_runtime(
-    workspace, compiler, module, lib_opts=None, bin_opts=None, generated_lib_opts=None
+    workspace,
+    compiler,
+    module,
+    lib_opts=None,
+    bin_opts=None,
+    generated_lib_opts=None,
+    extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
 
@@ -131,6 +139,12 @@ def build_static_runtime(
         The `options` parameter passed to compiler.library() when compiling the generated TVM C
         source module.
 
+    extra_libs : Optional[List[MicroLibrary|str]]
+        If specified, extra libraries to be compiled into the binary. If a MicroLibrary, it is
+        included into the binary directly. If a string, the path to a directory; all direct children
+        of this directory matching RUNTIME_SRC_REGEX are built into a library. These libraries are
+        placed before any common CRT libraries in the link order.
+
     Returns
     -------
     MicroBinary :
@@ -150,7 +164,12 @@ def build_static_runtime(
     module.save(mod_src_path, "cc")
 
     libs = []
-    for lib_src_dir in RUNTIME_LIB_SRC_DIRS:
+    for mod_or_src_dir in (extra_libs or []) + RUNTIME_LIB_SRC_DIRS:
+        if isinstance(mod_or_src_dir, MicroLibrary):
+            libs.append(mod_or_src_dir)
+            continue
+
+        lib_src_dir = mod_or_src_dir
         lib_name = os.path.basename(lib_src_dir)
         lib_build_dir = workspace.relpath(f"build/{lib_name}")
         os.makedirs(lib_build_dir)

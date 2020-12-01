@@ -298,7 +298,7 @@ def test_conv2d_run():
     )
 
     # CUDA is disabled for 'direct' schedule:
-    # https://github.com/apache/incubator-tvm/pull/3070#issuecomment-486597553
+    # https://github.com/apache/tvm/pull/3070#issuecomment-486597553
     # group conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 4, 3, 3)

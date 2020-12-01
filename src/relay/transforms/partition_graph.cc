@@ -17,7 +17,7 @@
  * under the License.
  */
 
-/*
+/*!
  * \file src/relay/transforms/partition_graph.cc
  *
  * \brief Partition an input function into multiple functions according based
@@ -81,19 +81,19 @@ struct RegionFuncMetadata {
  * a compiler attribute so that it will be handled by any compilers that are not
  * in the TVM stack.
  *
- * Input : A Relay module that have functions with disjoint annotated regions
+ * Input : A Relay module that has functions with disjoint annotated regions
  *         using compiler_begin and compiler_end. There could be multiple
- * outputs.
+ *         outputs.
  *
  * Output : A Relay module with global functions for such disjoint annotated
- * regions with calls inserted at the respective location
+ *          regions with calls inserted at the respective location
  *
  * Dependencies : AnnotatedRegionSet Utility class.
  *
  * Methodology :
  *      1) The AnnotatedRegionSet utility class is able to construct a collection
- *      of nodes that are bound by a given annotation -- here we use
- *      compiler_begin and compiler_end
+ *         of nodes that are bound by a given annotation -- here we use
+ *         compiler_begin and compiler_end
  *      2) Initially, for each function in the module RegionSets are populated.
  *      3) Then, Vistor pass is traversed until a compiler_end node is encountered
  *         that belongs to a "region".

@@ -43,5 +43,9 @@ COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
 
 # Chisel deps for TSIM
-COPY install/ubuntu_install_chisel.sh /install/ubuntu_install_chisel.sh
-RUN bash /install/ubuntu_install_chisel.sh
+COPY install/ubuntu_install_sbt.sh /install/ubuntu_install_sbt.sh
+RUN bash /install/ubuntu_install_sbt.sh
+
+# Verilator deps
+COPY install/ubuntu_install_verilator.sh /install/ubuntu_install_verilator.sh
+RUN bash /install/ubuntu_install_verilator.sh

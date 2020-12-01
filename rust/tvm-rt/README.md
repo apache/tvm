@@ -17,7 +17,7 @@
 
 # TVM Runtime Support
 
-This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/incubator-tvm) runtime.
+This crate provides an idiomatic Rust API for [TVM](https://github.com/apache/tvm) runtime.
 Currently this is tested on `1.42.0` and above.
 
 ## What Does This Crate Offer?

@@ -162,17 +162,13 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
     Array<MeasureResult> results;
     while (ct < n_trials) {
       if (!inputs.empty()) {
-        auto tic_begin = std::chrono::high_resolution_clock::now();
+        auto t_begin = std::chrono::high_resolution_clock::now();
 
         // Retrain the cost model before the next search round
         PrintTitle("Train cost model", verbose);
         program_cost_model->Update(inputs, results);
 
-        double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
-                              std::chrono::high_resolution_clock::now() - tic_begin)
-                              .count();
-        StdCout(verbose) << "Time elapsed: " << std::fixed << std::setprecision(2) << duration
-                         << " s" << std::endl;
+        PrintTimeElapsed(t_begin, "training", verbose);
       }
 
       // Search one round to get promising states
@@ -258,17 +254,13 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
     measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
   }
 
-  auto tic_begin = std::chrono::high_resolution_clock::now();
+  auto t_begin = std::chrono::high_resolution_clock::now();
 
   // Update the cost model
   PrintTitle("Train cost model", verbose);
   program_cost_model->Update(inputs, results);
 
-  double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
-                        std::chrono::high_resolution_clock::now() - tic_begin)
-                        .count();
-  StdCout(verbose) << "Time elapsed: " << std::fixed << std::setprecision(2) << duration << " s"
-                   << std::endl;
+  PrintTimeElapsed(t_begin, "training", verbose);
 
   return std::make_pair(std::move(inputs), std::move(results));
 }
@@ -490,8 +482,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
 
   bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
-  if (!is_cost_model_reasonable && num_iters > 3) {
-    num_iters = 3;
+  if (!is_cost_model_reasonable && num_iters > 2) {
+    num_iters = 2;
     StdCout(verbose) << "GA iteration number has been adjusted to " << num_iters
                      << " due to random cost model" << std::endl;
   }

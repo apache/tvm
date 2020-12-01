@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 from tvm import relay
 from tvm.relay import transform
@@ -755,6 +757,31 @@ def test_fuse_max_diamond():
 
     expected = run_opt_pass(after(branch_len, num_diamond), transform.InferType())
     assert tvm.ir.structural_equal(fused, expected)
+
+
+def test_fuse_dynamic_squeeze_slice_take():
+    input_data = [
+        np.random.random([1, 2, 4]).astype("float32"),
+        np.array([0]).astype("int64"),
+    ]
+
+    x = relay.var("p0107", shape=(relay.Any(), relay.Any(), 4), dtype="float32")
+    take_val = relay.var("p166", shape=(relay.Any(),), dtype="int64")
+
+    squeeze = relay.op.squeeze(x, axis=[0])
+    strided_slice = relay.op.strided_slice(
+        squeeze, begin=[0, 0], end=[15130, 9223372036854775807], strides=[1, 1]
+    )
+    take = relay.op.take(strided_slice, take_val, axis=0)
+
+    mod = tvm.IRModule.from_expr(take)
+    ex = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(), target="llvm")
+
+    result = ex.evaluate()(*input_data)
+
+    np_result = np.squeeze(input_data[0][:, input_data[1][0], :], axis=0)
+
+    assert np.allclose(result.asnumpy(), np_result)
 
 
 if __name__ == "__main__":

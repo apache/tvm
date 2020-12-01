@@ -139,9 +139,11 @@ class Compiler(metaclass=abc.ABCMeta):
         opts = []
         # TODO use march for arm(https://gcc.gnu.org/onlinedocs/gcc/ARM-Options.html)?
         if target.attrs.get("mcpu"):
-            opts.append(f'-march={target.attrs["mcpu"]}')
+            opts.append(f'-mcpu={target.attrs["mcpu"]}')
         if target.attrs.get("mfpu"):
             opts.append(f'-mfpu={target.attrs["mfpu"]}')
+        if target.attrs.get("march"):
+            opts.append(f'-march={target.attrs["march"]}')
 
         return opts
 

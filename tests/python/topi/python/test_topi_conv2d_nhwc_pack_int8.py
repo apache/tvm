@@ -73,7 +73,7 @@ def verify_conv2d_1x1_nhwc_pack_int8(
         check_device(device)
 
 
-# TODO(@llyfacebook): Please fix https://github.com/apache/incubator-tvm/issues/4122 to enable this test.
+# TODO(@llyfacebook): Please fix https://github.com/apache/tvm/issues/4122 to enable this test.
 @pytest.mark.skip
 def test_conv2d_nhwc():
     verify_conv2d_1x1_nhwc_pack_int8(1, 256, 32, 256, 1, 1, 0)

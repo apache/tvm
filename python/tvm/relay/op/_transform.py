@@ -332,6 +332,25 @@ def take_shape_func(attrs, inputs, out_ndims):
     return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
 
 
+@_reg.register_legalize("take")
+def legalize_dyn_topk(attrs, inputs, types):
+    """Legalize take op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.take_legalize(attrs, inputs, types)
+
+
 @script
 def _argwhere_shape_func_1d(condition):
     out = output_tensor((2,), "int64")

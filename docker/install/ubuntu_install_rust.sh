@@ -26,7 +26,7 @@ export RUSTUP_HOME=/opt/rust
 export CARGO_HOME=/opt/rust
 # this rustc is one supported by the installed version of rust-sgx-sdk
 curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain stable
-. $CARGO_HOME/env
+export PATH=$CARGO_HOME/bin:$PATH
 rustup component add rustfmt
 
 # install wasmtime

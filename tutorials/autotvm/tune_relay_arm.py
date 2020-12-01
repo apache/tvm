@@ -33,7 +33,7 @@ the best knob values for all required operators. When the TVM compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#arm-cpu>`_
+`ARM CPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark#arm-cpu>`_
 to see the results.
 
 Note that this tutorial will not run on Windows or recent versions of macOS. To
@@ -164,7 +164,7 @@ def get_network(name, batch_size):
 #   (replace :code:`[HOST_IP]` with the IP address of your host machine)
 #
 # * For Android:
-#   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/main/apps/android_rpc>`_ to
+#   Follow this `readme page <https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to
 #   install the TVM RPC APK on the android device. Make sure you can pass the android rpc test.
 #   Then you have already registered your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.

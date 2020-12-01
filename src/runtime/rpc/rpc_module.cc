@@ -22,6 +22,7 @@
  * \brief RPC runtime module.
  */
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
 #include <cstring>
@@ -35,6 +36,44 @@
 
 namespace tvm {
 namespace runtime {
+
+// deleter of RPC remote array
+static void RemoteNDArrayDeleter(Object* obj) {
+  auto* ptr = static_cast<NDArray::Container*>(obj);
+  RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
+  if (ptr->manager_ctx != nullptr) {
+    space->sess->FreeHandle(ptr->manager_ctx, kTVMNDArrayHandle);
+  }
+  delete space;
+  delete ptr;
+}
+
+/*!
+ * \brief Build a local NDArray with remote backing storage.
+ * \param sess the RPCSession which owns the given handle.
+ * \param handle A pointer valid on the remote end which should form the `data` field of the
+ *     underlying DLTensor.
+ * \param template_tensor An empty DLTensor whose shape and dtype fields are used to fill the newly
+ *     created array. Needed because it's difficult to pass a shape vector as a PackedFunc arg.
+ * \param ctx Remote context used with this tensor. Must have non-zero RPCSessMask.
+ * \param remote_ndarray_handle The handle returned by RPC server to identify the NDArray.
+ */
+NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* handle,
+                                      DLTensor* template_tensor, TVMContext ctx,
+                                      void* remote_ndarray_handle) {
+  ICHECK_EQ(sess->table_index(), GetRPCSessionIndex(ctx))
+      << "The TVMContext given does not belong to the given session";
+  RemoteSpace* space = new RemoteSpace();
+  space->sess = sess;
+  space->data = handle;
+  std::vector<int64_t> shape_vec{template_tensor->shape,
+                                 template_tensor->shape + template_tensor->ndim};
+  NDArray::Container* data = new NDArray::Container(static_cast<void*>(space), std::move(shape_vec),
+                                                    template_tensor->dtype, ctx);
+  data->manager_ctx = remote_ndarray_handle;
+  data->SetDeleter(RemoteNDArrayDeleter);
+  return NDArray(GetObjectPtr<Object>(data));
+}
 
 /*!
  * \brief A wrapped remote function as a PackedFunc.
@@ -112,41 +151,6 @@ class RPCWrappedFunc : public Object {
     ICHECK_EQ(GetRPCSessionIndex(ctx), sess_->table_index())
         << "Can not pass in context with a different remote session";
     return RemoveRPCSessionMask(ctx);
-  }
-
-  // deleter of RPC remote array
-  static void RemoteNDArrayDeleter(Object* obj) {
-    auto* ptr = static_cast<NDArray::Container*>(obj);
-    RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
-    space->sess->FreeHandle(ptr->manager_ctx, kTVMNDArrayHandle);
-    delete space;
-    delete ptr;
-  }
-
-  // wrap return value as remote NDArray.
-  NDArray WrapRemoteNDArray(DLTensor* tensor, void* nd_handle) const {
-    NDArray::Container* data = new NDArray::Container();
-    data->manager_ctx = nd_handle;
-    data->SetDeleter(RemoteNDArrayDeleter);
-    RemoteSpace* space = new RemoteSpace();
-    space->sess = sess_;
-    space->data = tensor->data;
-    data->dl_tensor.data = space;
-    NDArray ret(GetObjectPtr<Object>(data));
-    // RAII now in effect
-    data->shape_ = std::vector<int64_t>(tensor->shape, tensor->shape + tensor->ndim);
-    data->dl_tensor.shape = dmlc::BeginPtr(data->shape_);
-    data->dl_tensor.ndim = static_cast<int>(data->shape_.size());
-    // setup dtype
-    data->dl_tensor.dtype = tensor->dtype;
-    // setup ctx, encode as remote session
-    data->dl_tensor.ctx = AddRPCSessionMask(tensor->ctx, sess_->table_index());
-    // check strides.
-    ICHECK(tensor->strides == nullptr);
-    // setup byteoffset
-    data->dl_tensor.byte_offset = tensor->byte_offset;
-
-    return ret;
   }
 };
 
@@ -280,7 +284,9 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
     ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
     void* nd_handle = args[2];
-    *rv = WrapRemoteNDArray(tensor, nd_handle);
+    *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
+                                        AddRPCSessionMask(tensor->ctx, sess_->table_index()),
+                                        nd_handle);
   } else {
     ICHECK_EQ(args.size(), 2);
     *rv = args[1];
@@ -465,6 +471,13 @@ TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue*
   ICHECK_EQ(tkey, "rpc");
   *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
 });
+
+TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
+    .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, TVMContext ctx,
+                       void* ndarray_handle) -> NDArray {
+      return NDArrayFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array, template_tensor,
+                                           ctx, ndarray_handle);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

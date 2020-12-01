@@ -202,9 +202,10 @@ PackedFunc GraphRuntimeDebug::GetFunction(const std::string& name,
  * \param ctxs All devices contexts.
  */
 Module GraphRuntimeDebugCreate(const std::string& sym_json, const tvm::runtime::Module& m,
-                               const std::vector<TVMContext>& ctxs) {
+                               const std::vector<TVMContext>& ctxs,
+                               PackedFunc lookup_linked_param_func) {
   auto exec = make_object<GraphRuntimeDebug>();
-  exec->Init(sym_json, m, ctxs);
+  exec->Init(sym_json, m, ctxs, lookup_linked_param_func);
   return Module(exec);
 }
 
@@ -212,7 +213,15 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create").set_body([](TVMArgs args, 
   ICHECK_GE(args.num_args, 4) << "The expected number of arguments for graph_runtime.create is "
                                  "at least 4, but it has "
                               << args.num_args;
-  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
+  PackedFunc lookup_linked_param_func;
+  int ctx_start_arg = 2;
+  if (args[2].type_code() == kTVMPackedFuncHandle) {
+    lookup_linked_param_func = args[2];
+    ctx_start_arg++;
+  }
+
+  *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args, ctx_start_arg),
+                                lookup_linked_param_func);
 });
 }  // namespace runtime
 }  // namespace tvm
