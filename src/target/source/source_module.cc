@@ -58,6 +58,10 @@ runtime::Module CreateMetadataModule(
   Array<tvm::runtime::Module> csource_metadata_modules;
   Array<tvm::runtime::Module> binary_metadata_modules;
 
+  auto DSOExportable = [](tvm::runtime::Module& mod) {
+    return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
+  };
+
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
   for (tvm::runtime::Module mod : modules) {
@@ -77,7 +81,10 @@ runtime::Module CreateMetadataModule(
       // runtime module to be initialized by the binary
       // metadata module. If not rest of the modules are
       // wrapped in c-source metadata module.
-      if (!variables.empty()) {
+
+      // TODO(@manupa-arm) : we should be able to use csource_metadata
+      // if the variables are empty
+      if (!variables.empty() || !DSOExportable(mod)) {
         binary_metadata_modules.push_back(mod);
       } else {
         csource_metadata_modules.push_back(mod);

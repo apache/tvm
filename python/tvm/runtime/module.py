@@ -306,7 +306,11 @@ class Module(object):
         llvm_target_triple = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
-                object_format = fcompile.object_format
+                if module.type_key == "c":
+                    object_format = "cc"
+                    has_c_module = True
+                else:
+                    object_format = fcompile.object_format
             else:
                 if module.type_key == "llvm":
                     object_format = "o"
