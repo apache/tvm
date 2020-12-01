@@ -102,9 +102,9 @@ def get_valid_counts_ir(
     )
     one_count = tvm.tir.const(1, dtype=valid_count.dtype)
     one = tvm.tir.const(1, dtype=out.dtype)
-    score_threshold = tvm.ir.make_node("FloatImm", dtype="float32", value=score_threshold)
-    id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
-    score_index = tvm.ir.make_node("IntImm", dtype="int32", value=score_index)
+    score_threshold = tvm.tir.FloatImm("float32", score_threshold)
+    id_index = tvm.tir.IntImm("int32", id_index)
+    score_index = tvm.tir.IntImm("int32", score_index)
 
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
@@ -296,12 +296,12 @@ def nms_ir(
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     j = bx * max_threads + tx
 
-    iou_threshold = tvm.ir.make_node("FloatImm", dtype="float32", value=iou_threshold)
-    top_k = tvm.ir.make_node("IntImm", dtype="int32", value=top_k)
-    coord_start = tvm.ir.make_node("IntImm", dtype="int32", value=coord_start)
-    id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
-    score_index = tvm.ir.make_node("IntImm", dtype="int32", value=score_index)
-    force_suppress = tvm.ir.make_node("IntImm", dtype="int32", value=1 if force_suppress else 0)
+    iou_threshold = tvm.tir.FloatImm("float32", iou_threshold)
+    top_k = tvm.tir.IntImm("int32", top_k)
+    coord_start = tvm.tir.IntImm("int32", coord_start)
+    id_index = tvm.tir.IntImm("int32", id_index)
+    score_index = tvm.tir.IntImm("int32", score_index)
+    force_suppress = tvm.tir.IntImm("int32", 1 if force_suppress else 0)
 
     with ib.for_range(0, batch_size, for_type="unroll") as i:
         base_idx = i * num_anchors * box_data_length
