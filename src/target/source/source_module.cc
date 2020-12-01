@@ -54,7 +54,7 @@ using runtime::SaveBinaryToFile;
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
-    const Array<runtime::Module>& modules, Target target) {
+    tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target) {
   Array<tvm::runtime::Module> csource_metadata_modules;
   Array<tvm::runtime::Module> binary_metadata_modules;
 
@@ -64,7 +64,7 @@ runtime::Module CreateMetadataModule(
 
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
-  for (tvm::runtime::Module mod : modules) {
+  for (tvm::runtime::Module mod : ext_modules) {
     auto pf_sym = mod.GetFunction("get_symbol");
     auto pf_var = mod.GetFunction("get_const_vars");
     if (pf_sym != nullptr && pf_var != nullptr) {
@@ -93,17 +93,23 @@ runtime::Module CreateMetadataModule(
       csource_metadata_modules.push_back(mod);
     }
   }
-  auto c_meta_mod = CreateCSourceMetadataModule(csource_metadata_modules, target);
-  // Wrap the modules.
+
+  if (DSOExportable(target_module)) {
+    csource_metadata_modules.push_back(target_module);
+  }
+
+  if (!csource_metadata_modules.empty()) {
+    target_module = CreateCSourceMetadataModule(csource_metadata_modules, target);
+  }
   if (!binary_metadata_modules.empty()) {
     runtime::Module binary_meta_mod = runtime::MetadataModuleCreate(params, sym_metadata);
-    binary_meta_mod.Import(c_meta_mod);
+    binary_meta_mod.Import(target_module);
     for (const auto& it : binary_metadata_modules) {
       binary_meta_mod.Import(it);
     }
     return binary_meta_mod;
   }
-  return c_meta_mod;
+  return target_module;
 }
 
 // Simulator function

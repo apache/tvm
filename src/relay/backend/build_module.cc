@@ -516,9 +516,8 @@ class RelayBuildModule : public runtime::ModuleNode {
       ret_.mod = tvm::build(lowered_funcs, target_host_);
     }
 
-    auto all_mods = graph_codegen_->GetExternalModules();
-    all_mods.push_back(ret_.mod);
-    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, all_mods, GetTargetHost());
+    auto ext_mods = graph_codegen_->GetExternalModules();
+    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, GetTargetHost());
   }
 
  private:

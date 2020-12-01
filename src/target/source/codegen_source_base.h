@@ -149,12 +149,13 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
  * \brief Wrap the submodules in a metadata module.
  * \param params The variable to constant mapping that is collected by the host
  *        module.
- * \param modules All the modules that needs to be imported inside the metadata module(s).
+ * \param target_module The main TIR-lowered internal runtime module
+ * \param modules All the external modules that needs to be imported inside the metadata module(s).
  * \param target The target that all the modules are compiled for
  * \return The wrapped module.
  */
 runtime::Module CreateMetadataModule(
-    const std::unordered_map<std::string, runtime::NDArray>& params,
+    const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
     const Array<runtime::Module>& ext_modules, Target target);
 
 /*!
