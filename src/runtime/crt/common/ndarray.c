@@ -54,14 +54,14 @@ int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, D
     return status;
   }
   int64_t num_elems = 1;
-  int elem_bytes = (dtype.bits + 7) / 8;
   int32_t idx;
   for (idx = 0; idx < array->dl_tensor.ndim; ++idx) {
     num_elems *= shape[idx];
   }
+  int total_elem_bytes = (num_elems * dtype.bits + 7) / 8;
   array->dl_tensor.data =
-      TVMBackendAllocWorkspace(kDLCPU, 0, num_elems * dtype.bits / 8, dtype.code, dtype.bits);
-  memset(array->dl_tensor.data, 0, num_elems * elem_bytes);
+      TVMBackendAllocWorkspace(kDLCPU, 0, total_elem_bytes, dtype.code, dtype.bits);
+  memset(array->dl_tensor.data, 0, total_elem_bytes);
   return 0;
 }
 
