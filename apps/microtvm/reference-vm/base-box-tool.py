@@ -275,7 +275,7 @@ def do_run_release_test(release_test_dir, provider_name, test_config, test_devic
 def test_command(args):
     user_box_dir = os.path.join(THIS_DIR, args.platform)
     base_box_dir = os.path.join(THIS_DIR, args.platform, "base-box")
-    test_config_file = os.path.join(base_box_dir, "test.config")
+    test_config_file = os.path.join(base_box_dir, "test-config.json")
     with open(test_config_file) as f:
         test_config = json.load(f)
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
