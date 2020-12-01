@@ -53,6 +53,7 @@ tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectK
 def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
+
 def rearrange_indices_out_ir(data, out, valid_box_count):
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
@@ -86,15 +87,17 @@ def rearrange_indices_out_ir(data, out, valid_box_count):
             with ib.if_scope(data[idx] >= 0):
                 out[batch_idx * num_anchors + valid_box_count[batch_idx]] = data[idx]
                 atomic_add_return[batch_idx] = atomic_add(
-                    tvm.tir.call_intrin("handle", "tir.address_of", valid_box_count[batch_idx]), one_count
+                    tvm.tir.call_intrin("handle", "tir.address_of", valid_box_count[batch_idx]),
+                    one_count,
                 )
             with ib.if_scope(tvm.tir.any(data[idx] > num_anchors, data[idx] < -num_anchors)):
-                out[batch_idx * num_anchors + valid_box_count[batch_idx]] = 0.0
+                out[batch_idx * num_anchors + valid_box_count[batch_idx]] = 0
                 atomic_add_return[batch_idx] = atomic_add(
-                    tvm.tir.call_intrin("handle", "tir.address_of", valid_box_count[batch_idx]), one_count
+                    tvm.tir.call_intrin("handle", "tir.address_of", valid_box_count[batch_idx]),
+                    one_count,
                 )
             with ib.if_scope(idxm(idx, num_anchors) >= atomic_add_return[batch_idx]):
-                out[idx] = -1.0
+                out[idx] = -1
 
     return ib.get()
 
@@ -570,14 +573,16 @@ def non_max_suppression(
         name="nms",
         tag="nms",
     )
-    # TODO(yongwww): Update cuda nms to be consistent with cpu version
+
     if return_indices:
-        out_buf = tvm.tir.decl_buffer(out.shape, out.dtype, "out_buf", data_alignment=8)
+        out_buf = tvm.tir.decl_buffer(
+            box_indices.shape, box_indices.dtype, "out_buf", data_alignment=8
+        )
         return te.extern(
-            [out.shape, valid_count.shape],
-            [out],
+            [box_indices.shape, (batch_size, 1)],
+            [box_indices],
             lambda ins, outs: rearrange_indices_out_ir(ins[0], outs[0], outs[1]),
-            dtype=[out.dtype, valid_count.dtype],
+            dtype=[box_indices.dtype, valid_count.dtype],
             in_buffers=[out_buf],
             name="rearrange_indices_out",
             tag="rearrange_indices_out",
