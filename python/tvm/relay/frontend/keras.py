@@ -624,7 +624,9 @@ def _convert_flatten(
     return _op.nn.batch_flatten(inexpr)
 
 
-def _convert_pooling(inexpr, keras_layer, etab, input_shape=None, data_layout=None):  # pylint: disable=unused_argument
+def _convert_pooling(
+    inexpr, keras_layer, etab, input_shape=None, data_layout=None
+):  # pylint: disable=unused_argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -887,7 +889,9 @@ def _convert_padding(
     return _op.nn.pad(data=inexpr, pad_width=((0, 0), (top, bottom), (left, right), (0, 0)))
 
 
-def _convert_padding3d(inexpr, keras_layer, etab, input_shape=None, data_layout=None):  # pylint: disable=unused_argument
+def _convert_padding3d(
+    inexpr, keras_layer, etab, input_shape=None, data_layout=None
+):  # pylint: disable=unused_argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
