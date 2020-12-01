@@ -347,7 +347,7 @@ class Module(object):
                     f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
                 files.append(path_cc)
 
-        if has_c_module:
+        if has_c_module and not file_name.endswith(".tar"):
             options = []
             if "options" in kwargs:
                 opts = kwargs["options"]

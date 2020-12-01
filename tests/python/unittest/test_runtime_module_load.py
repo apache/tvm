@@ -194,8 +194,8 @@ def test_combine_module_llvm():
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
-        fadd1.save(path1)
-        fadd2.save(path2)
+        fadd1.imported_modules[0].save(path1)
+        fadd2.imported_modules[0].save(path2)
         cc.create_shared(path_dso, [path1, path2])
         # Load dll, will trigger system library registration
         dll = ctypes.CDLL(path_dso)
