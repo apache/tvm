@@ -55,6 +55,20 @@ def atomic_add(x, y):
 
 
 def rearrange_indices_out_ir(data, out, valid_box_count):
+    """Hybrid routine to rearrange nms output to
+    move all valid entries to top.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor or numpy NDArray
+        tensor with shape [batch_size, num_anchors].
+
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
 
