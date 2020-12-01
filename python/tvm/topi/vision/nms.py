@@ -52,15 +52,16 @@ def hybrid_rearrange_box_out(data, one, batch_size, num_anchors):
     """
     elem_length = data.shape[2]
     output = output_tensor((batch_size, num_anchors, elem_length), data.dtype)
+    valid_indices = allocate((batch_size,), "int32")
 
     for i in parallel(batch_size):
-        valid_idx = 0
+        valid_indices[i] = 0
         for j in range(num_anchors):
             if data[i, j, 0] >= 0:
                 for k in range(elem_length):
-                    output[i, valid_idx, k] = data[i, j, k]
-                valid_idx += 1
-            if j >= valid_idx:
+                    output[i, valid_indices[i], k] = data[i, j, k]
+                valid_indices[i] += 1
+            if j >= valid_indices[i]:
                 for k in range(elem_length):
                     output[i, j, k] = -one
     return output
@@ -100,19 +101,20 @@ def hybrid_rearrange_indices_out(data, one, batch_size, num_anchors):
     """
     valid_box_count = output_tensor((batch_size, 1), "int32")
     output = output_tensor((batch_size, num_anchors), data.dtype)
+    valid_indices = allocate((batch_size,), "int32")
 
     for i in parallel(batch_size):
-        valid_idx = 0
+        valid_indices[i] = 0
         for j in range(num_anchors):
             if data[i, j] >= 0:
-                output[i, valid_idx] = data[i, j]
-                valid_idx += 1
+                output[i, valid_indices[i]] = data[i, j]
+                valid_indices[i] += 1
             if data[i, j] > num_anchors or data[i, j] < -num_anchors:
-                output[i, valid_idx] = 0
-                valid_idx += 1
-            if j >= valid_idx:
+                output[i, valid_indices[i]] = 0
+                valid_indices[i] += 1
+            if j >= valid_indices[i]:
                 output[i, j] = -one
-        valid_box_count[i, 0] = valid_idx
+        valid_box_count[i, 0] = valid_indices[i]
 
     return output, valid_box_count
 
