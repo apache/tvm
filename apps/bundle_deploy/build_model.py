@@ -51,8 +51,10 @@ def build_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-
-        lib.save(os.path.join(build_dir, file_format_str.format(name="model", ext="o")))
+        lib.imported_modules[0].save(
+            os.path.join(build_dir, file_format_str.format(name="model", ext="o"))
+        )
+        lib.save(os.path.join(build_dir, file_format_str.format(name="metadata", ext="cc")))
         with open(
             os.path.join(build_dir, file_format_str.format(name="graph", ext="json")), "w"
         ) as f_graph_json:
@@ -85,8 +87,10 @@ def build_test_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-
-        lib.save(os.path.join(build_dir, file_format_str.format(name="test_model", ext="o")))
+        lib.imported_modules[0].save(
+            os.path.join(build_dir, file_format_str.format(name="test_model", ext="o"))
+        )
+        lib.save(os.path.join(build_dir, file_format_str.format(name="test_metadata", ext="cc")))
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_graph", ext="json")), "w"
         ) as f_graph_json:
