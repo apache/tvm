@@ -23,7 +23,7 @@ from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 logger = logging.getLogger("TensorRT")
 
@@ -173,7 +173,7 @@ def check_dynamism(args, op_name):
     """
     for arg in args:
         if isinstance(arg, (Call, Var, Constant, TupleGetItem)):
-            for dim_shape in arg.checked_type.shape:
+            for dim_shape in arg.checked_type.shape[1:]:
                 if isinstance(dim_shape, tvm.tir.expr.Any):
                     return True
         elif isinstance(arg, Tuple):
@@ -198,6 +198,21 @@ def _register_external_op_helper_with_checker(op_name, checker):
         if any([x.checked_type.dtype != "float32" for x in args]):
             logger.info("Only float32 inputs are supported for TensorRT.")
             return False
+        if op_name == "multiply":
+            shapes = [
+                [
+                    int(x) if not isinstance(x, tvm.tir.expr.Any) else -1
+                    for x in arg.checked_type.shape
+                ]
+                for arg in args
+            ]
+            # Batched multiply operations don't work in implicit batch mode. The following shapes
+            # have been excluded because they occur in PT MaskRCNN model. The long term solution is
+            # to switch to explicit batch mode after performance regressions are solved.
+            if all(
+                [list(map(int, shape)) in [[300, 64, 7, 7], [300, 1, 1, 1]] for shape in shapes]
+            ):
+                return False
         return checker(attrs, args, op_name)
 
     return _func_wrapper
@@ -292,19 +307,26 @@ def add_annotate_fn(expr):  # pylint: disable=unused-variable
     """Check if add is supported by TensorRT."""
 
     args = expr.args
+
+    shapes = [
+        [int(x) if not isinstance(x, tvm.tir.expr.Any) else -1 for x in arg.checked_type.shape]
+        for arg in args
+    ]
+
     # RelayVM + TRT doesn't support scalar addition yet.
-    for arg in args:
-        if not arg.checked_type.shape:
+    for shape in shapes:
+        if len(shape) < 1:
             return False
+
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
     if (
         not get_tensorrt_use_implicit_batch_mode()
         and (isinstance(args[0], Constant) or isinstance(args[1], Constant))
-        and args[0].checked_type.shape[0] == args[1].checked_type.shape[0]
-        and args[0].checked_type.shape[0] != 1
-        and (len(args[0].checked_type.shape) > 3 or len(args[1].checked_type.shape) > 3)
+        and shapes[0][0] == shapes[1][0]
+        and shapes[0][0] != 1
+        and (len(shapes[0]) > 3 or len(shapes[1]) > 3)
     ):
         logger.info("add: bug in TRT with adding batched constants.")
         return False
@@ -592,11 +614,35 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         logger.info("reshape: new shape dims must be explicit.")
         return False
     if get_tensorrt_use_implicit_batch_mode():
-        shape = list(map(int, args[0].checked_type.shape))
-        new_shape = list(map(int, attrs.newshape))
+        shape = args[0].checked_type.shape
+        new_shape = attrs.newshape
         if len(new_shape) == 0 or len(shape) == 0:
             logger.info("reshape: Can't reshape to or from scalar.")
             return False
+
+        dynamic_reshape = any([isinstance(x, tvm.tir.expr.Any) for x in shape])
+
+        if dynamic_reshape:
+            # Make sure that the batch dim is unmodified.
+            if int(new_shape[0]) < 0:
+                for shape_val, new_shape_val in enumerate(shape[1:], new_shape[1:]):
+                    if not (
+                        isinstance(shape_val, int)
+                        and isinstance(new_shape_val, int)
+                        and int(shape_val) == int(new_shape_val)
+                    ):
+                        return False
+            elif int(new_shape[0]) > 0:
+                if not (
+                    isinstance(shape[0], int)
+                    and isinstance(new_shape[0], int)
+                    and int(shape[0]) == int(new_shape[0])
+                ):
+                    return False
+            return True
+        shape = list(map(int, shape))
+        new_shape = list(map(int, new_shape))
+
         # TRT cannot modify batch dimension.
         original_volume = np.prod(shape)
         # First, resolve 0.
@@ -607,6 +653,7 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         for i, value in enumerate(new_shape):
             if value == -1:
                 new_shape[i] = original_volume // np.prod([x for x in new_shape if x != -1])
+        # Remove batch dimension and see if volumes match
         if shape[0] != new_shape[0]:
             logger.info("reshape: can't modify batch dimension.")
             return False
@@ -795,6 +842,41 @@ def conv3d_transpose_annotate_fn(expr):  # pylint: disable=unused-variable
     return True
 
 
+class IsComputeIntensiveGraph(ExprVisitor):
+    """
+    Visits the Graph recursively and checks if it contains compute heavy ops like convolutions and
+    its transpose, dense and batch mat-mul.
+    """
+
+    def __init__(self):
+        ExprVisitor.__init__(self)
+        self.is_compute_intensive = False
+
+    def visit_call(self, call):
+        compute_intensive_ops = set(
+            [
+                "nn.conv2d",
+                "nn.conv2d_transpose",
+                "nn.conv3d",
+                "nn.conv3d_transpose",
+                "nn.dense",
+                "nn.batch_matmul",
+            ]
+        )
+        if isinstance(call.op, tvm.tir.op.Op):
+            if str(call.op) in compute_intensive_ops:
+                self.is_compute_intensive = True
+
+        return super().visit_call(call)
+
+    def is_graph_compute_intensive(self, subgraph) -> bool:
+        """
+        This function recursively visits the graph and checks if it's compute intensive"
+        """
+        self.visit(subgraph)
+        return self.is_compute_intensive
+
+
 def is_valid_subgraph(params, body):
     """Final check on whether the subgraph is valid and should be offloaded to TensorRT."""
     # Remove invalid subgraphs for implicit batch mode.
@@ -802,24 +884,31 @@ def is_valid_subgraph(params, body):
         input_batch_sizes = []
         for var in params:
             # In implicit batch mode, all inputs must have same batch size
+            # TODO: (codeislife99) : Fix different dynamic batch size inputs
+
             if isinstance(var.checked_type, relay.TupleType):
                 for tupe_type in var.checked_type.fields:
                     # Scalar inputs not allowed
                     if len(tupe_type.shape) == 0:
                         logger.info("tensorrt: scalar inputs not supported")
                         return False
-                    input_batch_sizes.append(int(tupe_type.shape[0]))
+
+                    if not isinstance(tupe_type.shape[0], tvm.tir.expr.Any):
+                        input_batch_sizes.append(int(tupe_type.shape[0]))
             else:
                 # Scalar inputs not allowed
                 if len(var.checked_type.shape) == 0:
                     logger.info("tensorrt: scalar inputs not supported")
                     return False
-                input_batch_sizes.append(int(var.checked_type.shape[0]))
+                if not isinstance(var.checked_type.shape[0], tvm.tir.expr.Any):
+                    input_batch_sizes.append(int(var.checked_type.shape[0]))
         if len(input_batch_sizes) > 1 and len(set(input_batch_sizes)) != 1:
             logger.info("tensorrt: inputs have different batch sizes")
             return False
-    # Remove subgraphs with no multiply-accumulates
-    if get_tensorrt_remove_no_mac_subgraphs() and relay.analysis.get_total_mac_number(body) == 0:
+    if (
+        get_tensorrt_remove_no_mac_subgraphs()
+        and not IsComputeIntensiveGraph().is_graph_compute_intensive(body)
+    ):
         return False
     return True
 
@@ -880,6 +969,8 @@ class RemoveDropout(ExprMutator):
 
     def visit_tuple_getitem(self, op):
         visit = super().visit_tuple_getitem(op)
+        if visit.index != 0:
+            return visit
         if (
             isinstance(visit.tuple_value, Call)
             and visit.tuple_value.op.name == "nn.dropout"
