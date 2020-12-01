@@ -27,9 +27,6 @@ import tvm.topi.testing
 
 import os
 
-# print(os.getpid())
-# input("dummy breakpoint")
-
 
 def int32(val):
     return relay.const(val, "int32")
