@@ -626,11 +626,15 @@ class TestKeras:
 
 
     def test_forward_time_distributed(self, keras):
-        inputs = keras.Input(shape=(10, 128, 128, 3))
+        conv2d_inputs = keras.Input(shape=(10, 128, 128, 3))
         conv_2d_layer = keras.layers.Conv2D(64, (3, 3))
-        time_distributed = keras.layers.TimeDistributed(conv_2d_layer)(inputs)
-        keras_model = keras.models.Model(inputs, time_distributed)
-        verify_keras_frontend(keras_model, layout="NDHWC")
+        conv2d_model = keras.models.Model(conv2d_inputs, keras.layers.TimeDistributed(conv_2d_layer)(conv2d_inputs))
+        verify_keras_frontend(conv2d_model, layout="NDHWC")
+
+        dense_inputs = keras.Input(shape=(5,1))
+        dense_layer = keras.layers.Dense(1)
+        dense_model = keras.models.Model(dense_inputs, keras.layers.TimeDistributed(dense_layer)(dense_inputs))
+        verify_keras_frontend(dense_model, need_transpose=False)
 
 
 if __name__ == "__main__":
