@@ -124,6 +124,15 @@ def compute_interpolate(attrs, inputs, output_type):
 
 _reg.register_schedule("interpolate", strategy.schedule_interpolate)
 
+# scatter
+@_reg.register_compute("scatter_nd")
+def compute_scatter_nd(attrs, inputs, output_type):
+    """Compute definition of scatter_nd"""
+    return [topi.scatter_nd(inputs[0], inputs[1], attrs.out_shape)]
+
+
+_reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
+
 #####################
 #  Shape functions  #
 #####################

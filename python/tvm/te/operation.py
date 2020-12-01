@@ -317,7 +317,11 @@ def extern(
     if isinstance(body, tvm.tir.PrimExpr):
         body = tvm.tir.Evaluate(body)
     if not isinstance(body, tvm.tir.Stmt):
-        raise ValueError("Function '{}' should return PrimExpr or Stmt".format(fcompute.__name__))
+        raise ValueError(
+            "Function '{}' should return PrimExpr or Stmt, but it returned '{}'".format(
+                fcompute.__name__, type(body)
+            )
+        )
 
     op = _ffi_api.ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body)
     res = [op.output(i) for i in range(len(output_placeholders))]

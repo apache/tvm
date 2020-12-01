@@ -308,6 +308,30 @@ def scatter_add(data, indices, updates, axis):
     return _make.scatter_add(data, indices, updates, axis)
 
 
+def scatter_nd(data, indices, out_shape):
+    """Scatter values from an array.
+
+    See :py:func:`tvm.topi.scatter` for how data is scattered.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    out_shape : relay.Expr
+        Output shape of the scatter.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.scatter_nd(data, indices, out_shape)
+
+
 def reshape_like(data, shape_like, lhs_begin=0, lhs_end=None, rhs_begin=0, rhs_end=None):
     """Reshapes the input tensor by the size of another tensor.
     For an input tensor with shape ``(d0, d1, ..., d(k-1))``, `reshape_like` operation reshapes

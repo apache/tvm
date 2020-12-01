@@ -18,6 +18,7 @@
 """Scatter operator """
 import tvm
 from tvm import te
+from ..scatter import _verify_scatter_nd_inputs
 
 
 def ceil_div(a, b):
@@ -522,3 +523,108 @@ def scatter_add(data, indices, updates, axis=0):
     )
 
     return out
+
+
+def scatter_nd(data, indices, shape):
+    """Scatter elements from a n-dimension array.
+
+    Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), indices with shape
+    (M, Y_0, ..., Y_{K-1}), and output with shape (X_0, X_1, ..., X_{N-1}), scatter_nd computes
+
+    .. code-block::
+
+        output[indices[0, y_0, ..., y_{K-1}],
+               ...,
+               indices[M-1, y_0, ..., y_{K-1}],
+               x_M,
+               ...,
+               x_{N-1}
+              ] = data[y_0, ..., y_{K-1}, x_M, ..., x_{N-1}]
+
+    all other entries in the output are 0. Repeated indices are summed.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The source array.
+
+    indices : tvm.te.Tensor
+        The indices of the values to extract.
+
+    shape : Sequence[int]
+        The output shape. This must be specified because it cannot be inferred.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    _verify_scatter_nd_inputs(data, indices, shape)
+
+    def gen_ir(data_ptr, indices_ptr, out_ptr):
+        ib = tvm.tir.ir_builder.create()
+
+        data = ib.buffer_ptr(data_ptr)
+        indices = ib.buffer_ptr(indices_ptr)
+        out = ib.buffer_ptr(out_ptr)
+
+        # We combine all the indices dimensions but the first one into a single
+        # dimension so we can iterate it in single loop instead of an arbitrary
+        # number of loops. We do the same thing for all the data dimensions.
+        fused_indices_dimension = 1
+        for i in indices_ptr.shape[1:]:
+            fused_indices_dimension *= i
+
+        fused_data_dimension = 1
+        for i in data_ptr.shape[len(indices_ptr.shape) - 1 :]:
+            fused_data_dimension *= i
+
+        fused_shape = 1
+        for i in shape:
+            fused_shape *= i
+
+        # For now we avoid parallizing over dimensions indexed by `indices` as
+        # there may be repeated indices and hadling parallel accumulation can
+        # be hard. So we parallelize over X_M .. X_{N-1} instead. This will
+        # work well when these dimensions are large enough to saturate memory
+        # bandwidth, but performance will be bad when these dimensions are
+        # small.
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        tdim = min(max_threads, fused_data_dimension)
+        ib.scope_attr(tx, "thread_extent", tdim)
+        bdim = ceil_div(fused_data_dimension, tdim)
+        ib.scope_attr(bx, "thread_extent", bdim)
+
+        # zero data
+        # TODO(tkonolige): could we use topi.full to zero it instead?
+        with ib.for_range(0, ceil_div(fused_shape, bdim)) as i:
+            index = i * fused_data_dimension + bx * tdim + tx
+            with ib.if_scope(index < fused_shape):
+                out[index] = tvm.tir.Cast(data_ptr.dtype, 0)
+
+        with ib.for_range(0, fused_indices_dimension) as i:
+            j = bx * tdim + tx
+            with ib.if_scope(j < fused_data_dimension):
+                offset = fused_data_dimension
+                index = j  # This is x_M, .. x_{N-1} part of the index into out.
+                # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
+                # of the index into out.
+                for l in reversed(range(indices_ptr.shape[0].value)):
+                    # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
+                    index += offset * indices[i + l * fused_indices_dimension]
+                    offset *= shape[l]
+                out[index] += data[i * fused_data_dimension + j]
+
+        return ib.get()
+
+    out_buf = tvm.tir.decl_buffer(shape, data.dtype, "out_buf")
+    return te.extern(
+        [shape],
+        [data, indices],
+        lambda ins, outs: gen_ir(ins[0], ins[1], outs[0]),
+        dtype=data.dtype,
+        out_buffers=[out_buf],
+        name="scatter_nd_cuda",
+        tag="scatter_nd_cuda",
+    )
