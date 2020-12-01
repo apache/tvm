@@ -21,7 +21,12 @@ import numpy as np
 import tvm
 from tvm import relay
 
-from .infrastructure import _register_verilator_op, skip_test, compile_module, run_module
+from test_verilator.infrastructure import (
+    _register_verilator_op,
+    skip_test,
+    compile_module,
+    run_module,
+)
 
 
 _register_verilator_op("add")
