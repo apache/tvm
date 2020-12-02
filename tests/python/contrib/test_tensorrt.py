@@ -1075,7 +1075,7 @@ def test_tensorrt_dynamic_batch():
 def test_tensorrt_dynamic_batch_conv():
     if skip_codegen_test():
         return
-    batches_to_test = [1, 1, 2, 3, 1, 3, 2]
+    batches_to_test = [1, 1, 0, 2, 3, 0, 1, 3, 2]
     x_shape = (relay.Any(), 32, 8, 8)
     x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
     k_shape = (16, 32, 3, 3)
