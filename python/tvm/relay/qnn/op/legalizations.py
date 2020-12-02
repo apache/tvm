@@ -32,6 +32,12 @@ def legalize_qnn_conv2d(attrs, inputs, types):
     return qnn_conv2d_legalize(attrs, inputs, types)
 
 
+# Registering QNN Conv2DTranspose legalization function.
+@reg.register_qnn_legalize("qnn.conv2d_transpose")
+def legalize_qnn_conv2d_transpose(attrs, inputs, types):
+    return qnn_conv2d_transpose_legalize(attrs, inputs, types)
+
+
 # Registering QNN dense legalization function.
 @reg.register_qnn_legalize("qnn.dense")
 def legalize_qnn_dense(attrs, inputs, types):
@@ -44,6 +50,24 @@ def legalize_qnn_dense(attrs, inputs, types):
 def qnn_conv2d_legalize(attrs, inputs, types):
     """Default legalization is None."""
     return None
+
+
+# Generic QNN Conv2DTranspose legalization function.
+@tvm.target.generic_func
+def qnn_conv2d_transpose_legalize(attrs, inputs, types):
+    """Convert kernel and data to int16, subtract offsets upfront
+    and calls into relay.nn.conv2d_transpose."""
+
+    # Collect the input exprs.
+    data, kernel, input_zero_point, kernel_zero_point, _, _ = inputs
+
+    shift_data = relay.subtract(
+        relay.cast(data, dtype="int16"), relay.cast(input_zero_point, "int16")
+    )
+    shift_kernel = relay.subtract(
+        relay.cast(kernel, dtype="int16"), relay.cast(kernel_zero_point, "int16")
+    )
+    return relay.nn.conv2d_transpose(shift_data, shift_kernel, **attrs)
 
 
 # Generic QNN Conv2D legalization function.
@@ -75,7 +99,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
     """Converts QNN operators into a sequence of Relay operators that are friendly to HW that do
     not have fast Int8 arithmetic. For example, for ARM, LLVM utilizes the assembly instructions
     much more efficiently if the convolution or dense operator input datatypes are int16 instead of
-    int8. More details are present at https://github.com/apache/incubator-tvm/pull/4277.
+    int8. More details are present at https://github.com/apache/tvm/pull/4277.
 
     Parameters
     ----------

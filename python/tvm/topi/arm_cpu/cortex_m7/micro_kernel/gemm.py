@@ -129,6 +129,9 @@ def gemm_MxKxN_impl(M, K, N, uniq_id):
 #ifdef __cplusplus
 extern "C"
 #endif
+#include <arm_math.h>
+#include <arm_nnsupportfunctions.h>
+
 __STATIC_FORCEINLINE int32_t gemm_{M}x{K}x{N}_body_{uniq_id}(
     int8_t *aa, int8_t *bb, int32_t *cc,
     int A_stride, int B_stride, int C_stride) {{

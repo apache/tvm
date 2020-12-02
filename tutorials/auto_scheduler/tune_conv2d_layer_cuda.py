@@ -17,10 +17,12 @@
 """
 .. _auto-scheduler-conv-gpu:
 
-Auto-scheduling a convolution layer for GPU
+Auto-scheduling a Convolution Layer for GPU
 ===========================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, \
             `Chengfan Jia <https://github.com/jcf94/>`_
+
+This is a tutorial on how to use the auto-scheduler for GPUs.
 
 Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any templates.
@@ -76,14 +78,14 @@ print(task.compute_dag)
 
 ######################################################################
 # Next, we set parameters for the auto-scheduler. These parameters
-# mainly specify how we do the measurement during the search and auto-tuning.
+# mainly specify how we do the measurement during the search.
 #
-# * :code:`measure_ctx` launches a different process for measurement. This
-#   provides an isolation. It can protect the master process from GPU crashes
-#   happended during measurement and avoid other runtime conflicts.
+# * :code:`measure_ctx` launches a different process for measurement to
+#   provide isolation. It can protect the master process from GPU crashes
+#   during measurement and avoid other runtime conflicts.
 # * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
 #   This can warmup the GPU, which is necessary to get accurate measurement results.
-#   Typically, we recommend a value > 300 ms.
+#   Typically, we recommend a value >= 300 ms.
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the search.
 #   We only make 10 trials in this tutorial for a fast demonstration. In practice, 1000 is a
 #   good value for the search to converge. You can do more trials according to your time budget.
@@ -96,9 +98,10 @@ print(task.compute_dag)
 log_file = "conv2d.json"
 measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
 tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=10,
+    num_measure_trials=10,  # change this to 1000 to achieve the best performance
     runner=measure_ctx.runner,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    verbose=2,
 )
 
 ######################################################################

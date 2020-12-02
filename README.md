@@ -15,7 +15,7 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-<img src=https://raw.githubusercontent.com/apache/incubator-tvm-site/main/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
+<img src=https://raw.githubusercontent.com/apache/tvm-site/main/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
 ==============================================
 [Documentation](https://tvm.apache.org/docs) |
 [Contributors](CONTRIBUTORS.md) |
@@ -23,7 +23,7 @@
 [Release Notes](NEWS.md)
 
 [![Build Status](https://ci.tlcpack.ai/buildStatus/icon?job=tvm/main)](https://ci.tlcpack.ai/job/tvm/job/main/)
-[![WinMacBuild](https://github.com/apache/incubator-tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/incubator-tvm/actions?query=workflow%3AWinMacBuild)
+[![WinMacBuild](https://github.com/apache/tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/tvm/actions?query=workflow%3AWinMacBuild)
 
 Apache TVM (incubating) is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.

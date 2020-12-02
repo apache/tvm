@@ -38,5 +38,5 @@ deploy_lib.so, deploy_graph.json, deploy_param.params will go to android target.
 TVM Runtime for Android Target
 ------------------------------
 
-Refer `here <https://github.com/apache/incubator-tvm/blob/main/apps/android_deploy/README.md#build-and-installation>`_ to build CPU/OpenCL version flavor TVM runtime for android target.
-From android java TVM API to load model & execute can be referred at this `java <https://github.com/apache/incubator-tvm/blob/main/apps/android_deploy/app/src/main/java/org/apache/tvm/android/demo/MainActivity.java>`_ sample source.
+Refer `here <https://github.com/apache/tvm/blob/main/apps/android_deploy/README.md#build-and-installation>`_ to build CPU/OpenCL version flavor TVM runtime for android target.
+From android java TVM API to load model & execute can be referred at this `java <https://github.com/apache/tvm/blob/main/apps/android_deploy/app/src/main/java/org/apache/tvm/android/demo/MainActivity.java>`_ sample source.

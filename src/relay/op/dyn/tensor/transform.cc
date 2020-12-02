@@ -472,28 +472,6 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-inline te::Tensor DynamicStridedSlice(const te::Tensor& input, const te::Tensor& begin,
-                                      const te::Tensor& end, const te::Tensor& strides,
-                                      std::string name = "T_strided_slice_dynamic",
-                                      std::string tag = topi::kInjective) {
-  int64_t src_tensor_dim = input->shape.size();
-  Array<IndexExpr> out_shape;
-  for (int64_t i = 0; i < src_tensor_dim; ++i) {
-    out_shape.push_back(tvm::tir::Var("dim"));
-  }
-  // TODO(yongwww): move the compute into topi
-  return te::compute(
-      out_shape,
-      [&](const Array<tvm::tir::Var>& indices) {
-        Array<IndexExpr> real_indices;
-        for (int32_t i = 0; i < src_tensor_dim; ++i) {
-          real_indices.push_back(indices[i] * strides(i) + begin(i));
-        }
-        return input(real_indices);
-      },
-      name, tag);
-}
-
 Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                       const Type& out_type) {
   te::Tensor data = inputs[0];
@@ -507,7 +485,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
          strides->shape[0].as<IntImmNode>()->value == data_rank)
       << "begin, end, and strides are required to have the same length"
       << " if they are dynamic variables.";
-  return Array<te::Tensor>{DynamicStridedSlice(data, begin, end, strides)};
+  return Array<te::Tensor>{topi::dynamic_strided_slice(data, begin, end, strides)};
 }
 
 Expr MakeStridedSlice(Expr data, Expr begin, Expr end, Expr strides, String slice_mode) {
@@ -555,6 +533,77 @@ Examples::
     .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions);
+
+bool SparseToDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  ICHECK_EQ(num_inputs, 4);
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  auto sparse_values = types[1].as<TensorTypeNode>();
+  auto default_value = types[2].as<TensorTypeNode>();
+  auto output_shape = types[3].as<TensorTypeNode>();
+
+  if (sparse_indices == nullptr || sparse_values == nullptr || default_value == nullptr ||
+      output_shape == nullptr) {
+    return false;
+  }
+
+  CHECK(sparse_indices->dtype.is_int()) << "sparse_indices must be tensor of integers";
+
+  CHECK_LE(sparse_indices->shape.size(), 3)
+      << "sparse_indices must be a tensor of either 0D, 1D or 2D";
+
+  CHECK_LE(sparse_values->shape.size(), 2) << "sparse_values must be a tensor of either 0D, 1D";
+
+  CHECK_EQ(default_value->shape.size(), 0) << "default_value should be a scalar";
+
+  Array<IndexExpr> oshape;
+  for (int i = 0; i < output_shape->shape[0].as<IntImmNode>()->value; i++) {
+    oshape.push_back(Any());
+  }
+  reporter->Assign(types[4], TensorType(oshape, sparse_values->dtype));
+  return true;
+}
+
+Array<te::Tensor> SparseToDenseCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
+  ICHECK_EQ(inputs.size(), 4);
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  ICHECK(out_ttype);
+  return {topi::sparse_to_dense(inputs[0], out_ttype->shape, inputs[1], inputs[2]())};
+}
+
+TVM_REGISTER_GLOBAL("relay.op.dyn._make.sparse_to_dense")
+    .set_body_typed([](Expr indices, Expr output_shape, Expr values, Expr default_value) {
+      static const Op& op = Op::Get("dyn.sparse_to_dense");
+      return Call(op, {indices, values, default_value, output_shape});
+    });
+
+RELAY_REGISTER_OP("dyn.sparse_to_dense")
+    .describe(R"code(A dense tensor from a sparse representation.
+
+    - **sparse_indices**: A 0-D, 1-D, or 2-D tensor of integers containing location of sparse values
+
+    - **output_shape**: A list of integers. Shape of the dense output tensor.
+
+    - **sparse_values**: A 0-D or 1-D tensor containing the sparse values for the sparse indices.
+
+    - **default_value**: A 0-D tensor containing the default value for the remaining locations. Defaults to 0.
+
+    Example::
+      -  sparse_to_dense([0, 0], [1, 2]], [3, 4], [1, 2], 0) = [[1, 0, 0, 0], [0, 0, 2, 0], [0, 0, 0, 0]]
+
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .set_support_level(3)
+    .add_argument("sparse_indices", "Tensor", "Contains sparse indices.")
+    .add_argument("sparse_values", "Tensor", "Contains values for sparse indices.")
+    .add_argument("default_value", "Tensor", "Value to set for non-sparse indices. Defaults to 0.")
+    .add_argument("output_shape", "Tensor", "Shape of the dense output tensor")
+    .add_type_rel("DynSparseToDense", SparseToDenseRel)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute", SparseToDenseCompute);
 
 }  // namespace dyn
 }  // namespace relay

@@ -116,8 +116,8 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
   } else if (IsGPUTask(node->search_task)) {
     // Sketch Generation Rules
     node->sketch_rules.push_back(&rule_add_cache_read_stage);
-    node->sketch_rules.push_back(&rule_always_inline);
     node->sketch_rules.push_back(&rule_special_compute_location_gpu);
+    node->sketch_rules.push_back(&rule_always_inline);
     node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
     node->sketch_rules.push_back(&rule_cross_thread_reduction);
     node->sketch_rules.push_back(&rule_add_cache_write_stage);
@@ -162,9 +162,13 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
     Array<MeasureResult> results;
     while (ct < n_trials) {
       if (!inputs.empty()) {
-        // Retrain cost models before the next search round
+        auto t_begin = std::chrono::high_resolution_clock::now();
+
+        // Retrain the cost model before the next search round
         PrintTitle("Train cost model", verbose);
         program_cost_model->Update(inputs, results);
+
+        PrintTimeElapsed(t_begin, "training", verbose);
       }
 
       // Search one round to get promising states
@@ -200,9 +204,10 @@ State SketchPolicyNode::Search(int n_trials, int early_stopping, int num_measure
       ct += inputs.size();
 
       // Check if reach the early stopping condition
-      if (ct - measurer->best_ct[search_task->workload_key] > early_stopping) {
+      if (ct - measurer->best_ct[search_task->workload_key] > early_stopping &&
+          measurer->has_valid.count(search_task->workload_key)) {
         StdCout(verbose) << "Stop early since no performance improvement in the last "
-                         << early_stopping << " measure steps.\n";
+                         << early_stopping << " measurements trials.\n";
         break;
       }
 
@@ -249,9 +254,13 @@ std::pair<Array<MeasureInput>, Array<MeasureResult>> SketchPolicyNode::ContinueS
     measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
   }
 
+  auto t_begin = std::chrono::high_resolution_clock::now();
+
   // Update the cost model
   PrintTitle("Train cost model", verbose);
   program_cost_model->Update(inputs, results);
+
+  PrintTimeElapsed(t_begin, "training", verbose);
 
   return std::make_pair(std::move(inputs), std::move(results));
 }
@@ -362,6 +371,8 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   // At least we should sample this number of valid programs
   int min_population = GetIntParam(params, SketchParamKey::SampleInitPopulation::min_population);
 
+  auto tic_begin = std::chrono::high_resolution_clock::now();
+
   int fail_ct = 0;
   Array<State> out_states;
   std::vector<std::mt19937> rand_gens;
@@ -369,7 +380,6 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
   for (int i = 0; i < population; i++) {
     rand_gens.push_back(std::mt19937(rand_gen()));
   }
-  auto tic_begin = std::chrono::high_resolution_clock::now();
 
   std::unordered_set<std::string> explored_state_strs;
   size_t iter = 1;
@@ -472,8 +482,8 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
   int num_iters = GetIntParam(params, SketchParamKey::EvolutionarySearch::num_iters);
 
   bool is_cost_model_reasonable = !program_cost_model->IsInstance<RandomModelNode>();
-  if (!is_cost_model_reasonable && num_iters > 3) {
-    num_iters = 3;
+  if (!is_cost_model_reasonable && num_iters > 2) {
+    num_iters = 2;
     StdCout(verbose) << "GA iteration number has been adjusted to " << num_iters
                      << " due to random cost model" << std::endl;
   }
@@ -672,6 +682,10 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyEvolutionarySearch")
       Array<State> states = policy->EvolutionarySearch(init_population, out_size);
       return states;
     });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.PrintTitle").set_body_typed([](std::string title) {
+  PrintTitle(title, 1);
+});
 
 }  // namespace auto_scheduler
 }  // namespace tvm

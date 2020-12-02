@@ -32,6 +32,7 @@
 #include <deque>
 #include <exception>
 #include <future>
+#include <iomanip>
 #include <numeric>
 #include <random>
 #include <string>
@@ -251,6 +252,16 @@ inline std::string Chars(const char& str, int times) {
     ret << str;
   }
   return ret.str();
+}
+
+/*! \brief Print the time elapsed */
+inline void PrintTimeElapsed(std::chrono::time_point<std::chrono::high_resolution_clock> t_begin,
+                             const std::string& info, int verbose) {
+  double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                        std::chrono::high_resolution_clock::now() - t_begin)
+                        .count();
+  StdCout(verbose) << "Time elapsed for " << info << ": " << std::fixed << std::setprecision(2)
+                   << duration << " s" << std::endl;
 }
 
 /*!

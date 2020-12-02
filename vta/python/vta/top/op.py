@@ -123,7 +123,7 @@ def conv2d_transpose_strategy_vta(attrs, inputs, out_type, target):
 @_strategy.dense_strategy.register("vta")
 def dense_strategy_vta(attrs, inputs, out_type, target):
     """dense vta strategy"""
-    if inputs[0].shape == 4:  # this implies the layout is packed
+    if len(inputs[0].shape) == 4:  # this implies the layout is packed
         strategy = OpStrategy()
         strategy.add_implementation(
             _strategy.wrap_compute_dense(dense_packed),

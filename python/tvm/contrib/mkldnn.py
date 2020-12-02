@@ -45,7 +45,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
         (n, m),
         [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.mkl.matmul", ins[0], ins[1], outs[0], transa, transb
+            "tvm.contrib.mkldnn.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
         **kwargs,

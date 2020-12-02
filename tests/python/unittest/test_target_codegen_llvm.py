@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import collections
+import ctypes
+import json
 import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
-from tvm.contrib import utils, clang
+from tvm.contrib import utils
 import numpy as np
 import ctypes
 import math

@@ -34,7 +34,7 @@ Alternatively, you may execute Docker image we provide which contains the requir
 
 ### Build APK
 
-Before you build the Android application, please refer to [TVM4J Installation Guide](https://github.com/apache/incubator-tvm/blob/main/jvm/README.md) and install tvm4j-core to your local maven repository. You can find tvm4j dependency declare in `app/build.gradle`. Modify it if it is necessary.
+Before you build the Android application, please refer to [TVM4J Installation Guide](https://github.com/apache/tvm/blob/main/jvm/README.md) and install tvm4j-core to your local maven repository. You can find tvm4j dependency declare in `app/build.gradle`. Modify it if it is necessary.
 
 ```
 dependencies {
@@ -124,7 +124,7 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 Follow instruction to get compiled version model for android target [here.](https://tvm.apache.org/docs/deploy/android.html)
 
-Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/apache/incubator-tvm/blob/main/apps/android_deploy/app/src/main/java/org/apache/tvm/android/demo/MainActivity.java#L81)
+Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/apache/tvm/blob/main/apps/android_deploy/app/src/main/java/org/apache/tvm/android/demo/MainActivity.java#L81)
 
 `CPU Verison flavor`
 ```

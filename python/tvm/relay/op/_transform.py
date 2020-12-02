@@ -115,6 +115,15 @@ def compute_scatter_add(attrs, inputs, output_type):
 
 _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 
+# scatter
+@_reg.register_compute("scatter_nd")
+def compute_scatter_nd(attrs, inputs, output_type):
+    """Compute definition of scatter_nd"""
+    return [topi.scatter_nd(inputs[0], inputs[1], attrs.out_shape)]
+
+
+_reg.register_strategy("scatter_nd", strategy.scatter_nd_strategy)
+
 #####################
 #  Shape functions  #
 #####################
@@ -330,6 +339,25 @@ def take_shape_func(attrs, inputs, out_ndims):
         axis += data_ndim
     assert 0 <= axis < data_ndim
     return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
+
+
+@_reg.register_legalize("take")
+def legalize_dyn_topk(attrs, inputs, types):
+    """Legalize take op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.take_legalize(attrs, inputs, types)
 
 
 @script

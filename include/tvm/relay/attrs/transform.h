@@ -129,6 +129,14 @@ struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
   }
 };
 
+struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
+  Array<Integer> out_shape;
+
+  TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
+    TVM_ATTR_FIELD(out_shape).describe("Output shape of the scatter.");
+  }
+};
+
 struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   Integer axis;
 

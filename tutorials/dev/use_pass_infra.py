@@ -142,7 +142,7 @@ print(mod)
 # packing them as a whole to execute. For example, the same passes can now be
 # applied using the sequential style as the following. :py:class:`tvm.transform.Sequential` is
 # similiar to `torch.nn.sequential <https://pytorch.org/docs/stable/nn.html#torch.nn.Sequential>`_
-# and `mxnet.gluon.block <https://mxnet.incubator.apache.org/api/python/docs/_modules/mxnet/gluon/block.html>`_.
+# and `mxnet.gluon.block <https://mxnet.apache.org/api/python/docs/_modules/mxnet/gluon/block.html>`_.
 # For example, `torch.nn.sequential` is used to contain a sequence of PyTorch
 # `Modules` that will be added to build a network. It focuses on the network
 # layers. Instead, the :py:class:`tvm.transform.Sequential` in our pass infra works on the optimizing

@@ -226,6 +226,10 @@ constexpr const char* tvm_global_barrier_state = "__tvm_global_barrier_state";
 constexpr const char* tvm_prepare_global_barrier = "__tvm_prepare_global_barrier";
 /*! \brief Placeholder for the module's entry function. */
 constexpr const char* tvm_module_main = "__tvm_main__";
+/*! \brief Prefix for parameter symbols emitted into the main program. */
+constexpr const char* tvm_param_prefix = "__tvm_param__";
+/*! \brief A PackedFunc that looks up linked parameters by storage_id. */
+constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
 }  // namespace symbol
 
 // implementations of inline functions.

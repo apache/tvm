@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """
 Workload registration and serialization.
@@ -29,12 +30,14 @@ These strings are efficient for serialization/matching and won't be too long.
 When we need the dag, we decode the string and call the function, which will return the dag.
 """
 
+import logging
 import pickle
 import json
 
 import tvm._ffi
 from .utils import serialize_args, deserialize_args, get_func_name
 
+logger = logging.getLogger("auto_scheduler")
 
 # Global workload function and hash key registry
 # It stores two types of workload:
@@ -61,7 +64,7 @@ def register_workload(func_name, f=None, override=False):
     f : Optional[Function]
         The generation function to be registered.
     override : boolean = False
-        Whether override existing entry.
+        Whether to override existing entry.
 
     Examples
     --------
@@ -95,25 +98,26 @@ def register_workload(func_name, f=None, override=False):
     return register
 
 
-def register_workload_tensors(tensors):
-    """Register a workload by provding input/output tensors
+def register_workload_tensors(func_name, tensors, override=True):
+    """Register a workload by provding input/output tensors. Since this function is used
+    when extracting/deserializing tasks, it expects duplicated registrations by default.
 
     Parameters
     ----------
+    func_name: str
+        The function name or the hash key of the compute DAG.
     tensors: List[Tensor]
         The input/output tensors of a compute DAG
+    override : boolean = True
+        Whether to override existing entry.
 
     Returns
     -------
     key: str
-        The workload key
+        The serialized JSON string as the workload key.
     """
-    # pylint: disable=import-outside-toplevel
-    from .compute_dag import ComputeDAG
-
-    key = ComputeDAG(tensors).hash_key()
-    WORKLOAD_FUNC_REGISTRY[key] = tensors
-    return json.dumps((key,))
+    register_workload(func_name, override=override)(tensors)
+    return json.dumps((func_name,))
 
 
 def make_workload_key(func, args):
