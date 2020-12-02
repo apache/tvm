@@ -94,8 +94,10 @@ runtime::Module CreateMetadataModule(
     }
   }
 
-  if (target->kind->name == "llvm" || target->kind->name == "c") {
-    csource_metadata_modules.push_back(target_module);
+  if (target.defined()) {
+    if (target->kind->name == "llvm" || target->kind->name == "c") {
+      csource_metadata_modules.push_back(target_module);
+    }
   }
 
   if (!csource_metadata_modules.empty()) {
