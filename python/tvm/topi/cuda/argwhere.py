@@ -260,7 +260,15 @@ def argwhere_2d(output_shape, condition):
         #     name="strided_slice_gpu_end0",
         #     tag="strided_slice_gpu_end0",
         # )
-        return dynamic_strided_slice1(out, [0, 1], [-1, -1], [1, 1])
+        out1 = dynamic_strided_slice1(out, [0, 1], [out.shape[0], 2], [1, 1])
+        out2 = sort_func(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        out = adv_index(out, [out3])
+
+        out1 = dynamic_strided_slice1(out, [0, 0], [out.shape[0], 1], [1, 1])
+        out2 = sort_func(out1, axis=0, dtype="int32")
+        out3 = squeeze(out2)
+        return adv_index(out, [out3])
         # out1 = dynamic_strided_slice1(out, [0, 1], [-1, -1])
         # out1 = strided_slice(out, const_vector([0, 1]), end)
         # out2 = sort_func(out1, axis=0, dtype="int32")

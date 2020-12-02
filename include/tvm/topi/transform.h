@@ -591,7 +591,7 @@ inline te::Tensor dynamic_strided_slice1(const te::Tensor& x, const Array<PrimEx
   int64_t src_tensor_dim = x->shape.size();
   Array<PrimExpr> out_shape;
   for (int64_t i = 0; i < src_tensor_dim; ++i) {
-    out_shape.push_back(tvm::tir::Var("dim"));
+    out_shape.push_back(indexdiv(end[i] - begin[i], strides[i]));
   }
   return te::compute(
       out_shape,
