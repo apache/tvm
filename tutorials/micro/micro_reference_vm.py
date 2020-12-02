@@ -61,7 +61,8 @@ A minimal set of prerequisites are needed:
 1. `Vagrant <https://vagrantup.com>`__
 2. A supported Virtual Machine hypervisor.
    `VirtualBox <https://www.virtualbox.org>`__ is one suggested free hypervisor, but please note
-   that the `VirtualBox Extension Pack`_ is required for proper USB forwarding.
+   that the `VirtualBox Extension Pack`_ is required for proper USB forwarding. If using VirtualBox,
+   also consider installing the `vbguest <https://github.com/dotless-de/vagrant-vbguest>`_ plugin.
 
 .. _VirtualBox Extension Pack: https://www.virtualbox.org/wiki/Downloads#VirtualBox6.1.16OracleVMVirtualBoxExtensionPack
 
