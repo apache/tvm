@@ -108,7 +108,7 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
  * \brief The inverse operation of FuseOps. It transforms a fused program returned by
- * FuseOps into the program before FuseOps. (i.e., x == DefuseOps(FuseOps(x)))
+ * FuseOps into the program before FuseOps. (i.e. x == DefuseOps(FuseOps(x)))
  *
  * \return The pass.
  */
