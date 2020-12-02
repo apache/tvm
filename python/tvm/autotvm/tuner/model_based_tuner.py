@@ -230,8 +230,7 @@ class ModelBasedTuner(Tuner):
         self.train_ct = 0
 
         self.uncertainty_aware = uncertainty_aware
-        if uncertainty_aware:
-            self.dynamic_ep = 0.05
+        self.dynamic_ep = 0.05
 
     def next_batch(self, batch_size):
         ret = []
@@ -247,9 +246,9 @@ class ModelBasedTuner(Tuner):
                     break
                 self.trial_pt += 1
 
-            if self.trial_pt >= len(self.trials) - int(0.05 * self.plan_size):
+            if self.trial_pt >= len(self.trials) - int(self.dynamic_ep * self.plan_size):
                 # if the trial list is empty or
-                # the tuner is doing the last 5% trials (e-greedy), choose randomly
+                # the tuner is doing the last <dynamic_ep> trials (e-greedy), choose randomly
                 index = np.random.randint(len(self.space))
                 while index in self.visited:
                     index = np.random.randint(len(self.space))

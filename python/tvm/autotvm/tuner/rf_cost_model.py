@@ -1,9 +1,64 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name
+"""RandomForestRegressor+ExpectedImprovement as a cost model"""
+
 from .model_based_tuner import CostModel, FeatureCache
 
 from .xgboost_cost_model import _extract_curve_feature_index,_extract_knob_feature_index, _extract_itervar_feature_index
 
 class RFEICostModel(CostModel):
-    def __init__(self, task, fea_type="itervar",num_threads=None, log_interval=25):
+    """RandomForestRegressor+ExpectedImprovement as a cost model
+
+    Parameters
+    ----------
+    task: Task
+        The tuning task
+    feature_type: str, optional
+        If is 'itervar', use features extracted from IterVar (loop variable).
+        If is 'knob', use flatten ConfigEntity directly.
+        If is 'curve', use sampled curve feature (relation feature).
+
+        Note on choosing feature type:
+        For single task tuning, 'itervar' and 'knob' are good.
+                                'itervar' is more accurate but 'knob' is much faster.
+                                There are some constraints on 'itervar', if you meet
+                                problems with feature extraction when using 'itervar',
+                                you can switch to 'knob'.
+
+        For cross-shape tuning (e.g. many convolutions with different shapes),
+                               'itervar' and 'curve' has better transferability,
+                               'knob' is faster.
+        For cross-device or cross-operator tuning, you can use 'curve' only.
+    loss_type: str
+        If is 'reg', use regression loss to train cost model.
+                     The cost model predicts the normalized flops.
+        If is 'rank', use pairwise rank loss to train cost model.
+                     The cost model predicts relative rank score.
+    num_threads: int, optional
+        The number of threads.
+    log_interval: int, optional
+        If is not none, the cost model will print training log every `log_interval` iterations.
+    upper_model: XGBoostCostModel, optional
+        The upper model used in transfer learning
+    """
+    def __init__(
+        self, task, fea_type="itervar", num_threads=None, log_interval=25, upper_model=None
+    ):
         super(RFEICostModel, self).__init__()
         self.task = task
         self.target = task.target
@@ -22,17 +77,25 @@ class RFEICostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type " + fea_type)
 
-        self.feature_cache = FeatureCache()
+        if upper_model:  # share a same feature cache with upper model
+            self.feature_cache = upper_model.feature_cache
+        else:
+            self.feature_cache = FeatureCache()
+        self.upper_model = upper_model
+        self.feature_extra_ct = 0
         self.best_flops = 0.0
         self.pool = None
+        self.base_model = None
+
+        self._sample_size = 0
         self._reset_pool(self.space, self.target, self.task)
 
     def _reset_pool(self, space, target, task):
         """reset processing pool for feature extraction"""
 
-        # if self.upper_model:  # base model will reuse upper model's pool,
-        #     self.upper_model._reset_pool(space, target, task)
-        #     return
+        if self.upper_model:  # base model will reuse upper model's pool,
+            self.upper_model._reset_pool(space, target, task)
+            return
 
         self._close_pool()
 
@@ -53,9 +116,12 @@ class RFEICostModel(CostModel):
             self.pool = None
 
     def _get_pool(self):
-        # if self.upper_model:
-        #     return self.upper_model._get_pool()
+        if self.upper_model:
+            return self.upper_model._get_pool()
         return self.pool
+
+    def _base_model_discount(self):
+        return 1.0 / (2 ** (self._sample_size / 64.0))
 
     def fit(self, xs, ys, plan_size):
         """Fit to training data
@@ -133,6 +199,25 @@ class RFEICostModel(CostModel):
         predicts, _ = self._prediction_variation(xs)
         return predicts
 
+    def _prediction_variation(self, x_to_predict):
+        """Use Bayesian Optimization to predict the y and get the prediction_variation"""
+        feas = self._get_feature(x_to_predict)
+        preds = np.array([tree.predict(feas) for tree in self.prior]).T
+        eis = []
+        variances = []
+        for pred in preds:
+            mu = np.mean(pred)
+            sigma = pred.std()
+            best_flops = self.best_flops
+            variances.append(sigma)
+            with np.errstate(divide='ignore'):
+                Z = (mu - best_flops) / sigma
+                ei = (mu - best_flops) * norm.cdf(Z) + sigma * norm.pdf(Z)
+                ei[sigma == 0.0] == max(0.0, mu-best_flops)
+            eis.append(ei)
+        prediction_variation = sum(variances)/len(variances)
+        return np.array(eis), prediction_variation
+
     def load_basemodel(self, base_model):
         self.base_model = base_model
         self.base_model._close_pool()
@@ -177,25 +262,10 @@ class RFEICostModel(CostModel):
             ret[i, :] = t if t is not None else 0
         return ret
 
-    def _prediction_variation(self, x_to_predict):
-        """Use Bayesian Optimization to predict the y and get the prediction_variation
-        """
-        feas = self._get_feature(x_to_predict)
-        preds = np.array([tree.predict(feas) for tree in self.prior]).T
-        eis = []
-        variances = []
-        for pred in preds:
-            mu = np.mean(pred)
-            sigma = pred.std()
-            best_flops = self.best_flops
-            variances.append(sigma)
-            with np.errstate(divide='ignore'):
-                Z = (mu - best_flops) / sigma
-                ei = (mu - best_flops) * norm.cdf(Z) + sigma * norm.pdf(Z)
-                ei[sigma == 0.0] == max(0.0, mu-best_flops)
-            eis.append(ei)
-        prediction_variation = sum(variances)/len(variances)
-        return np.array(eis), prediction_variation
-
     def __del__(self):
         self._close_pool()
+
+# Global variables for passing arguments to extract functions.
+_extract_space = None
+_extract_target = None
+_extract_task = None

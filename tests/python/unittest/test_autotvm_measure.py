@@ -41,6 +41,7 @@ def test_task_tuner_without_measurement():
         autotvm.tuner.GridSearchTuner,
         autotvm.tuner.GATuner,
         autotvm.tuner.XGBTuner,
+        autotvm.tuner.RFEITuner
     ]:
         tuner = tuner_class(task)
         tuner.tune(n_trial=10, measure_option=measure_option)
