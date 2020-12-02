@@ -77,7 +77,6 @@ def tune_and_check(mod, data, weight):
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
-        # log_file = "test_layout_rewrite.json"
 
         # Tune tasks
         tuner = auto_scheduler.TaskScheduler(tasks, task_weights)

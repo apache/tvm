@@ -381,6 +381,7 @@ def conv2d_nhwc(
 
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
+        # todo(merrymercy): wrap this with a more general interface.
         if len(Filter.shape) >= 10:
             # For cpu tile structure SSRSRS
             base = len(Filter.shape) - 10
