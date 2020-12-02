@@ -455,6 +455,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     out : tvm.te.Tensor or List[tvm.te.Tensor]
         The computed result.
     """
+    return topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64")
     assert ret_type in ["both", "values", "indices"]
     ndim = len(data.shape)
     axis = axis + ndim if axis < 0 else axis
@@ -561,10 +562,31 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tag="topk_gpu",
     )
 
-    if k > 0:
+    is_dyn = not isinstance(k, int)
+    for dim in data.shape:
+        if not isinstance(dim, tvm.tir.IntImm):
+            is_dyn = True
+            break
+
+    if not is_dyn:
+        if k > 0:
+            beg = [0] * ndim
+            end = data.shape[:axis] + [k] + data.shape[axis:]
+            out = [strided_slice(o, beg, end) for o in out]
+    else:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k]
-        out = [strided_slice(o, beg, end) for o in out]
+        end = []
+        for i in range(len(data.shape)):
+            if i == axis:
+                if isinstance(k, int):
+                    end.append(data.shape[i] if k <= 0 else k)
+                else:
+                    end.append(tvm.te.size_var("dim"))
+            else:
+                end.append(data.shape[i])
+
+        strides = [1] * ndim
+        out = [strided_slice(o, beg, end, strides) for o in out]
 
     if axis != ndim - 1:
         axes = swap(list(range(ndim)), axis)

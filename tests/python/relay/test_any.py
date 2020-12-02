@@ -815,13 +815,7 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
     else:
         ref_out = sorted[0:kval]
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(*in_vals)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
-
-    # TODO(@zhiics) Fix topk cuda schedule for dynamic inputs
-    # check_result(in_vals, mod, ref_out)
+    check_result(in_vals, mod, ref_out)
 
 
 def test_any_topk():
