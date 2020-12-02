@@ -73,9 +73,10 @@ The first time you use a reference VM, you need to create the box locally and th
 
 .. code-block:: bash
 
-    ~/.../tvm $ cd apps/microtvm-vm
+    # Replace zepyhr with the name of a different platform, if you are not using Zephyr.
+    ~/.../tvm $ cd apps/microtvm/reference-vm/zephyr
     # Replace <provider_name> with the name of the hypervisor you wish to use (i.e. virtualbox).
-    ~/.../tvm/apps/microtvm/vm $ vagrant up --provider=<provider_name>
+    ~/.../tvm/apps/microtvm/reference-vm/zephyr $ vagrant up --provider=<provider_name>
 
 
 This command will take a couple of minutes to run and will require 4 to 5GB of storage on your
