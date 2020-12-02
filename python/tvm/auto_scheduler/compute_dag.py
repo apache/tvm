@@ -164,7 +164,7 @@ class ComputeDAG(Object):
 
     def rewrite_layout_from_state(self, state):
         """
-        Rewrite the layout according to the transform steps in the history of a state
+        Rewrite the layout of the DAG according to the history transform steps of a state.
 
         Parameters
         ----------
