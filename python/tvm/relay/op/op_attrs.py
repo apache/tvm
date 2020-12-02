@@ -537,3 +537,13 @@ class TupleGetItemAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.WithFuncIdAttrs")
 class WithFuncIdAttrs(Attrs):
     """Attributes used in with_funcid annotation operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SpaceToBatchNDAttrs")
+class SpaceToBatchNDAttrs(Attrs):
+    """Attributes used in SpaceToBatchND operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.BatchToSpaceNDAttrs")
+class BatchToSpaceNDAttrs(Attrs):
+    """Attributes used in BatchToSpaceNDAttrs operators"""

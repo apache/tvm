@@ -178,7 +178,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << args[i].AsObjectRef<ObjectRef>()->GetTypeKey() << " is not supported by RPC";
       } else if (tcode == kTVMContext) {
         DLContext ctx = args[i];
-        ICHECK_LT(static_cast<int>(ctx.device_type), kRPCSessMask)
+        ICHECK(!IsRPCSessionContext(ctx))
             << "InternalError: cannot pass RPC context in the channel";
       }
     }

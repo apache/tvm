@@ -48,7 +48,7 @@ sys.path.insert(0, os.path.join(curr_path, "../vta/python"))
 project = "tvm"
 author = "Apache Software Foundation"
 copyright = "2020, %s" % author
-github_doc_root = "https://github.com/apache/incubator-tvm/tree/main/docs/"
+github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
 # Version information.
@@ -309,12 +309,6 @@ import tlcpack_sphinx_addon
 footer_copyright = "© 2020 Apache Software Foundation | All right reserved"
 footer_note = " ".join(
     """
-Apache TVM is an effort undergoing incubation at The Apache Software Foundation (ASF),
-sponsored by the Apache Incubator. Incubation is required of all newly accepted projects
-until a further review indicates that the infrastructure, communications, and decision making
-process have stabilized in a manner consistent with other successful ASF projects. While
-incubation status is not necessarily a reflection of the completeness or stability of the code,
-it does indicate that the project has yet to be fully endorsed by the ASF.
 Copyright © 2020 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
 the Apache Software Foundation.""".split(
@@ -332,7 +326,7 @@ header_links = [
     ("Blog", "https://tvm.apache.org/blog"),
     ("Docs", "https://tvm.apache.org/docs"),
     ("Conference", "https://tvmconf.org"),
-    ("Github", "https://github.com/apache/incubator-tvm/"),
+    ("Github", "https://github.com/apache/tvm/"),
 ]
 
 header_dropdown = {

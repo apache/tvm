@@ -31,7 +31,7 @@ from .conv3d_transpose_ncdhw_python import conv3d_transpose_ncdhw_python
 from .conv2d_transpose_python import conv2d_transpose_nchw_python, conv2d_transpose_nhwc_python
 from .conv1d_transpose_ncw_python import conv1d_transpose_ncw_python
 from .correlation_nchw_python import correlation_nchw_python
-from .deformable_conv2d_nchw_python import deformable_conv2d_nchw_python
+from .deformable_conv2d_python import deformable_conv2d_nchw_python, deformable_conv2d_nhwc_python
 from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python
@@ -57,6 +57,7 @@ from .depth_to_space import depth_to_space_python
 from .space_to_depth import space_to_depth_python
 from .crop_and_resize_python import crop_and_resize_python
 from .common import (
+    compare_numpy_tvm,
     get_injective_schedule,
     get_reduce_schedule,
     get_broadcast_schedule,
@@ -67,3 +68,5 @@ from .common import (
 from .adaptive_pool_python import adaptive_pool
 from .grid_sample_python import affine_grid_python, grid_sample_nchw_python
 from .matrix_set_diag import matrix_set_diag
+from .space_to_batch_nd import space_to_batch_nd_python
+from .batch_to_space_nd import batch_to_space_nd_python

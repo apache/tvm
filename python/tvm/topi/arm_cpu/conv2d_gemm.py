@@ -24,8 +24,7 @@ from tvm.autotvm.task.space import AnnotateEntity, ReorderEntity, OtherOptionEnt
 from ..utils import get_const_tuple, get_const_int
 from ..nn.utils import get_pad_tuple
 from .tensor_intrin import (
-    gemm_quantized,
-    gemm_quantized_impl,
+    gemm_4x4_int8_int8_int32,
     gemm_acc_4x4_int8_int8_int32,
     gemm_acc_nx16_int8_int8_int32,
     gemm_acc_2x2_int8_int8_int32,
@@ -51,11 +50,8 @@ def configure_knobs(cfg, M, K):
 
     if not is_dotprod_available():
         cfg.define_knob("gemm_quantized_unroll", [True, False])
-        cfg.define_knob("gemm_quantized_interleave", [True, False])
-
         if cfg.is_fallback:
             cfg["gemm_quantized_unroll"] = OtherOptionEntity(False)
-            cfg["gemm_quantized_interleave"] = OtherOptionEntity(True)
 
 
 # Compute function
@@ -361,14 +357,9 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
         elif is_aarch64_arm():
             s[C_interleaved].reorder(yi, xi)
             K = A_interleaved_input.shape[2]
+            assert in_type in ["int8", "uint8"], "Only int8 and uint8 gemm are supported"
             unroll = cfg["gemm_quantized_unroll"].val
-            interleave = cfg["gemm_quantized_interleave"].val
-            gemm = gemm_quantized(M, N, K, unroll, interleave, in_type, out_type)
-            s[C_interleaved].pragma(
-                b_outer_gemm_fused,
-                "import_llvm",
-                gemm_quantized_impl(M, N, K, unroll, interleave, in_type),
-            )
+            gemm = gemm_4x4_int8_int8_int32(M, N, K, unroll, in_type)
             s[C_interleaved].tensorize(yi, gemm)
 
     # Output transform

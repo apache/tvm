@@ -989,7 +989,10 @@ def test_recursive_concat_with_wrong_annotation():
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
     with DiagnosticTesting() as diagnostics:
-        diagnostics.assert_message("in particular dimension 0 conflicts 2 does not match 1")
+        diagnostics.assert_message(
+            "The Relay type checker is unable to show the following types "
+            "match.\nIn particular dimension 0 conflicts: 2 does not match 1."
+        )
         func = infer_type(func)
 
 

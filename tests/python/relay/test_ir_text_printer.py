@@ -21,6 +21,7 @@ from tvm.relay import testing
 import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import free_vars
+import pytest
 
 DEBUG_PRINT = False
 
@@ -269,6 +270,4 @@ def test_span():
 
 
 if __name__ == "__main__":
-    import sys
-
-    pytext.argv(sys.argv)
+    pytest.main([__file__])

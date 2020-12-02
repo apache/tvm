@@ -176,7 +176,7 @@ class Tuner(object):
 
             if error_ct > 150:
                 logging.basicConfig()
-                logger.warning("Too many errors happen in the tuning. Now is in debug mode")
+                logger.warning("Too many errors happen in the tuning. Switching to debug mode.")
                 logger.setLevel(logging.DEBUG)
             else:
                 logger.setLevel(old_level)

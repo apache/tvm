@@ -22,6 +22,7 @@
  * \brief Code generation for TVM's graph runtime.
  */
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/expr.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/transform.h>
@@ -30,6 +31,7 @@
 
 #include <memory>
 
+#include "../../target/func_registry_generator.h"
 #include "../../target/source/codegen_source_base.h"
 #include "compile_engine.h"
 #include "utils.h"
@@ -84,6 +86,17 @@ struct GraphCodegen {
       // Implicit cast from runtime::String to std::string
       std::string key = expr;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
+    }
+    return ret;
+  }
+
+  std::unordered_map<std::string, int64_t> GetParamIds() {
+    std::unordered_map<std::string, int64_t> ret;
+    auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
+    for (const auto& expr : names) {
+      // Implicit cast from runtime::String to std::string
+      std::string key = expr;
+      ret[key] = CallFunc<int64_t>("get_param_id", key);
     }
     return ret;
   }
@@ -443,16 +456,36 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = graph_codegen_->GetIRModule();
 
+    Target target_host = GetTargetHost();
+    // If no target_host has been set, we choose a default one, which is
+    // llvm if "codegen.LLVMModuleCreate" is accessible.
+    const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
+    if (!target_host.defined()) target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
+
+    // Generate a placeholder function that attaches linked params as its arguments.
+    if (target_host->GetAttr<Bool>("link-params").value_or(Bool(false))) {
+      CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
+      auto param_ids = graph_codegen_->GetParamIds();
+      auto link_params = Map<String, tir::LinkedParam>();
+      for (auto param : ret_.params) {
+        link_params.Set(param.first, tir::LinkedParam(param_ids[param.first], param.second));
+      }
+
+      Map<String, ObjectRef> dict;
+      dict.Set(tvm::tir::attr::kLinkedParams, link_params);
+      dict.Set(tvm::attr::kGlobalSymbol, String(::tvm::runtime::symbol::tvm_lookup_linked_param));
+      DictAttrs attrs{dict};
+      auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
+                                Map<tir::Var, tir::Buffer>(), attrs);
+      if (lowered_funcs.find(target_host->str()) == lowered_funcs.end()) {
+        lowered_funcs.Set(target_host->str(), IRModule(Map<GlobalVar, BaseFunc>({})));
+      }
+      lowered_funcs[target_host->str()]->Add(
+          GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param), prim);
+    }
+
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
-      Target target_host = GetTargetHost();
-
-      // If no target_host has been set, we choose a default one, which is
-      // llvm if "codegen.LLVMModuleCreate" is accessible.
-      const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
-      if (!target_host.defined())
-        target_host = (pf != nullptr) ? Target("llvm") : Target("stackvm");
-
       if (target_host.defined() && target_host->kind->name == "llvm") {
         // If we can decide the target is LLVM, we then create an empty LLVM module.
         ret_.mod = (*pf)(target_host->str(), "empty_module");

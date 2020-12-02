@@ -540,6 +540,13 @@ uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime* runtime, uint32_t nid, uint
 }
 
 /*!
+ * \brief Get the number of input tensors allocated.
+ * \param runtime The graph runtime.
+ * \return the number of input tensors allocated.
+ */
+int TVMGraphRuntime_GetNumInputs(TVMGraphRuntime* runtime) { return runtime->input_nodes_count; }
+
+/*!
  * \brief Get the input index given the name of input.
  * \param runtime The graph runtime.
  * \param name The name of the input.
@@ -675,6 +682,13 @@ void TVMGraphRuntime_Run(TVMGraphRuntime* runtime) {
   }
 }
 
+/*!
+ * \brief Get the number of output tensors allocated.
+ * \param runtime The graph runtime.
+ * \return the number of output tensors allocated.
+ */
+int TVMGraphRuntime_GetNumOutputs(TVMGraphRuntime* runtime) { return runtime->outputs_count; }
+
 int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTensor* out) {
   int status = 0;
   uint32_t nid = runtime->outputs[idx].node_id;
@@ -693,7 +707,19 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime* runtime, const int32_t idx, DLTen
 }
 
 void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
+  TVMPackedFunc lookup_linked_param;
+  int lookup_linked_param_valid;
   uint32_t idx;
+
+  {
+    TVMArgs temp_args;
+    temp_args.values[0].v_int64 = 0;
+    temp_args.tcodes[0] = kTVMArgInt;
+    temp_args.values_count = 1;
+    lookup_linked_param_valid =
+        (TVMPackedFunc_InitModuleFunc(&lookup_linked_param, runtime->module_handle,
+                                      "_lookup_linked_param", &temp_args) == 0);
+  }
 
   // Grab saved optimization plan from graph.
   TVMGraphRuntimeGraphAttr* attrs = &(runtime->attrs);
@@ -721,24 +747,47 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     if (sid >= pool_entry_count) {
       pool_entry_count = sid + 1;
     }
+    pool_entry[sid].entry_id = idx;
     pool_entry[sid].size = MAX(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
   }
 
   // Allocate the space.
   for (idx = 0; idx < pool_entry_count; idx++) {
-    runtime->storage_pool =
-        vrealloc(runtime->storage_pool, sizeof(TVMNDArray) * (runtime->storage_pool_count + 1));
+    runtime->storage_pool = vrealloc(runtime->storage_pool, sizeof(TVMGraphRuntimeStorageEntry) *
+                                                                (runtime->storage_pool_count + 1));
     TVMGraphRuntimePoolEntry pit = pool_entry[idx];
-    int64_t shape[TVM_CRT_MAX_NDIM] = {
-        0,
-    };
     TVMContext ctx = runtime->ctxs[0];
-    DLDataType dtype = {kDLFloat, 32, 1};
-    shape[0] = (pit.size + 3) / 4;
-    runtime->storage_pool[runtime->storage_pool_count] = TVMNDArray_Empty(1, shape, dtype, ctx);
-    CHECK_NE(runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data, 0,
-             "fail to create storage_pool with idx=%d\n", idx);
+    uint8_t did_find_linked_param = 0;
+    if (lookup_linked_param_valid) {
+      lookup_linked_param.args.values[0].v_int64 = idx;
+      CHECK_EQ(lookup_linked_param.Call(&lookup_linked_param), 0, "lookup_linked_param");
+
+      void* linked_param_data = lookup_linked_param.ret_value.values[0].v_handle;
+      if (linked_param_data != NULL) {
+        runtime->storage_pool[runtime->storage_pool_count].is_linked_param = 1;
+        DLTensor* tensor = &runtime->storage_pool[runtime->storage_pool_count].array.dl_tensor;
+        tensor->data = linked_param_data;
+        tensor->ctx = ctx;
+        tensor->ndim = attrs->ndim[pit.entry_id];
+        tensor->shape = attrs->shape + idx * TVM_CRT_MAX_NDIM;
+        tensor->strides = NULL;
+        tensor->byte_offset = 0;
+        did_find_linked_param = 1;
+      }
+    }
+    if (did_find_linked_param == 0) {
+      int64_t shape[TVM_CRT_MAX_NDIM] = {
+          0,
+      };
+      DLDataType dtype = {kDLFloat, 32, 1};
+      shape[0] = (pit.size + 3) / 4;
+      runtime->storage_pool[runtime->storage_pool_count].is_linked_param = 0;
+      runtime->storage_pool[runtime->storage_pool_count].array =
+          TVMNDArray_Empty(1, shape, dtype, ctx);
+      CHECK_NE(runtime->storage_pool[runtime->storage_pool_count].array.dl_tensor.data, 0,
+               "fail to create storage_pool with idx=%d\n", idx);
+    }
     runtime->storage_pool_count++;
   }
 
@@ -751,7 +800,7 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime* runtime) {
     uint32_t storage_id = attrs->storage_id[idx];
     CHECK(storage_id < runtime->storage_pool_count);
     runtime->data_entry[idx] =
-        TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
+        TVMNDArray_CreateView(&(runtime->storage_pool[storage_id].array),
                               attrs->shape + idx * TVM_CRT_MAX_NDIM, attrs->ndim[idx], vtype[idx]);
     CHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
              "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
@@ -858,28 +907,28 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime* runtime, const TVMOpParam* 
 /*!
  * \brief Initialize the graph executor with graph and context.
  * \param graph_json The execution graph.
- * \param module The module containing the compiled functions for the host
+ * \param module_handle The module containing the compiled functions for the host
  * processor.
  * \param ctxs The context of the host and devices where graph nodes will be
  * executed on.
  */
-void TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json, const TVMModule* module,
-                          const TVMContext* ctxs) {
+void TVMGraphRuntime_Init(TVMGraphRuntime* runtime, const char* graph_json,
+                          TVMModuleHandle module_handle, const TVMContext* ctxs) {
   JSONReader reader = JSONReader_Create(graph_json);
   TVMGraphRuntime_Load(runtime, &reader);
   JSONReader_Release(&reader);
+  runtime->module_handle = module_handle;
   runtime->ctxs[0] = ctxs[0];
   TVMGraphRuntime_SetupStorage(runtime);
   TVMGraphRuntime_SetupOpExecs(runtime);
 }
 
-TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, const TVMModule* m,
+TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
                                         const TVMContext* ctxs) {
-  CHECK_EQ(vleak_size, 1, "memory leak checking won't work with concurrent CRT use");
   TVMGraphRuntime* runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(TVMGraphRuntime));
   // init
-  TVMGraphRuntime_Init(runtime, sym_json, m, ctxs);
+  TVMGraphRuntime_Init(runtime, sym_json, module_handle, ctxs);
   return runtime;
 }
 
@@ -892,7 +941,9 @@ void TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
   vfree(runtime->nodes);
   TVMGraphRuntimeGraphAttr_Release(&(runtime->attrs));
   for (idx = 0; idx < runtime->storage_pool_count; ++idx) {
-    TVMNDArray_Release(&(runtime->storage_pool[idx]));
+    if (runtime->storage_pool[idx].is_linked_param == 0) {
+      TVMNDArray_Release(&(runtime->storage_pool[idx].array));
+    }
   }
   for (idx = 0; idx < runtime->data_entry_count; ++idx) {
     vfree(runtime->data_entry[idx].dl_tensor.shape);
@@ -909,6 +960,4 @@ void TVMGraphRuntime_Release(TVMGraphRuntime** pptr) {
     vfree(g_fexecs);
     g_fexecs = 0;
   }
-
-  CHECK_EQ(vleak_size, 1, "found memory leak, leak size=%d", vleak_size - 1);
 }

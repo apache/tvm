@@ -41,6 +41,7 @@ We do encourage everyone to work anything they are interested in.
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Matthew Barrett](https://github.com/mbaret): @mbaret - byoc, arm
+- [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart - relay, frontends
 - [Tianqi Chen](https://github.com/tqchen) (PPMC): @tqchen - topi, compiler, relay, docs
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
@@ -138,7 +139,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
 
 ## List of Contributors
-- [Full List of Contributors](https://github.com/apache/incubator-tvm/graphs/contributors)
+- [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)
   - To contributors: please add your name to the list.
 - [Qiao Zhang](https://github.com/zhangqiaorjc)
 - [Haolong Zhang](https://github.com/haolongzhangm)

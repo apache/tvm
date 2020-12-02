@@ -126,9 +126,10 @@ def test_multilanes():
         B = ib.buffer_ptr(Bb)
         with ib.for_range(0, m, name="i", dtype=m.dtype) as i:
             B[i] = A[i] + 1
+        A[0] = B[1]
         stmt = ib.get()
         stmt = lower_stmt([Ab, Bb], stmt, target_bits)
-        assert stmt.loop_var.dtype == target_dtype
+        assert stmt.seq[0].loop_var.dtype == target_dtype
 
     # i32 -> i32
     check(const(2 ** 10, dtype="int32"), 2, target_bits=32, target_dtype="int32")

@@ -62,8 +62,11 @@ class FdTransport(base.Transport):
     def close(self):
         if self.read_fd is not None:
             os.close(self.read_fd)
+            self.read_fd = None
+
         if self.write_fd is not None:
             os.close(self.write_fd)
+            self.write_fd = None
 
     def _await_ready(self, rlist, wlist, timeout_sec=None, end_time=None):
         if end_time is None:
@@ -78,6 +81,9 @@ class FdTransport(base.Transport):
         return True
 
     def read(self, n, timeout_sec):
+        if self.read_fd is None:
+            raise base.TransportClosedError()
+
         end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
 
         self._await_ready([self.read_fd], [], end_time=end_time)
@@ -90,6 +96,9 @@ class FdTransport(base.Transport):
         return to_return
 
     def write(self, data, timeout_sec):
+        if self.write_fd is None:
+            raise base.TransportClosedError()
+
         end_time = None if timeout_sec is None else time.monotonic() + timeout_sec
 
         data_len = len(data)

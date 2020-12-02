@@ -17,7 +17,7 @@
 """
 .. _tune_relay_x86:
 
-Auto-tuning a convolutional network for x86 CPU
+Auto-tuning a Convolutional Network for x86 CPU
 ===============================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan <https://github.com/eqy>`_
 

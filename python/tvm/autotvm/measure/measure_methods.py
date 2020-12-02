@@ -168,7 +168,7 @@ class RPCRunner(Runner):
     Parameters
     ----------
     timeout: float
-        The timeout of a compilation
+        The timeout of a RPCRunner measurement task
     n_parallel: int
         The number of tasks run in parallel. "None" will use all cpu cores
     key: str
@@ -240,7 +240,7 @@ class RPCRunner(Runner):
         self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
 
-        self.executor = LocalExecutor()
+        self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
     def set_task(self, task):
         self.task = task
