@@ -1400,7 +1400,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
       name, tag);
 }
 
-/*! \brief utility function for auto_scheduler_layout_transform */
+/*! \brief Utility function for auto_scheduler_layout_transform */
 inline void parse_auto_scheduler_layout(const String& layout, Array<PrimExpr>* shape,
                                         std::vector<std::string>* axes) {
   int32_t factor = 0;
