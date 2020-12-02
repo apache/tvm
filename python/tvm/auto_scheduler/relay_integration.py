@@ -276,7 +276,7 @@ def auto_schedule_topi(outs, has_complex_op):
             dispatch_ctx = DispatchContext.current
             state = dispatch_ctx.query(target, key, has_complex_op, dag)
             if state is None:
-                return te.create_schedule([x.op for x in outs])
+                return None
 
             # rewrite the layout and update the context for the new dag
             dag = ComputeDAG(outs)
