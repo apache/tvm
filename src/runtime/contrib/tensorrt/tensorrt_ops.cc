@@ -243,6 +243,10 @@ class Conv2DOpConverter : public TensorRTOpConverter {
     auto str_padding = params->node.GetAttr<std::vector<std::string>>("padding");
     int groups = std::stoi(params->node.GetAttr<std::vector<std::string>>("groups")[0]);
     int channels = weight_shape[0];
+    if (params->node.HasAttr("channels") &&
+        !params->node.GetAttr<std::vector<std::string>>("channels")[0].empty()) {
+      channels = std::stoi(params->node.GetAttr<std::vector<std::string>>("channels")[0]);
+    }
     // TRT conv2d op doesn't support asymmetric padding before 5.1, so we
     // workaround by adding a padding layer before the pooling op.
     nvinfer1::DimsHW prepadding, postpadding;
