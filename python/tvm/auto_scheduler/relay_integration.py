@@ -330,7 +330,7 @@ def rewrite_compute_body(compute_tensor, new_layout):
 
     # Get layout free placeholders
     layout_free_placeholders = op.attrs["layout_free_placeholders"]
-    assert len(layout_free_placeholders) == 1
+    assert len(layout_free_placeholders) == 1, "Only support one layout free placeholder"
     placeholder_op = layout_free_placeholders[0].op
 
     # Rewrite the index expression in body
