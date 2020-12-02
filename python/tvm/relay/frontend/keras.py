@@ -233,7 +233,9 @@ def _convert_merge(
     return ret
 
 
-def _convert_permute(inexpr, keras_layer, _, input_shape=None, data_layout=None):
+def _convert_permute(
+    inexpr, keras_layer, _, input_shape=None, data_layout=None
+):  # pylint: disable=unused-argument
     return _op.transpose(inexpr, axes=(0,) + keras_layer.dims)
 
 
