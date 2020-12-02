@@ -21,8 +21,9 @@ from tvm import te
 
 from .injective import schedule_injective_from_existing
 from ..math import identity
-from ..transform import strided_slice, transpose
+from ..transform import strided_slice, transpose, dynamic_strided_slice1
 from .. import tag
+from ..tensor import full
 
 
 def swap(arr, axis):
@@ -455,6 +456,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     out : tvm.te.Tensor or List[tvm.te.Tensor]
         The computed result.
     """
+    return topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64")
     assert ret_type in ["both", "values", "indices"]
     ndim = len(data.shape)
     axis = axis + ndim if axis < 0 else axis

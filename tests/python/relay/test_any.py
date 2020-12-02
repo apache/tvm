@@ -43,6 +43,8 @@ def check_result(
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
+            if "nvptx" in tgt:
+                continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
@@ -809,10 +811,15 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
         ref_out = sorted[0:kval]
 
     check_result(in_vals, mod, ref_out)
+<<<<<<< 18e10bfd52a220d3ec9addb5fe93b60dc8ab2cd0
 
 
 # TODO(kevinthesun): enable this test when Thrust is available in ci.
 # @tvm.testing.uses_gpu
+=======
+
+@tvm.testing.uses_gpu
+>>>>>>> Fix dynamic strided_slice
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
@@ -1363,4 +1370,5 @@ def test_any_where():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    #pytest.main([__file__])
+    test_any_topk()
