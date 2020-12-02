@@ -325,7 +325,7 @@ TVM_DLL Pass AlterOpLayout();
 
 /*!
  * \brief Do layout rewrite according to the tile structure created by auto-scheduler.
- * \return The pass.
+ * \return The pass
  */
 TVM_DLL Pass AutoSchedulerLayoutRewrite();
 
