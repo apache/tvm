@@ -67,7 +67,7 @@ def _convert_recurrent_activation(inexpr, keras_layer):
 
 def _convert_activation(
     inexpr, keras_layer, _, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     if isinstance(keras_layer, str):
         act_type = keras_layer
     else:
@@ -250,7 +250,7 @@ def _convert_embedding(
 
 def _convert_dense(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     weightList = keras_layer.get_weights()
     weight = etab.new_const(weightList[0].transpose([1, 0]))
     params = {"weight": weight, "units": weightList[0].shape[1]}
@@ -613,7 +613,7 @@ def _convert_separable_convolution(inexpr, keras_layer, etab, input_shape=None, 
 
 def _convert_flatten(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -626,7 +626,7 @@ def _convert_flatten(
 
 def _convert_pooling(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -725,7 +725,7 @@ def _convert_pooling3d(inexpr, keras_layer, etab, input_shape=None, data_layout=
 
 def _convert_global_pooling3d(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -747,7 +747,7 @@ def _convert_global_pooling3d(
 
 def _convert_upsample(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -780,7 +780,7 @@ def _convert_upsample(
 
 def _convert_upsample3d(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -798,7 +798,7 @@ def _convert_upsample3d(
 
 def _convert_cropping(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     crop_type = type(keras_layer).__name__
     if input_shape is None:
@@ -857,7 +857,7 @@ def _convert_batchnorm(inexpr, keras_layer, etab, input_shape=None, data_layout=
 
 def _convert_padding(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -891,7 +891,7 @@ def _convert_padding(
 
 def _convert_padding3d(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if data_layout is None:
         data_layout = etab.data_layout
@@ -938,7 +938,7 @@ def _convert_padding3d(
 
 def _convert_concat(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if input_shape is None:
         input_shape = keras_layer.input_shape
@@ -974,7 +974,7 @@ def _convert_reshape(inexpr, keras_layer, etab, input_shape=None, data_layout=No
 
 def _convert_lstm(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if input_shape is None:
         input_shape = keras_layer.input_shape
@@ -1017,7 +1017,7 @@ def _convert_lstm(
 
 def _convert_simple_rnn(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if not isinstance(inexpr, list):
         buf = np.zeros((1, keras_layer.units), "float32")
@@ -1043,7 +1043,7 @@ def _convert_simple_rnn(
 
 def _convert_gru(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     _check_data_format(keras_layer)
     if not isinstance(inexpr, list):
         buf = np.zeros((1, keras_layer.units), "float32")
@@ -1088,7 +1088,7 @@ def _convert_gru(
 
 def _convert_repeat_vector(
     inexpr, keras_layer, etab, input_shape=None, data_layout=None
-):  # pylint: disable=unused_argument
+):  # pylint: disable=unused-argument
     if input_shape is None:
         input_shape = keras_layer.input_shape
     input_shape = list(input_shape)
