@@ -226,7 +226,7 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
 
 @tvm.testing.uses_gpu
 def test_any_argwhere():
-    verify_any_argwhere(any_dims(1), (5,))
+    # verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
     verify_any_argwhere(any_dims(3), (5, 5, 5))
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5))

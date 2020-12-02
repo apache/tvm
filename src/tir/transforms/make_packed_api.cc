@@ -46,6 +46,7 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
 }
 
 PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
+  LOG(INFO) << AsText(func, false);
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol) << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
 

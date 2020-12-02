@@ -26,7 +26,7 @@ from .injective import schedule_injective_from_existing
 from .nms import atomic_add
 from .sort import topk, topk_thrust, argsort, argsort_thrust
 from .. import tag
-from ..transform import strided_slice, adv_index, squeeze
+from ..transform import strided_slice, adv_index, squeeze, dynamic_strided_slice1
 from ..utils import const_vector
 
 logger = logging.getLogger("topi")
@@ -249,37 +249,39 @@ def argwhere_2d(output_shape, condition):
 
         return adv_index(out, [out3])
     else:
-        out_shape = [2]
-        out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
-        end = te.extern(
-            [out_shape],
-            [out],
-            lambda ins, outs: _create_end(ins[0], outs[0], 2),
-            dtype="int32",
-            out_buffers=[out_buf],
-            name="strided_slice_gpu_end0",
-            tag="strided_slice_gpu_end0",
-        )
-        out1 = strided_slice(out, const_vector([0, 1]), end)
-        out2 = sort_func(out1, axis=0, dtype="int32")
-        out3 = squeeze(out2)
-        out = adv_index(out, [out3])
+        # out_shape = [2]
+        # out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
+        # end = te.extern(
+        #     [out_shape],
+        #     [out],
+        #     lambda ins, outs: _create_end(ins[0], outs[0], 2),
+        #     dtype="int32",
+        #     out_buffers=[out_buf],
+        #     name="strided_slice_gpu_end0",
+        #     tag="strided_slice_gpu_end0",
+        # )
+        return dynamic_strided_slice1(out, [0, 1], [-1, -1], [1, 1])
+        # out1 = dynamic_strided_slice1(out, [0, 1], [-1, -1])
+        # out1 = strided_slice(out, const_vector([0, 1]), end)
+        # out2 = sort_func(out1, axis=0, dtype="int32")
+        # out3 = squeeze(out2)
+        # out = adv_index(out, [out3])
 
-        out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
-        end = te.extern(
-            [out_shape],
-            [out],
-            lambda ins, outs: _create_end(ins[0], outs[0], 1),
-            dtype="int32",
-            out_buffers=[out_buf],
-            name="strided_slice_gpu_end1",
-            tag="strided_slice_gpu_end1",
-        )
-        out1 = strided_slice(out, const_vector([0, 0]), end)
-        out2 = sort_func(out1, axis=0, dtype="int32")
-        out3 = squeeze(out2)
+        # out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
+        # end = te.extern(
+        #     [out_shape],
+        #     [out],
+        #     lambda ins, outs: _create_end(ins[0], outs[0], 1),
+        #     dtype="int32",
+        #     out_buffers=[out_buf],
+        #     name="strided_slice_gpu_end1",
+        #     tag="strided_slice_gpu_end1",
+        # )
+        # out1 = strided_slice(out, const_vector([0, 0]), end)
+        # out2 = sort_func(out1, axis=0, dtype="int32")
+        # out3 = squeeze(out2)
 
-        return adv_index(out, [out3])
+        # return adv_index(out, [out3])
 
 
 def argwhere_3d_ir(condition, out):
