@@ -1058,7 +1058,7 @@ def test_tensorrt_dynamic_batch():
         mod = tvm.IRModule()
         mod["main"] = f
         if use_trt:
-            mod = relay.tensorrt.EnableTrt(mod)
+            mod = tensorrt.partition_for_tensorrt(mod, params)
 
         if not skip_runtime_test():
             with relay.build_config(opt_level=3):
