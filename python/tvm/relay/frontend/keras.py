@@ -66,8 +66,10 @@ def _convert_recurrent_activation(inexpr, keras_layer):
 
 
 def _convert_activation(
-    inexpr, keras_layer, _, input_shape=None, data_layout=None
+    inexpr, keras_layer, etab, input_shape=None, data_layout=None
 ):  # pylint: disable=unused-argument
+    if data_layout is None:
+        data_layout = etab.data_layout
     if isinstance(keras_layer, str):
         act_type = keras_layer
     else:
