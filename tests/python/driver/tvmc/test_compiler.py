@@ -150,3 +150,21 @@ def test_cross_compile_aarch64_onnx_module(onnx_resnet50):
     assert type(params) is dict
     assert type(dumps) is dict
     assert "asm" in dumps.keys()
+
+
+@tvm.testing.requires_opencl
+def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
+    pytest.importorskip("tflite")
+
+    graph, lib, params, dumps = tvmc.compiler.compile_model(
+        tflite_mobilenet_v1_0_25_128,
+        target="opencl",
+        target_host="llvm",
+        alter_layout="NCHW",
+    )
+
+    # check for output types
+    assert type(graph) is str
+    assert type(lib) is tvm.runtime.module.Module
+    assert type(params) is dict
+    assert type(dumps) is dict

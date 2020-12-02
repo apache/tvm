@@ -977,6 +977,74 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
+// scatter_nd operator
+TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
+
+bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  // `types` contains: [data, indices, result]
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "ScatterND: expect input data type to be TensorType but got " << types[0];
+    return false;
+  }
+  if (indices == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "ScatterND: expect indices type to be TensorType but got " << types[1];
+    return false;
+  }
+  ICHECK(indices->dtype.is_int()) << "ScatterND: indices must be a tensor of integers.";
+  const auto out_shape = attrs.as<ScatterNDAttrs>()->out_shape;
+  const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
+  const size_t kdim = indices->shape.size() - 1;
+  const size_t ndim = out_shape.size();
+  ICHECK_LE(size_t(mdim->value), ndim)
+      << "ScatterND: Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), and indices "
+         "with shape (M, Y_0, ..., Y_{K-1}), M must be less than or equal to N.";
+  // Indices: (M, Y_0, .. Y_{K-1}) data: (Y_0, .. Y_{K-1}, ...), verify Y's.
+  for (size_t i = 0; i < kdim; i++) {
+    reporter->AssertEQ(indices->shape[i + 1], data->shape[i]);
+  }
+
+  std::vector<IndexExpr> oshape;
+  for (auto& x : out_shape) {
+    oshape.push_back(x);
+  }
+
+  // data: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
+  for (size_t i = mdim->value; i < ndim; i++) {
+    reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
+  }
+
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeScatterND(Expr data, Expr indices, const Array<Integer> out_shape) {
+  auto attrs = make_object<ScatterNDAttrs>();
+  attrs->out_shape = out_shape;
+  static const Op& op = Op::Get("scatter_nd");
+  return Call(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.scatter_nd").set_body_typed(MakeScatterND);
+
+RELAY_REGISTER_OP("scatter_nd")
+    .describe(R"code(Scatter elements or slices from data and store to a tensor
+whose shape is defined by indices.
+
+Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}) and indices with shape
+(M, Y_0, ..., Y_{K-1}), the output will have shape (X_0, X_1, ..., X_{N-1}).
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(3)
+    .add_type_rel("ScatterND", ScatterNDRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
