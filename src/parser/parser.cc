@@ -1561,8 +1561,8 @@ class Parser {
           return e;
         }
         case TokenType::kIf: {
-           Expr e = ParseIf();
-           return e;
+          Expr e = ParseIf();
+          return e;
         }
         case TokenType::kRef: {
           Consume(TokenType::kRef);

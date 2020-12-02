@@ -874,6 +874,7 @@ def test_tuple_return_value():
     """
     parse_module(program)
 
+
 def test_parse_if_in_binding():
     program = """
     def @example(%b: bool) {
@@ -886,6 +887,7 @@ def test_parse_if_in_binding():
     }
     """
     parse_module(program)
+
 
 def test_op_string_attr():
     call = parse_text(
