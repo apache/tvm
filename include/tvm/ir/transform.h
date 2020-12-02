@@ -198,7 +198,7 @@ class PassContext : public ObjectRef {
   TVM_DLL void Trace(const IRModule& module, const PassInfo& info, bool is_before) const;
 
   /*!
-   * \brief Check if a pass is enabled.
+   * \brief Check whether a pass is enabled.
    * \param info The pass information.
    * \return true if the pass is enabled. Otherwise, false.
    */
