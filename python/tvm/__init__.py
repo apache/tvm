@@ -87,8 +87,6 @@ def tvm_wrap_excepthook(exception_hook):
 
     def wrapper(exctype, value, trbk):
         """Clean subprocesses when TVM is interrupted."""
-        in_pytest = "PYTEST_CURRENT_TEST" in os.environ
-
         if exctype is error.DiagnosticError and not _should_print_backtrace():
             # TODO(@jroesch): consider moving to C++?
             print("note: run with `TVM_BACKTRACE=1` environment variable to display a backtrace.")
