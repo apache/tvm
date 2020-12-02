@@ -352,6 +352,7 @@ def test_conv2d():
         padding=(0, 0),
         strides=(1, 1),
         dilation=(1, 1),
+        channels=None,
     ):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         kernel = relay.var("kernel", shape=(k_shape), dtype="float32")
@@ -363,6 +364,7 @@ def test_conv2d():
             padding=padding,
             strides=strides,
             dilation=dilation,
+            channels=channels,
         )
         f = relay.Function([x, kernel], out)
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
@@ -380,6 +382,9 @@ def test_conv2d():
                             dilation=dilation,
                         )
                     )
+    run_and_verify_func(
+        get_graph((1, 3, 16, 16), (3, 8, 7, 7), 3, [2, 2, 3, 3], [2, 2], [1, 1], 24)
+    )
 
 
 def test_conv2d_nhwc():
