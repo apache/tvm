@@ -94,7 +94,7 @@ runtime::Module CreateMetadataModule(
     }
   }
 
-  if (DSOExportable(target_module)) {
+  if (target->kind->name == "llvm" || target->kind->name == "c") {
     csource_metadata_modules.push_back(target_module);
   }
 
