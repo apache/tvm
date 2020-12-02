@@ -52,14 +52,11 @@ def verify_argwhere(data_shape):
 
         func = tvm.build(sch, [out_shape, condition, out], device, name="argwhere")
 
-        print(func.imported_modules[0].get_source())
-
         args = [tvm.nd.array(np_shape, ctx)]
         args.append(tvm.nd.array(np_data, ctx))
         args.append(tvm.nd.empty(out.shape, ctx=ctx, dtype=condition.dtype))
         func(*args)
         np.set_printoptions(threshold=np.inf)
-        # print(args[-1].asnumpy())
         tvm.testing.assert_allclose(args[-1].asnumpy(), np.array(np_out))
 
     for target, ctx in tvm.testing.enabled_targets():
