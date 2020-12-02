@@ -146,6 +146,14 @@ Pass AutoSchedulerLayoutRewrite() {
 TVM_REGISTER_GLOBAL("relay._transform.AutoSchedulerLayoutRewrite")
     .set_body_typed(AutoSchedulerLayoutRewrite);
 
+TVM_REGISTER_GLOBAL("relay.attrs.get_auto_scheduler_rewritten_layout")
+    .set_body_typed([](const Attrs& attrs) {
+      if (attrs->IsInstance<Conv2DAttrs>()) {
+        return attrs.as<Conv2DAttrs>()->auto_scheduler_rewritten_layout;
+      }
+      return std::string();
+    });
+
 }  // namespace transform
 
 }  // namespace relay

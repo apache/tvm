@@ -171,9 +171,6 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
             "Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
             "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
             "dimensions respectively. Default to be same as input layout.");
-    TVM_ATTR_FIELD(auto_scheduler_rewritten_layout)
-        .set_default("")
-        .describe("New kernel layout after auto-scheduler's layout rewrite.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)
