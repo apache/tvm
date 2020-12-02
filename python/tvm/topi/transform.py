@@ -218,6 +218,7 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
         strides = []
     return cpp.strided_slice(a, begin, end, strides, slice_mode)
 
+
 def dynamic_strided_slice1(a, begin, end, strides):
     return cpp.dynamic_strided_slice1(a, begin, end, strides)
 

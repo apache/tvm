@@ -226,11 +226,10 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
 
 @tvm.testing.uses_gpu
 def test_any_argwhere():
-    # verify_any_argwhere(any_dims(1), (5,))
+    verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
     verify_any_argwhere(any_dims(2), (5, 5), "int32")
     verify_any_argwhere(any_dims(2), (5, 5), "int8")
-    """
     verify_any_argwhere(any_dims(3), (5, 5, 5))
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5))
     verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5))
@@ -242,7 +241,6 @@ def test_any_argwhere():
     verify_any_argwhere(any_dims(3), (5, 5, 5), "int8")
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5), "int8")
     verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5), "int8")
-    """
 
 
 def verify_any_take(data_shape, indices_shape, axis, data_np_shape, indices_np_shape):
@@ -1367,6 +1365,4 @@ def test_any_where():
 
 
 if __name__ == "__main__":
-    #pytest.main([__file__])
-    #test_any_topk()
-    test_any_argwhere()
+    pytest.main([__file__])

@@ -27,7 +27,6 @@ from .nms import atomic_add
 from .sort import topk, topk_thrust, argsort, argsort_thrust
 from .. import tag
 from ..transform import strided_slice, adv_index, squeeze, dynamic_strided_slice1
-from ..utils import const_vector
 
 logger = logging.getLogger("topi")
 
@@ -45,17 +44,6 @@ def _get_sort_func(mode=0):
         ret = topk if mode == 0 else argsort
 
     return ret
-
-
-def _create_end(data, out, end):
-    ib = tvm.tir.ir_builder.create()
-    end = tvm.tir.const(end, dtype=out.dtype)
-    out_ptr = ib.buffer_ptr(out)
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(bx, "thread_extent", 1)
-    out_ptr[0] = data.shape[0]
-    out_ptr[1] = end
-    return ib.get()
 
 
 def argwhere_1d_ir(condition, out):
@@ -247,19 +235,8 @@ def argwhere_2d(output_shape, condition):
         out2 = sort_func(out1, axis=0, dtype="int32")
         out3 = squeeze(out2)
 
-        return adv_index(out, [out3])
+        out = adv_index(out, [out3])
     else:
-        # out_shape = [2]
-        # out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
-        # end = te.extern(
-        #     [out_shape],
-        #     [out],
-        #     lambda ins, outs: _create_end(ins[0], outs[0], 2),
-        #     dtype="int32",
-        #     out_buffers=[out_buf],
-        #     name="strided_slice_gpu_end0",
-        #     tag="strided_slice_gpu_end0",
-        # )
         out1 = dynamic_strided_slice1(out, [0, 1], [out.shape[0], 2], [1, 1])
         out2 = sort_func(out1, axis=0, dtype="int32")
         out3 = squeeze(out2)
@@ -268,28 +245,8 @@ def argwhere_2d(output_shape, condition):
         out1 = dynamic_strided_slice1(out, [0, 0], [out.shape[0], 1], [1, 1])
         out2 = sort_func(out1, axis=0, dtype="int32")
         out3 = squeeze(out2)
-        return adv_index(out, [out3])
-        # out1 = dynamic_strided_slice1(out, [0, 1], [-1, -1])
-        # out1 = strided_slice(out, const_vector([0, 1]), end)
-        # out2 = sort_func(out1, axis=0, dtype="int32")
-        # out3 = squeeze(out2)
-        # out = adv_index(out, [out3])
-
-        # out_buf = tvm.tir.decl_buffer(out_shape, "int32", "strided_slice_out_buf")
-        # end = te.extern(
-        #     [out_shape],
-        #     [out],
-        #     lambda ins, outs: _create_end(ins[0], outs[0], 1),
-        #     dtype="int32",
-        #     out_buffers=[out_buf],
-        #     name="strided_slice_gpu_end1",
-        #     tag="strided_slice_gpu_end1",
-        # )
-        # out1 = strided_slice(out, const_vector([0, 0]), end)
-        # out2 = sort_func(out1, axis=0, dtype="int32")
-        # out3 = squeeze(out2)
-
-        # return adv_index(out, [out3])
+        out = adv_index(out, [out3])
+    return out
 
 
 def argwhere_3d_ir(condition, out):
@@ -382,18 +339,25 @@ def argwhere_3d(output_shape, condition):
         tag="argwhere3d_gpu",
     )
 
-    if out.shape[0] <= 1:
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)) and int(out.shape[0]) <= 1:
         return out
 
     # sort the output from the least significant to the most significant
     # column.
     sort_func = _get_sort_func(1)
-    for i in reversed(range(3)):
-        out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
-        out2 = sort_func(out1, axis=0, dtype="int32")
-        out3 = squeeze(out2)
-        out = adv_index(out, [out3])
 
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)):
+        for i in reversed(range(3)):
+            out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
+            out2 = sort_func(out1, axis=0, dtype="int32")
+            out3 = squeeze(out2)
+            out = adv_index(out, [out3])
+    else:
+        for i in reversed(range(3)):
+            out1 = dynamic_strided_slice1(out, [0, i], [out.shape[0], i + 1], [1, 1])
+            out2 = sort_func(out1, axis=0, dtype="int32")
+            out3 = squeeze(out2)
+            out = adv_index(out, [out3])
     return out
 
 
@@ -490,17 +454,24 @@ def argwhere_4d(output_shape, condition):
         tag="argwhere4d_gpu",
     )
 
-    if out.shape[0] <= 1:
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)) and int(out.shape[0]) <= 1:
         return out
 
     # sort the output from the least significant to the most significant
     # column.
     sort_func = _get_sort_func(1)
-    for i in reversed(range(4)):
-        out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
-        out2 = sort_func(out1, axis=0, dtype="int32")
-        out3 = squeeze(out2)
-        out = adv_index(out, [out3])
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)):
+        for i in reversed(range(4)):
+            out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
+            out2 = sort_func(out1, axis=0, dtype="int32")
+            out3 = squeeze(out2)
+            out = adv_index(out, [out3])
+    else:
+        for i in reversed(range(4)):
+            out1 = dynamic_strided_slice1(out, [0, i], [out.shape[0], i + 1], [1, 1])
+            out2 = sort_func(out1, axis=0, dtype="int32")
+            out3 = squeeze(out2)
+            out = adv_index(out, [out3])
 
     return out
 
@@ -601,17 +572,24 @@ def argwhere_5d(output_shape, condition):
         tag="argwhere5d_gpu",
     )
 
-    if out.shape[0] <= 1:
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)) and int(out.shape[0]) <= 1:
         return out
 
     # sort the output from the least significant to the most significant
     # column.
     sort_func = _get_sort_func(1)
-    for i in reversed(range(5)):
-        out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
-        out2 = sort_func(out1, axis=0, dtype="int32")
-        out3 = squeeze(out2)
-        out = adv_index(out, [out3])
+    if isinstance(out.shape[0], (int, tvm.tir.expr.IntImm)):
+        for i in reversed(range(5)):
+            out1 = strided_slice(out, [0, i], [out.shape[0], i + 1])
+            out2 = sort_func(out1, axis=0, dtype="int32")
+            out3 = squeeze(out2)
+            out = adv_index(out, [out3])
+    else:
+        for i in reversed(range(5)):
+            out1 = dynamic_strided_slice1(out, [0, i], [out.shape[0], i + 1], [1, 1])
+            out2 = sort_func(out1, axis=0, dtype="int32")
+            out3 = squeeze(out2)
+            out = adv_index(out, [out3])
 
     return out
 
