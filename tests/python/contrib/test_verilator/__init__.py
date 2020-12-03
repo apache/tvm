@@ -1,4 +1,3 @@
-#!/bin/bash -e
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,19 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-
-cd "$(dirname $0)"
-cd "$(git rev-parse --show-toplevel)"
-BUILD_DIR=build-microtvm
-
-if [ ! -e "${BUILD_DIR}" ]; then
-    mkdir "${BUILD_DIR}"
-fi
-cp cmake/config.cmake "${BUILD_DIR}"
-cd "${BUILD_DIR}"
-sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
-sed -i 's/USE_GRAPH_RUNTIME_DEBUG OFF/USE_GRAPH_RUNTIME_DEBUG ON/' config.cmake
-sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
-cmake ..
-make -j4
+""" Infrastructure and tests for Verilator codegen """

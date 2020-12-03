@@ -2806,7 +2806,55 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
     .set_support_level(5)
     .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
 
-/* relay._contrib_reverse_reshape */
+// relay.auto_scheduler_layout_transform
+TVM_REGISTER_NODE_TYPE(AutoSchedulerLayoutTransformAttrs);
+
+Array<te::Tensor> AutoSchedulerLayoutTransformCompute(const Attrs& attrs,
+                                                      const Array<te::Tensor>& inputs,
+                                                      const Type& out_type) {
+  const auto* param = attrs.as<AutoSchedulerLayoutTransformAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{
+      topi::auto_scheduler_layout_transform(inputs[0], param->src_layout, param->dst_layout)};
+}
+
+bool AutoSchedulerLayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                                     const TypeReporter& reporter) {
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  const AutoSchedulerLayoutTransformAttrs* params = attrs.as<AutoSchedulerLayoutTransformAttrs>();
+
+  Array<IndexExpr> dst_shape;
+  std::vector<std::string> dst_axes;
+
+  topi::parse_auto_scheduler_layout(params->dst_layout, &dst_shape, &dst_axes);
+
+  reporter->Assign(types[1], TensorType(dst_shape, data->dtype));
+  return true;
+}
+
+Expr MakeAutoSchedulerLayoutTransform(Expr data, String src_layout, String dst_layout) {
+  auto attrs = make_object<AutoSchedulerLayoutTransformAttrs>();
+  attrs->src_layout = std::move(src_layout);
+  attrs->dst_layout = std::move(dst_layout);
+  static const Op& op = Op::Get("auto_scheduler_layout_transform");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.auto_scheduler_layout_transform")
+    .set_body_typed(MakeAutoSchedulerLayoutTransform);
+
+RELAY_REGISTER_OP("auto_scheduler_layout_transform")
+    .describe(R"code(Transform the input kernel layout.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<AutoSchedulerLayoutTransformAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("auto_scheduler_layout_transform", AutoSchedulerLayoutTransformRel)
+    .set_support_level(5)
+    .set_attr<FTVMCompute>("FTVMCompute", AutoSchedulerLayoutTransformCompute);
+
+// relay._contrib_reverse_reshape
 Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);

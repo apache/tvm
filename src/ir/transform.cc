@@ -74,6 +74,26 @@ PassContext PassContext::Current() {
   }
 }
 
+// linearly scan the pass array to match pass_name
+bool PassArrayContains(const Array<runtime::String>& pass_array, const std::string& pass_name) {
+  for (auto x : pass_array) {
+    if (x == pass_name) return true;
+  }
+  return false;
+}
+
+bool PassContext::PassEnabled(const PassInfo& info) const {
+  if (PassArrayContains(operator->()->disabled_pass, info->name)) {
+    return false;
+  }
+
+  if (PassArrayContains(operator->()->required_pass, info->name)) {
+    return true;
+  }
+
+  return operator->()->opt_level >= info->opt_level;
+}
+
 class PassConfigManager {
  public:
   void Register(std::string key, uint32_t value_type_index) {
@@ -225,15 +245,6 @@ class SequentialNode : public PassNode {
   PassInfo Info() const override { return pass_info; }
 
   /*!
-   * \brief Check if a pass is enabled.
-   *
-   * \param info The pass information.
-   *
-   * \return true if the pass is enabled. Otherwise, false.
-   */
-  bool PassEnabled(const PassInfo& info) const;
-
-  /*!
    * \brief Resolve the pass dependency. It globs all required passes by
    *        a given pass and executes them.
    *
@@ -344,29 +355,6 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
              << "\n";
 }
 
-// linearly scan the pass array to match pass_name
-inline bool PassArrayContains(const Array<runtime::String>& pass_array,
-                              const std::string& pass_name) {
-  for (auto x : pass_array) {
-    if (x == pass_name) return true;
-  }
-  return false;
-}
-
-bool SequentialNode::PassEnabled(const PassInfo& info) const {
-  PassContext ctx = PassContext::Current();
-
-  if (PassArrayContains(ctx->disabled_pass, info->name)) {
-    return false;
-  }
-
-  if (PassArrayContains(ctx->required_pass, info->name)) {
-    return true;
-  }
-
-  return ctx->opt_level >= info->opt_level;
-}
-
 Pass GetPass(const String& pass_name) {
   using tvm::runtime::Registry;
   const runtime::PackedFunc* f = nullptr;
@@ -387,7 +375,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   for (const Pass& pass : passes) {
     ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
-    if (!PassEnabled(pass_info)) continue;
+    if (!pass_ctx.PassEnabled(pass_info)) continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);

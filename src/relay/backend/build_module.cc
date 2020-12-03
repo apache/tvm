@@ -338,7 +338,24 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Fuse the operations if it is needed.
     relay_module = transform::FuseOps()(relay_module);
+
+    // Do layout rewrite for auto-scheduler.
+    if (backend::IsAutoSchedulerEnabled() && targets.size() == 1) {
+      const auto& target = (*targets.begin()).second;
+      Pass major_pass = transform::AutoSchedulerLayoutRewrite();
+
+      if (target->kind->device_type == kDLCPU && pass_ctx.PassEnabled(major_pass->Info())) {
+        With<Target> tctx(target);
+        relay_module = major_pass(relay_module);
+        // Defuse ops to fold constants, then fuse them again
+        relay_module = transform::DefuseOps()(relay_module);
+        relay_module = transform::FoldConstant()(relay_module);
+        relay_module = transform::FuseOps()(relay_module);
+      }
+    }
+
     relay_module = transform::InferType()(relay_module);
+
     // Inline the functions that have been lifted by the module scope.
     //
     // TODO(@zhiics) Note that we need to be careful about the subgraphs with
