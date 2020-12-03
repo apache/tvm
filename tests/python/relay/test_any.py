@@ -1388,7 +1388,8 @@ def test_any_where():
     )
 
 
-@tvm.testing.uses_gpu
+# TODO(kevinthesun): enable gpu test when Thrust is available in ci.
+# @tvm.testing.uses_gpu
 def test_non_max_suppression():
     x0 = relay.var("x0", relay.ty.TensorType((1, relay.Any(), 6), "float32"))
     x1 = relay.var("x1", relay.ty.TensorType((1,), "int32"))
