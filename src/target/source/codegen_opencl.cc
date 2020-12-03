@@ -44,10 +44,10 @@ public:
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
     for (auto& texture : var_access_map_) {
       if (texture.second == read_access) {
-        storage_scope_qualifiers.insert({texture.first, "__read_only "});
+        storage_scope_qualifiers.insert({texture.first, "texture_read"});
       }
       else if (texture.second == write_access) {
-        storage_scope_qualifiers.insert({texture.first, "__write_only "});
+        storage_scope_qualifiers.insert({texture.first, "texture_write"});
       }
       else if (texture.second == (read_access | write_access)) {
         storage_scope_qualifiers.insert({texture.first, ""});
@@ -274,10 +274,10 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
     os << "__global ";
   } else if (scope == "shared") {
     os << "__local ";
-  }
-  else
-  {
-    os << scope;
+  } else if (scope == "texture_read") {
+    os << "__read_only ";
+  } else if (scope == "texture_write") {
+    os << "__write_only ";
   }
 }
 
@@ -324,9 +324,9 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[0], os);
     os << ", ";
     os << "(int2)(";
-    this->PrintExpr(op->args[2], os);
-    os << ", ";
     this->PrintExpr(op->args[1], os);
+    os << ", ";
+    this->PrintExpr(op->args[2], os);
     os << "), ";
     this->PrintExpr(op->args[3], os);
     os << ")";
@@ -336,9 +336,9 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     os << ", ";
     os << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
     os << "(int2)(";
-    this->PrintExpr(op->args[2], os);
-    os << ", ";
     this->PrintExpr(op->args[1], os);
+    os << ", ";
+    this->PrintExpr(op->args[2], os);
     os << "))";
   } else if (op->op.same_as(builtin_call_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);
