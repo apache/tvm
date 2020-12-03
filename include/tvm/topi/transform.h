@@ -605,40 +605,13 @@ inline Tensor strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Quick path for dynamic shape strided slice.
   // This is for ease of use to dynamice strided slice in topi.
-  bool is_dyn = false;
-  for (size_t i = 0; i < src_tensor_dim; ++i) {
-    if (!IsConstInt(x->shape[i])) {
-      is_dyn = true;
-      break;
-    }
-  }
-  if (!is_dyn) {
-    for (size_t i = 0; i < begin.size(); ++i) {
-      if (begin[i].defined() && !IsConstInt(begin[i])) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
-  if (!is_dyn) {
-    for (size_t i = 0; i < end.size(); ++i) {
-      if (end[i].defined() && !IsConstInt(end[i])) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
-  if (!is_dyn) {
-    for (size_t i = 0; i < strides.size(); ++i) {
-      if (strides[i].defined() && !IsConstInt(strides[i])) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
+  bool is_static = IsConstIntArray(x->shape);
+  is_static &= IsConstIntArray(begin);
+  is_static &= IsConstIntArray(end);
+  is_static &= IsConstIntArray(strides);
 
   Array<PrimExpr> out_shape;
-  if (is_dyn) {
+  if (!is_static) {
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       out_shape.push_back(indexdiv(end[i] - begin[i], strides[i]));
     }
