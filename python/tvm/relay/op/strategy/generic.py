@@ -238,6 +238,7 @@ def conv2d_sparse_strategy(attrs, inputs, out_type, target):
     print(f'using sparse conv2d groups:{groups}')
     from envparse import env
     direct_conv = env.bool('TVM_DIRECT_CONV', default=False)
+    gemm_conv = env.bool('TVM_GEMM_CONV', default=False)
     if groups == 1:
         if direct_conv:
             if layout == "NCHW":
@@ -250,7 +251,7 @@ def conv2d_sparse_strategy(attrs, inputs, out_type, target):
                     name="conv2d_sparse.generic")
             else:
                 raise RuntimeError("Unsupported conv2d layout {}".format(layout))
-        else:
+        elif gemm_conv:
             print('Sparse GEMM Conv2d')
             if layout == "NCHW":
                 assert kernel_layout == "OIHW"

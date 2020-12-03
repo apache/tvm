@@ -100,7 +100,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
 
     direct_conv = env.bool('TVM_DIRECT_CONV', default=False)
     # print(f"Direct conv: {os.environ['TVM_DIRECT_CONV']}, {bool(os.environ['TVM_DIRECT_CONV'])}\n\n\n\n")
-
+    gemm_conv = env.bool('TVM_GEMM_CONV', default=False)
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -116,6 +116,13 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.x86.conv2d_nchw_direct),
                     # wrap_topi_schedule(topi.generic.schedule_conv2d_nchw),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw_direct),
+                    name="conv2d_nchw.x86")
+            elif gemm_conv:
+                print('using GEMM convolution')
+                assert kernel_layout == "OIHW"
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_gemm_nchw),
+                    wrap_topi_schedule(topi.nn.schedule_gemm_conv2d_nchw),
                     name="conv2d_nchw.x86")
             else:
                 print('using spatial pack convolution')
