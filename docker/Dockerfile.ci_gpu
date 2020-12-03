@@ -40,6 +40,9 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu_install_sphinx.sh /install/ubuntu_install_sphinx.sh
 RUN bash /install/ubuntu_install_sphinx.sh
 
+COPY install/ubuntu_install_cmake.sh /install/ubuntu_install_cmake.sh
+RUN bash /install/ubuntu_install_cmake.sh
+
 # Enable doxygen for c++ doc build
 RUN apt-get update && apt-get install -y doxygen libprotobuf-dev protobuf-compiler
 
