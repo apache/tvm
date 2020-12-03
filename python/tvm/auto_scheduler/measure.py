@@ -329,6 +329,10 @@ class LocalRunner(ProgramRunner):
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
+        if enable_cpu_cache_flush:
+            number = 1
+            min_repeat_ms = 0
+
         self.__init_handle_by_constructor__(
             _ffi_api.LocalRunner,
             timeout,
