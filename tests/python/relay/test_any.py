@@ -818,6 +818,8 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
     check_result(in_vals, mod, ref_out)
 
 
+# TODO(kevinthesun): enable this test when Thrust is available in ci.
+# @tvm.testing.uses_gpu
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")

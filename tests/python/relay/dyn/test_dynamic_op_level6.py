@@ -53,8 +53,6 @@ def test_dynamic_topk():
         np_indices = np_indices.astype(dtype)
 
         for target, ctx in tvm.testing.enabled_targets():
-            if "nvptx" in target:
-                continue
             for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
