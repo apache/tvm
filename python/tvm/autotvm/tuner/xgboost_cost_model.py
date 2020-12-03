@@ -180,7 +180,7 @@ class XGBoostCostModel(CostModel):
     def fit(self, xs, ys, plan_size):
         tic = time.time()
         self._reset_pool(self.space, self.target, self.task)
-
+        print("xs," ,xs)
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
         y_max = np.max(y_train)
@@ -319,17 +319,20 @@ class XGBoostCostModel(CostModel):
         # free feature cache
         if self.feature_cache.size(self.fea_type) >= 100000:
             self.feature_cache.clear(self.fea_type)
-
+        print(self.fea_type)
         fea_cache = self.feature_cache.get(self.fea_type)
-
+        print("fea_cache: ", fea_cache)
         indexes = np.array(indexes)
         need_extract = [x for x in indexes if x not in fea_cache]
-
+        print("need_extract,", need_extract)
         if need_extract:
             pool = self._get_pool()
             # If we are forking, we can pass arguments in globals for better performance
             if multiprocessing.get_start_method(False) == "fork":
+                print("here in fork")
+                print("self.feature_extract_func", self.feature_extract_func)
                 feas = pool.map(self.feature_extract_func, need_extract)
+                print("feas", feas)
             else:
                 args = [(self.space.get(x), self.target, self.task) for x in need_extract]
                 feas = pool.map(self.feature_extract_func, args)
@@ -341,6 +344,7 @@ class XGBoostCostModel(CostModel):
             if fea_cache[idx] is not None:
                 feature_len = fea_cache[idx].shape[-1]
                 break
+        print("Feature_len", feature_len)
 
         ret = np.empty((len(indexes), feature_len), dtype=np.float32)
         for i, ii in enumerate(indexes):

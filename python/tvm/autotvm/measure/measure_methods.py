@@ -205,6 +205,10 @@ class RPCRunner(Runner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    enable_adaptive_evaluator: bool, optional
+        Whether to enable adaptive evaluator, which will early stop the evaluation 
+        when the coefficient of variation among micro-batches 
+        is smaller than the threshold
     """
 
     def __init__(
@@ -221,6 +225,7 @@ class RPCRunner(Runner):
         cooldown_interval=0.1,
         check_correctness=False,
         enable_cpu_cache_flush=False,
+        enable_adaptive_evaluator=False
     ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
@@ -239,7 +244,7 @@ class RPCRunner(Runner):
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.check_correctness = check_correctness
         self.cooldown_interval = cooldown_interval
-
+        self.enable_adaptive_evaluator = enable_adaptive_evaluator
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
     def set_task(self, task):
@@ -315,6 +320,7 @@ class RPCRunner(Runner):
                     self.ref_input,
                     self.ref_output,
                     self.enable_cpu_cache_flush,
+                    self.enable_adaptive_evaluator
                 )
                 futures.append(ret)
 
@@ -367,6 +373,10 @@ class LocalRunner(RPCRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    enable_adaptive_evaluator: bool, optional
+        Whether to enable adaptive evaluator, which will early stop the evaluation 
+        when the coefficient of variation among micro-batches 
+        is smaller than the threshold
     Note
     ----
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
@@ -382,6 +392,7 @@ class LocalRunner(RPCRunner):
         cooldown_interval=0.1,
         check_correctness=False,
         enable_cpu_cache_flush=False,
+        enable_adaptive_evaluator=False
     ):
         super(LocalRunner, self).__init__(
             "",
@@ -396,6 +407,7 @@ class LocalRunner(RPCRunner):
             cooldown_interval=cooldown_interval,
             check_correctness=check_correctness,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
+            enable_adaptive_evaluator=enable_adaptive_evaluator
         )
         self.tracker = None
         self.server = None
@@ -503,98 +515,6 @@ class _WrappedBuildFunc:
             return BuildResult(None, None, e, time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
-
-def time_evaluate(
-    func,
-    ctx,
-    args,
-    flop,
-    number,
-    repeat,
-    min_repeat_ms,
-    enable_cpu_cache_flush=False, 
-    enable_adaptive_evalutor=False,
-    micro_batch_size=50,
-    coef_variation=0.1):
-    """Wrap the time evaluator in one function
-
-    Parameters
-    ----------
-    func: 
-    ctx:
-    args:
-    flop: int
-        The number of float point operations of the task, used to calculate the 
-        GFLOPS performance number.
-    number: int
-        The number of times to run the generated code for taking average.
-        We call these runs as one `repeat` of measurement.
-    repeat : int, optional
-        The number of times to repeat the measurement.
-        In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up and will be discarded.
-        The returned result contains `repeat` costs,
-        each of which is an average of `number` costs.
-    min_repeat_ms: int, optional
-        The minimum duration of one `repeat` in milliseconds.
-        By default, one `repeat` contains `number` runs. If this parameter is set,
-        the parameters `number` will be dynamically adjusted to meet the
-        minimum duration requirement of one `repeat`.
-        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
-        will be automatically increased.
-    enable_adaptive_evaluator: bool, optional
-        Whether to enable adaptive evaluator, which will early stop the evaluation 
-        when the coefficient of variation among micro-batches 
-        is smaller than the threshold
-    micro_batch_size: int, optional
-        The size of micro_batch, which the original number of times to run will be 
-        partitioned into.
-    max_coef_variation: float, optional
-        The threshold value of coefficient of variation to trigger the early-stopping
-    """
-    f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
-
-    if enable_adaptive_evalutor:
-        # Partition the evaluation into micro-batches
-        cur_number = 0
-        costs = []
-        batc_pfms = []
-        while cur_number<number*repeat:
-            cur_number += micro_batch_size
-            time_f = func.time_evaluator(
-                func.entry_name,
-                ctx,
-                number=micro_batch_size,
-                repeat=1,
-                min_repeat_ms=min_repeat_ms,
-                f_preproc=f_prepare,
-            )
-            cost = time_f(*args).results
-            costs.append(cost)
-            batc_pfms.append(flop/cost)
-            # Calculate the cofficient of variation with current all micro-batches
-            cv = np.std(batc_pfms)/np.mean(batc_pfms)
-            if cur_number>micro_batch_size*2 and cv<max_coef_variation:
-                break
-        return costs
-
-    else:
-        # Limitation:
-        # We can not get PackFunction directly in the remote mode as it is wrapped
-        # under the std::function. We could lift the restriction later once we fold
-        # the PackedFunc as an object. Currently, we pass function name to work
-        # around it.
-        time_f = func.time_evaluator(
-            func.entry_name,
-            ctx,
-            number=number,
-            repeat=repeat,
-            min_repeat_ms=min_repeat_ms,
-            f_preproc=f_prepare,
-        )
-        costs = time_f(*args).results
-    return costs
-
 def run_through_rpc(
     measure_input,
     build_result,
@@ -606,6 +526,7 @@ def run_through_rpc(
     ref_input=None,
     ref_output=None,
     enable_cpu_cache_flush=False,
+    enable_adaptive_evaluator=False
 ):
     """Run a generated library through rpc
 
@@ -645,6 +566,10 @@ def run_through_rpc(
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    enable_adaptive_evaluator: bool, optional
+        Whether to enable adaptive evaluator, which will early stop the evaluation 
+        when the coefficient of variation among micro-batches 
+        is smaller than the threshold
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -668,6 +593,9 @@ def run_through_rpc(
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
 
+        flop = measure_input.task.flop
+        f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
+
         # set input
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
@@ -683,9 +611,46 @@ def run_through_rpc(
                 random_fill(arg)
             ctx.sync()
 
-        flop = measure_input.task.flop
-        costs = time_evaluate(func, ctx, args, number, repeat, min_repeat_ms, enable_cpu_cache_flush,)
-
+        costs = []
+        if enable_adaptive_evaluator:
+            micro_batch_size = 50
+            max_coef_variation = 0.1
+            # Partition the evaluation into micro-batches
+            cur_number = 0
+            batc_pfms = []
+            while cur_number<number*repeat:
+                cur_number += micro_batch_size
+                # Limitation:
+                # We can not get PackFunction directly in the remote mode as it is wrapped
+                # under the std::function. We could lift the restriction later once we fold
+                # the PackedFunc as an object. Currently, we pass function name to work
+                # around it.
+                time_f = func.time_evaluator(
+                    func.entry_name,
+                    ctx,
+                    number=micro_batch_size,
+                    repeat=1,
+                    min_repeat_ms=min_repeat_ms,
+                    f_preproc=f_prepare,
+                )
+                cost = np.mean(time_f(*args).results)
+                costs.append(cost)
+                batc_pfms.append(flop/cost)
+                # Calculate the cofficient of variation with current all micro-batches
+                cv = np.std(batc_pfms)/np.mean(batc_pfms)
+                if cur_number>micro_batch_size*2 and cv<max_coef_variation:
+                    break
+        else:
+            time_f = func.time_evaluator(
+                func.entry_name,
+                ctx,
+                number=number,
+                repeat=repeat,
+                min_repeat_ms=min_repeat_ms,
+                f_preproc=f_prepare,
+            )
+            costs = time_f(*args).results
+        
         # clean up remote files
         remote.remove(build_result.filename)
         remote.remove(os.path.splitext(build_result.filename)[0] + ".so")

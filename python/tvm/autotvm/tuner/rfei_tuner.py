@@ -47,29 +47,19 @@ class RFEITuner(ModelBasedTuner):
         'knob' is faster.
 
         For cross-device or cross-operator tuning, you can use 'curve' only.
-    loss_type: str
-        If is 'reg', use regression loss to train cost model.
-        The cost model predicts the normalized flops.
-        If is 'rank', use pairwise rank loss to train cost model.
-        The cost model predicts relative rank score.
-
     num_threads: int, optional
         The number of threads.  
-    
     optimizer: str or ModelOptimizer, optional
         If is 'sa', use a default simulated annealing optimizer.
         Otherwise it should be a ModelOptimizer object.
-
     diversity_filter_ratio: int or float, optional
         If is not None, the tuner will first select
         top-(plan_size * diversity_filter_ratio) candidates according to the cost model
         and then pick batch_size of them according to the diversity metric.
-
     log_interval: int, optional
         The verbose level.
         If is 0, output nothing.
         Otherwise, output debug information every `verbose` iterations.
-
     uncertainty_aware: bool, optional
         If it is false, disable the dynamic uncertainty-aware searching process.
     """
@@ -78,15 +68,18 @@ class RFEITuner(ModelBasedTuner):
         task, 
         plan_size=32,
         feature_type='itervar',
-        loss_type='rank', 
         num_threads=None,
         optimizer='sa', 
         diversity_filter_ratio=None, 
         log_interval=50, 
-        uncertainty_aware=False):
+        uncertainty_aware=True):
         
         
-        cost_model = RFEICostModel(task, fea_type=feature_type)
+        cost_model = RFEICostModel(
+            task,
+            feature_type=feature_type,
+            num_threads=num_threads,
+            log_interval=log_interval//2)
         if optimizer == 'sa':
             optimizer = SimulatedAnnealingOptimizer(task, log_interval=log_interval, parallel_size=plan_size*2)
         else:
@@ -98,6 +91,7 @@ class RFEITuner(ModelBasedTuner):
             )
         
     def tune(self, *args, **kwargs):  # pylint: disable=arguments-differ
-        super(RFTuner, self).tune(*args, **kwargs)
+        super(RFEITuner, self).tune(*args, **kwargs)
+
         # manually close pool to avoid multiprocessing issues
         self.cost_model._close_pool()

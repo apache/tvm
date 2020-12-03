@@ -290,10 +290,8 @@ class ModelBasedTuner(Tuner):
             # Update the dynamic_ep which controls the EE balance
             if self.uncertainty_aware:
                 samples = np.array(sample_ints(0, len(self.space), 20))
-                prediction_variation = self.cost_model._prediction_variation(samples)
-
+                _, prediction_variation = self.cost_model._prediction_variation(samples)
                 self.dynamic_ep = min(1, prediction_variation/self.best_flops)
-
             self.trials = maximums
             self.trial_pt = 0
             self.train_ct += 1

@@ -17,9 +17,20 @@
 # pylint: disable=invalid-name
 """RandomForestRegressor+ExpectedImprovement as a cost model"""
 
+import multiprocessing
+import logging
+import time
+
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from scipy.stats import norm
+from .. import feature
+from ..utils import get_rank
+from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
 
-from .xgboost_cost_model import _extract_curve_feature_index,_extract_knob_feature_index, _extract_itervar_feature_index
+logger = logging.getLogger("autotvm")
+
 
 class RFEICostModel(CostModel):
     """RandomForestRegressor+ExpectedImprovement as a cost model
@@ -53,29 +64,35 @@ class RFEICostModel(CostModel):
         The number of threads.
     log_interval: int, optional
         If is not none, the cost model will print training log every `log_interval` iterations.
-    upper_model: XGBoostCostModel, optional
+    upper_model: RFEICostModel, optional
         The upper model used in transfer learning
+    n_estimators: int, optional
+        The number of estimators of the RandomForestRegressor
+    random_state: int, optional
+        The random state of initializing the RandomForestRegressor
+    max_features: int, optional
+        The max features of the RandomForestRegressor
     """
+
     def __init__(
-        self, task, fea_type="itervar", num_threads=None, log_interval=25, upper_model=None
+        self, task, feature_type, num_threads=None, log_interval=25, upper_model=None, n_estimators=10, random_state=2, max_features=10
     ):
-        super(RFEICostModel, self).__init__()
         self.task = task
         self.target = task.target
         self.space = task.config_space
-        
-        self.prior = RandomForestRegressor(n_estimators=10, random_state=2, max_features=10)
-        self.fea_type = fea_type
+        self.prior = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state, max_features=max_features)
+        self.fea_type = feature_type
         self.num_threads = num_threads
         self.log_interval = log_interval
-        if fea_type == 'itervar':
+
+        if feature_type == "itervar":
             self.feature_extract_func = _extract_itervar_feature_index
-        elif fea_type == 'knob':
+        elif feature_type == "knob":
             self.feature_extract_func = _extract_knob_feature_index
-        elif fea_type == 'curve':
+        elif feature_type == "curve":
             self.feature_extract_func = _extract_curve_feature_index
         else:
-            raise RuntimeError("Invalid feature type " + fea_type)
+            raise RuntimeError("Invalid feature type " + feature_type)
 
         if upper_model:  # share a same feature cache with upper model
             self.feature_cache = upper_model.feature_cache
@@ -124,31 +141,26 @@ class RFEICostModel(CostModel):
         return 1.0 / (2 ** (self._sample_size / 64.0))
 
     def fit(self, xs, ys, plan_size):
-        """Fit to training data
-
-        Parameters
-        ----------
-        xs: Array of int
-            indexes of configs in the config space
-        ys: Array of float
-            The speed (flop, float number operations per second)
-        plan_size: int
-            The plan size of tuner
-        """
         tic = time.time()
-
+        self._reset_pool(self.space, self.target, self.task)
         x_train = self._get_feature(xs)
+        y_train = np.array(ys)
+        y_max = np.max(y_train)
         self.best_flops = max(ys)
+        y_train = y_train / max(y_max, 1e-8)
+
+        valid_index = y_train > 1e-6
+
+        self._sample_size = len(x_train)
         self.prior.fit(x_train, ys)
 
         logger.debug(
-            "RF train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
+            "RFEI train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
             time.time() - tic,
             len(xs),
             len(xs) - np.sum(valid_index),
             self.feature_cache.size(self.fea_type),
         )
-
 
     def fit_log(self, records, plan_size):
         tic = time.time()
@@ -159,7 +171,7 @@ class RFEICostModel(CostModel):
             if inp.task.name == self.task.name:
                 data.append((inp, res))
 
-        logger.debug("RF load %d entries from history log file", len(data))
+        logger.debug("RFEI load %d entries from history log file", len(data))
 
         # extract feature
         self._reset_pool(self.space, self.target, self.task)
@@ -186,16 +198,25 @@ class RFEICostModel(CostModel):
         if len(xs) < 500:  # no enough samples
             return False
 
+        xs, ys = [], []
+        for x, y in res:
+            if len(x) == fea_len:
+                xs.append(x)
+                ys.append(y)
+
+        if len(xs) < 500:  # no enough samples
+            return False
+
         xs, ys = np.array(xs), np.array(ys)
 
         self.best_flops = max(ys)
         self.prior.fit(xs, ys)
 
-        logger.debug("RF train: %.2f\tobs: %d", time.time() - tic, len(xs))
+        logger.debug("RFEI train: %.2f\tobs: %d", time.time() - tic, len(xs))
 
         return True
 
-    def predict(self, xs, output_margin=False):
+    def predict(self, xs):
         predicts, _ = self._prediction_variation(xs)
         return predicts
 
@@ -225,7 +246,7 @@ class RFEICostModel(CostModel):
 
     def spawn_base_model(self):
         return RFEICostModel(
-            self.task, self.fea_type, self.loss_type, self.num_threads, self.log_interval, self
+            self.task, self.fea_type, self.num_threads, self.log_interval, self
         )
 
     def _get_feature(self, indexes):
@@ -233,12 +254,9 @@ class RFEICostModel(CostModel):
         # free feature cache
         if self.feature_cache.size(self.fea_type) >= 100000:
             self.feature_cache.clear(self.fea_type)
-
         fea_cache = self.feature_cache.get(self.fea_type)
-
         indexes = np.array(indexes)
         need_extract = [x for x in indexes if x not in fea_cache]
-
         if need_extract:
             pool = self._get_pool()
             # If we are forking, we can pass arguments in globals for better performance
@@ -265,7 +283,120 @@ class RFEICostModel(CostModel):
     def __del__(self):
         self._close_pool()
 
+
 # Global variables for passing arguments to extract functions.
 _extract_space = None
 _extract_target = None
 _extract_task = None
+
+
+def _extract_itervar_feature_index(args):
+    """extract iteration var feature for an index in extract_space"""
+    try:
+        if multiprocessing.get_start_method(False) == "fork":
+            config = _extract_space.get(args)
+            with _extract_target:
+                sch, fargs = _extract_task.instantiate(config)
+        else:
+            config, target, task = args
+            with target:
+                sch, fargs = task.instantiate(config)
+        fea = feature.get_itervar_feature_flatten(sch, fargs, take_log=True)
+        fea = np.concatenate((fea, list(config.get_other_option().values())))
+        return fea
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+def _extract_itervar_feature_log(arg):
+    """extract iteration var feature for log items"""
+    try:
+        inp, res = arg
+        config = inp.config
+        with inp.target:
+            sch, args = inp.task.instantiate(config)
+        fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
+        x = np.concatenate((fea, list(config.get_other_option().values())))
+
+        if res.error_no == 0:
+            y = inp.task.flop / np.mean(res.costs)
+        else:
+            y = 0.0
+        return x, y
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+def _extract_knob_feature_index(args):
+    """extract knob feature for an index in extract_space"""
+    try:
+        if multiprocessing.get_start_method(False) == "fork":
+            config = _extract_space.get(args)
+        else:
+            config = args[0]
+        return config.get_flatten_feature()
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+def _extract_knob_feature_log(arg):
+    """extract knob feature for log items"""
+    try:
+        inp, res = arg
+        config = inp.config
+        x = config.get_flatten_feature()
+
+        if res.error_no == 0:
+            with inp.target:  # necessary, for calculating flops of this task
+                inp.task.instantiate(config)
+            y = inp.task.flop / np.mean(res.costs)
+        else:
+            y = 0.0
+        return x, y
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+def _extract_curve_feature_index(args):
+    """extract sampled curve feature for an index in extract_space"""
+    try:
+        if multiprocessing.get_start_method(False) == "fork":
+            config = _extract_space.get(args)
+            with _extract_target:
+                sch, fargs = _extract_task.instantiate(config)
+        else:
+            config, target, task = args
+            with target:
+                sch, fargs = task.instantiate(config)
+        fea = feature.get_buffer_curve_sample_flatten(sch, fargs, sample_n=20)
+        fea = np.concatenate((fea, list(config.get_other_option().values())))
+        return np.array(fea)
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+def _extract_curve_feature_log(arg):
+    """extract sampled curve feature for log items"""
+    try:
+        inp, res = arg
+        config = inp.config
+        with inp.target:
+            sch, args = inp.task.instantiate(config)
+        fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
+        x = np.concatenate((fea, list(config.get_other_option().values())))
+
+        if res.error_no == 0:
+            y = inp.task.flop / np.mean(res.costs)
+        else:
+            y = 0.0
+        return x, y
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+
+
+
+
+
+
+
