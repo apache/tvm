@@ -136,7 +136,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 network = "resnet-50"
 batch_size = 1
 layout = "NHWC"
-target = tvm.target.Target("llvm -mcpu=skylake-avx512")
+target = tvm.target.Target("llvm -mcpu=core-avx2")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
