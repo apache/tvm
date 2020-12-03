@@ -530,7 +530,14 @@ class PrintTableInfo(TaskSchedulerCallback):
             )
             speed_str = (
                 "%.2f"
-                % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
+                % (
+                    max(
+                        task_scheduler.tasks[i].compute_dag.flop_ct
+                        / task_scheduler.best_costs[i]
+                        / 1e9,
+                        1,
+                    )
+                )
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )

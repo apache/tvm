@@ -344,6 +344,7 @@ def rewrite_compute_body(compute_tensor, new_layout):
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
 
+
 def is_auto_scheduler_enabled():
     """Return whether the auto-scheduler is enabled
 
@@ -353,4 +354,3 @@ def is_auto_scheduler_enabled():
         Whether the auto-scheduler is enabled
     """
     return PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
-
