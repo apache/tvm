@@ -27,10 +27,13 @@ wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
 sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
 sudo apt update
-sudo apt install -y --no-install-recommends git cmake ninja-build gperf \
-  ccache dfu-util device-tree-compiler wget \
-  python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
-  make gcc gcc-multilib g++-multilib libsdl2-dev
+# NOTE: latest cmake cannot be installed due to
+# https://github.com/zephyrproject-rtos/zephyr/issues/30232
+sudo apt install -y --no-install-recommends git \
+     cmake=3.18.4-0kitware1 cmake-data=3.18.4-0kitware1 \
+     ninja-build gperf ccache dfu-util device-tree-compiler wget \
+     python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
+     make gcc gcc-multilib g++-multilib libsdl2-dev
 
 # Avahi, so that ssh microtvm works.
 # apt install -y avahi-daemon

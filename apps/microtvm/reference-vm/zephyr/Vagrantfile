@@ -20,6 +20,10 @@ Vagrant.configure("2") do |config|
 
   tvm_home = "../../../.."
   dirs_to_mount = [Pathname.new(Pathname.new(tvm_home).expand_path())]
+  if ENV.has_key?("TVM_PROJECT_DIR") then
+    dirs_to_mount.append(ENV["TVM_PROJECT_DIR"])
+    puts "NOTE: also configuring project dir: %s" % [dirs_to_mount[-1]]
+  end
 
   git_file = Pathname.new(tvm_home + "/.git")
   if git_file.ftype() == "file" then
