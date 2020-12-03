@@ -28,6 +28,7 @@ import threading
 
 import tvm
 from tvm import autotvm, te, transform
+from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import expr as _expr

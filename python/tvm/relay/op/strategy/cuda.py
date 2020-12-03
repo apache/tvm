@@ -19,7 +19,6 @@
 from tvm import topi
 import tvm
 from tvm.auto_scheduler import is_auto_scheduler_enabled
-from tvm.ir.transform import PassContext
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm._ffi import get_global_func
