@@ -599,9 +599,9 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
  * \return A Tensor whose op member is the split operation
  */
 inline Tensor strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
-		            const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
-			    std::string slice_mode = "end", std::string name = "T_strided_slice",
-			    std::string tag = kInjective) {
+                            const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
+                            std::string slice_mode = "end", std::string name = "T_strided_slice",
+                            std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Quick path for dynamic shape strided slice.
   // This is for ease of use to dynamice strided slice in topi.
@@ -616,7 +616,7 @@ inline Tensor strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
     for (size_t i = 0; i < begin.size(); ++i) {
       if (begin[i].defined() && !IsConstInt(begin[i])) {
         is_dyn = true;
-	break;
+        break;
       }
     }
   }
