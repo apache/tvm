@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
 import tvm
-from tvm.ir.transform import PassContext
+from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from tvm._ffi import get_global_func
@@ -230,10 +230,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 )
 
             # register auto-scheduler implementations
-            use_auto_scheduler = PassContext.current().config.get(
-                "relay.backend.use_auto_scheduler", False
-            )
-            if use_auto_scheduler and judge_winograd_auto_scheduler:
+            if is_auto_scheduler_enabled() and judge_winograd_auto_scheduler:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
                     naive_schedule,  # this implementation should never be picked by autotvm
@@ -460,7 +457,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
                 name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda",
             )
 
-        if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+        if is_auto_scheduler_enabled():
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
                 naive_schedule,  # this implementation should never be picked by autotvm

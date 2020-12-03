@@ -35,22 +35,26 @@ namespace auto_scheduler {
 TVM_REGISTER_NODE_TYPE(HardwareParamsNode);
 TVM_REGISTER_NODE_TYPE(SearchTaskNode);
 
-HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes) {
+HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                               int max_shared_memory_per_block, int max_registers_per_block,
+                               int max_threads_per_block, int max_vthread_extent, int warp_size) {
   auto node = make_object<HardwareParamsNode>();
   node->num_cores = num_cores;
   node->vector_unit_bytes = vector_unit_bytes;
   node->cache_line_bytes = cache_line_bytes;
+  node->max_shared_memory_per_block = max_shared_memory_per_block;
+  node->max_registers_per_block = max_registers_per_block;
+  node->max_threads_per_block = max_threads_per_block;
+  node->max_vthread_extent = max_vthread_extent;
+  node->warp_size = warp_size;
   data_ = std::move(node);
 }
 
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
   if (target->kind->device_type == kDLCPU) {
-    return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64);
+    return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
   } else if (target->kind->device_type == kDLGPU) {
-    auto hardware_params = HardwareParams(-1, 16, 64);
-    auto* p_hardware_params = hardware_params.CopyOnWrite();
-
     auto ctx = TVMContext{kDLGPU, 0};
     auto func = tvm::runtime::Registry::Get("device_api.gpu");
     ICHECK(func != nullptr) << "Cannot find GPU device_api in registry";
@@ -58,31 +62,30 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 
     tvm::runtime::TVMRetValue ret;
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
-    p_hardware_params->max_shared_memory_per_block = ret;
+    int max_shared_memory_per_block = ret;
 
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock, &ret);
-    p_hardware_params->max_registers_per_block = ret;
+    int max_registers_per_block = ret;
 
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
-    p_hardware_params->max_threads_per_block = ret;
+    int max_threads_per_block = ret;
 
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
-    p_hardware_params->warp_size = ret;
+    int warp_size = ret;
 
-    p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
-
-    return hardware_params;
+    int max_vthread_extent = warp_size / 4;
+    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
+                          max_threads_per_block, max_vthread_extent, warp_size);
   } else if (target->kind->device_type == kDLMetal) {
     // Reference: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
     // This setting looks working for Metal GPUs later than A10
-    auto hardware_params = HardwareParams(-1, 16, 64);
-    auto* p_hardware_params = hardware_params.CopyOnWrite();
-    p_hardware_params->max_shared_memory_per_block = 32 * 1024;
-    p_hardware_params->max_registers_per_block = 4 * 1024;
-    p_hardware_params->max_threads_per_block = 1024;
-    p_hardware_params->warp_size = 8;
-    p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
-    return hardware_params;
+    int max_shared_memory_per_block = 32 * 1024;
+    int max_registers_per_block = 4 * 1024;
+    int max_threads_per_block = 1024;
+    int warp_size = 8;
+    int max_vthread_extent = warp_size / 4;
+    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
+                          max_threads_per_block, max_vthread_extent, warp_size);
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }
@@ -106,8 +109,12 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
-    .set_body_typed([](int num_cores, int vector_unit_bytes, int cache_line_bytes) {
-      return HardwareParams(num_cores, vector_unit_bytes, cache_line_bytes);
+    .set_body_typed([](int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                       int max_shared_memory_per_block, int max_registers_per_block,
+                       int max_threads_per_block, int max_vthread_extent, int warp_size) {
+      return HardwareParams(num_cores, vector_unit_bytes, cache_line_bytes,
+                            max_shared_memory_per_block, max_registers_per_block,
+                            max_threads_per_block, max_vthread_extent, warp_size);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")

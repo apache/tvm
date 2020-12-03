@@ -153,7 +153,9 @@ def test_gpu_feature():
             inp.task.workload_key,
             inp.task.target,
             None,
-            auto_scheduler.HardwareParams(100000, 16, 64),
+            auto_scheduler.HardwareParams(
+                100000, 16, 64, 1 << 30, 1 << 30, 1 << 30, 1 << 30, 1 << 30
+            ),
         )
 
         state = dag.infer_bound_from_state(inputs[0].state)

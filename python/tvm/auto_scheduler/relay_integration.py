@@ -28,6 +28,7 @@ import threading
 
 import tvm
 from tvm import autotvm, te, transform
+from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import expr as _expr
@@ -342,3 +343,14 @@ def rewrite_compute_body(compute_tensor, new_layout):
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
+
+
+def is_auto_scheduler_enabled():
+    """Return whether the auto-scheduler is enabled.
+
+    Parameters
+    ----------
+    enabled: bool
+        Whether the auto-scheduler is enabled
+    """
+    return PassContext.current().config.get("relay.backend.use_auto_scheduler", False)
