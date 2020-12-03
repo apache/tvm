@@ -215,16 +215,16 @@ stage('Build') {
       }
     }
   },
-  'BUILD : arm': {
-    node('ARM') {
-      ws(per_exec_ws("tvm/build-arm")) {
-        init_git()
-        sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
-        make(ci_arm, 'build', '-j4')
-        pack_lib('arm', tvm_multilib)
-      }
-    }
-  },
+  // 'BUILD : arm': {
+  //   node('ARM') {
+  //     ws(per_exec_ws("tvm/build-arm")) {
+  //       init_git()
+  //       sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
+  //       make(ci_arm, 'build', '-j4')
+  //       pack_lib('arm', tvm_multilib)
+  //     }
+  //   }
+  // },
   'BUILD: QEMU': {
     node('CPU') {
       ws(per_exec_ws("tvm/build-qemu")) {
@@ -269,19 +269,19 @@ stage('Unit Test') {
       }
     }
   },
-  'python3: arm': {
-    node('ARM') {
-      ws(per_exec_ws("tvm/ut-python-arm")) {
-        init_git()
-        unpack_lib('arm', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_python_setup.sh"
-          sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
-          // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
-        }
-      }
-    }
-  },
+  // 'python3: arm': {
+  //   node('ARM') {
+  //     ws(per_exec_ws("tvm/ut-python-arm")) {
+  //       init_git()
+  //       unpack_lib('arm', tvm_multilib)
+  //       timeout(time: max_time, unit: 'MINUTES') {
+  //         sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_python_setup.sh"
+  //         sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
+  //         // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
+  //       }
+  //     }
+  //   }
+  // },
   'java: GPU': {
     node('GPU') {
       ws(per_exec_ws("tvm/ut-java")) {
