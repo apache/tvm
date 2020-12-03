@@ -561,29 +561,9 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tag="topk_gpu",
     )
 
-    is_dyn = not isinstance(k, int)
-    for dim in data.shape:
-        if not isinstance(dim, tvm.tir.IntImm):
-            is_dyn = True
-            break
-
-    if not is_dyn:
-        if k > 0:
-            beg = [0] * ndim
-            end = data.shape[:axis] + [k] + data.shape[axis:]
-            out = [strided_slice(o, beg, end) for o in out]
-    else:
+    if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = []
-        for i in range(len(data.shape)):
-            if i == axis:
-                if isinstance(k, int):
-                    end.append(data.shape[i] if k <= 0 else k)
-                else:
-                    end.append(tvm.te.size_var("dim"))
-            else:
-                end.append(data.shape[i])
-
+        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
         strides = [1] * ndim
         out = [strided_slice(o, beg, end, strides) for o in out]
 
