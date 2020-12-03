@@ -227,6 +227,7 @@ Second example is for a lightly-layout sensitive operator - batch normalization.
 ********
 4. Usage
 ********
+.. _convert-layout-usage:
 
 ConvertLayout pass is extremely easy to use. The pass is not a part of default relay.build pipeline. The intended usage is to call it between the framework-to-relay parser and relay.build module call.
 
