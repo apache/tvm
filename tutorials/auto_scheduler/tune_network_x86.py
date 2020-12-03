@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-scheduling a Neural Network for NVIDIA GPU
+Auto-scheduling a Neural Network for x86 GPU
 ===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
-network for NVIDIA GPU with the auto-scheduler.
+network for x86 CPU with the auto-scheduler.
 
 To auto-tune a neural network, we partition the network into small subgraphs and 
 tune them independently. Each subgraph is treated as one search task.
@@ -129,11 +129,13 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
     return mod, params, input_shape, output_shape
 
 
-# Define the neural network and compilation target
-network = "resnet-18"
+# Define the neural network and compilation target.
+# If the target machine supports avx512 instructions, replace the
+# "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
+network = "resnet-50"
 batch_size = 1
 layout = "NHWC"
-target = tvm.target.Target("cuda")
+target = tvm.target.Target("llvm -mcpu=core-avx2")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
@@ -162,34 +164,26 @@ for idx, task in enumerate(tasks):
 # ------------
 # Now, we set some options for tuning and launch the search tasks
 #
-# * :code:`measure_ctx` launches a different process for measurement to
-#   provide isolation. It can protect the master process from GPU crashes
-#   during measurement and avoid other runtime conflicts.
-# * :code:`min_repeat_ms` defines the minimum duration of one "repeat" in every measurement.
-#   This can warmup the GPU, which is necessary to get accurate measurement results.
-#   Typically, we recommend a value >= 300 ms.
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the tuning.
 #   You can set it to a small number (e.g., 200) for a fast demonstrative run.
-#   In practice, we recommend setting it around :code:`900 * len(tasks)`,
+#   In practice, we recommend setting it around :code:`800 * len(tasks)`,
 #   which is typically enough for the search to converge.
-#   For example, there are 24 tasks in resnet-18, so we can set it as 20000.
+#   For example, there are 29 tasks in resnet-50, so we can set it as 20000.
 #   You can adjust this parameter according to your time budget.
 # * In addition, we use :code:`RecordToFile` to dump measurement records into a log file,
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
 # * see :any:`auto_scheduler.TuningOptions`,
-#   :any:`auto_scheduler.LocalRPCMeasureContext` for more parameters.
+#   :any:`auto_scheduler.LocalRunner` for more parameters.
 #
 
 
 def run_tuning():
     print("Begin tuning...")
-    measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=1, min_repeat_ms=300, timeout=10)
-
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
-        runner=measure_ctx.runner,
+        runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
 
@@ -251,7 +245,7 @@ def run_tuning():
 #   The last line also prints the total number of measurement trials,
 #   total time spent on auto-tuning and the id of the next task to tune.
 #
-#   There will also be some "dmlc::Error"s and CUDA errors, because the
+#   There will also be some "dmlc::Error"s errors, because the
 #   auto-scheduler will try some invalid schedules.
 #   You can safely ignore them if the tuning can continue, because these
 #   errors are isolated from the main process.
@@ -298,7 +292,7 @@ print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), n
 # 1. During the tuning, the auto-scheduler needs to compile many programs and
 #    extract feature from them. This part is CPU-intensive,
 #    so a high-performance CPU with many cores is recommended for faster search.
-# 2. If you have multiple GPUs, you can use all of them for measurements to
+# 2. If you have multiple target CPUs, you can use all of them for measurements to
 #    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
