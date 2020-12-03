@@ -59,10 +59,10 @@ from tvm.contrib import graph_runtime
 # We can also load models from MXNet, ONNX, PyTorch, and TensorFlow
 # (see :ref:`front end tutorials<tutorial-frontend>`).
 #
-# Note that although auto-scheduler can work with any layouts,
-# we found that the best performance is typically archived with NHWC layout
-# for convolutional neural networks, so we use NHWC layout in this tutorial.
-#
+# For convolutional neural networks, although auto-scheduler can work
+# correctly with any layout, we found the best performance is typically
+# achieved with NHWC layout. We also implemented more optimizations for
+# NHWC layouts. So it is recommended to convert your models to NHWC layout. 
 
 
 def get_network(name, batch_size, layout="NHWC", dtype="float32"):

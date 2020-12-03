@@ -59,10 +59,10 @@ from tvm.contrib import graph_runtime
 # We can also load models from MXNet, ONNX, PyTorch, and TensorFlow
 # (see :ref:`front end tutorials<tutorial-frontend>`).
 #
-# Note that although auto-scheduler can work with any layouts,
-# we found that the best performance is typically archived with NHWC layout
-# for convolutional neural networks, so we use NHWC layout in this tutorial.
-#
+# For convolutional neural networks, although auto-scheduler can work
+# correctly with any layout, we found the best performance is typically
+# achieved with NHWC layout. We also implemented more optimizations for
+# NHWC layouts. So it is recommended to convert your models to NHWC layout. 
 
 
 def get_network(name, batch_size, layout="NHWC", dtype="float32"):
@@ -134,8 +134,8 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 # "llvm -mcpu=core-avx2" with "llvm -mcpu=skylake-avx512"
 network = "resnet-50"
 batch_size = 1
-layout = "NHWC"
-target = tvm.target.Target("llvm -mcpu=core-avx2")
+layout = "NCHW"
+target = tvm.target.Target("llvm -mcpu=skylake-avx512")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
@@ -182,7 +182,7 @@ def run_tuning():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=200,  # change this to 20000 to achieve the best performance
+        num_measure_trials=20000,  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
@@ -193,7 +193,7 @@ def run_tuning():
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-# run_tuning()
+run_tuning()
 
 
 ######################################################################
