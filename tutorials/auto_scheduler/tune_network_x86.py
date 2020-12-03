@@ -16,7 +16,7 @@
 # under the License.
 """
 Auto-scheduling a Neural Network for x86 CPU
-===============================================
+============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
