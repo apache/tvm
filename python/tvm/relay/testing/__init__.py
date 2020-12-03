@@ -72,7 +72,15 @@ def _np_randn_from_type(t, scale=1, mean=0):
 
 
 def check_grad(
-    func, inputs=None, test_inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, mean=0, mode="higher_order"
+    func,
+    inputs=None,
+    test_inputs=None,
+    eps=1e-6,
+    atol=1e-5,
+    rtol=1e-3,
+    scale=None,
+    mean=0,
+    mode="higher_order",
 ):
     """Perform numerical gradient checking given a relay function.
 
