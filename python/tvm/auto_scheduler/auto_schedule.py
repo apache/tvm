@@ -50,7 +50,7 @@ class HardwareParams(Object):
 
     def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes):
         self.__init_handle_by_constructor__(
-            _ffi_api.HardwareParams, num_cores, vector_unit_bytes, cache_line_bytes
+            _ffi_api.HardwareParams, num_cores, vector_unit_bytes, cache_line_bytes, 0, 0, 0, 0, 0
         )
 
 
