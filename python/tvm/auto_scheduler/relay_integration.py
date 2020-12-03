@@ -346,7 +346,7 @@ def rewrite_compute_body(compute_tensor, new_layout):
 
 
 def is_auto_scheduler_enabled():
-    """Return whether the auto-scheduler is enabled
+    """Return whether the auto-scheduler is enabled.
 
     Parameters
     ----------
