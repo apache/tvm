@@ -76,7 +76,6 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int max_vthread_extent = warp_size / 4;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
-
   } else if (target->kind->device_type == kDLMetal) {
     // Reference: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
     // This setting looks working for Metal GPUs later than A10
@@ -89,7 +88,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int warp_size = 8;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
-  }
+  } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
   }
   return HardwareParams();
