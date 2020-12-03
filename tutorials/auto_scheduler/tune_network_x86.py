@@ -64,7 +64,8 @@ from tvm.contrib import graph_runtime
 # achieved with NHWC layout. We also implemented more optimizations for
 # NHWC layouts with the auto-scheduler.
 # So it is recommended to convert your models to NHWC layout to use
-# the auto-scheduler.
+# the auto-scheduler. You can use :ref:`this pass <convert-layout-usage>'
+# to do the layout conversion in TVM.
 
 
 def get_network(name, batch_size, layout="NHWC", dtype="float32"):
