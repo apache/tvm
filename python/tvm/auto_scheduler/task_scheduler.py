@@ -181,7 +181,7 @@ class TaskScheduler:
         The parameter used for 'gradient' strategy
     callbacks: Optional[List[TaskSchedulerCallback]]
         The task scheduler callbacks that will be called before and after tuning a task.
-        If None, then PrintTableInfo callback will be used.
+        If None, PrintTableInfo and LogEstimatedLatency callback will be used.
     """
 
     def __init__(
@@ -214,7 +214,11 @@ class TaskScheduler:
         self.beta = beta
         self.gamma = gamma
         self.backward_window_size = backward_window_size
-        self.callbacks = callbacks if callbacks is not None else [PrintTableInfo()]
+        self.callbacks = (
+            callbacks
+            if callbacks is not None
+            else [PrintTableInfo(), LogEstimatedLatency("total_latency.tsv")]
+        )
 
         assert len(self.tasks) != 0, "No tasks"
         assert self.strategy in ["round-robin", "gradient"]

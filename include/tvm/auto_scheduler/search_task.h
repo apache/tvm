@@ -44,17 +44,16 @@ class HardwareParamsNode : public Object {
   int cache_line_bytes;
 
   // GPU related parameters got from device query API
-
-  /*! \brief The max shared memory per block. */
-  int max_shared_memory_per_block{INT32_MAX};
-  /*! \brief The max register memory per block. */
-  int max_registers_per_block{INT32_MAX};
-  /*! \brief The max threads per block. */
-  int max_threads_per_block{INT32_MAX};
+  /*! \brief The max shared memory per block in bytes. */
+  int max_shared_memory_per_block;
+  /*! \brief The max number of register per block. */
+  int max_registers_per_block;
+  /*! \brief The max number of threads per block. */
+  int max_threads_per_block;
   /*! \brief The max vthread extent. */
-  int max_vthread_extent{INT32_MAX};
+  int max_vthread_extent;
   /*! \brief The thread numbers of a warp. */
-  int warp_size{INT32_MAX};
+  int warp_size;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_cores", &num_cores);
@@ -90,8 +89,15 @@ class HardwareParams : public ObjectRef {
    * \param num_cores The number of cores.
    * \param vector_unit_bytes The width of vector units in bytes.
    * \param cache_line_bytes The size of cache line in bytes.
+   * \param max_shared_memory_per_block The max amount of shared memory per block for GPU.
+   * \param max_registers_per_block The max number of registers per block for GPU.
+   * \param max_threads_per_block The max number of threads per block for GPU.
+   * \param max_vthread_extent The max extent of vthread for GPU.
+   * \param warp_size The warp size for GPU
    */
-  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes);
+  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                 int max_shared_memory_per_block, int max_registers_per_block,
+                 int max_threads_per_block, int max_vthread_extent, int warp_size);
 
   TVM_DEFINE_OBJECT_REF_METHODS(HardwareParams, ObjectRef, HardwareParamsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(HardwareParamsNode);
