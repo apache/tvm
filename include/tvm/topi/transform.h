@@ -1400,6 +1400,74 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
       name, tag);
 }
 
+/*! \brief Utility function for auto_scheduler_layout_transform */
+inline void parse_auto_scheduler_layout(const String& layout, Array<PrimExpr>* shape,
+                                        std::vector<std::string>* axes) {
+  int32_t factor = 0;
+  std::string axis = "";
+  for (char c : std::string(layout)) {
+    if (c >= 'A' && c <= 'z') {
+      axis += c;
+      if (factor != 0) {
+        shape->push_back(factor);
+        factor = 0;
+      }
+    } else if (c >= '0' && c <= '9') {
+      factor = factor * 10 + c - '0';
+      if (!axis.empty()) {
+        axes->push_back(axis);
+        axis = "";
+      }
+    } else {
+      LOG(FATAL) << "Invalid layout " << layout;
+    }
+  }
+  if (!axis.empty()) {
+    axes->push_back(axis);
+  }
+}
+
+/*!
+ * \brief Transform the auto-scheduler generated layout according to
+ *        \p src_layout and \p dst_layout
+ * \param src the source input.
+ * \param src_layout the source layout.
+ * \param dst_layout the destination layout.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor with shape in \p dst_layout
+ */
+inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& src_layout,
+                                              const String& dst_layout,
+                                              const String name = "T_auto_scheduler_layout_trans",
+                                              const String tag = kInjective) {
+  Array<PrimExpr> src_shape;
+  std::vector<std::string> src_axes;
+  Array<PrimExpr> dst_shape;
+  std::vector<std::string> dst_axes;
+
+  parse_auto_scheduler_layout(src_layout, &src_shape, &src_axes);
+  parse_auto_scheduler_layout(dst_layout, &dst_shape, &dst_axes);
+  return compute(
+      dst_shape,
+      [&](const Array<Var>& dst_indices) {
+        Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+        Array<PrimExpr> src_indices;
+        for (const std::string& src_axis : src_axes) {
+          PrimExpr src_index = 0;
+          CHECK_EQ(dst_indices_expr.size(), dst_axes.size());
+          for (size_t i = 0; i < dst_axes.size(); ++i) {
+            if (dst_axes[i] == src_axis) {
+              src_index = src_index * dst_shape[i] + dst_indices_expr[i];
+            }
+          }
+          src_indices.push_back(src_index);
+        }
+        return src(src_indices);
+      },
+      name, tag);
+}
+
 /*!
  * \brief Get the shape of input tensor.
  * \param src the input tensor.

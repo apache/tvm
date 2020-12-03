@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "../arith/pattern_match.h"
+#include "../relay/transforms/auto_scheduler_layout_rewrite.h"
 #include "search_policy/utils.h"
 #include "utils.h"
 
@@ -813,8 +814,7 @@ std::string GetOrigLayout(std::set<std::string>* placeholder_axis_names, const t
   ICHECK_EQ(placeholder_axis_names->size(), placeholder->shape.size());
   std::string orig_layout = os.str();
   os.str("");
-  // TODO(minmin): uncomment this line for relay integration
-  // ::tvm::relay::KernelLayoutTransformer::global_orig_layouts_queue.push_back(orig_layout);
+  ::tvm::relay::AutoSchedulerLayoutRewriter::global_ori_layouts_queue.push_back(orig_layout);
   return orig_layout;
 }
 
@@ -878,8 +878,7 @@ std::string GetNewLayout(const State& state, const int stage_id, const Stage& st
   }
   std::string new_layout = os.str();
   os.str("");
-  // TODO(minmin): uncomment this line for relay integration
-  // ::tvm::relay::KernelLayoutTransformer::global_new_layouts_queue.push_back(new_layout);
+  ::tvm::relay::AutoSchedulerLayoutRewriter::global_new_layouts_queue.push_back(new_layout);
   return new_layout;
 }
 
@@ -1438,6 +1437,19 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGPrintPythonCodeFromState")
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGInferBoundFromState")
     .set_body_typed([](const ComputeDAG& dag, const State& state) {
       return dag.InferBound(state);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGRewriteLayoutFromState")
+    .set_body_typed([](const ComputeDAG& dag, const State& state) {
+      Array<Step>* transform_steps = const_cast<Array<Step>*>(&state->transform_steps);
+      return dag.RewriteLayout(transform_steps, LayoutRewriteOption::RewriteForPreTransformed);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.RewriteIndexForNewLayout")
+    .set_body_typed([](const te::Operation& placeholder_op, const std::string& new_layout,
+                       const PrimExpr& body) {
+      IndexRewriter index_rewriter(placeholder_op, new_layout);
+      return index_rewriter.Rewrite(body);
     });
 
 }  // namespace auto_scheduler

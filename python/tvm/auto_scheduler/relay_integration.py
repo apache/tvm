@@ -23,11 +23,15 @@ Integrate auto_scheduler into relay. It implements the following items:
 """
 
 import logging
+import json
 import threading
 
 import tvm
 from tvm import autotvm, te, transform
-from tvm.te.tensor import ComputeOp, PlaceholderOp
+from tvm.runtime import convert_to_object
+from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
+from tvm.tir import expr as _expr
+from . import _ffi_api
 from .compute_dag import ComputeDAG
 from .dispatcher import DispatchContext
 from .search_task import SearchTask
@@ -46,7 +50,11 @@ def call_all_topi_funcs(mod, params, target):
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
     autotvm.GLOBAL_SCOPE.silent = True
 
-    with transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
+    with transform.PassContext(
+        opt_level=3,
+        config={"relay.backend.use_auto_scheduler": True},
+        disabled_pass={"AutoSchedulerLayoutRewrite"},
+    ):
         opt_mod, _ = relay.optimize(mod, target, params)
         grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
         grc.codegen(opt_mod["main"])
@@ -158,6 +166,20 @@ class TracingEnvironment:
         self.wkl_key_to_ccache_key[workload_key] = ccache_key
 
 
+@tvm._ffi.register_func("auto_scheduler.enter_layout_rewrite")
+def enter_layout_rewrite():
+    """Enter layout rewrite tracing environment"""
+    env = TracingEnvironment(TracingMode.PREPARE_LAYOUT_REWRITE)
+    env.__enter__()
+
+
+@tvm._ffi.register_func("auto_scheduler.exit_layout_rewrite")
+def exit_layout_rewrite():
+    """Exit layout rewrite tracing environment"""
+    env = TracingEnvironment.current
+    env.__exit__(None, None, None)
+
+
 def traverse_to_get_io_tensors(outs):
     """Traverse from a list of output tensors to get both input and output tensors
 
@@ -230,11 +252,13 @@ def auto_schedule_topi(outs, has_complex_op):
     key = register_workload_tensors(dag.hash_key(), io_tensors)
 
     # only enable layout rewrite for cpu backend
-    enable_layout_rewrite = "cpu" in tvm.target.Target.current().keys
+    target = tvm.target.Target.current()
+    enable_layout_rewrite = "cpu" in target.keys
 
     env = TracingEnvironment.current
-    if env is None:  # in the final build mode
-        state = DispatchContext.current.query(tvm.target.Target.current(), key, has_complex_op, dag)
+    if env is None:
+        # in the final build mode
+        state = DispatchContext.current.query(target, key, has_complex_op, dag)
         if state is None:
             return None
 
@@ -247,9 +271,74 @@ def auto_schedule_topi(outs, has_complex_op):
             env.add_workload_key(key, ccache_key)
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
-        # todo(merrymercy, minminsun): port layout rewrite
-        raise NotImplementedError
+        # in prepare_layout_rewrite mode
+        if enable_layout_rewrite and has_layout_free:
+            dispatch_ctx = DispatchContext.current
+            state = dispatch_ctx.query(target, key, has_complex_op, dag)
+            if state is None:
+                return None
+
+            # rewrite the layout and update the context for the new dag
+            dag = ComputeDAG(outs)
+            new_dag = dag.rewrite_layout_from_state(state)
+            new_key = json.dumps((new_dag.hash_key(),))
+            if new_key != key:
+                dispatch_ctx.update(target, new_key, state)
+        return te.create_schedule([x.op for x in outs])
     else:
         raise ValueError("Invalid tracing mode: " + env.tracing_mode)
 
     return schedule
+
+
+def tensor_no_check_call(self, *indices):
+    """An indexing function without any check.
+    This is the same as `tvm.te.Tensor::__call__` except that the safety
+    check is removed.
+    """
+    indices = convert_to_object(indices)
+    args = []
+    for x in indices:
+        if isinstance(x, _expr.PrimExpr):
+            args.append(x)
+        elif isinstance(x, _expr.IterVar):
+            args.append(x.var)
+        else:
+            raise ValueError("The indices must be expression")
+
+    return _expr.ProducerLoad(self, args)
+
+
+def remove_index_check(tensor):
+    """Remove the safety check in the indexing function for a tensor.
+    This is done by monkey patching its indexing function.
+    After removing the check, we are allowed to create a
+    temporary wrong IR and fix it later in other places.
+
+    Parameters
+    ----------
+    tensor: Tensor
+      The tensor to remove index check.
+    """
+    # Monkey patch the indexing function
+    tensor.__call__ = tensor_no_check_call.__get__(tensor, Tensor)
+
+
+def rewrite_compute_body(compute_tensor, new_layout):
+    """Rewrite the body of a ComputeOp according to a new layout of a placeholder"""
+    op = compute_tensor.op
+
+    # Get layout free placeholders
+    layout_free_placeholders = op.attrs["layout_free_placeholders"]
+    assert len(layout_free_placeholders) == 1, "Only support one layout free placeholder"
+    placeholder_op = layout_free_placeholders[0].op
+
+    # Rewrite the index expression in body
+    body = []
+    for b in op.body:
+        body.append(_ffi_api.RewriteIndexForNewLayout(placeholder_op, new_layout, b))
+    op_node = tvm.te._ffi_api.ComputeOp(op.name, op.tag, op.attrs, op.axis, body)
+
+    num = op_node.num_outputs
+    outputs = tuple(op_node.output(i) for i in range(num))
+    return outputs[0] if num == 1 else outputs
