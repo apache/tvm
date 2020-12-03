@@ -62,7 +62,9 @@ from tvm.contrib import graph_runtime
 # For convolutional neural networks, although auto-scheduler can work
 # correctly with any layout, we found the best performance is typically
 # achieved with NHWC layout. We also implemented more optimizations for
-# NHWC layouts. So it is recommended to convert your models to NHWC layout. 
+# NHWC layouts with the auto-scheduler.
+# So it is recommended to convert your models to NHWC layout to use
+# the auto-scheduler.
 
 
 def get_network(name, batch_size, layout="NHWC", dtype="float32"):
