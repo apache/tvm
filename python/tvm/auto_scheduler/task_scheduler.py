@@ -214,7 +214,11 @@ class TaskScheduler:
         self.beta = beta
         self.gamma = gamma
         self.backward_window_size = backward_window_size
-        self.callbacks = callbacks if callbacks is not None else [PrintTableInfo(), LogEstimatedLatency('total_latency.tsv')]
+        self.callbacks = (
+            callbacks
+            if callbacks is not None
+            else [PrintTableInfo(), LogEstimatedLatency("total_latency.tsv")]
+        )
 
         assert len(self.tasks) != 0, "No tasks"
         assert self.strategy in ["round-robin", "gradient"]
