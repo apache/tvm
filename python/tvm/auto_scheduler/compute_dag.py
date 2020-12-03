@@ -162,6 +162,23 @@ class ComputeDAG(Object):
                 updated_state.stage_id_map[k] = v
         return updated_state
 
+    def rewrite_layout_from_state(self, state):
+        """
+        Rewrite the layout of the DAG according to the history transform steps of a state.
+
+        Parameters
+        ----------
+        state : Union[State, StateObject]
+            The state from which we get transform steps.
+
+        Returns
+        -------
+        updated_dag : ComputeDAG
+            The compute dag with rewritten layout.
+        """
+        state_obj = state if isinstance(state, StateObject) else state.state_object
+        return _ffi_api.ComputeDAGRewriteLayoutFromState(self, state_obj)
+
     def hash_key(self):
         """Return the hash key of this compute DAG.
 

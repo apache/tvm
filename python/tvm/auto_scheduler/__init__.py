@@ -44,7 +44,7 @@ from .measure import (
     LocalRPCMeasureContext,
 )
 from .measure_record import RecordToFile, RecordReader, load_best, load_records, save_records
-from .relay_integration import extract_tasks
+from .relay_integration import extract_tasks, remove_index_check, rewrite_compute_body
 from .search_task import SearchTask
 from .search_policy import EmptyPolicy, SketchPolicy, PreloadMeasuredStates
 from .task_scheduler import TaskScheduler

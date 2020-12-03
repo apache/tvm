@@ -19,7 +19,7 @@
 import logging
 
 import re
-from tvm import topi
+from tvm import topi, _ffi
 from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
 from tvm.target import generic_func, override_native_generic_func
 from .. import op as _op
@@ -166,9 +166,17 @@ def schedule_bitpack(attrs, outs, target):
         return topi.generic.schedule_bitpack(outs)
 
 
+get_auto_scheduler_rewritten_layout = _ffi.get_global_func(
+    "relay.attrs.get_auto_scheduler_rewritten_layout"
+)
+
 # conv2d
 def wrap_compute_conv2d(
-    topi_compute, need_data_layout=False, need_out_layout=False, has_groups=False
+    topi_compute,
+    need_data_layout=False,
+    need_out_layout=False,
+    has_groups=False,
+    need_auto_scheduler_layout=False,
 ):
     """Wrap conv2d topi compute"""
 
@@ -179,6 +187,7 @@ def wrap_compute_conv2d(
         data_layout = attrs.get_str("data_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
+        auto_scheduler_rewritten_layout = get_auto_scheduler_rewritten_layout(attrs)
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
         args = [inputs[0], inputs[1], strides, padding, dilation]
         if has_groups:
@@ -188,6 +197,8 @@ def wrap_compute_conv2d(
         if need_out_layout:
             args.append(out_layout)
         args.append(out_dtype)
+        if need_auto_scheduler_layout:
+            args.append(auto_scheduler_rewritten_layout)
         return [topi_compute(*args)]
 
     return _compute_conv2d
