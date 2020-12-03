@@ -78,12 +78,10 @@ def matmul_add(N, L, M, dtype):
 
 target = tvm.target.Target("llvm")
 N = L = M = 1024
-task = tvm.auto_scheduler.SearchTask(
-        func=matmul_add,
-        args=(N, L, M, "float32"),
-        target=target)
+task = tvm.auto_scheduler.SearchTask(func=matmul_add, args=(N, L, M, "float32"), target=target)
 
 # Inspect the computational graph
+print("Computational DAG:")
 print(task.compute_dag)
 
 ######################################################################
@@ -109,11 +107,12 @@ tune_option = auto_scheduler.TuningOptions(
 # ^^^^^^^^^^^^^^
 # Now we get all inputs ready. Pretty simple, isn't it?
 # We can kick off the search and let the auto-scheduler do its magic.
-# After some measurement trials, it will return the best schedule it found.
+# After some measurement trials, we can load the best schedule from the log
+# file and apply it.
 
-# Run auto-tuning search
+# Run auto-tuning (search)
 task.tune(tune_option)
-# Apply the results
+# Apply the best schedule
 sch, args = task.apply_best(log_file)
 
 ######################################################################
@@ -121,6 +120,7 @@ sch, args = task.apply_best(log_file)
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
 # parallelization, vectorization, unrolling and operator fusion.
 
+print("Lowered TIR:")
 print(tvm.lower(sch, args, simple_mode=True))
 
 ######################################################################
@@ -155,12 +155,15 @@ print(
 ######################################################################
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
-# During the search, all measuremnt records are dumpped into the record
+# During the search, all measurement records are dumped into the record
 # file "matmul.json". The measurement records can be used to re-apply search results,
 # resume the search, and perform other analyses.
 
-# Print equivalent python schedule API. This can be used for debugging and
-# learning the behavior of the auto-scheduler.
+######################################################################
+# Here is an example where we load the best schedule from a file,
+# and print the equivalent python schedule API. This can be used for
+# debugging and learning the behavior of the auto-scheduler.
+
 print("Equivalent python schedule:")
 print(task.print_best(log_file))
 
@@ -182,7 +185,7 @@ def resume_search(task, log_file_name):
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file_name)]
     )
-    task.tune(tune_option)
+    task.tune(tune_option, search_policy=search_policy)
 
 
 # resume_search(task, log_file)

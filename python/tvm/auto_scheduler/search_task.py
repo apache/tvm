@@ -153,6 +153,21 @@ class SearchTask(Object):
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      # We support two ways to create a search task
+
+      # Way 1: create a task by a workload generation function.
+      # The `workload_func` is a function decorated by @auto_scheduler.register_workload
+      task = SearchTask(func=workload_func, args=args, target=target)
+
+      # Way 2: create a task by a workload_key.
+      # The `workload_key` is a string, which can be either a hash key or a json-serialized
+      # tuple(func, args).
+      task = SearchTask(workload_key=workload_key, target=target)
     """
 
     def __init__(
@@ -194,7 +209,7 @@ class SearchTask(Object):
 
         Parameters
         ----------
-        tuning_options : Optional[TuningOptions]
+        tuning_options : TuningOptions
             Tuning and measurement options.
         search_policy : Optional[SearchPolicy]
             The search policy to be used for schedule search.
@@ -211,9 +226,9 @@ class SearchTask(Object):
         Parameters
         ----------
         log_file : str
-           The name of the log file
+           The name of the log file.
         layout_rewrite_option : Optional[LayoutRewriteOption]
-           The layout rewrite option
+           The layout rewrite option.
 
         Returns
         -------
@@ -237,7 +252,7 @@ class SearchTask(Object):
            The name of the log file
         print_mode: str
            if "schedule", print the best schedule as python schedule API code.
-           if "cude", print the best schedule as CUDA source code.
+           if "cuda", print the best schedule as CUDA source code.
 
         Returns
         -------
@@ -249,7 +264,7 @@ class SearchTask(Object):
         if print_mode == "schedule":
             return self.compute_dag.print_python_code_from_state(inp.state)
         elif print_mode == "cuda":
-            assert self.task.target.kind.name == "cuda"
+            assert self.target.kind.name == "cuda"
             sch, args = self.compute_dag.apply_steps_from_state(inp.state)
             func = tvm.build(sch, args, "cuda")
             return func.imported_modules[0].get_source()
@@ -295,7 +310,9 @@ class SearchTask(Object):
 
 
 def create_task(func, args, target, target_host=None, hardware_params=None):
-    """Create a search task
+    """THIS API IS DEPRECATED.
+
+    Create a search task.
 
     Parameters
     ----------
@@ -315,13 +332,29 @@ def create_task(func, args, target, target_host=None, hardware_params=None):
     -------
         SearchTask: the created task
     """
-    logging.warning(
-        '"auto_scheduler.create_task" is deprecated. Please repalce "auto_scheduler.create_task(func, args, target)" with "auto_scheduler.SearchTask(func=func, args=args, target=target)"'
+    raise ValueError(
+        'The API "auto_scheduler.create_task" is deprecated. See https://github.com/apache/tvm/pull/7028 for the upgrade guide'
     )
-    return SearchTask(
-        func=func,
-        args=args,
-        target=target,
-        target_host=target_host,
-        hardware_params=hardware_params,
+
+
+def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
+    """THIS API IS DEPRECATED.
+
+    Run auto scheduling search for a task.
+
+    Parameters
+    ----------
+    task : SearchTask
+        The SearchTask for the computation declaration.
+    search_policy : Optional[SearchPolicy]
+        The search policy to be used for schedule search.
+    tuning_options : Optional[TuningOptions]
+        Tuning and measurement options.
+
+    Returns
+    -------
+        A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
+    """
+    raise ValueError(
+        'The API "auto_scheduler.auto_schedule" is deprecated. See https://github.com/apache/tvm/pull/7028 for the upgrade guide'
     )

@@ -178,7 +178,7 @@ def recover_measure_input(inp, rebuild_state=False):
         The fully recovered MeasureInput with all fields rebuilt.
     """
     # pylint: disable=import-outside-toplevel
-    from .search_task import SearchTask  # lazy import to avoid recursive dependency
+    from .search_task import SearchTask  # lazily import to avoid recursive dependency
 
     task = inp.task
     new_task = SearchTask(
@@ -522,6 +522,7 @@ class LocalRPCMeasureContext:
         # Close the tracker and server before exit
         self.tracker.terminate()
         self.server.terminate()
+        time.sleep(0.5)
 
 
 class MeasureErrorNo(object):

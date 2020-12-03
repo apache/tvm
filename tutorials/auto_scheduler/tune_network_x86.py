@@ -303,4 +303,5 @@ print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), n
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
 #    with :any:`auto_scheduler.RPCRunner`.
-#
+# 3. You can use :code:`python3 -m tvm.auto_scheduler.measure_record --mode distill --i log.json`
+#    to distill the large log file and only save the best useful records.
