@@ -37,7 +37,7 @@ for good schedules (low-level optimizations).
 Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any
 schedule templates. In other words, the auto-scheduler only uses the compute declarations
-in :code:`tvm/python/topi` while does not use existing schedule templates.
+in :code:`tvm/python/topi` and does not use existing schedule templates.
 
 Note that this tutorial will not run on Windows or recent versions of macOS. To
 get it to run, you will need to wrap the body of this tutorial in a :code:`if
