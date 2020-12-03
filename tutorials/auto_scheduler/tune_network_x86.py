@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-scheduling a Neural Network for x86 GPU
+Auto-scheduling a Neural Network for x86 CPU
 ===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
