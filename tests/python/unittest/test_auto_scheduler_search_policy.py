@@ -45,7 +45,7 @@ def search_common(
     random.seed(seed)
     N = 128
     target = tvm.target.Target(target)
-    task = auto_scheduler.create_task(workload, (N, N, N), target)
+    task = auto_scheduler.SearchTask(func=workload, args=(N, N, N), target=target)
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -70,11 +70,11 @@ def search_common(
             verbose=2,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options)
-        inp, res = auto_scheduler.load_best(log_file, task.workload_key, target)
+        task.tune(tuning_options=tuning_options, search_policy=search_policy)
+        sch, args = task.apply_best(log_file)
 
         print("==== Python Code ====")
-        print(task.compute_dag.print_python_code_from_state(inp.state))
+        print(task.print_best(log_file))
 
         try:
             print("==== Lowered Stmt ====")

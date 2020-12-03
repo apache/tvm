@@ -111,7 +111,8 @@ tune_option = auto_scheduler.TuningOptions(
 # We can kick off the search and let the auto-scheduler do its magic.
 # After some measurement trials, it will return the best schedule it found.
 
-sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
+task.tune(tune_option)
+sch, args = task.apply_best(log_file)
 
 # Kill the process for measurement
 del measure_ctx
@@ -165,18 +166,13 @@ print(
 # Here is an example where we load the best schedule from a file,
 # print the equivalent python schedule API, and build the binary again.
 
-# Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best(log_file, task.workload_key)
-
 # Print equivalent python schedule API. This can be used for debugging and
 # learning the behavior of the auto-scheduler.
 print("Equivalent python schedule:")
-print(task.compute_dag.print_python_code_from_state(inp.state))
+print(task.print_best_schedule(log_file))
 
-# Rebuild the binary. This shows how you can apply the best schedule from a
-# log file without reruning the search again.
-sch, args = task.compute_dag.apply_steps_from_state(inp.state)
-func = tvm.build(sch, args, target)
+print("CUDA source code:")
+print(task.print_best_schedule(log_file, print_cuda=True))
 
 ######################################################################
 # A more complicated example is to resume the search.

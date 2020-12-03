@@ -35,7 +35,7 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
     _, bufs = dag.apply_steps_from_state(
-        s, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
+        s, layout_rewrite=auto_scheduler.LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
     )
     assert bufs[1].shape[0] == 4
     assert bufs[1].shape[1] == 8
@@ -43,7 +43,7 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[3] == 4
     assert bufs[1].shape[4] == 512
     _, bufs = dag.apply_steps_from_state(
-        s, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
+        s, layout_rewrite=auto_scheduler.LayoutRewriteOption.INSERT_TRANSFORM_STAGE
     )
     assert bufs[1].shape[0] == 512
     assert bufs[1].shape[1] == 512
@@ -53,7 +53,7 @@ def test_apply_steps_with_layout_rewrite():
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     N = 128
     target = tvm.target.Target("llvm")
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
+    task = auto_scheduler.SearchTask(func=matmul_auto_scheduler_test, args=(N, N, N), target=target)
     dag = task.compute_dag
 
     with tempfile.NamedTemporaryFile() as fp:
@@ -65,13 +65,13 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
         tuning_options = auto_scheduler.TuningOptions(
             num_measure_trials=2,
             runner=measure_ctx.runner,
-            verbose=1,
+            verbose=2,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        auto_scheduler.auto_schedule(task, search_policy, tuning_options)
-        inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
+        task.tune(tuning_options, search_policy=search_policy)
+        inp, _ = auto_scheduler.load_best_record(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(
-            inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.RewriteForPreTransformed
+            inp.state, layout_rewrite=auto_scheduler.LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
         )
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
         np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
@@ -123,7 +123,7 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
 def test_correctness_layout_rewrite_insert_transform_stage():
     N = 128
     target = tvm.target.Target("llvm")
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), target)
+    task = auto_scheduler.SearchTask(func=matmul_auto_scheduler_test, args=(N, N, N), target=target)
     dag = task.compute_dag
 
     with tempfile.NamedTemporaryFile() as fp:
@@ -138,10 +138,10 @@ def test_correctness_layout_rewrite_insert_transform_stage():
             verbose=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        auto_scheduler.auto_schedule(task, search_policy, tuning_options)
-        inp, _ = auto_scheduler.load_best(log_file, task.workload_key, target)
+        task.tune(tuning_options, search_policy=search_policy)
+        inp, _ = auto_scheduler.load_best_record(log_file, task.workload_key, target)
         s, bufs = dag.apply_steps_from_state(
-            inp.state, layout_rewrite=auto_scheduler.compute_dag.ComputeDAG.InsertTransformStage
+            inp.state, layout_rewrite=auto_scheduler.LayoutRewriteOption.INSERT_TRANSFORM_STAGE
         )
 
         s_ref, bufs_ref = dag.apply_steps_from_state(inp.state)
