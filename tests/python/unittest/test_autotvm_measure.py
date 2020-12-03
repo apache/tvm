@@ -43,7 +43,6 @@ def test_task_tuner_without_measurement():
         autotvm.tuner.XGBTuner,
         autotvm.tuner.RFEITuner
     ]:
-        print("Test# ", tuner_class)
         tuner = tuner_class(task)
         tuner.tune(n_trial=10, measure_option=measure_option)
         assert tuner.best_flops > 1
