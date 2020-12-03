@@ -79,13 +79,11 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
   } else if (target->kind->device_type == kDLMetal) {
     // Reference: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
     // This setting looks working for Metal GPUs later than A10
-    auto hardware_params = HardwareParams(-1, 16, 64);
-    auto* p_hardware_params = hardware_params.CopyOnWrite();
     int max_shared_memory_per_block = 32 * 1024;
     int max_registers_per_block = 4 * 1024;
     int max_threads_per_block = 1024;
-    int max_vthread_extent = p_hardware_params->warp_size / 4;
     int warp_size = 8;
+    int max_vthread_extent = warp_size / 4;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
   } else {
