@@ -2380,6 +2380,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   ICHECK(param != nullptr);
   Array<Integer> begin, end, strides;
+  Array<PrimExpr> begin_expr, end_expr, strides_expr;
   begin = param->begin.value();
   end = param->end.value();
   strides = param->strides.value();
@@ -2392,8 +2393,6 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       out_shape.push_back(tvm::tir::Var("dim"));
     }
-    Array<PrimExpr> begin_expr;
-    Array<PrimExpr> strides_expr;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       int64_t begin_i = begin[i]->value;
       if (begin_i < 0) {
@@ -2414,8 +2413,19 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           return input(real_indices);
         },
         std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
+  } else {
+    for (size_t i = 0; i < begin.size(); ++i) {
+      begin_expr.push_back(begin[i]);
+    }
+    for (size_t i = 0; i < end.size(); ++i) {
+      end_expr.push_back(end[i]);
+    }
+    for (size_t i = 0; i < strides.size(); ++i) {
+      strides_expr.push_back(strides[i]);
+    }
   }
-  return Array<te::Tensor>{topi::strided_slice(inputs[0], begin, end, strides, param->slice_mode)};
+  return Array<te::Tensor>{
+      topi::strided_slice(inputs[0], begin_expr, end_expr, strides_expr, param->slice_mode)};
 }
 
 // Positional relay function to create StridedSlice operator used by frontend FFI.
@@ -2731,8 +2741,7 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
           << topi::GetConstInt(src_shape[axis]);
     }
   }
-  return Array<te::Tensor>{topi::strided_slice(inputs[0], GetIntArray(begin_idx),
-                                               GetIntArray(end_idx), GetIntArray(strides), "end")};
+  return Array<te::Tensor>{topi::strided_slice(inputs[0], begin_idx, end_idx, strides, "end")};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.slice_like").set_body_typed(MakeSliceLike);

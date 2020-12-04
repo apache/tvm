@@ -479,27 +479,28 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
             name="topk_gpu",
             tag="topk_gpu",
         )
-    if k < 1:
+    if isinstance(k, int) and k < 1:
         if ret_type == "indices":
             return output[1]
         return output
     beg = [0] * ndim
     end = []
+    strides = [1] * ndim
     for i in range(ndim):
         if i == axis:
-            end.append(k)
+            end.append(k if isinstance(k, int) else tvm.te.size_var("dim"))
         else:
             end.append(data.shape[i])
     if ret_type == "both":
         values_out, indices_out = output
-        values_out = strided_slice(values_out, beg, end)
-        indices_out = strided_slice(indices_out, beg, end)
+        values_out = strided_slice(values_out, beg, end, strides)
+        indices_out = strided_slice(indices_out, beg, end, strides)
         output = [values_out, indices_out]
     elif ret_type == "values":
-        output = [strided_slice(output, beg, end)]
+        output = [strided_slice(output, beg, end, strides)]
     else:  # ret_type == "indices"
         indices_out = output[1]
-        output = [strided_slice(indices_out, beg, end)]
+        output = [strided_slice(indices_out, beg, end, strides)]
     return output
 
 
@@ -561,10 +562,11 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tag="topk_gpu",
     )
 
-    if k > 0:
+    if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k]
-        out = [strided_slice(o, beg, end) for o in out]
+        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
+        strides = [1] * ndim
+        out = [strided_slice(o, beg, end, strides) for o in out]
 
     if axis != ndim - 1:
         axes = swap(list(range(ndim)), axis)

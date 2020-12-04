@@ -614,7 +614,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   out = reshape(out, r_p_shape);
 
   // Crop the start and end of dimensions of out
-  Array<Integer> begin_idx, end_idx, strides;
+  Array<PrimExpr> begin_idx, end_idx, strides;
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
     strides.push_back(Integer(1));
     if (i > 0 && i <= num_block_dims) {
