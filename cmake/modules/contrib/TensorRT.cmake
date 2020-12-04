@@ -33,10 +33,6 @@ if(USE_TENSORRT)
     include_directories(${TENSORRT_INCLUDE_DIR})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${TENSORRT_LIB_DIR})
 
-    # NNVM TRT runtime sources
-    file(GLOB TENSORRT_NNVM_SRCS src/contrib/subgraph/*.cc)
-    list(APPEND RUNTIME_SRCS ${TENSORRT_NNVM_SRCS})
-
     # Relay TRT runtime sources
     file(GLOB TENSORRT_RELAY_CONTRIB_SRC src/runtime/contrib/tensorrt/*.cc)
     list(APPEND RUNTIME_SRCS ${TENSORRT_RELAY_CONTRIB_SRC})
