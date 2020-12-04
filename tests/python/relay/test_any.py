@@ -76,7 +76,7 @@ def check_result(
                 if flatten:
                     r = r.flatten()
                     e = e.flatten()
-            tvm.testing.assert_allclose(r, e, atol=2e-6)
+                tvm.testing.assert_allclose(r, e, atol=2e-6)
 
 
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
