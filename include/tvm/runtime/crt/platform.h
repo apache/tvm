@@ -60,6 +60,9 @@ size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const 
 /*!
  * \brief Allocate memory for use by TVM.
  *
+ * When this function returns something other than kTvmErrorNoError, *out_ptr should not be modified
+ * and the caller is not obligated to call TVMPlatformMemoryFree in order to avoid a memory leak.
+ *
  * \param num_bytes Number of bytes requested.
  * \param ctx Execution context that will be used with the allocated memory. Fixed to {kDLCPU, 0}.
  * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.

@@ -316,11 +316,9 @@ int TVMFuncFree(TVMFunctionHandle func) {
 }
 
 tvm_crt_error_t TVMInitializeRuntime() {
-  int idx;
-  tvm_crt_error_t error;
-  void* func_registry_memory;
-
-  system_lib_handle = kTVMModuleHandleUninitialized;
+  int idx = 0;
+  tvm_crt_error_t error = kTvmErrorNoError;
+  void* func_registry_memory = NULL;
 
   DLContext ctx = {kDLCPU, 0};
   error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx,
@@ -329,30 +327,34 @@ tvm_crt_error_t TVMInitializeRuntime() {
     return error;
   }
 
-  system_lib_handle = kTVMModuleHandleUninitialized;
-
   void* registry_backing_memory;
   error = TVMPlatformMemoryAllocate(TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES, ctx,
                                     &registry_backing_memory);
   if (error != kTvmErrorNoError) {
+    TVMPlatformMemoryFree(func_registry_memory, ctx);
     return error;
   }
 
-  TVMMutableFuncRegistry_Create(&global_func_registry, registry_backing_memory,
-                                TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES);
+  system_lib_handle = kTVMModuleHandleUninitialized;
+
+  error = TVMMutableFuncRegistry_Create(&global_func_registry, registry_backing_memory,
+                                        TVM_CRT_GLOBAL_FUNC_REGISTRY_SIZE_BYTES);
   for (idx = 0; idx < TVM_CRT_MAX_REGISTERED_MODULES; idx++) {
     registered_modules[idx] = NULL;
   }
 
-  error = TVMFuncRegisterGlobal("runtime.SystemLib", &SystemLibraryCreate, 0);
-  if (error != kTvmErrorNoError) {
-    return error;
+  if (error == kTvmErrorNoError) {
+    error = TVMFuncRegisterGlobal("runtime.SystemLib", &SystemLibraryCreate, 0);
   }
 
-  error = TVMFuncRegisterGlobal("tvm.rpc.server.ModuleGetFunction", &ModuleGetFunction, 0);
-  if (error != kTvmErrorNoError) {
-    return error;
+  if (error == kTvmErrorNoError) {
+    error = TVMFuncRegisterGlobal("tvm.rpc.server.ModuleGetFunction", &ModuleGetFunction, 0);
   }
 
-  return kTvmErrorNoError;
+  if (error != kTvmErrorNoError) {
+    TVMPlatformMemoryFree(registry_backing_memory, ctx);
+    TVMPlatformMemoryFree(func_registry_memory, ctx);
+  }
+
+  return error;
 }
