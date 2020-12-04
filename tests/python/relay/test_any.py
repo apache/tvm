@@ -43,8 +43,6 @@ def check_result(
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
-            if "cuda" not in tgt:
-                continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
