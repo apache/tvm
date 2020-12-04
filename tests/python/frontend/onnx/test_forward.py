@@ -3906,10 +3906,7 @@ def test_size():
 
         model = helper.make_model(graph, producer_name="size_test")
 
-        for target, _ in tvm.testing.enabled_targets():
-            verify_with_ort_with_inputs(
-                model, [indata], targets=[target], dtype="int64", use_vm=True, opset=11
-            )
+        verify_with_ort_with_inputs(model, [indata], dtype="int64", use_vm=True, opset=11)
 
     input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
     verify_size(input_data)
