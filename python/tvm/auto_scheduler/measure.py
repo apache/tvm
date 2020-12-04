@@ -53,8 +53,7 @@ from .utils import (
     make_traceback_info,
     request_remote,
 )
-from .compute_dag import ComputeDAG
-from .search_task import SearchTask
+from .compute_dag import LayoutRewriteOption
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
@@ -178,13 +177,15 @@ def recover_measure_input(inp, rebuild_state=False):
     new_input: MeasureInput
         The fully recovered MeasureInput with all fields rebuilt.
     """
+    # pylint: disable=import-outside-toplevel
+    from .search_task import SearchTask  # lazily import to avoid recursive dependency
+
     task = inp.task
     new_task = SearchTask(
-        ComputeDAG(task.workload_key),
-        task.workload_key,
-        task.target,
-        task.target_host,
-        task.hardware_params,
+        workload_key=task.workload_key,
+        target=task.target,
+        target_host=task.target_host,
+        hardware_params=task.hardware_params,
     )
 
     if rebuild_state:
@@ -521,6 +522,7 @@ class LocalRPCMeasureContext:
         # Close the tracker and server before exit
         self.tracker.terminate()
         self.server.terminate()
+        time.sleep(0.5)
 
 
 class MeasureErrorNo(object):
@@ -549,7 +551,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     try:
         sch, args = task.compute_dag.apply_steps_from_state(
-            inp.state, layout_rewrite=ComputeDAG.RewriteForPreTransformed
+            inp.state, layout_rewrite=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
         )
     # pylint: disable=broad-except
     except Exception:

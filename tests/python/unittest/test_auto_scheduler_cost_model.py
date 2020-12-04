@@ -30,7 +30,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 def get_sample_records(number):
     """Generate a list of random MeasureInput and MeasureResult pairs"""
     N = 128
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (N, N, N), "llvm")
+    task = auto_scheduler.SearchTask(func=matmul_auto_scheduler_test, args=(N, N, N), target="llvm")
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
     states = policy.sample_initial_population()[:number]
 

@@ -120,7 +120,14 @@ def extract_tasks(
     weights = []
     for wkl_key, ccache_key in env.wkl_key_to_ccache_key.items():
         dag = ComputeDAG(wkl_key)
-        tasks.append(SearchTask(dag, wkl_key, target, target_host, hardware_params))
+        tasks.append(
+            SearchTask(
+                workload_key=wkl_key,
+                target=target,
+                target_host=target_host,
+                hardware_params=hardware_params,
+            )
+        )
         weights.append(use_count_dict[ccache_key] + 1)
 
     # clean the cached lowering results
