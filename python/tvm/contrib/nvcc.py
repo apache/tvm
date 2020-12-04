@@ -148,7 +148,7 @@ def get_cuda_version(cuda_path):
         with open(version_file_path) as f:
             version_str = f.readline().replace("\n", "").replace("\r", "")
             return float(version_str.split(" ")[2][:2])
-    except:
+    except FileNotFoundError:
         pass
 
     cmd = [os.path.join(cuda_path, "bin", "nvcc"), "--version"]
@@ -231,6 +231,7 @@ def parse_compute_version(compute_version):
         minor = int(split_ver[1])
         return major, minor
     except (IndexError, ValueError) as err:
+        # pylint: disable=raise-missing-from
         raise RuntimeError("Compute version parsing error: " + str(err))
 
 
