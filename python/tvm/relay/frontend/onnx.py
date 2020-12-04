@@ -648,7 +648,7 @@ class MaxUnpool(OnnxOpConverter):
             [_expr.const([0, 0], "int64"), _expr.const(list(strides), "int64")], axis=0
         )
 
-        # Compute padding amount if output shape is specified. Note that this ignores the pads attribute.
+        # Compute padding amount if output shape is specified.
         if output_shape is not None:
             # Compute total extra values to add
             total_pad = _op.maximum(
