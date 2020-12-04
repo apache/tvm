@@ -261,7 +261,9 @@ class SearchTask(Object):
         """
         inp, _ = load_best_record(log_file, self.workload_key)
         if inp is None:
-            raise RuntimeError("Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file))
+            raise RuntimeError(
+                "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
+            )
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
@@ -288,7 +290,9 @@ class SearchTask(Object):
         """
         inp, _ = load_best_record(log_file, self.workload_key)
         if inp is None:
-            raise RuntimeError("Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file))
+            raise RuntimeError(
+                "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
+            )
 
         if print_mode == "schedule":
             return self.compute_dag.print_python_code_from_state(inp.state)
