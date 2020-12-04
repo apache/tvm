@@ -1959,7 +1959,9 @@ class OperatorConverter(object):
             _, kernel_h, kernel_w, in_channels = to_int_list(weight_tensor.tensor.ShapeAsNumpy())
             assert in_channels == input_c * depth_multiplier
         else:
-            output_channels, kernel_h, kernel_w, _ = to_int_list(weight_tensor.tensor.ShapeAsNumpy())
+            output_channels, kernel_h, kernel_w, _ = to_int_list(
+                weight_tensor.tensor.ShapeAsNumpy()
+            )
 
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
         dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
@@ -2007,7 +2009,6 @@ class OperatorConverter(object):
             pass
         elif padding == Padding.SAME:
             pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
-
 
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
             do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
@@ -2706,7 +2707,9 @@ class OperatorConverter(object):
         _, input_h, input_w, input_c = to_int_list(input_tensor.tensor.ShapeAsNumpy())
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
-        out_channels, kernel_h, kernel_w, in_channels = to_int_list(weights_tensor.tensor.ShapeAsNumpy())
+        out_channels, kernel_h, kernel_w, in_channels = to_int_list(
+            weights_tensor.tensor.ShapeAsNumpy()
+        )
         assert (
             input_c == in_channels
         ), "Input channel in the filter should match to channel in the input"
