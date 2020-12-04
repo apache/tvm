@@ -26,7 +26,7 @@ from .injective import schedule_injective_from_existing
 from .nms import atomic_add
 from .sort import topk, topk_thrust, argsort, argsort_thrust
 from .. import tag
-from ..transform import strided_slice, adv_index, squeeze, dynamic_strided_slice1
+from ..transform import strided_slice, adv_index, squeeze
 
 logger = logging.getLogger("topi")
 
@@ -237,12 +237,12 @@ def argwhere_2d(output_shape, condition):
 
         out = adv_index(out, [out3])
     else:
-        out1 = dynamic_strided_slice1(out, [0, 1], [out.shape[0], 2], [1, 1])
+        out1 = strided_slice(out, [0, 1], [out.shape[0], 2], [1, 1])
         out2 = sort_func(out1, axis=0, dtype="int32")
         out3 = squeeze(out2)
         out = adv_index(out, [out3])
 
-        out1 = dynamic_strided_slice1(out, [0, 0], [out.shape[0], 1], [1, 1])
+        out1 = strided_slice(out, [0, 0], [out.shape[0], 1], [1, 1])
         out2 = sort_func(out1, axis=0, dtype="int32")
         out3 = squeeze(out2)
         out = adv_index(out, [out3])
@@ -354,7 +354,7 @@ def argwhere_3d(output_shape, condition):
             out = adv_index(out, [out3])
     else:
         for i in reversed(range(3)):
-            out1 = dynamic_strided_slice1(out, [0, i], [out.shape[0], i + 1], [1, 1])
+            out1 = strided_slice(out, [0, i], [out.shape[0], i + 1], [1, 1])
             out2 = sort_func(out1, axis=0, dtype="int32")
             out3 = squeeze(out2)
             out = adv_index(out, [out3])
@@ -468,7 +468,7 @@ def argwhere_4d(output_shape, condition):
             out = adv_index(out, [out3])
     else:
         for i in reversed(range(4)):
-            out1 = dynamic_strided_slice1(out, [0, i], [out.shape[0], i + 1], [1, 1])
+            out1 = strided_slice(out, [0, i], [out.shape[0], i + 1], [1, 1])
             out2 = sort_func(out1, axis=0, dtype="int32")
             out3 = squeeze(out2)
             out = adv_index(out, [out3])
@@ -586,7 +586,7 @@ def argwhere_5d(output_shape, condition):
             out = adv_index(out, [out3])
     else:
         for i in reversed(range(5)):
-            out1 = dynamic_strided_slice1(out, [0, i], [out.shape[0], i + 1], [1, 1])
+            out1 = strided_slice(out, [0, i], [out.shape[0], i + 1], [1, 1])
             out2 = sort_func(out1, axis=0, dtype="int32")
             out3 = squeeze(out2)
             out = adv_index(out, [out3])
