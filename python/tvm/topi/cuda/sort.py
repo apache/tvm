@@ -550,6 +550,8 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8),
     ]
 
+    is_ascend = 1 if is_ascend else 0
+
     out = te.extern(
         [data.shape, data.shape],
         [data],
