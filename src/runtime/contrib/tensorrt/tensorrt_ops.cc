@@ -448,7 +448,7 @@ class BatchNormOpConverter : public TensorRTOpConverter {
         *input, nvinfer1::ScaleMode::kCHANNEL, weight_shift, weight_scale, power, channel_dim);
 #else
     ICHECK_EQ(input->getDimensions().nbDims(), 3);
-    nvinfer1::IScaleLayer* scale_layer = params->network->addScaleNd(
+    nvinfer1::IScaleLayer* scale_layer = params->network->addScale(
         *input, nvinfer1::ScaleMode::kCHANNEL, weight_shift, weight_scale, power);
 #endif
     ICHECK(scale_layer != nullptr);
