@@ -24,6 +24,7 @@ from tvm.relay.testing import inception_v3
 
 import pytest
 
+
 def optimize_source(source, passes):
     if not isinstance(passes, list):
         passes = [passes]
@@ -94,6 +95,7 @@ def test_nested_let():
     }
     """
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
+
 
 def test_live_recursion():
     before_program = """
