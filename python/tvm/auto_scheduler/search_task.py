@@ -37,10 +37,8 @@ from . import _ffi_api
 @tvm._ffi.register_object("auto_scheduler.HardwareParams")
 class HardwareParams(Object):
     """The parameters of target hardware used to guide the search policy
-
     TODO(jcf94): This is considered to be merged with the new Target specification:
     https://discuss.tvm.apache.org/t/rfc-tvm-target-specification/6844
-
     Parameters
     ----------
     num_cores : int
@@ -49,11 +47,39 @@ class HardwareParams(Object):
         The width of vector units in bytes.
     cache_line_bytes : int
         The size of cache line in bytes.
+    max_shared_memory_per_block : int
+        The max shared memory per block in bytes.
+    max_registers_per_block : int
+        The max number of register per block.
+    max_threads_per_block : int
+        The max number of threads per block.
+    max_vthread_extent : int
+        The max vthread extent.
+    warp_size : int
+        The thread numbers of a warp.
     """
 
-    def __init__(self, num_cores, vector_unit_bytes, cache_line_bytes):
+    def __init__(
+        self,
+        num_cores,
+        vector_unit_bytes,
+        cache_line_bytes,
+        max_shared_memory_per_block,
+        max_registers_per_block,
+        max_threads_per_block,
+        max_vthread_extent,
+        warp_size,
+    ):
         self.__init_handle_by_constructor__(
-            _ffi_api.HardwareParams, num_cores, vector_unit_bytes, cache_line_bytes
+            _ffi_api.HardwareParams,
+            num_cores,
+            vector_unit_bytes,
+            cache_line_bytes,
+            max_shared_memory_per_block,
+            max_registers_per_block,
+            max_threads_per_block,
+            max_vthread_extent,
+            warp_size,
         )
 
 
