@@ -54,14 +54,15 @@ import pytest
 #     entry = mod["main"]
 #     return entry if isinstance(expr, relay.Function) else entry.body
 
+
 def optimize_source(source, passes):
     if not isinstance(passes, list):
         passes = [passes]
 
-
     optimize = tvm.transform.Sequential(passes)
     module = tvm.parser.parse(source)
     return optimize(module)
+
 
 def optimize_and_check(before_source, after_source, passes):
     optimize_module = optimize_source(before_source, passes)
@@ -69,6 +70,7 @@ def optimize_and_check(before_source, after_source, passes):
     print(optimize_module)
     print(after_module)
     assert tvm.ir.structural_equal(after_module, optimize_module)
+
 
 def test_dead_let():
     before_program = """
@@ -85,6 +87,7 @@ def test_dead_let():
     }
     """
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
+
 
 def test_one_live_let():
     before_program = """
@@ -104,6 +107,7 @@ def test_one_live_let():
     """
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
 
+
 def test_nested_let():
     before_program = """
     #[version = "0.0.5"]
@@ -121,6 +125,7 @@ def test_nested_let():
     }
     """
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
+
 
 def use_f(func):
     f = relay.Var("f")
@@ -162,10 +167,10 @@ def test_live_recursion():
     }
     """
 
-    optimize_and_check(before_program, after_program, [
-        transform.DeadCodeElimination(),
-        transform.InferType()
-    ])
+    optimize_and_check(
+        before_program, after_program, [transform.DeadCodeElimination(), transform.InferType()]
+    )
+
 
 def test_dead_recursion():
     before_program = """
@@ -189,10 +194,10 @@ def test_dead_recursion():
     }
     """
 
-    optimize_and_check(before_program, after_program, [
-        transform.DeadCodeElimination(),
-        transform.InferType()
-    ])
+    optimize_and_check(
+        before_program, after_program, [transform.DeadCodeElimination(), transform.InferType()]
+    )
+
 
 def test_dead_recursion():
     before_program = """
@@ -209,10 +214,10 @@ def test_dead_recursion():
     }
     """
 
-    optimize_and_check(before_program, after_program, [
-        transform.DeadCodeElimination(),
-        transform.InferType()
-    ])
+    optimize_and_check(
+        before_program, after_program, [transform.DeadCodeElimination(), transform.InferType()]
+    )
+
 
 def test_dead_recursion():
     before_program = """
@@ -232,6 +237,8 @@ def test_dead_recursion():
 
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
 
+
 if __name__ == "__main__":
     import sys
+
     pytest.main(sys.argv)
