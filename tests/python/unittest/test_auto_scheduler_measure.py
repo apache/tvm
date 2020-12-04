@@ -29,7 +29,7 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test, get_tiled_mat
 
 def record_common(dag, s):
     target = tvm.target.Target("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", target)
+    task = auto_scheduler.SearchTask(compute_dag=dag, workload_key="test", target=target)
 
     inp = auto_scheduler.measure.MeasureInput(task, s)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
@@ -169,7 +169,9 @@ def test_record_pragma_storage_align_rfactor():
 
 
 def test_recover_measure_input():
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
+    task = auto_scheduler.SearchTask(
+        func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm"
+    )
 
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
@@ -194,7 +196,9 @@ def test_measure_local_builder_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
+    task = auto_scheduler.SearchTask(
+        func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm"
+    )
 
     for enable_cpu_cache_flush in [True, False]:
         minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
@@ -213,7 +217,9 @@ def test_measure_local_builder_rpc_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
 
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, [512, 512, 512], "llvm")
+    task = auto_scheduler.SearchTask(
+        func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm"
+    )
 
     for enable_cpu_cache_flush in [True, False]:
         minp = auto_scheduler.MeasureInput(task, task.compute_dag.init_state)
@@ -251,5 +257,4 @@ if __name__ == "__main__":
     test_record_pragma_storage_align_rfactor()
     test_recover_measure_input()
     test_measure_local_builder_runner()
-    test_measure_local_builder_runner_spawn()
     test_measure_local_builder_rpc_runner()

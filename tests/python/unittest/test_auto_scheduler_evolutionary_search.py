@@ -48,9 +48,9 @@ def test_mutate_tile_size():
                 scores.append(1 if self.is_good_state(state) else 0)
             return scores
 
-    workload_key = auto_scheduler.make_workload_key(matmul_auto_scheduler_test, (10, 10, 4))
-    dag = auto_scheduler.ComputeDAG(workload_key)
-    task = auto_scheduler.SearchTask(dag, workload_key, tvm.target.Target("llvm"))
+    task = auto_scheduler.SearchTask(
+        func=matmul_auto_scheduler_test, args=(10, 10, 4), target=tvm.target.Target("llvm")
+    )
     policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
     states = policy.sample_initial_population()[:50]
 
@@ -92,7 +92,9 @@ def test_mutate_parallel():
                 scores.append(1 if self.is_good_state(state) else 0)
             return scores
 
-    task = auto_scheduler.create_task(matmul_auto_scheduler_test, (1024, 1024, 1024), "llvm")
+    task = auto_scheduler.SearchTask(
+        func=matmul_auto_scheduler_test, args=(1024, 1024, 1024), target="llvm"
+    )
     policy = auto_scheduler.SketchPolicy(task, program_cost_model=MockCostModel(), verbose=0)
 
     found = False

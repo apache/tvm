@@ -56,7 +56,12 @@ def matmul_add(N, L, M, dtype):
     C = te.placeholder((N, M), name="C", dtype=dtype)
 
     k = te.reduce_axis((0, L), name="k")
-    matmul = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="matmul")
+    matmul = te.compute(
+        (N, M),
+        lambda i, j: te.sum(A[i, k] * B[k, j], axis=k),
+        name="matmul",
+        attrs={"layout_free_placeholders": [B]},  # enable automatic layout transform for tensor B
+    )
     out = te.compute((N, M), lambda i, j: matmul[i, j] + C[i, j], name="out")
 
     return [A, B, C, out]
@@ -65,16 +70,18 @@ def matmul_add(N, L, M, dtype):
 ######################################################################
 # Create the search task
 # ^^^^^^^^^^^^^^^^^^^^^^
-# We then create a search task with N=L=M=128 and dtype="float32"
+# We then create a search task with N=L=M=1024 and dtype="float32"
 # If your machine supports avx instructions, you can
 #
 #   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2
 #   - replace "llvm" below with "llvm -mcpu=skylake-avx512" to enable AVX-512
 
 target = tvm.target.Target("llvm")
-task = tvm.auto_scheduler.create_task(matmul_add, (128, 128, 128, "float32"), target)
+N = L = M = 1024
+task = tvm.auto_scheduler.SearchTask(func=matmul_add, args=(N, L, M, "float32"), target=target)
 
 # Inspect the computational graph
+print("Computational DAG:")
 print(task.compute_dag)
 
 ######################################################################
@@ -100,15 +107,20 @@ tune_option = auto_scheduler.TuningOptions(
 # ^^^^^^^^^^^^^^
 # Now we get all inputs ready. Pretty simple, isn't it?
 # We can kick off the search and let the auto-scheduler do its magic.
-# After some measurement trials, it will return the best schedule it found.
+# After some measurement trials, we can load the best schedule from the log
+# file and apply it.
 
-sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
+# Run auto-tuning (search)
+task.tune(tune_option)
+# Apply the best schedule
+sch, args = task.apply_best(log_file)
 
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
 # parallelization, vectorization, unrolling and operator fusion.
 
+print("Lowered TIR:")
 print(tvm.lower(sch, args, simple_mode=True))
 
 ######################################################################
@@ -116,10 +128,10 @@ print(tvm.lower(sch, args, simple_mode=True))
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # We build the binary and check its correctness and performance.
 
-func = tvm.build(sch, args)
-a_np = np.random.uniform(size=(128, 128)).astype(np.float32)
-b_np = np.random.uniform(size=(128, 128)).astype(np.float32)
-c_np = np.random.uniform(size=(128, 128)).astype(np.float32)
+func = tvm.build(sch, args, target)
+a_np = np.random.uniform(size=(N, L)).astype(np.float32)
+b_np = np.random.uniform(size=(L, M)).astype(np.float32)
+c_np = np.random.uniform(size=(N, M)).astype(np.float32)
 out_np = a_np.dot(b_np) + c_np
 
 ctx = tvm.cpu()
@@ -143,26 +155,17 @@ print(
 ######################################################################
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
-# During the search, all measuremnt records are dumpped into the record
+# During the search, all measurement records are dumped into the record
 # file "matmul.json". The measurement records can be used to re-apply search results,
 # resume the search, and perform other analyses.
 
 ######################################################################
 # Here is an example where we load the best schedule from a file,
-# print the equivalent python schedule API, and build the binary again.
+# and print the equivalent python schedule API. This can be used for
+# debugging and learning the behavior of the auto-scheduler.
 
-# Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best(log_file, task.workload_key)
-
-# Print equivalent python schedule API. This can be used for debugging and
-# learning the behavior of the auto-scheduler.
 print("Equivalent python schedule:")
-print(task.compute_dag.print_python_code_from_state(inp.state))
-
-# Rebuild the binary. This shows how you can apply the best schedule from a
-# log file without reruning the search again.
-sch, args = task.compute_dag.apply_steps_from_state(inp.state)
-func = tvm.build(sch, args)
+print(task.print_best(log_file))
 
 ######################################################################
 # A more complicated example is to resume the search.
@@ -182,7 +185,7 @@ def resume_search(task, log_file_name):
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file_name)]
     )
-    sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
+    task.tune(tune_option, search_policy=search_policy)
 
 
 # resume_search(task, log_file)

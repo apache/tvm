@@ -45,7 +45,7 @@ def test_cpu_matmul():
     s.unroll(C, k)
 
     target = tvm.target.Target("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", target)
+    task = auto_scheduler.SearchTask(compute_dag=dag, workload_key="test", target=target)
     names = auto_scheduler.feature.get_per_store_feature_names()
     fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[0]
 
@@ -103,7 +103,7 @@ def test_cpu_fusion():
     s.compute_at(1, 2, s.stages[2].iters[1])
 
     target = tvm.target.Target("llvm")
-    task = auto_scheduler.SearchTask(dag, "test", target)
+    task = auto_scheduler.SearchTask(compute_dag=dag, workload_key="test", target=target)
     names = auto_scheduler.feature.get_per_store_feature_names()
     fea = auto_scheduler.feature.get_per_store_features_from_states([s], task)[0]
 
@@ -147,18 +147,15 @@ def test_gpu_feature():
         inputs, results = auto_scheduler.RecordReader(f.name).read_lines()
 
         inp = inputs[0]
-        dag = auto_scheduler.ComputeDAG(inp.task.workload_key)
         task = auto_scheduler.SearchTask(
-            dag,
-            inp.task.workload_key,
-            inp.task.target,
-            None,
-            auto_scheduler.HardwareParams(
+            workload_key=inp.task.workload_key,
+            target=inp.task.target,
+            hardware_params=auto_scheduler.HardwareParams(
                 100000, 16, 64, 1 << 30, 1 << 30, 1 << 30, 1 << 30, 1 << 30
             ),
         )
 
-        state = dag.infer_bound_from_state(inputs[0].state)
+        state = task.dag.infer_bound_from_state(inputs[0].state)
         fea = auto_scheduler.feature.get_per_store_features_from_states([state], task)[0]
         names = auto_scheduler.feature.get_per_store_feature_names()
 
