@@ -19,7 +19,7 @@
 import logging
 
 import re
-from tvm import topi, _ffi
+from tvm import topi, _ffi, te, ir
 from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
 from tvm.target import generic_func, override_native_generic_func
 from .. import op as _op
@@ -1034,14 +1034,6 @@ def proposal_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# argwhere
-@generic_func
-def schedule_argwhere(attrs, outs, target):
-    """schedule argwhere"""
-    with target:
-        return topi.generic.schedule_argwhere(outs)
-
-
 # scatter
 @override_native_generic_func("scatter_strategy")
 def scatter_strategy(attrs, outs, out_type, target):
@@ -1221,5 +1213,34 @@ def correlation_strategy(attrs, inputs, out_type, target):
         wrap_compute_correlation(topi.nn.correlation_nchw),
         wrap_topi_schedule(topi.generic.schedule_correlation_nchw),
         name="correlation.generic",
+    )
+    return strategy
+
+
+# argwhere
+def wrap_compute_argwhere(topi_compute):
+    """wrap argwhere topi compute"""
+
+    def _compute_argwhere(attrs, inputs, out_type):
+        output_shape = []
+        for s in out_type.shape:
+            if hasattr(s, "value"):
+                output_shape.append(s)
+            else:
+                output_shape.append(te.var("any_dim", "int32"))
+        new_output_type = ir.TensorType(output_shape, "int32")
+        return [topi_compute(new_output_type, inputs[0])]
+
+    return _compute_argwhere
+
+
+@override_native_generic_func("argwhere_strategy")
+def argwhere_strategy(attrs, inputs, out_type, target):
+    """argwhere generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_argwhere(topi.argwhere),
+        wrap_topi_schedule(topi.generic.schedule_argwhere),
+        name="argwhere.generic",
     )
     return strategy
