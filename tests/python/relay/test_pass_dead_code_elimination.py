@@ -24,37 +24,6 @@ from tvm.relay.testing import inception_v3
 
 import pytest
 
-
-# class env:
-#     def __init__(self):
-#         self.shape = tvm.runtime.convert([1, 2, 3])
-#         self.tt = relay.TensorType(self.shape, "float32")
-#         self.int32 = relay.TensorType([], "int32")
-#         self.float32 = relay.TensorType([], "float32")
-#         self.one = relay.const(1.0)
-#         self.two = relay.const(2.0)
-#         self.three = relay.const(3.0)
-#         self.a = relay.Var("a", self.float32)
-#         self.b = relay.Var("b", self.float32)
-#         self.c = relay.Var("c", self.float32)
-#         self.d = relay.Var("d", self.float32)
-#         self.e = relay.Var("e", self.float32)
-#         self.x = relay.Var("x", self.int32)
-#         self.y = relay.Var("y", self.int32)
-#         self.z = relay.Var("z", self.int32)
-
-
-# e = env()
-
-
-# def run_opt_pass(expr, opt_pass):
-#     assert isinstance(opt_pass, tvm.transform.Pass)
-#     mod = tvm.IRModule.from_expr(expr)
-#     mod = opt_pass(mod)
-#     entry = mod["main"]
-#     return entry if isinstance(expr, relay.Function) else entry.body
-
-
 def optimize_source(source, passes):
     if not isinstance(passes, list):
         passes = [passes]
@@ -126,18 +95,6 @@ def test_nested_let():
     """
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
 
-
-def use_f(func):
-    f = relay.Var("f")
-    n = relay.Var("n", e.int32)
-    data = relay.Var("data", e.float32)
-    funcbody = relay.If(
-        equal(n, relay.const(0)), data, relay.Call(f, [subtract(n, relay.const(1)), log(data)])
-    )
-    value = relay.Function([n, data], funcbody, e.float32, [])
-    return relay.Let(f, value, func(f))
-
-
 def test_live_recursion():
     before_program = """
     #[version = "0.0.5"]
@@ -199,7 +156,7 @@ def test_dead_recursion():
     )
 
 
-def test_dead_recursion():
+def test_add_with_let():
     before_program = """
     #[version = "0.0.5"]
     def @main() {
@@ -219,7 +176,7 @@ def test_dead_recursion():
     )
 
 
-def test_dead_recursion():
+def test_tuple_get_item():
     before_program = """
     #[version = "0.0.5"]
     def @main() {
