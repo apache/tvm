@@ -53,7 +53,7 @@ from .utils import (
     make_traceback_info,
     request_remote,
 )
-from .compute_dag import ComputeDAG, LayoutRewriteOption
+from .compute_dag import LayoutRewriteOption
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,

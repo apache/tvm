@@ -18,7 +18,6 @@
 """ The definiton of SearchTask """
 
 import json
-import logging
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -234,7 +233,7 @@ class SearchTask(Object):
         -------
             A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
-        inp, res = load_best_record(log_file, self.workload_key)
+        inp, _ = load_best_record(log_file, self.workload_key)
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
@@ -259,14 +258,14 @@ class SearchTask(Object):
         code: str
             The best schedule code in python API or CUDA source code
         """
-        inp, res = load_best_record(log_file, self.workload_key)
+        inp, _ = load_best_record(log_file, self.workload_key)
 
         if print_mode == "schedule":
             return self.compute_dag.print_python_code_from_state(inp.state)
-        elif print_mode == "cuda":
+        if print_mode == "cuda":
             assert self.target.kind.name == "cuda"
             sch, args = self.compute_dag.apply_steps_from_state(inp.state)
-            func = tvm.build(sch, args, "cuda")
+            func = build(sch, args, "cuda")
             return func.imported_modules[0].get_source()
         else:
             raise ValueError("Invalid print_mode: %s" % print_mode)
@@ -333,7 +332,8 @@ def create_task(func, args, target, target_host=None, hardware_params=None):
         SearchTask: the created task
     """
     raise ValueError(
-        'The API "auto_scheduler.create_task" is deprecated. See https://github.com/apache/tvm/pull/7028 for the upgrade guide'
+        'The API "auto_scheduler.create_task" is deprecated.'
+        "See https://github.com/apache/tvm/pull/7028 for the upgrade guide"
     )
 
 
@@ -356,5 +356,6 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
         A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
     """
     raise ValueError(
-        'The API "auto_scheduler.auto_schedule" is deprecated. See https://github.com/apache/tvm/pull/7028 for the upgrade guide'
+        'The API "auto_scheduler.create_task" is deprecated.'
+        "See https://github.com/apache/tvm/pull/7028 for the upgrade guide."
     )
