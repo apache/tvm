@@ -79,11 +79,7 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
             N, H, W, _ = get_const_tuple(data.shape)
             KH, KW, CI, CO = get_const_tuple(kernel.shape)
 
-            (
-                _,
-                judge_winograd_autotvm,
-                judge_winograd_auto_scheduler,
-            ) = judge_winograd(
+            (_, judge_winograd_autotvm, judge_winograd_auto_scheduler,) = judge_winograd(
                 N,
                 H,
                 W,
