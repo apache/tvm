@@ -18,7 +18,7 @@
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import tvm.tir
 from .registry import register
-from .utils import get_param_list
+from .utils import get_param_list, from_synr_span
 
 
 class Intrin:
@@ -29,150 +29,150 @@ class Intrin:
     def signature(self):
         return "tir." + self.intrin.__name__, get_param_list(self.intrin)
 
-    def handle(self, arg_list):
-        return self.intrin(*arg_list)
+    def handle(self, arg_list, span):
+        return self.intrin(*arg_list, span=from_synr_span(span))
 
 
 @register
-def bool(imm):
-    return tvm.tir.const(imm, "bool")
+def bool(imm, span):
+    return tvm.tir.Cast("bool", imm, span)
 
 
 @register
-def int8(imm):
-    return tvm.tir.const(imm, "int8")
+def int8(imm, span):
+    return tvm.tir.Cast("int8", imm, span)
 
 
 @register
-def int16(imm):
-    return tvm.tir.const(imm, "int16")
+def int16(imm, span):
+    return tvm.tir.Cast("int16", imm, span)
 
 
 @register
-def int32(imm):
-    return tvm.tir.const(imm, "int32")
+def int32(imm, span):
+    return tvm.tir.Cast("int32", imm, span)
 
 
 @register
-def int64(imm):
-    return tvm.tir.const(imm, "int64")
+def int64(imm, span):
+    return tvm.tir.Cast("int64", imm, span)
 
 
 @register
-def uint8(imm):
-    return tvm.tir.const(imm, "uint8")
+def uint8(imm, span):
+    return tvm.tir.Cast("uint8", imm, span)
 
 
 @register
-def uint16(imm):
-    return tvm.tir.const(imm, "uint16")
+def uint16(imm, span):
+    return tvm.tir.Cast("uint16", imm, span)
 
 
 @register
-def uint32(imm):
-    return tvm.tir.const(imm, "uint32")
+def uint32(imm, span):
+    return tvm.tir.Cast("uint32", imm, span)
 
 
 @register
-def uint64(imm):
-    return tvm.tir.const(imm, "uint64")
+def uint64(imm, span):
+    return tvm.tir.Cast("uint64", imm, span)
 
 
 @register
-def float8(imm):
-    return tvm.tir.const(imm, "float8")
+def float8(imm, span):
+    return tvm.tir.Cast("float8", imm, span)
 
 
 @register
-def float16(imm):
-    return tvm.tir.const(imm, "float16")
+def float16(imm, span):
+    return tvm.tir.Cast("float16", imm, span)
 
 
 @register
-def float32(imm):
-    return tvm.tir.const(imm, "float32")
+def float32(imm, span):
+    return tvm.tir.Cast("float32", imm, span)
 
 
 @register
-def float64(imm):
-    return tvm.tir.const(imm, "float64")
+def float64(imm, span):
+    return tvm.tir.Cast("float64", imm, span)
 
 
 @register
-def floordiv(x, y):
-    return tvm.tir.floordiv(x, y)
+def floordiv(x, y, span):
+    return tvm.tir.floordiv(x, y, span)
 
 
 @register
-def floormod(x, y):
-    return tvm.tir.floormod(x, y)
+def floormod(x, y, span):
+    return tvm.tir.floormod(x, y, span)
 
 
 @register
-def load(dtype, var, index, predicate=True):
-    return tvm.tir.Load(dtype, var, index, predicate)
+def load(dtype, var, index, predicate=True, span=None):
+    return tvm.tir.Load(dtype, var, index, predicate, span)
 
 
 @register
-def cast(value, dtype):
-    return tvm.tir.Cast(dtype, value)
+def cast(value, dtype, span):
+    return tvm.tir.Cast(dtype, value, span)
 
 
 @register
-def ramp(base, stride, lanes):
-    return tvm.tir.Ramp(base, stride, lanes)
+def ramp(base, stride, lanes, span):
+    return tvm.tir.Ramp(base, stride, lanes.value, span)
 
 
 @register
-def broadcast(value, lanes):
-    return tvm.tir.Broadcast(value, lanes)
+def broadcast(value, lanes, span):
+    return tvm.tir.Broadcast(value, lanes.value, span)
 
 
 @register
-def iter_var(var, dom, iter_type, thread_tag):
+def iter_var(var, dom, iter_type, thread_tag, span):
     iter_type = getattr(tvm.tir.IterVar, iter_type)
-    return tvm.tir.IterVar(dom, var, iter_type, thread_tag)
+    return tvm.tir.IterVar(dom, var, iter_type, thread_tag, span)
 
 
 @register
-def max(a, b):  # pylint: disable=redefined-builtin
-    return tvm.tir.Max(a, b)
+def max(a, b, span):  # pylint: disable=redefined-builtin
+    return tvm.tir.Max(a, b, span)
 
 
-def get_axis(begin, end, iter_type):
+def get_axis(begin, end, iter_type, span):
     ana = tvm.arith.Analyzer()
     extent = ana.simplify(end - begin)
     block_var_dom = tvm.ir.Range.from_min_extent(begin, extent)
 
     iter_type_dict = {"data_par": 0, "reduce": 2, "scan": 3, "opaque": 4}
-    return tvm.tir.IterVar(block_var_dom, "bv", iter_type_dict[iter_type])
+    return tvm.tir.IterVar(block_var_dom, "bv", iter_type_dict[iter_type], span)
 
 
 @register
-def range(begin, end):
-    return get_axis(begin, end, "data_par")
+def range(begin, end, span):
+    return get_axis(begin, end, "data_par", span)
 
 
 @register
-def reduce_axis(begin, end):
-    return get_axis(begin, end, "reduce")
+def reduce_axis(begin, end, span):
+    return get_axis(begin, end, "reduce", span)
 
 
 @register
-def scan_axis(begin, end):
-    return get_axis(begin, end, "scan")
+def scan_axis(begin, end, span):
+    return get_axis(begin, end, "scan", span)
 
 
 @register
-def opaque_axis(begin, end):
-    return get_axis(begin, end, "opaque")
+def opaque_axis(begin, end, span):
+    return get_axis(begin, end, "opaque", span)
 
 
 @register
 class EvaluateIntrin(Intrin):
     def __init__(self):
-        def evaluate(value):
-            return tvm.tir.Evaluate(value)
+        def evaluate(value, span):
+            return tvm.tir.Evaluate(value, span)
 
         super().__init__(evaluate, stmt=True)
 
@@ -180,7 +180,7 @@ class EvaluateIntrin(Intrin):
 @register
 class StoreIntrin(Intrin):
     def __init__(self):
-        def store(var, index, value, predicate=True):
-            return tvm.tir.Store(var, value, index, predicate)
+        def store(var, index, value, predicate=True, span=None):
+            return tvm.tir.Store(var, value, index, predicate, span)
 
         super().__init__(store, stmt=True)

@@ -222,8 +222,10 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                    << " expected to be compact array";
     if (conds.size() != 0) {
       auto stride_msg = tvm::tir::StringImm(stride_err_msg.str());
-      auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
-      Stmt check = AssertStmt(foldl(fand, const_true(1), conds), stride_msg, Evaluate(0));
+      Stmt check = AssertStmt(
+          foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                const_true(1), conds),
+          stride_msg, Evaluate(0));
       check = IfThenElse(Not(is_null), check, Stmt());
       asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
     }

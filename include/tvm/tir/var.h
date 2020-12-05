@@ -64,6 +64,7 @@ class VarNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("name", &name_hint);
     v->Visit("type_annotation", &type_annotation);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
@@ -262,6 +263,7 @@ class IterVarNode : public Object {
     v->Visit("var", &var);
     v->Visit("iter_type", &iter_type);
     v->Visit("thread_tag", &thread_tag);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const IterVarNode* other, SEqualReducer equal) const {
