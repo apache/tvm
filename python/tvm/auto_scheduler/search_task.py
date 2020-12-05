@@ -49,8 +49,8 @@ class HardwareParams(Object):
         The size of cache line in bytes.
     max_shared_memory_per_block : int
         The max shared memory per block in bytes.
-    max_registers_per_block : int
-        The max number of register per block.
+    max_local_memory_per_block : int
+        The max local memory per block in bytes.
     max_threads_per_block : int
         The max number of threads per block.
     max_vthread_extent : int
@@ -65,7 +65,7 @@ class HardwareParams(Object):
         vector_unit_bytes,
         cache_line_bytes,
         max_shared_memory_per_block,
-        max_registers_per_block,
+        max_local_memory_per_block,
         max_threads_per_block,
         max_vthread_extent,
         warp_size,
@@ -76,7 +76,7 @@ class HardwareParams(Object):
             vector_unit_bytes,
             cache_line_bytes,
             max_shared_memory_per_block,
-            max_registers_per_block,
+            max_local_memory_per_block,
             max_threads_per_block,
             max_vthread_extent,
             warp_size,
