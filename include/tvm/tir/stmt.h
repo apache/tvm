@@ -75,6 +75,7 @@ class LetStmtNode : public StmtNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
@@ -129,6 +130,7 @@ class AttrStmtNode : public StmtNode {
     v->Visit("attr_key", &attr_key);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
@@ -177,6 +179,7 @@ class AssertStmtNode : public StmtNode {
     v->Visit("condition", &condition);
     v->Visit("message", &message);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
@@ -239,6 +242,7 @@ class StoreNode : public StmtNode {
     v->Visit("value", &value);
     v->Visit("index", &index);
     v->Visit("predicate", &predicate);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const StoreNode* other, SEqualReducer equal) const {
@@ -292,6 +296,7 @@ class BufferStoreNode : public StmtNode {
     v->Visit("buffer", &buffer);
     v->Visit("value", &value);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
@@ -348,6 +353,7 @@ class BufferRealizeNode : public StmtNode {
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
@@ -406,6 +412,7 @@ class ProducerStoreNode : public StmtNode {
     v->Visit("producer", &producer);
     v->Visit("value", &value);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
@@ -462,6 +469,7 @@ class ProducerRealizeNode : public StmtNode {
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
@@ -514,6 +522,7 @@ class AllocateNode : public StmtNode {
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
@@ -576,7 +585,10 @@ class SeqStmtNode : public StmtNode {
    */
   Stmt operator[](size_t index) const { return seq[index]; }
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("seq", &seq); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("seq", &seq);
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
     return equal(seq, other->seq);
@@ -671,6 +683,7 @@ class IfThenElseNode : public StmtNode {
     v->Visit("condition", &condition);
     v->Visit("then_case", &then_case);
     v->Visit("else_case", &else_case);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
@@ -711,7 +724,10 @@ class EvaluateNode : public StmtNode {
   /*! \brief The expression to be evaluated. */
   PrimExpr value;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("value", &value); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
     return equal(value, other->value);
@@ -788,6 +804,7 @@ class ForNode : public StmtNode {
     v->Visit("for_type", &for_type);
     v->Visit("device_api", &device_api);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
@@ -834,6 +851,7 @@ class PrefetchNode : public StmtNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer", &buffer);
     v->Visit("bounds", &bounds);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {

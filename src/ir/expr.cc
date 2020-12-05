@@ -120,17 +120,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
-Range::Range(PrimExpr begin, PrimExpr end)
-    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin))) {}
+Range::Range(PrimExpr begin, PrimExpr end, Span span)
+    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
-Range Range::FromMinExtent(PrimExpr min, PrimExpr extent) {
-  return Range(make_object<RangeNode>(min, extent));
+Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
+  return Range(make_object<RangeNode>(min, extent, span));
 }
 
 TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
 TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Range(args[0], args[1]);
+  *ret = Range(args[0], args[1], args[2]);
 });
 
 TVM_REGISTER_NODE_TYPE(RangeNode);

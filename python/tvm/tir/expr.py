@@ -59,6 +59,8 @@ def _dtype_is_float(value):
 class ExprOp(object):
     """Operator overloading for Expr like expressions."""
 
+    # TODO(tkonolige): use inspect to add source information to these objects
+
     def __add__(self, other):
         return _generic.add(self, other)
 
@@ -101,58 +103,59 @@ class ExprOp(object):
         return _generic.floordiv(self, other)
 
     def __rfloordiv__(self, other):
-        return _generic.floordiv(other, self)
+        return _generic.floordiv(other, self, None)
 
     def __mod__(self, other):
-        return _ffi_api._OpFloorMod(self, other)
+        return _ffi_api._OpFloorMod(self, other, None)
 
     def __rmod__(self, other):
-        return _ffi_api._OpFloorMod(other, self)
+        return _ffi_api._OpFloorMod(other, self, None)
 
     def __neg__(self):
         neg_one = const(-1, self.dtype)
         return self.__mul__(neg_one)
 
     def __lshift__(self, other):
-        return _ffi_api.left_shift(self, other)
+        return _ffi_api.left_shift(self, other, None)
 
     def __rlshift__(self, other):
-        return _ffi_api.left_shift(other, self)
+        return _ffi_api.left_shift(other, self, None)
 
     def __rshift__(self, other):
-        return _ffi_api.right_shift(self, other)
+        print(type(other))
+        return _ffi_api.right_shift(self, other, None)
 
     def __rrshift__(self, other):
-        return _ffi_api.right_shift(other, self)
+        return _ffi_api.right_shift(other, self, None)
 
     def __and__(self, other):
-        return _ffi_api.bitwise_and(self, other)
+        return _ffi_api.bitwise_and(self, other, None)
 
     def __rand__(self, other):
-        return _ffi_api.bitwise_and(other, self)
+        return _ffi_api.bitwise_and(other, self, None)
 
     def __or__(self, other):
-        return _ffi_api.bitwise_or(self, other)
+        return _ffi_api.bitwise_or(self, other, None)
 
     def __ror__(self, other):
-        return _ffi_api.bitwise_or(other, self)
+        return _ffi_api.bitwise_or(other, self, None)
 
     def __xor__(self, other):
-        return _ffi_api.bitwise_xor(self, other)
+        return _ffi_api.bitwise_xor(self, other, None)
 
     def __rxor__(self, other):
-        return _ffi_api.bitwise_xor(other, self)
+        return _ffi_api.bitwise_xor(other, self, None)
 
     def __invert__(self):
         if _dtype_is_float(self):
             raise RuntimeError("Cannot use ~ operator on float type Expr.")
-        return _ffi_api.bitwise_not(self)
+        return _ffi_api.bitwise_not(self, None)
 
     def __lt__(self, other):
-        return _ffi_api._OpLT(self, other)
+        return _ffi_api._OpLT(self, other, None)
 
     def __le__(self, other):
-        return _ffi_api._OpLE(self, other)
+        return _ffi_api._OpLE(self, other, None)
 
     def __eq__(self, other):
         return EqualOp(self, other)
@@ -161,10 +164,10 @@ class ExprOp(object):
         return NotEqualOp(self, other)
 
     def __gt__(self, other):
-        return _ffi_api._OpGT(self, other)
+        return _ffi_api._OpGT(self, other, None)
 
     def __ge__(self, other):
-        return _ffi_api._OpGE(self, other)
+        return _ffi_api._OpGE(self, other, None)
 
     def __nonzero__(self):
         raise ValueError(
@@ -175,7 +178,7 @@ class ExprOp(object):
     def __bool__(self):
         return self.__nonzero__()
 
-    def equal(self, other):
+    def equal(self, other, span=None):
         """Build an equal check expression with other expr.
 
         Parameters
@@ -183,14 +186,17 @@ class ExprOp(object):
         other : PrimExpr
             The other expression
 
+        span : Optional[Span]
+            The location of the cast in the source.
+
         Returns
         -------
         ret : PrimExpr
             The equality expression.
         """
-        return _ffi_api._OpEQ(self, other)
+        return _ffi_api._OpEQ(self, other, span)
 
-    def astype(self, dtype):
+    def astype(self, dtype, span=None):
         """Cast the expression to other type.
 
         Parameters
@@ -198,12 +204,15 @@ class ExprOp(object):
         dtype : str
             The type of new expression
 
+        span : Optional[Span]
+            The location of the cast in the source.
+
         Returns
         -------
         expr : PrimExpr
             Expression with new type
         """
-        return _generic.cast(self, dtype)
+        return _generic.cast(self, dtype, span)
 
 
 class EqualOp(ObjectGeneric, ExprOp):
@@ -219,14 +228,18 @@ class EqualOp(ObjectGeneric, ExprOp):
 
     b : PrimExpr
         Right operand.
+
+    span : Optional[Span]
+        The location of the cast in the source.
     """
 
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a, b):
+    def __init__(self, a, b, span=None):
         self.a = a
         self.b = b
+        self.span = span
 
     def __nonzero__(self):
         return self.a.same_as(self.b)
@@ -236,7 +249,7 @@ class EqualOp(ObjectGeneric, ExprOp):
 
     def asobject(self):
         """Convert object."""
-        return _ffi_api._OpEQ(self.a, self.b)
+        return _ffi_api._OpEQ(self.a, self.b, self.span)
 
 
 class NotEqualOp(ObjectGeneric, ExprOp):
@@ -252,14 +265,18 @@ class NotEqualOp(ObjectGeneric, ExprOp):
 
     b : PrimExpr
         Right operand.
+
+    span : Optional[Span]
+        The location of the cast in the source.
     """
 
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a, b):
+    def __init__(self, a, b, span=None):
         self.a = a
         self.b = b
+        self.span = span
 
     def __nonzero__(self):
         return not self.a.same_as(self.b)
@@ -269,7 +286,7 @@ class NotEqualOp(ObjectGeneric, ExprOp):
 
     def asobject(self):
         """Convert object."""
-        return _ffi_api._OpNE(self.a, self.b)
+        return _ffi_api._OpNE(self.a, self.b, self.span)
 
 
 class IntImmEnum(ObjectGeneric):
@@ -280,14 +297,18 @@ class IntImmEnum(ObjectGeneric):
     ----------
     value : int
         The enum value
+
+    span : Optional[Span]
+        The location of the cast in the source.
     """
 
-    def __init__(self, value):
+    def __init__(self, value, span=None):
         self.value = value
+        self.span = span
 
     def asobject(self):
         """Convert object."""
-        return IntImm("int32", self.value)
+        return IntImm("int32", self.value, self.span)
 
 
 class PrimExprWithOp(ExprOp, PrimExpr):
@@ -407,7 +428,7 @@ class IterVar(Object, ExprOp):
 
         name = var if var is not None else "iter"
         dtype = "int32" if dom is None else dom.extent.dtype
-        var = Var(name, dtype=dtype) if not isinstance(var, Var) else var
+        var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
         self.__init_handle_by_constructor__(_ffi_api.IterVar, dom, var, iter_type, thread_tag, span)
 
 
@@ -522,10 +543,10 @@ class IntImm(ConstExpr):
         return self.value != 0
 
     def __eq__(self, other):
-        return _ffi_api._OpEQ(self, other)
+        return _ffi_api._OpEQ(self, other, None)
 
     def __ne__(self, other):
-        return _ffi_api._OpNE(self, other)
+        return _ffi_api._OpNE(self, other, None)
 
     def __bool__(self):
         return self.__nonzero__()
@@ -991,7 +1012,7 @@ class Load(PrimExprWithOp):
 
     def __init__(self, dtype, buffer_var, index, predicate=None, span=None):
         if predicate is None:
-            predicate = _ffi_api.const_true(dtype)
+            predicate = _ffi_api.const_true(dtype, span)
         self.__init_handle_by_constructor__(
             _ffi_api.Load, dtype, buffer_var, index, predicate, span
         )

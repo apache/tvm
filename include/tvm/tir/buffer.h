@@ -96,6 +96,7 @@ class BufferNode : public Object {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
     v->Visit("buffer_type", &buffer_type);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
