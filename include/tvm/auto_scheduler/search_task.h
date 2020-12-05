@@ -46,8 +46,8 @@ class HardwareParamsNode : public Object {
   // GPU related parameters got from device query API
   /*! \brief The max shared memory per block in bytes. */
   int max_shared_memory_per_block;
-  /*! \brief The max number of register per block. */
-  int max_registers_per_block;
+  /*! \brief The max local memory per block in bytes. */
+  int max_local_memory_per_block;
   /*! \brief The max number of threads per block. */
   int max_threads_per_block;
   /*! \brief The max vthread extent. */
@@ -60,7 +60,7 @@ class HardwareParamsNode : public Object {
     v->Visit("vector_unit_bytes", &vector_unit_bytes);
     v->Visit("cache_line_bytes", &cache_line_bytes);
     v->Visit("max_shared_memory_per_block", &max_shared_memory_per_block);
-    v->Visit("max_registers_per_block", &max_registers_per_block);
+    v->Visit("max_local_memory_per_block", &max_local_memory_per_block);
     v->Visit("max_threads_per_block", &max_threads_per_block);
     v->Visit("max_vthread_extent", &max_vthread_extent);
     v->Visit("warp_size", &warp_size);
@@ -90,13 +90,13 @@ class HardwareParams : public ObjectRef {
    * \param vector_unit_bytes The width of vector units in bytes.
    * \param cache_line_bytes The size of cache line in bytes.
    * \param max_shared_memory_per_block The max amount of shared memory per block for GPU.
-   * \param max_registers_per_block The max number of registers per block for GPU.
+   * \param max_local_memory_per_block The max amount of local memory per block for GPU.
    * \param max_threads_per_block The max number of threads per block for GPU.
    * \param max_vthread_extent The max extent of vthread for GPU.
    * \param warp_size The warp size for GPU
    */
   HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
-                 int max_shared_memory_per_block, int max_registers_per_block,
+                 int max_shared_memory_per_block, int max_local_memory_per_block,
                  int max_threads_per_block, int max_vthread_extent, int warp_size);
 
   TVM_DEFINE_OBJECT_REF_METHODS(HardwareParams, ObjectRef, HardwareParamsNode);
