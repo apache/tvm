@@ -64,6 +64,8 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     int max_shared_memory_per_block = ret;
 
+    // There is no explicit local memory limition in CUDA runtime,
+    // so we can use INT32_MAX to disalbe the check on local_memory.
     int max_local_memory_per_block = INT32_MAX;
 
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
@@ -79,7 +81,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     // Reference: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
     // This setting looks working for Metal GPUs later than A10
     int max_shared_memory_per_block = 32 * 1024;
-    int max_local_memory_per_block = INT32_MAX;
+    int max_local_memory_per_block = INT32_MAX;  // skip the check on local memory
     int max_threads_per_block = 1024;
     int warp_size = 8;
     int max_vthread_extent = warp_size / 4;
