@@ -17,10 +17,10 @@
 """Definition of ROCm operator strategy."""
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
 from tvm import topi
+from tvm.auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
-from tvm.auto_scheduler import is_auto_scheduler_enabled
 
 
 @schedule_lrn.register("rocm")
