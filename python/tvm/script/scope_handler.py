@@ -19,7 +19,7 @@
 
 from synr import ast
 import tvm.tir
-from .utils import get_param_list
+from .utils import get_param_list, from_synr_span
 from .registry import register
 
 
@@ -38,10 +38,10 @@ class ScopeHandler:
     def enter_scope(self, node, context):
         pass
 
-    def exit_scope(self, node, context, arg_list):
+    def exit_scope(self, node, context, arg_list, span):
         self.node = node
         self.context = context
-        return self.func(*arg_list)
+        return self.func(*arg_list, span=from_synr_span(span))
 
 
 class WithScopeHandler(ScopeHandler):
@@ -75,11 +75,13 @@ class Allocate(WithScopeHandler):
     """ With scope handler tir.alloc_with_scope(var, extents, dtype, scope, condition) """
 
     def __init__(self):
-        def allocate(extents, dtype, scope, condition=True):
+        def allocate(extents, dtype, scope, condition=True, span=None):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
-            body = tvm.tir.Allocate(self.buffer_var, dtype, extents, condition, self.body)
-            return tvm.tir.AttrStmt(self.buffer_var, "storage_scope", scope, body)
+            body = tvm.tir.Allocate(
+                self.buffer_var, dtype, extents, condition, self.body, span=span
+            )
+            return tvm.tir.AttrStmt(self.buffer_var, "storage_scope", scope, body, span=span)
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
         self.buffer_var = None
@@ -89,14 +91,14 @@ class Allocate(WithScopeHandler):
         if isinstance(node, ast.With):
             names = WithScopeHandler.get_optional_var_names(node, context)
             if len(names) != 1:
-                context.report_error("Unexpected number of vars")
+                context.report_error("Unexpected number of vars", node.span)
             name = names[0]
         elif isinstance(node, ast.Assign):
             name = node.lhs.id.name
         else:
             raise Exception("Internal Bug")
 
-        self.buffer_var = tvm.te.var(name, "handle")
+        self.buffer_var = tvm.te.var(name, "handle", span=from_synr_span(node.lhs.id.span))
         context.update_symbol(name, self.buffer_var)
 
 
@@ -105,18 +107,20 @@ class LaunchThread(WithScopeHandler):
     """ With scope handler tir.launch_thread(env_var, extent) """
 
     def __init__(self):
-        def launch_thread(env_var, extent):
-            extent = tvm.runtime.convert(extent)
+        def launch_thread(env_var, extent, span):
+            extent = tvm.runtime.convert(extent, span=span)
             return tvm.tir.AttrStmt(
                 tvm.tir.IterVar(
                     None,
                     env_var,
                     getattr(tvm.tir.IterVar, "ThreadIndex"),
                     self.context.func_var_env_dict[env_var],
+                    span=span,
                 ),
                 "thread_extent",
                 extent,
                 self.body,
+                span=span,
             )
 
         super().__init__(launch_thread, concise_scope=True, def_symbol=False)
@@ -127,14 +131,15 @@ class Realize(WithScopeHandler):
     """ With scope handler tir.realize(buffer_bounds, scope, condition) """
 
     def __init__(self):
-        def realize(buffer_bounds, scope, condition=True):
+        def realize(buffer_bounds, scope, condition=True, span=None):
             buffer, bounds = buffer_bounds
-            scope = tvm.runtime.convert(scope)
+            scope = tvm.runtime.convert(scope, span=span)
             return tvm.tir.AttrStmt(
                 buffer,
                 "realize_scope",
                 scope,
-                tvm.tir.BufferRealize(buffer, bounds, condition, self.body),
+                tvm.tir.BufferRealize(buffer, bounds, condition, self.body, span=span),
+                span=span,
             )
 
         super().__init__(realize, concise_scope=True, def_symbol=False)
@@ -145,10 +150,10 @@ class Attr(WithScopeHandler):
     """ With scope handler tir.attr(attr_node, attr_key, value) """
 
     def __init__(self):
-        def attr(attr_node, attr_key, value):
-            attr_node = tvm.runtime.convert(attr_node)
-            value = tvm.runtime.convert(value)
-            return tvm.tir.AttrStmt(attr_node, attr_key, value, self.body)
+        def attr(attr_node, attr_key, value, span):
+            attr_node = tvm.runtime.convert(attr_node, span=span)
+            value = tvm.runtime.convert(value, span=span)
+            return tvm.tir.AttrStmt(attr_node, attr_key, value, self.body, span=span)
 
         super().__init__(attr, concise_scope=True, def_symbol=False)
 
@@ -158,8 +163,8 @@ class AssertHandler(WithScopeHandler):
     """ With scope handler tir.Assert(condition, message) """
 
     def __init__(self):
-        def Assert(condition, message):
-            return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), self.body)
+        def Assert(condition, message, span):
+            return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), self.body, span=span)
 
         super().__init__(Assert, concise_scope=True, def_symbol=False)
 
@@ -169,8 +174,8 @@ class Let(WithScopeHandler):
     """ With scope handler tir.let(var, value) """
 
     def __init__(self):
-        def let(var, value):
-            return tvm.tir.LetStmt(var, value, self.body)
+        def let(var, value, span):
+            return tvm.tir.LetStmt(var, value, self.body, span=span)
 
         super().__init__(let, concise_scope=False, def_symbol=False)
 
@@ -186,17 +191,22 @@ class ForScopeHandler(ScopeHandler):
         assert isinstance(node, ast.For)
 
         loop_var_names = list()
+        spans = list()
         if isinstance(node.lhs, ast.Var):
             loop_var_names.append(node.lhs.id.name)
+            spans.append(from_synr_span(node.lhs.id.span))
         elif isinstance(node.lhs, ast.Tuple):
             for elt in node.lhs.values:
                 if not isinstance(elt, ast.Var):
                     context.report_error("Invalid loop var", elt.span)
                 loop_var_names.append(elt.id.name)
+                spans.append(from_synr_span(elt.id.span))
         else:
-            context.report_error("Invalid loop var", node.lhs)
+            context.report_error("Invalid loop var", node.lhs.span)
 
-        self.loop_vars = [tvm.te.var(name, dtype="int32") for name in loop_var_names]
+        self.loop_vars = [
+            tvm.te.var(name, dtype="int32", span=span) for name, span in zip(loop_var_names, spans)
+        ]
         for loop_var in self.loop_vars:
             context.update_symbol(loop_var.name, loop_var)
 
@@ -206,12 +216,12 @@ class Serial(ForScopeHandler):
     """ For scope handler tir.serial(begin, end)"""
 
     def __init__(self):
-        def serial(begin, end):
+        def serial(begin, end, span):
             if len(self.loop_vars) != 1:
-                self.context.report_error("Expect exact 1 loop var")
+                self.context.report_error("Expect exact 1 loop var", span)
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, 0, self.body)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, 0, self.body, span=span)
 
         super().__init__(serial)
 
@@ -221,12 +231,12 @@ class Parallel(ForScopeHandler):
     """ For scope handler tir.parallel(begin, end)"""
 
     def __init__(self):
-        def parallel(begin, end):
+        def parallel(begin, end, span):
             if len(self.loop_vars) != 1:
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, 0, self.body)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, 0, self.body, span=span)
 
         super().__init__(parallel)
 
@@ -236,12 +246,12 @@ class Vectorized(ForScopeHandler):
     """ For scope handler tir.vectorized(begin, end)"""
 
     def __init__(self):
-        def vectorized(begin, end):
+        def vectorized(begin, end, span):
             if len(self.loop_vars) != 1:
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, 0, self.body)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, 0, self.body, span=span)
 
         super().__init__(vectorized)
 
@@ -251,11 +261,11 @@ class Unroll(ForScopeHandler):
     """ For scope handler tir.unroll(begin, end)"""
 
     def __init__(self):
-        def unroll(begin, end):
+        def unroll(begin, end, span):
             if len(self.loop_vars) != 1:
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, 0, self.body)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, 0, self.body, span=span)
 
         super().__init__(unroll)
