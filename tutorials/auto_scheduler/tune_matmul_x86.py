@@ -118,7 +118,7 @@ sch, args = task.apply_best(log_file)
 ######################################################################
 # We can lower the schedule to see the IR after auto-scheduling.
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
-# parallelization, vectorization, unrolling and operator fusion.
+# layout transformation, parallelization, vectorization, unrolling, and operator fusion.
 
 print("Lowered TIR:")
 print(tvm.lower(sch, args, simple_mode=True))
