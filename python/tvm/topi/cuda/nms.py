@@ -444,7 +444,7 @@ def nms_ir(
                     with ib.else_scope():
                         num_valid_boxes[0] += 1
 
-        with ib.if_scope(return_indices):
+        if return_indices:
             with ib.if_scope(j < valid_count[i]):
                 box_idx = box_indices[i * num_anchors + j]
                 with ib.if_scope(box_idx >= 0):
