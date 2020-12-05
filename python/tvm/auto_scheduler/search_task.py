@@ -260,6 +260,10 @@ class SearchTask(Object):
             A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
         inp, _ = load_best_record(log_file, self.workload_key)
+        if inp is None:
+            raise RuntimeError(
+                "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
+            )
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
@@ -285,6 +289,10 @@ class SearchTask(Object):
             The best schedule code in python API or CUDA source code
         """
         inp, _ = load_best_record(log_file, self.workload_key)
+        if inp is None:
+            raise RuntimeError(
+                "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
+            )
 
         if print_mode == "schedule":
             return self.compute_dag.print_python_code_from_state(inp.state)

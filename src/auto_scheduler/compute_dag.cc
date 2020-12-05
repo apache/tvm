@@ -961,7 +961,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
           axes_stride[new_axes[i]] *= new_shape[i];
         }
 
-        // Add extra layout transpose stage
+        // Add an extra layout transform stage
         const auto& layout_transform_tensor = te::compute(
             new_shape,
             [&new_stride, &placeholder_op, &origin_shape, &new_shape, &origin_axes,
@@ -978,7 +978,7 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
               }
               return placeholder_op.output(0)(access_indices);
             },
-            "auto_schedule_layout_transpose");
+            "auto_scheduler_layout_transform");
         new_op_to_update = layout_transform_tensor->op;
 
         // Update the transform steps
