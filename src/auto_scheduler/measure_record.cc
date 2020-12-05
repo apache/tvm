@@ -116,7 +116,7 @@ struct Handler<::tvm::auto_scheduler::HardwareParamsNode> {
     writer->WriteArrayItem(data.vector_unit_bytes);
     writer->WriteArrayItem(data.cache_line_bytes);
     writer->WriteArrayItem(data.max_shared_memory_per_block);
-    writer->WriteArrayItem(data.max_registers_per_block);
+    writer->WriteArrayItem(data.max_local_memory_per_block);
     writer->WriteArrayItem(data.max_threads_per_block);
     writer->WriteArrayItem(data.max_vthread_extent);
     writer->WriteArrayItem(data.warp_size);
@@ -140,7 +140,7 @@ struct Handler<::tvm::auto_scheduler::HardwareParamsNode> {
     reader->Read(&data->max_shared_memory_per_block);
     s = reader->NextArrayItem();
     CHECK(s);
-    reader->Read(&data->max_registers_per_block);
+    reader->Read(&data->max_local_memory_per_block);
     s = reader->NextArrayItem();
     CHECK(s);
     reader->Read(&data->max_threads_per_block);
