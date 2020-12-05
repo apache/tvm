@@ -57,7 +57,7 @@ class PreloadMeasuredStates(SearchCallback):
         The name of the record file.
     """
 
-    def __init__(self, filename="auto_scheduler_tuning.json"):
+    def __init__(self, filename):
         self.__init_handle_by_constructor__(_ffi_api.PreloadMeasuredStates, filename)
 
 
