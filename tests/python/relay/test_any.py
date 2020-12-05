@@ -25,6 +25,8 @@ from tvm.relay.testing import run_infer_type as infer_type
 from utils.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
+import os
+
 
 def int32(val):
     return relay.const(val, "int32")
@@ -38,27 +40,43 @@ def any_dims(ndim):
 
 
 def check_result(
-    args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None
+    args,
+    mod,
+    expected,
+    flatten=False,
+    assert_shape=False,
+    only_vm=False,
+    targets=None,
+    disable_targets=None,
 ):
+    if not isinstance(expected, list):
+        expected = [expected]
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
+            if disable_targets and tgt in disable_targets:
+                continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
             result = ex.evaluate()(*args)
-            result = result.asnumpy()
-            if assert_shape:
-                assert result.shape == expected, "Shape mismatch: expect %s but got %s." % (
-                    str(expected),
-                    str(result.shape),
-                )
-                return
+            if isinstance(result, tvm.runtime.container.ADT):
+                result = [r.asnumpy() for r in result]
+            else:
+                result = [result.asnumpy()]
 
-            if flatten:
-                result = result.flatten()
-                expected = expected.flatten()
-            tvm.testing.assert_allclose(result, expected, atol=2e-6)
+            for r, e in zip(result, expected):
+                if assert_shape:
+                    assert r.shape == e, "Shape mismatch: expect %s but got %s." % (
+                        str(e),
+                        str(r),
+                    )
+                    return
+
+                if flatten:
+                    r = r.flatten()
+                    e = e.flatten()
+                tvm.testing.assert_allclose(r, e, atol=2e-6)
 
 
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
@@ -1361,6 +1379,55 @@ def test_any_where():
     verify_any_where(any_dims(1), any_dims(1), any_dims(2), (5,), (5,), (5, 5))
     verify_any_where(
         any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
+    )
+
+
+# TODO(kevinthesun): enable gpu test when Thrust is available in ci.
+# @tvm.testing.uses_gpu
+def test_non_max_suppression():
+    x0 = relay.var("x0", relay.ty.TensorType((1, relay.Any(), 6), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((1,), "int32"))
+    x2 = relay.var("x2", relay.ty.TensorType((1, relay.Any()), "int32"))
+    x3 = relay.var("x3", relay.ty.TensorType((), "int32"))
+    z = relay.vision.non_max_suppression(
+        x0,
+        x1,
+        x2,
+        x3,
+        iou_threshold=0.5,
+        force_suppress=True,
+        top_k=2,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+    z = z.astuple()
+    func = relay.Function([x0, x1, x2, x3], z)
+    mod = tvm.IRModule()
+    mod["main"] = func
+
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45],
+                [1, 0.7, 30, 60, 50, 80],
+                [0, 0.4, 4, 21, 19, 40],
+                [2, 0.9, 35, 61, 52, 79],
+                [1, 0.5, 100, 60, 70, 110],
+            ]
+        ]
+    ).astype("float32")
+    np_valid_count = np.array([4]).astype("int32")
+    np_indices = np.array([[0, 1, 3, 4, -1]]).astype("int32")
+    np_max_output_size = -1
+    np_indices_result = np.array([[4, 0, -1, -1, -1]])
+    np_valid_box_count = np.array([[2]]).astype("int32")
+
+    check_result(
+        [np_data, np_valid_count, np_indices, np_max_output_size],
+        mod,
+        [np_indices_result, np_valid_box_count],
+        only_vm=False,
+        disable_targets=["nvptx"],
     )
 
 
