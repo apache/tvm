@@ -145,7 +145,7 @@ class Store(Stmt):
 
     def __init__(self, buffer_var, value, index, predicate=None, span=None):
         if predicate is None:
-            predicate = _ffi_api.const_true(value.dtype)
+            predicate = _ffi_api.const_true(value.dtype, span)
         self.__init_handle_by_constructor__(
             _ffi_api.Store, buffer_var, value, index, predicate, span
         )

@@ -144,6 +144,7 @@ def decl_buffer(
     data_alignment=-1,
     offset_factor=0,
     buffer_type="",
+    span=None,
 ):
     """Declare a new symbolic buffer.
 
@@ -191,6 +192,9 @@ def decl_buffer(
         auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
         TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
+
+    span: Optional[Span]
+        The location of the decl_buffer creation in the source.
 
     Returns
     -------
@@ -243,7 +247,7 @@ def decl_buffer(
         shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
     if data is None:
-        data = Var(name, PointerType(PrimType(dtype)))
+        data = Var(name, PointerType(PrimType(dtype)), span)
     return _ffi_api.Buffer(
         data,
         dtype,
@@ -255,6 +259,7 @@ def decl_buffer(
         data_alignment,
         offset_factor,
         buffer_type,
+        span,
     )
 
 
