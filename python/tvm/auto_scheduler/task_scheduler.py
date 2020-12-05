@@ -95,6 +95,7 @@ def make_search_policies(
 
         if policy_type == "sketch":
             if load_log_file:
+                # use the log file to restore the status of search policies.
                 init_search_callbacks = [PreloadMeasuredStates(load_log_file)]
             else:
                 init_search_callbacks = None
