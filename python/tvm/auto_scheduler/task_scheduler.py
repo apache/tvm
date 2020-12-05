@@ -29,7 +29,7 @@ import logging
 
 import numpy as np
 
-from .search_policy import SearchPolicy, SketchPolicy
+from .search_policy import SearchPolicy, SketchPolicy, PreloadMeasuredStates
 from .cost_model import RandomModel, XGBModel
 from .utils import array_mean
 from .measure import ProgramMeasurer
@@ -94,8 +94,19 @@ def make_search_policies(
             raise ValueError("Invalid search policy: " + search_policy)
 
         if policy_type == "sketch":
+            if load_log_file:
+                # use the log file to restore the status of search policies.
+                init_search_callbacks = [PreloadMeasuredStates(load_log_file)]
+            else:
+                init_search_callbacks = None
             search_policies = [
-                SketchPolicy(task, cost_model, params=search_policy_params, verbose=verbose)
+                SketchPolicy(
+                    task,
+                    cost_model,
+                    params=search_policy_params,
+                    verbose=verbose,
+                    init_search_callbacks=init_search_callbacks,
+                )
                 for task in tasks
             ]
         else:
