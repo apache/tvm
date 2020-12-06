@@ -1,0 +1,30 @@
+FROM tlcpack/ci-gpu:v0.72
+
+# Install Jupyter Lab
+COPY install/ubuntu_install_jupyter_lab.sh /install/ubuntu_install_jupyter_lab.sh
+RUN /install/ubuntu_install_jupyter_lab.sh
+
+# Install SSHD
+COPY install/ubuntu_install_sshd.sh /install/ubuntu_install_sshd.sh
+RUN /install/ubuntu_install_sshd.sh
+
+# Install code-server
+COPY install/ubuntu_install_vscode.sh /install/ubuntu_install_vscode.sh
+RUN /install/ubuntu_install_vscode.sh
+
+# Copy workspace entrypoint
+COPY install/workspace_entrypoint.sh /workspace_entrypoint.sh
+
+# Environment variables
+ENV PYTHONPATH=/workspace/tvm/python:/workspace/tvm/vta/python:${PYTHONPATH}
+ENV PATH=/usr/local/nvidia/bin:${PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
+
+# Create workspace directory
+WORKDIR /workspace
+
+EXPOSE 22
+EXPOSE 8888
+
+ENTRYPOINT [ "/workspace_entrypoint.sh" ]
