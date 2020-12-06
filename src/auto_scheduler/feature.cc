@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "search_policy/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -1296,7 +1297,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     }
     auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
-    if (task->target->kind->device_type == kDLGPU) {
+    if (IsGPUTask(task)) {
       auto pass_list = Array<tvm::transform::Pass>();
       // Phase 0
       pass_list.push_back(tir::transform::InjectPrefetch());
