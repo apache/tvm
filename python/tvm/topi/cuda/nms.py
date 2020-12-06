@@ -40,22 +40,12 @@ def opencl_atomic_add_rule(op):
         return tvm.tir.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
     raise RuntimeError("only support int32")
 
-def llvm_atomic_add_rule(op):
-    if op.dtype == "int32":
-        return tvm.tir.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
-    raise RuntimeError("only support int32")
 
 tvm.target.intrin.register_intrin_rule("cuda", "atomic_add", cuda_atomic_add_rule, override=True)
 
 tvm.target.intrin.register_intrin_rule(
     "opencl", "atomic_add", opencl_atomic_add_rule, override=True
 )
-
-tvm.target.intrin.register_intrin_rule(
-    "nvptx", "atomic_add", llvm_atomic_add_rule, override=True
-)
-
-tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
 
 
 def atomic_add(x, y):
