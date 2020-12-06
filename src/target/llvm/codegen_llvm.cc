@@ -955,6 +955,13 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
+  } else if (op->op.same_as(builtin_call_extern_)) {
+    auto func = Downcast<StringImm>(op->args[0]);
+    if (func->value == "atomic_add") {
+      LOG(FATAL) << "atomic add found " << op->op;
+      llvm::Value* v0 = MakeValue(op->args[1]);
+      llvm::Value* v1 = MakeValue(op->args[2]);
+    }
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;
@@ -1185,6 +1192,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+      auto func = Downcast<StringImm>(op->args[0]);
+      if (func->value == "atomic_add") {
+        llvm::Value* v0 = MakeValue(op->args[1]);
+        llvm::Value* v1 = MakeValue(op->args[2]);
+        auto old_val = builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::AtomicOrdering::Monotonic);
+        return old_val;
+      }
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);
