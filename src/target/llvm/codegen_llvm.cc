@@ -955,7 +955,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
-  } else if (op->op.same_as(Op::Get("tir.atomic_add"))) {
+  } else if (op->op.same_as(builtin::atomic_add())) {
     llvm::Value* v0 = MakeValue(op->args[0]);
     llvm::Value* v1 = MakeValue(op->args[1]);
     return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::AtomicOrdering::Monotonic);
