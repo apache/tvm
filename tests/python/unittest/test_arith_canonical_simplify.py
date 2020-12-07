@@ -24,6 +24,7 @@ class CanonicalChecker:
 
     def verify(self, data, expected):
         res = self.analyzer.canonical_simplify(data)
+        print(res)
         expected = tvm.runtime.convert(expected)
         assert tvm.ir.structural_equal(res, expected), "\ndata={}\nres={}\nexpected={}".format(
             data, res, expected
@@ -310,6 +311,14 @@ def test_complex_cases():
     ck.verify(res3, tdiv((x * 1024) + y, 256) - tdiv(y, 256) - (x * 4))
 
 
+def test_simplify_cast():
+    ck = CanonicalChecker()
+    i = te.var("i", dtype="int32")
+    tcast = tvm.tir.Cast
+    res = tcast("int64", i + j + 1) - tcast("int64", i)
+    ck.verify(res, 1)
+
+
 if __name__ == "__main__":
     test_floormod_simplify()
     test_mul_sum_simplify()
@@ -321,3 +330,4 @@ if __name__ == "__main__":
     test_split_index_simplify()
     test_canonical_mixed()
     test_complex_cases()
+    test_simplify_cast()

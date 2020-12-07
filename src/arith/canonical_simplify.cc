@@ -77,6 +77,23 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
   }
 }
 
+bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
+    if (!IsIndexType(dtype)) {
+      return false;
+    }
+    ConstIntBound bound = analyzer->const_int_bound(value);
+    int64_t ubound = Downcast<IntImm>(max_value(dtype))->value;
+    int64_t lbound = Downcast<IntImm>(min_value(dtype))->value;
+    if (value.dtype().bits() <= dtype.bits() ||  // upcast is safe
+        (bound->max_value <= ubound && bound->min_value >= lbound)) {
+      return true;
+    }
+    return false;
+}
+
+#define CHECK_CAST(DTYPE, VALUE) \
+  if (!CheckCastImpl(DTYPE, VALUE, analyzer))  { return false; }
+
 /*!
  * \brief Internal "Split normal form" of expression.
  *
@@ -128,6 +145,46 @@ class SplitExprNode : public CanonicalExprNode {
 
   void MulToSelf(int64_t scale) { this->scale *= scale; }
 
+  /*!
+   * \brief check if cast(dtype, self) is safe
+   * \param dtype The target datatype
+   * \param analyzer The analyzer
+   * \return whether the cast is safe or not
+   */
+  bool CheckCast(DataType dtype, Analyzer* analyzer) const {
+    // cast(dtype, index % upper_factor / lower_factor * scale) ==
+    // cast(dtype, index) % upper_factor / lower_factor * scale
+    // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
+    // its intermediate results fit in the range of dtype
+    if (dtype.bits() >= this->dtype.bits()) {
+      return true;  // upcast is safe
+    }
+    PrimExpr res = this->index;
+    DataType dtype = this->dtype;
+    if (this->scale == 0) {
+      return true;
+    }
+    CHECK_CAST(dtype, res)
+    if (this->upper_factor != SplitExprNode::kPosInf) {
+      res = ModImpl(res, make_const(dtype, this->upper_factor), div_mode);
+      CHECK_CAST(dtype, res)
+    }
+    if (this->lower_factor != 1) {
+      res = DivImpl(res, make_const(dtype, this->lower_factor), div_mode);
+      CHECK_CAST(dtype, res)
+    }
+    if (this->scale != 1) {
+      ICHECK(!dtype.is_uint() || this->scale > 0);
+      res = res * make_const(dtype, this->scale);
+      CHECK_CAST(dtype, res)
+    }
+    return true;
+  }
+
+  /*!
+   * \brief self = cast(dtype, self)
+   * \param dtype The target datatype
+   */
   void CastTo(DataType dtype) {
     this->index = cast(dtype, this->index);
     this->dtype = dtype;
@@ -259,6 +316,48 @@ class SumExprNode : public CanonicalExprNode {
   }
 
   void AddToSelf(const SumExpr& other, int64_t scale);
+
+  /*!
+   * \brief check if cast(dtype, self) is safe
+   * \param dtype The target datatype
+   * \param analyzer The analyzer
+   * \return whether the cast is safe or not
+   */
+  bool CheckCast(DataType dtype, Analyzer* analyzer) const {
+    // cast(dtype, arg_1 + arg_2 + ... arg_n) ==
+    // cast(dtype, arg_1) + ... + cast(dtype, arg_n)
+    // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
+    // its intermediate results fit in the range of dtype
+    if (dtype.bits() >= this->dtype.bits()) {
+      return true;  // upcast is safe
+    }
+    PrimExpr res = make_const(dtype, 0);
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale > 0) {
+        res = res + args[i]->Normalize();
+        CHECK_CAST(dtype, res)
+      }
+    }
+    if (base > 0) {
+      res = res + make_const(dtype, base);
+      CHECK_CAST(dtype, res)
+    }
+    // negative scales follows using sub.
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale < 0) {
+        res = res - args[i]->NormalizeWithScale(-1);
+        CHECK_CAST(dtype, res)
+      }
+    }
+    if (base < 0) {
+      res = res - make_const(dtype, -base);
+      CHECK_CAST(dtype, res)
+    }
+    for (const auto& arg : args) {
+      if (!arg->CheckCast(dtype, analyzer)) { return false; }
+    }
+    return true;
+  }
 
   /*!
    * \brief self = cast(dtype, self)
@@ -465,13 +564,6 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return The result expression;
    */
   SplitExpr SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode);
-  // /*!
-  //  * \brief cast value to dtype
-  //  * \param dtype The target datatype
-  //  * \param value The SplitExpr to be casted
-  //  * \return The result expression;
-  //  */
-  // SplitExpr CastSplitExpr(DataType dtype, SplitExpr value);
   /*!
    * \brief Separate psum into divisible and non-divisible parts.
    * \param psum The sum expression.
@@ -1108,15 +1200,18 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   PrimExpr value = this->CanonicalMutate(op->value);
   if (value.as<SumExprNode>()) {
     SumExpr se = Downcast<SumExpr>(value);
-    se.CopyOnWrite()->CastTo(op->dtype);
-    return se;
+    if (se->CheckCast(op->dtype, analyzer_)) {
+      se.CopyOnWrite()->CastTo(op->dtype);
+      return se;
+    }
   } else if (value.as<SplitExprNode>()) {
     SplitExpr se = Downcast<SplitExpr>(value);
-    se.CopyOnWrite()->CastTo(op->dtype);
-    return se;
-  } else {
-    return Rewriter::VisitExpr_(op);
+    if (se->CheckCast(op->dtype, analyzer_)) {
+      se.CopyOnWrite()->CastTo(op->dtype);
+      return se;
+    }
   }
+  return Rewriter::VisitExpr_(op);
 }
 
 
