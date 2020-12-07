@@ -3361,7 +3361,6 @@ def test_bincount():
     targets = ["llvm", "cuda"]
     verify_trace_model(test_fn, [inp], targets)
     verify_trace_model(test_fn, [inp, weights], targets)
-    verify_trace_model(test_fn, [inp, weights.to(torch.float64)], targets)
 
 
 if __name__ == "__main__":
