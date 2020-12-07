@@ -1924,7 +1924,8 @@ class PyTorchOpConverter:
         input_type = _infer_type(data).checked_type.dtype
         if input_type == "int64":
             logging.warning(
-                "Casting an int64 input to int32, since we do not have int64 atomic add needed for bincount yet."
+                "Casting an int64 input to int32, since we do not have int64 atomic add"
+                "needed for bincount yet."
             )
             data = _op.cast(data, "int32")
         maximum = _op.max(data)
