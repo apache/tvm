@@ -249,6 +249,7 @@ def test_measure_local_builder_rpc_runner_spawn():
     p.start()
     p.join()
 
+
 @tvm.testing.requires_llvm
 def test_measure_target_host():
     task = auto_scheduler.SearchTask(
