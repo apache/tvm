@@ -253,8 +253,10 @@ def test_measure_local_builder_rpc_runner_spawn():
 @tvm.testing.requires_llvm
 def test_measure_target_host():
     task = auto_scheduler.SearchTask(
-        func=matmul_auto_scheduler_test, args=(512, 512, 512), target="llvm",
-        target_host="llvm -mtriple=aarch64-linux-gnu"
+        func=matmul_auto_scheduler_test,
+        args=(512, 512, 512),
+        target="llvm",
+        target_host="llvm -mtriple=aarch64-linux-gnu",
     )
 
     inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
@@ -271,6 +273,7 @@ def test_measure_target_host():
 
         recovered_inp = auto_scheduler.measure.recover_measure_input(raw_inp)
         assert str(recovered_inp.task.target_host) == str(inp.task.target_host)
+
 
 if __name__ == "__main__":
     test_record_split_reorder_fuse_annotation()
