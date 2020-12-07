@@ -1921,18 +1921,29 @@ class PyTorchOpConverter:
     def bincount(self, inputs, input_types):
         data = inputs[0]
         weights = inputs[1]
+        input_type = _infer_type(data).checked_type.dtype
+        if input_type == "int64":
+            logging.warning(
+                "Casting an int64 input to int32, since we do not have int64 atomic add"
+                "needed for bincount yet."
+            )
+            data = _op.cast(data, "int32")
         maximum = _op.max(data)
-        dim = maximum + _expr.const(1, dtype="int64")
+        dim = maximum + _expr.const(1, dtype="int32")
         if weights:
             weight_type = _infer_type(weights).checked_type
             out_dtype = weight_type.dtype
             updates = weights
         else:
-            out_dtype = "int64"
+            out_dtype = "int32"
             updates = _op.ones_like(data)
 
         counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
-        return _op.scatter_add(counts, data, updates, axis=0)
+        out = _op.scatter_add(counts, data, updates, axis=0)
+        if input_type == "int32":
+            # Torch always outputs int64 results for bincount
+            return _op.cast(out, "int64")
+        return out
 
     def scatter_add(self, inputs, input_types):
         data = inputs[0]
