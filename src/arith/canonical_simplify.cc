@@ -805,11 +805,6 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, 
   return lhs;
 }
 
-// SplitExpr CanonicalSimplifier::Impl::CastSplitExpr(DataType dtype, SplitExpr value) {
-//   value.CopyOnWrite()->index = cast(dtype, value->index);
-//   return value;
-// }
-
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
