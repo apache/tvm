@@ -1017,9 +1017,6 @@ def test_scatter_add():
         ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                if target == "nvptx":
-                    # TODO(masahi): support atomic in LLVM codegen
-                    continue
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
