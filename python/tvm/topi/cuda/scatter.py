@@ -536,11 +536,13 @@ def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
             index = indices_ptr[tid]
             with ib.if_scope(index < 0):
                 atomic_add_return[0] = atomic_add(
-                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index + n]), updates_ptr[tid]
+                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index + n]),
+                    updates_ptr[tid],
                 )
             with ib.else_scope():
                 atomic_add_return[0] = atomic_add(
-                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index]), updates_ptr[tid]
+                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index]),
+                    updates_ptr[tid],
                 )
 
     return ib.get()
