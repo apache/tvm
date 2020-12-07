@@ -786,6 +786,7 @@ def test_vm_ref_create_read_write():
         res = veval(f, ctx=ctx, target=tgt)
         tvm.testing.assert_allclose(res.asnumpy(), np.array(3))
 
+
 def test_constant_shape_with_external_codegen():
     mod = tvm.IRModule()
     shape = (relay.Any(), 25)
@@ -812,6 +813,4 @@ def test_constant_shape_with_external_codegen():
 
 
 if __name__ == "__main__":
-    import sys
-
-    pytest.main(sys.argv)
+    pytest.main([__file__])

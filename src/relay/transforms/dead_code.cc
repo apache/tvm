@@ -82,6 +82,7 @@ class Eliminator : private ExprMutator {
 
   Expr VisitExpr_(const LetNode* op) final {
     Var v = op->var;
+    // TODO(@jroesch, @altanh, @M.K.): fix DCE with refs (#6803)
     if (HasLet(v) || op->value.as<RefWriteNode>()) {
       return Let(v, VisitExpr(op->value), VisitExpr(op->body));
     } else {

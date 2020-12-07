@@ -618,8 +618,8 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::RefCreate: {
-        auto value = ReadRegister(instr.ref_create.initial_value);
-        auto ref = ADT(111, {value});
+        auto value = {ReadRegister(instr.ref_create.initial_value)};
+        auto ref = ADT::Tuple(value);
         WriteRegister(instr.dst, ref);
         pc_++;
         goto main_loop;
