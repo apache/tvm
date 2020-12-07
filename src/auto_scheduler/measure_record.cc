@@ -184,14 +184,14 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     s = reader->NextArrayItem();
     if (s) {
       reader->Read(hardware_params_node.get());
-      data->hardware_params = ::tvm::auto_scheduler::HardwareParams(hardware_params_node);
-    }
-    s = reader->NextArrayItem();
-    if (s) {
-      reader->Read(&str_value);
-      data->target_host = ::tvm::Target(str_value);
       s = reader->NextArrayItem();
-      ICHECK(!s);
+      data->hardware_params = ::tvm::auto_scheduler::HardwareParams(hardware_params_node);
+      if (s) {
+        reader->Read(&str_value);
+        data->target_host = ::tvm::Target(str_value);
+        s = reader->NextArrayItem();
+        ICHECK(!s);
+      }
     }
   }
 };
