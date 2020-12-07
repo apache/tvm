@@ -956,9 +956,15 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
   } else if (op->op.same_as(builtin::atomic_add())) {
+    ICHECK(op->args[1]->dtype.bits() == 32) << "Only supports 32 bit atomic for now";
     llvm::Value* v0 = MakeValue(op->args[0]);
     llvm::Value* v1 = MakeValue(op->args[1]);
-    return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::AtomicOrdering::Monotonic);
+    if (op->args[1]->dtype.is_float()) {
+      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
+                                       llvm::AtomicOrdering::Monotonic);
+    }
+    return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
+                                     llvm::AtomicOrdering::Monotonic);
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;
