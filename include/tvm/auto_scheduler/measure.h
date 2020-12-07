@@ -279,6 +279,8 @@ class ProgramRunnerNode : public Object {
   double cooldown_interval;
   /*! \brief Whether to flush cache on CPU between repeated measurements. */
   bool enable_cpu_cache_flush;
+  /*! \brief Path to working buffer dir*/
+  String working_dir;
 
   /*!
    * \brief Run measurement and return results.
@@ -289,7 +291,8 @@ class ProgramRunnerNode : public Object {
    * \return An Array of MeasureResult.
    */
   virtual Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                                   const Array<BuildResult>& build_results, int verbose) = 0;
+                                   const Array<BuildResult>& build_results,
+                                   int verbose) = 0;
 
   static constexpr const char* _type_key = "auto_scheduler.ProgramRunner";
   TVM_DECLARE_BASE_OBJECT_INFO(ProgramRunnerNode, Object);
@@ -340,7 +343,8 @@ class LocalBuilder : public ProgramBuilder {
 class LocalRunnerNode : public ProgramRunnerNode {
  public:
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                           const Array<BuildResult>& build_results, int verbose) final;
+                           const Array<BuildResult>& build_results,
+                           int verbose) final;
 
   static constexpr const char* _type_key = "auto_scheduler.LocalRunner";
   TVM_DECLARE_FINAL_OBJECT_INFO(LocalRunnerNode, ProgramRunnerNode);
@@ -362,9 +366,10 @@ class LocalRunner : public ProgramRunner {
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
    * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
+   * \param working_dir path to working dir which storages buffers
    */
   LocalRunner(int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
-              bool enable_cpu_cache_flush);
+              bool enable_cpu_cache_flush, const String& working_dir);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, ProgramRunner, LocalRunnerNode);
 };
@@ -388,7 +393,8 @@ class RPCRunnerNode : public ProgramRunnerNode {
   int n_parallel;
 
   Array<MeasureResult> Run(const Array<MeasureInput>& inputs,
-                           const Array<BuildResult>& build_results, int verbose) final;
+                           const Array<BuildResult>& build_results,
+                           int verbose) final;
 
   static constexpr const char* _type_key = "auto_scheduler.RPCRunner";
   TVM_DECLARE_FINAL_OBJECT_INFO(RPCRunnerNode, ProgramRunnerNode);
@@ -414,10 +420,11 @@ class RPCRunner : public ProgramRunner {
    * \param min_repeat_ms The minimum duration of one repeat in milliseconds.
    * \param cooldown_interval The cool down interval between two measurements.
    * \param enable_cpu_cache_flush Whether to flush cache on CPU between repeated measurements.
+   * \param working_dir path to working dir which storages buffers
    */
   RPCRunner(const String& key, const String& host, int port, int priority, int n_parallel,
             int timeout, int number, int repeat, int min_repeat_ms, double cooldown_interval,
-            bool enable_cpu_cache_flush);
+            bool enable_cpu_cache_flush, const String& working_dir);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RPCRunner, ProgramRunner, RPCRunnerNode);
 };

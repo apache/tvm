@@ -19,15 +19,23 @@
 The user interface and tuning options of the TVM auto-scheduler.
 """
 
+from tempfile import tempdir, mkdtemp
+from collections import OrderedDict
+import pickle
+import os
+import shutil
+import numpy as np
 import tvm._ffi
-from tvm.runtime import Object
+from tvm.runtime import Object, ndarray
 from tvm.target import Target
-from .measure import LocalBuilder, LocalRunner
+from tvm.driver import build_module
+from .measure import LocalBuilder, LocalRunner, RPCRunner
 from .workload_registry import make_workload_key
 from .compute_dag import ComputeDAG
 from .cost_model import XGBModel
 from .search_policy import SketchPolicy
 from .search_task import SearchTask
+from .utils import get_const_tuple
 from . import _ffi_api
 
 
@@ -100,10 +108,18 @@ class TuningOptions(Object):
         The number of schedules to be measured at each search round.
         The whole schedule search process will try a total number of `num_measure_trials` in several
         rounds.
+    working_dir: Optional [string]
+        Temp working directory for binary buffers
+        If it is None, a random temp path will be generated
+    check_correctness: Optional [bool]
+        Whether generate an empty CPU schedule to check correctness
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
         ProgramBuilder which builds the program.
+    builder_n_parallel: int = -1
+        How many parallel job builder will run
+        For Metal/ROCM, builder_n_parallel is recommended to set to 1
     runner: Union[ProgramRunner, str] = 'local'
         ProgramRunner which runs the program and measures time costs.
     measure_callbacks: Optional[List[MeasureCallback]]
@@ -117,14 +133,21 @@ class TuningOptions(Object):
         num_measure_trials=0,
         early_stopping=None,
         num_measures_per_round=64,
+        working_dir=None,
+        check_correctness=False,
         verbose=1,
         builder="local",
+        builder_n_parallel=-1,
         runner="local",
         measure_callbacks=None,
     ):
+        if working_dir is None:
+            self.temp_working_dir = mkdtemp()
+        else:
+            self.temp_working_dir = working_dir
         if isinstance(builder, str):
             if builder == "local":
-                builder = LocalBuilder()
+                builder = LocalBuilder(n_parallel=builder_n_parallel)
             else:
                 raise ValueError("Invalid builder: " + builder)
         elif not isinstance(builder, tvm.auto_scheduler.measure.ProgramBuilder):
@@ -136,9 +159,14 @@ class TuningOptions(Object):
 
         if isinstance(runner, str):
             if runner == "local":
-                runner = LocalRunner()
+                runner = LocalRunner(working_dir=self.temp_working_dir)
             else:
                 raise ValueError("Invalid runner: " + runner)
+
+        elif isinstance(runner, RPCRunner):
+            rpc_kwargs = runner.kwargs
+            rpc_kwargs["working_dir"] = self.temp_working_dir
+            runner = RPCRunner(**rpc_kwargs)
         elif not isinstance(runner, tvm.auto_scheduler.measure.ProgramRunner):
             raise ValueError(
                 "Invalid runner: " + runner + " . TuningOptions expects a ProgramRunner or string."
@@ -149,11 +177,26 @@ class TuningOptions(Object):
             num_measure_trials,
             early_stopping or -1,
             num_measures_per_round,
+            self.temp_working_dir,
+            check_correctness,
             verbose,
             builder,
             runner,
             measure_callbacks,
         )
+    
+    def register_buffer(self, name, buffer):
+        buffer_path = os.path.join(self.temp_working_dir, "buffer.pkl")
+        buf = OrderedDict()
+        if os.path.exists(buffer_path):
+            with open(buffer_path, "rb") as fi:
+                buf = pickle.load(fi)
+        buf[name] = buffer
+        with open(buffer_path, "wb") as fo:
+            pickle.dump(buf, fo)
+
+    def __del__(self):
+        shutil.rmtree(self.temp_working_dir)
 
 
 def create_task(func, args, target, target_host=None, hardware_params=None):
@@ -210,6 +253,35 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
     if search_policy is None:
         cost_model = XGBModel()
         search_policy = SketchPolicy(task, cost_model)
+    
+    if tuning_options.check_correctness == True:
+        empty_sch, args = task.compute_dag.apply_steps_from_state(
+            task.compute_dag.get_init_state(), layout_rewrite=True)
+        cpu_func = build_module.build(
+                        empty_sch, args, target="llvm", target_host=task.target_host
+                    )
+        buffer_path = os.path.join(tuning_options.working_dir, "buffer.pkl")
+        if os.path.exists(buffer_path) is True:
+            with open(buffer_path, "rb") as fi:
+                buffer = pickle.load(fi)
+            if len(buffer) == len(args):
+                # we skip check each arg shape here
+                pass
+            elif len(buffer) == len(args) - 1:
+                # assume only one output
+                np_args = np.zeros(size=get_const_tuple(args[-1].shape)).astype(args[-1].dtype)
+                cpu_args = [v for _, v in buffer.items()] + [ndarray.array(np_args, ctx=tvm.cpu())]
+                cpu_func(*cpu_args)
+                ### save cpu result
+                answer = [x.asnumpy() for x in cpu_args]
+                tuning_options.register_buffer(args[-1].name, answer[-1])
+        else:
+            np_args = [np.random.uniform(-0.1, 0.1, size=get_const_tuple(x.shape)).astype(x.dtype) for x in args]
+            cpu_args = [ndarray.array(x, ctx=tvm.cpu()) for x in np_args]
+            cpu_func(*cpu_args)
+            answer = [x.asnumpy() for x in cpu_args]
+            for i in range(len(answer)):
+                tuning_options.register_buffer(args[i].name, answer[i])
 
     sch, tensors = _ffi_api.AutoSchedule(search_policy, tuning_options)
     return sch, tensors

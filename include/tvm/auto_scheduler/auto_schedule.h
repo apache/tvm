@@ -42,6 +42,10 @@ class TuningOptionsNode : public Object {
   int early_stopping;
   /*! \brief The number of programs to be measured at each search round. */
   int num_measures_per_round;
+  /*! \brief Temp working directory path */
+  String working_dir;
+  /*! \brief whether check numerical correctness of the schedule */
+  bool check_correctness;
   /*! \brief Verbosity level. 0 for silent, 1 to output information during schedule searching. */
   int verbose;
   /*! \brief ProgramBuilder which builds the program */
@@ -55,6 +59,8 @@ class TuningOptionsNode : public Object {
     v->Visit("num_measure_trials", &num_measure_trials);
     v->Visit("early_stopping", &early_stopping);
     v->Visit("num_measures_per_round", &num_measures_per_round);
+    v->Visit("working_dir", &working_dir);
+    v->Visit("check_correctness", &check_correctness);
     v->Visit("verbose", &verbose);
     v->Visit("builder", &builder);
     v->Visit("runner", &runner);
@@ -77,12 +83,14 @@ class TuningOptions : public ObjectRef {
    * \param early_stopping Stops the tuning early if no improvement after n measurements.
    * \param num_measures_per_round The number of programs to be measured at each search round.
    * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
+   * \param working_dir  Temp directory path for buffers and intermedia outputs
    * search.
    * \param builder ProgramBuilder which builds the program.
    * \param runner ProgramRunner which runs the program and measure time costs.
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.
    */
-  TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round, int verbose,
+  TuningOptions(int num_measure_trials, int early_stopping, int num_measures_per_round,
+                const String& working_dir, bool check_correctness, int verbose,
                 ProgramBuilder builder, ProgramRunner runner,
                 Optional<Array<MeasureCallback>> measure_callbacks);
 

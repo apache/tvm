@@ -36,6 +36,9 @@ import time
 import shutil
 import tempfile
 import multiprocessing
+import pickle
+
+import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
@@ -275,13 +278,16 @@ class LocalBuilder(ProgramBuilder):
     timeout : int = 15
         The timeout limit (in second) for each build thread.
         This is used in a wrapper of the multiprocessing.Process.join().
-    n_parallel : int = multiprocessing.cpu_count()
+    n_parallel : int = -1
         Number of threads used to build in parallel.
+        When the value is -1, will be set to multiprocessing.cpu_count() instead
     build_func : str = 'default'
         The name of registered build function.
     """
 
-    def __init__(self, timeout=15, n_parallel=multiprocessing.cpu_count(), build_func="default"):
+    def __init__(self, timeout=15, n_parallel=-1, build_func="default"):
+        if n_parallel == -1:
+            n_parallel=multiprocessing.cpu_count()
         self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, build_func)
 
 
@@ -318,6 +324,8 @@ class LocalRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    working_dir: string = ""
+        Path of working directory which stores buffers
     """
 
     def __init__(
@@ -328,6 +336,7 @@ class LocalRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        working_dir="",
     ):
         if enable_cpu_cache_flush:
             number = 1
@@ -341,6 +350,7 @@ class LocalRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            working_dir,
         )
 
 
@@ -389,6 +399,8 @@ class RPCRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    working_dir: string = ""
+        Path to working buffer directory, default is empty
     """
 
     def __init__(
@@ -404,7 +416,22 @@ class RPCRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        working_dir="",
     ):
+        self.kwargs = {
+            "key" : key,
+            "host" : host,
+            "port" : port,
+            "priority" : priority,
+            "n_parallel" : n_parallel,
+            "timeout" : timeout,
+            "number" : number,
+            "repeat" : repeat,
+            "min_repeat_ms" : min_repeat_ms,
+            "cooldown_interval" : cooldown_interval,
+            "enable_cpu_cache_flush" : enable_cpu_cache_flush,
+            "working_dir" : working_dir,
+        }
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
             key,
@@ -418,6 +445,7 @@ class RPCRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            working_dir
         )
 
         if check_remote(key, host, port, priority, timeout):
@@ -642,22 +670,29 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         The build results of these MeasureInputs.
     """
     # This pool is not doing computationally intensive work, so we can use threads
-    pool = multiprocessing.pool.ThreadPool(n_parallel)
-    tuple_res = pool.map(
-        local_build_worker,
-        [
-            (
-                i.serialize(),
-                build_func,
-                timeout,
-                verbose,
-            )
-            for i in inputs
-        ],
-    )
-    pool.terminate()
-    pool.join()
-    del pool
+    if n_parallel == 1:
+        tuple_res = [local_build_worker([i.serialize(),
+                                         build_func,
+                                         timeout,
+                                         verbose])
+                    for i in inputs]
+    else:
+        pool = multiprocessing.pool.ThreadPool(n_parallel)
+        tuple_res = pool.map(
+            local_build_worker,
+            [
+                (
+                    i.serialize(),
+                    build_func,
+                    timeout,
+                    verbose,
+                )
+                for i in inputs
+            ],
+        )
+        pool.terminate()
+        pool.join()
+        del pool
 
     results = []
     for res in tuple_res:
@@ -740,6 +775,7 @@ def local_run(
     min_repeat_ms=0,
     cooldown_interval=0,
     enable_cpu_cache_flush=False,
+    working_dir="",
     verbose=1,
 ):
     """
@@ -778,6 +814,8 @@ def local_run(
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    working_dir: string = ""
+        Path to working buffer directory
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
 
@@ -855,12 +893,14 @@ def _timed_rpc_run(
     min_repeat_ms,
     cooldown_interval,
     enable_cpu_cache_flush,
+    working_dir,
     verbose,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
     error_no = 0
     error_msg = None
+    is_buffer_exist = False
     try:
         # upload built module
         remote = request_remote(key, host, port, priority, timeout)
@@ -889,18 +929,43 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
-            try:
-                random_fill = remote.get_function("tvm.contrib.random.random_fill")
-            except AttributeError:
-                raise AttributeError(
-                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
-                )
-            for arg in args:
-                random_fill(arg)
+            if os.path.exists(working_dir):
+                buffer_path = os.path.join(working_dir, "buffer.pkl")
+                if os.path.exists(buffer_path):
+                    with open(buffer_path, "rb") as fi:
+                        buffer = pickle.load(fi)
+                    # force last args to be empty
+                    args = []
+                    for i in range(len(build_res.args) - 1):
+                        args.append(ndarray.array(buffer[build_res.args[i].name], ctx=ctx))
+                    args.append(ndarray.empty(get_const_tuple(build_res.args[-1].shape),\
+                        build_res.args[-1].dtype, ctx))
+                    is_buffer_exist = True
+                else:
+                    args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
+                    try:
+                        random_fill = remote.get_function("tvm.contrib.random.random_fill")
+                    except AttributeError:
+                        raise AttributeError(
+                            "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+                        )
+                    for arg in args:
+                        random_fill(arg)
             ctx.sync()
 
             costs = time_f(*args).results
+            if is_buffer_exist:
+                # check answer, only support single output for now
+                result = args[-1].asnumpy()
+                try:
+                    np.testing.assert_allclose(result,
+                                               buffer[build_res.args[-1].name],
+                                               atol=1e-4,
+                                               rtol=1e-4)
+                except:
+                    costs = (MAX_FLOAT,)
+                    error_no = MeasureErrorNo.WRONG_ANSWER
+                    error_msg = make_traceback_info()
             # clean up remote files
             remote.remove(build_res.filename)
             remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
@@ -937,7 +1002,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, timeout, _, _, _, _, _, _, verbose = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -987,6 +1052,7 @@ def rpc_runner_run(
     min_repeat_ms=0,
     cooldown_interval=0.0,
     enable_cpu_cache_flush=False,
+    working_dir="",
     verbose=1,
 ):
     """Run function of RPCRunner to test the performance of the input BuildResults.
@@ -1034,6 +1100,8 @@ def rpc_runner_run(
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    working_dir: string = ""
+        Path to working directory which stores buffers
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
 
@@ -1061,6 +1129,7 @@ def rpc_runner_run(
                 min_repeat_ms,
                 cooldown_interval,
                 enable_cpu_cache_flush,
+                working_dir,
                 verbose,
             )
             for inp, build_res in zip(inputs, build_results)
