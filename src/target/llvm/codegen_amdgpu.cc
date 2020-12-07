@@ -183,6 +183,21 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   unsigned GetGlobalAddressSpace() const final { return 1; }
 
+  llvm::Value* CreateIntrinsic(const CallNode* op) final {
+    if (op->op.same_as(builtin::atomic_add())) {
+      ICHECK(op->args[1]->dtype.bits() == 32) << "Only supports 32 bit atomic for now";
+      llvm::Value* v0 = MakeValue(op->args[0]);
+      llvm::Value* v1 = MakeValue(op->args[1]);
+      if (op->args[1]->dtype.is_float()) {
+        return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
+                                         llvm::AtomicOrdering::Monotonic);
+      }
+      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
+                                       llvm::AtomicOrdering::Monotonic);
+    }
+    return CodeGenLLVM::CreateIntrinsic(op);
+  }
+
  protected:
   void InitTarget(llvm::TargetMachine* tm) final {
     // Maximum vector lane = float4
