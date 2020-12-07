@@ -248,7 +248,7 @@ like ``virtualenv``.
 
    .. code:: bash
 
-       pip3 install --user tornado psutil xgboost
+       pip3 install --user tornado psutil xgboost cloudpickle
 
 
 Install Contrib Libraries
