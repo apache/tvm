@@ -471,8 +471,8 @@ def scatter(data, indices, updates, axis=0):
     return out
 
 
-def gen_scatter_add_1d(data, indices, updates, axis, out, _):
-    """Generate scatter ir for 1d inputs
+def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
+    """Generate scatter add ir for 1d inputs, using atomic_add instruction
 
     Parameters
     ----------
@@ -490,9 +490,6 @@ def gen_scatter_add_1d(data, indices, updates, axis, out, _):
 
     out : tir.Tensor
         The output tensor.
-
-    update_func: function
-        The function to be applied to a destination and the corresponding update.
 
     Returns
     -------
@@ -580,7 +577,7 @@ def scatter_add(data, indices, updates, axis=0):
     assert 1 <= rank <= 4, "scatter_add only supports 1-4 dimensions"
 
     ir_funcs = {
-        1: gen_scatter_add_1d,
+        1: gen_scatter_add_1d_atomic,
         2: gen_ir_2d,
         3: gen_ir_3d,
         4: gen_ir_4d,
