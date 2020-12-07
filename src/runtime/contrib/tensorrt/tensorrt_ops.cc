@@ -463,6 +463,78 @@ class BatchNormOpConverter : public TensorRTOpConverter {
   }
 };
 
+class LayerNormOpConverter : public TensorRTOpConverter {
+ public:
+  LayerNormOpConverter() : TensorRTOpConverter({kTensor, kWeight, kWeight}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    auto input = params->inputs.at(0).tensor;
+    auto gamma_input = params->inputs.at(1).weight;
+    auto beta_input = params->inputs.at(2).weight;
+    ICHECK_EQ(gamma_input.count, beta_input.count);
+
+    const float epsilon = std::stof(params->node.GetAttr<std::vector<std::string>>("epsilon")[0]);
+    const bool scale = std::stoi(params->node.GetAttr<std::vector<std::string>>("scale")[0]);
+    const bool center = std::stoi(params->node.GetAttr<std::vector<std::string>>("center")[0]);
+    const int input_rank = input->getDimensions().nbDims;
+    const int original_axis = std::stoi(params->node.GetAttr<std::vector<std::string>>("axis")[0]);
+    const int axis = ConvertAxis(params, original_axis, input_rank);
+
+    std::vector<int> weight_shape(input_rank, 1);
+    weight_shape[axis] = gamma_input.count;
+    auto gamma =
+        params->network->addConstant(VectorToTrtDims(weight_shape), gamma_input)->getOutput(0);
+    auto beta =
+        params->network->addConstant(VectorToTrtDims(weight_shape), beta_input)->getOutput(0);
+
+    // Compute mean
+    auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG, 1 << axis,
+                                                 /*keepdims=*/true);
+    ICHECK(mean_layer != nullptr);
+    auto mean = mean_layer->getOutput(0);
+    // Compute variance
+    auto diff_layer =
+        params->network->addElementWise(*input, *mean, nvinfer1::ElementWiseOperation::kSUB);
+    ICHECK(diff_layer != nullptr);
+    auto square_layer =
+        params->network->addElementWise(*diff_layer->getOutput(0), *diff_layer->getOutput(0),
+                                        nvinfer1::ElementWiseOperation::kPROD);
+    ICHECK(square_layer != nullptr);
+    auto var_layer = params->network->addReduce(
+        *square_layer->getOutput(0), nvinfer1::ReduceOperation::kAVG, 1 << axis, /*keepdims=*/true);
+    ICHECK(var_layer != nullptr);
+    auto var = var_layer->getOutput(0);
+    // sqrt(var + epsilon)
+    auto epsilon_tensor = CreateScalar(params, epsilon, var->getDimensions());
+    auto denom_add_layer = params->network->addElementWise(*var, *epsilon_tensor,
+                                                           nvinfer1::ElementWiseOperation::kSUM);
+    ICHECK(denom_add_layer != nullptr);
+    auto denom_layer =
+        params->network->addUnary(*denom_add_layer->getOutput(0), nvinfer1::UnaryOperation::kSQRT);
+    ICHECK(denom_layer != nullptr);
+    // (input - mean) / sqrt(var + epsilon)
+    auto output_layer =
+        params->network->addElementWise(*diff_layer->getOutput(0), *denom_layer->getOutput(0),
+                                        nvinfer1::ElementWiseOperation::kDIV);
+    ICHECK(output_layer != nullptr);
+    auto output = output_layer->getOutput(0);
+
+    if (scale) {
+      auto scale_layer =
+          params->network->addElementWise(*output, *gamma, nvinfer1::ElementWiseOperation::kPROD);
+      ICHECK(scale_layer != nullptr);
+      output = scale_layer->getOutput(0);
+    }
+    if (center) {
+      auto center_layer =
+          params->network->addElementWise(*output, *beta, nvinfer1::ElementWiseOperation::kSUM);
+      ICHECK(center_layer != nullptr);
+      output = center_layer->getOutput(0);
+    }
+    params->outputs.push_back(output);
+  }
+};
+
 class BatchFlattenOpConverter : public TensorRTOpConverter {
  public:
   BatchFlattenOpConverter() : TensorRTOpConverter({kTensor}) {}
@@ -686,6 +758,9 @@ class UnaryOpConverter : public TensorRTOpConverter {
       {"atan", nvinfer1::UnaryOperation::kATAN},
       {"ceil", nvinfer1::UnaryOperation::kCEIL},
       {"floor", nvinfer1::UnaryOperation::kFLOOR},
+#endif
+#if TRT_VERSION_GE(7, 0, 0)
+      {"erf", nvinfer1::UnaryOperation::kERF},
 #endif
     };
     auto it = op_map.find(params->op_name);
@@ -1094,6 +1169,19 @@ class AdaptivePoolingOpConverter : public TensorRTOpConverter {
   }
 };
 
+class BatchMatmulOpConverter : public TensorRTOpConverter {
+ public:
+  BatchMatmulOpConverter() : TensorRTOpConverter({kTensor, kTensor}) {}
+
+  void Convert(TensorRTOpConverterParams* params) const {
+    nvinfer1::IMatrixMultiplyLayer* matmul_layer = params->network->addMatrixMultiply(
+        *params->inputs.at(0).tensor, nvinfer1::MatrixOperation::kNONE,
+        *params->inputs.at(1).tensor, nvinfer1::MatrixOperation::kTRANSPOSE);
+    ICHECK(matmul_layer != nullptr);
+    params->outputs.push_back(matmul_layer->getOutput(0));
+  }
+};
+
 const std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<TensorRTOpConverter>>>
 GetOpConverters() {
   static auto map =
@@ -1103,6 +1191,7 @@ GetOpConverters() {
   map->emplace("sigmoid", std::make_shared<ActivationOpConverter>());
   map->emplace("tanh", std::make_shared<ActivationOpConverter>());
   map->emplace("nn.batch_norm", std::make_shared<BatchNormOpConverter>());
+  map->emplace("nn.layer_norm", std::make_shared<LayerNormOpConverter>());
   map->emplace("nn.softmax", std::make_shared<SoftmaxOpConverter>());
   map->emplace("nn.conv2d", std::make_shared<Conv2DOpConverter>());
   map->emplace("nn.dense", std::make_shared<DenseOpConverter>());
@@ -1140,6 +1229,7 @@ GetOpConverters() {
   map->emplace("mean", std::make_shared<ReduceOpConverter>());
   map->emplace("nn.adaptive_max_pool2d", std::make_shared<AdaptivePoolingOpConverter>());
   map->emplace("nn.adaptive_avg_pool2d", std::make_shared<AdaptivePoolingOpConverter>());
+  map->emplace("nn.batch_matmul", std::make_shared<BatchMatmulOpConverter>());
 #if TRT_VERSION_GE(5, 1, 5)
   map->emplace("clip", std::make_shared<ActivationOpConverter>());
   map->emplace("nn.leaky_relu", std::make_shared<ActivationOpConverter>());
@@ -1156,6 +1246,9 @@ GetOpConverters() {
   map->emplace("nn.avg_pool3d", std::make_shared<Pooling3DOpConverter>());
   map->emplace("nn.conv3d_transpose", std::make_shared<Conv3DTransposeOpConverter>());
 #endif  // TRT_VERSION_GE(6, 0, 1)
+#if TRT_VERSION_GE(7, 0, 0)
+  map->emplace("erf", std::make_shared<UnaryOpConverter>());
+#endif  // TRT_VERSION_GE(7, 0, 0)
   return map;
 }
 
