@@ -127,7 +127,11 @@ class SplitExprNode : public CanonicalExprNode {
   PrimExpr Normalize() const final { return NormalizeWithScale(1); }
 
   void MulToSelf(int64_t scale) { this->scale *= scale; }
-  void CastTo(DataType dtype) { this->index = cast(dtype, this->index); }
+
+  void CastTo(DataType dtype) {
+    this->index = cast(dtype, this->index);
+    this->dtype = dtype;
+  }
 
   inline bool IndexEqual(const SplitExpr& other) const;
   inline bool DivModeCompatibleTo(DivMode mode) const;
@@ -264,6 +268,7 @@ class SumExprNode : public CanonicalExprNode {
     for (auto& arg : args) {
       arg.CopyOnWrite()->CastTo(dtype);
     }
+    this->dtype = dtype;
   }
 
   static constexpr const char* _type_key = "arith.SumExpr";
