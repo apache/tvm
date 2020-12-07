@@ -127,6 +127,7 @@ class SplitExprNode : public CanonicalExprNode {
   PrimExpr Normalize() const final { return NormalizeWithScale(1); }
 
   void MulToSelf(int64_t scale) { this->scale *= scale; }
+  void CastTo(DataType dtype) { this->index = cast(dtype, this->index); }
 
   inline bool IndexEqual(const SplitExpr& other) const;
   inline bool DivModeCompatibleTo(DivMode mode) const;
@@ -254,6 +255,16 @@ class SumExprNode : public CanonicalExprNode {
   }
 
   void AddToSelf(const SumExpr& other, int64_t scale);
+
+  /*!
+   * \brief self = cast(dtype, self)
+   * \param dtype The target datatype
+   */
+  void CastTo(DataType dtype) {
+    for (auto& arg : args) {
+      arg.CopyOnWrite()->CastTo(dtype);
+    }
+  }
 
   static constexpr const char* _type_key = "arith.SumExpr";
   TVM_DECLARE_FINAL_OBJECT_INFO(SumExprNode, CanonicalExprNode);
@@ -430,6 +441,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   PrimExpr VisitExpr_(const FloorDivNode* op) final;
   PrimExpr VisitExpr_(const FloorModNode* op) final;
   PrimExpr VisitExpr_(const ReduceNode* op) final;
+  PrimExpr VisitExpr_(const CastNode* op) final;
 
  private:
   /*!
@@ -448,6 +460,13 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return The result expression;
    */
   SplitExpr SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode);
+  // /*!
+  //  * \brief cast value to dtype
+  //  * \param dtype The target datatype
+  //  * \param value The SplitExpr to be casted
+  //  * \return The result expression;
+  //  */
+  // SplitExpr CastSplitExpr(DataType dtype, SplitExpr value);
   /*!
    * \brief Separate psum into divisible and non-divisible parts.
    * \param psum The sum expression.
@@ -688,6 +707,11 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, 
   lhs.CopyOnWrite()->div_mode = div_mode;
   return lhs;
 }
+
+// SplitExpr CanonicalSimplifier::Impl::CastSplitExpr(DataType dtype, SplitExpr value) {
+//   value.CopyOnWrite()->index = cast(dtype, value->index);
+//   return value;
+// }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
   if (!IsIndexType(op->dtype)) {
@@ -1070,6 +1094,26 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ReduceNode* op) {
   ret = SimplifyReduceCombiner(op);
   return ret;
 }
+
+PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
+  }
+  // normalize
+  PrimExpr value = this->CanonicalMutate(op->value);
+  if (value.as<SumExprNode>()) {
+    SumExpr se = Downcast<SumExpr>(value);
+    se.CopyOnWrite()->CastTo(op->dtype);
+    return se;
+  } else if (value.as<SplitExprNode>()) {
+    SplitExpr se = Downcast<SplitExpr>(value);
+    se.CopyOnWrite()->CastTo(op->dtype);
+    return se;
+  } else {
+    return Rewriter::VisitExpr_(op);
+  }
+}
+
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {
   return impl_->CanonicalSimplify(expr);
