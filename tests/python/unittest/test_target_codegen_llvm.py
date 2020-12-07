@@ -770,6 +770,10 @@ def test_llvm_lower_atomic():
     C = tvm.te.extern((1000,), [A], lambda ins, _: do_atomic_add(ins[0]), name="C", dtype="int32")
     s = tvm.te.create_schedule(C.op)
     # This does not work because of pointer type mismatch
+    # TVMError: LLVM module verification failed with the following errors:
+    # Argument value type does not match pointer operand type!
+    # %21 = atomicrmw add i8* %7, i32 1 monotonic
+    # i8
     # f = tvm.build(s, [A], target="llvm")
 
 
