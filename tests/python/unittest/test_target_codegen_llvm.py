@@ -763,7 +763,8 @@ def test_llvm_lower_atomic():
         A_ptr = ib.buffer_ptr(A)
         with ib.for_range(0, n, name="i", for_type="parallel") as i:
             atomic_add_return[0] = atomic_add(
-                tvm.tir.call_intrin("handle", "tir.address_of", A_ptr[0]), one)
+                tvm.tir.call_intrin("handle", "tir.address_of", A_ptr[0]), one
+            )
         return ib.get()
 
     A = tvm.te.placeholder((100,), dtype="int32", name="A")
@@ -794,7 +795,8 @@ def test_llvm_gpu_lower_atomic():
             ib.scope_attr(tx, "thread_extent", nthread_tx)
             ib.scope_attr(bx, "thread_extent", nthread_bx)
             atomic_add_return[0] = atomic_add(
-                tvm.tir.call_intrin("handle", "tir.address_of", A_ptr[0]), one)
+                tvm.tir.call_intrin("handle", "tir.address_of", A_ptr[0]), one
+            )
         return ib.get()
 
     size = 1024
