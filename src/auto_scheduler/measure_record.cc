@@ -163,6 +163,9 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     writer->WriteArrayItem(std::string(data.workload_key));
     writer->WriteArrayItem(data.target->str());
     writer->WriteArrayItem(*data.hardware_params.get());
+    if (data.target_host.defined()) {
+      writer->WriteArrayItem(data.target_host->str());
+    }
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
@@ -181,8 +184,13 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     s = reader->NextArrayItem();
     if (s) {
       reader->Read(hardware_params_node.get());
-      s = reader->NextArrayItem();
       data->hardware_params = ::tvm::auto_scheduler::HardwareParams(hardware_params_node);
+    }
+    s = reader->NextArrayItem();
+    if (s) {
+      reader->Read(&str_value);
+      data->target_host = ::tvm::Target(str_value);
+      s = reader->NextArrayItem();
       ICHECK(!s);
     }
   }
