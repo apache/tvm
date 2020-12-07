@@ -330,7 +330,7 @@ def test_simplify_cast():
     # cast(i32, i + j - 100)
     i = te.var("i", dtype="int64")
     j = te.var("j", dtype="int64")
-    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2**31 - 1))
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2 ** 31 - 1))
     ck.analyzer.update(j, tvm.arith.ConstIntBound(0, 10))
     res = tcast("int32", i + j - 100)
     ck.verify(res, res)
@@ -339,12 +339,13 @@ def test_simplify_cast():
     axis = te.var("axis", dtype="int64")
     ck.analyzer.update(axis, tvm.arith.ConstIntBound(0, 42))
     res = (
-        tcast("int32", flm(axis, tvm.tir.const(7, "int64"))
-            * tvm.tir.const(2, "int64")
-            + tvm.tir.const(1, "int64"))
+        tcast(
+            "int32",
+            flm(axis, tvm.tir.const(7, "int64")) * tvm.tir.const(2, "int64")
+            + tvm.tir.const(1, "int64"),
+        )
         + tvm.tir.const(1, "int32")
-        - tcast("int32", flm(axis, tvm.tir.const(7, "int64"))
-            * tvm.tir.const(2, "int64"))
+        - tcast("int32", flm(axis, tvm.tir.const(7, "int64")) * tvm.tir.const(2, "int64"))
     )
     ck.verify(res, 2)
 
