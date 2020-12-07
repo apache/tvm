@@ -162,22 +162,21 @@ class SplitExprNode : public CanonicalExprNode {
       return true;  // upcast is safe
     }
     PrimExpr res = this->index;
-    DataType dtype = this->dtype;
     if (this->scale == 0) {
       return true;
     }
     CHECK_CAST(dtype, res)
     if (this->upper_factor != SplitExprNode::kPosInf) {
-      res = ModImpl(res, make_const(dtype, this->upper_factor), div_mode);
+      res = ModImpl(res, make_const(this->dtype, this->upper_factor), div_mode);
       CHECK_CAST(dtype, res)
     }
     if (this->lower_factor != 1) {
-      res = DivImpl(res, make_const(dtype, this->lower_factor), div_mode);
+      res = DivImpl(res, make_const(this->dtype, this->lower_factor), div_mode);
       CHECK_CAST(dtype, res)
     }
     if (this->scale != 1) {
-      ICHECK(!dtype.is_uint() || this->scale > 0);
-      res = res * make_const(dtype, this->scale);
+      ICHECK(!this->dtype.is_uint() || this->scale > 0);
+      res = res * make_const(this->dtype, this->scale);
       CHECK_CAST(dtype, res)
     }
     return true;
