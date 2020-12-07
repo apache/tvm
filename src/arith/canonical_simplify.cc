@@ -79,7 +79,7 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
 
 bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
   if (!IsIndexType(dtype)) {
-     return false;
+    return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
   int64_t ubound = Downcast<IntImm>(max_value(dtype))->value;
