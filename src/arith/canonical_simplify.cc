@@ -78,21 +78,23 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
 }
 
 bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
-    if (!IsIndexType(dtype)) {
-      return false;
-    }
-    ConstIntBound bound = analyzer->const_int_bound(value);
-    int64_t ubound = Downcast<IntImm>(max_value(dtype))->value;
-    int64_t lbound = Downcast<IntImm>(min_value(dtype))->value;
-    if (value.dtype().bits() <= dtype.bits() ||  // upcast is safe
-        (bound->max_value <= ubound && bound->min_value >= lbound)) {
-      return true;
-    }
-    return false;
+  if (!IsIndexType(dtype)) {
+     return false;
+  }
+  ConstIntBound bound = analyzer->const_int_bound(value);
+  int64_t ubound = Downcast<IntImm>(max_value(dtype))->value;
+  int64_t lbound = Downcast<IntImm>(min_value(dtype))->value;
+  if (value.dtype().bits() <= dtype.bits() ||  // upcast is safe
+      (bound->max_value <= ubound && bound->min_value >= lbound)) {
+    return true;
+  }
+  return false;
 }
 
-#define CHECK_CAST(DTYPE, VALUE) \
-  if (!CheckCastImpl(DTYPE, VALUE, analyzer))  { return false; }
+#define CHECK_CAST(DTYPE, VALUE)                \
+  if (!CheckCastImpl(DTYPE, VALUE, analyzer)) { \
+    return false;                               \
+  }
 
 /*!
  * \brief Internal "Split normal form" of expression.
@@ -354,7 +356,9 @@ class SumExprNode : public CanonicalExprNode {
       CHECK_CAST(dtype, res)
     }
     for (const auto& arg : args) {
-      if (!arg->CheckCast(dtype, analyzer)) { return false; }
+      if (!arg->CheckCast(dtype, analyzer)) {
+        return false;
+      }
     }
     return true;
   }
@@ -1208,7 +1212,6 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   }
   return Rewriter::VisitExpr_(op);
 }
-
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {
   return impl_->CanonicalSimplify(expr);
