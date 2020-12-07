@@ -343,8 +343,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (backend::IsAutoSchedulerEnabled() && targets.size() == 1) {
       const auto& target = (*targets.begin()).second;
       Pass major_pass = transform::AutoSchedulerLayoutRewrite();
-
-      if (target->kind->device_type == kDLCPU && pass_ctx.PassEnabled(major_pass->Info())) {
+      bool enable_layout_rewrite_targets =
+          target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
+      if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
         With<Target> tctx(target);
         relay_module = major_pass(relay_module);
         // Defuse ops to fold constants, then fuse them again
