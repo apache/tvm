@@ -601,7 +601,7 @@ def schedule_topk(outs):
 
 
 def stable_sort_by_key_thrust(keys, values, for_scatter=False):
-    """ Sort values with respect to keys using thrust.
+    """Sort values with respect to keys using thrust.
     Both keys and values will be sorted and returned.
     Sorting is done via stable sort, so relative ordering among
     ties are preserved.
