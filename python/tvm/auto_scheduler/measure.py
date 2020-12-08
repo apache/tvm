@@ -287,7 +287,7 @@ class LocalBuilder(ProgramBuilder):
 
     def __init__(self, timeout=15, n_parallel=-1, build_func="default"):
         if n_parallel == -1:
-            n_parallel=multiprocessing.cpu_count()
+            n_parallel = multiprocessing.cpu_count()
         self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, build_func)
 
 
@@ -419,18 +419,18 @@ class RPCRunner(ProgramRunner):
         working_dir="",
     ):
         self.kwargs = {
-            "key" : key,
-            "host" : host,
-            "port" : port,
-            "priority" : priority,
-            "n_parallel" : n_parallel,
-            "timeout" : timeout,
-            "number" : number,
-            "repeat" : repeat,
-            "min_repeat_ms" : min_repeat_ms,
-            "cooldown_interval" : cooldown_interval,
-            "enable_cpu_cache_flush" : enable_cpu_cache_flush,
-            "working_dir" : working_dir,
+            "key": key,
+            "host": host,
+            "port": port,
+            "priority": priority,
+            "n_parallel": n_parallel,
+            "timeout": timeout,
+            "number": number,
+            "repeat": repeat,
+            "min_repeat_ms": min_repeat_ms,
+            "cooldown_interval": cooldown_interval,
+            "enable_cpu_cache_flush": enable_cpu_cache_flush,
+            "working_dir": working_dir,
         }
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
@@ -445,7 +445,7 @@ class RPCRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
-            working_dir
+            working_dir,
         )
 
         if check_remote(key, host, port, priority, timeout):
@@ -671,24 +671,13 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     """
     # This pool is not doing computationally intensive work, so we can use threads
     if n_parallel == 1:
-        tuple_res = [local_build_worker([i.serialize(),
-                                         build_func,
-                                         timeout,
-                                         verbose])
-                    for i in inputs]
+        tuple_res = [
+            local_build_worker([i.serialize(), build_func, timeout, verbose]) for i in inputs
+        ]
     else:
         pool = multiprocessing.pool.ThreadPool(n_parallel)
         tuple_res = pool.map(
-            local_build_worker,
-            [
-                (
-                    i.serialize(),
-                    build_func,
-                    timeout,
-                    verbose,
-                )
-                for i in inputs
-            ],
+            local_build_worker, [(i.serialize(), build_func, timeout, verbose) for i in inputs]
         )
         pool.terminate()
         pool.join()
@@ -938,16 +927,23 @@ def _timed_rpc_run(
                     args = []
                     for i in range(len(build_res.args) - 1):
                         args.append(ndarray.array(buffer[build_res.args[i].name], ctx=ctx))
-                    args.append(ndarray.empty(get_const_tuple(build_res.args[-1].shape),\
-                        build_res.args[-1].dtype, ctx))
+                    args.append(
+                        ndarray.empty(
+                            get_const_tuple(build_res.args[-1].shape), build_res.args[-1].dtype, ctx
+                        )
+                    )
                     is_buffer_exist = True
                 else:
-                    args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
+                    args = [
+                        ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx)
+                        for x in build_res.args
+                    ]
                     try:
                         random_fill = remote.get_function("tvm.contrib.random.random_fill")
                     except AttributeError:
                         raise AttributeError(
-                            "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+                            "Please make sure USE_RANDOM is ON in the config.cmake "
+                            "on the remote devices"
                         )
                     for arg in args:
                         random_fill(arg)
@@ -958,10 +954,9 @@ def _timed_rpc_run(
                 # check answer, only support single output for now
                 result = args[-1].asnumpy()
                 try:
-                    np.testing.assert_allclose(result,
-                                               buffer[build_res.args[-1].name],
-                                               atol=1e-4,
-                                               rtol=1e-4)
+                    np.testing.assert_allclose(
+                        result, buffer[build_res.args[-1].name], atol=1e-4, rtol=1e-4
+                    )
                 except:
                     costs = (MAX_FLOAT,)
                     error_no = MeasureErrorNo.WRONG_ANSWER

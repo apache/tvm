@@ -184,8 +184,17 @@ class TuningOptions(Object):
             runner,
             measure_callbacks,
         )
-    
+
     def register_buffer(self, name, buffer):
+        """Register numpy buffer for a given tensor argument name for running
+
+        Parameters
+        ----------
+        name : string
+            name of the argument
+        buffer : numpy.ndarray
+            data for the tensor argument
+        """
         buffer_path = os.path.join(self.temp_working_dir, "buffer.pkl")
         buf = OrderedDict()
         if os.path.exists(buffer_path):
@@ -253,13 +262,12 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
     if search_policy is None:
         cost_model = XGBModel()
         search_policy = SketchPolicy(task, cost_model)
-    
+
     if tuning_options.check_correctness == True:
         empty_sch, args = task.compute_dag.apply_steps_from_state(
-            task.compute_dag.get_init_state(), layout_rewrite=True)
-        cpu_func = build_module.build(
-                        empty_sch, args, target="llvm", target_host=task.target_host
-                    )
+            task.compute_dag.get_init_state(), layout_rewrite=True
+        )
+        cpu_func = build_module.build(empty_sch, args, target="llvm", target_host=task.target_host)
         buffer_path = os.path.join(tuning_options.working_dir, "buffer.pkl")
         if os.path.exists(buffer_path) is True:
             with open(buffer_path, "rb") as fi:
@@ -276,10 +284,13 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
                 answer = [x.asnumpy() for x in cpu_args]
                 tuning_options.register_buffer(args[-1].name, answer[-1])
         else:
-            np_args = [np.random.uniform(-0.1, 0.1, size=get_const_tuple(x.shape)).astype(x.dtype) for x in args]
-            cpu_args = [ndarray.array(x, ctx=tvm.cpu()) for x in np_args]
+            cpu_args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, tvm.cpu()) for x in args]
+            random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
+            assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
+            for arg in cpu_args:
+                random_fill(arg)
             cpu_func(*cpu_args)
-            answer = [x.asnumpy() for x in cpu_args]
+            answer = [arg.asnumpy() for arg in cpu_args]
             for i in range(len(answer)):
                 tuning_options.register_buffer(args[i].name, answer[i])
 

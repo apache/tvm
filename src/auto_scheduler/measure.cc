@@ -103,8 +103,7 @@ MeasureResult MeasureResultNode::copy() const {
 }
 
 /********** LocalBuilder **********/
-LocalBuilder::LocalBuilder(int timeout, int n_parallel,
-                           const String& build_func) {
+LocalBuilder::LocalBuilder(int timeout, int n_parallel, const String& build_func) {
   auto node = make_object<LocalBuilderNode>();
   node->timeout = timeout;
   node->n_parallel = n_parallel;
@@ -139,8 +138,7 @@ LocalRunner::LocalRunner(int timeout, int number, int repeat, int min_repeat_ms,
 }
 
 Array<MeasureResult> LocalRunnerNode::Run(const Array<MeasureInput>& inputs,
-                                          const Array<BuildResult>& build_results,
-                                          int verbose) {
+                                          const Array<BuildResult>& build_results, int verbose) {
   if (const auto* f = runtime::Registry::Get("auto_scheduler.local_runner.run")) {
     Array<MeasureResult> results =
         (*f)(inputs, build_results, timeout, number, repeat, min_repeat_ms, cooldown_interval,
@@ -175,8 +173,7 @@ RPCRunner::RPCRunner(const String& key, const String& host, int port, int priori
 }
 
 Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
-                                        const Array<BuildResult>& build_results,
-                                        int verbose) {
+                                        const Array<BuildResult>& build_results, int verbose) {
   if (const auto* f = runtime::Registry::Get("auto_scheduler.rpc_runner.run")) {
     Array<MeasureResult> results =
         (*f)(inputs, build_results, key, host, port, priority, n_parallel, timeout, number, repeat,
@@ -383,8 +380,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ProgramRunnerRun")
                        int verbose) { return runner->Run(inputs, build_results, verbose); });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.LocalBuilder")
-    .set_body_typed([](int timeout, int n_parallel,
-                       const String& build_func) {
+    .set_body_typed([](int timeout, int n_parallel, const String& build_func) {
       return LocalBuilder(timeout, n_parallel, build_func);
     });
 

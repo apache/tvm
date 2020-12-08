@@ -73,12 +73,11 @@ std::pair<te::Schedule, Array<te::Tensor>> AutoSchedule(SearchPolicy search_poli
 
 TVM_REGISTER_GLOBAL("auto_scheduler.TuningOptions")
     .set_body_typed([](int num_measure_trials, int early_stopping, int num_measures_per_round,
-                       const String& working_dir, bool check_correctness,
-                       int verbose, ProgramBuilder builder, ProgramRunner runner,
+                       const String& working_dir, bool check_correctness, int verbose,
+                       ProgramBuilder builder, ProgramRunner runner,
                        Optional<Array<MeasureCallback>> measure_callbacks) {
-      return TuningOptions(num_measure_trials, early_stopping, num_measures_per_round,
-                           working_dir, check_correctness, verbose,
-                           builder, runner, measure_callbacks);
+      return TuningOptions(num_measure_trials, early_stopping, num_measures_per_round, working_dir,
+                           check_correctness, verbose, builder, runner, measure_callbacks);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.AutoSchedule")
