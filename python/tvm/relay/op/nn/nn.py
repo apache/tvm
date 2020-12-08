@@ -2000,17 +2000,17 @@ def sparse_dense(dense_mat, sparse_mat, sparse_lhs=False):
     a dense matrix and `sparse_mat` is a sparse (either BSR or CSR) namedtuple with
     fields `data`, `indices`, and `indptr`.
 
-    .. math::
+    \if sparse_lhs=False:
+        .. math::
 
-       if sparse_lhs=True
+            \mbox{sparse_dense}(dense_mat, sparse_mat)[m, n]
+            = \mbox{matmul}(D, \mbox{as_dense}(S)^T)[m, n]
 
-        \mbox{sparse_dense}(dense_mat, sparse_mat)[m, n]
-        = \mbox{matmul}(D, \mbox{as_dense}(S)^T)[m, n]
+    \if sparse_lhs=True:
+        .. math::
 
-       if sparse_lhs=False
-
-        \mbox{sparse_dense}(dense_mat, sparse_mat)[m, n]
-        = \mbox{matmul}(\mbox{as_dense}(S), (D)^T)[m, n]
+            \mbox{sparse_dense}(dense_mat, sparse_mat)[m, n]
+            = \mbox{matmul}(\mbox{as_dense}(S), (D)^T)[m, n]
 
     where `as_dense` returns dense equivalent of the given S(sparse matrix)
     while performing matmul with given D(dense matrix).
