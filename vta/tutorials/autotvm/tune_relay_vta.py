@@ -40,7 +40,7 @@ log file to get the best knob parameters.
 #
 # .. code-block:: bash
 #
-#   pip3 install --user psutil xgboost tornado mxnet requests "Pillow<7"
+#   pip3 install --user psutil xgboost tornado mxnet requests "Pillow<7" cloudpickle
 #
 # To make TVM run faster during tuning, it is recommended to use cython
 # as FFI of TVM. In the root directory of TVM, execute
