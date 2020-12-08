@@ -57,8 +57,9 @@ from tvm.contrib.debugger import debug_runtime
 from tvm.relay import transform
 
 import vta
-from vta.testing import simulator
-from vta.top import graph_pack
+from vta.python.vta.testing import simulator
+from vta.python.vta.top import graphpack as graph_pack
+from vta.python import vta
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -178,7 +179,7 @@ with autotvm.tophub.context(target):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
             assert env.BLOCK_IN == env.BLOCK_OUT
-            relay_prog = graph_pack(
+            relay_prog = graph_pack.graph_pack(
                 mod["main"],
                 env.BATCH,
                 env.BLOCK_OUT,
