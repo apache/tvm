@@ -597,3 +597,28 @@ def schedule_topk(outs):
       The computation schedule for the op.
     """
     return _schedule_sort(outs)
+
+
+def stable_sort_thrust(keys, values):
+    """
+    TODO
+    """
+    keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
+    values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
+    out_bufs = [
+        tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
+        tvm.tir.decl_buffer(keys.shape, values.dtype, "values_buf", data_alignment=8),
+    ]
+    out = te.extern(
+        [keys.shape, values.shape],
+        [keys, values],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.thrust.stable_sort_by_key", ins[0], ins[1], outs[0], outs[1]
+        ),
+        in_buffers=[keys_buf, values_buf],
+        out_buffers=out_bufs,
+        dtype=[keys.dtype, values.dtype],
+        name="stable_sort_by_key",
+        tag="stable_sort_by_key",
+    )
+    return out[0], out[1]
