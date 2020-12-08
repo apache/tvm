@@ -2737,6 +2737,12 @@ def from_onnx(model, shape=None, dtype="float32", opset=None, freeze_params=Fals
                 warnings.warn(str(e))
     except ImportError:
         pass
+
+    # if no explicit input's shape came from user, then initialize shape as it is defined in onnx model
+    if shape is None:
+        shape = {}
+        for i in model.graph.input:
+            shape[i.name] = [dim.dim_value for dim in i.type.tensor_type.shape.dim]
     g = GraphProto(shape, dtype)
     graph = model.graph
     if opset is None:
