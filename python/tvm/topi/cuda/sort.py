@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
-"""Argsort operator """
+"""Sort related operators """
 import tvm
 from tvm import te
+from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
 from ..math import identity
@@ -622,3 +623,7 @@ def stable_sort_by_key_thrust(keys, values):
         tag="stable_sort_by_key",
     )
     return out[0], out[1]
+
+
+def is_thrust_available():
+    return get_global_func("tvm.contrib.thrust.sort", allow_missing=True) is not None

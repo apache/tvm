@@ -199,6 +199,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     } else {
       LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
     }
+  } else if (key_dtype == "int64") {
+    if (value_dtype == "int32") {
+      thrust_stable_sort_by_key<int64_t, int>(keys_in, values_in, keys_out, values_out);
+    } else if (value_dtype == "float32") {
+      thrust_stable_sort_by_key<int64_t, float>(keys_in, values_in, keys_out, values_out);
+    } else {
+      LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+    }
   } else if (key_dtype == "float32") {
     if (value_dtype == "int32") {
       thrust_stable_sort_by_key<float, int>(keys_in, values_in, keys_out, values_out);
