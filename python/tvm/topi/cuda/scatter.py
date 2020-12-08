@@ -418,8 +418,29 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
 
 
 def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
-    """
-    TODO
+    """Generate scatter ir for 4d inputs
+
+    Parameters
+    ----------
+    data : tir.Tensor
+        The input data to the operator.
+
+    indices_sorted : tir.Tensor
+        The sorted index locations to update.
+
+    updates : tir.Tensor
+        The values to update, sorted by indices.
+
+    axis : int
+        The axis to scatter on
+
+    out : tir.Tensor
+        The output tensor.
+
+    Returns
+    -------
+    ret : tir
+        The computational ir.
     """
     assert axis == 0
     n = data.shape[0]
@@ -462,6 +483,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
         tid = bx * nthread_tx + tx
 
         with ib.if_scope(tid == ni - 1):
+            # The last element can always update.
             index = indices_ptr[tid]
             update = updates_ptr[tid]
             do_update(ib, index, update)
@@ -525,6 +547,7 @@ def scatter(data, indices, updates, axis=0):
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
 
     in_bufs = [data]
+
     if rank == 1 and is_thrust_available():
         ir_funcs[1] = gen_scatter_1d_thrust
         indices_sorted, updates_sorted = stable_sort_by_key_thrust(
