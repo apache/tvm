@@ -652,6 +652,7 @@ if __name__ == "__main__":
         sut.test_forward_sequential(keras=k)
         sut.test_forward_pool(keras=k)
         sut.test_forward_conv(keras=k)
+        sut.test_forward_conv1d(keras=k)
         sut.test_forward_batch_norm(keras=k)
         sut.test_forward_upsample(keras=k, interpolation="nearest")
         sut.test_forward_upsample(keras=k, interpolation="bilinear")

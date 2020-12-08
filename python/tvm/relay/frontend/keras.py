@@ -342,7 +342,7 @@ def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=N
     else:
         out = _op.nn.conv1d(data=inexpr, **params)
 
-    channel_axis = -1 if etab.data_layout == "NWC" else 1
+    channel_axis = -1 if data_layout == "NWC" else 1
     if keras_layer.use_bias:
         bias = etab.new_const(weightList[1])
         out = _op.nn.bias_add(out, bias, channel_axis)
