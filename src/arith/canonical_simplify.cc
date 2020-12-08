@@ -1196,20 +1196,23 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   }
   // normalize
   PrimExpr value = this->CanonicalMutate(op->value);
+  PrimExpr ret;
   if (value.as<SumExprNode>()) {
     SumExpr se = Downcast<SumExpr>(value);
     if (se->CheckCast(op->dtype, analyzer_)) {
       se.CopyOnWrite()->CastTo(op->dtype);
-      return se;
+      ret = se;
     }
   } else if (value.as<SplitExprNode>()) {
     SplitExpr se = Downcast<SplitExpr>(value);
     if (se->CheckCast(op->dtype, analyzer_)) {
       se.CopyOnWrite()->CastTo(op->dtype);
-      return se;
+      ret = se;
     }
+  } else {
+    ret = Rewriter::VisitExpr_(op);
   }
-  return Rewriter::VisitExpr_(op);
+  return ret;
 }
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {
