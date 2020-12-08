@@ -17,7 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.topi.cuda import stable_sort_by_key_thrust
+from tvm.topi.cuda import stable_sort_by_key_thrust, is_thrust_available
 import numpy as np
 
 
@@ -92,6 +92,10 @@ def test_sort_np():
 
 
 def test_thrust_stable_sort_by_key():
+    if not is_thrust_available():
+        print("skip because thrust is not enabled...")
+        return
+
     size = 6
     keys = te.placeholder((size,), name="keys", dtype="int32")
     values = te.placeholder((size,), name="values", dtype="int32")
