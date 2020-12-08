@@ -469,6 +469,11 @@ class QuantizeAttrs(Attrs):
     """Attributes used in quantize operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.DequantizeAttrs")
+class DequantizeAttrs(Attrs):
+    """Attributes used in dequantize operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.ReduceAttrs")
 class ReduceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
