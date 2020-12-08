@@ -1,0 +1,4 @@
+{"vid_hex": "0483",
+ "pid_hex": "374b",
+ "test_cmd": ["pytest", "tests/micro/qemu/test_zephyr.py", "--microtvm-platforms=stm32f746xx"]
+}

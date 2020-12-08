@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "search_policy/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -1296,7 +1297,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     }
     auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
-    if (task->target->kind->device_type == kDLGPU) {
+    if (IsGPUTask(task)) {
       auto pass_list = Array<tvm::transform::Pass>();
       // Phase 0
       pass_list.push_back(tir::transform::InjectPrefetch());
@@ -1310,7 +1311,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
       pass_list.push_back(tir::transform::Simplify());
       tvm::Map<String, tvm::PrimExpr> gpu_params{
           {"max_shared_memory_per_block", task->hardware_params->max_shared_memory_per_block},
-          {"max_local_memory_per_block", task->hardware_params->max_registers_per_block},
+          {"max_local_memory_per_block", task->hardware_params->max_local_memory_per_block},
           {"max_threads_per_block", task->hardware_params->max_threads_per_block},
           {"max_vector_bytes", task->hardware_params->vector_unit_bytes},
           {"max_vthread", task->hardware_params->max_vthread_extent},

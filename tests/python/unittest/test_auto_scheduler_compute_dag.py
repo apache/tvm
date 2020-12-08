@@ -121,10 +121,10 @@ def test_stage_order():
 
     # Serialize and deserialize the search task.
     task = auto_scheduler.SearchTask(
-        dag,
-        json.dumps(("test-key",)),
-        tvm.target.Target("llvm"),
-        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64),
+        compute_dag=dag,
+        workload_key=json.dumps(("test-key",)),
+        target=tvm.target.Target("llvm"),
+        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64, 0, 0, 0, 0, 0),
     )
 
     task2 = pickle.loads(pickle.dumps(task))

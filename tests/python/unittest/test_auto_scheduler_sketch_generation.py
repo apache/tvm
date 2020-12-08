@@ -36,7 +36,7 @@ from test_auto_scheduler_common import (
 
 
 def generate_sketches(workload_func, args, target, print_for_debug=False):
-    task = auto_scheduler.create_task(workload_func, args, tvm.target.Target(target))
+    task = auto_scheduler.SearchTask(func=workload_func, args=args, target=target)
     policy = auto_scheduler.SketchPolicy(task, verbose=0)
     return policy.generate_sketches(print_for_debug)
 

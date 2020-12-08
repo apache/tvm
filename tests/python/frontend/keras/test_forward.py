@@ -228,6 +228,21 @@ class TestKeras:
         keras_model = keras.models.Model(data, y)
         verify_keras_frontend(keras_model)
 
+    def test_forward_conv1d(self, keras):
+        data = keras.layers.Input(shape=(32, 3))
+        conv_funcs = [
+            keras.layers.Conv1D(filters=10, kernel_size=(3,), strides=(2,), padding="same"),
+            keras.layers.Conv1D(filters=10, kernel_size=(3,), dilation_rate=(2,), padding="same"),
+            keras.layers.Conv1D(filters=1, kernel_size=(3,), padding="valid", use_bias=False),
+            keras.layers.Conv1D(filters=10, kernel_size=(2,), padding="valid"),
+            # Enable when relay conv1dtranspose handles NWC
+            # keras.layers.Conv1DTranspose(filters=10, kernel_size=(3), padding="valid"),
+        ]
+        for conv_func in conv_funcs:
+            x = conv_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout="NWC")
+
     def test_forward_conv(self, keras):
         data = keras.layers.Input(shape=(32, 32, 3))
         conv_funcs = [

@@ -37,7 +37,7 @@ for good schedules (low-level optimizations).
 Different from the template-based :ref:`autotvm <tutorials-autotvm-sec>` which relies on
 manual templates to define the search space, the auto-scheduler does not require any
 schedule templates. In other words, the auto-scheduler only uses the compute declarations
-in :code:`tvm/python/topi` while does not use existing schedule templates.
+in :code:`tvm/python/topi` and does not use existing schedule templates.
 
 Note that this tutorial will not run on Windows or recent versions of macOS. To
 get it to run, you will need to wrap the body of this tutorial in a :code:`if
@@ -59,10 +59,11 @@ from tvm.contrib import graph_runtime
 # We can also load models from MXNet, ONNX, PyTorch, and TensorFlow
 # (see :ref:`front end tutorials<tutorial-frontend>`).
 #
-# Note that although auto-scheduler can work with any layouts,
-# we found that the best performance is typically archived with NHWC layout
-# for convolutional neural networks, so we use NHWC layout in this tutorial.
-#
+# For convolutional neural networks, although auto-scheduler can work correctly
+# with any layout, we found the best performance is typically achieved with NHWC layout.
+# We also implemented more optimizations for NHWC layout with the auto-scheduler.
+# So it is recommended to convert your models to NHWC layout to use the auto-scheduler.
+# You can use :ref:`ConvertLayout <convert-layout-usage>` pass to do the layout conversion in TVM.
 
 
 def get_network(name, batch_size, layout="NHWC", dtype="float32"):
@@ -135,7 +136,7 @@ batch_size = 1
 layout = "NHWC"
 target = tvm.target.Target("cuda")
 dtype = "float32"
-log_file = "%s-%s-B%d.json" % (network, layout, batch_size)
+log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
 #################################################################
 # Extract Search Tasks
@@ -170,11 +171,11 @@ for idx, task in enumerate(tasks):
 #   Typically, we recommend a value >= 300 ms.
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the tuning.
 #   You can set it to a small number (e.g., 200) for a fast demonstrative run.
-#   In practice, we recommend setting it around :code:`1000 * len(tasks)`,
+#   In practice, we recommend setting it around :code:`900 * len(tasks)`,
 #   which is typically enough for the search to converge.
-#   For example, there are 21 tasks in resnet-18, so we can set it as 20000.
+#   For example, there are 24 tasks in resnet-18, so we can set it as 20000.
 #   You can adjust this parameter according to your time budget.
-# * In addition, we use :code:`RecordToFile` to dump measurement records into the log file,
+# * In addition, we use :code:`RecordToFile` to dump measurement records into a log file,
 #   The measurement records can be used to query the history best, resume the search,
 #   and do more analyses later.
 # * see :any:`auto_scheduler.TuningOptions`,
@@ -294,13 +295,18 @@ print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), n
 
 #################################################################
 # Other Tips
-# --------------------
+# ----------
 # 1. During the tuning, the auto-scheduler needs to compile many programs and
 #    extract feature from them. This part is CPU-intensive,
 #    so a high-performance CPU with many cores is recommended for faster search.
-# 2. If you have multiple GPUs, you can use all of them for measurements to
+# 2. You can use :code:`python3 -m tvm.auto_scheduler.measure_record --mode distill --i log.json`
+#    to distill the large log file and only save the best useful records.
+# 3. You can resume a search from the previous log file. You just need to
+#    add a new argument :code:`load_log_file` when creating the task scheduler
+#    in function :code:`run_tuning`. Say,
+#    :code:`tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=log_file)`
+# 4. If you have multiple target GPUs, you can use all of them for measurements to
 #    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
 #    with :any:`auto_scheduler.RPCRunner`.
-#

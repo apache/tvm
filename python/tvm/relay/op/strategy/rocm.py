@@ -17,8 +17,10 @@
 """Definition of ROCm operator strategy."""
 # pylint: disable=invalid-name,unused-argument,unused-wildcard-import,wildcard-import
 from tvm import topi
+from tvm.auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
+from .cuda import judge_winograd, naive_schedule
 
 
 @schedule_lrn.register("rocm")
@@ -67,6 +69,49 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
                     name="conv2d_nchw_winograd.cuda",
                     plevel=5,
                 )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWIO"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.cuda",
+            )
+            N, H, W, _ = get_const_tuple(data.shape)
+            KH, KW, CI, CO = get_const_tuple(kernel.shape)
+
+            (_, judge_winograd_autotvm, judge_winograd_auto_scheduler,) = judge_winograd(
+                N,
+                H,
+                W,
+                KH,
+                KW,
+                CI,
+                CO,
+                padding,
+                stride_h,
+                stride_w,
+                dilation_h,
+                dilation_w,
+                data.dtype,
+                kernel.dtype,
+                pre_flag=False,
+            )
+
+            if judge_winograd_autotvm:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_nhwc_winograd_direct),
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc_winograd_direct),
+                    name="conv2d_nhwc_winograd_direct.cuda",
+                    plevel=5,
+                )
+
+            if is_auto_scheduler_enabled() and judge_winograd_auto_scheduler:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nhwc.winograd",
+                    plevel=15,
+                )
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(
@@ -74,13 +119,6 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_hwcn),
                 name="conv2d_hwcn.cuda",
             )
-        # TODO(@alexgl-github): Re-enable this after fix the conv2d_nhwc for cuda
-        # elif layout == "NHWC":
-        #     assert kernel_layout == "HWIO"
-        #     strategy.add_implementation(
-        #         wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
-        #         wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
-        #         name="conv2d_nhwc.cuda")
         elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(

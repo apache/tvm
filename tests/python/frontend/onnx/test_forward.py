@@ -3888,6 +3888,33 @@ def test_if():
             tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
 
+@tvm.testing.uses_gpu
+def test_size():
+    def verify_size(indata):
+        node = helper.make_node(
+            "Size",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "size_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.INT64, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.INT64, [])],
+        )
+
+        model = helper.make_model(graph, producer_name="size_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="int64", use_vm=True, opset=11)
+
+    input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
+    verify_size(input_data)
+
+    input_data = np.array([[3, 0, 0], [0, 4, 0], [5, 6, 0]], dtype=np.int64)
+    verify_size(input_data)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -3964,3 +3991,4 @@ if __name__ == "__main__":
     test_roi_align()
     test_range()
     test_loop()
+    test_size()
