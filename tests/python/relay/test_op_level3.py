@@ -1002,30 +1002,33 @@ def test_scatter_add():
             output[tuple(new_index)] += updates[index]
         return output
 
-    def verify_scatter_add(dshape, ishape, axis=0):
-        d = relay.var("d", relay.TensorType(dshape, "float32"))
+    def verify_scatter_add(dshape, ishape, axis=0, dtype="float32"):
+        d = relay.var("d", relay.TensorType(dshape, dtype))
         i = relay.var("i", relay.TensorType(ishape, "int64"))
-        u = relay.var("u", relay.TensorType(ishape, "float32"))
+        u = relay.var("u", relay.TensorType(ishape, dtype))
         z = relay.op.scatter_add(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
-        data_np = np.random.uniform(size=dshape).astype("float32")
-        updates_np = np.random.uniform(size=ishape).astype("float32")
+        data_np = np.random.uniform(size=dshape).astype(dtype)
+        updates_np = np.random.uniform(size=ishape).astype(dtype)
         indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
 
         ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
-                if target == "nvptx":
-                    # TODO(masahi): support atomic in LLVM codegen
+                if target == "nvptx" and dtype == "float32" and len(dshape) == 1:
+                    # scatter_add 1D on GPU is implemented via atomic.
+                    # Floating point atomic requires LLVM 9 or newer for nvptx backend.
+                    # But LLVM on CI is LLVM 8.
                     continue
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    verify_scatter_add((10,), (10,), 0)
-    verify_scatter_add((1000,), (1000,), 0)
+    verify_scatter_add((10,), (10,), 0, dtype="int32")
+    verify_scatter_add((1000,), (1000,))
+    verify_scatter_add((1000,), (1000,), 0, dtype="int32")
     verify_scatter_add((10, 5), (10, 5), -2)
     verify_scatter_add((10, 5), (10, 5), -1)
     verify_scatter_add((10, 5), (3, 5), 0)
