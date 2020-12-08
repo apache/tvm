@@ -47,8 +47,6 @@ tvm.target.intrin.register_intrin_rule(
     "opencl", "atomic_add", opencl_atomic_add_rule, override=True
 )
 
-tvm.ir.register_op_attr("tir.atomic_add", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
-
 
 def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)

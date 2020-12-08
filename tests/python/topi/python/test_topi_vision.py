@@ -202,15 +202,11 @@ def verify_non_max_suppression(
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
         tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
-        if device in ["llvm", "cuda"]:
-            f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], device)
-            f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
-        else:
-            f = tvm.build(indices_s, [data, valid_count, indices, indices_out], device)
-            f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
+        f = tvm.build(indices_s, [data, valid_count, indices, indices_out[0]], device)
+        f(tvm_data, tvm_valid_count, tvm_indices, tvm_indices_out)
         tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
-    for device in ["llvm", "cuda", "opencl"]:
+    for device in ["llvm", "cuda", "opencl", "nvptx"]:
         check_device(device)
 
 
