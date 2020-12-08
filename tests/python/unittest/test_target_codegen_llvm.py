@@ -800,7 +800,8 @@ def test_llvm_gpu_lower_atomic():
         return ib.get()
 
     size = 1024
-    for dtype in ["int32", "float32"]:
+    # CI uses LLVM 8, which does not support float atomic
+    for dtype in ["int32"]:
         A = tvm.te.placeholder((size,), dtype=dtype, name="A")
         C = tvm.te.extern((size,), [A], lambda ins, _: do_atomic_add(ins[0]), dtype=dtype)
         s = tvm.te.create_schedule(C.op)
