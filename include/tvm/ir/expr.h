@@ -238,6 +238,7 @@ class IntImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
@@ -283,6 +284,7 @@ class FloatImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
@@ -415,13 +417,17 @@ class RangeNode : public Object {
   PrimExpr min;
   /*! \brief the extend of range */
   PrimExpr extent;
+  /*! \brief the location of this range in the source */
+  mutable Span span;
   /*! \brief constructor */
   RangeNode() {}
-  RangeNode(PrimExpr min, PrimExpr extent) : min(min), extent(extent) {}
+  RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
+      : min(min), extent(extent), span(span) {}
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("min", &min);
     v->Visit("extent", &extent);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
@@ -446,8 +452,9 @@ class Range : public ObjectRef {
    * \brief constructor by begin and end
    * \param begin The begin of the range.
    * \param end The end of the range.
+   * \param span The location of the Range in the source.
    */
-  TVM_DLL Range(PrimExpr begin, PrimExpr end);
+  TVM_DLL Range(PrimExpr begin, PrimExpr end, Span span = Span());
   /*!
    * \brief construct a new range with min and extent
    *  The corresponding constructor is removed,
@@ -456,8 +463,9 @@ class Range : public ObjectRef {
    *
    * \param min The minimum range.
    * \param extent The extent of the range.
+   * \param span The location of the Range in the source.
    */
-  static Range FromMinExtent(PrimExpr min, PrimExpr extent);
+  static Range FromMinExtent(PrimExpr min, PrimExpr extent, Span span = Span());
   // declare range.
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };

@@ -207,7 +207,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
-    is_ascend = tvm.ir.make_node("IntImm", dtype="int32", value=is_ascend)
+    is_ascend = tvm.tir.IntImm("int32", is_ascend)
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
@@ -549,6 +549,8 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
         tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8),
     ]
+
+    is_ascend = 1 if is_ascend else 0
 
     out = te.extern(
         [data.shape, data.shape],

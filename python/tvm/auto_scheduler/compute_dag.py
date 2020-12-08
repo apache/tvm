@@ -31,6 +31,20 @@ from .utils import get_const_tuple
 from .workload_registry import workload_key_to_tensors
 
 
+class LayoutRewriteOption:
+    """Options for applying layout rewrite."""
+
+    # Do not perform layout rewrite
+    NO_REWRITE = 0
+    # Insert layout transformation stages for input placeholders in the compute DAG
+    INSERT_TRANSFORM_STAGE = 1
+    # Do not insert layout transformation stages and assume the input placeholders
+    # are pre-transformed.
+    # Note: The lowered function with this option does not accept the origial input shapes,
+    # so this option must be used along with `AutoSchedulerLayoutRewrite` pass in Relay.
+    REWRITE_FOR_PRE_TRANSFORMED = 2
+
+
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
 class ComputeDAG(Object):
     """
@@ -51,11 +65,6 @@ class ComputeDAG(Object):
     compute : Union[List[Tensor], str, Schedule]
         Input/output tensors or workload key for a compute declaration.
     """
-
-    # Layout Rewrite Options
-    NoRewrite = 0
-    InsertTransformStage = 1
-    RewriteForPreTransformed = 2
 
     def __init__(self, compute_or_sche):
         if isinstance(compute_or_sche, str):
@@ -92,7 +101,7 @@ class ComputeDAG(Object):
         """
         return State(self.init_state, self)
 
-    def apply_steps_from_state(self, state, layout_rewrite=NoRewrite):
+    def apply_steps_from_state(self, state, layout_rewrite=LayoutRewriteOption.NO_REWRITE):
         """
         Apply the history transform steps from a State to get a TVM schedule.
 
@@ -101,7 +110,7 @@ class ComputeDAG(Object):
         state : Union[State, StateObject]
             The state from which we get transform steps.
 
-        layout_rewrite: Bool
+        layout_rewrite: LayoutRewriteOption = NoRewrite
             Rewrite the layout of placeholders specified by "layout_free_placeholders" attr
             to make it most friendly for the generated schedule to read from.
 

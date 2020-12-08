@@ -3355,12 +3355,12 @@ def test_bincount():
     def test_fn(x, weights=None):
         return torch.bincount(x, weights=weights)
 
-    inp = torch.randint(0, 8, (5,), dtype=torch.int64)
-    weights = torch.linspace(0, 1, steps=5)
+    inp = torch.randint(0, 100, (10000,), dtype=torch.int64)
+    weights = torch.linspace(0, 100, steps=10000)
 
-    verify_trace_model(test_fn, [inp], ["llvm"])
-    verify_trace_model(test_fn, [inp, weights], ["llvm"])
-    verify_trace_model(test_fn, [inp, weights.to(torch.float64)], ["llvm"])
+    targets = ["llvm", "cuda"]
+    verify_trace_model(test_fn, [inp], targets)
+    verify_trace_model(test_fn, [inp, weights], targets)
 
 
 if __name__ == "__main__":

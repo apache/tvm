@@ -96,7 +96,6 @@ int GraphRuntime::GetInputIndex(const std::string& name) {
   if (it != input_map_.end()) {
     return it->second;
   }
-  LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
   return -1;
 }
 /*!

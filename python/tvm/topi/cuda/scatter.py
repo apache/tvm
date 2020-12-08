@@ -19,6 +19,7 @@
 import tvm
 from tvm import te
 from ..scatter import _verify_scatter_nd_inputs
+from .nms import atomic_add
 
 
 def ceil_div(a, b):
@@ -470,6 +471,83 @@ def scatter(data, indices, updates, axis=0):
     return out
 
 
+def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
+    """Generate scatter add ir for 1d inputs, using atomic_add instruction
+
+    Parameters
+    ----------
+    data : tir.Tensor
+        The input data to the operator.
+
+    indices : tir.Tensor
+        The index locations to update.
+
+    updates : tir.Tensor
+        The values to update.
+
+    axis : int
+        The axis to scatter on
+
+    out : tir.Tensor
+        The output tensor.
+
+    Returns
+    -------
+    ret : tir
+        The computational ir.
+    """
+    assert axis == 0
+    n = data.shape[0]
+
+    ib = tvm.tir.ir_builder.create()
+
+    out_ptr = ib.buffer_ptr(out)
+    data_ptr = ib.buffer_ptr(data)
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+
+    with ib.new_scope():
+        nthread_bx = ceil_div(n, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+        with ib.if_scope(tid < n):
+            out_ptr[tid] = data_ptr[tid]
+
+    indices_ptr = ib.buffer_ptr(indices)
+    updates_ptr = ib.buffer_ptr(updates)
+
+    ni = indices.shape[0]
+
+    atomic_add_return = ib.allocate(updates.dtype, (1,), name="atomic_add_return", scope="local")
+
+    with ib.new_scope():
+        nthread_bx = ceil_div(ni, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+
+        with ib.if_scope(tid < ni):
+            index = indices_ptr[tid]
+            with ib.if_scope(index < 0):
+                atomic_add_return[0] = atomic_add(
+                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index + n]),
+                    updates_ptr[tid],
+                )
+            with ib.else_scope():
+                atomic_add_return[0] = atomic_add(
+                    tvm.tir.call_intrin("handle", "tir.address_of", out_ptr[index]),
+                    updates_ptr[tid],
+                )
+
+    return ib.get()
+
+
 def scatter_add(data, indices, updates, axis=0):
     """Update data by adding values in updates at positions defined by indices
 
@@ -501,7 +579,7 @@ def scatter_add(data, indices, updates, axis=0):
     assert 1 <= rank <= 4, "scatter_add only supports 1-4 dimensions"
 
     ir_funcs = {
-        1: gen_ir_1d,
+        1: gen_scatter_add_1d_atomic,
         2: gen_ir_2d,
         3: gen_ir_3d,
         4: gen_ir_4d,

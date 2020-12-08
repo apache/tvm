@@ -381,7 +381,10 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     elif isinstance(inputs, tvm.IRModule):
         input_mod = inputs
     elif not isinstance(inputs, (dict, container.Map)):
-        raise ValueError("inputs must be Schedule, IRModule or dict of target to IRModule")
+        raise ValueError(
+            f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
+            f"but got {type(inputs)}."
+        )
 
     if not isinstance(inputs, (dict, container.Map)):
         target = Target.current() if target is None else target

@@ -650,7 +650,7 @@ def fixed_point_multiply(x, multiplier, shift):
     return te.compute(x.shape, _compute)
 
 
-def cast(x, dtype):
+def cast(x, dtype, span=None):
     """Cast input to specified data type.
 
     Parameters
@@ -660,6 +660,9 @@ def cast(x, dtype):
 
     dtype : str
         Data type.
+
+    span : Optional[Span]
+        The location of the cast in the source.
 
     Returns
     -------
@@ -671,7 +674,7 @@ def cast(x, dtype):
     # pylint: disable=import-outside-toplevel
     from tvm.tir import _ffi_api
 
-    return _ffi_api._cast(dtype, x)
+    return _ffi_api._cast(dtype, x, span)
 
 
 def reinterpret(x, dtype):

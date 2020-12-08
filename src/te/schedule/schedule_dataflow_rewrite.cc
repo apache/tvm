@@ -89,14 +89,16 @@ PrimExpr InjectPredicate(const Array<PrimExpr>& predicates, PrimExpr body) {
   using tir::SelectNode;
   if (predicates.size() == 0) return body;
   const ReduceNode* reduce = body.as<ReduceNode>();
-  auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
 
   if (reduce) {
     auto n = make_object<ReduceNode>(*reduce);
-    n->condition = foldl(fand, n->condition, predicates);
+    n->condition = foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                         n->condition, predicates);
     return PrimExpr(n);
   }
-  return Select(foldl(fand, const_true(1), predicates), body, make_zero(body.dtype()));
+  return Select(foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                      const_true(1), predicates),
+                body, make_zero(body.dtype()));
 }
 
 // Replace data flow appears in all stages given the tensor change.
@@ -806,9 +808,10 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   const ReduceNode* reduce = compute_op->body[idx].as<ReduceNode>();
   ICHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
 
-  PrimExpr predicate = likely(foldl(fand, const_true(1), predicates));
+  PrimExpr predicate =
+      likely(foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                   const_true(1), predicates));
 
   std::unordered_map<const VarNode*, PrimExpr> vsub;
 

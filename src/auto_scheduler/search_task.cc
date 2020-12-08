@@ -22,6 +22,7 @@
  * \brief Meta information and hardware parameters for a search task.
  */
 
+#include <dlpack/dlpack.h>
 #include <tvm/auto_scheduler/search_task.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -36,14 +37,14 @@ TVM_REGISTER_NODE_TYPE(HardwareParamsNode);
 TVM_REGISTER_NODE_TYPE(SearchTaskNode);
 
 HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
-                               int max_shared_memory_per_block, int max_registers_per_block,
+                               int max_shared_memory_per_block, int max_local_memory_per_block,
                                int max_threads_per_block, int max_vthread_extent, int warp_size) {
   auto node = make_object<HardwareParamsNode>();
   node->num_cores = num_cores;
   node->vector_unit_bytes = vector_unit_bytes;
   node->cache_line_bytes = cache_line_bytes;
   node->max_shared_memory_per_block = max_shared_memory_per_block;
-  node->max_registers_per_block = max_registers_per_block;
+  node->max_local_memory_per_block = max_local_memory_per_block;
   node->max_threads_per_block = max_threads_per_block;
   node->max_vthread_extent = max_vthread_extent;
   node->warp_size = warp_size;
@@ -52,11 +53,13 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_l
 
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
-  if (target->kind->device_type == kDLCPU) {
+  const auto device_type = target->kind->device_type;
+  if (device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
-  } else if (target->kind->device_type == kDLGPU) {
-    auto ctx = TVMContext{kDLGPU, 0};
-    auto func = tvm::runtime::Registry::Get("device_api.gpu");
+  } else if (device_type == kDLGPU || device_type == kDLROCM) {
+    auto ctx = TVMContext{static_cast<DLDeviceType>(device_type), 0};
+    auto device_name = device_type == kDLGPU ? "device_api.gpu" : "device_api.rocm";
+    auto func = tvm::runtime::Registry::Get(device_name);
     ICHECK(func != nullptr) << "Cannot find GPU device_api in registry";
     auto device_api = static_cast<tvm::runtime::DeviceAPI*>(((*func)()).operator void*());
 
@@ -64,8 +67,9 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxSharedMemoryPerBlock, &ret);
     int max_shared_memory_per_block = ret;
 
-    device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxRegistersPerBlock, &ret);
-    int max_registers_per_block = ret;
+    // There is no explicit local memory limition in CUDA runtime,
+    // so we can use INT32_MAX to disalbe the check on local_memory.
+    int max_local_memory_per_block = INT32_MAX;
 
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kMaxThreadsPerBlock, &ret);
     int max_threads_per_block = ret;
@@ -74,17 +78,17 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int warp_size = ret;
 
     int max_vthread_extent = warp_size / 4;
-    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
+    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
-  } else if (target->kind->device_type == kDLMetal) {
+  } else if (device_type == kDLMetal) {
     // Reference: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
     // This setting looks working for Metal GPUs later than A10
     int max_shared_memory_per_block = 32 * 1024;
-    int max_registers_per_block = 4 * 1024;
+    int max_local_memory_per_block = INT32_MAX;  // skip the check on local memory
     int max_threads_per_block = 1024;
     int warp_size = 8;
     int max_vthread_extent = warp_size / 4;
-    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_registers_per_block,
+    return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
   } else {
     LOG(FATAL) << "No default hardware parameters for target: " << target;
@@ -110,10 +114,10 @@ SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target targe
 
 TVM_REGISTER_GLOBAL("auto_scheduler.HardwareParams")
     .set_body_typed([](int num_cores, int vector_unit_bytes, int cache_line_bytes,
-                       int max_shared_memory_per_block, int max_registers_per_block,
+                       int max_shared_memory_per_block, int max_local_memory_per_block,
                        int max_threads_per_block, int max_vthread_extent, int warp_size) {
       return HardwareParams(num_cores, vector_unit_bytes, cache_line_bytes,
-                            max_shared_memory_per_block, max_registers_per_block,
+                            max_shared_memory_per_block, max_local_memory_per_block,
                             max_threads_per_block, max_vthread_extent, warp_size);
     });
 

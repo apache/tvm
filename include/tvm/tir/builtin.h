@@ -549,6 +549,11 @@ TVM_DLL const Op& vectorlow();
  */
 TVM_DLL const Op& vectorcombine();
 
+/*!
+ * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA
+ */
+TVM_DLL const Op& atomic_add();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address

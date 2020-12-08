@@ -3888,6 +3888,101 @@ def test_if():
             tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
 
 
+@tvm.testing.uses_gpu
+def test_size():
+    def verify_size(indata):
+        node = helper.make_node(
+            "Size",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "size_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.INT64, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.INT64, [])],
+        )
+
+        model = helper.make_model(graph, producer_name="size_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="int64", use_vm=True, opset=11)
+
+    input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
+    verify_size(input_data)
+
+    input_data = np.array([[3, 0, 0], [0, 4, 0], [5, 6, 0]], dtype=np.int64)
+    verify_size(input_data)
+
+
+@tvm.testing.uses_gpu
+def test_maxunpool():
+    def verify_maxunpool(data, indices, kernel_shape, strides, output_shape=None, pads=None):
+        input_names = ["xT", "xI"]
+        input_info = [
+            helper.make_tensor_value_info("xT", TensorProto.FLOAT, list(data.shape)),
+            helper.make_tensor_value_info("xI", TensorProto.INT64, list(indices.shape)),
+        ]
+        input_values = [data, indices]
+        if output_shape is not None:
+            input_names.append("output_shape")
+            input_info.append(
+                helper.make_tensor_value_info(
+                    "output_shape", TensorProto.INT64, list(output_shape.shape)
+                )
+            )
+            input_values.append(output_shape)
+        else:
+            # Compute expected output shape
+            output_shape = np.asarray(([1, 1] + list(strides))) * np.asarray(list(data.shape))
+            output_shape += np.asarray(([0, 0] + list(kernel_shape))) - np.asarray(
+                ([0, 0] + list(strides))
+            )
+            if pads is not None:
+                output_shape -= np.asarray(
+                    [0, 0] + list(np.sum(np.reshape(list(pads), [-1, 2]), axis=-1))
+                )
+        output_shape = [int(i) for i in output_shape]
+
+        node = helper.make_node(
+            "MaxUnpool", inputs=input_names, outputs=["y"], kernel_shape=kernel_shape
+        )
+
+        if pads is not None:
+            pad_attr = helper.make_attribute("pads", pads)
+            node.attribute.append(pad_attr)
+
+        if strides is not None:
+            strides_attr = helper.make_attribute("strides", strides)
+            node.attribute.append(strides_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "maxunpool_test",
+            inputs=input_info,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+        )
+
+        model = helper.make_model(graph, producer_name="size_test")
+
+        verify_with_ort_with_inputs(model, input_values, use_vm=True, opset=11)
+
+    # Basic test
+    xT = np.array([[[[5, 6], [7, 8]]]], dtype=np.float32)
+    xI = np.array([[[[0, 7], [13, 15]]]], dtype=np.int64)
+    verify_maxunpool(xT, xI, [2, 2], strides=[2, 2])
+    # Small stride
+    verify_maxunpool(xT, xI, [2, 2], strides=[1, 1])
+    # Big kernel
+    verify_maxunpool(xT, xI, [3, 3], strides=[2, 2])
+    # With output shape
+    output_shape = np.array((1, 1, 5, 5), dtype=np.int64)
+    verify_maxunpool(xT, xI, [2, 2], strides=[2, 2], output_shape=output_shape)
+    # With explicit reverse padding
+    pads = np.asarray([1, 1, 1, 1]).astype(np.int64)
+    verify_maxunpool(xT, xI, [2, 2], strides=[2, 2], pads=pads)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -3964,3 +4059,5 @@ if __name__ == "__main__":
     test_roi_align()
     test_range()
     test_loop()
+    test_size()
+    test_maxunpool()
