@@ -622,6 +622,62 @@ class MaxPool(Pool):
     name = "max_pool"
 
 
+class MaxUnpool(OnnxOpConverter):
+    """Operator converter for MaxUnpool"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Unpack inputs and attributes
+        data = inputs[0]
+        data_type = infer_type(data).checked_type.dtype
+        indices = inputs[1]
+        output_shape = inputs[2]
+        kernel_shape = attr.get("kernel_shape")
+        pads = attr.get("pads", None)
+        strides = attr.get("strides", [1] * len(kernel_shape))
+
+        # Compute the proper output shape before padding.
+        multiplier = _op.concatenate(
+            [_expr.const([1, 1], dtype="int64"), _expr.const(list(strides), dtype="int64")], axis=0
+        )
+        total_output_shape = multiplier * _op.shape_of(data, dtype="int64")
+        # Add extra dimensions from kernel size and stride mismatch
+        total_output_shape += _op.concatenate(
+            [_expr.const([0, 0], "int64"), _expr.const(list(kernel_shape), "int64")], axis=0
+        ) - _op.concatenate(
+            [_expr.const([0, 0], "int64"), _expr.const(list(strides), "int64")], axis=0
+        )
+
+        # Compute padding amount if output shape is specified.
+        if output_shape is not None:
+            total_output_shape = output_shape
+
+        elif pads is not None:
+            # Get pads in the proper format for relay.
+            pads = _op.concatenate(
+                [_expr.const([0, 0, 0, 0], "int64"), _expr.const(list(pads), "int64")], axis=0
+            )
+            pads = _op.reshape(pads, [-1, 2])
+            # Compute the total padding per axis.
+            total_pad = _op.sum(pads, axis=-1)
+            # Reversing maxpool means that padding actually makes our output smaller.
+            total_output_shape = total_output_shape - total_pad
+
+        # Create a tensor of zeros then scatter our data through it.
+        zeros_tensor = _op.zeros(total_output_shape, data_type)
+        # We need to flatten all our tensors before scattering.
+        flat_tensor = _op.scatter(
+            _op.reshape(zeros_tensor, [-1]),
+            _op.reshape(indices, [-1]),
+            _op.reshape(data, [-1]),
+            axis=0,
+        )
+        # Now reshape back to prepadded shape.
+        output_tensor = _op.reshape(flat_tensor, total_output_shape)
+
+        return output_tensor
+
+
 class LpPool(OnnxOpConverter):
     """A helper class for lppool op converters."""
 
@@ -2330,6 +2386,7 @@ def _get_convert_map(opset):
         "AveragePool": AveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
+        "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
         "ConvTranspose": ConvTranspose.get_converter(opset),
         "GlobalAveragePool": Renamer("global_avg_pool2d"),
