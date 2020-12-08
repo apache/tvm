@@ -434,11 +434,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
             kernel.dtype,
             pre_flag=True,
         )
-        if (
-            target.kind.name == "cuda"
-            and nvcc.have_tensorcore()
-            and judge_winograd_tensorcore
-        ):
+        if target.kind.name == "cuda" and nvcc.have_tensorcore() and judge_winograd_tensorcore:
             strategy.add_implementation(
                 wrap_compute_conv2d(
                     topi.cuda.conv2d_nhwc_winograd_tensorcore_without_weight_transform

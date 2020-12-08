@@ -284,8 +284,8 @@ def have_tensorcore(compute_version=None):
         else:
             compute_version = AutotvmGlobalScope.current.cuda_target_arch
             # Compute version will be in the form "sm_{major}{minor}"
-            major, minor = compute_version.split('_')[1]
-            compute_version = major + '.' + minor
+            major, minor = compute_version.split("_")[1]
+            compute_version = major + "." + minor
     major, _ = parse_compute_version(compute_version)
 
     if major == 7:
