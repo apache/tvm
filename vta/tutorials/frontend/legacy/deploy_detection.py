@@ -58,10 +58,11 @@ import vta
 from tvm import rpc, autotvm, relay
 from tvm.relay.testing import yolo_detection, darknet
 from tvm.relay.testing.darknet import __darknetffi__
-from tvm.contrib import graph_runtime, graph_runtime, util
+from tvm.contrib import graph_runtime, graph_runtime, utils
 from tvm.contrib.download import download_testdata
-from vta.testing import simulator
-from vta.top import graph_pack
+from vta.python.vta.testing import simulator
+from vta.python.vta.top import graphpack as graph_pack
+from vta.python import vta
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -123,7 +124,7 @@ device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
 
 pack_dict = {
-    "yolov3-tiny": ["nn.max_pool2d", "cast", 4, 185],
+    "yolov3-tiny": ["nn.max_pool2d", "cast", 4, 186],
 }
 
 # Name of Darknet model to compile
@@ -219,7 +220,7 @@ with autotvm.tophub.context(target):
             ):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
-            mod = graph_pack(
+            mod = graph_pack.graph_pack(
                 mod["main"],
                 env.BATCH,
                 env.BLOCK_OUT,
