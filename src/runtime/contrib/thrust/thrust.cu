@@ -177,11 +177,10 @@ void thrust_stable_sort_by_key(DLTensor* keys_in,
   thrust::device_ptr<ValueType> values_out_ptr(static_cast<ValueType *>(values_out->data));
 
   if (for_scatter) {
-    auto transform_func = [size] __device__ (KeyType k) {
+    thrust::transform(keys_in_ptr, keys_in_ptr + size, keys_out_ptr, [size] __device__(KeyType k) {
       if (k < 0) return k + static_cast<KeyType>(size);
       return k;
-    };
-    thrust::transform(keys_in_ptr, keys_in_ptr + size, keys_out_ptr, transform_func);
+    });
   } else {
     thrust::copy(keys_in_ptr, keys_in_ptr + size, keys_out_ptr);
   }
@@ -204,25 +203,31 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
 
   if (key_dtype == "int32") {
     if (value_dtype == "int32") {
-      thrust_stable_sort_by_key<int, int>(keys_in, values_in, keys_out, values_out, for_scatter);
+      thrust_stable_sort_by_key<int, int>(keys_in, values_in, keys_out, values_out,
+                                          for_scatter);
     } else if (value_dtype == "float32") {
-      thrust_stable_sort_by_key<int, float>(keys_in, values_in, keys_out, values_out, for_scatter);
+      thrust_stable_sort_by_key<int, float>(keys_in, values_in, keys_out, values_out,
+                                            for_scatter);
     } else {
       LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
     }
   } else if (key_dtype == "int64") {
     if (value_dtype == "int32") {
-      thrust_stable_sort_by_key<int64_t, int>(keys_in, values_in, keys_out, values_out, for_scatter);
+      thrust_stable_sort_by_key<int64_t, int>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
     } else if (value_dtype == "float32") {
-      thrust_stable_sort_by_key<int64_t, float>(keys_in, values_in, keys_out, values_out, for_scatter);
+      thrust_stable_sort_by_key<int64_t, float>(keys_in, values_in, keys_out, values_out,
+                                                for_scatter);
     } else {
       LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
     }
   } else if (key_dtype == "float32") {
     if (value_dtype == "int32") {
-      thrust_stable_sort_by_key<float, int>(keys_in, values_in, keys_out, values_out, for_scatter);
+      thrust_stable_sort_by_key<float, int>(keys_in, values_in, keys_out, values_out,
+                                            for_scatter);
     } else if (value_dtype == "float32") {
-      thrust_stable_sort_by_key<float, float>(keys_in, values_in, keys_out, values_out, for_scatter);
+      thrust_stable_sort_by_key<float, float>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
     } else {
       LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
     }
