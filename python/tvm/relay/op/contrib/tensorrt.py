@@ -341,6 +341,12 @@ def batch_norm_annotate_fn(expr):  # pylint: disable=unused-variable
     if any([x.checked_type.dtype != "float32" for x in args]):
         logger.info("Only float32 inputs are supported for TensorRT.")
         return False
+    if len(args[0].checked_type.shape) == 5 and get_tensorrt_version() < (6, 0, 1):
+        logger.info("nn.batch_norm: TensorRT 6.0.1 or higher is required for rank 5 inputs.")
+        return False
+    if len(args[0].checked_type.shape) > 5:
+        logger.info("nn.batch_norm: Input rank must be 5 or less.")
+        return False
     if int(attrs.axis) not in (1, 3):
         logger.info("nn.batch_norm: axis is %d but must be 1 or 3.", int(attrs.axis))
         return False

@@ -710,6 +710,12 @@ def test_batch_norm():
 
     run_and_verify_func(get_graph((1, 64, 56, 56), (64,)))
     run_and_verify_func(get_graph((1, 56, 56, 64), (64,), axis=3, epsilon=1.001e-05))
+    run_and_verify_func(get_graph((1, 4, 8, 4), (8,), axis=2))
+    run_and_verify_func(get_graph((1, 8, 4, 4, 4), (8,), axis=1))
+    run_and_verify_func(get_graph((1, 4, 8, 4, 4), (8,), axis=2))
+    run_and_verify_func(get_graph((1, 4, 4, 4, 8), (8,), axis=4))
+    run_and_verify_func(get_graph((1, 8), (8,), axis=1))
+    run_and_verify_func(get_graph((1, 3, 8), (8,), axis=2))
 
 
 def test_unary():
