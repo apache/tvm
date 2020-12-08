@@ -650,11 +650,7 @@ class MaxUnpool(OnnxOpConverter):
 
         # Compute padding amount if output shape is specified.
         if output_shape is not None:
-            # Compute total extra values to add
-            total_pad = _op.maximum(
-                _expr.const(0, dtype="int64"), output_shape - total_output_shape
-            )
-            total_output_shape = total_output_shape + total_pad
+            total_output_shape = output_shape
 
         elif pads is not None:
             # Get pads in the proper format for relay.

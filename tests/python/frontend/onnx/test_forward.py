@@ -3917,7 +3917,7 @@ def test_size():
 
 @tvm.testing.uses_gpu
 def test_maxunpool():
-    def verify_maxunpool(data, indices, kernel_shape, output_shape=None, pads=None, strides=None):
+    def verify_maxunpool(data, indices, kernel_shape, strides, output_shape=None, pads=None):
         input_names = ["xT", "xI"]
         input_info = [
             helper.make_tensor_value_info("xT", TensorProto.FLOAT, list(data.shape)),
@@ -3932,6 +3932,17 @@ def test_maxunpool():
                 )
             )
             input_values.append(output_shape)
+        else:
+            # Compute expected output shape
+            output_shape = np.asarray(([1, 1] + list(strides))) * np.asarray(list(data.shape))
+            output_shape += np.asarray(([0, 0] + list(kernel_shape))) - np.asarray(
+                ([0, 0] + list(strides))
+            )
+            if pads is not None:
+                output_shape -= np.asarray(
+                    [0, 0] + list(np.sum(np.reshape(list(pads), [-1, 2]), axis=-1))
+                )
+        output_shape = [int(i) for i in output_shape]
 
         node = helper.make_node(
             "MaxUnpool", inputs=input_names, outputs=["y"], kernel_shape=kernel_shape
@@ -3949,7 +3960,7 @@ def test_maxunpool():
             [node],
             "maxunpool_test",
             inputs=input_info,
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [])],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
         )
 
         model = helper.make_model(graph, producer_name="size_test")
