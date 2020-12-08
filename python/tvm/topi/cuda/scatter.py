@@ -418,7 +418,12 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
 
 
 def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
-    """Generate scatter ir for 4d inputs
+    """Generate scatter ir for 1d inputs, using a sorting based approach.
+    By sorting indices and comparing neighboring two indices, we can tell which
+    of elements in the indices tensor can scatter its update value into the output.
+    Sorting of indices, and sorting of updates with respect to indices, can be done
+    at the same time by thrust's sort_by_key function. It is important that sorting
+    be done in a "stable" way via stable_sort, to guaranteee deterministic output.
 
     Parameters
     ----------
