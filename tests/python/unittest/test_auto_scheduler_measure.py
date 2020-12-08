@@ -250,6 +250,31 @@ def test_measure_local_builder_rpc_runner_spawn():
     p.join()
 
 
+@tvm.testing.requires_llvm
+def test_measure_target_host():
+    task = auto_scheduler.SearchTask(
+        func=matmul_auto_scheduler_test,
+        args=(512, 512, 512),
+        target="llvm",
+        target_host="llvm -mtriple=aarch64-linux-gnu",
+    )
+
+    inp = auto_scheduler.measure.MeasureInput(task, task.compute_dag.init_state)
+    res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
+
+    with tempfile.NamedTemporaryFile() as fp:
+        auto_scheduler.save_records(fp.name, [inp], [res])
+
+        log_reader = auto_scheduler.RecordReader(fp.name)
+        inputs, results = log_reader.read_lines()
+        assert len(inputs) == 1
+
+        raw_inp = inputs[0]
+
+        recovered_inp = auto_scheduler.measure.recover_measure_input(raw_inp)
+        assert str(recovered_inp.task.target_host) == str(inp.task.target_host)
+
+
 if __name__ == "__main__":
     test_record_split_reorder_fuse_annotation()
     test_record_compute_at_root_inline_cache_read_write()
@@ -258,3 +283,4 @@ if __name__ == "__main__":
     test_recover_measure_input()
     test_measure_local_builder_runner()
     test_measure_local_builder_rpc_runner()
+    test_measure_target_host()
