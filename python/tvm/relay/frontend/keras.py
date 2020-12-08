@@ -353,7 +353,7 @@ def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=N
     else:
         act_type = keras_layer.activation.__name__
     if act_type != "linear":
-        out = _convert_activation(out, act_type, etab)
+        out = _convert_activation(out, act_type, etab, data_layout)
 
     return out
 
