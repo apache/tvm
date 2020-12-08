@@ -1209,7 +1209,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
       se.CopyOnWrite()->CastTo(op->dtype);
       ret = se;
     }
-  } else {
+  }
+  if (!ret.defined()) {
     ret = Rewriter::VisitExpr_(op);
   }
   return ret;
