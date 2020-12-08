@@ -1020,7 +1020,7 @@ def test_scatter_add():
                 if target == "nvptx" and dtype == "float32" and len(dshape) == 1:
                     # scatter_add 1D on GPU is implemented via atomic.
                     # Floating point atomic requires LLVM 9 or newer for nvptx backend.
-                    # But LLVM on CI is LLVM 8,
+                    # But LLVM on CI is LLVM 8.
                     continue
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
