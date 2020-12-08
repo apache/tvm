@@ -423,7 +423,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
     of elements in the indices tensor can scatter its update value into the output.
     Sorting of indices, and sorting of updates with respect to indices, can be done
     at the same time by thrust's sort_by_key function. It is important that sorting
-    be done in a "stable" way via stable_sort, to guaranteee deterministic output.
+    be done in a "stable" way via stable_sort, to guarantee deterministic output.
 
     Parameters
     ----------
@@ -437,7 +437,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
         The values to update, sorted by indices.
 
     axis : int
-        The axis to scatter on
+        The axis to scatter on. It must be 0 for this function.
 
     out : tir.Tensor
         The output tensor.
