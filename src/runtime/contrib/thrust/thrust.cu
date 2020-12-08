@@ -229,7 +229,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
   } else {
     LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
   }
-
 });
 
 }  // namespace contrib
