@@ -17,7 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.topi.cuda import stable_sort_thrust
+from tvm.topi.cuda import stable_sort_by_key_thrust
 import numpy as np
 
 
@@ -91,12 +91,12 @@ def test_sort_np():
     tvm.testing.assert_allclose(c.asnumpy(), np_out, rtol=1e-5)
 
 
-def test_thrust_stable_sort():
+def test_thrust_stable_sort_by_key():
     size = 6
     keys = te.placeholder((size,), name="keys", dtype="int32")
     values = te.placeholder((size,), name="values", dtype="int32")
 
-    keys_out, values_out = stable_sort_thrust(keys, values)
+    keys_out, values_out = stable_sort_by_key_thrust(keys, values)
 
     ctx = tvm.gpu(0)
     target = "cuda"
@@ -122,4 +122,4 @@ def test_thrust_stable_sort():
 if __name__ == "__main__":
     # test_sort()
     # test_sort_np()
-    test_thrust_stable_sort()
+    test_thrust_stable_sort_by_key()

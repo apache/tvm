@@ -599,7 +599,7 @@ def schedule_topk(outs):
     return _schedule_sort(outs)
 
 
-def stable_sort_thrust(keys, values):
+def stable_sort_by_key_thrust(keys, values):
     """
     TODO
     """
