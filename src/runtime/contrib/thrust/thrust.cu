@@ -192,12 +192,12 @@ void thrust_stable_sort_by_key(DLTensor* keys_in,
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_GE(args.num_args, 4);
+  ICHECK_GE(args.num_args, 5);
   DLTensor* keys_in = args[0];
   DLTensor* values_in = args[1];
   DLTensor* keys_out = args[2];
   DLTensor* values_out = args[3];
-  bool for_scatter = true;
+  bool for_scatter = args[4];
 
   auto key_dtype = DLDataType2String(keys_in->dtype);
   auto value_dtype = DLDataType2String(values_in->dtype);

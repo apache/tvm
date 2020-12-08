@@ -600,7 +600,7 @@ def schedule_topk(outs):
     return _schedule_sort(outs)
 
 
-def stable_sort_by_key_thrust(keys, values):
+def stable_sort_by_key_thrust(keys, values, for_scatter=False):
     """
     TODO
     """
@@ -614,7 +614,7 @@ def stable_sort_by_key_thrust(keys, values):
         [keys.shape, values.shape],
         [keys, values],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.thrust.stable_sort_by_key", ins[0], ins[1], outs[0], outs[1]
+            "tvm.contrib.thrust.stable_sort_by_key", ins[0], ins[1], outs[0], outs[1], for_scatter
         ),
         in_buffers=[keys_buf, values_buf],
         out_buffers=out_bufs,

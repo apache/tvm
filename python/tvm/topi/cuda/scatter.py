@@ -471,6 +471,9 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
                 index = indices_ptr[tid]
                 index_next = indices_ptr[tid + 1]
 
+                # If the next neighbor in the sorted list of indices has a different index,
+                # that means thread tid is the last one to have this index.
+                # This thread can update the output.
                 with ib.if_scope(index != index_next):
                     update = updates_ptr[tid]
                     do_update(ib, index, update)
@@ -524,7 +527,9 @@ def scatter(data, indices, updates, axis=0):
     in_bufs = [data]
     if rank == 1 and is_thrust_available():
         ir_funcs[1] = gen_scatter_1d_thrust
-        indices_sorted, updates_sorted = stable_sort_by_key_thrust(indices, updates)
+        indices_sorted, updates_sorted = stable_sort_by_key_thrust(
+            indices, updates, for_scatter=True
+        )
         in_bufs += [indices_sorted, updates_sorted]
     else:
         in_bufs += [indices, updates]
@@ -617,7 +622,6 @@ def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):
                 )
 
     return ib.get()
-
 
 
 def scatter_add(data, indices, updates, axis=0):

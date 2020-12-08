@@ -942,17 +942,17 @@ def test_scatter():
                 if target == "cuda":
                     intrp = relay.create_executor(kind, ctx=ctx, target=target)
                     op_res = intrp.evaluate(func)(data_np, indices_np, updates_np)
-                    print(data_np)
-                    print(indices_np)
-                    print(updates_np)
                     tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-                    # mod = tvm.ir.IRModule.from_expr(func)
-                    # lib = relay.build(mod, target=target)
-                    # module = graph_runtime.GraphModule(lib["default"](ctx))
-                    # ftimer = module.module.time_evaluator("run", ctx, repeat=100, min_repeat_ms=500)
-                    # prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-                    # print("elapsed ms:", prof_res.mean())
+                    mod = tvm.ir.IRModule.from_expr(func)
+                    lib = relay.build(mod, target=target)
+                    module = graph_runtime.GraphModule(lib["default"](ctx))
+                    module.set_input("d", tvm.nd.array(data_np))
+                    module.set_input("i", tvm.nd.array(indices_np))
+                    module.set_input("u", tvm.nd.array(updates_np))
+                    ftimer = module.module.time_evaluator("run", ctx, repeat=100)
+                    prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
+                    print("size %d, elapsed ms: %f" % ( dshape[0], prof_res.mean()))
 
     def verify_dynamic_scatter(dshape, ishape, axis=0):
         d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
@@ -975,8 +975,9 @@ def test_scatter():
                 op_res = intrp.evaluate()(data_np, indices_np, updates_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-
-    verify_scatter((10000,), (10000,), 0)
+    np.random.seed(123)
+    for size in [5000, 10000, 25000, 50000, 100000, 500000, 1000000]:
+        verify_scatter((size,), (size,), 0)
     # verify_scatter((10, 5), (10, 5), -2)
     # verify_scatter((10, 5), (10, 5), -1)
     # verify_scatter((10, 5), (3, 5), 0)
