@@ -20,7 +20,6 @@ from __future__ import absolute_import
 
 from tvm.te.hybrid import script
 from tvm.runtime import convert
-from tvm import topi
 
 from .. import strategy
 from .. import op as _reg
