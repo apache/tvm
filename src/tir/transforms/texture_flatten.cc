@@ -256,7 +256,7 @@ size_t GetAxisSeparator() {
 
 class TextureFlattener : public StmtExprMutator {
  public:
-  explicit TextureFlattener() : needs_vectorization_(true) {}
+  explicit TextureFlattener() {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::realize_scope) {
@@ -356,10 +356,6 @@ class TextureFlattener : public StmtExprMutator {
       args.push_back(op->value);
 
       stmt = Evaluate(Call(args[0]->dtype, builtin::text2d_store(), args));
-      if (needs_vectorization_)
-      {
-        loop_vars_.insert({op->indices.back().get(), true});
-      }
     }
 
     return stmt;
@@ -410,40 +406,9 @@ class TextureFlattener : public StmtExprMutator {
       args.push_back(col_offset);
       args.push_back(op->indices.back());
       expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
-      if (needs_vectorization_)
-      {
-        loop_vars_.insert({op->indices.back().get(), true});
-      }
     }
 
     return expr;
-  }
-
-  // Auto-vectorize texture load and store loops
-  Stmt VisitStmt_(const ForNode* op) final {
-    Stmt stmt;
-    if (!needs_vectorization_)
-    {
-      stmt = StmtMutator::VisitStmt_(op);
-    }
-    else if (op->for_type == ForType::Serial)
-    {
-      stmt = StmtMutator::VisitStmt_(op);
-      auto it = loop_vars_.find(op->loop_var.get());
-      if (it != loop_vars_.end() && it->second)
-      {
-        stmt = For(op->loop_var, op->min, op->extent, ForType::Vectorized, op->device_api, op->body);
-        stmt = StmtMutator::VisitStmt_(stmt.as<ForNode>());
-      }
-    }
-    else
-    {
-      needs_vectorization_ = false;
-      stmt = StmtMutator::VisitStmt_(op);
-      needs_vectorization_ = true;
-    }
-
-    return stmt;
   }
 
  private:
@@ -451,8 +416,6 @@ class TextureFlattener : public StmtExprMutator {
   std::unordered_map<const Object*, std::string> storage_scope_;
   // Let binding
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
-  std::unordered_map<const Object*, bool> loop_vars_;
-  bool needs_vectorization_;
 };
 
 PrimFunc TextureFlatten(PrimFunc func) {
