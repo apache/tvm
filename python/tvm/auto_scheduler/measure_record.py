@@ -137,7 +137,7 @@ def save_records(filename, inputs, results):
     _ffi_api.SaveRecords(filename, inputs, results)
 
 
-def load_best(filename, workload_key=None, target=None):
+def load_best_record(filename, workload_key=None, target=None):
     """Return the best measurement pair form a log file. This may return none results if
     there is no legal measure pair with the specified workload_key/target found from the log file.
 

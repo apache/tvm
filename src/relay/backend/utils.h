@@ -294,6 +294,15 @@ inline std::string GetExtSymbol(const Function& func) {
   return std::string(name_node.value());
 }
 
+/*!
+ * \brief Return whether the auto scheduler is enabled in the pass context.
+ */
+inline bool IsAutoSchedulerEnabled() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
+      .value();
+}
+
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm

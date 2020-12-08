@@ -20,7 +20,7 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
-from tvm import te
+from tvm import te, auto_scheduler
 
 from .pad import pad
 from .utils import get_pad_tuple
@@ -331,7 +331,15 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     return Output
 
 
-def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
+def conv2d_nhwc(
+    Input,
+    Filter,
+    stride,
+    padding,
+    dilation,
+    out_dtype="float32",
+    auto_scheduler_rewritten_layout="",
+):
     """Convolution operator in NHWC layout.
 
     Parameters
@@ -371,8 +379,30 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
     else:
         dilation_h, dilation_w = dilation
 
+    if auto_scheduler_rewritten_layout:
+        # Infer shape for the rewritten layout
+        # todo(merrymercy): wrap this with a more general interface.
+        if len(Filter.shape) >= 10:
+            # For cpu tile structure SSRSRS
+            base = len(Filter.shape) - 10
+            kernel_h = Filter.shape[2 + base] * Filter.shape[6 + base]
+            kernel_w = Filter.shape[3 + base] * Filter.shape[7 + base]
+            channel = Filter.shape[4 + base] * Filter.shape[8 + base]
+            num_filter = Filter.shape[5 + base] * Filter.shape[9 + base]
+            for i in range(base + 2):
+                num_filter *= Filter.shape[i]
+        elif len(Filter.shape) == 4:
+            num_filter, kernel_h, kernel_w, channel = Filter.shape
+        else:
+            raise ValueError(
+                "Don't know how to infer the layout for filter shape: %s. "
+                "Please add a new branch to handle this case." % str(Filter)
+            )
+        auto_scheduler.remove_index_check(Filter)
+    else:
+        kernel_h, kernel_w, channel, num_filter = Filter.shape
+
     batch, in_height, in_width, in_channel = Input.shape
-    kernel_h, kernel_w, channel, num_filter = Filter.shape
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
@@ -399,7 +429,12 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype="float32"):
         ),
         name="Conv2dOutput",
         tag="conv2d_nhwc",
+        attrs={"layout_free_placeholders": [Filter]},
     )
+
+    if auto_scheduler_rewritten_layout:
+        Output = auto_scheduler.rewrite_compute_body(Output, auto_scheduler_rewritten_layout)
+
     return Output
 
 

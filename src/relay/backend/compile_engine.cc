@@ -101,9 +101,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   explicit ScheduleGetter(Target target)
       : target_(target), device_copy_op_(Op::Get("device_copy")) {
     // Whether to use auto_scheduler schedule.
-    use_auto_scheduler_ = transform::PassContext::Current()
-                              ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
-                              .value();
+    use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
   }
 
   CachedFunc Create(const Function& prim_func) {
@@ -321,6 +319,17 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
 };
+
+/*!
+ * \brief Create schedule for target.
+ * \param source_func The primitive function to be lowered.
+ * \param target The target we want to create schedule for.
+ * \return Pair of schedule and cache.
+ *  The funcs field in cache is not yet populated.
+ */
+CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
+  return ScheduleGetter(target).Create(source_func);
+}
 
 // Creates shape function from functor.
 class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
@@ -679,17 +688,6 @@ class CompileEngineImpl : public CompileEngineNode {
    * \return the cache key
    */
   CCacheKey GetCurrentCCacheKey() { return cur_ccache_key_; }
-
-  /*!
-   * \brief Create schedule for target.
-   * \param source_func The primitive function to be lowered.
-   * \param target The target we want to create schedule for.
-   * \return Pair of schedule and cache.
-   *  The funcs field in cache is not yet populated.
-   */
-  CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
-    return ScheduleGetter(target).Create(source_func);
-  }
 
  private:
   // implement lowered func

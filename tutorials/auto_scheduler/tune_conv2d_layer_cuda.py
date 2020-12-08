@@ -71,9 +71,12 @@ target = tvm.target.Target("cuda")
 
 # Use the last layer in ResNet-50
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
-task = auto_scheduler.create_task(conv2d_layer, (N, H, W, CO, CI, KH, KW, strides, padding), target)
+task = auto_scheduler.SearchTask(
+    func=conv2d_layer, args=(N, H, W, CO, CI, KH, KW, strides, padding), target=target
+)
 
 # Inspect the computational graph
+print("Computational DAG:")
 print(task.compute_dag)
 
 ######################################################################
@@ -109,11 +112,15 @@ tune_option = auto_scheduler.TuningOptions(
 # ^^^^^^^^^^^^^^
 # Now we get all inputs ready. Pretty simple, isn't it?
 # We can kick off the search and let the auto-scheduler do its magic.
-# After some measurement trials, it will return the best schedule it found.
+# After some measurement trials, we can load the best schedule from the log
+# file and apply it.
 
-sch, args = auto_scheduler.auto_schedule(task, tuning_options=tune_option)
+# Run auto-tuning (search)
+task.tune(tune_option)
+# Apply the best schedule
+sch, args = task.apply_best(log_file)
 
-# Kill the process for measurement
+# Kill the measurement process
 del measure_ctx
 
 ######################################################################
@@ -121,6 +128,7 @@ del measure_ctx
 # The auto-scheduler correctly performs optimizations including multi-level tiling,
 # cooperative fetching, unrolling and operator fusion.
 
+print("Lowered TIR:")
 print(tvm.lower(sch, args, simple_mode=True))
 
 ######################################################################
@@ -157,26 +165,20 @@ print(
 ######################################################################
 # Using the record file
 # ^^^^^^^^^^^^^^^^^^^^^
-# During the search, all measuremnt records are dumpped into the record
+# During the search, all measurement records are dumped into the record
 # file "conv2d.json". The measurement records can be used to re-apply search results,
 # resume the search, and perform other analyses.
 
 ######################################################################
 # Here is an example where we load the best schedule from a file,
-# print the equivalent python schedule API, and build the binary again.
+# print the equivalent python schedule API and CUDA source code.
+# They can be used for debugging and learning the behavior of the auto-scheduler.
 
-# Load the measuremnt record for the best schedule
-inp, res = auto_scheduler.load_best(log_file, task.workload_key)
-
-# Print equivalent python schedule API. This can be used for debugging and
-# learning the behavior of the auto-scheduler.
 print("Equivalent python schedule:")
-print(task.compute_dag.print_python_code_from_state(inp.state))
+print(task.print_best(log_file, print_mode="schedule"))
 
-# Rebuild the binary. This shows how you can apply the best schedule from a
-# log file without reruning the search again.
-sch, args = task.compute_dag.apply_steps_from_state(inp.state)
-func = tvm.build(sch, args, target)
+print("CUDA source code:")
+print(task.print_best(log_file, print_mode="cuda"))
 
 ######################################################################
 # A more complicated example is to resume the search.
@@ -195,7 +197,7 @@ tune_option = auto_scheduler.TuningOptions(
     runner=measure_ctx.runner,
     measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
 )
-sch, args = auto_scheduler.auto_schedule(task, search_policy, tuning_options=tune_option)
+task.tune(tune_option, search_policy=search_policy)
 
 # Kill the measurement process
 del measure_ctx

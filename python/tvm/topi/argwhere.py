@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Argwhere operator"""
+import tvm
 from tvm.te import hybrid
 
 
@@ -169,6 +170,7 @@ def hybrid_argwhere_5d(output_shape, condition):
     return a
 
 
+@tvm.target.generic_func
 def argwhere(output_shape, condition):
     """Find the indices of elements of a tensor that are non-zero.
 

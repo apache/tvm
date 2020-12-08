@@ -39,6 +39,7 @@ from .special_stmt import SpecialStmt
 from .scope_handler import ScopeHandler, WithScopeHandler, ForScopeHandler
 from . import _ffi_api
 from .diagnostics import TVMDiagnosticCtx
+from .utils import from_synr_span
 
 
 class CallArgumentReader(object):
@@ -204,9 +205,11 @@ class TVMScriptParser(Transformer):
             Parent node of this scope. Errors will be reported here.
         """
         body = []
+        spans = []
         stmt = parent
         while len(self.context.node_stack[-1]) > 0:
             stmt = self.context.node_stack[-1].pop()
+            spans.append(stmt.span)
             res = self.transform(stmt)
             if res is not None:
                 body.append(res)
@@ -217,7 +220,11 @@ class TVMScriptParser(Transformer):
                 stmt.span,
             )
         else:
-            return tvm.tir.SeqStmt(body) if len(body) > 1 else body[0]
+            return (
+                tvm.tir.SeqStmt(body, from_synr_span(ast.Span.union(spans)))
+                if len(body) > 1
+                else body[0]
+            )
 
     def parse_arg_list(self, func, node_call):
         """Match the arguments of a function call in the AST to the required
@@ -396,6 +403,7 @@ class TVMScriptParser(Transformer):
             ret_type=self.parse_type(node.ret_type, node),
             buffer_map=self.context.func_buffer_map,
             attrs=tvm.ir.make_node("DictAttrs", **self.context.func_dict_attr),
+            span=from_synr_span(node.span),
         )
 
         self.context.pop_scope()
@@ -430,11 +438,11 @@ class TVMScriptParser(Transformer):
                 func.enter_scope(node, self.context)
                 arg_list = self.parse_arg_list(func, node.rhs)
                 func.body = self.parse_body(node)
-                return func.exit_scope(node, self.context, arg_list)
+                return func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)
             elif isinstance(func, SpecialStmt):
                 # Pattern 1
                 arg_list = self.parse_arg_list(func, node.rhs)
-                func.handle(node, self.context, arg_list)
+                func.handle(node, self.context, arg_list, node.rhs.func_name.span)
                 return self.parse_body(node)
             else:
                 value = self.transform(node.rhs)
@@ -446,11 +454,15 @@ class TVMScriptParser(Transformer):
                         "Left hand side of assignment must be an unqualified variable",
                         node.lhs.span,
                     )
-                var = tvm.te.var(node.lhs.id.name, self.parse_type(node.ty, node.lhs))
+                var = tvm.te.var(
+                    node.lhs.id.name,
+                    self.parse_type(node.ty, node.lhs),
+                    span=from_synr_span(node.lhs.span),
+                )
                 self.context.update_symbol(var.name, var)
                 body = self.parse_body(node)
                 self.context.remove_symbol(var.name)
-                return tvm.tir.LetStmt(var, value, body)
+                return tvm.tir.LetStmt(var, value, body, span=from_synr_span(node.span))
 
         self.report_error("Unsupported Assign stmt", node.span)
 
@@ -459,9 +471,15 @@ class TVMScriptParser(Transformer):
         symbol = self.transform(node.params[0])
         indexes = self.transform(node.params[1])
         rhs = self.transform(node.params[2])
+        rhs_span = from_synr_span(node.params[2].span)
         if isinstance(symbol, tvm.tir.Buffer):
             # BufferStore
-            return tvm.tir.BufferStore(symbol, tvm.runtime.convert(rhs), indexes)
+            return tvm.tir.BufferStore(
+                symbol,
+                tvm.runtime.convert(rhs, span=rhs_span),
+                indexes,
+                span=from_synr_span(node.span),
+            )
         else:
             if len(indexes) != 1:
                 self.report_error(
@@ -470,7 +488,11 @@ class TVMScriptParser(Transformer):
                 )
             # Store
             return tvm.tir.Store(
-                symbol, tvm.runtime.convert(rhs), indexes[0], tvm.runtime.convert(True)
+                symbol,
+                tvm.runtime.convert(rhs, span=rhs_span),
+                indexes[0],
+                tvm.runtime.convert(True, span=from_synr_span(node.span)),
+                span=from_synr_span(node.span),
             )
 
     def transform_Assert(self, node):
@@ -484,7 +506,9 @@ class TVMScriptParser(Transformer):
             self.report_error("Assert statements must have an error message.", node.span)
         message = self.transform(node.msg)
         body = self.parse_body(node)
-        return tvm.tir.AssertStmt(condition, tvm.runtime.convert(message), body)
+        return tvm.tir.AssertStmt(
+            condition, tvm.runtime.convert(message), body, span=from_synr_span(node.span)
+        )
 
     def transform_For(self, node):
         """For visitor
@@ -511,7 +535,7 @@ class TVMScriptParser(Transformer):
         func.enter_scope(node, self.context)
         func.body = self.parse_body(node)
         arg_list = self.parse_arg_list(func, node.rhs)
-        res = func.exit_scope(node, self.context, arg_list)
+        res = func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)
         # exit the scope
         self.context.pop_scope()
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
@@ -550,7 +574,7 @@ class TVMScriptParser(Transformer):
         func.enter_scope(node, self.context)
         func.body = self.parse_body(node)
         arg_list = self.parse_arg_list(func, node.rhs)
-        res = func.exit_scope(node, self.context, arg_list)
+        res = func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)
         # exit the scope
         self.context.pop_scope()
         self.current_lineno, self.current_col_offset = old_lineno, old_col_offset
@@ -576,7 +600,7 @@ class TVMScriptParser(Transformer):
         else:
             else_body = None
 
-        return tvm.tir.IfThenElse(condition, then_body, else_body)
+        return tvm.tir.IfThenElse(condition, then_body, else_body, span=from_synr_span(node.span))
 
     def transform_Call(self, node):
         """Call visitor
@@ -595,17 +619,19 @@ class TVMScriptParser(Transformer):
             if node.func_name.name in self._binop_maker:
                 lhs = self.transform(node.params[0])
                 rhs = self.transform(node.params[1])
-                return self._binop_maker[node.func_name.name](lhs, rhs)
+                return self._binop_maker[node.func_name.name](
+                    lhs, rhs, span=from_synr_span(node.span)
+                )
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
-                return self._unaryop_maker[node.func_name.name](rhs)
+                return self._unaryop_maker[node.func_name.name](rhs, span=from_synr_span(node.span))
             self.report_error(f"Unsupported operator {node.func_name.name}.", node.func_name.span)
         else:
             func = self.transform(node.func_name)
             if isinstance(func, Intrin) and not func.stmt:
                 # pattern 1
                 arg_list = self.parse_arg_list(func, node)
-                return func.handle(arg_list)
+                return func.handle(arg_list, node.func_name.span)
             else:
                 args = [self.transform(arg) for arg in node.params]
                 kw_args = {
@@ -613,12 +639,17 @@ class TVMScriptParser(Transformer):
                 }
                 if isinstance(func, tvm.tir.op.Op):
                     # pattern 2
-                    return tvm.tir.Call(kw_args["dtype"], func, args)
+                    return tvm.tir.Call(
+                        kw_args["dtype"], func, args, span=from_synr_span(node.span)
+                    )
                 elif callable(func):
                     # pattern 3
                     return func(*args, **kw_args)
-
-        self.report_error("Unsupported function call.", node.func_name.span)
+                else:
+                    self.report_error(
+                        f"Function is neither callable nor a tvm.tir.op.Op (it is a {type(func)}).",
+                        node.func_name.span,
+                    )
 
     def transform_UnassignedCall(self, node):
         """Visitor for statements that are function calls.
@@ -656,13 +687,13 @@ class TVMScriptParser(Transformer):
             )
 
         if isinstance(func, Intrin) and func.stmt:
-            return func.handle(arg_list)
+            return func.handle(arg_list, node.call.func_name.span)
         elif isinstance(func, WithScopeHandler) and func.concise_scope and not func.def_symbol:
             func.enter_scope(node, self.context)
             func.body = self.parse_body(node)
-            return func.exit_scope(node, self.context, arg_list)
+            return func.exit_scope(node, self.context, arg_list, node.call.func_name.span)
         elif isinstance(func, SpecialStmt) and not func.def_symbol:
-            func.handle(node, self.context, arg_list)
+            func.handle(node, self.context, arg_list, node.call.func_name.span)
             return
 
         self.report_error(f"Invalid Expr stmt {type(func).__name__}.", node.call.func_name.span)
@@ -676,7 +707,7 @@ class TVMScriptParser(Transformer):
         if isinstance(extent, tvm.tir.PrimExpr):
             ana = tvm.arith.Analyzer()
             extent = ana.simplify(extent)
-        return tvm.ir.Range.from_min_extent(start, extent)
+        return tvm.ir.Range.from_min_extent(start, extent, span=from_synr_span(node.span))
 
     def transform_Subscript(self, node):
         """Array access visitor.
@@ -696,9 +727,9 @@ class TVMScriptParser(Transformer):
             return symbol, indexes
 
         if isinstance(symbol, tvm.tir.expr.Var):
-            return tvm.tir.Load("float32", symbol, indexes, True)
+            return tvm.tir.Load("float32", symbol, indexes, True, span=from_synr_span(node.span))
         if isinstance(symbol, tvm.tir.Buffer):
-            return tvm.tir.BufferLoad(symbol, indexes)
+            return tvm.tir.BufferLoad(symbol, indexes, span=from_synr_span(node.span))
 
         self.report_error(
             f"Cannot subscript from a {type(symbol).__name__}. Only variables and "
@@ -831,7 +862,7 @@ class TVMScriptParser(Transformer):
         Constant values include `None`, `"strings"`, `2` (integers), `4.2`
         (floats), and `true` (booleans).
         """
-        return node.value
+        return tvm.runtime.convert(node.value, span=from_synr_span(node.span))
 
     def transform_TypeConstant(self, node):
         """Constant value visitor for types.
