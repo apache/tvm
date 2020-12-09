@@ -215,7 +215,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         found_linked_params = true;
         continue;
       }
-      ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+      ICHECK(kv.second->IsInstance<PrimFuncNode>())
+          << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       auto f = Downcast<PrimFunc>(kv.second);
       if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
         auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
