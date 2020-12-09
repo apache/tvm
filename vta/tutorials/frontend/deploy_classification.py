@@ -42,7 +42,7 @@ from __future__ import absolute_import, print_function
 
 import argparse, json, os, requests, sys, time
 from io import BytesIO
-from os.path import join, isfile, dirname, pardir
+from os.path import join, isfile
 from PIL import Image
 
 from mxnet.gluon.model_zoo import vision
@@ -56,14 +56,9 @@ from tvm.contrib import graph_runtime, utils, download
 from tvm.contrib.debugger import debug_runtime
 from tvm.relay import transform
 
-os.chdir(dirname(os.path.abspath(__file__)))
-os.chdir(join(pardir, pardir, pardir))
-sys.path.append(os.getcwd())
-
 import vta
-from vta.python.vta.testing import simulator
-from vta.python.vta.top import graphpack as graph_pack
-from vta.python import vta
+from vta.testing import simulator
+from vta.top import graph_pack
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -183,7 +178,7 @@ with autotvm.tophub.context(target):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
             assert env.BLOCK_IN == env.BLOCK_OUT
-            relay_prog = graph_pack.graph_pack(
+            relay_prog = graph_pack(
                 mod["main"],
                 env.BATCH,
                 env.BLOCK_OUT,
