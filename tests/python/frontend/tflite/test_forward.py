@@ -2217,17 +2217,21 @@ def _test_forward_reduce(testop, dtype="float32"):
         data0 = [np.random.choice(a=[False, True], size=(16, 16, 16, 16)).astype(dtype), None]
         data1 = [
             np.random.choice(a=[False, True], size=(16, 16, 16, 16)).astype(dtype),
+            np.array(1, dtype=np.int32),
+        ]
+        data2 = [
+            np.random.choice(a=[False, True], size=(16, 16, 16, 16)).astype(dtype),
             np.array([1, 2], dtype=np.int32),
         ]
     else:
         data0 = [np.random.rand(16, 16, 16, 16).astype(dtype), None]
-        data1 = [np.random.rand(16, 16, 16, 16).astype(dtype), np.array([1, 2], dtype=np.int32)]
-    testop(data0)
-    testop(data0, keep_dims=False)
-    testop(data0, keep_dims=True)
-    testop(data1)
-    testop(data1, keep_dims=False)
-    testop(data1, keep_dims=True)
+        data1 = [np.random.rand(16, 16, 16, 16).astype(dtype), np.array(1, dtype=np.int32)]
+        data2 = [np.random.rand(16, 16, 16, 16).astype(dtype), np.array([1, 2], dtype=np.int32)]
+
+    for data in [data0, data1, data2]:
+        testop(data)
+        testop(data, keep_dims=False)
+        testop(data, keep_dims=True)
 
 
 def _test_forward_reduce_quantized(testop):
