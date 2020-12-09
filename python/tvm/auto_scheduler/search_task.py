@@ -114,8 +114,9 @@ class TuningOptions(Object):
         Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
         ProgramBuilder which builds the program.
-    builder_n_parallel: int = -1
+    builder_n_parallel: int = None
         How many parallel job builder will run
+        When the value is None, will be set to multiprocessing.cpu_count()
         For Metal/ROCM, builder_n_parallel is recommended to set to 1
     runner: Union[ProgramRunner, str] = 'local'
         ProgramRunner which runs the program and measures time costs.
@@ -134,7 +135,7 @@ class TuningOptions(Object):
         check_correctness=False,
         verbose=1,
         builder="local",
-        builder_n_parallel=-1,
+        builder_n_parallel=None,
         runner="local",
         measure_callbacks=None,
     ):

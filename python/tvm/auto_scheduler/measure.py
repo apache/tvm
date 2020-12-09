@@ -281,7 +281,7 @@ class LocalBuilder(ProgramBuilder):
         This is used in a wrapper of the multiprocessing.Process.join().
     n_parallel : int = None
         Number of threads used to build in parallel.
-        When the value is -1, will be set to multiprocessing.cpu_count() instead
+        When the value is None, will be set to multiprocessing.cpu_count() instead
     build_func : str = 'default'
         The name of registered build function.
     """
