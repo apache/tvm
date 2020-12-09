@@ -279,15 +279,15 @@ class LocalBuilder(ProgramBuilder):
     timeout : int = 15
         The timeout limit (in second) for each build thread.
         This is used in a wrapper of the multiprocessing.Process.join().
-    n_parallel : int = -1
+    n_parallel : int = None
         Number of threads used to build in parallel.
         When the value is -1, will be set to multiprocessing.cpu_count() instead
     build_func : str = 'default'
         The name of registered build function.
     """
 
-    def __init__(self, timeout=15, n_parallel=-1, build_func="default"):
-        if n_parallel == -1:
+    def __init__(self, timeout=15, n_parallel=None, build_func="default"):
+        if n_parallel is None:
             n_parallel = multiprocessing.cpu_count()
         self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, build_func)
 
@@ -700,6 +700,7 @@ def _timed_eval_func(
     min_repeat_ms,
     cooldown_interval,
     enable_cpu_cache_flush,
+    working_dir,
     verbose,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
@@ -731,13 +732,46 @@ def _timed_eval_func(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
-            random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
-            assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
-            for arg in args:
-                random_fill(arg)
+            is_buffer_exist = False
+            if os.path.exists(working_dir):
+                buffer_path = os.path.join(working_dir, "buffer.pkl")
+                if os.path.exists(buffer_path):
+                    with open(buffer_path, "rb") as finput:
+                        buffer = pickle.load(finput)
+                    # force last args to be empty
+                    args = []
+                    for i in range(len(build_res.args) - 1):
+                        args.append(ndarray.array(buffer[build_res.args[i].name], ctx=ctx))
+                    args.append(
+                        ndarray.empty(
+                            get_const_tuple(build_res.args[-1].shape), build_res.args[-1].dtype, ctx
+                        )
+                    )
+                    is_buffer_exist = True
+            else:
+                args = [
+                    ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args
+                ]
+                random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
+                assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
+                for arg in args:
+                    random_fill(arg)
             ctx.sync()
             costs = time_f(*args).results
+            if is_buffer_exist:
+                # check answer, only support single output for now
+                # TODO(xxx): get the output information from
+                # `task.compute_dag` to support multiple output
+                result = args[-1].asnumpy()
+                try:
+                    np.testing.assert_allclose(
+                        result, buffer[build_res.args[-1].name], atol=1e-4, rtol=1e-4
+                    )
+                # pylint: disable=broad-except
+                except Exception:
+                    costs = (MAX_FLOAT,)
+                    error_no = MeasureErrorNo.WRONG_ANSWER
+                    error_msg = make_traceback_info()
         # pylint: disable=broad-except
         except Exception:
             costs = (MAX_FLOAT,)
@@ -839,6 +873,7 @@ def local_run(
                     min_repeat_ms,
                     cooldown_interval,
                     enable_cpu_cache_flush,
+                    working_dir,
                     verbose,
                 ),
             )
@@ -923,8 +958,8 @@ def _timed_rpc_run(
             if os.path.exists(working_dir):
                 buffer_path = os.path.join(working_dir, "buffer.pkl")
                 if os.path.exists(buffer_path):
-                    with open(buffer_path, "rb") as fi:
-                        buffer = pickle.load(fi)
+                    with open(buffer_path, "rb") as finput:
+                        buffer = pickle.load(finput)
                     # force last args to be empty
                     args = []
                     for i in range(len(build_res.args) - 1):
@@ -949,17 +984,21 @@ def _timed_rpc_run(
                         )
                     for arg in args:
                         random_fill(arg)
+            # TODO(xxx): consider to copy to device once instead of copy everytime
             ctx.sync()
 
             costs = time_f(*args).results
             if is_buffer_exist:
                 # check answer, only support single output for now
+                # TODO(xxx): get the output information from
+                # `task.compute_dag` to support multiple output
                 result = args[-1].asnumpy()
                 try:
                     np.testing.assert_allclose(
                         result, buffer[build_res.args[-1].name], atol=1e-4, rtol=1e-4
                     )
-                except:
+                # pylint: disable=broad-except
+                except Exception:
                     costs = (MAX_FLOAT,)
                     error_no = MeasureErrorNo.WRONG_ANSWER
                     error_msg = make_traceback_info()

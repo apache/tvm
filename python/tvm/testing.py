@@ -56,8 +56,8 @@ function in this module. Then targets using this node should be added to the
 """
 import logging
 import os
-import pytest
 import numpy as np
+import pytest
 import tvm
 import tvm.arith
 import tvm.tir

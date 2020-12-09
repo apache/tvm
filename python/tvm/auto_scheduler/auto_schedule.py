@@ -19,12 +19,11 @@
 The user interface and tuning options of the TVM auto-scheduler.
 """
 
-from tempfile import tempdir, mkdtemp
+from tempfile import mkdtemp
 from collections import OrderedDict
 import pickle
 import os
 import shutil
-import numpy as np
 import tvm._ffi
 from tvm.runtime import Object, ndarray
 from tvm.target import Target
@@ -198,11 +197,11 @@ class TuningOptions(Object):
         buffer_path = os.path.join(self.temp_working_dir, "buffer.pkl")
         buf = OrderedDict()
         if os.path.exists(buffer_path):
-            with open(buffer_path, "rb") as fi:
-                buf = pickle.load(fi)
+            with open(buffer_path, "rb") as finput:
+                buf = pickle.load(finput)
         buf[name] = buffer
-        with open(buffer_path, "wb") as fo:
-            pickle.dump(buf, fo)
+        with open(buffer_path, "wb") as foutput:
+            pickle.dump(buf, foutput)
 
     def __del__(self):
         shutil.rmtree(self.temp_working_dir)
@@ -263,22 +262,25 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
         cost_model = XGBModel()
         search_policy = SketchPolicy(task, cost_model)
 
-    if tuning_options.check_correctness == True:
-        empty_sch, args = task.compute_dag.apply_steps_from_state(
-            task.compute_dag.get_init_state(), layout_rewrite=True
+    if tuning_options.check_correctness:
+        null_sch, args = task.compute_dag.apply_steps_from_state(task.compute_dag.get_init_state())
+        cpu_func = build_module.build(
+            null_sch, args, target=task.target_host, target_host=task.target_host
         )
-        cpu_func = build_module.build(empty_sch, args, target="llvm", target_host=task.target_host)
         buffer_path = os.path.join(tuning_options.working_dir, "buffer.pkl")
         if os.path.exists(buffer_path) is True:
-            with open(buffer_path, "rb") as fi:
-                buffer = pickle.load(fi)
+            with open(buffer_path, "rb") as finput:
+                buffer = pickle.load(finput)
             if len(buffer) == len(args):
                 # we skip check each arg shape here
                 pass
             elif len(buffer) == len(args) - 1:
                 # assume only one output
-                np_args = np.zeros(size=get_const_tuple(args[-1].shape)).astype(args[-1].dtype)
-                cpu_args = [v for _, v in buffer.items()] + [ndarray.array(np_args, ctx=tvm.cpu())]
+                # TODO(xxx): get the output information from
+                # `task.compute_dag` to support multiple output
+                cpu_args = [v for _, v in buffer.items()] + [
+                    ndarray.empty(args[-1].shape, dtype=args[-1].dtype, ctx=tvm.cpu())
+                ]
                 cpu_func(*cpu_args)
                 ### save cpu result
                 answer = [x.asnumpy() for x in cpu_args]
@@ -291,6 +293,7 @@ def auto_schedule(task, search_policy=None, tuning_options=TuningOptions()):
                 random_fill(arg)
             cpu_func(*cpu_args)
             answer = [arg.asnumpy() for arg in cpu_args]
+            # pylint: disable=C0200
             for i in range(len(answer)):
                 tuning_options.register_buffer(args[i].name, answer[i])
 

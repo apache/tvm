@@ -82,9 +82,10 @@ class TuningOptions : public ObjectRef {
    * \param num_measure_trials The number of total measurement trials.
    * \param early_stopping Stops the tuning early if no improvement after n measurements.
    * \param num_measures_per_round The number of programs to be measured at each search round.
-   * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
    * \param working_dir  Temp directory path for buffers and intermedia outputs
    * search.
+   * \param check_correctness Whether or not run CPU code to check numerical correctness
+   * \param verbose Verbosity level. 0 for silent, 1 to output information during schedule
    * \param builder ProgramBuilder which builds the program.
    * \param runner ProgramRunner which runs the program and measure time costs.
    * \param measure_callbacks MeasureCallback functions to be called after each measure batch.

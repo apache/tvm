@@ -18,13 +18,17 @@
 """ The definiton of SearchTask """
 
 import json
+import os
+import shutil
+from tempfile import mkdtemp
+from collections import OrderedDict
 
 import tvm._ffi
 from tvm.runtime import Object
 
 from tvm.driver.build_module import build
 from tvm.target import Target
-from .measure import LocalBuilder, LocalRunner
+from .measure import LocalBuilder, LocalRunner, RPCRunner
 from .measure_record import load_best_record
 from .workload_registry import make_workload_key
 from .compute_dag import ComputeDAG, LayoutRewriteOption
@@ -101,10 +105,18 @@ class TuningOptions(Object):
         The number of schedules to be measured at each search round.
         The whole schedule search process will try a total number of `num_measure_trials` in several
         rounds.
+    working_dir: Optional [string]
+        Temp working directory for binary buffers
+        If it is None, a random temp path will be generated
+    check_correctness: Optional [bool]
+        Whether generate an empty CPU schedule to check correctness
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during schedule search.
     builder: Union[ProgramBuilder, str] = 'local'
         ProgramBuilder which builds the program.
+    builder_n_parallel: int = -1
+        How many parallel job builder will run
+        For Metal/ROCM, builder_n_parallel is recommended to set to 1
     runner: Union[ProgramRunner, str] = 'local'
         ProgramRunner which runs the program and measures time costs.
     measure_callbacks: Optional[List[MeasureCallback]]
@@ -118,14 +130,21 @@ class TuningOptions(Object):
         num_measure_trials=0,
         early_stopping=None,
         num_measures_per_round=64,
+        working_dir=None,
+        check_correctness=False,
         verbose=1,
         builder="local",
+        builder_n_parallel=-1,
         runner="local",
         measure_callbacks=None,
     ):
+        if working_dir is None:
+            self.temp_working_dir = mkdtemp()
+        else:
+            self.temp_working_dir = working_dir
         if isinstance(builder, str):
             if builder == "local":
-                builder = LocalBuilder()
+                builder = LocalBuilder(n_parallel=builder_n_parallel)
             else:
                 raise ValueError("Invalid builder: " + builder)
         elif not isinstance(builder, tvm.auto_scheduler.measure.ProgramBuilder):
@@ -137,9 +156,14 @@ class TuningOptions(Object):
 
         if isinstance(runner, str):
             if runner == "local":
-                runner = LocalRunner()
+                runner = LocalRunner(working_dir=self.temp_working_dir)
             else:
                 raise ValueError("Invalid runner: " + runner)
+
+        elif isinstance(runner, RPCRunner):
+            rpc_kwargs = runner.kwargs
+            rpc_kwargs["working_dir"] = self.temp_working_dir
+            runner = RPCRunner(**rpc_kwargs)
         elif not isinstance(runner, tvm.auto_scheduler.measure.ProgramRunner):
             raise ValueError(
                 "Invalid runner: " + runner + " . TuningOptions expects a ProgramRunner or string."
@@ -150,11 +174,35 @@ class TuningOptions(Object):
             num_measure_trials,
             early_stopping or -1,
             num_measures_per_round,
+            self.temp_working_dir,
+            check_correctness,
             verbose,
             builder,
             runner,
             measure_callbacks,
         )
+
+    def register_buffer(self, name, buffer):
+        """Register numpy buffer for a given tensor argument name for running
+
+        Parameters
+        ----------
+        name : string
+            name of the argument
+        buffer : numpy.ndarray
+            data for the tensor argument
+        """
+        buffer_path = os.path.join(self.temp_working_dir, "buffer.pkl")
+        buf = OrderedDict()
+        if os.path.exists(buffer_path):
+            with open(buffer_path, "rb") as finput:
+                buf = pickle.load(finput)
+        buf[name] = buffer
+        with open(buffer_path, "wb") as foutput:
+            pickle.dump(buf, foutput)
+
+    def __del__(self):
+        shutil.rmtree(self.temp_working_dir)
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchTask")
