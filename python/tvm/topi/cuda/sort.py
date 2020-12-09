@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
-"""Argsort operator """
+"""Sort related operators """
 import tvm
 from tvm import te
+from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
 from ..math import identity
@@ -597,3 +598,59 @@ def schedule_topk(outs):
       The computation schedule for the op.
     """
     return _schedule_sort(outs)
+
+
+def stable_sort_by_key_thrust(keys, values, for_scatter=False):
+    """Sort values with respect to keys using thrust.
+    Both keys and values will be sorted and returned.
+    Sorting is done via stable sort, so relative ordering among
+    ties are preserved.
+
+    Parameters
+    ----------
+    keys: tvm.te.Tensor
+        The 1D input keys.
+
+    values : tvm.te.Tensor,
+        The 1D input values.
+
+    for_scatter: bool, optional
+        If True, negative keys are interpreted as negative indices.
+        Before sorting, negative indices are converted to corresponding positive indices.
+        The output keys (indices) are all positive.
+        This option is introduced to optimize the scatter implementation.
+
+    Returns
+    -------
+    keys_sorted : tvm.te.Tensor
+        The sorted keys
+
+    values_sorted : tvm.te.Tensor
+        The values sorted with respect to the keys
+    """
+    keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
+    values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
+    out_bufs = [
+        tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
+        tvm.tir.decl_buffer(keys.shape, values.dtype, "values_buf", data_alignment=8),
+    ]
+    out = te.extern(
+        [keys.shape, values.shape],
+        [keys, values],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.thrust.stable_sort_by_key", ins[0], ins[1], outs[0], outs[1], for_scatter
+        ),
+        in_buffers=[keys_buf, values_buf],
+        out_buffers=out_bufs,
+        dtype=[keys.dtype, values.dtype],
+        name="stable_sort_by_key",
+        tag="stable_sort_by_key",
+    )
+    return out[0], out[1]
+
+
+def is_thrust_available():
+    """
+    Test if thrust based sorting ops are available.
+    """
+    return get_global_func("tvm.contrib.thrust.sort", allow_missing=True) is not None

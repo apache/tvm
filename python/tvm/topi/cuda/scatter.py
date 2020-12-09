@@ -20,6 +20,7 @@ import tvm
 from tvm import te
 from ..scatter import _verify_scatter_nd_inputs
 from .nms import atomic_add
+from .sort import stable_sort_by_key_thrust, is_thrust_available
 
 
 def ceil_div(a, b):
@@ -416,6 +417,97 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
     return ib.get()
 
 
+def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
+    """Generate scatter ir for 1d inputs, using a sorting based approach.
+    By sorting indices and comparing neighboring two indices, we can tell which
+    of elements in the indices tensor can scatter its update value into the output.
+    Sorting of indices, and sorting of updates with respect to indices, can be done
+    at the same time by thrust's sort_by_key function. It is important that sorting
+    be done in a "stable" way via stable_sort, to guarantee deterministic output.
+
+    Parameters
+    ----------
+    data : tir.Tensor
+        The input data to the operator.
+
+    indices_sorted : tir.Tensor
+        The sorted index locations to update.
+
+    updates : tir.Tensor
+        The values to update, sorted by indices.
+
+    axis : int
+        The axis to scatter on. It must be 0 for this function.
+
+    out : tir.Tensor
+        The output tensor.
+
+    Returns
+    -------
+    ret : tir
+        The computational ir.
+    """
+    assert axis == 0
+    n = data.shape[0]
+
+    ib = tvm.tir.ir_builder.create()
+
+    out_ptr = ib.buffer_ptr(out)
+    data_ptr = ib.buffer_ptr(data)
+
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    nthread_tx = max_threads
+
+    with ib.new_scope():
+        nthread_bx = ceil_div(n, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+        with ib.if_scope(tid < n):
+            out_ptr[tid] = data_ptr[tid]
+
+    indices_ptr = ib.buffer_ptr(indices_sorted)
+    updates_ptr = ib.buffer_ptr(updates_sorted)
+
+    ni = indices_sorted.shape[0]
+
+    def do_update(ib, index, update):
+        with ib.if_scope(index < 0):
+            out_ptr[index + n] = update
+        with ib.else_scope():
+            out_ptr[index] = update
+
+    with ib.new_scope():
+        nthread_bx = ceil_div(ni, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+
+        with ib.if_scope(tid == ni - 1):
+            # The last element can always update.
+            index = indices_ptr[tid]
+            update = updates_ptr[tid]
+            do_update(ib, index, update)
+
+        with ib.else_scope():
+            with ib.if_scope(tid < ni - 1):
+                index = indices_ptr[tid]
+                index_next = indices_ptr[tid + 1]
+
+                # If the next neighbor in the sorted list of indices has a different index,
+                # that means thread tid is the last one to have this index.
+                # This thread can update the output.
+                with ib.if_scope(index != index_next):
+                    update = updates_ptr[tid]
+                    do_update(ib, index, update)
+
+    return ib.get()
+
+
 def scatter(data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
@@ -458,9 +550,21 @@ def scatter(data, indices, updates, axis=0):
 
     out_shape = data.shape
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
+
+    in_bufs = [data]
+
+    if rank == 1 and is_thrust_available():
+        ir_funcs[1] = gen_scatter_1d_thrust
+        indices_sorted, updates_sorted = stable_sort_by_key_thrust(
+            indices, updates, for_scatter=True
+        )
+        in_bufs += [indices_sorted, updates_sorted]
+    else:
+        in_bufs += [indices, updates]
+
     out = te.extern(
         [out_shape],
-        [data, indices, updates],
+        in_bufs,
         lambda ins, outs: ir_funcs[rank](ins[0], ins[1], ins[2], axis, outs[0], update_func),
         dtype=data.dtype,
         out_buffers=[out_buf],

@@ -163,6 +163,9 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     writer->WriteArrayItem(std::string(data.workload_key));
     writer->WriteArrayItem(data.target->str());
     writer->WriteArrayItem(*data.hardware_params.get());
+    if (data.target_host.defined()) {
+      writer->WriteArrayItem(data.target_host->str());
+    }
     writer->EndArray();
   }
   inline static void Read(dmlc::JSONReader* reader, ::tvm::auto_scheduler::SearchTaskNode* data) {
@@ -183,7 +186,12 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
       reader->Read(hardware_params_node.get());
       s = reader->NextArrayItem();
       data->hardware_params = ::tvm::auto_scheduler::HardwareParams(hardware_params_node);
-      ICHECK(!s);
+      if (s) {
+        reader->Read(&str_value);
+        data->target_host = ::tvm::Target(str_value);
+        s = reader->NextArrayItem();
+        ICHECK(!s);
+      }
     }
   }
 };
@@ -271,7 +279,7 @@ namespace auto_scheduler {
 TVM_REGISTER_OBJECT_TYPE(RecordToFileNode);
 TVM_REGISTER_OBJECT_TYPE(RecordReaderNode);
 
-const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.3";  // NOLINT(*)
+const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.4";  // NOLINT(*)
 
 RecordToFile::RecordToFile(String filename) {
   auto node = make_object<RecordToFileNode>();
