@@ -59,7 +59,7 @@ if(USE_CUDA)
     message(STATUS "Build with Thrust support")
     cmake_minimum_required(VERSION 3.13) # to compile CUDA code
     enable_language(CUDA)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda")
     file(GLOB CONTRIB_THRUST_SRC src/runtime/contrib/thrust/*.cu)
     list(APPEND RUNTIME_SRCS ${CONTRIB_THRUST_SRC})
   endif(USE_THRUST)
