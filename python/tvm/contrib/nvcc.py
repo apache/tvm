@@ -287,8 +287,8 @@ def have_tensorcore(compute_version=None, target=None):
         else:
             if target is None or "arch" not in target.attrs:
                 warnings.warn(
-                    "Cannot find cuda architecture, try specifying it by adding '-arch=sm_xx'"
-                    "to your target. Tensorcore schedules will be disabled."
+                    "Tensorcore will be disabled due to no CUDA architecture specified."
+                    "Try specifying it by adding '-arch=sm_xx' to your target."
                 )
                 return False
             compute_version = target.attrs["arch"]
