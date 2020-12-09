@@ -86,7 +86,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
-    ICHECK(it != alloc_info_.end());
+    ICHECK(it != alloc_info_.end()) << "Could not find buffer `" << buf->name_hint
+                                    << "` in the list of allocated buffers. Perhaps you are "
+                                       "missing a storage_scope attr for this buffer.";
     ICHECK(it->second.alloc == nullptr);
     it->second.alloc = op;
     it->second.level = level;
