@@ -14,14 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from docutils.nodes import target
-
 """
-Provides support to auto-tuning networks using AutoTVM.
+Provides support to auto-tuning networks using AutoScheduler.
 """
-import os.path
 import logging
-import time
 
 from urllib.parse import urlparse
 
@@ -29,7 +25,7 @@ from tvm import auto_scheduler
 from tvm.auto_scheduler.auto_schedule import HardwareParams
 
 from . import common, frontends
-from .common import TVMCException, add_tuning_options
+from .common import add_tuning_options
 from .main import register_parser
 
 
@@ -67,7 +63,7 @@ def add_autoscheduler_parser(subparsers):
 
 
 def drive_autoschedule(args):
-    """Invoke auto-tuning with command line arguments
+    """Invoke auto-scheduling with command line arguments
 
     Parameters
     ----------
@@ -132,7 +128,9 @@ def drive_autoschedule(args):
     )
 
     # Specify hardware parameters
-    hardware_params = HardwareParams(args.num_cores, args.vector_unit_bytes, args.cache_line_bytes)
+    hardware_params = HardwareParams(
+        args.num_cores, args.vector_unit_bytes, args.cache_line_bytes, None, None, None, None, None
+    )
 
     # Extract the tasks from the model
     tasks, weights = get_tuning_tasks(
@@ -141,13 +139,10 @@ def drive_autoschedule(args):
 
     # Schedule the tasks (i.e., produce a schedule for each task)
     schedule_tasks(
-        mod,
-        params,
-        target,
-        target_host=args.target_host,
-        tuning_records=args.tuning_records,
-        tuning_options=tuning_options,
-        alter_layout=args.desired_layout,
+        tasks,
+        weights,
+        tuning_options,
+        args.tuning_records,
     )
 
 
