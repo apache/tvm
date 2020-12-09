@@ -32,6 +32,10 @@ from tvm import relay
 from tvm.relay.frontend.pytorch_utils import is_version_greater_than
 from tvm.contrib.download import download_testdata
 
+from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm.relay.op.contrib.register import register_pattern_table
+from tvm.relay.op.contrib.register import get_pattern_table
+
 
 def torch_version_check():
     from packaging import version
@@ -39,10 +43,47 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
+def make_qnn_add_pattern():
+    lhs = wildcard()
+    rhs = wildcard()
+    lhs_scale = wildcard()
+    lhs_zero_point = wildcard()
+    rhs_scale = wildcard()
+    rhs_zero_point = wildcard()
+    output_scale = wildcard()
+    output_zero_point = wildcard()
+    qadd = is_op("qnn.add")(
+        lhs,
+        rhs,
+        lhs_scale,
+        lhs_zero_point,
+        rhs_scale,
+        rhs_zero_point,
+        output_scale,
+        output_zero_point,
+    )
+    return qadd.optional(is_op("clip"))
+
+
+@register_pattern_table("test_table")
+def pattern_table():
+    return [
+        ("qnn_add", make_qnn_add_pattern()),
+    ]
+
+
 def get_tvm_runtime(script_module, input_name, ishape):
 
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    pattern_table = get_pattern_table("test_table")
+    with tvm.transform.PassContext(opt_level=3):
+        pass_list = [
+            tvm.relay.transform.SimplifyInference(),
+            tvm.relay.transform.MergeComposite(pattern_table),
+        ]
+        composite_partition = tvm.transform.Sequential(pass_list)
+        partitioned = composite_partition(mod)
 
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
