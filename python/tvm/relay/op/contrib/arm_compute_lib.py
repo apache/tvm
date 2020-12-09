@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Arm Compute Library supported operators."""
-import tvm
 import numpy as np
+import tvm
 
 from tvm.relay.expr import const
 from tvm.relay import transform
