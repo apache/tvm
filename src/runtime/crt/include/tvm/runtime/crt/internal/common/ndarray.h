@@ -41,16 +41,16 @@ typedef struct TVMNDArray {
   DLTensor dl_tensor;
 } TVMNDArray;
 
-TVMNDArray TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
-                             DLContext ctx);
+int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLContext ctx,
+                      TVMNDArray* array);
 
-TVMNDArray TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype,
-                            DLContext ctx);
+int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLContext ctx,
+                     TVMNDArray* array);
 
 int TVMNDArray_Load(TVMNDArray* ret, const char** strm);
 
-TVMNDArray TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndim,
-                                 DLDataType dtype);
+int TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndim, DLDataType dtype,
+                          TVMNDArray* array_view);
 
 int TVMNDArray_Release(TVMNDArray* arr);
 
