@@ -23,7 +23,6 @@ import os
 import warnings
 
 import tvm._ffi
-from tvm.autotvm.env import AutotvmGlobalScope
 from tvm.runtime import ndarray as nd
 
 from . import utils
@@ -270,24 +269,29 @@ def have_int8(compute_version):
     return False
 
 
-def have_tensorcore(compute_version=None):
+def have_tensorcore(compute_version=None, target=None):
     """Either TensorCore support is provided in the compute capability or not
 
     Parameters
     ----------
-    compute_version : str
-        compute capability of a GPU (e.g. "7.0")
+    compute_version : str, optional
+        compute capability of a GPU (e.g. "7.0").
+
+    target : tvm.target.Target, optional
+        The compilation target, will be used to determine arch if compute_version
+        isn't specified.
     """
     if compute_version is None:
         if tvm.gpu(0).exist:
             compute_version = tvm.gpu(0).compute_version
         else:
-            compute_version = AutotvmGlobalScope.current.cuda_target_arch
-            if compute_version is None:
+            if target is None or "arch" not in target.attrs:
                 warnings.warn(
-                    "Cannot find cuda architecture. Tensorcore schedules will be disabled."
+                    "Cannot find cuda architecture, try specifying it by adding '-arch=sm_xx'"
+                    "to your target. Tensorcore schedules will be disabled."
                 )
                 return False
+            compute_version = target.attrs["arch"]
             # Compute version will be in the form "sm_{major}{minor}"
             major, minor = compute_version.split("_")[1]
             compute_version = major + "." + minor
