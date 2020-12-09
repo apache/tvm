@@ -53,6 +53,12 @@ import os
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+from os.path import join, dirname, pardir
+
+os.chdir(dirname(os.path.abspath(__file__)))
+os.chdir(join(pardir, pardir, pardir, pardir))
+sys.path.append(os.getcwd())
+
 import tvm
 import vta
 from tvm import rpc, autotvm, relay
@@ -132,7 +138,7 @@ pack_dict = {
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
 # the number 4 indicate the the ``start_pack`` index is 4, the
-# number 185 indicate the ``stop_pack index`` is 185, by using
+# number 186 indicate the ``stop_pack index`` is 186, by using
 # name and index number, here we can located to correct place
 # where to start/end when there are multiple ``nn.max_pool2d``
 # or ``cast``, print(mod.astext(show_meta_data=False)) can help
