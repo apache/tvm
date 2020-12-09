@@ -61,6 +61,8 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
+  void VisitStmt_(const StoreNode* op) final;                        // NOLINT(*)
+
 
  private:
   // whether enable fp16 and fp64 extension
@@ -68,6 +70,7 @@ class CodeGenOpenCL final : public CodeGenC {
   bool enable_fp64_{false};
   // Whether to enable atomics extension.
   bool enable_atomics_{false};
+  PrimExpr stored_value_{nullptr};
 };
 
 }  // namespace codegen

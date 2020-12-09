@@ -268,11 +268,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
     else if (op->op.same_as(builtin::text2d_load()))
     {
-      return Call(op->dtype.with_lanes(4), op->op, op->args);
+      int lane = 0;
+      Array<PrimExpr> fcd = MutateArray({op->args.back()}, &lane);
+      auto new_args = op->args;
+      new_args.pop_back();
+      new_args.push_back(fcd[0]);
+      return Call(op->dtype.with_lanes(4), op->op, new_args);
     }
     else if (op->op.same_as(builtin::text2d_store()))
     {
       int lane = 0;
+      // Vectorize the value to store
       Array<PrimExpr> value{op->args.back()};
       Array<PrimExpr> mutated_value = MutateArray(value, &lane);
       Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2], mutated_value[0]};

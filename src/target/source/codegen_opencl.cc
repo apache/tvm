@@ -305,6 +305,12 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
   return os.str();
 }
 
+void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
+  stored_value_ = op->value;
+  CodeGenC::VisitStmt_(op);
+  stored_value_ = PrimExpr(nullptr);
+}
+
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
@@ -331,15 +337,35 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(op->args[3], os);
     os << ")";
   } else if (op->op.same_as(builtin::text2d_load())) {
-    os << "read_imagef(";
-    this->PrintExpr(op->args[0], os);
-    os << ", ";
-    os << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
-    os << "(int2)(";
-    this->PrintExpr(op->args[1], os);
-    os << ", ";
-    this->PrintExpr(op->args[2], os);
-    os << "))";
+    std::stringstream ss;
+    ss << "read_imagef(";
+    this->PrintExpr(op->args[0], ss);
+    ss << ", ";
+    ss << "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST, ";
+    ss << "(int2)(";
+    this->PrintExpr(op->args[1], ss);
+    ss << ", ";
+    this->PrintExpr(op->args[2], ss);
+    ss << "))";
+
+    // Only use local SSA if texture is not already being stored
+    auto value = GetRef<Call>(stored_value_.as<CallNode>());
+    if (value.same_as(GetRef<Call>(op)))
+    {
+      os << ss.str();
+    } else {
+      std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
+      if (op->args.back().as<RampNode>())
+      {
+        os << rhs;
+      } else {
+        os << "((";
+        this->PrintType(op->dtype.with_lanes(1), os);
+        os << "*)&" << rhs << ")[";
+        this->PrintExpr(op->args.back(), os);
+        os << "]";
+      }
+    }
   } else if (op->op.same_as(builtin_call_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);
     // Enable atomics extension if used.

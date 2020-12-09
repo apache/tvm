@@ -408,7 +408,7 @@ class TextureFlattener : public StmtExprMutator {
       PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
       args.push_back(row_offset);
       args.push_back(col_offset);
-
+      args.push_back(op->indices.back());
       expr = Call(op->buffer->dtype, builtin::text2d_load(), args);
       if (needs_vectorization_)
       {
