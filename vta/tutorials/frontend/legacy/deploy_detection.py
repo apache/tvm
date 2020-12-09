@@ -53,12 +53,6 @@ import os
 import time
 import matplotlib.pyplot as plt
 import numpy as np
-from os.path import join, dirname, pardir
-
-os.chdir(dirname(os.path.abspath(__file__)))
-os.chdir(join(pardir, pardir, pardir, pardir))
-sys.path.append(os.getcwd())
-
 import tvm
 import vta
 from tvm import rpc, autotvm, relay
@@ -66,9 +60,8 @@ from tvm.relay.testing import yolo_detection, darknet
 from tvm.relay.testing.darknet import __darknetffi__
 from tvm.contrib import graph_runtime, graph_runtime, utils
 from tvm.contrib.download import download_testdata
-from vta.python.vta.testing import simulator
-from vta.python.vta.top import graphpack as graph_pack
-from vta.python import vta
+from vta.testing import simulator
+from vta.top import graph_pack
 
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
@@ -226,7 +219,7 @@ with autotvm.tophub.context(target):
             ):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
-            mod = graph_pack.graph_pack(
+            mod = graph_pack(
                 mod["main"],
                 env.BATCH,
                 env.BLOCK_OUT,
