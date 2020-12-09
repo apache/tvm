@@ -76,6 +76,14 @@ struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
   }
 };
 
+struct ThreefryGenerateAttrs : public tvm::AttrsNode<ThreefryGenerateAttrs> {
+  Array<Integer> out_shape;
+
+  TVM_DECLARE_ATTRS(ThreefryGenerateAttrs, "relay.attrs.ThreefryGenerateAttrs") {
+    TVM_ATTR_FIELD(out_shape).describe("Shape of random numbers to generate");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ALGORITHM_H_

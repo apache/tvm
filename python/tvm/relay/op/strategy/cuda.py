@@ -17,7 +17,6 @@
 """Definition of CUDA/GPU operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
-import tvm
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
