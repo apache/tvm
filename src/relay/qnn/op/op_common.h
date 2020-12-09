@@ -171,6 +171,11 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
   ICHECK_EQ(types.size(), kNumQnnBinaryOpArgTypes);
 
   // Check the scale and zero point types
+  for (size_t i = 0; i < 8; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   ICHECK(IsScalarType(types[2], DataType::Float(32)));  // lhs_scale
   ICHECK(IsScalarType(types[3], DataType::Int(32)));    // lhs_zero_point
   ICHECK(IsScalarType(types[4], DataType::Float(32)));  // rhs_scale

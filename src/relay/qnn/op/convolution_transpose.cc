@@ -96,6 +96,12 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Check the types of scale and zero points.
+  for (size_t i = 2; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
+
   ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   ICHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale

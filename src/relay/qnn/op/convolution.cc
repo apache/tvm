@@ -56,6 +56,11 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       << "Expected qnn conv2d type(int32, int16) for output but was " << param->out_dtype;
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
+  for (size_t i = 2; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   // Check the types of scale and zero points.
   ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   ICHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
