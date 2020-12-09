@@ -31,8 +31,12 @@ from ..nn.conv2d import conv2d_winograd_nhwc, _conv2d_winograd_nhwc_impl
 logger = logging.getLogger("conv2d_winograd")
 
 
-def _infer_tile_size(data, kernel):
-    N, CI, H, W = get_const_tuple(data.shape)
+def _infer_tile_size(data, kernel, layout="NCHW"):
+    if layout == "NCHW":
+        N, CI, H, W = get_const_tuple(data.shape)
+    else:
+        assert layout == "NHWC"
+        N, H, W, CI = get_const_tuple(data.shape)
 
     if H % 8 == 0:
         return 4

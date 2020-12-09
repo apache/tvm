@@ -62,7 +62,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             KH, KW, _, CO = get_const_tuple(kernel.shape)
 
             # Pre-compute weight transformation in winograd
-            tile_size = _infer_tile_size(tinfos[0], tinfos[1])
+            tile_size = _infer_tile_size(tinfos[0], tinfos[1], layout="NHWC")
 
             # HWIO -> OIHW
             kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
@@ -159,7 +159,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         KH, KW, _, CO = get_const_tuple(kernel.shape)
 
         # Pre-compute weight transformation in winograd
-        tile_size = _infer_tile_size(data, kernel)
+        tile_size = _infer_tile_size(data, kernel, layout="NHWC")
         kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
         weight = relay.nn.contrib_conv2d_winograd_weight_transform(
             kernel_transform, tile_size=tile_size
