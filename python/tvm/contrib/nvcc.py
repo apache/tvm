@@ -283,6 +283,11 @@ def have_tensorcore(compute_version=None):
             compute_version = tvm.gpu(0).compute_version
         else:
             compute_version = AutotvmGlobalScope.current.cuda_target_arch
+            if compute_version is None:
+                warnings.warn(
+                    "Cannot find cuda architecture. Tensorcore schedules will be disabled."
+                )
+                return False
             # Compute version will be in the form "sm_{major}{minor}"
             major, minor = compute_version.split("_")[1]
             compute_version = major + "." + minor
