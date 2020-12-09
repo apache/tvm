@@ -60,6 +60,7 @@ def _make_session(workspace, mod):
         mod,
         lib_opts=opts["bin_opts"],
         bin_opts=opts["bin_opts"],
+        extra_libs=[os.path.join(tvm.micro.build.CRT_ROOT_DIR, "memory")],
     )
 
     flasher_kw = {
