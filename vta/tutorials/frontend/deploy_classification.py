@@ -42,7 +42,7 @@ from __future__ import absolute_import, print_function
 
 import argparse, json, os, requests, sys, time
 from io import BytesIO
-from os.path import join, isfile
+from os.path import join, isfile, dirname, pardir
 from PIL import Image
 
 from mxnet.gluon.model_zoo import vision
@@ -55,6 +55,10 @@ from tvm import rpc, autotvm, relay
 from tvm.contrib import graph_runtime, utils, download
 from tvm.contrib.debugger import debug_runtime
 from tvm.relay import transform
+
+os.chdir(dirname(os.path.abspath(__file__)))
+os.chdir(join(pardir, pardir, pardir))
+sys.path.append(os.getcwd())
 
 import vta
 from vta.python.vta.testing import simulator
