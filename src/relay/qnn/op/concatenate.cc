@@ -38,6 +38,8 @@ namespace qnn {
 
 bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {
+  // Expected Types: data, input_scales, input_zero_points, output_scale, output_zero_point,
+  // out_type
   ICHECK_EQ(types.size(), 6);
 
   if (types[0].as<IncompleteTypeNode>()) {
