@@ -412,7 +412,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
             name="deformable_conv2d_nhwc.generic",
         )
     else:
-        raise RuntimeError("Layout %s is not supported", layout)
+        raise RuntimeError("Layout %s is not supported in deformable conv2d" % layout)
     return strategy
 
 

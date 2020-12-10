@@ -1143,11 +1143,6 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   }
 
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
-  if (param->groups > 1) {
-    reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
-                                << "deformable_conv2d only support group = 1.");
-    return false;
-  }
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x, ksize_y, ksize_x;
 
@@ -1169,7 +1164,7 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
-    auto wshape = trans_kernel_layout.BackwardShape(weight->shape);
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
 
     if (param->kernel_size.defined()) {
       ICHECK_EQ(param->kernel_size.size(), 2);
@@ -1205,6 +1200,7 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   // infer offset shape
   Array<IndexExpr> offset_shape(
       {dshape_nchw[0], 2 * ksize_y * ksize_x * param->deformable_groups, oshape[2], oshape[3]});
+  offset_shape = trans_in_layout.BackwardShape(offset_shape);
   reporter->Assign(types[1], TensorType(offset_shape, data->dtype));
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
