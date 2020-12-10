@@ -27,6 +27,18 @@ from .. import op as _op
 logger = logging.getLogger("strategy")
 
 
+def naive_schedule(_, outs, target):
+    """Return the naive default schedule"""
+    if "gpu" in target.keys:
+        # For GPU, we at least need thread binding to make a valid schedule.
+        # So the naive schedule cannot be compiled.
+        raise RuntimeError(
+            "Cannot compile for GPU targets if no tuned schedule is found. "
+            "Please see the warning messages above for more information about the failed workloads."
+        )
+    return te.create_schedule(outs[-1].op)
+
+
 def wrap_topi_schedule(topi_schedule):
     """Wrap TOPI schedule which doesn't use attrs"""
 
@@ -357,7 +369,6 @@ def wrap_compute_deformable_conv2d(topi_compute):
     """wrap deformable_conv2d topi compute"""
 
     def _compute_deformable_conv2d(attrs, inputs, out_dtype):
-        assert attrs.data_layout == "NCHW"
         padding = get_const_tuple(attrs.padding)
         strides = get_const_tuple(attrs.strides)
         dilation = get_const_tuple(attrs.dilation)
@@ -384,15 +395,24 @@ def wrap_compute_deformable_conv2d(topi_compute):
 @override_native_generic_func("deformable_conv2d_strategy")
 def deformable_conv2d_strategy(attrs, inputs, out_type, target):
     """deformable_conv2d generic strategy"""
-    logger.warning("deformable_conv2d is not optimized for this platform.")
     layout = attrs.data_layout
-    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
-        wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
-        name="deformable_conv2d.generic",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
+            wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
+            name="deformable_conv2d_nchw.generic",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
+            wrap_topi_schedule(naive_schedule),
+            name="deformable_conv2d_nhwc.generic",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformable conv2d" % layout)
     return strategy
 
 
