@@ -102,22 +102,22 @@ def _threefry(
         Buffer to read the key from.
 
     key_offset: number
-        Threefry will write to key_buf[key_offset:key_offset+4]
+        Threefry will write to :code:`key_buf[key_offset:key_offset+4]`
 
     counter_buf: BufferVar
         Buffer to read the counter from.
 
     counter_offset: number
-        Threefry will write to counter_buf[counter_offset:counter_offset+4]
+        Threefry will write to :code:`counter_buf[counter_offset:counter_offset+4]`
 
     out_buf: BufferVar
         Buffer to read the counter from.
 
     counter_offset: number
-        Threefry will write to out_buf[out_offset:out_offset+4*product(out_shape)]
+        Threefry will write to :code:`out_buf[out_offset:out_offset+4*product(out_shape)]`
 
     out_shape: number
-        Determines the number of ouput states to generate. state[i] will correspond to counter+i.
+        Determines the number of ouput states to generate. :code:`state[i]` will correspond to counter+i.
     """
     nrounds = 20
     nwords = 4
@@ -199,7 +199,7 @@ def threefry_generate(gen, out_shape):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`threefry_seed`. This should not be used in
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be used in
         another function, otherwise random numbers will be repeated.
 
     out_shape : Sequence[int]
@@ -323,7 +323,7 @@ def threefry_split(gen):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`threefry_seed`. This should not be used in
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be used in
         another function, otherwise random numbers will be repeated.
 
     Returns
