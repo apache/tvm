@@ -185,7 +185,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             if judge_winograd_autotvm:
                 if (
                     target.kind.name == "cuda"
-                    and nvcc.have_tensorcore(tvm.gpu(0).compute_version)
+                    and nvcc.have_tensorcore(target=target)
                     and judge_winograd_tensorcore
                 ):
                     strategy.add_implementation(
@@ -203,7 +203,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     )
             if (
                 target.kind.name == "cuda"
-                and nvcc.have_tensorcore(tvm.gpu(0).compute_version)
+                and nvcc.have_tensorcore(target=target)
                 and (
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
                     or (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
@@ -424,7 +424,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
         )
         if (
             target.kind.name == "cuda"
-            and nvcc.have_tensorcore(tvm.gpu(0).compute_version)
+            and nvcc.have_tensorcore(target=target)
             and judge_winograd_tensorcore
         ):
             strategy.add_implementation(
@@ -551,7 +551,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
         N, _, _, _, _ = get_const_tuple(data.shape)
         _, _, _, CI, CO = get_const_tuple(kernel.shape)
         if target.kind.name == "cuda":
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+            if nvcc.have_tensorcore(target=target):
                 if (
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
                     or (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
@@ -667,7 +667,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 plevel=5,
             )
         if target.kind.name == "cuda":
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+            if nvcc.have_tensorcore(target=target):
                 if (
                     (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
                     or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0)
