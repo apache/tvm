@@ -38,29 +38,53 @@ namespace qnn {
 
 bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {
+  // Expected Types: data, input_scales, input_zero_points, output_scale, output_zero_point,
+  // out_type
   ICHECK_EQ(types.size(), 6);
 
+  if (types[0].as<IncompleteTypeNode>()) {
+    return false;
+  }
   // Check the scale and zero point types
   const auto* input_scales_tuple = types[1].as<TupleTypeNode>();
   if (input_scales_tuple == nullptr) {
-    throw Error(ErrorBuilder()
-                << "qnn concatenate requires a tuple of scales as the second argument, found "
-                << PrettyPrint(types[1]));
+    if (types[1].as<IncompleteTypeNode>()) {
+      return false;
+    } else {
+      throw Error(ErrorBuilder()
+                  << "qnn concatenate requires a tuple of scales as the second argument, found "
+                  << PrettyPrint(types[1]));
+    }
   }
   for (const auto& input_scale : input_scales_tuple->fields) {
+    if (input_scale.as<IncompleteTypeNode>()) {
+      return false;
+    }
     ICHECK(IsScalarType(input_scale, DataType::Float(32)));  // input_scales[idx]
   }
 
   const auto* input_zero_points_tuple = types[2].as<TupleTypeNode>();
   if (input_zero_points_tuple == nullptr) {
-    throw Error(ErrorBuilder()
-                << "qnn concatenate requires a tuple of zero_points as the third argument, found "
-                << PrettyPrint(types[2]));
+    if (types[2].as<IncompleteTypeNode>()) {
+      return false;
+    } else {
+      throw Error(ErrorBuilder()
+                  << "qnn concatenate requires a tuple of zero_points as the third argument, found "
+                  << PrettyPrint(types[2]));
+    }
   }
   for (const auto& input_zero_point : input_zero_points_tuple->fields) {
+    if (input_zero_point.as<IncompleteTypeNode>()) {
+      return false;
+    }
     ICHECK(IsScalarType(input_zero_point, DataType::Int(32)));  // input_zero_points[idx]
   }
 
+  for (size_t i = 3; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
   ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
 

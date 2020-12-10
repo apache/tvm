@@ -168,9 +168,22 @@ inline Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
 
 static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                    const TypeReporter& reporter) {
+  // Expected Types: lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point, output_scale,
+  // output_zero_point, out_type
   ICHECK_EQ(types.size(), kNumQnnBinaryOpArgTypes);
 
+  // Check the lhs and rhs types
+  for (size_t i = 0; i < 2; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   // Check the scale and zero point types
+  for (size_t i = 2; i < 8; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   ICHECK(IsScalarType(types[2], DataType::Float(32)));  // lhs_scale
   ICHECK(IsScalarType(types[3], DataType::Int(32)));    // lhs_zero_point
   ICHECK(IsScalarType(types[4], DataType::Float(32)));  // rhs_scale

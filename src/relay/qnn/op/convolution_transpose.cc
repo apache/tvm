@@ -81,6 +81,8 @@ Array<Array<Layout>> QnnConvTransposeInferCorrectLayout(
 
 bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                            const TypeReporter& reporter) {
+  // Expected Types: data, weight, input_zero_point, weight_zero_point, input_scale, weight_scale,
+  // out_type
   ICHECK_EQ(types.size(), 7);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
@@ -96,14 +98,19 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Check the types of scale and zero points.
+  for (size_t i = 2; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // weight_zero_point
   ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
   if (param->groups == 1) {
     size_t axis = param->kernel_layout.find('O');
     ICHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
-    AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
+    AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // weight_scale
   } else {
     // Here, total number of output channels depend on depth multiplier.
     size_t o_axis = param->kernel_layout.find('O');
