@@ -122,7 +122,6 @@ class ExprOp(object):
         return _ffi_api.left_shift(other, self, None)
 
     def __rshift__(self, other):
-        print(type(other))
         return _ffi_api.right_shift(self, other, None)
 
     def __rrshift__(self, other):
