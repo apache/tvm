@@ -58,7 +58,7 @@ import vta
 from tvm import rpc, autotvm, relay
 from tvm.relay.testing import yolo_detection, darknet
 from tvm.relay.testing.darknet import __darknetffi__
-from tvm.contrib import graph_runtime, graph_runtime, utils
+from tvm.contrib import graph_runtime, utils
 from tvm.contrib.download import download_testdata
 from vta.testing import simulator
 from vta.top import graph_pack
