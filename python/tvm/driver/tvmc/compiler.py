@@ -82,11 +82,6 @@ def add_compile_parser(subparsers):
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
         "the fallback/tophub configs will be used",
     )
-    parser.add_argument(
-        "--use-autoscheduler",
-        action="store_true",
-        help="use the autoscheduler to generate the compute schedules",
-    )
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
@@ -116,7 +111,6 @@ def drive_compile(args):
         None,
         args.model_format,
         args.tuning_records,
-        args.use_autoscheduler,
         args.desired_layout,
     )
 
@@ -134,7 +128,6 @@ def compile_model(
     target_host=None,
     model_format=None,
     tuning_records=None,
-    use_autoscheduler=False,
     alter_layout=None,
 ):
     """Compile a model from a supported framework into a TVM module.
@@ -189,6 +182,13 @@ def compile_model(
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
+
+        use_autoscheduler = True
+
+        try:
+            auto_scheduler.load_records(tuning_records)
+        except Exception:
+            use_autoscheduler = False
 
         if use_autoscheduler:
             with auto_scheduler.ApplyHistoryBest(tuning_records):

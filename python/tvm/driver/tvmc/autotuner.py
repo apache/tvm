@@ -23,14 +23,14 @@ import time
 
 from urllib.parse import urlparse
 
-from tvm import autotvm
+from tvm import autotvm, auto_scheduler
 from tvm.autotvm.tuner import GATuner
 from tvm.autotvm.tuner import GridSearchTuner
 from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 
 from . import common, frontends
-from .common import TVMCException, add_tuning_options
+from .common import TVMCException
 from .main import register_parser
 
 
@@ -44,18 +44,132 @@ def add_tune_parser(subparsers):
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
     parser.set_defaults(func=drive_tune)
-    add_tuning_options(parser)
+    parser.add_argument(
+        "--early-stopping",
+        type=int,
+        help="minimum number of trials before early stopping",
+    )
+
+    # There is some extra processing required to define the actual default value
+    # for --min-repeat-ms. This is done in `drive_tune`.
+    parser.add_argument(
+        "--min-repeat-ms",
+        default=None,
+        type=int,
+        help="minimum time to run each trial, in milliseconds. "
+        "Defaults to 0 on x86 and 1000 on all other targets",
+    )
     parser.add_argument(
         "--model-format",
         choices=frontends.get_frontend_names(),
         help="specify input model format",
     )
     parser.add_argument(
+        "--number",
+        default=10,
+        type=int,
+        help="number of runs a single repeat is made of. "
+        "The final number of tuning executions is: "
+        "(1 + number * repeat)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="output file to store the tuning records for the tuning process",
+    )
+    parser.add_argument(
+        "--parallel",
+        default=4,
+        type=int,
+        help="the maximum number of parallel devices to use when tuning",
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="how many times to repeat each measurement",
+    )
+    parser.add_argument(
+        "--rpc-key",
+        help="the RPC tracker key of the target device. Required when --rpc-tracker is provided.",
+    )
+    parser.add_argument(
+        "--rpc-tracker",
+        help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
+        "e.g. '192.168.0.100:9999'",
+    )
+    parser.add_argument(
+        "--target",
+        help="compilation target as plain string, inline JSON or path to a JSON file",
+        required=True,
+    )
+    parser.add_argument(
+        "--target-host",
+        help="the host compilation target, defaults to 'llvm'",
+        default="llvm",
+    )
+    parser.add_argument("--timeout", default=10, help="compilation timeout, in seconds")
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=1000,
+        help="the maximum number of tuning trials to perform",
+    )
+    parser.add_argument(
+        "--tuning-records",
+        metavar="PATH",
+        help="path to an auto-tuning log file by AutoTVM.",
+    )
+    parser.add_argument(
+        "--desired-layout",
+        choices=["NCHW", "NHWC"],
+        default=None,
+        help="change the data layout of the whole graph",
+    )
+    parser.add_argument(
+        "--enable-autoscheduler",
+        help="enable tuning the graph through the autoscheduler",
+        action="store_true",
+    )
+
+    auto_scheduler_group = parser.add_argument_group(
+        "Autoscheduler options",
+        "Autoscheduler options, used when --enabled-auto-scheduler is provided",
+    )
+
+    auto_scheduler_group.add_argument(
+        "--cache-line-bytes",
+        type=int,
+        default=64,
+        help="the size of cache line in bytes",
+    )
+    auto_scheduler_group.add_argument(
+        "--num-cores",
+        type=int,
+        default=4,
+        help="the number of device cores",
+    )
+    auto_scheduler_group.add_argument(
+        "--vector-unit-bytes",
+        type=int,
+        default=16,
+        help="the width of vector units in bytes",
+    )
+    auto_tuning_group = parser.add_argument_group(
+        "Autotuning options",
+        "Autotuning options, used when the autoscheduler is not enabled",
+    )
+    auto_tuning_group.add_argument(
         "--tuner",
         choices=["ga", "gridsearch", "random", "xgb", "xgb_knob", "xgb-rank"],
         default="xgb",
-        help="type of tuner to use",
+        help="type of tuner to use when autotuning. If --enable-autoscheduler is set, this option won't have any effect",
     )
+    # TODO (@leandron) This is a path to a physical file, but
+    #     can be improved in future to add integration with a modelzoo
+    #     or URL, for example.
+    parser.add_argument("FILE", help="path to the input model file")
 
 
 def drive_tune(args):
@@ -66,7 +180,6 @@ def drive_tune(args):
     args: argparse.Namespace
         Arguments from command line parser.
     """
-
     # extra arguments validation before importing the model, so that obvious errors
     # are pointed in advance.
     if args.rpc_tracker:
@@ -93,17 +206,26 @@ def drive_tune(args):
         min_repeat_ms = 0 if target.keys[0] == "cpu" else 1000
         logger.debug("Default --min-repeat-ms for this target is %s", min_repeat_ms)
 
-    tasks = get_tuning_tasks(
-        mod=mod,
-        params=params,
-        target=target,
-        target_host=args.target_host,
-        alter_layout=args.desired_layout,
-    )
+    if args.enable_autoscheduler:
+        tasks, weights = autoscheduler_get_tuning_tasks(
+            mod=mod,
+            params=params,
+            target=target,
+            target_host=args.target_host,
+            alter_layout=args.desired_layout,
+        )
+    else:
+        tasks = autotuner_get_tuning_tasks(
+            mod=mod,
+            params=params,
+            target=target,
+            target_host=args.target_host,
+            alter_layout=args.desired_layout,
+        )
 
     if args.rpc_tracker:
-
-        runner = autotvm.RPCRunner(
+        runner_ctor = auto_scheduler.RPCRunner if args.enable_autoscheduler else autotvm.RPCRunner
+        runner = runner_ctor(
             key=args.rpc_key,
             host=rpc_hostname,
             port=rpc_port,
@@ -115,28 +237,55 @@ def drive_tune(args):
         )
     else:
         logger.info("starting localhost tuning")
-        runner = autotvm.LocalRunner(
+        runner_ctor = (
+            auto_scheduler.LocalRunner if args.enable_autoscheduler else autotvm.LocalRunner
+        )
+        runner = runner_ctor(
             number=args.number,
             repeat=args.repeat,
             timeout=args.timeout,
             min_repeat_ms=min_repeat_ms,
         )
 
-    tuning_option = {
-        "tuner": args.tuner,
-        "trials": args.trials,
-        "early_stopping": args.early_stopping,
-        "measure_option": autotvm.measure_option(
-            builder=autotvm.LocalBuilder(build_func="default"), runner=runner
-        ),
-        "tuning_records": args.tuning_records,
-    }
-    logger.debug(" tuning options: %s", tuning_option)
+    if args.enable_autoscheduler:
+        # Create the autoscheduler tuning options
+        tuning_options = auto_scheduler.TuningOptions(
+            num_measure_trials=args.trials,
+            measure_callbacks=[auto_scheduler.RecordToFile(args.output)],
+            runner=runner,
+            early_stopping=args.early_stopping,
+        )
 
-    tune_tasks(tasks, args.output, **tuning_option)
+        # Specify hardware parameters
+        print(type(args.vector_unit_bytes))
+        hardware_params = auto_scheduler.HardwareParams(
+            args.num_cores, args.vector_unit_bytes, args.cache_line_bytes, 0, 0, 0, 0, 0
+        )
+
+        # Schedule the tasks (i.e., produce a schedule for each task)
+        schedule_tasks(
+            tasks,
+            weights,
+            tuning_options,
+            args.tuning_records,
+        )
+
+    else:
+        tuning_option = {
+            "tuner": args.tuner,
+            "trials": args.trials,
+            "early_stopping": args.early_stopping,
+            "measure_option": autotvm.measure_option(
+                builder=autotvm.LocalBuilder(build_func="default"), runner=runner
+            ),
+            "tuning_records": args.tuning_records,
+        }
+        logger.debug(" tuning options: %s", tuning_option)
+
+        tune_tasks(tasks, args.output, **tuning_option)
 
 
-def get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
+def autotuner_get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
     """Get the tuning tasks for a given relay module.
 
     Parameters
@@ -170,6 +319,72 @@ def get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
     )
 
     return tasks
+
+
+def autoscheduler_get_tuning_tasks(
+    mod, params, target, target_host=None, alter_layout=None, hardware_params=None
+):
+    """Get the tuning tasks for a given relay module.
+
+    Parameters
+    ----------
+    mod : tvm.relay.Module
+        The relay module from which to extract tuning tasks.
+    params : dict
+        The params for the relay module.
+    target : tvm.target.Target
+        The compilation target.
+    target_host : str, optional
+        The compilation target for the host.
+    alter_layout : str, optional
+        The layout to convert the graph to. Note, the convert layout
+        pass doesn't currently guarantee the whole of the graph will
+        be converted to the chosen layout.
+
+    Returns
+    -------
+    tasks : list of autotvm.Tasks
+        list of tasks to be tuned
+    weights : List[int]
+        the weight (i.e. the number of appearance) of extracted tasks
+    """
+    if alter_layout:
+        mod = common.convert_graph_layout(mod, alter_layout)
+
+    # Extract the tasks
+    tasks, task_weights = auto_scheduler.extract_tasks(
+        mod["main"], params, target=target, target_host=target_host, hardware_params=hardware_params
+    )
+
+    return tasks, task_weights
+
+
+def schedule_tasks(
+    tasks,
+    task_weights,
+    tuning_options,
+    tuning_records=None,
+):
+    """Generate the schedules for the different tasks (i.e., subgraphs) contained in the module.
+    Store the schedules in a json file that will be used later by the compiler.
+
+    Parameters
+    ----------
+    tasks : list
+        A list of auto_scheduler.SearchTask to tune.
+    task_weights : list
+        The weight (i.e. the number of appearance) of extracted tasks
+    tuning_options:
+        The options of tuning
+    tuning_records : str, optional
+        The json file used to preload the autoscheduler
+    """
+
+    # Create the scheduler
+    tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=tuning_records)
+
+    # Tune the tasks
+    tuner.tune(tuning_options)
 
 
 def tune_tasks(
