@@ -249,8 +249,16 @@ inline PrimExpr SimplifyOffset(const Array<PrimExpr>& shape, const Array<PrimExp
   return base;
 }
 
-size_t GetAxisSeparator() {
-  return 1;
+size_t GetAxisSeparator(size_t shape_rank) {
+  // Convention is that shape is packed with the last axis
+  // as RGBA (length 4) and the second to last axis
+  // will be the packed texure columns. All other
+  // axes are packed into rows.
+  //
+  // e.g. [N,C,H,W,c] -> TextureFlattening -> [N*C*H, W, c]
+  //
+
+  return shape_rank - 2;
 }
 }
 
@@ -293,7 +301,7 @@ class TextureFlattener : public StmtExprMutator {
       auto height = IntImm(DataType::Int(32), 1);
       //TODO(csulivan): this does not handle the case where the last dimension isn't previously set to a vector(4)
       for (size_t i = 0; i < op->bounds.size()-1; i++) {
-        if (i < GetAxisSeparator()) {
+        if (i < GetAxisSeparator(op->bounds.size())) {
           width *= op->bounds[i]->extent;
         } else {
           height *= op->bounds[i]->extent;
@@ -339,7 +347,7 @@ class TextureFlattener : public StmtExprMutator {
       Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
       for (size_t i = 0; i < op->buffer->shape.size()-1; i++)
       {
-        if (i < GetAxisSeparator()) {
+        if (i < GetAxisSeparator(op->buffer->shape.size())) {
           row_dims.push_back(op->buffer->shape[i]);
           row_indices.push_back(op->indices[i]);
         } else {
@@ -391,7 +399,7 @@ class TextureFlattener : public StmtExprMutator {
       Array<PrimExpr> row_dims, row_indices, col_dims, col_indices;
       for (size_t i = 0; i < op->buffer->shape.size()-1; i++)
       {
-        if (i < GetAxisSeparator()) {
+        if (i < GetAxisSeparator(op->buffer->shape.size())) {
           row_dims.push_back(op->buffer->shape[i]);
           row_indices.push_back(op->indices[i]);
         } else {
