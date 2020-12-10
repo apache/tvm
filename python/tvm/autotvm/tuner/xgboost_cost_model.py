@@ -469,7 +469,11 @@ def custom_callback(
     # pylint: disable=import-outside-toplevel
     from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
-    from xgboost.training import aggcv
+
+    try:
+        from xgboost.training import aggcv
+    except ImportError:
+        from xgboost.callback import _aggcv as aggcv
 
     state = {}
     metric_shortname = metric.split("-")[1]
