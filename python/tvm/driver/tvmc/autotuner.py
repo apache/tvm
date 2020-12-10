@@ -164,7 +164,7 @@ def add_tune_parser(subparsers):
         "--tuner",
         choices=["ga", "gridsearch", "random", "xgb", "xgb_knob", "xgb-rank"],
         default="xgb",
-        help="type of tuner to use when autotuning. If --enable-autoscheduler is set, this option won't have any effect",
+        help="type of tuner to use when autotuning.",
     )
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
@@ -207,12 +207,17 @@ def drive_tune(args):
         logger.debug("Default --min-repeat-ms for this target is %s", min_repeat_ms)
 
     if args.enable_autoscheduler:
+        # Specify hardware parameters
+        hardware_params = auto_scheduler.HardwareParams(
+            args.num_cores, args.vector_unit_bytes, args.cache_line_bytes, 0, 0, 0, 0, 0
+        )
         tasks, weights = autoscheduler_get_tuning_tasks(
             mod=mod,
             params=params,
             target=target,
             target_host=args.target_host,
             alter_layout=args.desired_layout,
+            hardware_params=hardware_params,
         )
     else:
         tasks = autotuner_get_tuning_tasks(
@@ -254,12 +259,6 @@ def drive_tune(args):
             measure_callbacks=[auto_scheduler.RecordToFile(args.output)],
             runner=runner,
             early_stopping=args.early_stopping,
-        )
-
-        # Specify hardware parameters
-        print(type(args.vector_unit_bytes))
-        hardware_params = auto_scheduler.HardwareParams(
-            args.num_cores, args.vector_unit_bytes, args.cache_line_bytes, 0, 0, 0, 0, 0
         )
 
         # Schedule the tasks (i.e., produce a schedule for each task)

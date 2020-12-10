@@ -187,7 +187,7 @@ def compile_model(
 
         try:
             auto_scheduler.load_records(tuning_records)
-        except Exception:
+        except tvm._ffi.base.TVMError:
             use_autoscheduler = False
 
         if use_autoscheduler:
