@@ -3038,7 +3038,10 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
-    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
+    if isinstance(ret, list):
+        # ListConstruct kept original python list. Convert to tuple.
+        ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
+    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
     return transform.RemoveUnusedFunctions()(mod), tvm_params
