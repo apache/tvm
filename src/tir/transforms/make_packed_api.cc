@@ -275,7 +275,6 @@ namespace transform {
 
 Pass MakePackedAPI(int num_unpacked_args) {
   auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
-    LOG(INFO) << "Before Make Packed API:\n" << m;
     IRModuleNode* mptr = m.CopyOnWrite();
     std::vector<std::pair<GlobalVar, PrimFunc> > updates;
 
@@ -293,7 +292,6 @@ Pass MakePackedAPI(int num_unpacked_args) {
     for (const auto& pair : updates) {
       mptr->AddUnchecked(pair.first, pair.second);
     }
-    LOG(INFO) << "After Make Packed API:\n" << m;
     return m;
   };
 

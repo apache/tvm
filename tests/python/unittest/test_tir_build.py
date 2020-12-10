@@ -11,6 +11,6 @@ def add():
     mod = tvm.IRModule({'add': func})
     func = tvm.build(mod['add'])
     out = func(1.0, 2.0)
-    print(out)
+    assert out == 3.0
 
 add()

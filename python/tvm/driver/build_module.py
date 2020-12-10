@@ -177,10 +177,7 @@ def lower(sch, args, name="main", binds=None, simple_mode=False):
     # Phase 1
     pass_list += [tvm.tir.transform.InjectPrefetch()]
 
-    if is_tir_schedule:
-        pass
-        # pass_list += [tvm.tir.transform.BufferFlatten()]
-    else:
+    if not is_tir_schedule:
         pass_list += [tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers)]
     pass_list += [
         tvm.tir.transform.BF16Legalize(),
