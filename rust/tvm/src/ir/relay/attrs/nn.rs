@@ -121,6 +121,7 @@ pub struct LeakyReluAttrsNode {
 #[ref_name = "AvgPool2DAttrs"]
 #[type_key = "relay.attrs.AvgPool2DAttrs"]
 pub struct AvgPool2DAttrsNode {
+    pub base: BaseAttrsNode,
     pub pool_size: Array<IndexExpr>,
     pub strides: Array<IndexExpr>,
     pub padding: Array<IndexExpr>,
