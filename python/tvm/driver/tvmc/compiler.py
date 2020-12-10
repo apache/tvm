@@ -184,7 +184,6 @@ def compile_model(
         logger.debug("tuning records file provided: %s", tuning_records)
 
         use_autoscheduler = True
-
         try:
             auto_scheduler.load_records(tuning_records)
         except tvm._ffi.base.TVMError:

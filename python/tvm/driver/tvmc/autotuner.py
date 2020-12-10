@@ -156,6 +156,36 @@ def add_tune_parser(subparsers):
         default=16,
         help="the width of vector units in bytes",
     )
+    auto_scheduler_group.add_argument(
+        "--max-shared-memory-per-block",
+        type=int,
+        default=0,
+        help="the max shared memory per block in bytes",
+    )
+    auto_scheduler_group.add_argument(
+        "--max-local-memory-per-block",
+        type=int,
+        default=0,
+        help="the max local memory per block in bytes",
+    )
+    auto_scheduler_group.add_argument(
+        "--max-threads-per-block",
+        type=int,
+        default=0,
+        help="the max number of threads per block",
+    )
+    auto_scheduler_group.add_argument(
+        "--max-vthread-extent",
+        type=int,
+        default=0,
+        help="the max vthread extent",
+    )
+    auto_scheduler_group.add_argument(
+        "--warp-size",
+        type=int,
+        default=0,
+        help="the thread numbers of a warp",
+    )
     auto_tuning_group = parser.add_argument_group(
         "Autotuning options",
         "Autotuning options, used when the autoscheduler is not enabled",
@@ -206,28 +236,6 @@ def drive_tune(args):
         min_repeat_ms = 0 if target.keys[0] == "cpu" else 1000
         logger.debug("Default --min-repeat-ms for this target is %s", min_repeat_ms)
 
-    if args.enable_autoscheduler:
-        # Specify hardware parameters
-        hardware_params = auto_scheduler.HardwareParams(
-            args.num_cores, args.vector_unit_bytes, args.cache_line_bytes, 0, 0, 0, 0, 0
-        )
-        tasks, weights = autoscheduler_get_tuning_tasks(
-            mod=mod,
-            params=params,
-            target=target,
-            target_host=args.target_host,
-            alter_layout=args.desired_layout,
-            hardware_params=hardware_params,
-        )
-    else:
-        tasks = autotuner_get_tuning_tasks(
-            mod=mod,
-            params=params,
-            target=target,
-            target_host=args.target_host,
-            alter_layout=args.desired_layout,
-        )
-
     if args.rpc_tracker:
         runner_ctor = auto_scheduler.RPCRunner if args.enable_autoscheduler else autotvm.RPCRunner
         runner = runner_ctor(
@@ -253,6 +261,26 @@ def drive_tune(args):
         )
 
     if args.enable_autoscheduler:
+        # Specify hardware parameters
+        hardware_params = auto_scheduler.HardwareParams(
+            args.num_cores,
+            args.vector_unit_bytes,
+            args.cache_line_bytes,
+            args.max_shared_memory_per_block,
+            args.max_local_memory_per_block,
+            args.max_threads_per_block,
+            args.max_vthread_extent,
+            args.warp_size,
+        )
+        tasks, weights = autoscheduler_get_tuning_tasks(
+            mod=mod,
+            params=params,
+            target=target,
+            target_host=args.target_host,
+            alter_layout=args.desired_layout,
+            hardware_params=hardware_params,
+        )
+
         # Create the autoscheduler tuning options
         tuning_options = auto_scheduler.TuningOptions(
             num_measure_trials=args.trials,
@@ -268,8 +296,15 @@ def drive_tune(args):
             tuning_options,
             args.tuning_records,
         )
-
     else:
+        tasks = autotvm_get_tuning_tasks(
+            mod=mod,
+            params=params,
+            target=target,
+            target_host=args.target_host,
+            alter_layout=args.desired_layout,
+        )
+
         tuning_option = {
             "tuner": args.tuner,
             "trials": args.trials,
@@ -284,8 +319,8 @@ def drive_tune(args):
         tune_tasks(tasks, args.output, **tuning_option)
 
 
-def autotuner_get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
-    """Get the tuning tasks for a given relay module.
+def autotvm_get_tuning_tasks(mod, params, target, target_host=None, alter_layout=None):
+    """Get the autotvm tuning tasks for a given relay module.
 
     Parameters
     ----------
@@ -323,7 +358,7 @@ def autotuner_get_tuning_tasks(mod, params, target, target_host=None, alter_layo
 def autoscheduler_get_tuning_tasks(
     mod, params, target, target_host=None, alter_layout=None, hardware_params=None
 ):
-    """Get the tuning tasks for a given relay module.
+    """Get the autoscheduler tuning tasks for a given relay module.
 
     Parameters
     ----------
@@ -339,6 +374,8 @@ def autoscheduler_get_tuning_tasks(
         The layout to convert the graph to. Note, the convert layout
         pass doesn't currently guarantee the whole of the graph will
         be converted to the chosen layout.
+    hardware_params : Optional[HardwareParams]
+        Hardware parameters used for the search tasks
 
     Returns
     -------
@@ -373,7 +410,7 @@ def schedule_tasks(
         A list of auto_scheduler.SearchTask to tune.
     task_weights : list
         The weight (i.e. the number of appearance) of extracted tasks
-    tuning_options:
+    tuning_options: dict
         The options of tuning
     tuning_records : str, optional
         The json file used to preload the autoscheduler
