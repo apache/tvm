@@ -2095,6 +2095,17 @@ class Clip(OnnxOpConverter):
         return result
 
 
+class Softplus(OnnxOpConverter):
+    """Operator converter for Softplus."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        data_dtype = infer_type(data).checked_type.dtype
+        data = _op.exp(data) + _expr.const(1, dtype=data_dtype)
+        return _op.log(data)
+
+
 class Loop(OnnxOpConverter):
     """Operator converter for Loop"""
 
@@ -2371,6 +2382,7 @@ def _get_convert_map(opset):
         "Sum": Sum.get_converter(opset),
         "Mean": Mean.get_converter(opset),
         "Clip": Clip.get_converter(opset),
+        "Softplus": Softplus.get_converter(opset),
         # softmax default axis is different in onnx
         "Softmax": Softmax.get_converter(opset),
         "LogSoftmax": AttrCvt("log_softmax", {"axis": ("axis", 1)}),

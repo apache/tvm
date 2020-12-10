@@ -3983,6 +3983,34 @@ def test_maxunpool():
     verify_maxunpool(xT, xI, [2, 2], strides=[2, 2], pads=pads)
 
 
+@tvm.testing.uses_gpu
+def test_softplus():
+    def verify_softplus(indata):
+        node = helper.make_node(
+            "Softplus",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "softplus_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="softplus_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11)
+
+    # Simple case with all signs.
+    input_data = np.array([[-1, 0, 1]], dtype=np.float32)
+    verify_softplus(input_data)
+    # More fancy case.
+    input_data = np.random.randn(1, 32, 32, 3).astype("float32")
+    verify_softplus(input_data)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -4061,3 +4089,4 @@ if __name__ == "__main__":
     test_loop()
     test_size()
     test_maxunpool()
+    test_softplus()
