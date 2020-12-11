@@ -117,7 +117,8 @@ def _threefry(
         Threefry will write to :code:`out_buf[out_offset:out_offset+4*product(out_shape)]`
 
     out_shape: number
-        Determines the number of ouput states to generate. :code:`state[i]` will correspond to counter+i.
+        Determines the number of ouput states to generate. :code:`state[i]` will correspond to
+        counter+i.
     """
     nrounds = 20
     nwords = 4
@@ -199,8 +200,8 @@ def threefry_generate(gen, out_shape):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be used in
-        another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be
+        used in another function, otherwise random numbers will be repeated.
 
     out_shape : Sequence[int]
         Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
@@ -323,8 +324,8 @@ def threefry_split(gen):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be used in
-        another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be
+        used in another function, otherwise random numbers will be repeated.
 
     Returns
     -------
