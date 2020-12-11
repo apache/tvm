@@ -728,14 +728,15 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
     ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
 
-    // The assignment below introduces side-effect, and the resulting value cannot
-    // be reused across multiple expression, thus a new scope is needed
-    int vec_scope = BeginScope();
 
     if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
     } else {
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
+      int vec_scope = BeginScope();
+
       // store elements seperately
       std::string index = SSAGetID(PrintExpr(op->index), op->index.dtype());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.dtype());
@@ -762,8 +763,8 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
         PrintVecElemLoad(value, op->value.dtype(), i, stream);
         stream << ";\n";
       }
+      EndScope(vec_scope);
     }
-    EndScope(vec_scope);
   }
 }
 
