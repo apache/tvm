@@ -58,7 +58,7 @@ import vta
 from tvm import rpc, autotvm, relay
 from tvm.relay.testing import yolo_detection, darknet
 from tvm.relay.testing.darknet import __darknetffi__
-from tvm.contrib import graph_runtime, graph_runtime, util
+from tvm.contrib import graph_runtime, utils
 from tvm.contrib.download import download_testdata
 from vta.testing import simulator
 from vta.top import graph_pack
@@ -123,7 +123,7 @@ device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
 
 pack_dict = {
-    "yolov3-tiny": ["nn.max_pool2d", "cast", 4, 185],
+    "yolov3-tiny": ["nn.max_pool2d", "cast", 4, 186],
 }
 
 # Name of Darknet model to compile
@@ -131,7 +131,7 @@ pack_dict = {
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
 # the number 4 indicate the the ``start_pack`` index is 4, the
-# number 185 indicate the ``stop_pack index`` is 185, by using
+# number 186 indicate the ``stop_pack index`` is 186, by using
 # name and index number, here we can located to correct place
 # where to start/end when there are multiple ``nn.max_pool2d``
 # or ``cast``, print(mod.astext(show_meta_data=False)) can help
