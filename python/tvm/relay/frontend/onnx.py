@@ -2278,6 +2278,15 @@ class If(OnnxOpConverter):
         with else_graph:
             else_expr = else_graph.from_onnx(else_branch, graph_scope.opset, get_output_expr=True)
 
+        # If the condition is an available boolean constant, there's no need to
+        # insert an If statement, just directly return the proper branch.
+        if cond.name_hint in params and params[cond.name_hint].dtype is bool:
+            cond_value = bool(params[cond.name_hint].asnumpy())
+            if cond_value:
+                return then_expr
+            else:
+                return else_expr
+
         # Add constants from both branches to parent graph.
         graph_scope._params.update(then_graph._params)
         then_free_vars = analysis.free_vars(then_expr)
