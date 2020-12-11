@@ -209,7 +209,7 @@ setup(
     distclass=BinaryDistribution,
     url="https://github.com/apache/tvm",
     ext_modules=config_cython(),
-    **setup_kwargs,
+    **setup_kwargs
 )
 
 
