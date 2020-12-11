@@ -274,6 +274,7 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
   this->PrintIndent();
   this->PrintType(t, stream);
   stream << ' ' << sret << ";\n";
+  int ssa_scope = BeginScope();
   {
     // Unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
@@ -297,6 +298,7 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
       PrintVecElemStore(sret, t, i, value_temp.str());
     }
   }
+  EndScope(ssa_scope);
   os << sret;
 }
 
