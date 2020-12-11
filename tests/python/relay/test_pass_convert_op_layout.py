@@ -318,7 +318,7 @@ def test_deformable_conv_bias_pool_convert_layout():
             data_layout=layout,
             kernel_layout=kernel_layout,
         )
-        y = relay.nn.bias_add(y, bias, axis=-1)
+        y = relay.nn.bias_add(y, bias, axis=-1 if layout == "NHWC" else 1)
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout=layout)
         y = relay.cast(y, "int32")
@@ -326,7 +326,7 @@ def test_deformable_conv_bias_pool_convert_layout():
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
-    def expected(N, CI, H, W, CO, KH, KW, src_layout, dst_layout):
+    def expected(N, CI, H, W, CO, KH, KW, OH, OW, src_layout, dst_layout):
         layout_map = {"src": {}, "dst": {}}
         if src_layout == "NCHW":
             nchw = layout_map["src"]
@@ -337,18 +337,20 @@ def test_deformable_conv_bias_pool_convert_layout():
 
         nchw["data_layout"] = "NCHW"
         nchw["data_shape"] = (N, CI, H, W)
+        nchw["offset_shape"] = (N, KH * KW * 2, OH, OW)
         nchw["weight_shape"] = (CO, CI, KH, KW)
         nchw["kernel_layout"] = "OIHW"
 
         nhwc["data_layout"] = "NHWC"
         nhwc["data_shape"] = (N, H, W, CI)
+        nhwc["offset_shape"] = (N, OH, OW, KH * KW * 2)
         nhwc["weight_shape"] = (KH, KW, CI, CO)
         nhwc["kernel_layout"] = "HWIO"
 
         bias_shape = (CO,)
 
         data = relay.var("data", shape=layout_map["src"]["data_shape"], dtype="float32")
-        offset = relay.var("offset")
+        offset = relay.var("offset", shape=layout_map["src"]["offset_shape"], dtype="float32")
         weight = relay.var("weight", shape=layout_map["src"]["weight_shape"], dtype="float32")
         bias = relay.var("bias", shape=bias_shape, dtype="float32")
 
@@ -370,13 +372,17 @@ def test_deformable_conv_bias_pool_convert_layout():
             data_layout=layout_map["dst"]["data_layout"],
             kernel_layout=layout_map["dst"]["kernel_layout"],
         )
-        bias = relay.expand_dims(bias, axis=0, num_newaxis=3)
+        if layout_map["src"]["data_layout"] == "NHWC":
+            bias = relay.expand_dims(bias, axis=0, num_newaxis=3)
+        else:
+            bias = relay.expand_dims(bias, axis=1, num_newaxis=2)
+            bias = relay.expand_dims(bias, axis=0)
         bias = relay.layout_transform(
             bias, layout_map["src"]["data_layout"], layout_map["dst"]["data_layout"]
         )
         y = relay.add(y, bias)
         y = relay.nn.relu(y)
-        y = relay.nn.max_pool2d(y, pool_size=(2, 2))
+        y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout=layout_map["dst"]["data_layout"])
         y = relay.cast(y, "int32")
         y = relay.layout_transform(
             y, layout_map["dst"]["data_layout"], layout_map["src"]["data_layout"]
@@ -388,13 +394,17 @@ def test_deformable_conv_bias_pool_convert_layout():
     # NHWC -> NCHW
     a = before(1, 3, 224, 224, 32, 3, 3, "NHWC")
     a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NCHW", "default"]}))
-    b = run_opt_pass(expected(1, 3, 224, 224, 32, 3, 3, "NHWC", "NCHW"), transform.InferType())
+    b = run_opt_pass(
+        expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NHWC", "NCHW"), transform.InferType()
+    )
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
     # NCHW -> NHWC
     a = before(1, 3, 224, 224, 32, 3, 3, "NCHW")
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NCHW", "default"]}))
-    b = run_opt_pass(expected(1, 3, 224, 224, 32, 3, 3, "NCHW", "NHWC"), transform.InferType())
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.deformable_conv2d": ["NHWC", "default"]}))
+    b = run_opt_pass(
+        expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NCHW", "NHWC"), transform.InferType()
+    )
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
