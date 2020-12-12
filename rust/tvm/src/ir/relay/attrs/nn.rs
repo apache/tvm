@@ -129,3 +129,16 @@ pub struct AvgPool2DAttrsNode {
     pub ceil_mode: bool,
     pub count_include_pad: bool
 }
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "UpSamplingAttrs"]
+#[type_key = "relay.attrs.UpSamplingAttrs"]
+pub struct UpSamplingAttrsNode {
+  pub base: BaseAttrsNode,
+  pub scale_h: f64,
+  pub scale_w: f64,
+  pub layout: TString,
+  pub method: TString,
+  pub align_corners: bool
+}
