@@ -250,9 +250,7 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     check_result([data], mod, expected, flatten=True)
 
 
-# TODO(zhiics) Enable argwhere gpu test after sort is fixed. Otherwise, we have
-# to use thrust to guarantee the correct results which has been tested locally.
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_any_argwhere():
     verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
