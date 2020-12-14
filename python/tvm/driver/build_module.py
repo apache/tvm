@@ -159,7 +159,6 @@ def lower(sch, args, name="main", binds=None, simple_mode=False):
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
     lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
 
-
     # Phase 0
     if isinstance(sch, schedule.Schedule):
         mod = form_irmodule(sch, args, name, binds)
@@ -206,7 +205,6 @@ def lower(sch, args, name="main", binds=None, simple_mode=False):
 
     optimize = tvm.transform.Sequential(pass_list)
     mod = optimize(mod)
-    print(mod)
     return mod
 
 
