@@ -84,9 +84,7 @@ import tensorflow as tf
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay import data_dep_optimization as ddo
-from tensorflow.python.framework.convert_to_constants import (
-    convert_variables_to_constants_v2,
-)
+from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 import scipy.sparse as sp
 
 
@@ -210,14 +208,12 @@ def import_graphdef(
 # the weights are sparse, we won't see any speedup because we are using
 # regular dense matrix multiplications on these dense (but mostly zero)
 # tensors instead of sparse aware kernels.
-def run_relay_graph(mod, params, shape_dict, target, ctx):
+def run_relay_graph(mod, params, shape_dict, target, ctx, input):
     with relay.build_config(opt_level=3):
         lib = relay.build(mod, target=target, params=params)
-    input_shape = shape_dict["input_1"]
-    dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype("int32")
 
     m = graph_runtime.GraphModule(lib["default"](ctx))
-    m.set_input(0, dummy_data)
+    m.set_input(0, input)
     m.run()
     tvm_output = m.get_output(0)
 
@@ -225,14 +221,14 @@ def run_relay_graph(mod, params, shape_dict, target, ctx):
     prof_res = np.array(ftimer().results) * 1000
     print(
         "%-20s %-19s (%s)"
-        % ("Runtime:", "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res))
+        % ("Runtime:", "Avg-%.2f ms" % np.mean(prof_res), "Std-%.2f ms" % np.std(prof_res))
     )
-    return tvm_output
+    return tvm_output.asnumpy()
 
 
-def run_dense(mod, params, shape_dict, target, ctx):
+def run_dense(mod, params, shape_dict, target, ctx, input):
     print("Dense Model Benchmark:")
-    return run_relay_graph(mod, params, shape_dict, target, ctx)
+    return run_relay_graph(mod, params, shape_dict, target, ctx, input)
 
 
 ###############################################################################
@@ -297,13 +293,13 @@ def random_sparse_bert_params(func, params, density, BS_R, BS_C):
     return new_params
 
 
-def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights):
+def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights, input):
     mod, params = ddo.simplify_fc_transpose.convert(mod["main"], params)
     if gen_weights:
         params = random_sparse_bert_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
     mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
     print("Block Sparse Model with {blocksize}x1 blocks:".format(blocksize=bs_r))
-    return run_relay_graph(mod, params, shape_dict, target, ctx)
+    return run_relay_graph(mod, params, shape_dict, target, ctx, input)
 
 
 ###############################################################################
@@ -314,13 +310,20 @@ def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights
 # you'll need to uncomment the last line first.
 def benchmark():
     mod, params, shape_dict = import_graphdef(name, batch_size, seq_len)
-    run_dense(mod, params, shape_dict, target, ctx)
+    input_shape = shape_dict["input_1"]
+    dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype("int32")
+    dense_output = run_dense(mod, params, shape_dict, target, ctx, dummy_data)
     if measure_sparse:
         gen_weights = "prune" not in name
-        run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights)
+        sparse_output = run_sparse(
+            mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights, dummy_data
+        )
+        np.testing.assert_allclose(
+            dense_output, sparse_output, equal_nan=True, verbose=True, atol=1e-5, rtol=1e-5
+        )
 
 
-# benchmark()
+benchmark()
 
 ###############################################################################
 # Sample Output
