@@ -147,8 +147,8 @@ def threefry_generate(gen, shape):
         same generator will generate the same random values. This generator should be
         treated as an opaque pointer. You can create one from calling
         :py:func:`threefry_seed`, :py:func:`threefry_split`, or
-        :py:func:`threefry_generate`. _Do not use this generator again after calling
-        this function_.
+        :py:func:`threefry_generate`. **Do not use this generator again after calling
+        this function.**
 
     shape : Sequence[int]
         Desired outputs shape of random numbers
@@ -191,8 +191,8 @@ def threefry_split(gen):
         same generator will generate the same random values. This generator should be
         treated as an opaque pointer. You can create one from calling
         :py:func:`threefry_seed`, :py:func:`threefry_split`, or
-        :py:func:`threefry_generate`. _Do not use this generator again after calling
-        this function_.
+        :py:func:`threefry_generate`. **Do not use this generator again after calling
+        this function.**
 
     Returns
     -------
