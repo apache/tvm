@@ -129,6 +129,8 @@ class PackedFunc {
   inline FType body() const;
   /*! \return the name of this function */
   inline String name() const;
+  /*! \brief Set the name of the packed function. */
+  void set_name(String name) { name_ = name; }
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return body_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -140,7 +142,6 @@ class PackedFunc {
 
   /*! \brief the name of this packed function */
   String name_;
-  friend class Registry;
 };
 
 /*!
@@ -241,9 +242,8 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
                                   FLambda, std::function<R(Args...)>>::value>::type>
-  TypedPackedFunc(const FLambda& typed_lambda, String name = "<anonymous>")
-      : name_(name) {  // NOLINT(*)
-    this->AssignTypedLambda(typed_lambda);
+  TypedPackedFunc(const FLambda& typed_lambda, String name = "<anonymous>") {  // NOLINT(*)
+    this->AssignTypedLambda(typed_lambda, name);
   }
   /*!
    * \brief copy assignment operator from typed lambda
@@ -265,7 +265,7 @@ class TypedPackedFunc<R(Args...)> {
                                   std::is_convertible<FLambda,
                                                       std::function<R(Args...)>>::value>::type>
   TSelf& operator=(FLambda typed_lambda) {  // NOLINT(*)
-    this->AssignTypedLambda(typed_lambda);
+    this->AssignTypedLambda(typed_lambda, "<anonymous>");
     return *this;
   }
   /*!
@@ -275,7 +275,6 @@ class TypedPackedFunc<R(Args...)> {
    */
   TSelf& operator=(PackedFunc packed) {
     packed_ = packed;
-    name_ = packed.name();
     return *this;
   }
   /*!
@@ -293,8 +292,9 @@ class TypedPackedFunc<R(Args...)> {
    * \return reference the internal PackedFunc
    */
   const PackedFunc& packed() const { return packed_; }
-  String name() const { return name_; }
-  void set_name(String name) { name_ = name; }
+  String name() const { return packed_.name(); }
+  /*! \brief Set the name associated with the typed packed function. */
+  void set_name(String name) { packed_.set_name(name); }
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return packed_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -304,17 +304,16 @@ class TypedPackedFunc<R(Args...)> {
   friend class TVMRetValue;
   /*! \brief The internal packed function */
   PackedFunc packed_;
-  /*! \brief The name identifying this function */
-  String name_;
   /*!
    * \brief Assign the packed field using a typed lambda function.
    *
    * \param flambda The lambda function.
+   * \param name The name to associate with the lambda function.
    * \tparam FLambda The lambda function type.
    * \note We capture the lambda when possible for maximum efficiency.
    */
   template <typename FLambda>
-  inline void AssignTypedLambda(FLambda flambda);
+  inline void AssignTypedLambda(FLambda flambda, String name);
 };
 
 /*! \brief Arguments into TVM functions. */
@@ -1320,14 +1319,15 @@ TypedPackedFunc<R(Args...)>::TypedPackedFunc(TVMMovableArgValue_&& value)
 
 template <typename R, typename... Args>
 template <typename FType>
-inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda) {
-  String name = name_;  // Perform copy so the lambda can capture it
+inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda, String name) {
   packed_ = PackedFunc([flambda, name](const TVMArgs& args, TVMRetValue* rv) {
-    CHECK_EQ(args.size(), sizeof...(Args))
-        << name << " expects " << sizeof...(Args) << " arguments, but " << args.size()
-        << " were provided.";
+    if (args.size() != sizeof...(Args)) {
+      LOG(FATAL) << name << " expects " << sizeof...(Args) << " arguments, but " << args.size()
+                 << " were provided.";
+    }
     detail::unpack_call<R, sizeof...(Args)>(flambda, args, rv);
   });
+  packed_.set_name(name);
 }
 
 template <typename R, typename... Args>

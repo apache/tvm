@@ -58,7 +58,7 @@ struct Registry::Manager {
 
 Registry& Registry::set_body(PackedFunc f) {  // NOLINT(*)
   func_ = f;
-  f.name_ = name_;
+  func_.set_name(name_);
   return *this;
 }
 
