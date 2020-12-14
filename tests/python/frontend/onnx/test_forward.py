@@ -53,10 +53,9 @@ def get_tvm_output_with_vm(
     mod, params = relay.frontend.from_onnx(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
-    if convert_to_static:
-        from tvm.relay import transform
 
-        mod = transform.DynamicToStatic()(mod)
+    if convert_to_static:
+        mod = relay.transform.DynamicToStatic()(mod)
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data)
@@ -2821,7 +2820,6 @@ def test_unsqueeze_constant():
 
 
 def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
-    print(x_shape, kernel_shape, strides, mode, pads, auto_pad)
     x_np = np.random.uniform(size=x_shape).astype("float32")
 
     if mode == "max":
@@ -3688,6 +3686,99 @@ def test_roi_align():
     verify_roi_align((3, 4, 12, 16), 32, 7, 7, sampling_ratio=0, spatial_scale=1.5)
     verify_roi_align((5, 4, 16, 14), 32, 7, 7, sampling_ratio=1, spatial_scale=1.0)
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
+
+
+# @tvm.testing.uses_gpu
+def test_non_max_suppression():
+    def verify_nms(
+        boxes, scores, max_ouput_boxes_per_class, iou_threshold, score_threshold, output_dims
+    ):
+        input_names = ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold"]
+        input_nodes = [
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes.shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores.shape),
+            helper.make_tensor_value_info(
+                "max_output_boxes_per_class", TensorProto.INT64, max_output_boxes_per_class.shape
+            ),
+            helper.make_tensor_value_info("iou_threshold", TensorProto.FLOAT, iou_threshold.shape),
+        ]
+        inputs = [boxes, scores, max_output_boxes_per_class, iou_threshold]
+        if score_threshold is not None:
+            input_names.append("score_threshold")
+            input_nodes.append(
+                helper.make_tensor_value_info(
+                    "score_threshold", TensorProto.FLOAT, score_threshold.shape
+                )
+            )
+            inputs.append(score_threshold)
+        node = helper.make_node(
+            "NonMaxSuppression",
+            inputs=input_names,
+            outputs=["Y"],
+            center_point_box=0,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "nms_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.INT64, output_dims)],
+        )
+
+        model = helper.make_model(graph, producer_name="nms_test")
+
+        verify_with_ort_with_inputs(model, inputs, use_vm=True)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.95, 0.95],
+                [0.5, 0.5, 0.96, 0.96],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+        ]
+    ).astype("float32")
+
+    scores = np.array(
+        [
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+        ]
+    ).astype("float32")
+    max_output_boxes_per_class = np.array(2).astype("int64")
+    iou_threshold = np.array(0.8).astype("float32")
+    output_dims = [8, 3]
+    verify_nms(boxes, scores, max_output_boxes_per_class, iou_threshold, None, output_dims)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, -0.1, 1.0, 0.9],
+                [0.0, 10.0, 1.0, 11.0],
+                [0.0, 10.1, 1.0, 11.1],
+                [0.0, 100.0, 1.0, 101.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.9, 0.75, 0.6, 0.95, 0.5, 0.3]]]).astype(np.float32)
+    max_output_boxes_per_class = np.array([3]).astype(np.int64)
+    iou_threshold = np.array([0.5]).astype(np.float32)
+    score_threshold = np.array([0.4]).astype(np.float32)
+    output_dims = [2, 3]
+    verify_nms(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
+    )
 
 
 def verify_cond_loop():

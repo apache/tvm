@@ -34,6 +34,7 @@ def test_basic():
     level1_func = relay.Function([x1, y1], level2_func(x1, y1))
 
     mod["main"] = level1_func
+    mod = relay.transform.InferType()(mod)
     new_mod = transform.LambdaLift()(mod)
     assert len(new_mod.functions) == 2
 
@@ -48,6 +49,7 @@ def test_closure():
     clo = outer_func(relay.ones(shape=(2,), dtype="float32"))
     mod["main"] = relay.Function([], relay.Call(clo, [relay.zeros(shape=(2,), dtype="float32")]))
 
+    mod = relay.transform.InferType()(mod)
     new_mod = transform.LambdaLift()(mod)
     assert len(new_mod.functions) == 3
 
@@ -75,6 +77,7 @@ def test_recursive():
     )
     mod["main"] = relay.Function([x], ret)
 
+    mod = relay.transform.InferType()(mod)
     new_mod = transform.LambdaLift()(mod)
     assert len(new_mod.functions) == 2
 
