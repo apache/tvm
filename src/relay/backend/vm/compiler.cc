@@ -1070,6 +1070,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
 
   pass_seqs.push_back(transform::FuseOps());
   pass_seqs.push_back(transform::ToANormalForm());
+  pass_seqs.push_back(transform::InferType());
   pass_seqs.push_back(transform::LambdaLift());
   pass_seqs.push_back(transform::InlinePrimitives());
 

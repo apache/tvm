@@ -31,4 +31,5 @@ sed -i 's/USE_MICRO OFF/USE_MICRO ON/' config.cmake
 sed -i 's/USE_GRAPH_RUNTIME_DEBUG OFF/USE_GRAPH_RUNTIME_DEBUG ON/' config.cmake
 sed -i 's/USE_LLVM OFF/USE_LLVM ON/' config.cmake
 cmake ..
+rm -rf standalone_crt host_standalone_crt  # remove stale generated files
 make -j4

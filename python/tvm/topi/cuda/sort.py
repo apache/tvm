@@ -104,9 +104,9 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
     nthread_bx = shape[axis] // max_threads + 1
 
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("vthread")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "virtual_thread", nthread_bx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate(values_out.dtype, (1,), name="temp_data", scope="local")
     if indices_out is not None:
@@ -202,9 +202,9 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     nthread_tx = max_threads
     nthread_bx = size // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("vthread")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "virtual_thread", nthread_bx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")

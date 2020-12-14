@@ -31,6 +31,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <thread>
 
 #include "../../src/runtime/rpc/rpc_endpoint.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
