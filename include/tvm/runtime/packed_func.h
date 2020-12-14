@@ -100,8 +100,9 @@ class PackedFunc {
   /*!
    * \brief constructing a packed function from a std::function.
    * \param body the internal container of packed function.
+   * \param name the name of this packed function.
    */
-  explicit PackedFunc(FType body) : body_(body) {}
+  explicit PackedFunc(FType body, String name = "<anonymous>") : body_(body), name_(name) {}
   /*!
    * \brief Call packed function by directly passing in unpacked format.
    * \param args Arguments to be passed.
@@ -126,6 +127,8 @@ class PackedFunc {
   inline void CallPacked(TVMArgs args, TVMRetValue* rv) const;
   /*! \return the internal body function */
   inline FType body() const;
+  /*! \return the name of this function */
+  inline String name() const;
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return body_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -134,6 +137,10 @@ class PackedFunc {
  private:
   /*! \brief internal container of packed function */
   FType body_;
+
+  /*! \brief the name of this packed function */
+  String name_;
+  friend class Registry;
 };
 
 /*!
@@ -223,18 +230,19 @@ class TypedPackedFunc<R(Args...)> {
    * \code
    * auto typed_lambda = [](int x)->int { return x + 1; }
    * // construct from packed function
-   * TypedPackedFunc<int(int)> ftyped(typed_lambda);
+   * TypedPackedFunc<int(int)> ftyped(typed_lambda, "add_one");
    * // call the typed version.
    * ICHECK_EQ(ftyped(1), 2);
    * \endcode
    *
    * \param typed_lambda typed lambda function.
+   * \param name the name of this function.
    * \tparam FLambda the type of the lambda function.
    */
-  template <typename FLambda, typename = typename std::enable_if<
-                                  std::is_convertible<FLambda,
-                                                      std::function<R(Args...)>>::value>::type>
-  TypedPackedFunc(const FLambda& typed_lambda) {  // NOLINT(*)
+  template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
+                                  FLambda, std::function<R(Args...)>>::value>::type>
+  TypedPackedFunc(const FLambda& typed_lambda, String name = "<anonymous>")
+      : name_(name) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
   }
   /*!
@@ -267,6 +275,7 @@ class TypedPackedFunc<R(Args...)> {
    */
   TSelf& operator=(PackedFunc packed) {
     packed_ = packed;
+    name_ = packed.name();
     return *this;
   }
   /*!
@@ -284,6 +293,8 @@ class TypedPackedFunc<R(Args...)> {
    * \return reference the internal PackedFunc
    */
   const PackedFunc& packed() const { return packed_; }
+  String name() const { return name_; }
+  void set_name(String name) { name_ = name; }
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return packed_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -293,6 +304,8 @@ class TypedPackedFunc<R(Args...)> {
   friend class TVMRetValue;
   /*! \brief The internal packed function */
   PackedFunc packed_;
+  /*! \brief The name identifying this function */
+  String name_;
   /*!
    * \brief Assign the packed field using a typed lambda function.
    *
@@ -991,6 +1004,8 @@ inline void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const { body_(
 
 inline PackedFunc::FType PackedFunc::body() const { return body_; }
 
+inline String PackedFunc::name() const { return name_; }
+
 // internal namespace
 inline const char* ArgTypeCode2Str(int type_code) {
   switch (type_code) {
@@ -1205,7 +1220,10 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
   int type_codes[kArraySize];
   detail::for_each(TVMArgsSetter(values, type_codes), std::forward<Args>(args)...);
   TVMRetValue rv;
-  body_(TVMArgs(values, type_codes, kNumArgs), &rv);
+  TVMArgs tvm_args(values, type_codes, kNumArgs);
+  CHECK_EQ(tvm_args.size(), sizeof...(Args))
+      << name_ << " expects " << sizeof...(Args) << ", but " << tvm_args.size() << " were provided";
+  body_(tvm_args, &rv);
   return rv;
 }
 
@@ -1303,7 +1321,11 @@ TypedPackedFunc<R(Args...)>::TypedPackedFunc(TVMMovableArgValue_&& value)
 template <typename R, typename... Args>
 template <typename FType>
 inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda) {
-  packed_ = PackedFunc([flambda](const TVMArgs& args, TVMRetValue* rv) {
+  String name = name_;  // Perform copy so the lambda can capture it
+  packed_ = PackedFunc([flambda, name](const TVMArgs& args, TVMRetValue* rv) {
+    CHECK_EQ(args.size(), sizeof...(Args))
+        << name << " expects " << sizeof...(Args) << " arguments, but " << args.size()
+        << " were provided.";
     detail::unpack_call<R, sizeof...(Args)>(flambda, args, rv);
   });
 }
