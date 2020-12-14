@@ -211,7 +211,7 @@ def threefry_generate(gen, out_shape):
     rand : Tensor[out_shape, uint64]
         Tensor of random numbers with shape `out_shape`.
     """
-    out_len = 1
+    out_len = tir.const(1)
     for s in out_shape:
         out_len *= s
     assert (
