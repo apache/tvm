@@ -56,9 +56,20 @@ def call_all_topi_funcs(mod, params, target):
         config={"relay.backend.use_auto_scheduler": True},
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
-        opt_mod, _ = relay.optimize(mod, target, params)
-        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-        grc.codegen(opt_mod["main"])
+        try:
+            opt_mod, _ = relay.optimize(mod, target, params)
+            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc.codegen(opt_mod["main"])
+        except tvm.TVMError as e:
+            print(
+                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Fallback to VMCompiler. Error details:\n%s" % str(e)
+            )
+            compiler = relay.vm.VMCompiler()
+            if params:
+                compiler.set_params(params)
+            opt_mod, _ = compiler.optimize(mod, target=target, params=params)
+            compiler.lower(opt_mod, target=target)
 
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
