@@ -44,7 +44,7 @@ namespace builtin {
 /*!
  * \brief Return value.
  */
-TVM_DLL const Op& myreturn();
+TVM_DLL const Op& ret();
 /*!
  * \brief Reinterpret the value using the target type.
  */

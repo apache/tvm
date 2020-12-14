@@ -51,7 +51,7 @@ class ReturnRewriter : public StmtMutator {
     const EvaluateNode* eval = ret.as<EvaluateNode>();
     CHECK(eval);
     if (const CallNode* call = eval->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::myreturn())) {
+      if (call->op.same_as(builtin::ret())) {
         CHECK_EQ(call->args.size(), 1);
         ret = WriteToOut(call->args[0], ret_var_, ret_tcode_);
       }
