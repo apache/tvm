@@ -117,6 +117,9 @@ bs_r = 1
 # determines how sparse the generated weights should be. The higher
 # the sparsity, the faster the result.
 sparsity = 0.85
+# Running benchmarking mode might overload CI,
+# so it is disabled by default.
+benchmark = False
 
 
 ###############################################################################
@@ -217,17 +220,18 @@ def run_relay_graph(mod, params, shape_dict, target, ctx, input):
     m.run()
     tvm_output = m.get_output(0)
 
-    ftimer = m.module.time_evaluator("run", ctx, repeat=5, number=5)
-    prof_res = np.array(ftimer().results) * 1000
-    print(
-        "%-20s %-19s (%s)"
-        % ("Runtime:", "Avg-%.2f ms" % np.mean(prof_res), "Std-%.2f ms" % np.std(prof_res))
-    )
+    if benchmark:
+        ftimer = m.module.time_evaluator("run", ctx, repeat=5, number=5)
+        prof_res = np.array(ftimer().results) * 1000
+        print(
+            "%-20s %-19s (%s)"
+            % ("Runtime:", "Avg-%.2f ms" % np.mean(prof_res), "Std-%.2f ms" % np.std(prof_res))
+        )
     return tvm_output.asnumpy()
 
 
 def run_dense(mod, params, shape_dict, target, ctx, input):
-    print("Dense Model Benchmark:")
+    print("Dense Model Inference begins.")
     return run_relay_graph(mod, params, shape_dict, target, ctx, input)
 
 
@@ -298,7 +302,7 @@ def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights
     if gen_weights:
         params = random_sparse_bert_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
     mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
-    print("Block Sparse Model with {blocksize}x1 blocks:".format(blocksize=bs_r))
+    print("Block Sparse Model with {blocksize}x1 blocks Inference begins.".format(blocksize=bs_r))
     return run_relay_graph(mod, params, shape_dict, target, ctx, input)
 
 
@@ -308,7 +312,7 @@ def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights
 # And that's it! Now we'll simply call all the needed function to benchmark
 # the model according to the set parameters. Note that to run this code
 # you'll need to uncomment the last line first.
-def benchmark():
+def run_relay_models():
     mod, params, shape_dict = import_graphdef(name, batch_size, seq_len)
     input_shape = shape_dict["input_1"]
     dummy_data = np.random.uniform(size=input_shape, low=0, high=input_shape[1]).astype("int32")
@@ -323,7 +327,7 @@ def benchmark():
         )
 
 
-benchmark()
+run_relay_models()
 
 ###############################################################################
 # Sample Output
