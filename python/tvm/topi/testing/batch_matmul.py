@@ -37,7 +37,7 @@ def batch_matmul(x, y):
     """
     XB, M, _ = x.shape
     YB, N, _ = y.shape
-    batch = max(XB, YB)
+    batch = te.max(XB, YB)
     out = np.zeros((batch, M, N)).astype(x.dtype)
     for i in range(batch):
         out[i] = np.dot(x[i if XB != 1 else 0], y[i if YB != 1 else 0].T)
