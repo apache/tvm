@@ -408,7 +408,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
         # This implementation should never be picked by autotvm
         strategy.add_implementation(
             wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
-            wrap_topi_schedule(naive_schedule),
+            naive_schedule,
             name="deformable_conv2d_nhwc.generic",
         )
     else:

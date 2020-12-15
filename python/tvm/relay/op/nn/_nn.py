@@ -29,6 +29,8 @@ from ..op import OpPattern
 from .._tensor import elemwise_shape_func
 from ..strategy.generic import is_depthwise_conv2d
 from ...transform import LayoutConfig
+from ....ir import container
+from ....tir import expr
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -634,6 +636,90 @@ reg.register_pattern("nn.contrib_depthwise_conv2d_NCHWc", OpPattern.OUT_ELEMWISE
 # deformable_conv2d
 reg.register_strategy("nn.deformable_conv2d", strategy.deformable_conv2d_strategy)
 reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_alter_op_layout("nn.deformable_conv2d")
+def alter_op_layout_deformable_conv2d(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of deformable conv2d"""
+    return None
+
+
+@reg.register_legalize("nn.deformable_conv2d")
+def legalize_deformable_conv2d(attrs, inputs, types):
+    """Legalize deformable conv2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return None
+
+
+@reg.register_convert_op_layout("nn.deformable_conv2d")
+def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for deformable conv2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    data, offset, weight = inputs
+    new_attrs = dict(attrs)
+    for attr in new_attrs:
+        if isinstance(new_attrs[attr], container.Array):
+            new_attrs[attr] = list(new_attrs[attr])
+        elif isinstance(new_attrs[attr], expr.IntImm):
+            new_attrs[attr] = new_attrs[attr].value
+
+    # First check if there is a LayoutConfig scope, and if so, whether
+    # it indicates we should ignore this layer or not.
+    layout_config = LayoutConfig.current
+    if layout_config is not None:
+        skip_layer = layout_config.check_skip()
+        if skip_layer:
+            return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
+
+    # Prepare new layout.
+    assert len(desired_layouts) == 2, "A desired layout is expected for data and kernel"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["data_layout"] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs["kernel_layout"] = desired_kernel_layout
+        return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == "NCHW":
+        new_attrs["kernel_layout"] = "OIHW"
+    elif desired_data_layout == "NHWC":
+        new_attrs["kernel_layout"] = "HWIO"
+    else:
+        raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+
+    return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
 
 
 # bitpack
