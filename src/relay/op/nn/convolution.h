@@ -1211,6 +1211,18 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   return true;
 }
 
+template <typename AttrType>
+Array<Array<Layout> > DeformableConvInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const AttrType* params = attrs.as<AttrType>();
+
+  // Layout of {data, offet, kernel}, {out}
+  return Array<Array<Layout> >{
+      {params->data_layout, params->data_layout, params->kernel_layout},
+      {params->out_layout == "" ? params->data_layout : params->out_layout}};
+}
+
 template <typename T>
 Array<Array<Layout> > ConvInferCorrectLayout(const Attrs& attrs,
                                              const Array<Layout>& new_in_layouts,
