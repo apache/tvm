@@ -201,7 +201,11 @@ class OperatorConverter(object):
             raise_msg += msg.format(ops)
 
         if dynamic_range_ops_set:
-            msg = "The following operators are likely to have dynamic range quantization: {}. If you are running an optimized graph, please turn off dynamic range quantization or use full integer quantization"
+            msg = (
+                "The following operators are likely to have dynamic range quantization: {}. "
+                "If you are running an optimized graph, please turn off dynamic range quantization "
+                "or use full integer quantization"
+            )
             raise_msg += msg.format(str(list(dynamic_range_ops_set)).strip("[,]"))
 
         if len(raise_msg) > 0:
