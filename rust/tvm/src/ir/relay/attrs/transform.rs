@@ -40,8 +40,8 @@ pub struct ExpandDimsAttrsNode {
 #[ref_name = "ConcatenateAttrs"]
 #[type_key = "relay.attrs.ConcatenateAttrs"]
 pub struct ConcatenateAttrsNode {
-  pub base: BaseAttrsNode,
-  pub axis: i32
+    pub base: BaseAttrsNode,
+    pub axis: i32,
 }
 
 #[repr(C)]
@@ -49,9 +49,9 @@ pub struct ConcatenateAttrsNode {
 #[ref_name = "ReshapeAttrs"]
 #[type_key = "relay.attrs.ReshapeAttrs"]
 pub struct ReshapeAttrsNode {
-  pub base: BaseAttrsNode,
-  pub newshape: Array<IndexExpr>,
-  pub reverse: bool
+    pub base: BaseAttrsNode,
+    pub newshape: Array<IndexExpr>,
+    pub reverse: bool,
 }
 
 #[repr(C)]
@@ -59,9 +59,9 @@ pub struct ReshapeAttrsNode {
 #[ref_name = "SplitAttrs"]
 #[type_key = "relay.attrs.SplitAttrs"]
 pub struct SplitAttrsNode {
-  pub base: BaseAttrsNode,
-  pub indices_or_sections: ObjectRef,
-  pub axis: i32
+    pub base: BaseAttrsNode,
+    pub indices_or_sections: ObjectRef,
+    pub axis: i32,
 }
 
 #[repr(C)]
@@ -69,8 +69,8 @@ pub struct SplitAttrsNode {
 #[ref_name = "TransposeAttrs"]
 #[type_key = "relay.attrs.TransposeAttrs"]
 pub struct TransposeAttrsNode {
-  pub base: BaseAttrsNode,
-  pub axes: Array<IndexExpr>
+    pub base: BaseAttrsNode,
+    pub axes: Array<IndexExpr>,
 }
 
 #[repr(C)]
@@ -78,6 +78,6 @@ pub struct TransposeAttrsNode {
 #[ref_name = "SqueezeAttrs"]
 #[type_key = "relay.attrs.SqueezeAttrs"]
 pub struct SqueezeAttrsNode {
-  pub base: BaseAttrsNode,
-  pub axis: Array<IndexExpr>
+    pub base: BaseAttrsNode,
+    pub axis: Array<IndexExpr>,
 }

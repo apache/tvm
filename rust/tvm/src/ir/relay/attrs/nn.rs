@@ -113,7 +113,7 @@ pub struct BatchNormAttrsNode {
 #[type_key = "relay.attrs.LeakyReluAttrs"]
 pub struct LeakyReluAttrsNode {
     pub base: BaseAttrsNode,
-    pub alpha: f64
+    pub alpha: f64,
 }
 
 #[repr(C)]
@@ -127,7 +127,7 @@ pub struct AvgPool2DAttrsNode {
     pub padding: Array<IndexExpr>,
     pub layout: TString,
     pub ceil_mode: bool,
-    pub count_include_pad: bool
+    pub count_include_pad: bool,
 }
 
 #[repr(C)]
@@ -135,10 +135,10 @@ pub struct AvgPool2DAttrsNode {
 #[ref_name = "UpSamplingAttrs"]
 #[type_key = "relay.attrs.UpSamplingAttrs"]
 pub struct UpSamplingAttrsNode {
-  pub base: BaseAttrsNode,
-  pub scale_h: f64,
-  pub scale_w: f64,
-  pub layout: TString,
-  pub method: TString,
-  pub align_corners: bool
+    pub base: BaseAttrsNode,
+    pub scale_h: f64,
+    pub scale_w: f64,
+    pub layout: TString,
+    pub method: TString,
+    pub align_corners: bool,
 }
