@@ -53,10 +53,9 @@ def get_tvm_output_with_vm(
     mod, params = relay.frontend.from_onnx(
         graph_def, shape_dict, opset=opset, freeze_params=freeze_params
     )
-    if convert_to_static:
-        from tvm.relay import transform
 
-        mod = transform.DynamicToStatic()(mod)
+    if convert_to_static:
+        mod = relay.transform.DynamicToStatic()(mod)
 
     ex = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
     result = ex.evaluate()(*input_data)
@@ -2821,7 +2820,6 @@ def test_unsqueeze_constant():
 
 
 def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
-    print(x_shape, kernel_shape, strides, mode, pads, auto_pad)
     x_np = np.random.uniform(size=x_shape).astype("float32")
 
     if mode == "max":
@@ -3690,6 +3688,99 @@ def test_roi_align():
     verify_roi_align((1, 4, 16, 16), 32, 7, 7, sampling_ratio=2, spatial_scale=1.0)
 
 
+# @tvm.testing.uses_gpu
+def test_non_max_suppression():
+    def verify_nms(
+        boxes, scores, max_ouput_boxes_per_class, iou_threshold, score_threshold, output_dims
+    ):
+        input_names = ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold"]
+        input_nodes = [
+            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes.shape),
+            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores.shape),
+            helper.make_tensor_value_info(
+                "max_output_boxes_per_class", TensorProto.INT64, max_output_boxes_per_class.shape
+            ),
+            helper.make_tensor_value_info("iou_threshold", TensorProto.FLOAT, iou_threshold.shape),
+        ]
+        inputs = [boxes, scores, max_output_boxes_per_class, iou_threshold]
+        if score_threshold is not None:
+            input_names.append("score_threshold")
+            input_nodes.append(
+                helper.make_tensor_value_info(
+                    "score_threshold", TensorProto.FLOAT, score_threshold.shape
+                )
+            )
+            inputs.append(score_threshold)
+        node = helper.make_node(
+            "NonMaxSuppression",
+            inputs=input_names,
+            outputs=["Y"],
+            center_point_box=0,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "nms_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.INT64, output_dims)],
+        )
+
+        model = helper.make_model(graph, producer_name="nms_test")
+
+        verify_with_ort_with_inputs(model, inputs, use_vm=True)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.0, 0.0, 0.5, 0.5],
+                [0.5, 0.5, 0.9, 0.9],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+            [
+                [0.0, 0.0, 0.3, 0.3],
+                [0.0, 0.0, 0.4, 0.4],
+                [0.5, 0.5, 0.95, 0.95],
+                [0.5, 0.5, 0.96, 0.96],
+                [0.5, 0.5, 1.0, 1.0],
+            ],
+        ]
+    ).astype("float32")
+
+    scores = np.array(
+        [
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+            [[0.1, 0.2, 0.6, 0.3, 0.9], [0.1, 0.2, 0.6, 0.3, 0.9]],
+        ]
+    ).astype("float32")
+    max_output_boxes_per_class = np.array(2).astype("int64")
+    iou_threshold = np.array(0.8).astype("float32")
+    output_dims = [8, 3]
+    verify_nms(boxes, scores, max_output_boxes_per_class, iou_threshold, None, output_dims)
+
+    boxes = np.array(
+        [
+            [
+                [0.0, 0.0, 1.0, 1.0],
+                [0.0, 0.1, 1.0, 1.1],
+                [0.0, -0.1, 1.0, 0.9],
+                [0.0, 10.0, 1.0, 11.0],
+                [0.0, 10.1, 1.0, 11.1],
+                [0.0, 100.0, 1.0, 101.0],
+            ]
+        ]
+    ).astype(np.float32)
+    scores = np.array([[[0.9, 0.75, 0.6, 0.95, 0.5, 0.3]]]).astype(np.float32)
+    max_output_boxes_per_class = np.array([3]).astype(np.int64)
+    iou_threshold = np.array([0.5]).astype(np.float32)
+    score_threshold = np.array([0.4]).astype(np.float32)
+    output_dims = [2, 3]
+    verify_nms(
+        boxes, scores, max_output_boxes_per_class, iou_threshold, score_threshold, output_dims
+    )
+
+
 def verify_cond_loop():
     y_in = helper.make_tensor_value_info("y_in", TensorProto.FLOAT, [1])
     y_out = helper.make_tensor_value_info("y_out", TensorProto.FLOAT, [1])
@@ -3915,6 +4006,102 @@ def test_size():
     verify_size(input_data)
 
 
+@tvm.testing.uses_gpu
+def test_maxunpool():
+    def verify_maxunpool(data, indices, kernel_shape, strides, output_shape=None, pads=None):
+        input_names = ["xT", "xI"]
+        input_info = [
+            helper.make_tensor_value_info("xT", TensorProto.FLOAT, list(data.shape)),
+            helper.make_tensor_value_info("xI", TensorProto.INT64, list(indices.shape)),
+        ]
+        input_values = [data, indices]
+        if output_shape is not None:
+            input_names.append("output_shape")
+            input_info.append(
+                helper.make_tensor_value_info(
+                    "output_shape", TensorProto.INT64, list(output_shape.shape)
+                )
+            )
+            input_values.append(output_shape)
+        else:
+            # Compute expected output shape
+            output_shape = np.asarray(([1, 1] + list(strides))) * np.asarray(list(data.shape))
+            output_shape += np.asarray(([0, 0] + list(kernel_shape))) - np.asarray(
+                ([0, 0] + list(strides))
+            )
+            if pads is not None:
+                output_shape -= np.asarray(
+                    [0, 0] + list(np.sum(np.reshape(list(pads), [-1, 2]), axis=-1))
+                )
+        output_shape = [int(i) for i in output_shape]
+
+        node = helper.make_node(
+            "MaxUnpool", inputs=input_names, outputs=["y"], kernel_shape=kernel_shape
+        )
+
+        if pads is not None:
+            pad_attr = helper.make_attribute("pads", pads)
+            node.attribute.append(pad_attr)
+
+        if strides is not None:
+            strides_attr = helper.make_attribute("strides", strides)
+            node.attribute.append(strides_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "maxunpool_test",
+            inputs=input_info,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+        )
+
+        model = helper.make_model(graph, producer_name="size_test")
+
+        verify_with_ort_with_inputs(model, input_values, use_vm=True, opset=11)
+
+    # Basic test
+    xT = np.array([[[[5, 6], [7, 8]]]], dtype=np.float32)
+    xI = np.array([[[[0, 7], [13, 15]]]], dtype=np.int64)
+    verify_maxunpool(xT, xI, [2, 2], strides=[2, 2])
+    # Small stride
+    verify_maxunpool(xT, xI, [2, 2], strides=[1, 1])
+    # Big kernel
+    verify_maxunpool(xT, xI, [3, 3], strides=[2, 2])
+    # With output shape
+    output_shape = np.array((1, 1, 5, 5), dtype=np.int64)
+    verify_maxunpool(xT, xI, [2, 2], strides=[2, 2], output_shape=output_shape)
+    # With explicit reverse padding
+    pads = np.asarray([1, 1, 1, 1]).astype(np.int64)
+    verify_maxunpool(xT, xI, [2, 2], strides=[2, 2], pads=pads)
+
+
+@tvm.testing.uses_gpu
+def test_softplus():
+    def verify_softplus(indata):
+        node = helper.make_node(
+            "Softplus",
+            inputs=["X"],
+            outputs=["Y"],
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "softplus_test",
+            inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(indata.shape))],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(indata.shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="softplus_test")
+
+        verify_with_ort_with_inputs(model, [indata], dtype="float32", use_vm=True, opset=11)
+
+    # Simple case with all signs.
+    input_data = np.array([[-1, 0, 1]], dtype=np.float32)
+    verify_softplus(input_data)
+    # More fancy case.
+    input_data = np.random.randn(1, 32, 32, 3).astype("float32")
+    verify_softplus(input_data)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -3992,3 +4179,5 @@ if __name__ == "__main__":
     test_range()
     test_loop()
     test_size()
+    test_maxunpool()
+    test_softplus()

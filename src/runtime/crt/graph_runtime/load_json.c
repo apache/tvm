@@ -27,6 +27,7 @@
 #include <string.h>
 #include <tvm/runtime/crt/internal/graph_runtime/load_json.h>
 #include <tvm/runtime/crt/memory.h>
+#include <tvm/runtime/crt/platform.h>
 
 // the node entry structure in serialized format
 typedef struct JSONNodeEntry {
@@ -83,20 +84,32 @@ void SeqPop(Seq* seq) {
   seq->size -= 1;
 }
 
-Seq* SeqCreate(uint64_t len) {
-  Seq* seq = (Seq*)vmalloc(sizeof(Seq));  // NOLINT(*)
-  memset(seq, 0, sizeof(Seq));
-  seq->allocated = len;
-  seq->data = (uint32_t*)vmalloc(sizeof(uint32_t) * len);  // NOLINT(*)
-  seq->push_back = SeqPush;
-  seq->back = SeqBack;
-  seq->pop_back = SeqPop;
-  return seq;
+tvm_crt_error_t SeqCreate(uint64_t len, Seq** seq) {
+  DLContext ctx = {kDLCPU, 0};
+  tvm_crt_error_t err = TVMPlatformMemoryAllocate(sizeof(Seq), ctx, (void**)seq);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+  memset(*seq, 0, sizeof(Seq));
+  (*seq)->allocated = len;
+
+  err = TVMPlatformMemoryAllocate(sizeof(uint32_t) * len, ctx, (void**)&(*seq)->data);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+  (*seq)->push_back = SeqPush;
+  (*seq)->back = SeqBack;
+  (*seq)->pop_back = SeqPop;
+  return err;
 }
 
-void SeqRelease(Seq** seq) {
-  vfree((*seq)->data);
-  vfree(*seq);
+tvm_crt_error_t SeqRelease(Seq* seq) {
+  DLContext ctx = {kDLCPU, 0};
+  tvm_crt_error_t err = TVMPlatformMemoryFree(seq->data, ctx);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+  return TVMPlatformMemoryFree(seq, ctx);
 }
 
 // implementations of JSONReader
@@ -157,7 +170,7 @@ char JSONReader_PeekNextNonSpace(JSONReader* reader) {
 
 /*!
  * \brief Parse next JSON string.
- * \param out_str the output string.
+ * \param out_str the output string. NULL to merely consume input and discard it.
  * \param out_str_size Number of bytes available to write starting from out_str. Includes
  *      terminating \0.
  * \throw dmlc::Error when next token is not string
@@ -166,7 +179,7 @@ int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size
   int status = 0;
   char ch = reader->NextNonSpace(reader);
   size_t output_counter = 0;
-  while (output_counter < out_str_size) {
+  while (output_counter < out_str_size || out_str == NULL) {
     ch = reader->NextChar(reader);
     if (ch == '\\') {
       char sch = reader->NextChar(reader);
@@ -194,19 +207,24 @@ int JSONReader_ReadString(JSONReader* reader, char* out_str, size_t out_str_size
       if (ch == '\"') {
         break;
       }
-      out_str[output_counter++] = ch;
+      if (out_str != NULL) {
+        out_str[output_counter++] = ch;
+      }
     }
     if (output_counter == out_str_size - 1) {
       fprintf(stderr, "Error: string size greater than buffer size (%zu).\n", out_str_size);
       break;
     }
     if (ch == EOF || ch == '\r' || ch == '\n') {
-      fprintf(stderr, "Error at line X, Expect \'\"\' but reach end of line\n");
+      fprintf(stderr, "Error at line %zu, Expect \'\"\' but reach end of line\n",
+              reader->line_count_n_);
       break;
     }
   }
 
-  out_str[output_counter] = 0;
+  if (out_str != NULL) {
+    out_str[output_counter] = 0;
+  }
   return status;
 }
 
@@ -246,7 +264,7 @@ int JSONReader_ReadInteger(JSONReader* reader, int64_t* out_value) {
 void JSONReader_BeginObject(JSONReader* reader) {
   int ch = reader->NextNonSpace(reader);
   if (!(ch == '{')) {
-    fprintf(stderr, "Error at line X, Expect \'{\' but got \'%c\'\n", ch);
+    fprintf(stderr, "Error at line %zu, Expect \'{\' but got \'%c\'\n", reader->line_count_n_, ch);
   }
   Seq* scope_counter_ = reader->scope_counter_;
   scope_counter_->push_back(scope_counter_, 0);
@@ -271,7 +289,8 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
       next = 0;
     } else {
       if (ch != ',') {
-        fprintf(stderr, "Error at line X, JSON object expect \'}\' or \',\' but got \'%c\'\n", ch);
+        fprintf(stderr, "Error at line %zu, JSON object expect \'}\' or \',\' but got \'%c\'\n",
+                reader->line_count_n_, ch);
       }
     }
   } else {
@@ -293,7 +312,8 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
     }
     int ch = reader->NextNonSpace(reader);
     if (ch != ':') {
-      fprintf(stderr, "Error at line X, Expect \':\' but get \'%c\'\n", ch);
+      fprintf(stderr, "Error at line %zu, Expect \':\' but get \'%c\'\n", reader->line_count_n_,
+              ch);
     }
     return 1;
   }
@@ -313,7 +333,7 @@ uint8_t JSONReader_NextObjectItem(JSONReader* reader, char* out_key, size_t out_
 void JSONReader_BeginArray(JSONReader* reader) {
   int ch = reader->NextNonSpace(reader);
   if (ch != '[') {
-    fprintf(stderr, "Error at line X, Expect \'[\' but get \'%c\'\n", ch);
+    fprintf(stderr, "Error at line %zu, Expect \'[\' but get \'%c\'\n", reader->line_count_n_, ch);
   }
   Seq* scope_counter_ = reader->scope_counter_;
   scope_counter_->push_back(scope_counter_, 0);
@@ -336,7 +356,8 @@ uint8_t JSONReader_NextArrayItem(JSONReader* reader) {
       next = 0;
     } else {
       if (ch != ',') {
-        fprintf(stderr, "Error at line X, JSON object expect \']\' or \',\' but got \'%c\'\n", ch);
+        fprintf(stderr, "Error at line %zu, JSON object expect \']\' or \',\' but got \'%c\'\n",
+                reader->line_count_n_, ch);
       }
     }
   } else {
@@ -356,32 +377,119 @@ uint8_t JSONReader_NextArrayItem(JSONReader* reader) {
 }
 
 /*!
+ * \brief Determine the remaining length of the array to read.
+ * \param num_elements Pointer which receives the length.
+ * \return 0 if successful
+ */
+int JSONReader_ArrayLength(JSONReader* reader, size_t* num_elements) {
+  int status = 0;
+  char* old_isptr = reader->isptr;
+  size_t old_line_count_r_ = reader->line_count_r_;
+  size_t old_line_count_n_ = reader->line_count_n_;
+  int old_scope_counter_back = *reader->scope_counter_->back(reader->scope_counter_);
+
+  typedef enum { kObject, kArray } item_type_t;
+  Seq* scopes;
+  tvm_crt_error_t err = SeqCreate(10, &scopes);
+  if (err != kTvmErrorNoError) {
+    return -1;
+  }
+  item_type_t json_item_type = kArray;
+  *num_elements = 0;
+  for (;;) {
+    int has_item = 0;
+    if (json_item_type == kArray) {
+      has_item = reader->NextArrayItem(reader);
+      if (scopes->size == 0 && has_item != 0) {
+        (*num_elements)++;
+      }
+    } else if (json_item_type == kObject) {
+      has_item = reader->NextObjectItem(reader, NULL, 0);
+    } else {
+      status = -1;
+      break;
+    }
+
+    if (has_item) {
+      char c = reader->PeekNextNonSpace(reader);
+      if (c == '"') {
+        reader->ReadString(reader, NULL, 1024);
+      } else if (c == '[') {
+        reader->BeginArray(reader);
+        scopes->push_back(scopes, json_item_type);
+        json_item_type = kArray;
+      } else if (c == '{') {
+        reader->BeginObject(reader);
+        scopes->push_back(scopes, json_item_type);
+        json_item_type = kObject;
+      } else {
+        int64_t val;
+        reader->ReadInteger(reader, &val);
+      }
+    } else {
+      if (scopes->size > 0) {
+        json_item_type = *scopes->back(scopes);
+        scopes->pop_back(scopes);
+      } else {
+        break;
+      }
+    }
+  }
+
+  reader->isptr = old_isptr;
+  reader->line_count_r_ = old_line_count_r_;
+  reader->line_count_n_ = old_line_count_n_;
+  reader->scope_counter_->push_back(reader->scope_counter_, old_scope_counter_back);
+
+  err = SeqRelease(scopes);
+  if (err != kTvmErrorNoError) {
+    return -1;
+  }
+
+  return status;
+}
+
+/*!
  * \brief Constructor.
  * \param is the input source.
  */
-JSONReader JSONReader_Create(const char* is) {
-  JSONReader reader;
-  memset(&reader, 0, sizeof(JSONReader));
-  reader.scope_counter_ = SeqCreate(200);
-  reader.NextChar = JSONReader_NextChar;
-  reader.PeekNextChar = JSONReader_PeekNextChar;
-  reader.NextNonSpace = JSONReader_NextNonSpace;
-  reader.PeekNextNonSpace = JSONReader_PeekNextNonSpace;
-  reader.ReadString = JSONReader_ReadString;
-  reader.ReadUnsignedInteger = JSONReader_ReadUnsignedInteger;
-  reader.ReadInteger = JSONReader_ReadInteger;
-  reader.BeginArray = JSONReader_BeginArray;
-  reader.BeginObject = JSONReader_BeginObject;
-  reader.NextArrayItem = JSONReader_NextArrayItem;
-  reader.NextObjectItem = JSONReader_NextObjectItem;
-  reader.is_ = (char*)vmalloc(strlen(is) + 1);  // NOLINT(*)
-  memset(reader.is_, 0, strlen(is) + 1);
-  snprintf(reader.is_, strlen(is) + 1, "%s", is);
-  reader.isptr = reader.is_;
-  return reader;
+tvm_crt_error_t JSONReader_Create(const char* is, JSONReader* reader) {
+  memset(reader, 0, sizeof(JSONReader));
+  tvm_crt_error_t err = SeqCreate(200, &reader->scope_counter_);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+  reader->NextChar = JSONReader_NextChar;
+  reader->PeekNextChar = JSONReader_PeekNextChar;
+  reader->NextNonSpace = JSONReader_NextNonSpace;
+  reader->PeekNextNonSpace = JSONReader_PeekNextNonSpace;
+  reader->ReadString = JSONReader_ReadString;
+  reader->ReadUnsignedInteger = JSONReader_ReadUnsignedInteger;
+  reader->ReadInteger = JSONReader_ReadInteger;
+  reader->BeginArray = JSONReader_BeginArray;
+  reader->BeginObject = JSONReader_BeginObject;
+  reader->NextArrayItem = JSONReader_NextArrayItem;
+  reader->NextObjectItem = JSONReader_NextObjectItem;
+  reader->ArrayLength = JSONReader_ArrayLength;
+
+  DLContext ctx = {kDLCPU, 0};
+  err = TVMPlatformMemoryAllocate(strlen(is) + 1, ctx, (void**)&reader->is_);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+
+  memset(reader->is_, 0, strlen(is) + 1);
+  snprintf(reader->is_, strlen(is) + 1, "%s", is);
+  reader->isptr = reader->is_;
+  return err;
 }
 
-void JSONReader_Release(JSONReader* reader) {
-  SeqRelease(&(reader->scope_counter_));
-  vfree(reader->is_);
+tvm_crt_error_t JSONReader_Release(JSONReader* reader) {
+  tvm_crt_error_t err = SeqRelease(reader->scope_counter_);
+  if (err != kTvmErrorNoError) {
+    return err;
+  }
+
+  DLContext ctx = {kDLCPU, 0};
+  return TVMPlatformMemoryFree(reader->is_, ctx);
 }

@@ -184,6 +184,9 @@ micro_binary = tvm.micro.build_static_runtime(
     c_mod,
     lib_opts=opts["bin_opts"],
     bin_opts=opts["bin_opts"],
+    # Use the microTVM memory manager. If, in your main.cc, you change TVMPlatformMemoryAllocate and
+    # TVMPlatformMemoryFree to use e.g. malloc() and free(), you can omit this extra library.
+    extra_libs=[os.path.join(tvm.micro.build.CRT_ROOT_DIR, "memory")],
 )
 
 

@@ -49,13 +49,6 @@ typedef void* utvm_rpc_server_t;
  *
  * Call this on device startup before calling anyother utvm_rpc_server_ functions.
  *
- * \param memory A memory block used by the runtime as dynamic memory, primarily to allocate
- *               tensors.
- * \param memory_size_bytes Size of the memory block, in bytes. Should be a multiple of
- *                          (1 << page_size_bytes_log2)
- * \param page_size_bytes_log2 Log2 of the size of each memory page. The internal allocator
- *                             allocates one page at a time; more pages reduces waste but
- *                             increases overhead.
  * \param write_func A callback function invoked by the TVM RPC Server to write data back to the
  *                   host. Internally, the TVM RPC Server will block until all data in a reply
  *                   packet has been written.
@@ -63,9 +56,7 @@ typedef void* utvm_rpc_server_t;
  * \return A pointer to the TVM RPC Server. The pointer is allocated in the same memory space as
  *         the TVM workspace.
  */
-utvm_rpc_server_t UTvmRpcServerInit(uint8_t* memory, size_t memory_size_bytes,
-                                    size_t page_size_bytes_log2,
-                                    utvm_rpc_channel_write_t write_func, void* write_func_ctx);
+utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* write_func_ctx);
 
 /*! \brief Do any tasks suitable for the main thread, and maybe process new incoming data.
  *
