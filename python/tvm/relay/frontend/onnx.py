@@ -111,15 +111,20 @@ def get_type(elem_type):
 def get_info(info_proto):
     """Extract the shape from a ValueInfoProto."""
     shape = []
+    shape_name = []
     for dim in info_proto.type.tensor_type.shape.dim:
+        name = dim.dim_param
         value = dim.dim_value
-        if value is None:
-            value = _ty.Any
+        if value is None or value == 0:
+            value = _ty.Any()
+            shape_name.append(name)
+        else:
+            shape_name.append(value)
         shape.append(value)
 
     name = info_proto.name
     dtype = get_type(info_proto.type.tensor_type.elem_type)
-    return name, shape, dtype
+    return name, shape, dtype, shape_name
 
 
 def dimension_picker(prefix, suffix=""):
@@ -2185,7 +2190,7 @@ class Loop(OnnxOpConverter):
         scan_output_vars = []
         scan_output_init = []
         for i in range(num_scan_outputs):
-            name, shape, dtype = get_info(body.output[i + 1 + num_deps])
+            name, shape, dtype, _ = get_info(body.output[i + 1 + num_deps])
             scan_output_vars.append(_expr.var(name, shape=([_ty.Any()] + shape), dtype=dtype))
             scan_output_init.append(_op.reshape(_expr.const([]), [0] + shape))
 
@@ -2829,8 +2834,7 @@ class GraphProto:
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
-            i_name = self._parse_value_proto(i)
-            d_type = self._parse_dtype(i, "float32")
+            i_name, i_shape, d_type, i_shape_name = get_info(i)
             if i_name in self._params:
                 # i is a param instead of input
                 self._num_param += 1
@@ -2841,14 +2845,20 @@ class GraphProto:
             else:
                 self._num_input += 1
                 if i_name in self._shape:
-                    tshape = self._shape[i_name]
+                    i_shape = self._shape[i_name]
                 else:
-                    raise ValueError("Must provide an input shape for `{0}`.".format(i_name))
+                    if "?" in str(i_shape):
+                        warning_msg = (
+                            "Input %s has unknown dimension shapes: %s. "
+                            "Specifying static values may improve performance"
+                            % (i_name, str(i_shape_name))
+                        )
+                        warnings.warn(warning_msg)
                 if isinstance(self._dtype, dict):
                     dtype = self._dtype[i_name] if i_name in self._dtype else d_type
                 else:
                     dtype = d_type
-                self._nodes[i_name] = new_var(i_name, shape=tshape, dtype=dtype)
+                self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
         # get list of unsupported ops
         convert_map = _get_convert_map(opset)
@@ -2934,15 +2944,6 @@ class GraphProto:
         except AttributeError:
             name = value_proto
         return name
-
-    def _parse_dtype(self, value_proto, dtype):
-        """Parse dtype."""
-        try:
-            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-
-            return TENSOR_TYPE_TO_NP_TYPE[value_proto.type.tensor_type.elem_type].name
-        except AttributeError:
-            return dtype
 
     def _parse_array(self, tensor_proto):
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
