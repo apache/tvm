@@ -1217,6 +1217,7 @@ Array<Array<Layout> > DeformableConvInferCorrectLayout(
     const Array<tvm::relay::Type>& old_in_types) {
   const AttrType* params = attrs.as<AttrType>();
 
+  // Layout of {data, offet, kernel}, {out}
   return Array<Array<Layout> >{
       {params->data_layout, params->data_layout, params->kernel_layout},
       {params->out_layout == "" ? params->data_layout : params->out_layout}};

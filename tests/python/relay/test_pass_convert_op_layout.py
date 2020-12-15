@@ -1424,7 +1424,7 @@ if __name__ == "__main__":
     test_conv_roi_align_convert_layout()
     test_conv_roi_pool_convert_layout()
     test_conv_strided_slice_convert_layout()
-    test_deformable_conv_bias_pool_convert_layout
+    test_deformable_conv_bias_pool_convert_layout()
     test_default_keyword()
     test_different_ops_convert_layout()
     test_no_desired_layout()
