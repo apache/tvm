@@ -186,6 +186,16 @@ def add_tune_parser(subparsers):
         default=0,
         help="the thread numbers of a warp",
     )
+    auto_scheduler_group.add_argument(
+        "--include-simple-tasks",
+        help="Whether to extract simple tasks that do not include complicated ops",
+        action="store_true",
+    )
+    auto_scheduler_group.add_argument(
+        "--log-estimated-latency",
+        help="Whether to log the estimated latency to the file after tuning a task",
+        action="store_true",
+    )
     auto_tuning_group = parser.add_argument_group(
         "Autotuning options",
         "Autotuning options, used when the autoscheduler is not enabled",
@@ -279,6 +289,7 @@ def drive_tune(args):
             target_host=args.target_host,
             alter_layout=args.desired_layout,
             hardware_params=hardware_params,
+            include_simple_tasks=args.include_simple_tasks,
         )
 
         # Create the autoscheduler tuning options
@@ -291,10 +302,7 @@ def drive_tune(args):
 
         # Schedule the tasks (i.e., produce a schedule for each task)
         schedule_tasks(
-            tasks,
-            weights,
-            tuning_options,
-            args.tuning_records,
+            tasks, weights, tuning_options, args.tuning_records, args.log_estimated_latency
         )
     else:
         tasks = autotvm_get_tuning_tasks(
@@ -356,7 +364,13 @@ def autotvm_get_tuning_tasks(mod, params, target, target_host=None, alter_layout
 
 
 def autoscheduler_get_tuning_tasks(
-    mod, params, target, target_host=None, alter_layout=None, hardware_params=None
+    mod,
+    params,
+    target,
+    target_host=None,
+    alter_layout=None,
+    hardware_params=None,
+    include_simple_tasks=False,
 ):
     """Get the autoscheduler tuning tasks for a given relay module.
 
@@ -389,17 +403,19 @@ def autoscheduler_get_tuning_tasks(
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(
-        mod["main"], params, target=target, target_host=target_host, hardware_params=hardware_params
+        mod["main"],
+        params,
+        target=target,
+        target_host=target_host,
+        hardware_params=hardware_params,
+        include_simple_tasks=include_simple_tasks,
     )
 
     return tasks, task_weights
 
 
 def schedule_tasks(
-    tasks,
-    task_weights,
-    tuning_options,
-    tuning_records=None,
+    tasks, task_weights, tuning_options, tuning_records=None, log_estimated_latency=False
 ):
     """Generate the schedules for the different tasks (i.e., subgraphs) contained in the module.
     Store the schedules in a json file that will be used later by the compiler.
@@ -415,9 +431,18 @@ def schedule_tasks(
     tuning_records : str, optional
         The json file used to preload the autoscheduler
     """
+    if not log_estimated_latency:
+        callbacks = [auto_scheduler.task_scheduler.PrintTableInfo()]
+    else:
+        callbacks = [
+            auto_scheduler.task_scheduler.PrintTableInfo(),
+            auto_scheduler.task_scheduler.LogEstimatedLatency(("total_latency.tsv")),
+        ]
 
     # Create the scheduler
-    tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=tuning_records)
+    tuner = auto_scheduler.TaskScheduler(
+        tasks, task_weights, load_log_file=tuning_records, callbacks=callbacks
+    )
 
     # Tune the tasks
     tuner.tune(tuning_options)
