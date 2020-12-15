@@ -26,6 +26,10 @@ from ..transform import strided_slice, transpose
 from .. import tag
 
 
+def ceil_div(a, b):
+    return (a + b - 1) // b
+
+
 def swap(arr, axis):
     """ swap arr[axis] and arr[-1] """
     return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
@@ -72,8 +76,11 @@ def sort_ir(
     data: Buffer
         Buffer of input data. Data will be sorted in place.
 
-    output : Buffer
-        Output buffer of indicies of sorted tensor with same shape as data.
+    values_out : Buffer
+        Output buffer of values of sorted tensor with same shape as data.
+
+    values_out_swap : Buffer
+        Output buffer of values with same shape as data to use as swap.
 
     axis : Int
         Axis long which to sort the input tensor.
@@ -81,11 +88,21 @@ def sort_ir(
     is_ascend : Boolean
         Whether to sort in ascending or descending order.
 
+    indicess_out : Buffer
+        Output buffer of indices of sorted tensor with same shape as data.
+
+    indices_out_swap : Buffer
+        Output buffer of indices with same shape as data to use as swap.
+
     Returns
     -------
     stmt : Stmt
         The result IR statement.
     """
+
+    def ceil_div(a, b):
+        return tvm.tir.indexdiv(a + b - 1, b)
+
     axis_mul_before = 1
     axis_mul_after = 1
     shape = data.shape
@@ -107,12 +124,14 @@ def sort_ir(
         assert indices_out_swap is not None
         indices_out_swap = ib.buffer_ptr(indices_out_swap)
 
+    # Set up threading
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
-    nthread_bx = shape[axis] // max_threads + 1
+    nthread_bx = ceil_div(shape[axis], max_threads)
     nthread_by = axis_mul_before
     nthread_bz = axis_mul_after
 
+    # Copy the data to initial output
     with ib.new_scope():
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
@@ -131,17 +150,17 @@ def sort_ir(
             if indices_out is not None:
                 indices_out[idx] = tvm.tir.generic.cast(tid, indices_out.dtype)
 
-    source = values_out
-    dest = values_out_swap
-    source_idx = indices_out
-    dest_idx = indices_out_swap
+    ## we are looping over the array doing mergesort from the bottom up.
+    ## The outer loop runs on the host and launches a cuda kernel for each iteration
+    ## of the algorithm.
+    ## The basic idea is that at iteration 0, each thread does sort on 2 elements. On iteration 1, each thread merges 2 sorted arrays of 2 elements, to deal with 4 total elements. On iteration 2, each thread merges 2 sorted arrays of 4 elements, to deal with 8 total elements. On iteration 3, each thread deals with 16 elements, etc
+    ## On the final iteration of the algorithm, one thread will merge two sorted lists to sort the entire array
     lim = tvm.tir.generic.cast(
         tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(shape[axis], "float64"))), "int64"
     )
     with ib.for_range(0, lim, dtype="int64") as l2_width:
         width = 2 << l2_width
-        slices = tvm.tir.indexdiv(shape[axis], (max_threads * width)) + 1
-
+        # Define and launch the cuda kernel
         with ib.new_scope():
             i = ib.allocate("int64", (1,), name="i", scope="local")
             j = ib.allocate("int64", (1,), name="j", scope="local")
@@ -151,7 +170,12 @@ def sort_ir(
             tx = te.thread_axis("threadIdx.x")
             bx = te.thread_axis("blockIdx.x")
             ib.scope_attr(tx, "thread_extent", nthread_tx)
-            ib.scope_attr(bx, "thread_extent", nthread_bx)
+            # Reduce the number of blocks as the work per thread grows
+            ib.scope_attr(
+                bx,
+                "thread_extent",
+                tvm.tir.generic.cast(ceil_div(shape[axis], width * max_threads), "int32"),
+            )
             tid = bx * nthread_tx + tx
 
             by = te.thread_axis("blockIdx.y")
@@ -160,6 +184,9 @@ def sort_ir(
             ib.scope_attr(bz, "thread_extent", nthread_bz)
 
             def compare(a, b):
+                """
+                Compare a and b in proper ascending or descending order
+                """
                 if is_ascend:
                     out = a <= b
                 else:
@@ -167,10 +194,16 @@ def sort_ir(
                 return out
 
             def BottomUpMerge(source, dest, source_idx, dest_idx, start, middle, end, even):
+                """
+                Merge the two sections of the array assigned to this thread
+                """
                 # pylint: disable=arguments-out-of-order
+                # initialize iterators
                 i[0] = start
                 j[0] = middle
+                # set up indexes
                 base_idx = by * shape[axis] * axis_mul_after + bz
+                # iterate over the output loop
                 with ib.for_range(0, end - start) as k:
                     i_idx = base_idx + i[0] * axis_mul_after
                     j_idx = base_idx + j[0] * axis_mul_after
@@ -178,55 +211,62 @@ def sort_ir(
 
                     def swap_values(source, dest, source_idx, dest_idx):
                         def assign_i():
+                            """assign i value to current output"""
                             dest[k_idx] = source[i_idx]
                             if indices_out is not None:
                                 dest_idx[k_idx] = source_idx[i_idx]
                             i[0] += 1
 
                         def assign_j():
+                            """assign j value to current output"""
                             dest[k_idx] = source[j_idx]
                             if indices_out is not None:
                                 dest_idx[k_idx] = source_idx[j_idx]
                             j[0] += 1
 
+                        ## if both of the iterators are in range
                         with ib.if_scope(tvm.tir.all(i[0] < middle, j[0] < end)):
+                            # compare them and insert whichever is next into the output
                             with ib.if_scope(compare(source[i_idx], source[j_idx])):
                                 assign_i()
                             with ib.else_scope():
                                 assign_j()
+                        # otherwise, simply copy the remainder of the valid iterator to the output
                         with ib.else_scope():
                             with ib.if_scope(i[0] < middle):
                                 assign_i()
                             with ib.else_scope():
                                 assign_j()
 
+                    # Switch which input is the source and which is the destination each iteration
                     with ib.if_scope(even):
                         swap_values(source, dest, source_idx, dest_idx)
                     with ib.else_scope():
                         swap_values(dest, source, dest_idx, source_idx)
 
-            def MergeSort(source, dest, source_idx, dest_idx, size, width, slices, even):
-                start[0] = width * tid * slices
-                with ib.for_range(0, slices):
-                    with ib.if_scope(start[0] < size):
-                        middle[0] = tvm.te.min(start[0] + tvm.tir.indexdiv(width, 2), size)
-                        end[0] = tvm.te.min(start[0] + width, size)
-                        BottomUpMerge(
-                            source, dest, source_idx, dest_idx, start[0], middle[0], end[0], even
-                        )
-                        start[0] += width
+            def MergeSort(source, dest, source_idx, dest_idx, size, width, even):
+                # calculate the start, mid, and end points of this section
+                start[0] = width * tid
+                with ib.if_scope(start[0] < size):
+                    middle[0] = tvm.te.min(start[0] + tvm.tir.indexdiv(width, 2), size)
+                    end[0] = tvm.te.min(start[0] + width, size)
+                    ## merge the start->middle and middle->end arrays
+                    BottomUpMerge(
+                        source, dest, source_idx, dest_idx, start[0], middle[0], end[0], even
+                    )
 
+            # Call the kernel
             MergeSort(
-                source,
-                dest,
-                source_idx,
-                dest_idx,
+                values_out,
+                values_out_swap,
+                indices_out,
+                indices_out_swap,
                 shape[axis],
                 width,
-                slices,
                 tvm.tir.indexmod(l2_width, 2) == 0,
             )
 
+    ## if the final sorted data ended up in the swap, copy it to the real output
     with ib.if_scope(tvm.tir.indexmod(lim, 2) == 1):
         with ib.new_scope():
             tx = te.thread_axis("threadIdx.x")
