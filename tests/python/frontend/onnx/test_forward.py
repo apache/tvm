@@ -73,7 +73,6 @@ def get_tvm_output(
     input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
-
     with tvm.transform.PassContext(opt_level=1):
         graph, lib, params = relay.build(mod, target, params=params)
 
@@ -221,6 +220,42 @@ def test_reshape():
 
     graph = helper.make_graph(
         [ref_node, reshape_node],
+        "reshape_test",
+        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(ref_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="reshape_test")
+
+    for target, ctx in tvm.testing.enabled_targets():
+        x = np.random.uniform(size=in_shape).astype("int32")
+        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
+        tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
+
+@tvm.testing.uses_gpu
+def test_double_reshape():
+    in_shape = (4, 3, 3, 4)
+    ref_shape = (6, 2, 4, 3)
+
+    ref_array = np.array(ref_shape)
+    ref_node = onnx.helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["ref_in"],
+        value=onnx.helper.make_tensor(
+            name="const_tensor",
+            data_type=onnx.TensorProto.INT32,
+            dims=ref_array.shape,
+            vals=ref_array.flatten().astype(int),
+        ),
+    )
+    reshape_node1 = helper.make_node("Reshape", ["in", "ref_in"], ["out1"])
+    reshape_node2 = helper.make_node("Reshape", ["in", "ref_in"], ["out2"])
+    add_node = helper.make_node("Add", ["out1", "out2"], ["out"])
+
+    graph = helper.make_graph(
+        [ref_node, reshape_node1, reshape_node2, add_node],
         "reshape_test",
         inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
         outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(ref_shape))],
