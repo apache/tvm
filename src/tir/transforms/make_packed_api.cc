@@ -58,6 +58,7 @@ class ReturnRewriter : public StmtMutator {
     }
     return ret;
   }
+
  private:
   std::pair<int, PrimExpr> ConvertForFFI(PrimExpr val) {
     DataType dtype = val.dtype();
@@ -72,7 +73,6 @@ class ReturnRewriter : public StmtMutator {
     }
     return {kTVMNullptr, val};
   }
-  
   // convert val's data type to FFI data type, return type code
   Stmt WriteToOut(PrimExpr val, Var ret_var, Var ret_tcode) {
     auto p = ConvertForFFI(val);
