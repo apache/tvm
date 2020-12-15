@@ -117,8 +117,7 @@ bs_r = 1
 # determines how sparse the generated weights should be. The higher
 # the sparsity, the faster the result.
 sparsity = 0.85
-# Running benchmarking mode might overload CI,
-# so it is disabled by default.
+# If true, then all relay models(dense and sparse) will be benchmarked.
 benchmark = False
 
 
@@ -231,7 +230,7 @@ def run_relay_graph(mod, params, shape_dict, target, ctx, input):
 
 
 def run_dense(mod, params, shape_dict, target, ctx, input):
-    print("Dense Model Inference begins.")
+    print("Starting inference for dense model.")
     return run_relay_graph(mod, params, shape_dict, target, ctx, input)
 
 
@@ -302,16 +301,20 @@ def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights
     if gen_weights:
         params = random_sparse_bert_params(mod, params, BS_R=bs_r, BS_C=1, density=1 - sparsity)
     mod, params = ddo.bsr_dense.convert(mod, params, (bs_r, 1), sparsity_threshold=0.8)
-    print("Block Sparse Model with {blocksize}x1 blocks Inference begins.".format(blocksize=bs_r))
+    print(
+        "Starting inference for block sparse model with {blocksize}x1 blocks.".format(
+            blocksize=bs_r
+        )
+    )
     return run_relay_graph(mod, params, shape_dict, target, ctx, input)
 
 
 ###############################################################################
 # Run All the Code!
 # -----------------
-# And that's it! Now we'll simply call all the needed function to benchmark
-# the model according to the set parameters. Note that to run this code
-# you'll need to uncomment the last line first.
+# And that's it! Now we'll simply call all the needed function to compare
+# dense and sparse model inference outputs.
+# Also we can run benchmark, by setting benchmark=True above.
 def run_relay_models():
     mod, params, shape_dict = import_graphdef(name, batch_size, seq_len)
     input_shape = shape_dict["input_1"]
