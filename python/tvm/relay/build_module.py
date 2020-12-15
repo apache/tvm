@@ -244,6 +244,9 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     # pylint: enable=line-too-long
     # fmt: on
     if not isinstance(mod, (IRModule, _function.Function)):
+
+        # print(f"Mod : { mod.astext(show_meta_data=False)}")
+        # print(f"Type Mod: {type(mod)}")
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     if isinstance(mod, _function.Function):

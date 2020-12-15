@@ -1222,5 +1222,38 @@ def test_maskrcnn_resnet50() -> None:
         )
 
 
+def test_tensorrt_conv_bn_3d():
+    if skip_codegen_test():
+        return
+    batches_to_test = [1, 1, 0, 2, 3, 0, 1, 3, 2]
+    x_shape = (relay.Any(), 3, 10, 224, 224)
+    x_data = np.ones([max(batches_to_test)] + list(x_shape)[1:]).astype("float32")
+    k_shape = (64, 3, 3, 3, 3)
+    params = {"kernel": np.random.uniform(-1, 1, k_shape).astype("float32")}
+    result_arr = [{} for _ in range(len(batches_to_test))]
+    for use_trt in [True, False]:
+        x = relay.var("x", shape=x_shape, dtype="float32")
+        kernel = relay.var("kernel", shape=k_shape, dtype="float32")
+        out = relay.nn.conv3d(x, kernel, channels=16, kernel_size=(3, 3), groups=1)
+        out = relay.nn.batch_norm(out, 0.1, 0.1, 0.1, 0.1)
+        f = relay.Function([x, kernel], out)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        if use_trt:
+            mod, _ = tensorrt.partition_for_tensorrt(mod, params)
+
+        if not skip_runtime_test():
+            with relay.build_config(opt_level=3):
+                relay_exec = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
+
+            for i, batch_size in enumerate(batches_to_test):
+                result_arr[i][use_trt] = relay_exec.evaluate()(x_data[:batch_size, ...], **params)
+
+    if not skip_runtime_test():
+        for i in range(len(batches_to_test)):
+            assert_result_dict_holds(result_arr[i])
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_tensorrt_conv_bn_3d()
+    # pytest.main([__file__])

@@ -1339,12 +1339,11 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
                                 std::string name = "T_arange_dynamic",
                                 std::string tag = topi::kInjective) {
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
-  return te::compute(
-      {num_elem},
-      [&](const Array<tvm::tir::Var>& indices) {
-        return tvm::cast(dtype, start[0] + step[0] * indices[0]);
-      },
-      name, tag);
+  return te::compute({num_elem},
+                     [&](const Array<tvm::tir::Var>& indices) {
+                       return tvm::cast(dtype, start[0] + step[0] * indices[0]);
+                     },
+                     name, tag);
 }
 
 Array<te::Tensor> ArangeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -1552,6 +1551,39 @@ RELAY_REGISTER_OP("meshgrid")
     .add_type_rel("Meshgrid", MeshgridRel)
     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+bool Add2Rel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
+             const TypeReporter& reporter) {
+  // types: [data1, data2, result]
+  ICHECK_EQ(types.size(), 3);
+  reporter->Assign(types[1], types[0]);
+  return true;
+}
+
+Array<te::Tensor> Add2Compute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) {
+  return {topi::add2(inputs[0], inputs[1])};
+}
+
+Expr MakeAdd2(Expr data1, Expr data2) {
+  static const Op& op = Op::Get("add2");
+  return Call(op, {data1, data2}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.add2").set_body_typed(MakeAdd2);
+
+RELAY_REGISTER_OP("add2")
+    .describe(R"code(Return twice of normal addition of two tensors.
+
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data1", "Tensor", "The first tensor")
+    .add_argument("data2", "Tensor", "The second tensor")
+    .set_support_level(3)
+    .add_type_rel("Add2", Add2Rel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FTVMCompute>("FTVMCompute", Add2Compute);
+// .set_attr<FTVMCompute>("FTVMCompute", Add2Compute)
 
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);
@@ -2404,16 +2436,16 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           tir::make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()),
                           (i < strides.size() ? strides[i]->value : 1)));
     }
-    return Array<te::Tensor>{te::compute(
-        out_shape,
-        [&](const Array<tir::Var>& indices) {
-          Array<PrimExpr> real_indices;
-          for (size_t i = 0; i < src_tensor_dim; ++i) {
-            real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
-          }
-          return input(real_indices);
-        },
-        std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
+    return Array<te::Tensor>{
+        te::compute(out_shape,
+                    [&](const Array<tir::Var>& indices) {
+                      Array<PrimExpr> real_indices;
+                      for (size_t i = 0; i < src_tensor_dim; ++i) {
+                        real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
+                      }
+                      return input(real_indices);
+                    },
+                    std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
   }
   return Array<te::Tensor>{topi::strided_slice(inputs[0], begin, end, strides, param->slice_mode)};
 }

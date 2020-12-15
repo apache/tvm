@@ -1063,6 +1063,15 @@ def scatter_add_strategy(attrs, outs, out_type, target):
     return strategy
 
 
+# @override_native_generic_func("add2_strategy")
+# def add2_strategy(attrs, outs, out_type, target):
+#     strategy = _op.OpStrategy()
+#     strategy.add_implementation(
+#         wrap_compute_scatter(topi.add2),
+#         wrap_topi_schedule(topi.generic.schedule_add2),
+#         name="scatter_add.generic",
+#     )
+#     return strategy
 # scatter_nd
 @override_native_generic_func("scatter_nd_strategy")
 def scatter_nd_strategy(attrs, inputs, out_type, target):

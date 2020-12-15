@@ -528,58 +528,58 @@ def resize_bicubic(
     yfract = in_y - te.floor(in_y)
 
     # 1st row
-    p00 = _get_pixel(
+    p00 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint - 1, cc, inum, ic
     )
-    p10 = _get_pixel(
+    p10 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 0, cc, inum, ic
     )
-    p20 = _get_pixel(
+    p20 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 1, cc, inum, ic
     )
-    p30 = _get_pixel(
+    p30 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint - 1, xint + 2, cc, inum, ic
     )
 
     # 2nd row
-    p01 = _get_pixel(
+    p01 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint - 1, cc, inum, ic
     )
-    p11 = _get_pixel(
+    p11 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 0, cc, inum, ic
     )
-    p21 = _get_pixel(
+    p21 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 1, cc, inum, ic
     )
-    p31 = _get_pixel(
+    p31 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 0, xint + 2, cc, inum, ic
     )
 
     # 3rd row
-    p02 = _get_pixel(
+    p02 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint - 1, cc, inum, ic
     )
-    p12 = _get_pixel(
+    p12 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 0, cc, inum, ic
     )
-    p22 = _get_pixel(
+    p22 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 1, cc, inum, ic
     )
-    p32 = _get_pixel(
+    p32 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 1, xint + 2, cc, inum, ic
     )
 
     # 4th row
-    p03 = _get_pixel(
+    p03 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint - 1, cc, inum, ic
     )
-    p13 = _get_pixel(
+    p13 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 0, cc, inum, ic
     )
-    p23 = _get_pixel(
+    p23 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 1, cc, inum, ic
     )
-    p33 = _get_pixel(
+    p33 = get_2d_pixel(
         data, layout, boxes, image_height, image_width, box_idx, c, yint + 2, xint + 2, cc, inum, ic
     )
 
@@ -711,7 +711,7 @@ def resize(
             in_w,
             size[0],
             size[1],
-            layout,
+            layout=layout,
             coordinate_transformation_mode=coordinate_transformation_mode,
             out_dtype=out_dtype,
         )

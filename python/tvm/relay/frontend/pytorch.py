@@ -136,6 +136,12 @@ def _is_quantized_tensor(data, prelude):
 def _elemwise(name):
     def _impl(inputs, input_types):
         data0, data1 = _pytorch_promote_types(inputs[:2], input_types[:2])
+
+        # if name == "floor_mod":
+        #     x = get_relay_op(name)(data0, data1)
+        #     import pdb
+
+        #     pdb.set_trace()
         return get_relay_op(name)(data0, data1)
 
     return _impl
@@ -542,27 +548,49 @@ def _full_impl(data, fill_value, dtype):
     size = []
     need_reshape = False
     new_shape = []
-    for dim in data:
-        if isinstance(dim, _expr.Expr):
-            if isinstance(dim, _expr.Constant):
-                dim = int(dim.data.asnumpy())
+    if isinstance(data, list):
+        for dim in data:
+            if isinstance(dim, _expr.Expr):
+                if isinstance(dim, _expr.Constant):
+                    dim = int(dim.data.asnumpy())
+                    if isinstance(size, list):
+                        size.append(dim)
+                    new_shape.append(dim)
+                else:
+                    dim, success = try_infer_value(dim, lambda ret: int(ret), lambda: 0)
+                    new_shape.append(dim)
+
+                    if success:
+                        if isinstance(size, list):
+                            size.append(dim)
+                    else:
+                        size = None
+                        need_reshape = True
+            else:
                 if isinstance(size, list):
                     size.append(dim)
                 new_shape.append(dim)
+    else:
+        if isinstance(data, _expr.Expr):
+            if isinstance(data, _expr.Constant):
+                data = int(data.data.asnumpy())
+                if isinstance(size, list):
+                    size.append(data)
+                new_shape.append(data)
             else:
-                dim, success = try_infer_value(dim, lambda ret: int(ret), lambda: 0)
-                new_shape.append(dim)
+                data, success = try_infer_value(data, lambda ret: int(ret), lambda: 0)
+                new_shape.append(data)
 
                 if success:
                     if isinstance(size, list):
-                        size.append(dim)
+                        size.append(data)
                 else:
                     size = None
                     need_reshape = True
         else:
             if isinstance(size, list):
-                size.append(dim)
-            new_shape.append(dim)
+                size.append(data)
+            new_shape.append(data)
 
     if size is None:
         tmp = []
@@ -585,11 +613,11 @@ def _ones(default_dtype):
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
             msg = "Data type %s could not be parsed in ones op" % (type(data))
             raise AssertionError(msg)
-
         if inputs[1] is not None:
             dtype = _convert_dtype_value(inputs[1])
         else:
             dtype = default_dtype
+
         return _full_impl(data, 1, dtype)
 
     return _impl
@@ -1276,18 +1304,28 @@ def _size(prelude):
         return shape_dynamic
 
     def _impl(inputs, input_types):
+        # print(f"Inputs:{inputs[0]}, input_types {type(inputs[0])}")
         shape = _infer_shape(inputs[0], prelude.mod)
         axis = None
         if len(inputs) > 1:
             axis = int(inputs[1])
+            # print(f"AXIS = {axis}")
 
         if any(map(lambda s: isinstance(s, tvm.tir.expr.Any), shape)):
             if axis is None or isinstance(shape[axis], tvm.tir.expr.Any):
+                # print("STUPID DYNAMIC")
                 return _impl_dynamic(inputs[0], axis)
 
         if axis is not None:
+            # print("AXIS EXISTS")
             return _expr.const(shape[axis])
+        # print(f"Shape:{shape}")
         return _expr.const(shape)
+        # except:
+        #     return _expr.const(shape[0])
+        #     # import pdb
+
+        #     # pdb.set_trace()
 
     return _impl
 
@@ -1759,6 +1797,13 @@ def _identity():
     return _impl
 
 
+def _listify():
+    def _impl(inputs, input_types):
+        return list(inputs[0])
+
+    return _impl
+
+
 def _none():
     def _impl(inputs, input_types):
         return None
@@ -2198,6 +2243,19 @@ def _logsumexp():
         # dim is output of prim::ListConstruct, even if it is int in python code
         assert isinstance(dim_list, list), "dim is expected to be a list"
         return _op.logsumexp(data[0], axis=dim_list, keepdims=keepdim)
+
+    return _impl
+
+
+def _remainder():
+    def _impl(inputs, input_types):
+        lhs = inputs[0]
+        rhs = inputs[1]
+        return _op.subtract(
+            lhs,
+            _op.multiply(rhs, _op.floor_divide(lhs, rhs)),
+        )
+        # return _op.floor_mod(inputs[0], inputs[1])
 
     return _impl
 
@@ -2736,6 +2794,9 @@ def _get_convert_map(prelude, default_dtype):
         "aten::bincount": _bincount(),
         "aten::scatter_add": _scatter_add(),
         "aten::__not__": _logical_not(),
+        "aten::remainder": _elemwise("floor_mod"),
+        # "aten::remainder": _remainder(),
+        "aten::list": _listify(),
     }
     return convert_map
 

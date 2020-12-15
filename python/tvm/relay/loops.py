@@ -48,6 +48,7 @@ def while_loop(cond, loop_vars, loop_bodies):
     loop: relay.Expr
         The loop expression.
     """
+
     sb = ScopeBuilder()
     loop = _expr.Var("while_loop")
     fresh_vars = []
@@ -57,7 +58,12 @@ def while_loop(cond, loop_vars, loop_bodies):
         new_var = _expr.var(name, type_annotation=sb.type_of(loop_var))
         fresh_vars.append(new_var)
 
+    # import pdb
+
+    # pdb.set_trace()
+    print(f"Condition Fresh Vars = {cond(*fresh_vars)}")
     with sb.if_scope(cond(*fresh_vars)):
+
         sb.ret(loop(*loop_bodies(*fresh_vars)))
     with sb.else_scope():
         sb.ret(_expr.Tuple(fresh_vars))

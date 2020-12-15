@@ -63,6 +63,8 @@ _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
+_reg.register_injective_schedule("add2")
+
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
@@ -114,6 +116,15 @@ def compute_scatter_add(attrs, inputs, output_type):
 
 
 _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
+
+
+# @_reg.register_compute("add2")
+# def compute_scatter_add(attrs, inputs, output_type):
+#     """Compute definition of scatter_add"""
+#     return [topi.add2(inputs[0], inputs[1])]
+
+
+# _reg.register_schedule("add2", strategy.add2_strategy)
 
 # scatter
 @_reg.register_compute("scatter_nd")

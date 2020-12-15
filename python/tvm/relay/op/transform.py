@@ -1320,3 +1320,8 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+
+def add2(data1, data2):
+
+    return _make.add2(data1, data2)

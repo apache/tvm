@@ -66,3 +66,17 @@ def schedule_scatter_add(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+# def schedule_add2(outs):
+#     """Schedule for scatter_add operator.
+#     Parameters
+#     ----------
+#     outs: Array of Tensor
+#       The computation graph description of scatter_add.
+#     Returns
+#     -------
+#     s: Schedule
+#       The computation schedule for the op.
+#     """
+#     return _default_schedule(outs, False)

@@ -572,9 +572,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return FuncType(c->inputs, TypeCall(c->belong_to, types), td->type_vars, {});
   }
 
-  void Solve() {
-    solver_.Solve();
-  }
+  void Solve() { solver_.Solve(); }
 };
 
 class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
