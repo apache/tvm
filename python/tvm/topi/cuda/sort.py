@@ -136,18 +136,18 @@ def sort_ir(
     source_idx = indices_out
     dest_idx = indices_out_swap
     lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(shape[axis], "float64"))), "int32"
+        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(shape[axis], "float64"))), "int64"
     )
-    with ib.for_range(0, lim) as l2_width:
+    with ib.for_range(0, lim, dtype="int64") as l2_width:
         width = 2 << l2_width
         slices = tvm.tir.indexdiv(shape[axis], (max_threads * width)) + 1
 
         with ib.new_scope():
-            i = ib.allocate("int32", (1,), name="i", scope="local")
-            j = ib.allocate("int32", (1,), name="j", scope="local")
-            start = ib.allocate("int32", (1,), name="start", scope="local")
-            middle = ib.allocate("int32", (1,), name="middle", scope="local")
-            end = ib.allocate("int32", (1,), name="end", scope="local")
+            i = ib.allocate("int64", (1,), name="i", scope="local")
+            j = ib.allocate("int64", (1,), name="j", scope="local")
+            start = ib.allocate("int64", (1,), name="start", scope="local")
+            middle = ib.allocate("int64", (1,), name="middle", scope="local")
+            end = ib.allocate("int64", (1,), name="end", scope="local")
             tx = te.thread_axis("threadIdx.x")
             bx = te.thread_axis("blockIdx.x")
             ib.scope_attr(tx, "thread_extent", nthread_tx)
