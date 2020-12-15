@@ -306,9 +306,26 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 }
 
 void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
-  stored_value_ = op->value;
+  if (auto call = op->value.as<CallNode>()) {
+    if (call->op.same_as(builtin::text2d_load())) {
+      need_texture_ssa_ = false;
+      // If storing a texture load into a buffer, don't use an
+      // intermediate local unless the buffer allocation is a
+      // single element selected from the texture read.
+      auto it = allocation_size_.find(op->buffer_var.get());
+      if (it != allocation_size_.end() && it->second == 1)
+      {
+          need_texture_ssa_ = true;
+      }
+    }
+  }
   CodeGenC::VisitStmt_(op);
-  stored_value_ = PrimExpr(nullptr);
+  need_texture_ssa_ = true;
+}
+
+void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
+  allocation_size_.insert({op->buffer_var.get(), op->constant_allocation_size() * op->dtype.lanes()});
+  CodeGenC::VisitStmt_(op);
 }
 
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
@@ -349,11 +366,8 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     ss << "))";
 
     // Only use local SSA if texture is not already being stored
-    auto value = GetRef<Call>(stored_value_.as<CallNode>());
-    if (value.same_as(GetRef<Call>(op)))
+    if (need_texture_ssa_)
     {
-      os << ss.str();
-    } else {
       std::string rhs = SSAGetID(ss.str(), op->dtype.with_lanes(4));
       if (op->args.back().as<RampNode>())
       {
@@ -365,6 +379,8 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
         this->PrintExpr(op->args.back(), os);
         os << "]";
       }
+    } else {
+      os << ss.str();
     }
   } else if (op->op.same_as(builtin_call_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);
