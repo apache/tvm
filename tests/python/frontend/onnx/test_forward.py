@@ -232,6 +232,7 @@ def test_reshape():
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
         tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
+
 @tvm.testing.uses_gpu
 def test_double_reshape():
     in_shape = (4, 3, 3, 4)
@@ -266,6 +267,7 @@ def test_double_reshape():
         x = np.random.uniform(size=in_shape).astype("int32")
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, "float32")
         tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
 
 # TODO(mbrookhart): enable once VM supports heterogenous execution
 # @tvm.testing.uses_gpu
