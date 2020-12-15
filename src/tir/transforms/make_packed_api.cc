@@ -43,8 +43,7 @@ namespace tir {
 
 class ReturnRewriter : public StmtMutator {
  public:
-  explicit ReturnRewriter(Var ret_var, Var ret_tcode)
-    : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
+  explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
 
   Stmt VisitStmt_(const EvaluateNode* node) override {
     Stmt ret = StmtMutator::VisitStmt_(node);
@@ -91,7 +90,6 @@ Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
   ReturnRewriter rewriter(ret_var, ret_tcode);
   return rewriter(body);
 }
-
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
