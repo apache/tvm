@@ -926,6 +926,13 @@ def _sparse_tensor_dense_matmul():
 
         data = inputs[3]
 
+        # By default, in tensorflow the first input ,i.e., data is sparse
+        sparse_lhs = True
+
+        # If both are true means First input was dense and second was sparse
+        if attr.get("adjoint_a") and attr.get("adjoint_b"):
+            sparse_lhs = False
+
         rows = [x[0] for x in indices_tensor]
         cols = [x[1] for x in indices_tensor]
 
@@ -933,21 +940,31 @@ def _sparse_tensor_dense_matmul():
         weight_sp = csr_matrix(
             (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
         )
-        weight_sp = csr_matrix(weight_sp.transpose())
+
+        if sparse_lhs:
+            data = _op.transpose(data)
+        else:
+            weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
         weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
         weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
 
-        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
+        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs], sparse_lhs)
 
-        # If both are true means First input was dense and second was sparse
-        # TODO(ANSHUMAN87): Support other adjoint option too
-        if attr.get("adjoint_a") and attr.get("adjoint_b"):
+        if not sparse_lhs:
             ret = _op.transpose(ret)
-        else:
+
+        # Case 1. If both are true means first input was dense and second was sparse
+        # Case 2. If both are false means first input was sparse and second was dense
+        # TODO(ANSHUMAN87): Support other adjoint option too
+        if not (
+            (attr.get("adjoint_a") and attr.get("adjoint_b"))
+            or ((not attr.get("adjoint_a")) and (not attr.get("adjoint_b")))
+        ):
             raise tvm.error.OpAttributeUnImplemented(
                 "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
+                "or with adjoint_a=False and adjoint_b=False"
                 " is supported, but adjoint_a={} and adjoint_b={} was supplied.".format(
                     attr.get("adjoint_a"), attr.get("adjoint_b")
                 )

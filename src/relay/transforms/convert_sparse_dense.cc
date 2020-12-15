@@ -103,8 +103,10 @@ class DenseToSparseDenseMutator : public ExprRewriter {
           Var weight_data(prefix + ".data", ws_data_type);
           Var weight_indices(prefix + ".indices", ws_indices_type);
           Var weight_indptr(prefix + ".indptr", ws_indptr_type);
+          auto attrs = make_object<SparseDenseAttrs>();
 
-          return Call(sparse_dense_op_, {data, weight_data, weight_indices, weight_indptr});
+          return Call(sparse_dense_op_, {data, weight_data, weight_indices, weight_indptr},
+                      Attrs(attrs));
         }
       }
     }
