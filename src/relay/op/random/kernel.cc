@@ -80,8 +80,7 @@ Expr MakeThreefrySplit(Expr key) {
 TVM_REGISTER_GLOBAL("relay.op.random._make.threefry_split").set_body_typed(MakeThreefrySplit);
 
 RELAY_REGISTER_OP("random.threefry_split")
-    .describe(
-        R"doc(Split the input Threefry key into two new ones.)doc" TVM_ADD_FILELINE)
+    .describe(R"doc(Split the input Threefry key into two new ones.)doc" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .add_argument("key", "Tensor", "Input Threefry key")
     .add_type_rel("ThreefrySplit", ThreefrySplitRel);
