@@ -199,6 +199,15 @@ def test_any_concat():
     ref = np.concatenate([x_np - 3.0, y_np * 5.0], axis=0)
     check_result([x_np, y_np], mod, ref)
 
+    num_inputs = 25
+    x = [relay.var("x", shape=(relay.Any(),), dtype="float32") for _ in range(num_inputs)]
+    z = relay.op.concatenate(x, axis=0)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function(x, z)
+    x_np = [np.random.uniform(size=(1,)).astype("float32") for _ in range(num_inputs)]
+    ref = np.concatenate(x_np, axis=0)
+    check_result(x_np, mod, ref)
+
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var("x", shape=x_shape, dtype="float32")
@@ -1421,6 +1430,21 @@ def test_non_max_suppression():
     np_max_output_size = -1
     np_indices_result = np.array([[4, 0, -1, -1, -1]])
     np_valid_box_count = np.array([[2]]).astype("int32")
+
+    check_result(
+        [np_data, np_valid_count, np_indices, np_max_output_size],
+        mod,
+        [np_indices_result, np_valid_box_count],
+        only_vm=False,
+        disable_targets=["nvptx"],
+    )
+
+    np_data = np.zeros((1, 0, 6)).astype("float32")
+    np_valid_count = np.array([0]).astype("int32")
+    np_indices = np.zeros((1, 0)).astype("int32")
+    np_max_output_size = -1
+    np_indices_result = np.zeros((1, 0))
+    np_valid_box_count = np.array([[0]]).astype("int32")
 
     check_result(
         [np_data, np_valid_count, np_indices, np_max_output_size],
