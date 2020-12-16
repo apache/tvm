@@ -146,7 +146,6 @@ class PyTorchOpConverter:
     # above.
     def infer_type(self, node, mod=None):
         """An incremental method to infer the type of a node in the relay graph."""
-
         if node in self.types:
             return self.types[node]
         if isinstance(node, tvm.relay.Var):
@@ -2059,9 +2058,16 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.scatter_add(data, index, src, axis=axis)
 
+    def is_floating_point(self, inputs, input_types):
+        assert len(input_types) == 1
+        is_float = input_types[0] in ['float32', 'float64', 'float16']
+        temp = _expr.const(is_float)
+        return temp
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
+            "aten::is_floating_point": self.is_floating_point,
             "aten::pixel_shuffle": self.pixel_shuffle,
             "aten::device": self.none,
             "prim::device": self.none,
@@ -2077,6 +2083,7 @@ class PyTorchOpConverter:
             "aten::div": self.make_elemwise("divide"),
             "aten::div_": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
+            "aten::floor_divide_": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
