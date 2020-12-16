@@ -48,9 +48,11 @@ using runtime::SaveBinaryToFile;
  *        codegens, such as graph runtime codegen and the vm compiler.
  *
  * \param params The metadata for initialization of all modules.
- * \param modules All the modules that needs to be imported inside the metadata module(s).
- * \param target The target that all the modules are compiled for
- * \return The created metadata module that manages initialization of metadata.
+ * \param target_module the internal module that is compiled by tvm.
+ * \param ext_modules The external modules that needs to be imported inside the metadata
+ * module(s).
+ * \param target The target that all the modules are compiled for \return The created
+ * metadata module that manages initialization of metadata.
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
