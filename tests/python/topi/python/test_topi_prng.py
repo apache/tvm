@@ -23,7 +23,7 @@ import numpy as np
 
 def threefry_split(target, ctx, gen):
     gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
-    left_placeholder, right_placeholder = tvm.topi.generic.threefry_split(gen_placeholder)
+    left_placeholder, right_placeholder = tvm.topi.random.threefry_split(gen_placeholder)
     s = tvm.topi.generic.schedule_extern([left_placeholder, right_placeholder])
     f = tvm.build(s, [gen_placeholder, left_placeholder, right_placeholder])
     left = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
@@ -34,7 +34,7 @@ def threefry_split(target, ctx, gen):
 
 def threefry_generate(target, ctx, gen, size):
     gen_placeholder = tvm.te.placeholder(gen.shape, name="gen", dtype="uint64")
-    left_placeholder, right_placeholder = tvm.topi.generic.threefry_generate(gen_placeholder, size)
+    left_placeholder, right_placeholder = tvm.topi.random.threefry_generate(gen_placeholder, size)
     s = tvm.topi.generic.schedule_extern([left_placeholder, right_placeholder])
     f = tvm.build(s, [gen_placeholder, left_placeholder, right_placeholder])
     out_gen = tvm.nd.array(np.zeros(gen.shape, dtype="uint64"))
@@ -46,7 +46,7 @@ def threefry_generate(target, ctx, gen, size):
 @tvm.testing.parametrize_targets
 def test_threefry_split(target, ctx):
     # test that results of split do not equal eachother or the input
-    gen = tvm.relay.threefry_seed(0).data.asnumpy()
+    gen = tvm.relay.random.threefry_key(0).data.asnumpy()
     a, b = threefry_split(target, ctx, gen)
     assert (a != b).any() and (
         a != gen
@@ -84,7 +84,7 @@ def test_threefry_split(target, ctx):
 
 @tvm.testing.parametrize_targets
 def test_threefry_generate(target, ctx):
-    gen = tvm.relay.threefry_seed(0).data.asnumpy()
+    gen = tvm.relay.random.threefry_key(0).data.asnumpy()
 
     # check that we can generate some data
     a, rands = threefry_generate(target, ctx, gen, (100,))

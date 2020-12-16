@@ -14,28 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Splittable and parallelizable PRNG kernels."""
+# pylint: disable=invalid-name,unused-argument
+from __future__ import absolute_import
 
-# pylint: disable=wildcard-import
-"""Generic declaration and schedules.
+from .. import strategy
+from ..op import register_strategy, register_pattern, OpPattern
 
-This is a recommended way of using TOPI API.
-To use the generic schedule function, user must set
-the current target scope using with block. See also :any:`tvm.target`
 
-Example
--------
-.. code-block:: python
-
-  # create schedule that dispatches to topi.cuda.schedule_injective
-  with tvm.target.Target("cuda"):
-    s = tvm.tir.generic.schedule_injective(outs)
-"""
-from __future__ import absolute_import as _abs
-
-from .nn import *
-from .injective import *
-from .extern import *
-from .vision import *
-from .sort import *
-from .search import *
-from .image import *
+# Threefry
+register_strategy("random.threefry_generate", strategy.threefry_generate_strategy)
+register_pattern("random.threefry_generate", OpPattern.OPAQUE)
+register_strategy("random.threefry_split", strategy.threefry_split_strategy)
+register_pattern("random.threefry_split", OpPattern.OPAQUE)

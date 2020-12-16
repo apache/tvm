@@ -14,44 +14,45 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Threefry PRNG with splitting based on
-- J. K. Salmon, M. A. Moraes, R. O. Dror and D. E. Shaw, "Parallel random numbers: As easy as 1, 2,
-  3," SC '11: Proceedings of 2011 International Conference for High Performance Computing,
-  Networking, Storage and Analysis, Seattle, WA, 2011, pp. 1-12, doi: 10.1145/2063384.2063405.
-- Claessen, K. ; Palka, M. (2013) "Splittable Pseudorandom Number Generators using Cryptographic
-  Hashing". Proceedings of Haskell Symposium 2013 pp. 47-58.  MLA
-- Ferguson, Niels, et al. "The Skein hash function family." Submission to NIST (round 3) 7.7.5
-  (2010): 3.
-
-
-Threefry is a counter based PRNG: given a unique input, it generates a unique random number. As
-there is no state to maintain, we can apply it to a sequence of numbers (0..N) to generate a
-sequence of random numbers in parallel. In order to make the PRNG splittable (that is we can
-generate a sequence of random numbers in one place, and another sequence in another), we add a path
-and key in addition to the counter. The path allows us to encode a sequence of splits (a 0 in the
-path indicates the left result of a split, a 1 indicates the right). To avoid continuously growing
-the path, we can compress an existing path into the key portion of the generator by hashing the
-current key, path, and counter to create the new key (this same technique is used if we run out of
-room for the counter).
-
-This module use encoding e4 from the appendix of "Splittable Pseudorandom Number Generators using
-Cryptographic Hashing" (confusingly, the definition in the paper uses e3 to define the encoding
-function). This encoding uses a 10 element uint64 tensor where each byte has the following meaning:
-
-.. code-block:
-
-    gen:
-    words: 0 1 2 3 | 4 5  | 6 7     | 8 9
-    usage: key     | path | counter | position of next step in path encoded in binary
-                                      ex: 0b00010 -> next path entry goes one from the right
-
-Right now, counter only uses the rightmost word.
-"""
+"""Pseudorandom number kernels."""
 import tvm
 import tvm.topi
 from ... import tir
 from ...tir import ir_builder
+
+
+# Threefry PRNG with splitting based on
+# - J. K. Salmon, M. A. Moraes, R. O. Dror and D. E. Shaw, "Parallel random numbers: As easy as 1, 2,
+#   3," SC '11: Proceedings of 2011 International Conference for High Performance Computing,
+#   Networking, Storage and Analysis, Seattle, WA, 2011, pp. 1-12, doi: 10.1145/2063384.2063405.
+# - Claessen, K. ; Palka, M. (2013) "Splittable Pseudorandom Number Generators using Cryptographic
+#   Hashing". Proceedings of Haskell Symposium 2013 pp. 47-58.  MLA
+# - Ferguson, Niels, et al. "The Skein hash function family." Submission to NIST (round 3) 7.7.5
+#   (2010): 3.
+
+
+# Threefry is a counter based PRNG: given a unique input, it generates a unique random number. As
+# there is no state to maintain, we can apply it to a sequence of numbers (0..N) to generate a
+# sequence of random numbers in parallel. In order to make the PRNG splittable (that is we can
+# generate a sequence of random numbers in one place, and another sequence in another), we add a path
+# and key in addition to the counter. The path allows us to encode a sequence of splits (a 0 in the
+# path indicates the left result of a split, a 1 indicates the right). To avoid continuously growing
+# the path, we can compress an existing path into the key portion of the generator by hashing the
+# current key, path, and counter to create the new key (this same technique is used if we run out of
+# room for the counter).
+
+# This module use encoding e4 from the appendix of "Splittable Pseudorandom Number Generators using
+# Cryptographic Hashing" (confusingly, the definition in the paper uses e3 to define the encoding
+# function). This encoding uses a 10 element uint64 tensor where each byte has the following meaning:
+
+# .. code-block:
+
+#     gen:
+#     words: 0 1 2 3 | 4 5  | 6 7     | 8 9
+#     usage: key     | path | counter | position of next step in path encoded in binary
+#                                       ex: 0b00010 -> next path entry goes one from the right
+
+# Right now, counter only uses the rightmost word.
 
 # Threefry rotation constants from the Skein paper ("The Skein Hash Function Family"
 # https://www.schneier.com/wp-content/uploads/2015/01/skein.pdf)
@@ -113,7 +114,7 @@ def _threefry(
     out_buf: BufferVar
         Buffer to read the counter from.
 
-    counter_offset: number
+    out_offset: number
         Threefry will write to :code:`out_buf[out_offset:out_offset+4*product(out_shape)]`
 
     out_shape: number
@@ -200,14 +201,17 @@ def threefry_generate(gen, out_shape):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be
-        used in another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
 
     out_shape : Sequence[int]
         Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
 
     Returns
     -------
+    new_gen : Tensor[10, uint64]
+        The new generator state to be used in subsequent calls.
+
     rand : Tensor[out_shape, uint64]
         Tensor of random numbers with shape `out_shape`.
     """
@@ -281,6 +285,7 @@ def threefry_generate(gen, out_shape):
         out_gen[6] = tir.const(0, dtype=gen.dtype)  # unused, leave it as 0
         out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
         out_gen[8] = tmp[8]  # path unchanged, so no update here
+        out_gen[9] = tmp[9]
 
         return irb.get()
 
@@ -324,8 +329,8 @@ def threefry_split(gen):
     Parameters
     ----------
     gen : Tensor[10, uint64]
-        Generator state. Can be create with :py:func:`tvm.relay.threefry_seed`. This should not be
-        used in another function, otherwise random numbers will be repeated.
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
 
     Returns
     -------

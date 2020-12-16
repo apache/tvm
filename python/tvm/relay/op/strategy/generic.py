@@ -1281,7 +1281,7 @@ def threefry_generate_strategy(attrs, inputs, out_type, target):
     """threefry_generate generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_threefry_generate(topi.generic.threefry_generate),
+        wrap_compute_threefry_generate(topi.random.threefry_generate),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="threefry_generate.generic",
     )
@@ -1303,7 +1303,7 @@ def threefry_split_strategy(attrs, inputs, out_type, target):
     """threefry_split generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_threefry_split(topi.generic.threefry_split),
+        wrap_compute_threefry_split(topi.random.threefry_split),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="threefry_split.generic",
     )

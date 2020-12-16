@@ -73,10 +73,3 @@ def topk_shape_func(attrs, inputs, _):
         ret = [indices_out]
 
     return ret
-
-
-# threefry
-register_strategy("threefry_generate", strategy.threefry_generate_strategy)
-register_pattern("threefry_generate", OpPattern.OPAQUE)
-register_strategy("threefry_split", strategy.threefry_split_strategy)
-register_pattern("threefry_split", OpPattern.OPAQUE)

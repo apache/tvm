@@ -20,30 +20,35 @@ import tvm.testing
 
 
 @tvm.testing.parametrize_targets
-def test_threefry_repeatablity(target, ctx):
-    seed1 = tvm.relay.threefry_seed(1)
-    rand1 = tvm.relay.threefry_generate(seed1, (12,))
-    out_gen1, out1 = tvm.relay.create_executor(
+def test_threefry_repeatability(target, ctx):
+    target, ctx = "llvm", tvm.cpu(0)
+    key1 = tvm.relay.random.threefry_key(1)
+    rand1 = tvm.relay.random.threefry_generate(key1, (12,))
+    out_key1, out1 = tvm.relay.create_executor(
         "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand1)), target=target, ctx=ctx
     ).evaluate()()
 
-    seed2 = tvm.relay.threefry_seed(1)
-    rand2 = tvm.relay.threefry_generate(seed1, (12,))
-    out_gen2, out2 = tvm.relay.create_executor(
+    key2 = tvm.relay.random.threefry_key(1)
+    rand2 = tvm.relay.random.threefry_generate(key2, (12,))
+    out_key2, out2 = tvm.relay.create_executor(
         "vm", tvm.IRModule.from_expr(tvm.relay.Function([], rand2)), target=target, ctx=ctx
     ).evaluate()()
 
     assert (
         out1.asnumpy() == out2.asnumpy()
-    ).all(), "Generate on same seed should have the same output"
+    ).all(), "Generate on same seed should have the same output random numbers"
+
+    assert (
+        out_key1.asnumpy() == out_key2.asnumpy()
+    ).all(), "Generate on same seed should have the same next keys"
 
 
 @tvm.testing.parametrize_targets
 def test_threefry_split(target, ctx):
-    seed = tvm.relay.threefry_seed(1)
-    left, right = tvm.relay.TupleWrapper(tvm.relay.threefry_split(seed), 2)
-    _, rand1 = tvm.relay.TupleWrapper(tvm.relay.threefry_generate(left, (12,)), 2)
-    _, rand2 = tvm.relay.TupleWrapper(tvm.relay.threefry_generate(right, (12,)), 2)
+    key = tvm.relay.random.threefry_key(1)
+    left, right = tvm.relay.TupleWrapper(tvm.relay.random.threefry_split(key), 2)
+    _, rand1 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(left, (12,)), 2)
+    _, rand2 = tvm.relay.TupleWrapper(tvm.relay.random.threefry_generate(right, (12,)), 2)
     out1, out2 = tvm.relay.create_executor(
         "vm",
         tvm.IRModule.from_expr(tvm.relay.Function([], tvm.relay.Tuple((rand1, rand2)))),
@@ -57,5 +62,5 @@ def test_threefry_split(target, ctx):
 
 
 if __name__ == "__main__":
-    test_threefry_repeatablity(tvm.target.Target("llvm"), tvm.context("cpu"))
+    test_threefry_repeatability(tvm.target.Target("llvm"), tvm.context("cpu"))
     test_threefry_split(tvm.target.Target("llvm"), tvm.context("cpu"))
