@@ -55,8 +55,8 @@ using runtime::SaveBinaryToFile;
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target) {
-  Array<tvm::runtime::Module> csource_metadata_modules;
-  Array<tvm::runtime::Module> binary_metadata_modules;
+  Array<tvm::runtime::Module> csource_modules;
+  Array<tvm::runtime::Module> binary_modules;
 
   auto DSOExportable = [](tvm::runtime::Module& mod) {
     return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
@@ -84,29 +84,29 @@ runtime::Module CreateMetadataModule(
 
       // TODO(@manupa-arm) : we should be able to use csource_metadata
       // if the variables are empty
-      if (!variables.empty() || !DSOExportable(mod)) {
-        binary_metadata_modules.push_back(mod);
+      if (!variables.empty() || !DSOExportable(mod) || target->kind->name == "llvm") {
+        binary_modules.push_back(mod);
       } else {
-        csource_metadata_modules.push_back(mod);
+        csource_modules.push_back(mod);
       }
     } else {
-      csource_metadata_modules.push_back(mod);
+      csource_modules.push_back(mod);
     }
   }
 
   if (target.defined()) {
     if (target->kind->name == "c") {
-      csource_metadata_modules.push_back(target_module);
+      csource_modules.push_back(target_module);
+      if (!csource_modules.empty()) {
+        target_module = CreateCSourceMetadataModule(csource_modules, target);
+      }
     }
   }
 
-  if (!csource_metadata_modules.empty()) {
-    target_module = CreateCSourceMetadataModule(csource_metadata_modules, target);
-  }
-  if (!binary_metadata_modules.empty()) {
+  if (!binary_modules.empty()) {
     runtime::Module binary_meta_mod = runtime::MetadataModuleCreate(params, sym_metadata);
     binary_meta_mod.Import(target_module);
-    for (const auto& it : binary_metadata_modules) {
+    for (const auto& it : binary_modules) {
       binary_meta_mod.Import(it);
     }
     return binary_meta_mod;
@@ -142,15 +142,18 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
 class CSourceModuleNode : public runtime::ModuleNode {
  public:
   CSourceModuleNode(const std::string& code, const std::string& fmt,
-                    const Array<String>& func_names, const std::string& symbol,
-                    const Array<String>& const_vars)
-      : code_(code), fmt_(fmt), symbol_(symbol), const_vars_(const_vars), func_names_(func_names) {}
+                    const Array<String>& func_names, const Array<String>& const_vars)
+      : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
   const char* type_key() const { return "c"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    // Currently c-source module is used as demonstration purposes with binary metadata module
+    // that expects get_symbol interface. When c-source module is used as external module, it
+    // will only contain one function. However, when its used as an internal module (e.g., target
+    // "c") it can have many functions.
     if (name == "get_symbol") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_; });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_[0]; });
     } else if (name == "get_const_vars") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_vars_; });
@@ -178,16 +181,15 @@ class CSourceModuleNode : public runtime::ModuleNode {
  protected:
   std::string code_;
   std::string fmt_;
-  std::string symbol_;
   Array<String> const_vars_;
   Array<String> func_names_;
 };
 
 runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                    const Array<String>& func_names, const String& symbol,
+                                    const Array<String>& func_names,
                                     const Array<String>& const_vars) {
   auto n = make_object<CSourceModuleNode>(code.operator std::string(), fmt.operator std::string(),
-                                          func_names, symbol.operator std::string(), const_vars);
+                                          func_names, const_vars);
   return runtime::Module(n);
 }
 
@@ -335,9 +337,9 @@ runtime::Module DeviceSourceModuleCreate(
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
-    .set_body_typed([](String code, String fmt, Array<String> func_names, String symbol,
+    .set_body_typed([](String code, String fmt, Array<String> func_names,
                        Array<String> const_vars) {
-      return CSourceModuleCreate(code, fmt, func_names, symbol, const_vars);
+      return CSourceModuleCreate(code, fmt, func_names, const_vars);
     });
 
 TVM_REGISTER_GLOBAL("runtime.CreateCSourceMetadataModule")

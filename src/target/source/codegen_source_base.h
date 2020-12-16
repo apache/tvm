@@ -142,7 +142,7 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt);
  * \return The created module.
  */
 runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
-                                    const Array<String>& func_names, const String& symbol = "",
+                                    const Array<String>& func_names,
                                     const Array<String>& const_vars = {});
 
 /*!

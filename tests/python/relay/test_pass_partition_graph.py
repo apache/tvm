@@ -172,7 +172,9 @@ class MobileNetAnnotator(ExprMutator):
         return new_call
 
 
-def check_result(mod, map_inputs, out_shape, result, tol=1e-5, ctx=tvm.cpu(), params=None):
+def check_result(
+    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", ctx=tvm.cpu(), params=None
+):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         return
@@ -192,7 +194,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, ctx=tvm.cpu(), pa
 
         return lib
 
-    def check_vm_result(target):
+    def check_vm_result():
         compile_engine.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
@@ -206,7 +208,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, ctx=tvm.cpu(), pa
         for out, ref in zip(outs, results):
             tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=tol, atol=tol)
 
-    def check_graph_runtime_result(target):
+    def check_graph_runtime_result():
         compile_engine.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
@@ -226,10 +228,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, ctx=tvm.cpu(), pa
             out = rt_mod.get_output(idx, out)
             tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=tol, atol=tol)
 
-    targets = ["llvm", "llvm -runtime=c --system-lib"]
-    for tgt in targets:
-        check_vm_result(tgt)
-        check_graph_runtime_result(tgt)
+    check_vm_result()
+    check_graph_runtime_result()
 
 
 def test_multi_node_compiler():
@@ -273,19 +273,23 @@ def test_multi_node_compiler():
 
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
-    check_result(
-        mod,
-        map_inputs,
-        (30, 10),
-        np.concatenate(
-            (
-                ((x_data + w_data[0]) - w_data[1]) * w_data[2],
-                ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-                x_data + w_data[6] - w_data[7],
+
+    targets = ["llvm", "c -runtime=c --system-lib"]
+    for tgt in targets:
+        check_result(
+            mod,
+            map_inputs,
+            (30, 10),
+            np.concatenate(
+                (
+                    ((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                    ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                    x_data + w_data[6] - w_data[7],
+                ),
+                axis=0,
             ),
-            axis=0,
-        ),
-    )
+            target=tgt,
+        )
 
 
 def test_extern_ccompiler_single_op():
