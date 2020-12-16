@@ -17,7 +17,6 @@
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
 
-from ... import nd
 from ..expr import Constant, Expr, TupleWrapper
 from . import _make
 from .dyn import _make as _dyn_make
