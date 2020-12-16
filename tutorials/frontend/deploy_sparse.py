@@ -178,7 +178,7 @@ def import_graphdef(
     relay_file="model.json",
     relay_params="model.params",
 ):
-    abs_path = os.path.dirname(os.path.abspath(__file__))
+    abs_path = os.path.dirname(os.path.abspath(os.getcwd()))
     shape_dict = {"input_1": (batch_size, seq_len)}
     relay_file = ("%s_%d_%d_%s" % (name, batch_size, seq_len, relay_file)).replace("/", "_")
     relay_params = ("%s_%d_%d_%s" % (name, batch_size, seq_len, relay_params)).replace("/", "_")
