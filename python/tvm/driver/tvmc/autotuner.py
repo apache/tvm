@@ -188,23 +188,23 @@ def add_tune_parser(subparsers):
     )
     auto_scheduler_group.add_argument(
         "--include-simple-tasks",
-        help="Whether to extract simple tasks that do not include complicated ops",
+        help="whether to extract simple tasks that do not include complicated ops",
         action="store_true",
     )
     auto_scheduler_group.add_argument(
         "--log-estimated-latency",
-        help="Whether to log the estimated latency to the file after tuning a task",
+        help="whether to log the estimated latency to the file after tuning a task",
         action="store_true",
     )
-    auto_tuning_group = parser.add_argument_group(
-        "Autotuning options",
-        "Autotuning options, used when the autoscheduler is not enabled",
+    autotvm_group = parser.add_argument_group(
+        "autotvm options",
+        "autotvm options, used when the autoscheduler is not enabled",
     )
-    auto_tuning_group.add_argument(
+    autotvm_group.add_argument(
         "--tuner",
         choices=["ga", "gridsearch", "random", "xgb", "xgb_knob", "xgb-rank"],
         default="xgb",
-        help="type of tuner to use when autotuning.",
+        help="type of tuner to use when tuning with autotvm.",
     )
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
