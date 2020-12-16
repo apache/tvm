@@ -462,13 +462,23 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
 def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """deformable_conv2d cuda strategy"""
     layout = attrs.data_layout
-    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
-        name="deformable_conv2d_nchw.cuda",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
+            name="deformable_conv2d_nchw.cuda",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
+            naive_schedule,
+            name="deformable_conv2d_nhwc.cuda",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformable conv2d on CUDA" % layout)
     return strategy
 
 
