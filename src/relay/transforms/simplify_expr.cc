@@ -33,9 +33,6 @@
 namespace tvm {
 namespace relay {
 
-static Op reshape_op = Op::Get("reshape");
-static Op reverse_reshape_op = Op::Get("contrib_reverse_reshape");
-
 /*!
  * \brief SimplifyReshape matches the pattern of consecutive reshape or reverse_reshape ops,
  *   and merges into one reshape op.
@@ -44,9 +41,9 @@ class SimplifyReshape {
  public:
   SimplifyReshape() {
     x_ = WildcardPattern(make_object<WildcardPatternNode>());
-    auto reshape1 = AltPattern(ExprPattern(reshape_op), ExprPattern(reverse_reshape_op));
-    auto reshape2 = AltPattern(ExprPattern(reshape_op), ExprPattern(reverse_reshape_op));
-    pattern_ = CallPattern(reshape1, {CallPattern(reshape2, {x_})});
+    auto reshape1 = IsOp("reshape") || IsOp("contrib_reverse_reshape");
+    auto reshape2 = IsOp("reshape") || IsOp("contrib_reverse_reshape");
+    pattern_ = reshape1({reshape2({x_})});
   }
 
   Expr callback(const Expr& pre, const Expr& post, const Map<DFPattern, Array<Expr>>& node_map) {
