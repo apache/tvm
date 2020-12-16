@@ -21,8 +21,8 @@
  * \file Use external cblas library call.
  */
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include "../cblas/gemm_common.h"
 #include "cublas_utils.h"

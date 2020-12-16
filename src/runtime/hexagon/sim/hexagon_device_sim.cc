@@ -22,7 +22,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Process.h>
-#include <tvm/support/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <deque>
@@ -110,7 +110,7 @@ struct non_const_str {
     ICHECK_EQ(pointers_.size(), 1);
     return pointers_[0];
   }
-  operator char* *() { return pointers_.data(); }
+  operator char**() { return pointers_.data(); }
 
  private:
   std::vector<char*> pointers_;

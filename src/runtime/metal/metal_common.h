@@ -32,8 +32,8 @@
 #import <Metal/MTLLibrary.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/support/logging.h>
 
 #include <memory>
 #include <mutex>

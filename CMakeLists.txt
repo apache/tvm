@@ -47,6 +47,11 @@ tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
 tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
+set(_LIBBACKTRACE_DEFAULT OFF)
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin" OR CMAKE_SYSTEM_NAME MATCHES "Linux")
+  set(_LIBBACKTRACE_DEFAULT ON)
+endif()
+tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" ${_LIBBACKTRACE_DEFAULT})
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -88,6 +93,7 @@ include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
 include_directories(SYSTEM ${DLPACK_PATH})
 include_directories(SYSTEM ${DMLC_PATH})
+add_definitions(-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
@@ -388,6 +394,17 @@ set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
+if(USE_LIBBACKTRACE)
+  message(STATUS "Building with libbacktrace...")
+  include(cmake/modules/Libbacktrace.cmake)
+  target_link_libraries(tvm PRIVATE libbacktrace)
+  target_link_libraries(tvm_objs PRIVATE libbacktrace)
+  target_link_libraries(tvm_runtime PRIVATE libbacktrace)
+  target_link_libraries(tvm_runtime_objs PRIVATE libbacktrace)
+else()
+  add_definitions(-DTVM_BACKTRACE_DISABLED)
+endif()
+
 if(USE_MICRO)
   # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the
   # Unix Makefiles generator, need to add these explicit target-level dependency)
@@ -402,9 +419,9 @@ endif()
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
   target_compile_definitions(tvm_objs PRIVATE "USE_RELAY_DEBUG")
-  target_compile_definitions(tvm_objs PRIVATE "DMLC_LOG_DEBUG")
+  target_compile_definitions(tvm_objs PRIVATE "TVM_LOG_DEBUG")
   target_compile_definitions(tvm_runtime_objs PRIVATE "USE_RELAY_DEBUG")
-  target_compile_definitions(tvm_runtime_objs PRIVATE "DMLC_LOG_DEBUG")
+  target_compile_definitions(tvm_runtime_objs PRIVATE "TVM_LOG_DEBUG")
 else()
   target_compile_definitions(tvm_objs PRIVATE "NDEBUG")
   target_compile_definitions(tvm_runtime_objs PRIVATE "NDEBUG")
@@ -542,4 +559,26 @@ endif(INSTALL_DEV)
 if(MSVC)
   target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
+endif()
+
+set(TVM_IS_DEBUG_BUILD OFF)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_CXX_FLAGS MATCHES "-g")
+  set(TVM_IS_DEBUG_BUILD ON)
+endif()
+
+# Change relative paths in backtrace to absolute ones
+if(TVM_IS_DEBUG_BUILD)
+  target_compile_options(tvm PRIVATE "-ffile-prefix-map=..=${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
+# Run dsymutil to generate debugging symbols for backtraces
+if(APPLE AND TVM_IS_DEBUG_BUILD)
+  find_program(DSYMUTIL dsymutil)
+  mark_as_advanced(DSYMUTIL)
+  add_custom_command(TARGET tvm
+		  POST_BUILD
+		  COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:tvm>
+      COMMENT "Running dsymutil"
+		  VERBATIM
+		  )
 endif()

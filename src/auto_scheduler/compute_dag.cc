@@ -1367,7 +1367,7 @@ Array<State> ComputeDAG::InferBound(const Array<State>& states) const {
   support::parallel_for(0, states.size(), [this, &states, &out_states](int i) {
     try {
       out_states.Set(i, (states[i].defined()) ? this->InferBound(states[i]) : states[i]);
-    } catch (dmlc::Error& e) {
+    } catch (Error& e) {
       LOG(WARNING) << "InferBound fails on the state:\n"
                    << states[i] << "\n"
                    << "with: " << e.what() << std::endl;

@@ -1,0 +1,13 @@
+diff --git a/macho.c b/macho.c
+index 66e101e..d00aea9 100644
+--- a/macho.c
++++ b/macho.c
+@@ -1268,7 +1268,7 @@ backtrace_initialize (struct backtrace_state *state, const char *filename,
+       mff = macho_nodebug;
+       if (!macho_add (state, name, d, 0, NULL, base_address, 0,
+ 		      error_callback, data, &mff, &mfs))
+-	return 0;
++	continue;
+ 
+       if (mff != macho_nodebug)
+ 	macho_fileline_fn = mff;

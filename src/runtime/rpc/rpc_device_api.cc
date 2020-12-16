@@ -21,8 +21,8 @@
  * \file rpc_device_api.cc
  */
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/support/logging.h>
 
 #include <utility>
 
@@ -72,7 +72,7 @@ class RPCDeviceAPI final : public DeviceAPI {
     auto remote_ctx = RemoveRPCSessionMask(ctx);
     try {
       GetSess(ctx)->GetDeviceAPI(remote_ctx)->FreeDataSpace(remote_ctx, space->data);
-    } catch (const dmlc::Error& e) {
+    } catch (const Error& e) {
       // fault tolerance to remote close.
     }
     delete space;
