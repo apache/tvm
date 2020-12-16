@@ -54,6 +54,7 @@ def check_result(
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
+            print(tgt)
             if disable_targets and tgt in disable_targets:
                 continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
@@ -582,7 +583,7 @@ def verify_any_conv2d_transpose_nchw(
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
     check_result(
-        [data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=[("llvm", tvm.cpu())]
+        [data_np, kernel_np], mod, ref_out_shape, assert_shape=True
     )
 
 

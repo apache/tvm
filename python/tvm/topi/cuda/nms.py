@@ -94,23 +94,23 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
     with ib.new_scope():
         i = te.thread_axis("blockIdx.x")
         ib.scope_attr(i, "thread_extent", batch_size)
-        valid_idx = ib.allocate("int32", (batch_size,), name="valid_idx", scope="local")
-        valid_idx[i] = 0
+        valid_idx = ib.allocate("int32", (1,), name="valid_idx", scope="local")
+        valid_idx[0] = 0
         with ib.for_range(0, num_anchors, name="j") as j:
             with ib.if_scope(data[i, j] >= 0):
                 with ib.if_scope(data[i, j] > num_anchors):
-                    output[i, valid_idx[i]] = 0
-                    valid_idx[i] = valid_idx[i] + 1
+                    output[i, valid_idx[0]] = 0
+                    valid_idx[0] = valid_idx[0] + 1
                 with ib.else_scope():
-                    output[i, valid_idx[i]] = data[i, j]
-                    valid_idx[i] = valid_idx[i] + 1
+                    output[i, valid_idx[0]] = data[i, j]
+                    valid_idx[0] = valid_idx[0] + 1
             with ib.else_scope():
                 with ib.if_scope(data[i, j] < -num_anchors):
-                    output[i, valid_idx[i]] = 0
-                    valid_idx[i] = valid_idx[i] + 1
-            with ib.if_scope(j >= valid_idx[i]):
+                    output[i, valid_idx[0]] = 0
+                    valid_idx[0] = valid_idx[0] + 1
+            with ib.if_scope(j >= valid_idx[0]):
                 output[i, j] = -1
-        valid_box_count[i, 0] = valid_idx[i]
+        valid_box_count[i, 0] = valid_idx[0]
 
     return ib.get()
 
