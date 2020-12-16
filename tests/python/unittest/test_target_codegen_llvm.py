@@ -745,7 +745,6 @@ def test_llvm_crt_static_lib():
     d = te.compute((32,), lambda x: A[x] + B[x])
     sch = te.create_schedule(d.op)
     module = tvm.build(sch, [A, B, d], target=tvm.target.Target("llvm --system-lib --runtime=c"))
-    module = module.imported_modules[0]
     print(module.get_source())
     module.save("test.o")
 

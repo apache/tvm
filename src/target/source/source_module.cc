@@ -95,7 +95,7 @@ runtime::Module CreateMetadataModule(
   }
 
   if (target.defined()) {
-    if (target->kind->name == "llvm" || target->kind->name == "c") {
+    if (target->kind->name == "c") {
       csource_metadata_modules.push_back(target_module);
     }
   }

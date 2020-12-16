@@ -97,7 +97,7 @@ $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
-$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o $(build_dir)/test_metadata_c.cc ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model_c.o ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_LDFLAGS)
 
@@ -135,11 +135,11 @@ $(build_dir)/bundle_c.so: bundle.c $(build_dir)/model_c.o ${build_dir}/crt/libme
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
-$(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model_cpp.o $(build_dir)/test_model_cpp.o $(build_dir)/test_metadata_cpp.cc
+$(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model_cpp.o $(build_dir)/test_model_cpp.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle_c.so: bundle.c $(build_dir)/test_model_c.o $(build_dir)/test_metadata_c.cc ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/test_bundle_c.so: bundle.c $(build_dir)/test_model_c.o ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_runtime.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 

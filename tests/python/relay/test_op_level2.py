@@ -1459,7 +1459,7 @@ def test_conv2d_int8_intrinsics():
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
 
-        assembly = lib.imported_modules[0].get_source("asm")
+        assembly = lib.get_source("asm")
         return assembly
 
     def _has_fast_int8_instructions(asm, target):
