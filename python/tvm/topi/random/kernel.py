@@ -22,8 +22,8 @@ from ...tir import ir_builder
 
 
 # Threefry PRNG with splitting based on
-# - J. K. Salmon, M. A. Moraes, R. O. Dror and D. E. Shaw, "Parallel random numbers: As easy as 1, 2,
-#   3," SC '11: Proceedings of 2011 International Conference for High Performance Computing,
+# - J. K. Salmon, M. A. Moraes, R. O. Dror and D. E. Shaw, "Parallel random numbers: As easy as 1,
+#   2, 3," SC '11: Proceedings of 2011 International Conference for High Performance Computing,
 #   Networking, Storage and Analysis, Seattle, WA, 2011, pp. 1-12, doi: 10.1145/2063384.2063405.
 # - Claessen, K. ; Palka, M. (2013) "Splittable Pseudorandom Number Generators using Cryptographic
 #   Hashing". Proceedings of Haskell Symposium 2013 pp. 47-58.  MLA
@@ -34,16 +34,16 @@ from ...tir import ir_builder
 # Threefry is a counter based PRNG: given a unique input, it generates a unique random number. As
 # there is no state to maintain, we can apply it to a sequence of numbers (0..N) to generate a
 # sequence of random numbers in parallel. In order to make the PRNG splittable (that is we can
-# generate a sequence of random numbers in one place, and another sequence in another), we add a path
-# and key in addition to the counter. The path allows us to encode a sequence of splits (a 0 in the
-# path indicates the left result of a split, a 1 indicates the right). To avoid continuously growing
-# the path, we can compress an existing path into the key portion of the generator by hashing the
-# current key, path, and counter to create the new key (this same technique is used if we run out of
-# room for the counter).
+# generate a sequence of random numbers in one place, and another sequence in another), we add a
+# path and key in addition to the counter. The path allows us to encode a sequence of splits (a 0 in
+# the path indicates the left result of a split, a 1 indicates the right). To avoid continuously
+# growing the path, we can compress an existing path into the key portion of the generator by
+# hashing the current key, path, and counter to create the new key (this same technique is used if
+# we run out of room for the counter).
 
 # This module use encoding e4 from the appendix of "Splittable Pseudorandom Number Generators using
 # Cryptographic Hashing" (confusingly, the definition in the paper uses e3 to define the encoding
-# function). This encoding uses a 10 element uint64 tensor where each byte has the following meaning:
+# function). This encoding uses a 10 element uint64 tensor where each byte means the following:
 
 # .. code-block:
 
