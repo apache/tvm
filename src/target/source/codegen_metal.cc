@@ -180,9 +180,6 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       case 32:
         os << "float";
         break;
-      case 64:
-        os << "double";
-        break;
       default:
         fail = true;
         break;
