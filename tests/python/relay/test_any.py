@@ -582,9 +582,7 @@ def verify_any_conv2d_transpose_nchw(
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result(
-        [data_np, kernel_np], mod, ref_out_shape, assert_shape=True
-    )
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
