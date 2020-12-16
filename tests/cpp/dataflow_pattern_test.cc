@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 #include <gtest/gtest.h>
 #include <tvm/relay/dataflow_pattern.h>
 #include <tvm/tir/analysis.h>
@@ -143,6 +142,55 @@ TEST(DFPattern, OR) {
   ICHECK(node);
   ICHECK(node->left == a);
   ICHECK(node->right == b);
+}
+
+TEST(DFPattern, HasAttr) {
+  using namespace tvm;
+  using namespace tvm::relay;
+  auto a = WildcardPattern();
+  Map<String, ObjectRef> attrs;
+  auto b = String("b");
+  attrs.Set("a", b);
+  auto pattern = a.HasAttr(attrs);
+  auto* node = pattern.as<AttrPatternNode>();
+  ICHECK(node);
+  ICHECK(node->pattern == a);
+  ICHECK(node->attrs->dict.at("a") == b);
+}
+
+TEST(DFPattern, HasType) {
+  using namespace tvm;
+  using namespace tvm::relay;
+  auto a = WildcardPattern();
+  TensorType type({1, 2, 3}, DataType(runtime::String2DLDataType("float32")));
+  auto pattern = a.HasType(type);
+  auto* node = pattern.as<TypePatternNode>();
+  ICHECK(node);
+  ICHECK(node->pattern == a);
+  ICHECK(node->type == type);
+}
+
+TEST(DFPattern, HasDtype) {
+  using namespace tvm;
+  using namespace tvm::relay;
+  auto a = WildcardPattern();
+  auto pattern = a.HasDtype("float32");
+  auto* node = pattern.as<DataTypePatternNode>();
+  ICHECK(node);
+  ICHECK(node->pattern == a);
+  ICHECK(runtime::DLDataType2String(node->dtype.operator DLDataType()) == "float32");
+}
+
+TEST(DFPattern, HasShape) {
+  using namespace tvm;
+  using namespace tvm::relay;
+  auto a = WildcardPattern();
+  Array<PrimExpr> shape{1, 2, 3};
+  auto pattern = a.HasShape(shape);
+  auto* node = pattern.as<ShapePatternNode>();
+  ICHECK(node);
+  ICHECK(node->pattern == a);
+  ICHECK(node->shape == shape);
 }
 
 int main(int argc, char** argv) {
