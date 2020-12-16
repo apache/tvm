@@ -193,7 +193,7 @@ def sort_ir(
                     out = b <= a
                 return out
 
-            def BottomUpMerge(source, dest, source_idx, dest_idx, start, middle, end, even):
+            def bottom_up_merge(source, dest, source_idx, dest_idx, start, middle, end, even):
                 """
                 Merge the two sections of the array assigned to this thread
                 """
@@ -244,19 +244,19 @@ def sort_ir(
                     with ib.else_scope():
                         swap_values(dest, source, dest_idx, source_idx)
 
-            def MergeSort(source, dest, source_idx, dest_idx, size, width, even):
+            def mergesort(source, dest, source_idx, dest_idx, size, width, even):
                 # calculate the start, mid, and end points of this section
                 start[0] = width * tid
                 with ib.if_scope(start[0] < size):
                     middle[0] = tvm.te.min(start[0] + tvm.tir.indexdiv(width, 2), size)
                     end[0] = tvm.te.min(start[0] + width, size)
                     ## merge the start->middle and middle->end arrays
-                    BottomUpMerge(
+                    bottom_up_merge(
                         source, dest, source_idx, dest_idx, start[0], middle[0], end[0], even
                     )
 
             # Call the kernel
-            MergeSort(
+            mergesort(
                 values_out,
                 values_out_swap,
                 indices_out,
