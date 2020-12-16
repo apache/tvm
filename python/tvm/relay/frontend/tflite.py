@@ -184,13 +184,16 @@ class OperatorConverter(object):
 
             # Trying to exclude "dynamic range quantization" optimized ops as not supported in TVM
             qnn_in_cnt = len(
+                [_.qnn_params for _ in self.get_input_tensors(op)[0:1] if _.qnn_params is not None]
+            )
+            qnn_weight_cnt = len(
                 [_.qnn_params for _ in self.get_input_tensors(op)[1:] if _.qnn_params is not None]
             )
             qnn_out_cnt = len(
                 [_.qnn_params for _ in self.get_output_tensors(op) if _.qnn_params is not None]
             )
 
-            if qnn_out_cnt == 0 and qnn_in_cnt > 0:
+            if qnn_in_cnt == 0 and qnn_out_cnt == 0 and qnn_weight_cnt > 0:
                 dynamic_range_ops_set.add(op_code_str)
 
         raise_msg = ""
