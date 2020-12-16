@@ -318,7 +318,7 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
 
 def sort(data, axis=-1, is_ascend=1):
     """Performs sorting along the given axis and returns an array of
-    sorted values with teh same shape as the input data.
+    sorted values with the same shape as the input data.
 
     Parameters
     ----------
@@ -351,8 +351,8 @@ def sort(data, axis=-1, is_ascend=1):
 
 
 def sort_thrust(data, axis=-1, is_ascend=1):
-    """Performs sorting along the given axis and returns an array of indicies
-    having same shape as an input array that index data in sorted order.
+    """Performs sorting along the given axis and returns an array of
+    sorted values with the same shape as the input data.
 
     Parameters
     ----------
