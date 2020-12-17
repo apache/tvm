@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 import tvm.relay
 import tvm.testing
+from tvm.relay.testing import run_infer_type
 
 
 @tvm.testing.parametrize_targets
@@ -59,6 +61,46 @@ def test_threefry_split(target, ctx):
     assert (
         out1.asnumpy() != out2.asnumpy()
     ).any(), "Generate after split should not have the same output"
+
+
+def test_threefry_generate_infer():
+    oshape = (12,)
+    key_type = tvm.relay.TensorType([10], dtype="uint64")
+    gen_type = tvm.relay.TensorType(oshape, dtype="uint64")
+    expected_type = tvm.relay.TupleType([key_type, gen_type])
+
+    key = tvm.relay.random.threefry_key(1)
+    rand1 = tvm.relay.random.threefry_generate(key, oshape)
+    f = tvm.relay.Function([], rand1)
+    f = run_infer_type(f)
+    assert tvm.ir.structural_equal(f.ret_type, expected_type)
+
+
+def test_threefry_split_infer():
+    key_type = tvm.relay.TensorType([10], dtype="uint64")
+    expected_type = tvm.relay.TupleType([key_type, key_type])
+
+    key = tvm.relay.random.threefry_key(1)
+    out_keys = tvm.relay.random.threefry_split(key)
+    f = tvm.relay.Function([], out_keys)
+    f = run_infer_type(f)
+    assert tvm.ir.structural_equal(f.ret_type, expected_type)
+
+
+@pytest.mark.xfail(raises=tvm.error.TVMError)
+def test_threefry_generate_infer_fail():
+    fake_key = tvm.relay.const([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype="uint64")
+    rand1 = tvm.relay.random.threefry_generate(fake_key, (12,))
+    f = tvm.relay.Function([], rand1)
+    f = run_infer_type(f)
+
+
+@pytest.mark.xfail(raises=tvm.error.TVMError)
+def test_threefry_split_infer_fail():
+    fake_key = tvm.relay.const([1, 2, 3, 4, 5, 6, 7, 8, 9], dtype="uint64")
+    out_keys = tvm.relay.random.threefry_split(fake_key)
+    f = tvm.relay.Function([], out_keys)
+    f = run_infer_type(f)
 
 
 if __name__ == "__main__":

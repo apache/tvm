@@ -25,21 +25,23 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ThreefryGenerateAttrs);
 
+static const TensorType THREEFRY_KEY_TYPE = TensorType({10}, tvm::DataType::UInt(64));
+
 bool ThreefryGenerateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                          const TypeReporter& reporter) {
   const ThreefryGenerateAttrs* param = attrs.as<ThreefryGenerateAttrs>();
   ICHECK_EQ(types.size(), 2) << "ThreefryGenerate should have one input and one output";
-  const auto* key = types[0].as<TensorTypeNode>();
 
-  if (key == nullptr) return false;
+  reporter->Assign(types[0], THREEFRY_KEY_TYPE);
 
   std::vector<IndexExpr> oshape;
   for (auto& x : param->out_shape) {
     oshape.push_back(x);
   }
   // generate returns the next key and an array of random values
+  // TODO(@tkonolige, @altanh): support other output dtypes?
   reporter->Assign(types[1],
-                   TupleType({TensorType(key->shape, key->dtype), TensorType(oshape, key->dtype)}));
+                   TupleType({THREEFRY_KEY_TYPE, TensorType(oshape, tvm::DataType::UInt(64))}));
   return true;
 }
 
@@ -63,12 +65,10 @@ RELAY_REGISTER_OP("random.threefry_generate")
 bool ThreefrySplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 2) << "ThreefrySplit should have one input and one output";
-  const auto* key = types[0].as<TensorTypeNode>();
 
-  if (key == nullptr) return false;
+  reporter->Assign(types[0], THREEFRY_KEY_TYPE);
+  reporter->Assign(types[1], TupleType({THREEFRY_KEY_TYPE, THREEFRY_KEY_TYPE}));
 
-  reporter->Assign(types[1], TupleType({TensorType(key->shape, key->dtype),
-                                        TensorType(key->shape, key->dtype)}));
   return true;
 }
 
