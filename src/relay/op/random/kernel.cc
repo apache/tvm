@@ -25,9 +25,7 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(ThreefryGenerateAttrs);
 
-static TensorType ThreefryKeyType() {
-  return TensorType({10}, tvm::DataType::UInt(64));
-}
+static TensorType ThreefryKeyType() { return TensorType({10}, tvm::DataType::UInt(64)); }
 
 bool ThreefryGenerateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                          const TypeReporter& reporter) {
