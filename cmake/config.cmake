@@ -269,3 +269,9 @@ set(USE_HEXAGON_SDK /path/to/sdk)
 
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
+
+# Whether to use MLIR
+set(USE_MLIR OFF)
+
+# Whether to use MLIR HLO
+set(USE_MHLO OFF)

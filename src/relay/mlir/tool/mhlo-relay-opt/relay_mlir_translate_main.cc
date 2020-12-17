@@ -1,4 +1,4 @@
-#include "src/translate/relay_mlir_translate.h"
+#include "../../translate/relay_mlir_translate.h"
 #include <llvm/Support/InitLLVM.h>
 #include <llvm/Support/ToolOutputFile.h>
 #include <mlir/IR/AsmState.h>

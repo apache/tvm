@@ -13,8 +13,6 @@ add_executable(relay-mlir-translate
 add_dependencies(relay-mlir-translate
         RelayMlirTranslate
         RelayMlirTranslateRegistration
-        OMRelayOpsInc
-        OMhloOpsInc
         MhloUtils)
 target_include_directories(relay-mlir-translate
         PRIVATE

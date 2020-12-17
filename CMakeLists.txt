@@ -21,7 +21,7 @@ endif()
 # NOTE: do not modify this file to change option values.
 # You can create a config.cmake at build folder
 # and add set(OPTION VALUE) to override these build options.
-# Alernatively, use cmake -DOPTION=VALUE through command-line.
+# Alternatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
@@ -75,6 +75,8 @@ tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
 tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
+tvm_option(USE_MLIR "Build with MLIR support" OFF)
+tvm_option(USE_MHLO "Build with MLIR HLO support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_RUNTIME "Build with Arm Compute Library graph runtime" OFF)
 tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
@@ -249,12 +251,16 @@ file(GLOB_RECURSE RELAY_IR_SRCS
     )
 file(GLOB_RECURSE RELAY_QNN_SRCS
     src/relay/qnn/*.cc
+    )
+file(GLOB_RECURSE RELAY_MLIR_SRCS
+        src/relay/mlir/*.cc
 )
 list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
+list(APPEND COMPILER_SRCS ${RELAY_MLIR_SRCS})
 
 
 if(USE_VM_PROFILER)
@@ -350,6 +356,8 @@ include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/ONNX.cmake)
+include(cmake/modules/contrib/MLIR.cmake)
+include(cmake/modules/contrib/MHLO.cmake)
 include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/VitisAI.cmake)

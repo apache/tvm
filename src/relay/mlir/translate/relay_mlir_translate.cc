@@ -1,5 +1,6 @@
 #include "relay_mlir_translate.h"
-#include "src/ir/relay_ops.h"
+// #include "src/ir/relay_ops.h"
+#include <mlir-hlo/Dialect/mhlo/IR/hlo_ops.h>
 #include <iostream>
 #include <iterator>
 #include <mlir/Dialect/StandardOps/IR/Ops.h>
@@ -175,7 +176,7 @@ template <typename T> tvm::relay::Expr CreateConstant(std::vector<T> &data) {
 }
 
 LogicalResult ConvertConstOp(mlir::Operation *op, tvm::relay::Expr *relay_op) {
-  auto const_op = mlir::dyn_cast<mrelay::ConstOp>(op);
+  auto const_op = mlir::dyn_cast<mhlo::ConstOp>(op);
   if (!const_op)
     return mlir::failure();
 
@@ -191,8 +192,8 @@ LogicalResult ConvertConstOp(mlir::Operation *op, tvm::relay::Expr *relay_op) {
 
 LogicalResult ConvertAddOp(mlir::Operation *op, tvm::relay::Expr *relay_op,
                            std::vector<tvm::relay::Var> *input_vars) {
-  // conversion for "mrelay.add"
-  auto add_op = mlir::dyn_cast<mrelay::AddOp>(op);
+  // conversion for "mhlo.add"
+  auto add_op = mlir::dyn_cast<mhlo::AddOp>(op);
   if (!add_op)
     return mlir::failure();
 
@@ -208,9 +209,9 @@ LogicalResult ConvertMLIROpToRelay(mlir::Operation *op,
                                    tvm::relay::Expr *relay_op,
                                    std::vector<tvm::relay::Var> *input_vars) {
   auto op_name = op->getName().getStringRef();
-  if (op_name == "mrelay.const") {
+  if (op_name == "mhlo.const") {
     return ConvertConstOp(op, relay_op);
-  } else if (op_name == "mrelay.add") {
+  } else if (op_name == "mhlo.add") {
     return ConvertAddOp(op, relay_op, input_vars);
   } else {
     return mlir::failure();
@@ -256,7 +257,7 @@ LogicalResult ConvertMLIRFuncToRelayFunc(mlir::FuncOp mlir_func_op,
 
   tvm::relay::Expr expr;
   for (mlir::Operation &op : block_body_no_return) {
-    if (op.getDialect()->getNamespace() != "mrelay")
+    if (op.getDialect()->getNamespace() != "mhlo")
       return mlir::failure();
 
     // tvm::relay::Expr expr;
@@ -318,7 +319,6 @@ LogicalResult MlirToRelayTranslateFunction(ModuleOp module,
     return failure();
 
   tvm::IRModule relay_module;
-
   auto res = ConvertMLIRModuleToRelayModule(module, &relay_module);
   if (failed(res))
     return mlir::failure();

@@ -255,7 +255,7 @@ function(relay_mlir_tablegen ofn)
           PARENT_SCOPE)
 endfunction()
 
-# Import the pre-built mlir TableGen as an imported exetuable. It is required by
+# Import the pre-built mlir TableGen as an imported executable. It is required by
 # the LLVM TableGen command to have the TableGen target so that changes to the
 # table gen utility itself can be detected and cause re-compilation of .td file.
 add_executable(mlir-tblgen IMPORTED)

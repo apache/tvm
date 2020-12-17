@@ -1,5 +1,5 @@
-#include "src/ir/relay_ops.h"
-#include "src/translate/relay_mlir_translate.h"
+#include "../../translate/relay_mlir_translate.h"
+#include <mlir-hlo/Dialect/mhlo/IR/hlo_ops.h>
 #include <mlir/Dialect/StandardOps/IR/Ops.h>
 #include <mlir/IR/AsmState.h>
 #include <mlir/IR/Dialect.h>
@@ -14,7 +14,7 @@
 namespace mlir {
 
 inline void RegisterAllRelayDialects(DialectRegistry &registry) {
-  registry.insert<mlir::StandardOpsDialect, mrelay::RelayDialect>();
+  registry.insert<mlir::StandardOpsDialect, mlir::mhlo::MhloDialect>();
 }
 
 static TranslateToMLIRRegistration
