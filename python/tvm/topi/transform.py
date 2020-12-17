@@ -933,7 +933,7 @@ def adv_index(data, indices):
     return cpp.adv_index(data, indices)
 
 
-def add2(data1, data2):
+def sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shape):
     """Numpy style indexing with tensors.
 
     Parameters
@@ -949,4 +949,23 @@ def add2(data1, data2):
     result : tvm.te.Tensor
         Output tensor
     """
-    return cpp.add2(data1, data2)
+    return cpp.sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shape)
+
+
+def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
+    """Numpy style indexing with tensors.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data.
+
+    indices : A list of tvm.te.Tensor
+        Tensor index.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Output tensor
+    """
+    return cpp.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)

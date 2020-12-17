@@ -387,6 +387,13 @@ struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   }
 };  // struct SparseToDenseAttrs
 
+struct SparseFillEmptyRowsAttrs : public tvm::AttrsNode<SparseFillEmptyRowsAttrs> {
+  Array<Integer> dense_shape;
+
+  TVM_DECLARE_ATTRS(SparseFillEmptyRowsAttrs, "relay.attrs.SparseFillEmptyRowsAttrs") {
+    TVM_ATTR_FIELD(dense_shape).describe("Shape of the dense output tensor");
+  }
+};  // struct SparseFillEmptyRowsAttrs
 /*! \brief Attributes for ndarray_size operator */
 struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {
   DataType dtype;

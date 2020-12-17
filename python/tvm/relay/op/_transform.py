@@ -63,7 +63,8 @@ _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
-_reg.register_injective_schedule("add2")
+_reg.register_injective_schedule("sparsefillemptyrows")
+_reg.register_injective_schedule("sparsereshape")
 
 
 # concatenate
@@ -125,6 +126,18 @@ _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 
 
 # _reg.register_schedule("add2", strategy.add2_strategy)
+
+
+# sparsefillemptyrows
+# @_reg.register_compute("sparsefillemptyrows")
+# def compute_sparsefillemptyrows(attrs, inputs, output_type):
+#     """Compute definition of sparsefillemptyrows"""
+#     return [topi.sparsefillemptyrows(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+
+# _reg.register_schedule("sparsefillemptyrows", strategy.schedule_sparsefillemptyrows)
+
+# _reg.register_strategy("sparsefillemptyrows", strategy.sparsefillemptyrows_strategy)
 
 # scatter
 @_reg.register_compute("scatter_nd")
@@ -456,6 +469,7 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+# _reg.register_shape_func("sparsefillemptyrows", False, elemwise_shape_func)
 
 
 @script

@@ -21,10 +21,10 @@ from tvm.te.hybrid import script
 from tvm import topi
 from tvm.runtime import convert
 
-from .op import register_compute, register_shape_func
+from .op import register_compute, register_shape_func, register_strategy
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
-
+from . import strategy
 
 register_broadcast_schedule("log")
 register_broadcast_schedule("log2")
