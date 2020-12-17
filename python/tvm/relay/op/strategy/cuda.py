@@ -780,6 +780,26 @@ def scatter_nd_cuda(attrs, inputs, out_type, target):
         name="scatter_nd.cuda",
         plevel=10,
     )
+
+
+@sort_strategy.register(["cuda", "gpu"])
+def sort_strategy_cuda(attrs, inputs, out_type, target):
+    """sort cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.cuda.sort),
+        wrap_topi_schedule(topi.cuda.schedule_sort),
+        name="sort.cuda",
+    )
+    if target.kind.name == "cuda" and get_global_func(
+        "tvm.contrib.thrust.sort", allow_missing=True
+    ):
+        strategy.add_implementation(
+            wrap_compute_sort(topi.cuda.sort_thrust),
+            wrap_topi_schedule(topi.cuda.schedule_sort),
+            name="sort_thrust.cuda",
+            plevel=15,
+        )
     return strategy
 
 

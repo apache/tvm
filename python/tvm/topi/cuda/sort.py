@@ -316,6 +316,92 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
     return out[1]
 
 
+def sort(data, axis=-1, is_ascend=1):
+    """Performs sorting along the given axis and returns an array of
+    sorted values with the same shape as the input data.
+
+    Parameters
+    ----------
+    data: tvm.te.Tensor
+        The input array.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        The output of this function.
+    """
+    dtype = "float32"
+    value_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
+    indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+    out = te.extern(
+        [data.shape, data.shape],
+        [data],
+        lambda ins, outs: sort_ir(ins[0], outs[0], axis, is_ascend, indices_out=outs[1]),
+        out_buffers=[value_buf, indices_buf],
+        name="sort_gpu",
+        tag="sort_gpu",
+    )[0]
+    return out
+
+
+def sort_thrust(data, axis=-1, is_ascend=1):
+    """Performs sorting along the given axis and returns an array of
+    sorted values with the same shape as the input data.
+
+    Parameters
+    ----------
+    data: tvm.te.Tensor
+        The input array.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        The output of this function.
+    """
+    dtype = "float32"
+
+    ndim = len(data.shape)
+    axis = ndim + axis if axis < 0 else axis
+
+    if axis != ndim - 1:
+        # Prepare for sorting along axis -1.
+        axes = swap(list(range(ndim)), axis)
+        data = transpose(data, axes)
+
+    value_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
+    indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+    out = te.extern(
+        [data.shape, data.shape],
+        [data],
+        ## TODO(mbrookhart): This thrust function is actually doing argsort, not sort
+        ## For performance, we should probably rename the contrib function and add
+        ## a pure sort
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend
+        ),
+        out_buffers=[value_buf, indices_buf],
+        name="sort_gpu",
+        tag="sort_gpu",
+    )[0]
+
+    if axis != ndim - 1:
+        axes = swap(list(range(ndim)), axis)
+        out = transpose(out, axes)
+    return out
+
+
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
@@ -406,6 +492,23 @@ def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"
     else:
         out = topk_thrust(data, 0, axis, "indices", is_ascend, dtype)
     return out
+
+
+def schedule_sort(outs):
+    """Schedule for sort operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of argsort
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _schedule_sort(outs)
 
 
 def schedule_argsort(outs):
