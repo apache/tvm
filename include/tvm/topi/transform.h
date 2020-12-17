@@ -506,7 +506,7 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
     begin_ids.push_back(idx);
   }
 
-  Array<Array<PrimExpr> > out_shapes;
+  Array<Array<PrimExpr>> out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
@@ -1430,55 +1430,57 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
         }
         return PrimExpr(Bool(1));
       });
-  result.push_back(compute(sp_ordered_output_shape,
-                           [&](const Array<Var>& indices) {
-                             PrimExpr ret = -1;
-                             //  ret += missing_index;
-                             //  int missing_index = 0;
-                             // PrimExpr current_missing_index = 0;
-                             // PrimExpr count_missing_indices = 0;
-                             // for (int i = 0; i < GetConstInt(sparse_indices->shape[0]); ++i)
-                             // {
-                             //   PrimExpr is_missing_index = if_then_else(sparse_indices[i][0]
-                             //   <= current_missing_index,
-                             //                                            current_missing_index,
-                             //                                            -1);
-                             //   if (const IntImmNode* op = is_missing_index.as<IntImmNode>())
-                             //   {
-                             //     if (op->value == -1) {
-                             //       PrimExpr on_current_indices =
-                             //           if_then_else(indices[0] == i + count_missing_indices,
-                             //           current_missing_index, -1);
-                             //       if (const IntImmNode* op =
-                             //       is_missing_index.as<IntImmNode>())
-                             //       {
-                             //         if (op->value == -1) {
-                             //           continue;
-                             //         } else {
-                             //           for (int j = 0; j < 6; ++j) {
-                             //             break;
-                             //           }
-                             //         }
-                             //       }
-                             //       count_missing_indices += 1;
-                             //     } else {
-                             //       PrimExpr current_missing_index =
-                             //           if_then_else(sparse_indices[i][0] ==
-                             //           current_missing_index,
-                             //                        current_missing_index + 1,
-                             //                        current_missing_index);
-                             //     }
-                             //   }
-                             // }
-                             return ret;
-                           },
-                           name, tag));
-  result.push_back(compute(Array<PrimExpr>{dense_shape[0]},
-                           [&](const Array<Var>& i) {
-                             PrimExpr ret = Bool(1);
-                             return ret;
-                           },
-                           name, tag));
+  result.push_back(compute(
+      sp_ordered_output_shape,
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = -1;
+        //  ret += missing_index;
+        //  int missing_index = 0;
+        // PrimExpr current_missing_index = 0;
+        // PrimExpr count_missing_indices = 0;
+        // for (int i = 0; i < GetConstInt(sparse_indices->shape[0]); ++i)
+        // {
+        //   PrimExpr is_missing_index = if_then_else(sparse_indices[i][0]
+        //   <= current_missing_index,
+        //                                            current_missing_index,
+        //                                            -1);
+        //   if (const IntImmNode* op = is_missing_index.as<IntImmNode>())
+        //   {
+        //     if (op->value == -1) {
+        //       PrimExpr on_current_indices =
+        //           if_then_else(indices[0] == i + count_missing_indices,
+        //           current_missing_index, -1);
+        //       if (const IntImmNode* op =
+        //       is_missing_index.as<IntImmNode>())
+        //       {
+        //         if (op->value == -1) {
+        //           continue;
+        //         } else {
+        //           for (int j = 0; j < 6; ++j) {
+        //             break;
+        //           }
+        //         }
+        //       }
+        //       count_missing_indices += 1;
+        //     } else {
+        //       PrimExpr current_missing_index =
+        //           if_then_else(sparse_indices[i][0] ==
+        //           current_missing_index,
+        //                        current_missing_index + 1,
+        //                        current_missing_index);
+        //     }
+        //   }
+        // }
+        return ret;
+      },
+      name, tag));
+  result.push_back(compute(
+      Array<PrimExpr>{dense_shape[0]},
+      [&](const Array<Var>& i) {
+        PrimExpr ret = Bool(1);
+        return ret;
+      },
+      name, tag));
   return result;
 }
 
@@ -1508,49 +1510,50 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
     return PrimExpr(1);
   });
 
-  result.push_back(compute(new_sparse_indices_shape,
-                           [&](const Array<Var>& indices) {
-                             PrimExpr flattened_idx = 0;
-                             if (sparse_indices->shape.size() == 1) {
-                               flattened_idx += sparse_indices[indices[0]];
-                             } else {
-                               for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
-                                 flattened_idx += (sparse_indices[indices[0]][k] * multipliers[k]);
-                               }
-                             }
-                             Array<PrimExpr> new_sparse_indices;
-                             if (GetConstInt(new_shape->shape[0]) != 1) {
-                               for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
-                                 new_sparse_indices.push_back(floordiv(flattened_idx, dividers[i]));
-                                 flattened_idx = floormod(flattened_idx, dividers[i]);
-                               }
-                               PrimExpr ret = -1;
+  result.push_back(compute(
+      new_sparse_indices_shape,
+      [&](const Array<Var>& indices) {
+        PrimExpr flattened_idx = 0;
+        if (sparse_indices->shape.size() == 1) {
+          flattened_idx += sparse_indices[indices[0]];
+        } else {
+          for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
+            flattened_idx += (sparse_indices[indices[0]][k] * multipliers[k]);
+          }
+        }
+        Array<PrimExpr> new_sparse_indices;
+        if (GetConstInt(new_shape->shape[0]) != 1) {
+          for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
+            new_sparse_indices.push_back(floordiv(flattened_idx, dividers[i]));
+            flattened_idx = floormod(flattened_idx, dividers[i]);
+          }
+          PrimExpr ret = -1;
 
-                               for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
-                                 //  auto ret = tir::Select(indices[1] == i, new_sparse_indices[i],
-                                 //  -1);
-                                 if (indices.size() == 1) {
-                                   return new_sparse_indices[0];
-                                 } else {
-                                   ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
-                                   //  PrimExpr cond = (ret == -1);
-                                   if (const IntImmNode* op = ret.as<IntImmNode>()) {
-                                     if (op->value == -1) {
-                                       continue;
-                                     } else {
-                                       break;
-                                     }
-                                   }
-                                 }
-                               }
-                               return ret;
-                             } else {
-                               return flattened_idx;
-                             }
-                           },
-                           name, tag));
-  result.push_back(compute(sparse_values->shape,
-                           [&](const Array<Var>& i) { return (sparse_values(i)); }, name, tag));
+          for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
+            //  auto ret = tir::Select(indices[1] == i, new_sparse_indices[i],
+            //  -1);
+            if (indices.size() == 1) {
+              return new_sparse_indices[0];
+            } else {
+              ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
+              //  PrimExpr cond = (ret == -1);
+              if (const IntImmNode* op = ret.as<IntImmNode>()) {
+                if (op->value == -1) {
+                  continue;
+                } else {
+                  break;
+                }
+              }
+            }
+          }
+          return ret;
+        } else {
+          return flattened_idx;
+        }
+      },
+      name, tag));
+  result.push_back(compute(
+      sparse_values->shape, [&](const Array<Var>& i) { return (sparse_values(i)); }, name, tag));
   return result;
 }  // namespace topi
 /*!
