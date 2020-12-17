@@ -69,39 +69,35 @@ runtime::Module CreateMetadataModule(
   for (tvm::runtime::Module mod : ext_modules) {
     auto pf_sym = mod.GetFunction("get_symbol");
     auto pf_var = mod.GetFunction("get_const_vars");
+    std::vector<std::string> arrays;
     if (pf_sym != nullptr && pf_var != nullptr) {
       String symbol = pf_sym();
       Array<String> variables = pf_var();
-      std::vector<std::string> arrays;
       for (size_t i = 0; i < variables.size(); i++) {
         arrays.push_back(variables[i].operator std::string());
       }
       ICHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
       sym_metadata[symbol] = arrays;
-      // We only need loading of serialized constant data
-      // if there are constants present and required by the
-      // runtime module to be initialized by the binary
-      // metadata module. If not rest of the modules are
-      // wrapped in c-source metadata module.
+    }
+    // We only need loading of serialized constant data
+    // if there are constants present and required by the
+    // runtime module to be initialized by the binary
+    // metadata module. If not rest of the modules are
+    // wrapped in c-source metadata module.
 
-      // TODO(@manupa-arm) : we should be able to use csource_metadata
-      // if the variables are empty
-      if (!variables.empty() || !DSOExportable(mod) || target->kind->name == "llvm") {
-        binary_modules.push_back(mod);
-      } else {
-        csource_modules.push_back(mod);
-      }
-    } else {
+    // TODO(@manupa-arm) : we should be able to use csource_metadata
+    // if the variables are empty when all the runtime modules implement get_func_names
+    if (arrays.empty() && DSOExportable(mod) && target->kind->name == "c") {
       csource_modules.push_back(mod);
+    } else {
+      binary_modules.push_back(mod);
     }
   }
 
   if (target.defined()) {
     if (target->kind->name == "c") {
       csource_modules.push_back(target_module);
-      if (!csource_modules.empty()) {
-        target_module = CreateCSourceMetadataModule(csource_modules, target);
-      }
+      target_module = CreateCSourceMetadataModule(csource_modules, target);
     }
   }
 
