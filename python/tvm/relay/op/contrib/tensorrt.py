@@ -631,7 +631,7 @@ def reshape_annotate_fn(expr):  # pylint: disable=unused-variable
         if dynamic_reshape:
             # Make sure that the batch dim is unmodified.
             if int(new_shape[0]) < 0:
-                for shape_val, new_shape_val in zip(shape[1:], new_shape[1:]):
+                for shape_val, new_shape_val in enumerate(shape[1:], new_shape[1:]):
                     if not (
                         isinstance(shape_val, int)
                         and isinstance(new_shape_val, int)

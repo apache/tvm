@@ -106,27 +106,6 @@ def compute_scatter_add(attrs, inputs, output_type):
 
 _reg.register_strategy("scatter_add", strategy.scatter_add_strategy)
 
-
-# @_reg.register_compute("add2")
-# def compute_scatter_add(attrs, inputs, output_type):
-#     """Compute definition of scatter_add"""
-#     return [topi.add2(inputs[0], inputs[1])]
-
-
-# _reg.register_schedule("add2", strategy.add2_strategy)
-
-
-# sparsefillemptyrows
-# @_reg.register_compute("sparsefillemptyrows")
-# def compute_sparsefillemptyrows(attrs, inputs, output_type):
-#     """Compute definition of sparsefillemptyrows"""
-#     return [topi.sparsefillemptyrows(inputs[0], inputs[1], inputs[2], inputs[3])]
-
-
-# _reg.register_schedule("sparsefillemptyrows", strategy.schedule_sparsefillemptyrows)
-
-# _reg.register_strategy("sparsefillemptyrows", strategy.sparsefillemptyrows_strategy)
-
 # scatter
 @_reg.register_compute("scatter_nd")
 def compute_scatter_nd(attrs, inputs, output_type):
