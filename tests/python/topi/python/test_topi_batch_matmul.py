@@ -50,7 +50,6 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
         y = te.placeholder((dynamic_batch_size, dynamic_N, dynamic_K), name="y")
         dtype = x.dtype
 
-
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_batch_matmul")
     def get_ref_data():
@@ -101,6 +100,7 @@ def test_batch_matmul():
     # Test dynamic batch
     verify_batch_matmul(1, 1, 16, 16, 32, dynamic=True, debug=True)
     verify_batch_matmul(5, 5, 16, 16, 32, dynamic=True)
+
 
 if __name__ == "__main__":
     test_batch_matmul()
