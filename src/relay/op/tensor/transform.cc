@@ -1596,61 +1596,6 @@ RELAY_REGISTER_OP("sparsereshape")
     .set_support_level(3)
     .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);
 
-TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
-
-bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                            const TypeReporter& reporter) {
-  // types: [ sparse_indices, sparse_values, default_value, result]
-  ICHECK_EQ(types.size(), 4);
-  ICHECK_EQ(num_inputs, 3);
-  std::vector<Type> fields;
-  auto sparse_indices = types[0].as<TensorTypeNode>();
-
-  const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  CHECK(param != nullptr);
-
-  Array<IndexExpr> sp_ordered_output_shape;
-  sp_ordered_output_shape.push_back(param->dense_shape[0] + sparse_indices->shape[0]);
-  if (sparse_indices->shape.size() > 1) {
-    sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
-  }
-  fields.push_back(TensorType(sp_ordered_output_shape, sparse_indices->dtype));
-  fields.push_back(TensorType(Array<PrimExpr>{param->dense_shape[0]}, tvm::DataType::Bool()));
-  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
-  return true;
-}
-
-Array<te::Tensor> SparseFillEmptyRowsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                             const Type& out_type) {
-  CHECK_EQ(inputs.size(), 3);
-  const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  CHECK(param != nullptr);
-  return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], param->dense_shape)};
-}
-
-Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr default_value,
-                             Array<Integer> dense_shape) {
-  auto attrs = make_object<SparseFillEmptyRowsAttrs>();
-  attrs->dense_shape = std::move(dense_shape);
-  static const Op& op = Op::Get("sparsefillemptyrows");
-  return Call(op, {sparse_indices, sparse_values, default_value}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relay.op._make.sparsefillemptyrows").set_body_typed(MakeSparseFillEmptyRows);
-
-RELAY_REGISTER_OP("sparsefillemptyrows")
-    .describe(R"code(Return twice of normal addition of two tensors.
-)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
-    .set_attrs_type<SparseFillEmptyRowsAttrs>()
-    .add_argument("sparse_indices", "Tensor", "The first tensor")
-    .add_argument("sparse_values", "Tensor", "The second tensor")
-    .add_argument("default_value", "Tensor", "The third tensor")
-    .add_type_rel("sparsefillemptyrows", SparseFillEmptyRowsRel)
-    .set_support_level(3)
-    .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_attr<FTVMCompute>("FTVMCompute", SparseFillEmptyRowsCompute);
-
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);
 

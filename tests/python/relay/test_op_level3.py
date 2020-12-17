@@ -1043,55 +1043,6 @@ def test_scatter_add():
 
 
 @tvm.testing.uses_gpu
-def test_sparsefillemptyrows():
-    def ref_sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shape):
-        new_sparse_indices = -1 * np.ones(
-            (sparse_indices.shape[0] + dense_shape[0], sparse_indices.shape[1])
-        )
-        empty_row_indicator = np.ones(dense_shape[0], dtype=bool)
-
-        return new_sparse_indices, empty_row_indicator
-
-    def verify_sparsefillemptyrows(
-        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
-    ):
-        sparse_indices = relay.var(
-            "sparse_indices",
-            relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
-        )
-        sparse_values = relay.var(
-            "sparse_values", relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype))
-        )
-        default_value = relay.var(
-            "default_value", relay.TensorType(default_value_np.shape, str(default_value_np.dtype))
-        )
-        z = relay.op.sparsefillemptyrows(
-            sparse_indices, sparse_values, default_value, list(dense_shape_np)
-        )
-
-        func = relay.Function([sparse_indices, sparse_values, default_value], z)
-
-        ref_res = ref_sparsefillemptyrows(
-            sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
-        )
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np, default_value_np)
-                for op_res_item, ref_res_item in zip(op_res, ref_res):
-                    print(op_res_item, ref_res_item)
-                    tvm.testing.assert_allclose(op_res_item.asnumpy(), ref_res_item, rtol=1e-5)
-
-    sparse_indices_np = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int32)
-    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
-    dense_shape_np = np.array([5, 6], dtype=np.int32)
-    default_value_np = np.array([10], dtype=np.int32)
-    verify_sparsefillemptyrows(
-        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
-    )
-
-
-@tvm.testing.uses_gpu
 def test_sparsereshape():
     def ref_sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
         # sparse_indices[0][0] = 1
@@ -1471,7 +1422,6 @@ def test_adv_index():
 
 
 if __name__ == "__main__":
-    test_sparsefillemptyrows()
     test_sparsereshape()
     test_cast()
     test_zeros_ones()

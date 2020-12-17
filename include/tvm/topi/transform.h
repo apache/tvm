@@ -1386,104 +1386,6 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
   return result;
 }
 
-inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Tensor& sparse_values,
-                                         const Tensor& default_value,
-                                         const Array<Integer>& dense_shape,
-                                         const std::string name = "T_sparsefillemptyrows",
-                                         std::string tag = kInjective) {
-  Array<Tensor> result;
-  Array<PrimExpr> sp_ordered_output_shape;
-  sp_ordered_output_shape.push_back(dense_shape[0] + sparse_indices->shape[0]);
-  if (sparse_indices->shape.size() > 1) {
-    sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
-  }
-  int num_rows = static_cast<int>(dense_shape[0]) + GetConstInt(sparse_indices->shape[0]);
-  int num_cols = GetConstInt(sparse_indices->shape[1]);
-  std::vector<std::vector<PrimExpr>> sp_ordered_output(
-      num_rows, std::vector<PrimExpr>(num_cols, PrimExpr(-1)));
-
-  // std::vector<std::vector<int>> vec(100, std::vector<int>(400, 0));
-  std::vector<int> missing_indices;
-  std::vector<int> current_missing_index{0};
-  std::vector<int> total_missing_indices{0};
-  auto empty_row_indicator =
-      tvm::te::compute(Array<PrimExpr>{dense_shape[0]}, [&](const Array<Var>& indices) {
-        // for (int i = 0; i < GetConstInt(sparse_indices->shape[0]); ++i) {
-        //   sparse_indices[i]
-        // }
-        PrimExpr current_number = sparse_indices[indices[0] - total_missing_indices[0]];
-
-        bool cur_flag = true;
-        for (; cur_flag;) {
-          PrimExpr ret = if_then_else(current_number <= current_missing_index[0], 1, -1);
-          if (ret.as<IntImmNode>()->value == 1) {
-            PrimExpr ret2 = if_then_else(current_number == current_missing_index[0], 1, -1);
-            if (ret2.as<IntImmNode>()->value == 1) {
-              current_missing_index[0]++;
-              return PrimExpr(Bool(1));
-            } else {
-              current_number += 1;
-            }
-          } else {
-            total_missing_indices[0]++;
-          }
-        }
-        return PrimExpr(Bool(1));
-      });
-  result.push_back(compute(
-      sp_ordered_output_shape,
-      [&](const Array<Var>& indices) {
-        PrimExpr ret = -1;
-        //  ret += missing_index;
-        //  int missing_index = 0;
-        // PrimExpr current_missing_index = 0;
-        // PrimExpr count_missing_indices = 0;
-        // for (int i = 0; i < GetConstInt(sparse_indices->shape[0]); ++i)
-        // {
-        //   PrimExpr is_missing_index = if_then_else(sparse_indices[i][0]
-        //   <= current_missing_index,
-        //                                            current_missing_index,
-        //                                            -1);
-        //   if (const IntImmNode* op = is_missing_index.as<IntImmNode>())
-        //   {
-        //     if (op->value == -1) {
-        //       PrimExpr on_current_indices =
-        //           if_then_else(indices[0] == i + count_missing_indices,
-        //           current_missing_index, -1);
-        //       if (const IntImmNode* op =
-        //       is_missing_index.as<IntImmNode>())
-        //       {
-        //         if (op->value == -1) {
-        //           continue;
-        //         } else {
-        //           for (int j = 0; j < 6; ++j) {
-        //             break;
-        //           }
-        //         }
-        //       }
-        //       count_missing_indices += 1;
-        //     } else {
-        //       PrimExpr current_missing_index =
-        //           if_then_else(sparse_indices[i][0] ==
-        //           current_missing_index,
-        //                        current_missing_index + 1,
-        //                        current_missing_index);
-        //     }
-        //   }
-        // }
-        return ret;
-      },
-      name, tag));
-  result.push_back(compute(
-      Array<PrimExpr>{dense_shape[0]},
-      [&](const Array<Var>& i) {
-        PrimExpr ret = Bool(1);
-        return ret;
-      },
-      name, tag));
-  return result;
-}
-
 inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& sparse_values,
                                    const Tensor& prev_shape, const Tensor& new_shape,
                                    const std::string name = "T_sparsereshape",
@@ -1509,7 +1411,6 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
     }
     return PrimExpr(1);
   });
-
   result.push_back(compute(
       new_sparse_indices_shape,
       [&](const Array<Var>& indices) {
@@ -1530,13 +1431,10 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
           PrimExpr ret = -1;
 
           for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
-            //  auto ret = tir::Select(indices[1] == i, new_sparse_indices[i],
-            //  -1);
             if (indices.size() == 1) {
               return new_sparse_indices[0];
             } else {
               ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
-              //  PrimExpr cond = (ret == -1);
               if (const IntImmNode* op = ret.as<IntImmNode>()) {
                 if (op->value == -1) {
                   continue;

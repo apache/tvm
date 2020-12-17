@@ -1322,11 +1322,19 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value):
-
-    return _make.sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value)
-
-
 def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
+    """
+    Reshape a Sparse Tensor
 
+    Parameters
+    ----------
+    inputs : List[relay.Expr]
+        Input tensor and indices.
+        The first tensor is input data and rests are indices.
+
+    Returns
+    -------
+    result: relay.Expr
+        Output tensor.
+    """
     return _make.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)
