@@ -385,6 +385,9 @@ def sort_thrust(data, axis=-1, is_ascend=1):
     out = te.extern(
         [data.shape, data.shape],
         [data],
+        ## TODO(mbrookhart): This thrust function is actually doing argsort, not sort
+        ## For performance, we should probably rename the contrib function and add
+        ## a pure sort
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend
         ),

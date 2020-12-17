@@ -53,9 +53,7 @@ def test_dynamic_topk():
         np_indices = np_indices.astype(dtype)
 
         for target, ctx in tvm.testing.enabled_targets():
-            # only test with vm, graph runtime doesn't support dynamic shapes
-            # and debug runtime doesn't support legalization for cuda kernel
-            for kind in ["vm"]:
+            for kind in ["vm", "debug"]:
                 mod = tvm.ir.IRModule.from_expr(func)
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 op_res = intrp.evaluate()(np_data, np.array([k]).astype("float32"))
