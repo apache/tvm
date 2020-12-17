@@ -955,6 +955,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
+  } else if (op->op.same_as(builtin::atomic_add())) {
+    // TODO(masahi): Support atomic for CPU backend
+    LOG(FATAL) << "CPU backend does not support atomic add yet.";
+    return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;

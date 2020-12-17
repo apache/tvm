@@ -227,11 +227,16 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t, const tvm::Array<tvm::PrimE
       }
     }
     if (sel.size() != 0) {
-      auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
       if (pad_mode == "constant") {
-        return tvm::if_then_else(foldl(fand, const_true(1), sel), t(indices), pad_value);
+        return tvm::if_then_else(
+            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+                  const_true(1), sel),
+            t(indices), pad_value);
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
-        return tvm::if_then_else(foldl(fand, const_true(1), sel), t(indices), t(pad_idx));
+        return tvm::if_then_else(
+            foldl([](PrimExpr a, PrimExpr b, Span span) { return tvm::logical_and(a, b, span); },
+                  const_true(1), sel),
+            t(indices), t(pad_idx));
       }
     }
     return t(indices);
@@ -614,7 +619,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   out = reshape(out, r_p_shape);
 
   // Crop the start and end of dimensions of out
-  Array<Integer> begin_idx, end_idx, strides;
+  Array<PrimExpr> begin_idx, end_idx, strides;
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
     strides.push_back(Integer(1));
     if (i > 0 && i <= num_block_dims) {

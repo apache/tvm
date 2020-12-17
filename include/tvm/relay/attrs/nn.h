@@ -120,6 +120,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
+  std::string auto_scheduler_rewritten_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -937,7 +938,15 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
 
 /*! \brief Attributes for sparse_dense operator */
 struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
-  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {}
+  bool sparse_lhs;
+
+  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
+    TVM_ATTR_FIELD(sparse_lhs)
+        .set_default(false)
+        .describe(
+            "Indicate whether sparse matrix is multiplied on the right or the left. If true, then "
+            "the operation is S * D^T (D dense, S sparse). If false, the operation is D * S^T");
+  }
 };
 
 /*! \brief Attributes for sparse_transpose operator */

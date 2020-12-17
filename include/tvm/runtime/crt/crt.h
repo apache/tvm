@@ -34,14 +34,12 @@ extern "C" {
 
 /*!
  * \brief Initialize various data structures used by the rutnime.
- * \param memory_pool Pointer to the global memory pool used by the CRT.
- * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
- * \param page_size_bytes_log2 log2 of the page size, in bytes.
+ * Prior to calling this, any initialization needed to support TVMPlatformMemory* functions shoudl
+ * be completed.
  * \return An error code describing the outcome of intialization. Generally, initialization
  *     is only expected to fail due to a misconfiguration.
  */
-tvm_crt_error_t TVMInitializeRuntime(uint8_t* memory_pool, size_t memory_pool_size_bytes,
-                                     size_t page_size_bytes_log2);
+tvm_crt_error_t TVMInitializeRuntime();
 
 #ifdef __cplusplus
 }  // extern "C"

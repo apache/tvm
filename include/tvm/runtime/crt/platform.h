@@ -27,6 +27,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
 
 #ifdef __cplusplus
@@ -56,6 +57,27 @@ void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t code);
 size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
                                 va_list args);
 
+/*!
+ * \brief Allocate memory for use by TVM.
+ *
+ * When this function returns something other than kTvmErrorNoError, *out_ptr should not be modified
+ * and the caller is not obligated to call TVMPlatformMemoryFree in order to avoid a memory leak.
+ *
+ * \param num_bytes Number of bytes requested.
+ * \param ctx Execution context that will be used with the allocated memory. Fixed to {kDLCPU, 0}.
+ * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr);
+
+/*!
+ * \brief Free memory used by TVM.
+ *
+ * \param ptr A pointer returned from TVMPlatformMemoryAllocate which should be free'd.
+ * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx);
 #ifdef __cplusplus
 }  // extern "C"
 #endif

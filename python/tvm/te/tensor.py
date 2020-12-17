@@ -40,7 +40,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
 
     def asobject(self):
         """Convert slice to object."""
-        return self.tensor(*self.indices)
+        return self.tensor.__call__(*self.indices)
 
     @property
     def dtype(self):

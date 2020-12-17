@@ -29,7 +29,7 @@ import logging
 
 import numpy as np
 
-from .search_policy import SearchPolicy, SketchPolicy
+from .search_policy import SearchPolicy, SketchPolicy, PreloadMeasuredStates
 from .cost_model import RandomModel, XGBModel
 from .utils import array_mean
 from .measure import ProgramMeasurer
@@ -94,8 +94,19 @@ def make_search_policies(
             raise ValueError("Invalid search policy: " + search_policy)
 
         if policy_type == "sketch":
+            if load_log_file:
+                # use the log file to restore the status of search policies.
+                init_search_callbacks = [PreloadMeasuredStates(load_log_file)]
+            else:
+                init_search_callbacks = None
             search_policies = [
-                SketchPolicy(task, cost_model, params=search_policy_params, verbose=verbose)
+                SketchPolicy(
+                    task,
+                    cost_model,
+                    params=search_policy_params,
+                    verbose=verbose,
+                    init_search_callbacks=init_search_callbacks,
+                )
                 for task in tasks
             ]
         else:
@@ -181,7 +192,7 @@ class TaskScheduler:
         The parameter used for 'gradient' strategy
     callbacks: Optional[List[TaskSchedulerCallback]]
         The task scheduler callbacks that will be called before and after tuning a task.
-        If None, then PrintTableInfo callback will be used.
+        If None, PrintTableInfo and LogEstimatedLatency callback will be used.
     """
 
     def __init__(
@@ -214,7 +225,11 @@ class TaskScheduler:
         self.beta = beta
         self.gamma = gamma
         self.backward_window_size = backward_window_size
-        self.callbacks = callbacks if callbacks is not None else [PrintTableInfo()]
+        self.callbacks = (
+            callbacks
+            if callbacks is not None
+            else [PrintTableInfo(), LogEstimatedLatency("total_latency.tsv")]
+        )
 
         assert len(self.tasks) != 0, "No tasks"
         assert self.strategy in ["round-robin", "gradient"]

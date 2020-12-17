@@ -16,4 +16,4 @@
 # specific language governing permissions and limitations
 # under the License.
 echo "Cleanup data..."
-cd $1 && rm -rf CMake* && cd ..
+cd $1 && rm -rf standalone_crt && rm -rf host_standalone_crt && rm -rf CMake* && cd ..

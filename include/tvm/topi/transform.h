@@ -591,17 +591,42 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const Array<Integer>& end,
-                            const Array<Integer>& strides, std::string slice_mode = "end",
-                            std::string name = "T_strided_slice", std::string tag = kInjective) {
+inline Tensor strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
+                            const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
+                            std::string slice_mode = "end", std::string name = "T_strided_slice",
+                            std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
+  // Quick path for dynamic shape strided slice.
+  // This is for ease of use to dynamice strided slice in topi.
+  bool is_static = IsConstIntArray(x->shape);
+  is_static &= IsConstIntArray(begin);
+  is_static &= IsConstIntArray(end);
+  is_static &= IsConstIntArray(strides);
+
+  Array<PrimExpr> out_shape;
+  if (!is_static) {
+    for (size_t i = 0; i < src_tensor_dim; ++i) {
+      out_shape.push_back(indexdiv(end[i] - begin[i], strides[i]));
+    }
+    return te::compute(
+        out_shape,
+        [&](const Array<tvm::tir::Var>& indices) {
+          Array<PrimExpr> real_indices;
+          for (size_t i = 0; i < src_tensor_dim; ++i) {
+            real_indices.push_back(indices[i] * strides[i] + begin[i]);
+          }
+          return x(real_indices);
+        },
+        name, tag);
+  }
+
   // Setup the ranges.
   // NOTE: this code duplicates the shape inference logic relay.op
   // Consider to refactor in the future.
   std::vector<int64_t> stride_vec(src_tensor_dim, 1);
   for (size_t i = 0; i < strides.size(); ++i) {
     ICHECK(strides[i].defined());
-    stride_vec[i] = strides[i]->value;
+    stride_vec[i] = GetConstInt(strides[i]);
   }
 
   const int64_t max_range = std::numeric_limits<int64_t>::max();
@@ -612,7 +637,7 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
       // value=None
       begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
     } else {
-      begin_vec.push_back(begin[i]->value);
+      begin_vec.push_back(GetConstInt(begin[i]));
     }
   }
   for (size_t i = begin_vec.size(); i < src_tensor_dim; ++i) {
@@ -626,20 +651,20 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
     if (!end[i].defined()) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     } else if (slice_mode == "size") {
-      if (end[i]->value < 0) {
+      int64_t end_val = GetConstInt(end[i]);
+      if (end_val < 0) {
         end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
       } else {
-        end_vec.push_back(begin_vec[i] + end[i]->value);
+        end_vec.push_back(begin_vec[i] + end_val);
       }
     } else {
-      end_vec.push_back(end[i]->value);
+      end_vec.push_back(GetConstInt(end[i]));
     }
   }
   for (size_t i = end_vec.size(); i < src_tensor_dim; ++i) {
     end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
   }
   // Compute
-  Array<PrimExpr> out_shape;
   Array<PrimExpr> begin_expr;
   Array<PrimExpr> strides_expr;
 
@@ -1547,6 +1572,74 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
                    return src(src_indices);
                  },
                  name, tag);
+}
+
+/*! \brief Utility function for auto_scheduler_layout_transform */
+inline void parse_auto_scheduler_layout(const String& layout, Array<PrimExpr>* shape,
+                                        std::vector<std::string>* axes) {
+  int32_t factor = 0;
+  std::string axis = "";
+  for (char c : std::string(layout)) {
+    if (c >= 'A' && c <= 'z') {
+      axis += c;
+      if (factor != 0) {
+        shape->push_back(factor);
+        factor = 0;
+      }
+    } else if (c >= '0' && c <= '9') {
+      factor = factor * 10 + c - '0';
+      if (!axis.empty()) {
+        axes->push_back(axis);
+        axis = "";
+      }
+    } else {
+      LOG(FATAL) << "Invalid layout " << layout;
+    }
+  }
+  if (!axis.empty()) {
+    axes->push_back(axis);
+  }
+}
+
+/*!
+ * \brief Transform the auto-scheduler generated layout according to
+ *        \p src_layout and \p dst_layout
+ * \param src the source input.
+ * \param src_layout the source layout.
+ * \param dst_layout the destination layout.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor with shape in \p dst_layout
+ */
+inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& src_layout,
+                                              const String& dst_layout,
+                                              const String name = "T_auto_scheduler_layout_trans",
+                                              const String tag = kInjective) {
+  Array<PrimExpr> src_shape;
+  std::vector<std::string> src_axes;
+  Array<PrimExpr> dst_shape;
+  std::vector<std::string> dst_axes;
+
+  parse_auto_scheduler_layout(src_layout, &src_shape, &src_axes);
+  parse_auto_scheduler_layout(dst_layout, &dst_shape, &dst_axes);
+  return compute(
+      dst_shape,
+      [&](const Array<Var>& dst_indices) {
+        Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+        Array<PrimExpr> src_indices;
+        for (const std::string& src_axis : src_axes) {
+          PrimExpr src_index = 0;
+          CHECK_EQ(dst_indices_expr.size(), dst_axes.size());
+          for (size_t i = 0; i < dst_axes.size(); ++i) {
+            if (dst_axes[i] == src_axis) {
+              src_index = src_index * dst_shape[i] + dst_indices_expr[i];
+            }
+          }
+          src_indices.push_back(src_index);
+        }
+        return src(src_indices);
+      },
+      name, tag);
 }
 
 /*!

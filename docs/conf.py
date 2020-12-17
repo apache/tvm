@@ -251,6 +251,7 @@ within_subsection_order = {
         "tune_relay_mobile_gpu.py",
     ],
     "auto_scheduler": ["tune_matmul_x86.py", "tune_conv2d_layer_cuda.py"],
+    "dev": ["low_level_custom_pass.py", "use_pass_infra.py", "bring_your_own_datatypes.py"],
 }
 
 

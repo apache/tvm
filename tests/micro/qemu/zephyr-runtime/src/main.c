@@ -68,6 +68,18 @@ void TVMPlatformAbort(tvm_crt_error_t error) {
     ;
 }
 
+K_MEM_POOL_DEFINE(tvm_memory_pool, 64, 1024, 120, 4);
+
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
+  *out_ptr = k_mem_pool_malloc(&tvm_memory_pool, num_bytes);
+  return (*out_ptr == NULL) ? kTvmErrorPlatformNoMemory : kTvmErrorNoError;
+}
+
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
+  k_free(ptr);
+  return kTvmErrorNoError;
+}
+
 uint32_t g_utvm_start_time;
 
 #define MILLIS_TIL_EXPIRY 200
@@ -149,11 +161,6 @@ int TVMPlatformTimerStop(double* res_us) {
   return 0;
 }
 
-#define WORKSPACE_SIZE_BYTES (120 * 1024)
-#define WORKSPACE_PAGE_SIZE_BYTES_LOG2 8
-
-uint8_t workspace[WORKSPACE_SIZE_BYTES];
-
 #define RING_BUF_SIZE 512
 struct uart_rx_buf_t {
   struct ring_buf buf;
@@ -218,8 +225,7 @@ void main(void) {
   uart_rx_init(&uart_rx_buf, tvm_uart);
   __stdout_hook_install(&write_hook);
 
-  utvm_rpc_server_t server = UTvmRpcServerInit(workspace, WORKSPACE_SIZE_BYTES,
-                                               WORKSPACE_PAGE_SIZE_BYTES_LOG2, write_serial, NULL);
+  utvm_rpc_server_t server = UTvmRpcServerInit(write_serial, NULL);
   TVMLogf("uTVM On-Device Runtime");
 
   while (true) {

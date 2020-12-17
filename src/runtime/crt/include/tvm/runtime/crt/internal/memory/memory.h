@@ -18,16 +18,17 @@
  */
 
 /*!
- * \file runtime/crt/include/tvm/runtime/crt/internal/common/memory.h
+ * \file runtime/crt/include/tvm/runtime/crt/internal/memory/memory.h
  * \brief Defines data types and functions used in the internal memory manager.
  *     Exposed for testing.
  */
 
-#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MEMORY_H_
-#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MEMORY_H_
+#ifndef TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_MEMORY_H_
+#define TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_MEMORY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/error_codes.h>
+#include <tvm/runtime/crt/memory.h>
 
 #include "crt_config.h"
 
@@ -94,26 +95,8 @@ typedef struct MultiMap {
  *  Implements simple paging to allow physical address translation.
  */
 typedef struct MemoryManager {
-  /*!
-   * \brief Allocate memory from manager
-   * \param size The size of memory
-   * \return The virtual address
-   */
-  void* (*Alloc)(struct MemoryManager* mgr, tvm_index_t size);
-  /*!
-   * \brief Allocate memory from manager
-   * \param ptr The pointer to the memory area to be reallocated
-   * \param size The size of memory
-   * \return The virtual address
-   */
-  void* (*Realloc)(struct MemoryManager* mgr, void* ptr, tvm_index_t size);
-  /*!
-   * \brief Free the memory.
-   * \param ptr The pointer to the memory to deallocate
-   * \return The virtual address
-   */
-  void (*Free)(struct MemoryManager* mgr, void* data);
-
+  // Public interface for this object.
+  MemoryManagerInterface interface;
   // Physical address -> page
   PageTable ptable;
   // Virtual address -> page
@@ -122,33 +105,8 @@ typedef struct MemoryManager {
   MultiMap free_map;
 } MemoryManager;
 
-/*!
- * Exposed for testing.
- *
- * \param manager The memory manager to initialize.
- * \param memory_pool Pointer to the global memory pool used by the CRT.
- * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
- * \param page_size_bytes_log2 log2 of the page size, in bytes.
- */
-void MemoryManagerCreate(MemoryManager* manager, uint8_t* memory_pool,
-                         size_t memory_pool_size_bytes, size_t page_size_bytes_log2);
-
-/*!
- * Initialize the global memory manager.
- *
- * Call this function once before invoking any other CRT functions beginning with `TVM`.
- * Repeated calls will cause TVMPlatformAbort to be invoked.
- * \param memory_pool Pointer to the global memory pool used by the CRT.
- * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
- * \param page_size_bytes_log2 log2 of the page size, in bytes.
- * \return An error code indicating the status of the operation.
- */
-tvm_crt_error_t TVMInitializeGlobalMemoryManager(uint8_t* memory_pool,
-                                                 size_t memory_pool_size_bytes,
-                                                 size_t page_size_bytes_log2);
-
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_COMMON_MEMORY_H_
+#endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_MEMORY_MEMORY_H_

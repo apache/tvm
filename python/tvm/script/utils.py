@@ -17,6 +17,7 @@
 """Helper functions in TVM Script Parser"""
 
 import inspect
+from ..ir import Span, SourceName
 
 
 def get_param_list(func):
@@ -37,9 +38,22 @@ def get_param_list(func):
 
     pos_only = list()
     for arg in args[: len(args) - len(defaults)]:
-        pos_only.append(arg)
+        if arg != "span":
+            pos_only.append(arg)
     kwargs = list()
     for default, arg in zip(defaults, args[len(args) - len(defaults) :]):
-        kwargs.append((arg, default))
+        if arg != "span":
+            kwargs.append((arg, default))
 
     return pos_only, kwargs, full_arg_spec.varargs
+
+
+def from_synr_span(span):
+    """Convert a synr span to a TVM span"""
+    return Span(
+        SourceName(span.filename),
+        span.start_line,
+        span.end_line,
+        span.start_column,
+        span.end_column,
+    )

@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
-"""Argsort operator """
+"""Sort related operators """
 import tvm
 from tvm import te
+from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
 from ..math import identity
@@ -103,9 +104,9 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
     nthread_bx = shape[axis] // max_threads + 1
 
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("vthread")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "virtual_thread", nthread_bx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate(values_out.dtype, (1,), name="temp_data", scope="local")
     if indices_out is not None:
@@ -201,13 +202,13 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     nthread_tx = max_threads
     nthread_bx = size // max_threads + 1
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("vthread")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "virtual_thread", nthread_bx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
-    is_ascend = tvm.ir.make_node("IntImm", dtype="int32", value=is_ascend)
+    is_ascend = tvm.tir.IntImm("int32", is_ascend)
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
@@ -479,27 +480,28 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
             name="topk_gpu",
             tag="topk_gpu",
         )
-    if k < 1:
+    if isinstance(k, int) and k < 1:
         if ret_type == "indices":
             return output[1]
         return output
     beg = [0] * ndim
     end = []
+    strides = [1] * ndim
     for i in range(ndim):
         if i == axis:
-            end.append(k)
+            end.append(k if isinstance(k, int) else tvm.te.size_var("dim"))
         else:
             end.append(data.shape[i])
     if ret_type == "both":
         values_out, indices_out = output
-        values_out = strided_slice(values_out, beg, end)
-        indices_out = strided_slice(indices_out, beg, end)
+        values_out = strided_slice(values_out, beg, end, strides)
+        indices_out = strided_slice(indices_out, beg, end, strides)
         output = [values_out, indices_out]
     elif ret_type == "values":
-        output = [strided_slice(output, beg, end)]
+        output = [strided_slice(output, beg, end, strides)]
     else:  # ret_type == "indices"
         indices_out = output[1]
-        output = [strided_slice(indices_out, beg, end)]
+        output = [strided_slice(indices_out, beg, end, strides)]
     return output
 
 
@@ -549,6 +551,8 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8),
     ]
 
+    is_ascend = 1 if is_ascend else 0
+
     out = te.extern(
         [data.shape, data.shape],
         [data],
@@ -561,10 +565,11 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tag="topk_gpu",
     )
 
-    if k > 0:
+    if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k]
-        out = [strided_slice(o, beg, end) for o in out]
+        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
+        strides = [1] * ndim
+        out = [strided_slice(o, beg, end, strides) for o in out]
 
     if axis != ndim - 1:
         axes = swap(list(range(ndim)), axis)
@@ -593,3 +598,59 @@ def schedule_topk(outs):
       The computation schedule for the op.
     """
     return _schedule_sort(outs)
+
+
+def stable_sort_by_key_thrust(keys, values, for_scatter=False):
+    """Sort values with respect to keys using thrust.
+    Both keys and values will be sorted and returned.
+    Sorting is done via stable sort, so relative ordering among
+    ties are preserved.
+
+    Parameters
+    ----------
+    keys: tvm.te.Tensor
+        The 1D input keys.
+
+    values : tvm.te.Tensor,
+        The 1D input values.
+
+    for_scatter: bool, optional
+        If True, negative keys are interpreted as negative indices.
+        Before sorting, negative indices are converted to corresponding positive indices.
+        The output keys (indices) are all positive.
+        This option is introduced to optimize the scatter implementation.
+
+    Returns
+    -------
+    keys_sorted : tvm.te.Tensor
+        The sorted keys
+
+    values_sorted : tvm.te.Tensor
+        The values sorted with respect to the keys
+    """
+    keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
+    values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
+    out_bufs = [
+        tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
+        tvm.tir.decl_buffer(keys.shape, values.dtype, "values_buf", data_alignment=8),
+    ]
+    out = te.extern(
+        [keys.shape, values.shape],
+        [keys, values],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.thrust.stable_sort_by_key", ins[0], ins[1], outs[0], outs[1], for_scatter
+        ),
+        in_buffers=[keys_buf, values_buf],
+        out_buffers=out_bufs,
+        dtype=[keys.dtype, values.dtype],
+        name="stable_sort_by_key",
+        tag="stable_sort_by_key",
+    )
+    return out[0], out[1]
+
+
+def is_thrust_available():
+    """
+    Test if thrust based sorting ops are available.
+    """
+    return get_global_func("tvm.contrib.thrust.sort", allow_missing=True) is not None
