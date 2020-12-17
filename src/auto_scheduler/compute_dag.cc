@@ -997,11 +997,20 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             transform_steps->Set(i, std::move(step));
           }
         }
+
+        // Add schedule for the new added transform stage
         Array<Integer> to_fuse;
-        for (size_t i = 0; i < new_shape.size() - 1; i++) {
-          to_fuse.push_back(i);
+
+        if (new_shape.size() >= 5) {
+          to_fuse.push_back(0);
+          to_fuse.push_back(1);
+          to_fuse.push_back(2);
+          transform_steps->push_back(FuseStep(stage_id, to_fuse));
+        } else if (new_shape.size() >= 3) {
+          to_fuse.push_back(0);
+          to_fuse.push_back(1);
+          transform_steps->push_back(FuseStep(stage_id, to_fuse));
         }
-        transform_steps->push_back(FuseStep(stage_id, to_fuse));
         transform_steps->push_back(AnnotationStep(stage_id, 0, IteratorAnnotation::kParallel));
       }
 
