@@ -1339,11 +1339,12 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
                                 std::string name = "T_arange_dynamic",
                                 std::string tag = topi::kInjective) {
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
-  return te::compute({num_elem},
-                     [&](const Array<tvm::tir::Var>& indices) {
-                       return tvm::cast(dtype, start[0] + step[0] * indices[0]);
-                     },
-                     name, tag);
+  return te::compute(
+      {num_elem},
+      [&](const Array<tvm::tir::Var>& indices) {
+        return tvm::cast(dtype, start[0] + step[0] * indices[0]);
+      },
+      name, tag);
 }
 
 Array<te::Tensor> ArangeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -2500,16 +2501,16 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           tir::make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()),
                           (i < strides.size() ? strides[i]->value : 1)));
     }
-    return Array<te::Tensor>{
-        te::compute(out_shape,
-                    [&](const Array<tir::Var>& indices) {
-                      Array<PrimExpr> real_indices;
-                      for (size_t i = 0; i < src_tensor_dim; ++i) {
-                        real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
-                      }
-                      return input(real_indices);
-                    },
-                    std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
+    return Array<te::Tensor>{te::compute(
+        out_shape,
+        [&](const Array<tir::Var>& indices) {
+          Array<PrimExpr> real_indices;
+          for (size_t i = 0; i < src_tensor_dim; ++i) {
+            real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
+          }
+          return input(real_indices);
+        },
+        std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
   } else {
     for (size_t i = 0; i < begin.size(); ++i) {
       begin_expr.push_back(begin[i]);
