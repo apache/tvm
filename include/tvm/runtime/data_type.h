@@ -126,8 +126,8 @@ class DataType {
   DataType element_of() const { return with_lanes(1); }
   /*!
    * \brief Equal comparator.
-   * \param other The data type to compre against.
-   * \return The comparison resilt.
+   * \param other The data type to compare against.
+   * \return The comparison result.
    */
   bool operator==(const DataType& other) const {
     return data_.code == other.data_.code && data_.bits == other.data_.bits &&
@@ -135,8 +135,8 @@ class DataType {
   }
   /*!
    * \brief NotEqual comparator.
-   * \param other The data type to compre against.
-   * \return The comparison resilt.
+   * \param other The data type to compare against.
+   * \return The comparison result.
    */
   bool operator!=(const DataType& other) const { return !operator==(other); }
   /*!
