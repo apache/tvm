@@ -186,6 +186,7 @@ def recover_measure_input(inp, rebuild_state=False):
         target=task.target,
         target_host=task.target_host,
         hardware_params=task.hardware_params,
+        layout_rewrite_option=task.layout_rewrite_option
     )
 
     if rebuild_state:
@@ -551,7 +552,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     try:
         sch, args = task.compute_dag.apply_steps_from_state(
-            inp.state, layout_rewrite=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+            inp.state, layout_rewrite=task.layout_rewrite_option
         )
     # pylint: disable=broad-except
     except Exception:

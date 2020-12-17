@@ -178,6 +178,7 @@ class SearchTask(Object):
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
+    layout_rewrite_option : LayoutRewriteOption = LayoutRewriteOption.NO_REWRITE
 
     Examples
     --------
@@ -204,6 +205,7 @@ class SearchTask(Object):
         target=None,
         target_host=None,
         hardware_params=None,
+        layout_rewrite_option=LayoutRewriteOption.NO_REWRITE
     ):
         assert (
             func is not None or workload_key is not None
@@ -221,7 +223,8 @@ class SearchTask(Object):
             target_host = Target(target_host)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params
+            _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params,
+            layout_rewrite_option
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -305,6 +308,7 @@ class SearchTask(Object):
             "target": self.target,
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
+            "layout_rewrite_option": self.layout_rewrite_option
         }
 
     def __setstate__(self, state):
@@ -327,6 +331,7 @@ class SearchTask(Object):
             state["target"],
             state["target_host"],
             state["hardware_params"],
+            state["layout_rewrite_option"]
         )
 
 

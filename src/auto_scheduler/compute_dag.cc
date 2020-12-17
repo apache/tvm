@@ -1023,7 +1023,10 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             }
             original_compute_op = op;
             CHECK(!new_compute_op.defined());
-            new_compute_op = te::ComputeOp(pop->name, pop->tag, pop->attrs, pop->axis, new_body);
+            auto new_attrs = pop->attrs;
+            new_attrs.Set("ori_placeholder_layout", tvm::String(origin_layout));
+            new_attrs.Set("new_placeholder_layout", tvm::String(new_layout));
+            new_compute_op = te::ComputeOp(pop->name, pop->tag, new_attrs, pop->axis, new_body);
           }
         }
       }

@@ -118,6 +118,8 @@ class SearchTaskNode : public Object {
   Target target_host;
   /*! \brief Hardware parameters used in this search task. */
   HardwareParams hardware_params;
+  /*! \brief */
+  int layout_rewrite_option;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("compute_dag", &compute_dag);
@@ -125,6 +127,7 @@ class SearchTaskNode : public Object {
     v->Visit("target", &target);
     v->Visit("target_host", &target_host);
     v->Visit("hardware_params", &hardware_params);
+    v->Visit("layout_rewrite_option", &layout_rewrite_option);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.SearchTask";
@@ -146,7 +149,7 @@ class SearchTask : public ObjectRef {
    * \param hardware_params Hardware parameters used in this search task.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
-             Optional<HardwareParams> hardware_params);
+             Optional<HardwareParams> hardware_params, int layout_rewrite_option);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };
