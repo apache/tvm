@@ -565,6 +565,9 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tag="topk_gpu",
     )
 
+    if isinstance(k, tvm.tir.IntImm):
+        k = k.value
+
     if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
         end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
