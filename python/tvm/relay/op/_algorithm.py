@@ -23,9 +23,9 @@ from tvm.runtime import convert
 
 from . import strategy
 from . import op as _reg
-from _tensor import elemwise_shape_func
 from .op import OpPattern, register_pattern
-from .op import register_strategy
+from .op import register_strategy, register_shape_func
+from ._tensor import elemwise_shape_func
 
 # sort
 register_strategy("sort", strategy.sort_strategy)
