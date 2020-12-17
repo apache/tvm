@@ -608,16 +608,15 @@ inline Tensor strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       out_shape.push_back(indexdiv(end[i] - begin[i], strides[i]));
     }
-    return te::compute(
-        out_shape,
-        [&](const Array<tvm::tir::Var>& indices) {
-          Array<PrimExpr> real_indices;
-          for (size_t i = 0; i < src_tensor_dim; ++i) {
-            real_indices.push_back(indices[i] * strides[i] + begin[i]);
-          }
-          return x(real_indices);
-        },
-        name, tag);
+    return te::compute(out_shape,
+                       [&](const Array<tvm::tir::Var>& indices) {
+                         Array<PrimExpr> real_indices;
+                         for (size_t i = 0; i < src_tensor_dim; ++i) {
+                           real_indices.push_back(indices[i] * strides[i] + begin[i]);
+                         }
+                         return x(real_indices);
+                       },
+                       name, tag);
   }
 
   // Setup the ranges.
@@ -1536,6 +1535,7 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
                            [&](const Array<Var>& i) { return (sparse_values(i)); }, name, tag));
   return result;
 }  // namespace topi
+
 /*!
  * \brief Transform the layout according to \p src_layout and \p dst_layout
  * \param src the source input.
@@ -1622,24 +1622,23 @@ inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& s
 
   parse_auto_scheduler_layout(src_layout, &src_shape, &src_axes);
   parse_auto_scheduler_layout(dst_layout, &dst_shape, &dst_axes);
-  return compute(
-      dst_shape,
-      [&](const Array<Var>& dst_indices) {
-        Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
-        Array<PrimExpr> src_indices;
-        for (const std::string& src_axis : src_axes) {
-          PrimExpr src_index = 0;
-          CHECK_EQ(dst_indices_expr.size(), dst_axes.size());
-          for (size_t i = 0; i < dst_axes.size(); ++i) {
-            if (dst_axes[i] == src_axis) {
-              src_index = src_index * dst_shape[i] + dst_indices_expr[i];
-            }
-          }
-          src_indices.push_back(src_index);
-        }
-        return src(src_indices);
-      },
-      name, tag);
+  return compute(dst_shape,
+                 [&](const Array<Var>& dst_indices) {
+                   Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+                   Array<PrimExpr> src_indices;
+                   for (const std::string& src_axis : src_axes) {
+                     PrimExpr src_index = 0;
+                     CHECK_EQ(dst_indices_expr.size(), dst_axes.size());
+                     for (size_t i = 0; i < dst_axes.size(); ++i) {
+                       if (dst_axes[i] == src_axis) {
+                         src_index = src_index * dst_shape[i] + dst_indices_expr[i];
+                       }
+                     }
+                     src_indices.push_back(src_index);
+                   }
+                   return src(src_indices);
+                 },
+                 name, tag);
 }
 
 /*!

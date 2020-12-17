@@ -21,10 +21,10 @@ from tvm.te.hybrid import script
 from tvm import topi
 from tvm.runtime import convert
 
-from .op import register_compute, register_shape_func, register_strategy
+from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
-from . import strategy
+
 
 register_broadcast_schedule("log")
 register_broadcast_schedule("log2")
@@ -274,7 +274,6 @@ register_shape_func("tan", False, elemwise_shape_func)
 register_shape_func("fast_exp", False, elemwise_shape_func)
 register_shape_func("fast_tanh", False, elemwise_shape_func)
 register_shape_func("fast_erf", False, elemwise_shape_func)
-register_shape_func("ceil", False, elemwise_shape_func)
 register_shape_func("floor", False, elemwise_shape_func)
 register_shape_func("log", False, elemwise_shape_func)
 register_shape_func("device_copy", False, elemwise_shape_func)

@@ -269,11 +269,6 @@ def get_relay_op(op_name):
         # try search op in various modules
         for candidate in (_op, _op.nn, _op.image, _op.vision, _op.contrib):
             op = getattr(candidate, op_name, None)
-            # if op_name == "floor_mod" and op is not None:
-            #     import pdb
-
-            #     pdb.set_trace()
-            #     print(op)
             if op is not None:
                 break
     if not op:

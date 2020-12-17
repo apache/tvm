@@ -1016,9 +1016,6 @@ def test_scatter_add():
 
         ref_res = ref_scatter_add(data_np, indices_np, updates_np, axis)
         for target, ctx in tvm.testing.enabled_targets():
-            if target == "nvptx":
-                continue
-            print(target)
             for kind in ["graph", "debug"]:
                 if target == "nvptx" and dtype == "float32" and len(dshape) == 1:
                     # scatter_add 1D on GPU is implemented via atomic.
@@ -1078,8 +1075,6 @@ def test_sparsefillemptyrows():
             sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
         )
         for target, ctx in tvm.testing.enabled_targets():
-            if target == "nvptx":
-                continue
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np, default_value_np)
@@ -1094,7 +1089,6 @@ def test_sparsefillemptyrows():
     verify_sparsefillemptyrows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
-    print("Sparse Fill Empty Rows Verified !!")
 
 
 @tvm.testing.uses_gpu
@@ -1160,8 +1154,6 @@ def test_sparsereshape():
             sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np
         )
         for target, ctx in tvm.testing.enabled_targets():
-            if target == "nvptx":
-                continue
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(
@@ -1181,33 +1173,31 @@ def test_sparsereshape():
     new_shape_np = np.array([9, 4], dtype=np.int32)
     verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
 
-    # sparse_indices_np = np.array(
-    #     [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]], dtype=np.int32
-    # )
-    # sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    # prev_shape_np = np.array([2, 3, 6, 7], dtype=np.int32)
-    # new_shape_np = np.array([9, -1, 7], dtype=np.int32)
-    # verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
+    sparse_indices_np = np.array(
+        [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]], dtype=np.int32
+    )
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([2, 3, 6, 7], dtype=np.int32)
+    new_shape_np = np.array([9, -1, 7], dtype=np.int32)
+    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
 
-    # sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
-    # sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    # prev_shape_np = np.array([9, 4], dtype=np.int32)
-    # new_shape_np = np.array([2, -1, 6], dtype=np.int32)
-    # verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
+    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([9, 4], dtype=np.int32)
+    new_shape_np = np.array([2, -1, 6], dtype=np.int32)
+    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
 
-    # sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
-    # sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    # prev_shape_np = np.array([9, 4], dtype=np.int32)
-    # new_shape_np = np.array([-1], dtype=np.int32)
-    # verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
+    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([9, 4], dtype=np.int32)
+    new_shape_np = np.array([-1], dtype=np.int32)
+    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
 
-    # sparse_indices_np = np.array([0, 5, 10, 20, 24], dtype=np.int32)
-    # sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    # prev_shape_np = np.array([25], dtype=np.int32)
-    # new_shape_np = np.array([5, 5], dtype=np.int32)
-    # verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    # print("Sparse Reshape Verified !!")
+    sparse_indices_np = np.array([0, 5, 10, 20, 24], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([25], dtype=np.int32)
+    new_shape_np = np.array([5, 5], dtype=np.int32)
+    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
 
 
 @tvm.testing.uses_gpu
@@ -1481,7 +1471,6 @@ def test_adv_index():
 
 
 if __name__ == "__main__":
-    test_scatter_add()
     test_sparsefillemptyrows()
     test_sparsereshape()
     test_cast()

@@ -1584,7 +1584,6 @@ TVM_REGISTER_GLOBAL("relay.op._make.sparsereshape").set_body_typed(MakeSparseRes
 
 RELAY_REGISTER_OP("sparsereshape")
     .describe(R"code(Return twice of normal addition of two tensors.
-
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(4)
     .add_argument("sparse_indices", "Tensor", "The first tensor")
@@ -1640,7 +1639,6 @@ TVM_REGISTER_GLOBAL("relay.op._make.sparsefillemptyrows").set_body_typed(MakeSpa
 
 RELAY_REGISTER_OP("sparsefillemptyrows")
     .describe(R"code(Return twice of normal addition of two tensors.
-
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .set_attrs_type<SparseFillEmptyRowsAttrs>()

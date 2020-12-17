@@ -499,9 +499,6 @@ def const(value, dtype=None):
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
-    if isinstance(value, tuple) and len(value) == 1:
-        value = value[0]
-
     if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
@@ -517,10 +514,6 @@ def const(value, dtype=None):
         value = _nd.array(value)
 
     if not isinstance(value, _nd.NDArray):
-        # import pdb
-
-        # pdb.set_trace()
-        print(f"Value : {value}, Type: {type(value)}")
         raise ValueError("value has to be scalar or NDArray")
 
     return Constant(value)
