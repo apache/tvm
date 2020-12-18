@@ -1386,6 +1386,7 @@ def test_any_where():
         any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
     )
 
+
 # TODO(kevinthesun): enable gpu test when Thrust is available in ci.
 # @tvm.testing.uses_gpu
 def test_non_max_suppression():
