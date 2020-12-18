@@ -210,9 +210,11 @@ def tune_and_evaluate():
     # Create graph runtime
     print("=============== Request Remote ===============")
     from tvm.auto_scheduler.utils import request_remote
+
     remote = request_remote(device_key, "0.0.0.0", 9190)
     ctx = remote.cl()
     from tvm.contrib import utils, ndk
+
     temp = utils.tempdir()
     filename = "deploy_lib.so"
     path_lib = temp.relpath(filename)
