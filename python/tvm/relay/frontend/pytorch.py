@@ -146,6 +146,7 @@ class PyTorchOpConverter:
     # above.
     def infer_type(self, node, mod=None):
         """An incremental method to infer the type of a node in the relay graph."""
+
         if node in self.types:
             return self.types[node]
         if isinstance(node, tvm.relay.Var):
@@ -2067,7 +2068,6 @@ class PyTorchOpConverter:
             input_type = input_types[0]
 
         is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
-
         return _expr.const(is_float)
 
     # Operator mappings
