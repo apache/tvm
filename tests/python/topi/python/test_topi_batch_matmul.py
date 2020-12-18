@@ -84,6 +84,10 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device, ctx in tvm.testing.enabled_targets():
+        if dynamic and device == "cuda":
+            print("Dynamic batch matmul test is skippped on cuda")
+            continue
+
         check_device(device, ctx)
 
 
@@ -98,7 +102,7 @@ def test_batch_matmul():
     verify_batch_matmul(5, 1, 16, 16, 32)
 
     # Test dynamic batch
-    verify_batch_matmul(1, 1, 16, 16, 32, dynamic=True, debug=True)
+    verify_batch_matmul(1, 1, 16, 16, 32, dynamic=True)
     verify_batch_matmul(5, 5, 16, 16, 32, dynamic=True)
 
 
