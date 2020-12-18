@@ -146,6 +146,7 @@ class PyTorchOpConverter:
     # above.
     def infer_type(self, node, mod=None):
         """An incremental method to infer the type of a node in the relay graph."""
+
         if node in self.types:
             return self.types[node]
         if isinstance(node, tvm.relay.Var):
