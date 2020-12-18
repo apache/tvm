@@ -1050,9 +1050,9 @@ def test_sparsereshape():
         prev_shape: np.ndarray,
         new_shape: np.ndarray,
     ):
-    """
-    This function calculates the expected output of sparseshape operator given the inputs. 
-    """
+        """
+        This function calculates the expected output of sparseshape operator given the inputs.
+        """
         new_sparse_indices = np.ones(
             (sparse_values.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
         )
@@ -1086,7 +1086,6 @@ def test_sparsereshape():
                 new_sparse_indices[row_num] = flat_idx
 
         return new_sparse_indices
-            
 
     def verify_sparsereshape(
         sparse_indices_np: np.ndarray,
@@ -1094,9 +1093,9 @@ def test_sparsereshape():
         dense_shape_np: np.ndarray,
         default_value_np: np.ndarray,
     ):
-    """
-    This function verifies the relay output of sparsereshape with its expected output. 
-    """
+        """
+        This function verifies the relay output of sparsereshape with its expected output.
+        """
         sparse_indices = relay.var(
             "sparse_indices",
             relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
@@ -1123,10 +1122,7 @@ def test_sparsereshape():
                 op_res = intrp.evaluate(func)(
                     sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
                 )
-                for op_res_item, ref_res_item in zip(op_res, ref_res):
-                    tvm.testing.assert_allclose(
-                        op_res_item.asnumpy(), ref_res_item, rtol=1e-5, atol=1e-5
-                    )
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     sparse_indices_np = np.array(
         [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32
@@ -1435,6 +1431,9 @@ def test_adv_index():
 
 if __name__ == "__main__":
     test_sparsereshape()
+    import sys
+
+    sys.exit()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
