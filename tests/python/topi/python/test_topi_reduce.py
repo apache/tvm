@@ -157,16 +157,16 @@ def test_complex_reduce():
     in_shape = (2, 3)
     dtype = "float32"
     axis = 0
-    keep_dims = False
+    keepdims = False
     A = te.placeholder(shape=in_shape, name="A", dtype=dtype)
-    B = topi.sum(A1, axis=axis, keepdims=keep_dims)
+    B = topi.sum(A, axis=axis, keepdims=keepdims)
     C = topi.add(B, B)
     D = topi.multiply(B, B)
     E = topi.add(C, D)
     for device, ctx in tvm.testing.enabled_targets():
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
-            s = tvm.topi.testing.get_reduce_schedule(device)(B)
+            s = tvm.topi.testing.get_reduce_schedule(device)(E)
         foo = tvm.build(s, [A, E], device, name="sum")
         in_npy = np.random.uniform(-1, 1, size=in_shape).astype(dtype)
         sum_npy = in_npy.sum(axis=axis, keepdims=keepdims)
@@ -178,5 +178,5 @@ def test_complex_reduce():
 
 
 if __name__ == "__main__":
-    test_reduce_map()
+    # test_reduce_map()
     test_complex_reduce()
