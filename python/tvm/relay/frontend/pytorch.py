@@ -2059,10 +2059,15 @@ class PyTorchOpConverter:
         return _op.scatter_add(data, index, src, axis=axis)
 
     def is_floating_point(self, inputs, input_types):
-        assert len(input_types) == 1
-        is_float = input_types[0] in ['float32', 'float64', 'float16']
-        temp = _expr.const(is_float)
-        return temp
+        assert len(inputs) == 1
+
+        if isinstance(inputs[0], _expr.Expr):
+            input_type = self.infer_type(inputs[0]).dtype
+        else:
+            input_type = input_types[0]
+
+        is_float = input_type in ['float32', 'float64', 'float16']
+        return _expr.const(is_float)
 
     # Operator mappings
     def create_convert_map(self):
