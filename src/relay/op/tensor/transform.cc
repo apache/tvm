@@ -455,7 +455,8 @@ RELAY_REGISTER_OP("transpose")
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 TVM_REGISTER_NODE_TYPE(ReshapeLikeAttrs);
 
-Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs, bool reverse) {
+Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs,
+                                bool reverse) {
   const auto* param = attrs.as<ReshapeAttrs>();
   Array<IndexExpr> oshape;
   Array<IndexExpr> ishape;
@@ -679,7 +680,7 @@ bool ReverseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& at
   }
 
   reporter->Assign(types[1],
-                    TensorType(Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
+                   TensorType(Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
   return true;
 }
 
