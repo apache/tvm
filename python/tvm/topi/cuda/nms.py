@@ -302,7 +302,6 @@ def get_valid_counts_ir(data, valid_indices, valid_boxes, out, out_indices):
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
     nthread_by = batch_size
-    nthread_bz = elem_length
     with ib.new_scope():
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
