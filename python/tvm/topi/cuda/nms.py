@@ -158,14 +158,20 @@ def get_valid_indices_ir(valid_boxes, valid_count, valid_indices):
     # Copy boxes to valid_indices
     with ib.new_scope():
         nthread_tx = max_threads
-        nthread_bx = ceil_div(batch_size * num_anchors, max_threads)
+        nthread_bx = ceil_div(num_anchors, max_threads)
+        nthread_by = batch_size
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
+        by = te.thread_axis("blockIdx.y")
         ib.scope_attr(tx, "thread_extent", nthread_tx)
         ib.scope_attr(bx, "thread_extent", nthread_bx)
-        tid = bx * max_threads + tx
-        with ib.if_scope(tid < batch_size * num_anchors):
-            valid_indices[tid] = valid_boxes[tid]
+        ib.scope_attr(by, "thread_extent", nthread_by)
+        tid = bx * nthread_tx + tx
+        with ib.if_scope(tid == 0):
+            valid_indices[by, 0] = 0
+        with ib.else_scope():
+            with ib.if_scope(tid < num_anchors):
+                valid_indices[by, tid] = valid_boxes[by, tid - 1]
 
     nthread_tx = max_threads
     nthread_bx = ceil_div(num_anchors, max_threads)
@@ -244,29 +250,16 @@ def get_valid_indices_ir(valid_boxes, valid_count, valid_indices):
         ib.scope_attr(bx, "thread_extent", nthread_bx)
         tid = bx * max_threads + tx
         with ib.if_scope(tid < batch_size):
-            valid_count[tid] = valid_indices[tid * num_anchors + num_anchors - 1]
-
-    ## Remove invalid indices
-    with ib.new_scope():
-        nthread_tx = max_threads
-        nthread_bx = ceil_div(batch_size * num_anchors, max_threads)
-        tx = te.thread_axis("threadIdx.x")
-        bx = te.thread_axis("blockIdx.x")
-        ib.scope_attr(tx, "thread_extent", nthread_tx)
-        ib.scope_attr(bx, "thread_extent", nthread_bx)
-        tid = bx * max_threads + tx
-        with ib.if_scope(tid < batch_size * num_anchors):
-            with ib.if_scope(valid_boxes[tid] < 1):
-                # if this is an invalid box, mark -1
-                valid_indices[tid] = -1
-            with ib.else_scope():
-                # if this is a valid box, subtract 1 to get 0-based indexing
-                valid_indices[tid] += -1
+            # Add valid_boxes[tid, num_anchors - 1] because valid_indices is
+            # an exclusive scan of valid_boxes
+            valid_count[tid] = (
+                valid_indices[tid, num_anchors - 1] + valid_boxes[tid, num_anchors - 1]
+            )
 
     return ib.get()
 
 
-def get_valid_counts_ir(data, valid_indices, out, out_indices):
+def get_valid_counts_ir(data, valid_indices, valid_boxes, out, out_indices):
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also prepares to move valid boxes to the
     top of input data.
@@ -294,8 +287,9 @@ def get_valid_counts_ir(data, valid_indices, out, out_indices):
     ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
-
     valid_indices = ib.buffer_ptr(valid_indices)
+    valid_boxes = ib.buffer_ptr(valid_boxes)
+
     out = ib.buffer_ptr(out)
     out_indices = ib.buffer_ptr(out_indices)
     one = tvm.tir.const(1, dtype=out.dtype)
@@ -335,7 +329,7 @@ def get_valid_counts_ir(data, valid_indices, out, out_indices):
             i = by
             j = tid
             k = bz
-            with ib.if_scope(valid_indices[i, tid] >= 0):
+            with ib.if_scope(valid_boxes[i, tid] > 0):
                 out[(i * num_anchors + valid_indices[i, tid]) * elem_length + k] = data[
                     (i * num_anchors + j) * elem_length + k
                 ]
@@ -412,10 +406,10 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 
     out, out_indices = te.extern(
         [data.shape, (batch_size, num_anchors)],
-        [data, valid_indices],
-        lambda ins, outs: get_valid_counts_ir(ins[0], ins[1], outs[0], outs[1]),
+        [data, valid_indices, valid_boxes],
+        lambda ins, outs: get_valid_counts_ir(ins[0], ins[1], ins[2], outs[0], outs[1]),
         dtype=["int32", data.dtype],
-        in_buffers=[data_buf, valid_indices_buf],
+        in_buffers=[data_buf, valid_indices_buf, valid_boxes_buf],
         out_buffers=[out_buf, out_indices_buf],
         name="get_valid_counts",
         tag="get_valid_counts_gpu",
