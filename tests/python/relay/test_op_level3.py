@@ -1102,115 +1102,6 @@ def test_sparsefillemptyrows():
 
 
 @tvm.testing.uses_gpu
-def test_sparsereshape():
-    def ref_sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
-        # sparse_indices[0][0] = 1
-        new_sparse_indices = np.ones(
-            (sparse_values.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
-        )
-        multipliers = np.ones(prev_shape.shape[0])
-        dividers = np.ones(new_shape.shape[0])
-        total_ele = np.prod(prev_shape)
-        division_total_ele = 1
-        for i in range(new_shape.shape[0]):
-            if new_shape[i] == -1:
-                continue
-            division_total_ele *= new_shape[i]
-        for i in range(prev_shape.shape[0] - 2, -1, -1):
-            multipliers[i] = prev_shape[i + 1] * multipliers[i + 1]
-        for i in range(new_shape.shape[0] - 2, -1, -1):
-            if new_shape[i + 1] == -1:
-                dividers[i] = (total_ele // division_total_ele) * dividers[i + 1]
-            else:
-                dividers[i] = new_shape[i + 1] * dividers[i + 1]
-        for row_num, sparse_row in enumerate(sparse_indices):
-            flat_idx = 0
-            if len(sparse_indices.shape) != 1:
-                for i, ele in enumerate(sparse_row):
-                    flat_idx += sparse_row[i] * multipliers[i]
-            else:
-                flat_idx += sparse_row
-            if len(new_sparse_indices.shape) != 1:
-                for i in range(new_sparse_indices.shape[1]):
-                    new_sparse_indices[row_num][i] = flat_idx // dividers[i]
-                    flat_idx = flat_idx % dividers[i]
-            else:
-                new_sparse_indices[row_num] = flat_idx
-
-        return (
-            new_sparse_indices,
-            sparse_values,
-        )
-
-    def verify_sparsereshape(sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np):
-        sparse_indices = relay.var(
-            "sparse_indices",
-            relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
-        )
-        sparse_values = relay.var(
-            "sparse_values", relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype))
-        )
-        dense_shape = relay.var(
-            "dense_shape", relay.TensorType(dense_shape_np.shape, str(dense_shape_np.dtype))
-        )
-        default_value = relay.var(
-            "default_value", relay.TensorType(default_value_np.shape, str(default_value_np.dtype))
-        )
-        z = relay.op.sparsereshape(sparse_indices, sparse_values, dense_shape, default_value)
-
-        func = relay.Function([sparse_indices, sparse_values, dense_shape, default_value], z)
-
-        ref_res = ref_sparsereshape(
-            sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np
-        )
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(
-                    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
-                )
-                for op_res_item, ref_res_item in zip(op_res, ref_res):
-                    print(f"Op Res: {op_res_item}, Ref Res: {ref_res_item}")
-                    tvm.testing.assert_allclose(
-                        op_res_item.asnumpy(), ref_res_item, rtol=1e-5, atol=1e-5
-                    )
-
-    sparse_indices_np = np.array(
-        [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32
-    )
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([2, 3, 6], dtype=np.int32)
-    new_shape_np = np.array([9, 4], dtype=np.int32)
-    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array(
-        [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]], dtype=np.int32
-    )
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([2, 3, 6, 7], dtype=np.int32)
-    new_shape_np = np.array([9, -1, 7], dtype=np.int32)
-    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([9, 4], dtype=np.int32)
-    new_shape_np = np.array([2, -1, 6], dtype=np.int32)
-    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([9, 4], dtype=np.int32)
-    new_shape_np = np.array([-1], dtype=np.int32)
-    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array([0, 5, 10, 20, 24], dtype=np.int32)
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([25], dtype=np.int32)
-    new_shape_np = np.array([5, 5], dtype=np.int32)
-    verify_sparsereshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-
-@tvm.testing.uses_gpu
 def test_gather():
     def verify_gather(data, axis, indices, ref_res):
         data = np.asarray(data, dtype="float32")
@@ -1482,10 +1373,6 @@ def test_adv_index():
 
 if __name__ == "__main__":
     test_sparsefillemptyrows()
-    import sys
-
-    sys.exit()
-    test_sparsereshape()
     test_cast()
     test_zeros_ones()
     test_unary_identity()

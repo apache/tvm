@@ -1325,8 +1325,3 @@ def adv_index(inputs):
 def sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value):
 
     return _make.sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value)
-
-
-def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
-
-    return _make.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)

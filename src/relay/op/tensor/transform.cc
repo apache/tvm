@@ -1339,12 +1339,11 @@ inline te::Tensor DynamicArange(const te::Tensor& start, const te::Tensor& stop,
                                 std::string name = "T_arange_dynamic",
                                 std::string tag = topi::kInjective) {
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
-  return te::compute(
-      {num_elem},
-      [&](const Array<tvm::tir::Var>& indices) {
-        return tvm::cast(dtype, start[0] + step[0] * indices[0]);
-      },
-      name, tag);
+  return te::compute({num_elem},
+                     [&](const Array<tvm::tir::Var>& indices) {
+                       return tvm::cast(dtype, start[0] + step[0] * indices[0]);
+                     },
+                     name, tag);
 }
 
 Array<te::Tensor> ArangeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -1552,49 +1551,6 @@ RELAY_REGISTER_OP("meshgrid")
     .add_type_rel("Meshgrid", MeshgridRel)
     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
-
-bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
-                      const TypeReporter& reporter) {
-  // types: [sparse_indices, sparse_values, prev_shape, new_shape, result]
-  ICHECK_EQ(types.size(), 5);
-
-  std::vector<Type> fields;
-  auto sparse_indices = types[0].as<TensorTypeNode>();
-  auto sparse_values = types[1].as<TensorTypeNode>();
-  auto new_shape = types[3].as<TensorTypeNode>();
-
-  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
-  fields.push_back(TensorType(new_sparse_indices_shape, sparse_indices->dtype));
-  fields.push_back(TensorType(sparse_values->shape, sparse_values->dtype));
-
-  reporter->Assign(types[4], TupleType(Array<Type>(fields)));
-  return true;
-}
-
-Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                       const Type& out_type) {
-  return {topi::SparseReshape(inputs[0], inputs[1], inputs[2], inputs[3])};
-}
-
-Expr MakeSparseReshape(Expr sparse_indices, Expr sparse_values, Expr prev_shape, Expr new_shape) {
-  static const Op& op = Op::Get("sparsereshape");
-  return Call(op, {sparse_indices, sparse_values, prev_shape, new_shape}, Attrs(), {});
-}
-
-TVM_REGISTER_GLOBAL("relay.op._make.sparsereshape").set_body_typed(MakeSparseReshape);
-
-RELAY_REGISTER_OP("sparsereshape")
-    .describe(R"code(Return twice of normal addition of two tensors.
-)code" TVM_ADD_FILELINE)
-    .set_num_inputs(4)
-    .add_argument("sparse_indices", "Tensor", "The first tensor")
-    .add_argument("sparse_values", "Tensor", "The second tensor")
-    .add_argument("prev_shape", "Tensor", "The third tensor")
-    .add_argument("new_shape", "Tensor", "The fourth tensor")
-    .add_type_rel("sparsereshape", SparseReshapeRel)
-    .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_support_level(3)
-    .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);
 
 TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 
@@ -2501,16 +2457,16 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           tir::make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()),
                           (i < strides.size() ? strides[i]->value : 1)));
     }
-    return Array<te::Tensor>{te::compute(
-        out_shape,
-        [&](const Array<tir::Var>& indices) {
-          Array<PrimExpr> real_indices;
-          for (size_t i = 0; i < src_tensor_dim; ++i) {
-            real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
-          }
-          return input(real_indices);
-        },
-        std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
+    return Array<te::Tensor>{
+        te::compute(out_shape,
+                    [&](const Array<tir::Var>& indices) {
+                      Array<PrimExpr> real_indices;
+                      for (size_t i = 0; i < src_tensor_dim; ++i) {
+                        real_indices.push_back(indices[i] * strides_expr[i] + begin_expr[i]);
+                      }
+                      return input(real_indices);
+                    },
+                    std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
   } else {
     for (size_t i = 0; i < begin.size(); ++i) {
       begin_expr.push_back(begin[i]);

@@ -950,22 +950,3 @@ def sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shap
         Output tensor
     """
     return cpp.sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shape)
-
-
-def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
-    """Numpy style indexing with tensors.
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        Input data.
-
-    indices : A list of tvm.te.Tensor
-        Tensor index.
-
-    Returns
-    -------
-    result : tvm.te.Tensor
-        Output tensor
-    """
-    return cpp.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)
