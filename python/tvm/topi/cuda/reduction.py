@@ -149,5 +149,6 @@ def schedule_reduce(outs):
 
         scheduled_ops.append(operator)
 
-    traverse_after_reduce(outs[0].op)
+    for out in outs:
+        traverse_after_reduce(out.op)
     return sch
