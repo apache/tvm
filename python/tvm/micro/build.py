@@ -74,8 +74,8 @@ _COMMON_CFLAGS = ["-Wall", "-Werror"]
 
 _CRT_DEFAULT_OPTIONS = {
     "cflags": ["-std=c11"] + _COMMON_CFLAGS,
-    "ccflags": ["-std=gnu++11"] + _COMMON_CFLAGS,
-    "ldflags": ["-std=gnu++11"],
+    "ccflags": ["-std=c++11"] + _COMMON_CFLAGS,
+    "ldflags": ["-std=c++11"],
     "include_dirs": [
         f"{TVM_ROOT_DIR}/include",
         f"{TVM_ROOT_DIR}/3rdparty/dlpack/include",

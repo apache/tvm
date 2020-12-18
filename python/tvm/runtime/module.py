@@ -313,7 +313,7 @@ class Module(object):
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
-                    object_format = "cc"
+                    object_format = "c"
                     has_c_module = True
                 else:
                     object_format = fcompile.object_format
@@ -322,7 +322,7 @@ class Module(object):
                     object_format = "o"
                 else:
                     assert module.type_key == "c"
-                    object_format = "cc"
+                    object_format = "c"
                     has_c_module = True
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
             module.save(path_obj)
@@ -352,7 +352,7 @@ class Module(object):
                 m.save(path_obj)
                 files.append(path_obj)
             else:
-                path_cc = os.path.join(workspace_dir, "devc.cc")
+                path_cc = os.path.join(workspace_dir, "devc.c")
                 with open(path_cc, "w") as f:
                     f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
                 files.append(path_cc)

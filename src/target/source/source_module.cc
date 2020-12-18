@@ -168,7 +168,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "cc") {
+    if (fmt == "c") {
       ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
@@ -208,7 +208,7 @@ class CSourceMetadataModuleNode : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "cc") {
+    if (fmt == "c") {
       auto code_str = code_.str();
       ICHECK_NE(code_str.length(), 0);
       SaveBinaryToFile(file_name, code_str);
@@ -226,7 +226,10 @@ class CSourceMetadataModuleNode : public runtime::ModuleNode {
   void CreateFuncRegistry() {
     code_ << "#include <tvm/runtime/crt/module.h>\n";
     for (const auto& fname : func_names_) {
-      code_ << "extern \"C\" TVM_DLL int32_t " << fname.data();
+      code_ << "#ifdef __cplusplus\n";
+      code_ << "extern \"C\"\n";
+      code_ << "#endif\n";
+      code_ << "TVM_DLL int32_t " << fname.data();
       code_ << "(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, int* "
                "out_type_code);\n";
     }
