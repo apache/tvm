@@ -16,7 +16,7 @@
 # under the License.
 """
 Auto-scheduling a Neural Network for mali GPU
-============================================
+=============================================
 **Author**: `Zhao Wu <https://github.com/FrozenGene>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
@@ -160,14 +160,6 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 # Extract tasks from the network
 print("Extract tasks...")
 mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
-from tvm.auto_scheduler.utils import (
-    call_func_with_timeout,
-    check_remote,
-    get_const_tuple,
-    make_traceback_info,
-    request_remote,
-)
-
 tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host)
 
 for idx, task in enumerate(tasks):
@@ -176,7 +168,7 @@ for idx, task in enumerate(tasks):
 
 #################################################################
 # Tuning and Evaluate
-# ------------
+# -------------------
 # Now, we set some options for tuning, launch the search tasks and evaluate the end-to-end performance
 #
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the tuning.
@@ -217,10 +209,10 @@ def tune_and_evaluate():
 
     # Create graph runtime
     print("=============== Request Remote ===============")
+    from tvm.auto_scheduler.utils import request_remote
     remote = request_remote(device_key, "0.0.0.0", 9190)
     ctx = remote.cl()
     from tvm.contrib import utils, ndk
-
     temp = utils.tempdir()
     filename = "deploy_lib.so"
     path_lib = temp.relpath(filename)
@@ -241,7 +233,7 @@ def tune_and_evaluate():
     )
 
 
-# We do not run the tuning in our webpage server since it takes too long.
+# We do not run the tuning in our webpage server since server doesn't have mali gpu.
 # Uncomment the following line to run it by yourself.
 
 # tune_and_evaluate()
@@ -320,7 +312,7 @@ def tune_and_evaluate():
 # 1. During the tuning, the auto-scheduler needs to compile many programs and
 #    extract feature from them. This part is CPU-intensive,
 #    so a high-performance CPU with many cores is recommended for faster search.
-# 2. If you have multiple target CPUs, you can use all of them for measurements to
+# 2. If you have multiple target devices, you can use all of them for measurements to
 #    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
