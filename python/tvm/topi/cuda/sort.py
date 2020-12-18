@@ -450,6 +450,7 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
 
 
 def sort(data, axis=-1, is_ascend=1):
+    # pylint: disable=no-value-for-parameter
     """Performs sorting along the given axis and returns an array of
     sorted values with the same shape as the input data.
 
