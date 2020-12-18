@@ -22,7 +22,6 @@ from tvm import te
 
 from tvm.tir import if_then_else
 from .sort import argsort, argsort_thrust
-from .. import tag
 
 
 def cuda_atomic_add_rule(op):
@@ -95,7 +94,7 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
     with ib.new_scope():
         i = te.thread_axis("blockIdx.x")
         ib.scope_attr(i, "thread_extent", batch_size)
-        valid_idx = ib.allocate("int32", (1), name="valid_idx", scope="local")
+        valid_idx = ib.allocate("int32", (1,), name="valid_idx", scope="local")
         valid_idx[0] = 0
         with ib.for_range(0, num_anchors, name="j") as j:
             with ib.if_scope(data[i, j] >= 0):
@@ -654,6 +653,35 @@ def nms_ir(
     return ib.get()
 
 
+def _fetch_score_ir(data, score, axis):
+    """
+    Fetch score from data.
+    This routine is required for dynamic shape nms.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    elem_length = data.shape[2]
+
+    ib = tvm.tir.ir_builder.create()
+
+    data = ib.buffer_ptr(data)
+    score = ib.buffer_ptr(score)
+    with ib.if_scope(num_anchors > 0):
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        nthread_tx = max_threads
+        nthread_bx = batch_size * num_anchors // max_threads + 1
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+
+        tid = bx * max_threads + tx
+        with ib.if_scope(tid < batch_size * num_anchors):
+            score[tid] = data[tid * elem_length + axis]
+
+    return ib.get()
+
+
 def non_max_suppression(
     data,
     valid_count,
@@ -754,7 +782,22 @@ def non_max_suppression(
     )
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
-    score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    score_buf = tvm.tir.decl_buffer(score_shape, data.dtype, "score_buf", data_alignment=8)
+    score_tensor = te.extern(
+        [score_shape],
+        [data],
+        lambda ins, outs: _fetch_score_ir(
+            ins[0],
+            outs[0],
+            score_axis,
+        ),
+        dtype=[data.dtype],
+        in_buffers=[data_buf],
+        out_buffers=[score_buf],
+        name="fetch_score",
+        tag="fetch_score",
+    )
     target = tvm.target.Target.current()
     if (
         target

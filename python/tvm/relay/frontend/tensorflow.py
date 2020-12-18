@@ -1616,6 +1616,9 @@ def _stridedSlice():
         data_shape = get_const_tuple(in_type.checked_type.shape)
         data_dim = len(data_shape)
         stride_dim = len(stride)
+        if data_dim == 0 and isinstance(inputs[0], _expr.Constant):
+            new_data = inputs[0].data.asnumpy().reshape(1)
+            return _expr.const(new_data, inputs[0].data.dtype)
 
         # This is a special routine to handle strided_slice after shape_of.
         # We need this since in some cases we want to do strided_slice on

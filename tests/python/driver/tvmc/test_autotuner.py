@@ -27,7 +27,7 @@ from tvm.driver import tvmc
 
 def _get_tasks(model):
     mod, params = tvmc.frontends.load_model(model)
-    return tvmc.autotuner.get_tuning_tasks(mod, params, "llvm")
+    return tvmc.autotuner.autotvm_get_tuning_tasks(mod, params, "llvm")
 
 
 def _get_measure_options():

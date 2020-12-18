@@ -23,6 +23,11 @@ from tvm import topi
 import tvm.topi.testing
 import tvm.testing
 
+_sort_implement = {
+    "generic": (topi.sort, topi.generic.schedule_sort),
+    "gpu": (topi.cuda.sort, topi.cuda.schedule_sort),
+}
+
 _argsort_implement = {
     "generic": (topi.argsort, topi.generic.schedule_argsort),
     "gpu": (topi.cuda.argsort, topi.cuda.schedule_argsort),
@@ -32,6 +37,46 @@ _topk_implement = {
     "generic": (topi.topk, topi.generic.schedule_topk),
     "gpu": (topi.cuda.topk, topi.cuda.schedule_topk),
 }
+
+
+def verify_sort(axis, is_ascend):
+    dshape = (20, 100)
+    data_dtype = "float32"
+    data = te.placeholder(dshape, name="data", dtype=data_dtype)
+
+    perm = np.arange(dshape[0] * dshape[1], dtype=data_dtype)
+    np.random.shuffle(perm)
+    np_data = perm.reshape(dshape)
+
+    if is_ascend:
+        np_sort = np.sort(np_data, axis=axis)
+    else:
+        np_sort = -np.sort(-np_data, axis=axis)
+
+    if axis == 0:
+        np_sort = np_sort[: dshape[axis], :]
+    else:
+        np_sort = np_sort[:, : dshape[axis]]
+
+    def check_device(device):
+        if not tvm.testing.device_enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        ctx = tvm.context(device, 0)
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            fcompute, fschedule = tvm.topi.testing.dispatch(device, _sort_implement)
+            out = fcompute(data, axis=axis, is_ascend=is_ascend)
+            s = fschedule(out)
+
+        tvm_data = tvm.nd.array(np_data, ctx)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
+        f = tvm.build(s, [data, out], device)
+        f(tvm_data, tvm_out)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_sort, rtol=1e0)
+
+    for device in ["llvm", "cuda", "opencl"]:
+        check_device(device)
 
 
 def verify_argsort(axis, is_ascend):
@@ -124,6 +169,14 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
 
     for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
+
+
+@tvm.testing.uses_gpu
+def test_sort():
+    np.random.seed(0)
+    for axis in [0, -1, 1]:
+        verify_sort(axis, True)
+        verify_sort(axis, False)
 
 
 @tvm.testing.uses_gpu
