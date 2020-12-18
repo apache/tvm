@@ -934,19 +934,44 @@ def adv_index(data, indices):
 
 
 def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
-    """Numpy style indexing with tensors.
+    """
+    Reshape a Sparse Tensor
 
     Parameters
     ----------
-    data : tvm.te.Tensor
-        Input data.
-
-    indices : A list of tvm.te.Tensor
-        Tensor index.
+    inputs : List[relay.Expr]
+        Input tensor and indices.
+        The first tensor is input data and rests are indices.
 
     Returns
     -------
-    result : tvm.te.Tensor
-        Output tensor
+    result: relay.Expr
+        Output tensor.
+    Examples
+        --------
+        .. code-block:: python
+
+            sparse_indices = [[0, 0, 0],
+                              [0, 0, 1],
+                              [0, 1, 0],
+                              [1, 0, 0],
+                              [1, 2, 3]]
+
+            sparse_values = [7, 5, 6, 3, 9]
+
+            prev_shape = [2, 3, 4]
+
+            new_shape = [9, -1]
+
+            relay.sparsereshape(sparse_indices,
+                                sparse_values,
+                                prev_shape,
+                                new_shape)
+             =   [[0, 0],
+                  [0, 1],
+                  [1, 2],
+                  [4, 2],
+                  [8, 1]]
+
     """
     return cpp.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)

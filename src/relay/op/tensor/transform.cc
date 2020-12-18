@@ -1557,17 +1557,11 @@ bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& raw
                       const TypeReporter& reporter) {
   // types: [sparse_indices, sparse_values, prev_shape, new_shape, result]
   ICHECK_EQ(types.size(), 5);
-
-  std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
-  auto sparse_values = types[1].as<TensorTypeNode>();
   auto new_shape = types[3].as<TensorTypeNode>();
 
   Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
-  fields.push_back(TensorType(new_sparse_indices_shape, sparse_indices->dtype));
-  fields.push_back(TensorType(sparse_values->shape, sparse_values->dtype));
-
-  reporter->Assign(types[4], TupleType(Array<Type>(fields)));
+  reporter->Assign(types[4], TensorType(new_sparse_indices_shape, sparse_indices->dtype));
   return true;
 }
 

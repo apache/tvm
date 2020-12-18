@@ -1044,8 +1044,15 @@ def test_scatter_add():
 
 @tvm.testing.uses_gpu
 def test_sparsereshape():
-    def ref_sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
-        # sparse_indices[0][0] = 1
+    def ref_sparsereshape(
+        sparse_indices: np.ndarray,
+        sparse_values: np.ndarray,
+        prev_shape: np.ndarray,
+        new_shape: np.ndarray,
+    ):
+    """
+    This function calculates the expected output of sparseshape operator given the inputs. 
+    """
         new_sparse_indices = np.ones(
             (sparse_values.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
         )
@@ -1078,12 +1085,18 @@ def test_sparsereshape():
             else:
                 new_sparse_indices[row_num] = flat_idx
 
-        return (
-            new_sparse_indices,
-            sparse_values,
-        )
+        return new_sparse_indices
+            
 
-    def verify_sparsereshape(sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np):
+    def verify_sparsereshape(
+        sparse_indices_np: np.ndarray,
+        sparse_values_np: np.ndarray,
+        dense_shape_np: np.ndarray,
+        default_value_np: np.ndarray,
+    ):
+    """
+    This function verifies the relay output of sparsereshape with its expected output. 
+    """
         sparse_indices = relay.var(
             "sparse_indices",
             relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
@@ -1111,7 +1124,6 @@ def test_sparsereshape():
                     sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
                 )
                 for op_res_item, ref_res_item in zip(op_res, ref_res):
-                    print(f"Op Res: {op_res_item}, Ref Res: {ref_res_item}")
                     tvm.testing.assert_allclose(
                         op_res_item.asnumpy(), ref_res_item, rtol=1e-5, atol=1e-5
                     )

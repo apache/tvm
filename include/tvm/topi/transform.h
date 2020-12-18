@@ -1450,8 +1450,6 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
         }
       },
       name, tag));
-  result.push_back(compute(
-      sparse_values->shape, [&](const Array<Var>& i) { return (sparse_values(i)); }, name, tag));
   return result;
 }  // namespace topi
 /*!

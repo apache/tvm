@@ -1336,5 +1336,31 @@ def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
     -------
     result: relay.Expr
         Output tensor.
+    Examples
+        --------
+        .. code-block:: python
+
+            sparse_indices = [[0, 0, 0],
+                              [0, 0, 1],
+                              [0, 1, 0],
+                              [1, 0, 0],
+                              [1, 2, 3]]
+
+            sparse_values = [7, 5, 6, 3, 9]
+
+            prev_shape = [2, 3, 4]
+
+            new_shape = [9, -1]
+
+            relay.sparsereshape(sparse_indices,
+                                sparse_values,
+                                prev_shape,
+                                new_shape)
+             =   [[0, 0],
+                  [0, 1],
+                  [1, 2],
+                  [4, 2],
+                  [8, 1]]
+
     """
     return _make.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)
