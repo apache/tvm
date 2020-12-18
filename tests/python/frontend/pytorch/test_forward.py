@@ -1950,7 +1950,7 @@ def verify_model_vm(input_model, ishapes, idtype=torch.float, idata=None, target
         # Torch dtype can be float, complex, int, or Bool. Complex not supported, so if not float or Bool,
         # dtype must be int!
         elif not idtype.is_floating_point:
-            input_data = [torch.randint(low=0, high=10, size=shape) for shape in ishapes]
+            input_data = [torch.randint(low=0, high=10, size=shape, dtype=idtype) for shape in ishapes]
         else:
             input_data = [torch.randn(shape, dtype=idtype) for shape in ishapes]
 
