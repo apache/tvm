@@ -178,5 +178,5 @@ def test_complex_reduce():
 
 
 if __name__ == "__main__":
-    # test_reduce_map()
+    test_reduce_map()
     test_complex_reduce()
