@@ -1950,7 +1950,9 @@ def verify_model_vm(input_model, ishapes, idtype=torch.float, idata=None, target
         # Torch dtype can be float, complex, int, or Bool. Complex not supported, so if not float or Bool,
         # dtype must be int!
         elif not idtype.is_floating_point:
-            input_data = [torch.randint(low=0, high=10, size=shape, dtype=idtype) for shape in ishapes]
+            input_data = [
+                torch.randint(low=0, high=10, size=shape, dtype=idtype) for shape in ishapes
+            ]
         else:
             input_data = [torch.randn(shape, dtype=idtype) for shape in ishapes]
 
@@ -2998,6 +3000,7 @@ def test_forward_true_divide():
     verify_model(
         TrueDivide().float().eval(), input_data=[dividend, divisor_scalar], atol=1e-4, rtol=1e-4
     )
+
 
 @tvm.testing.uses_gpu
 def test_forward_is_floating_point():
