@@ -307,36 +307,32 @@ def get_valid_counts_ir(data, valid_indices, valid_boxes, out, out_indices):
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
         by = te.thread_axis("blockIdx.y")
-        bz = te.thread_axis("blockIdx.z")
         ib.scope_attr(tx, "thread_extent", nthread_tx)
         ib.scope_attr(bx, "thread_extent", nthread_bx)
         ib.scope_attr(by, "thread_extent", nthread_by)
-        ib.scope_attr(bz, "thread_extent", nthread_bz)
         tid = bx * max_threads + tx
         with ib.if_scope(tid < num_anchors):
             i = by
             j = tid
-            k = bz
-            out[(i * num_anchors + j) * elem_length + k] = -one
+            with ib.for_range(0, elem_length) as k:
+                out[(i * num_anchors + j) * elem_length + k] = -one
             out_indices[i * num_anchors + j] = -1
     with ib.new_scope():
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
         by = te.thread_axis("blockIdx.y")
-        bz = te.thread_axis("blockIdx.z")
         ib.scope_attr(tx, "thread_extent", nthread_tx)
         ib.scope_attr(bx, "thread_extent", nthread_bx)
         ib.scope_attr(by, "thread_extent", nthread_by)
-        ib.scope_attr(bz, "thread_extent", nthread_bz)
         tid = bx * max_threads + tx
         with ib.if_scope(tid < num_anchors):
             i = by
             j = tid
-            k = bz
             with ib.if_scope(valid_boxes[i, tid] > 0):
-                out[(i * num_anchors + valid_indices[i, tid]) * elem_length + k] = data[
-                    (i * num_anchors + j) * elem_length + k
-                ]
+                with ib.for_range(0, elem_length) as k:
+                    out[(i * num_anchors + valid_indices[i, tid]) * elem_length + k] = data[
+                        (i * num_anchors + j) * elem_length + k
+                    ]
                 out_indices[i * num_anchors + valid_indices[i, tid]] = j
     return ib.get()
 
