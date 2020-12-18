@@ -137,7 +137,6 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt);
  * \param code The code to be viewed.
  * \param fmt The code format.
  * \param func_names The name of functions inside the runtime module.
- * \param symbol The symbol that the c source module represents.
  * \param const_vars. The constant variables that the c source module needs.
  * \return The created module.
  */
