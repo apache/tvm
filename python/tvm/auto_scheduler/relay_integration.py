@@ -33,7 +33,7 @@ from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import expr as _expr
 from . import _ffi_api
-from .compute_dag import ComputeDAG
+from .compute_dag import ComputeDAG, LayoutRewriteOption
 from .dispatcher import DispatchContext
 from .search_task import SearchTask
 from .workload_registry import register_workload_tensors
@@ -126,6 +126,8 @@ def extract_tasks(
                 target=target,
                 target_host=target_host,
                 hardware_params=hardware_params,
+                # In default, try to apply layout rewrite to improve the performance
+                layout_rewrite_option=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
             )
         )
         weights.append(use_count_dict[ccache_key] + 1)
