@@ -205,19 +205,31 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
             trace = trace.cuda()
         else:
             trace = trace.cpu()
-    print('-------------Torch Graph-------------')
-    print(trace.graph)
 
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
-    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
+    # input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
+    # input_shapes = [('input0', torch.Size([1, 1]))]
+
+    # Dtype must be set in `input_shape` for scripted models to work properly
+    if baseline_input[0].dtype == torch.float64:
+        curr_dtype = 'float64'
+    elif baseline_input[0].dtype == torch.float32:
+        curr_dtype = 'float32'
+    elif baseline_input[0].dtype == torch.float16:
+        curr_dtype = 'float16'
+    elif baseline_input[0].dtype == torch.int8:
+        curr_dtype = 'int'
+    else:
+        print('uh oh, other dtype: {}'.format(baseline_input[0].dtype))
+        exit(-1)
+    input_shapes = [('input0', ((1, 1), curr_dtype))]
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+
     compiled_input = dict(zip(input_names, [inp.cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
-            print('--------------Relay Graph----------------')
-            print(relay_graph)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
             # TODO(dvisnty): Model has no inputs, so none need to be set. Figure out how to handle this
@@ -2971,17 +2983,32 @@ def test_forward_is_floating_point():
 
     class IsFloatingPoint(Module):
         def forward(self, arg):
-            # Uncomment to wrap Bool in a Tensor, allowing use of
+            # `torch.jit.trace` cannot accept something that outputs
+            # a Bool, so `torch.jit.script` will be used instead
+            return torch.is_floating_point(arg)
+
+    class IsFloatingPointWrapped(Module):
+        def forward(self, arg):
+            # Wrap Bool in a Tensor, allowing use of
             # `torch.jit.trace`
             return torch.Tensor([torch.is_floating_point(arg)])
-            # Else `torch.jit.script` will be used
-            # return torch.is_floating_point(arg)
 
     # Input could be either float or non-float
-    int_tensor = torch.tensor([[1]])
-    float_tensor = torch.tensor([[1.0]])
+    int_tensor = torch.tensor([[1]], dtype=torch.int8)
+    float64_tensor = torch.tensor([[1.0]], dtype=torch.float64)
+    float32_tensor = torch.tensor([[1.0]], dtype=torch.float32)
+    float16_tensor = torch.tensor([[1.0]], dtype=torch.float16)
+
     verify_model(IsFloatingPoint().float().eval(), input_data=[int_tensor])
-    verify_model(IsFloatingPoint().float().eval(), input_data=[float_tensor])
+    verify_model(IsFloatingPoint().float().eval(), input_data=[float64_tensor])
+    verify_model(IsFloatingPoint().float().eval(), input_data=[float32_tensor])
+    verify_model(IsFloatingPoint().float().eval(), input_data=[float16_tensor])
+
+    verify_model(IsFloatingPointWrapped().float().eval(), input_data=[int_tensor])
+    verify_model(IsFloatingPointWrapped().float().eval(), input_data=[float64_tensor])
+    verify_model(IsFloatingPointWrapped().float().eval(), input_data=[float32_tensor])
+    verify_model(IsFloatingPointWrapped().float().eval(), input_data=[float16_tensor])
+
 
 @tvm.testing.uses_gpu
 def test_forward_traced_function():

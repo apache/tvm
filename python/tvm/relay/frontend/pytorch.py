@@ -2067,6 +2067,7 @@ class PyTorchOpConverter:
             input_type = input_types[0]
 
         is_float = input_type in ["float32", "float64", "float16"]
+
         return _expr.const(is_float)
 
     # Operator mappings
