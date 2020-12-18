@@ -1995,6 +1995,10 @@ class OperatorConverter(object):
 
         in_expr = self.get_expr(input_tensor_idx)
 
+        # TFLite converts float32 models to float16 models by introducing
+        # a Dequantize op in every op that contains a float32 values.
+        # (weights, biases, and constants etc. )
+        # So conv op may have weight and bias as tensors instead of values.
         if self.has_expr(weight_tensor.tensor_idx):
             weight_expr = self.get_expr(weight_tensor.tensor_idx)
             if is_depthwise_conv:
