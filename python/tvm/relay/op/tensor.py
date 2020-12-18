@@ -1105,8 +1105,8 @@ def stack(data, axis):
 
     Parameters
     ----------
-    data : Union(List[relay.Expr], Tuple(relay.Expr))
-        A list of tensors.
+    data : Union(List[relay.Expr], relay.Expr)
+        A list of tensors or a Relay expression that evaluates to a tuple of tensors.
 
     axis : int
         The axis in the result array along which the input arrays are stacked.
