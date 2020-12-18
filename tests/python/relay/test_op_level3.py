@@ -788,10 +788,7 @@ def test_repeat():
 @tvm.testing.uses_gpu
 def test_stack():
     def produce_input_tuple(dshapes):
-        y = [
-            relay.var("input", relay.TensorType(shape, "float32"))
-            for shape in dshapes
-        ]
+        y = [relay.var("input", relay.TensorType(shape, "float32")) for shape in dshapes]
         return relay.Tuple(y)
 
     def ref_stack(inputs, axis):
@@ -826,12 +823,8 @@ def test_stack():
 
         # expression that evaluates to a tuple
         # but is not a tuple literal
-        x = relay.Var('x')
-        input_expr = relay.Let(
-            x,
-            relay.Tuple([relay.const(inp) for inp in input_data]),
-            x
-        )
+        x = relay.Var("x")
+        input_expr = relay.Let(x, relay.Tuple([relay.const(inp) for inp in input_data]), x)
         verify_stack(input_expr, [], ref_res, axis)
 
     dshape_axis_combos = [
@@ -839,7 +832,7 @@ def test_stack():
         ([(2,), (2,), (2,)], 0),
         ([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1),
         ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1),
-        ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4)
+        ([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], 4),
     ]
 
     for dshapes, axis in dshape_axis_combos:
