@@ -66,9 +66,7 @@ def verify_argwhere(data_shape):
         check_device(target, ctx)
 
 
-# TODO(zhiics) Enable argwhere gpu test after sort is fixed. Otherwise, we have
-# to use thrust to guarantee the correct results which has been tested locally.
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_argwhere():
     verify_argwhere((1,))
     verify_argwhere((100,))
