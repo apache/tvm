@@ -189,7 +189,6 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
         baseline_outputs = (baseline_outputs.cpu().numpy(),)
 
     trace = torch.jit.trace(baseline_model, baseline_input)
-
     if isinstance(baseline_model, torch.nn.Module):
         trace = trace.float().eval()
 
@@ -200,9 +199,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
 
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
-
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-
     compiled_input = dict(zip(input_names, [inp.cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
@@ -210,7 +207,6 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
-
             for name, inp in compiled_input.items():
                 relay_model.set_input(name, inp)
             relay_model.run()
