@@ -1386,6 +1386,19 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
   return result;
 }
 
+/*!
+ * \brief Compute new sparse indices and return them after the sparsereshape operation
+ *
+ * \param sparse_indices Indices where values of the dense tensor exist
+ * \param sparse_values Values at the above indices respectively
+ * \param prev_shape Old Shape of the sparse tensor corresponding to sparse_indices
+ * \param new_shape Desired Shape of the sparse tensor which will correspond to output
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the sparsereshape operation
+ */
+
 inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& sparse_values,
                                    const Tensor& prev_shape, const Tensor& new_shape,
                                    const std::string name = "T_sparsereshape",
