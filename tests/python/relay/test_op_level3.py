@@ -1431,9 +1431,6 @@ def test_adv_index():
 
 if __name__ == "__main__":
     test_sparsereshape()
-    import sys
-
-    sys.exit()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
