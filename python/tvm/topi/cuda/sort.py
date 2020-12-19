@@ -469,7 +469,6 @@ def sort(data, axis=-1, is_ascend=1):
     out : tvm.te.Tensor
         The output of this function.
     """
-    dtype = "float32"
     value_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
     value_buf_swap = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf_swap", data_alignment=8)
     out = te.extern(
