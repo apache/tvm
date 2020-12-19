@@ -53,8 +53,8 @@ def test_sort():
         verify_sort((2, 3, 4), axis=0, is_ascend=False, is_dyn=is_dyn)
         verify_sort((1, 4, 6), axis=1, is_ascend=True, is_dyn=is_dyn)
         verify_sort((3, 5, 6), axis=-1, is_ascend=False, is_dyn=is_dyn)
-        verify_sort((3, 2000, 6), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
-        verify_sort((1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+        verify_sort((3, 2000, 6), axis=1, is_ascend=False, is_dyn=is_dyn)
+        verify_sort((1, 122640), axis=1, is_ascend=False, is_dyn=is_dyn)
 
 
 @tvm.testing.uses_gpu

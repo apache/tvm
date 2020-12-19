@@ -450,7 +450,6 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
 
 
 def sort(data, axis=-1, is_ascend=1):
-    # pylint: disable=no-value-for-parameter
     """Performs sorting along the given axis and returns an array of
     sorted values with the same shape as the input data.
 
@@ -472,12 +471,12 @@ def sort(data, axis=-1, is_ascend=1):
     """
     dtype = "float32"
     value_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8)
-    indices_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+    value_buf_swap = tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf_swap", data_alignment=8)
     out = te.extern(
         [data.shape, data.shape],
         [data],
-        lambda ins, outs: sort_ir(ins[0], outs[0], axis, is_ascend, indices_out=outs[1]),
-        out_buffers=[value_buf, indices_buf],
+        lambda ins, outs: sort_ir(ins[0], outs[0], outs[1], axis, is_ascend),
+        out_buffers=[value_buf, value_buf_swap],
         name="sort_gpu",
         tag="sort_gpu",
     )[0]
