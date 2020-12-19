@@ -32,10 +32,23 @@ _batch_matmul_implement = {
 }
 
 
-def verify_batch_matmul(x_batch, y_batch, M, N, K):
-    x = te.placeholder((x_batch, M, K), name="x")
-    y = te.placeholder((y_batch, N, K), name="y")
-    dtype = x.dtype
+def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
+
+    if not dynamic:
+        x = te.placeholder((x_batch, M, K), name="x")
+        y = te.placeholder((y_batch, N, K), name="y")
+        dtype = x.dtype
+    else:
+        assert x_batch == y_batch or x_batch == 1 or y_batch == 1
+        batch_size = max(x_batch, y_batch)
+        dynamic_batch_size = te.var("dynamic_batch_size")
+        dynamic_M = te.var("dynamic_M")
+        dynamic_N = te.var("dynamic_N")
+        dynamic_K = te.var("dynamic_K")
+
+        x = te.placeholder((dynamic_batch_size, dynamic_M, dynamic_K), name="x")
+        y = te.placeholder((dynamic_batch_size, dynamic_N, dynamic_K), name="y")
+        dtype = x.dtype
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_batch_matmul")
@@ -53,15 +66,28 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K):
         with tvm.target.Target(device):
             fcompute, fschedule = tvm.topi.testing.dispatch(device, _batch_matmul_implement)
             out = fcompute(x, y)
-            s = fschedule([out])
+            if not dynamic:
+                s = fschedule([out])
+                out_shape = out.shape
+            else:
+                s = te.create_schedule(out.op)
+                out_shape = (batch_size, M, N)
+
+            if debug:
+                print(tvm.lower(s, [x, y, out], simple_mode=True))
+
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=dtype), ctx)
+        c = tvm.nd.array(np.zeros(get_const_tuple(out_shape), dtype=dtype), ctx)
         f = tvm.build(s, [x, y, out], device, name="dense")
         f(a, b, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device, ctx in tvm.testing.enabled_targets():
+        if dynamic and (device == "cuda" or device == "nvptx"):
+            print("Dynamic batch matmul test is skippped on %s" % device)
+            continue
+
         check_device(device, ctx)
 
 
@@ -74,6 +100,10 @@ def test_batch_matmul():
     # Test batch broadcasting.
     verify_batch_matmul(1, 5, 16, 16, 32)
     verify_batch_matmul(5, 1, 16, 16, 32)
+
+    # Test dynamic batch
+    verify_batch_matmul(1, 1, 16, 16, 32, dynamic=True)
+    verify_batch_matmul(5, 5, 16, 16, 32, dynamic=True)
 
 
 if __name__ == "__main__":
