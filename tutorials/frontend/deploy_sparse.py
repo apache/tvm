@@ -117,8 +117,6 @@ bs_r = 1
 # determines how sparse the generated weights should be. The higher
 # the sparsity, the faster the result.
 sparsity = 0.85
-# If true, then all relay models(dense and sparse) will be benchmarked.
-benchmark = False
 
 
 ###############################################################################
@@ -314,7 +312,7 @@ def run_sparse(mod, params, shape_dict, target, ctx, bs_r, sparsity, gen_weights
 # -----------------
 # And that's it! Now we'll simply call all the needed function to compare
 # dense and sparse model inference outputs.
-# Also we can run benchmark, by setting benchmark=True above.
+# Also we can run benchmark, by setting benchmark=True below.
 def run_relay_models():
     mod, params, shape_dict = import_graphdef(name, batch_size, seq_len)
     input_shape = shape_dict["input_1"]
@@ -329,6 +327,8 @@ def run_relay_models():
             dense_output, sparse_output, equal_nan=True, verbose=True, atol=1e-5, rtol=1e-5
         )
 
+# If true, then all relay models(dense and sparse) will be benchmarked.
+benchmark = False
 
 run_relay_models()
 
