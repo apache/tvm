@@ -30,6 +30,11 @@ from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
 
+# pylint: disable=invalid-name
+logger = logging.getLogger("Common")
+# Uncomment below line to print all debug msgs
+# logger.setLevel(logging.DEBUG)
+
 
 class RequiredAttr(object):
     """Dummpy class to represent required attr"""
@@ -408,10 +413,10 @@ class AttrCvt(object):
                     "Attribute %s in operator %s is not" + " supported.", k, op_name
                 )
             if k in self._disables:
-                logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
+                logger.debug("Attribute %s is disabled in relay.sym.%s", k, op_name)
             elif k in self._ignores:
                 if k != "tvm_custom":
-                    logging.warning("Attribute %s is ignored in relay.sym.%s", k, op_name)
+                    logger.debug("Attribute %s is ignored in relay.sym.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
