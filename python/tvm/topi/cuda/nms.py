@@ -96,7 +96,7 @@ def rearrange_indices_out_ir(nms_box_indices, orig_indices, output, valid_box_co
         ib.scope_attr(i, "thread_extent", batch_size)
         valid_idx = ib.allocate("int32", (1,), name="valid_idx", scope="local")
         valid_idx[0] = 0
-        # TODO(masahi): Use execlusive scan here
+        # TODO(masahi): Use exclusive scan here
         with ib.for_range(0, num_anchors, name="j") as j:
             with ib.if_scope(nms_box_indices[i, j] >= 0):
                 output[i, valid_idx[0]] = orig_indices[i, nms_box_indices[i, j]]
