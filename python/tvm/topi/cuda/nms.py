@@ -51,27 +51,22 @@ def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
 
-def rearrange_indices_out_ir(data, output, valid_box_count):
-    """Hybrid routine to rearrange nms output to
-    move all valid entries to top.
+def rearrange_indices_out_ir(nms_box_indices, orig_indices, output, valid_box_count):
+    """Compact and remap sorted indices to original indices.
 
     Parameters
     ----------
-    data : tvm.te.Tensor or numpy NDArray
-        NMS output. 3-D tensor with shape
-        [batch_size, num_anchors, 6] or
-        [batch_size, num_anchors, 5], or 2-D
-        tensor with shape [batch_size, num_anchors].
+    nms_box_indices : tvm.te.Tensor or numpy NDArray
+        NMS output with return_indices=True
+        Tensor with shape [batch_size, num_anchors].
+        Each row is indices sorted by box scores.
 
-    one: tvm.tir.const
-        Constant one with the same dtype as data.
-
-    batch_size: tvm.tir.IntImm or tvm.tir.Var
-        Batch size. We need to pass it in since hybrid script doesn't support
-        binding variable to symbolic dim.
-
-    num_anchors: tvm.tir.IntImm or tvm.tir.Var
-        Number of anchors.
+    orig_indices : Buffer
+        indices in original tensor, with shape [batch_size, num_anchors],
+        represents the index of box in original data. It could be the third
+        output out_indices of get_valid_counts. The values in the second
+        dimension are like the output of arange(num_anchors) if get_valid_counts
+        is not used before non_max_suppression.
 
     Returns
     -------
@@ -82,12 +77,13 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
         Tensor with shape [batch_size, 1], indicates
         the valid number of boxes.
     """
-    batch_size = data.shape[0]
-    num_anchors = data.shape[1]
+    batch_size = nms_box_indices.shape[0]
+    num_anchors = nms_box_indices.shape[1]
 
     ib = tvm.tir.ir_builder.create()
 
-    data = ib.buffer_ptr(data)
+    nms_box_indices = ib.buffer_ptr(nms_box_indices)
+    orig_indices = ib.buffer_ptr(orig_indices)
     valid_box_count = ib.buffer_ptr(valid_box_count)
     output = ib.buffer_ptr(output)
 
@@ -96,16 +92,17 @@ def rearrange_indices_out_ir(data, output, valid_box_count):
         ib.scope_attr(i, "thread_extent", batch_size)
         valid_idx = ib.allocate("int32", (1,), name="valid_idx", scope="local")
         valid_idx[0] = 0
+        # TODO(masahi): Use execlusive scan here
         with ib.for_range(0, num_anchors, name="j") as j:
-            with ib.if_scope(data[i, j] >= 0):
-                with ib.if_scope(data[i, j] > num_anchors):
+            with ib.if_scope(nms_box_indices[i, j] >= 0):
+                with ib.if_scope(nms_box_indices[i, j] > num_anchors):
                     output[i, valid_idx[0]] = 0
                     valid_idx[0] = valid_idx[0] + 1
                 with ib.else_scope():
-                    output[i, valid_idx[0]] = data[i, j]
+                    output[i, valid_idx[0]] = orig_indices[i, nms_box_indices[i, j]]
                     valid_idx[0] = valid_idx[0] + 1
             with ib.else_scope():
-                with ib.if_scope(data[i, j] < -num_anchors):
+                with ib.if_scope(nms_box_indices[i, j] < -num_anchors):
                     output[i, valid_idx[0]] = 0
                     valid_idx[0] = valid_idx[0] + 1
             with ib.if_scope(j >= valid_idx[0]):
@@ -397,7 +394,6 @@ def nms_ir(
     data,
     sorted_index,
     valid_count,
-    indices,
     out,
     box_indices,
     max_output_size,
@@ -421,13 +417,6 @@ def nms_ir(
 
     valid_count : Buffer
         Buffer of number of valid output boxes.
-
-    indices : Buffer
-        indices in original tensor, with shape [batch_size, num_anchors],
-        represents the index of box in original data. It could be the third
-        output out_indices of get_valid_counts. The values in the second
-        dimension are like the output of arange(num_anchors) if get_valid_counts
-        is not used before non_max_suppression.
 
     out : Buffer
         Output buffer.
@@ -508,7 +497,6 @@ def nms_ir(
     data = ib.buffer_ptr(data)
     sorted_index = ib.buffer_ptr(sorted_index)
     valid_count = ib.buffer_ptr(valid_count)
-    indices = ib.buffer_ptr(indices)
     out = ib.buffer_ptr(out)
     box_indices = ib.buffer_ptr(box_indices)
 
@@ -621,21 +609,6 @@ def nms_ir(
                 offset_j = j * box_data_length
                 out[(base_idx + offset_j + k)] = data[base_idx + offset_j + k]
                 box_indices[i * num_anchors + j] = j
-
-    if return_indices:
-        with ib.new_scope():
-            nthread_tx = max_threads
-            nthread_bx = batch_size // max_threads + 1
-            tx = te.thread_axis("threadIdx.x")
-            bx = te.thread_axis("blockIdx.x")
-            ib.scope_attr(tx, "thread_extent", nthread_tx)
-            ib.scope_attr(bx, "thread_extent", nthread_bx)
-            i = bx * max_threads + tx
-            with ib.if_scope(i < batch_size):
-                with ib.for_range(0, valid_count[i]) as j:
-                    idx = box_indices[i * num_anchors + j]
-                    with ib.if_scope(idx >= 0):
-                        box_indices[i * num_anchors + j] = indices[i * num_anchors + idx]
 
     return ib.get()
 
@@ -803,19 +776,15 @@ def non_max_suppression(
         sort_tensor.shape, sort_tensor.dtype, "sort_tensor_buf", data_alignment=8
     )
 
-    indices_buf = tvm.tir.decl_buffer(indices.shape, indices.dtype, "indices_buf", data_alignment=8)
-
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    indices_buf = tvm.tir.decl_buffer(indices.shape, indices.dtype, "indices_buf", data_alignment=8)
 
     out, box_indices = te.extern(
         [data.shape, score_shape],
-        [data, sort_tensor, valid_count, indices],
+        [data, sort_tensor, valid_count],
         lambda ins, outs: nms_ir(
             ins[0],
             ins[1],
             ins[2],
-            ins[3],
             outs[0],
             outs[1],
             max_output_size,
@@ -828,7 +797,7 @@ def non_max_suppression(
             return_indices,
         ),
         dtype=[data.dtype, "int32"],
-        in_buffers=[data_buf, sort_tensor_buf, valid_count_buf, indices_buf],
+        in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
         name="nms",
         tag="nms",
     )
@@ -839,8 +808,8 @@ def non_max_suppression(
         output = tvm.tir.decl_buffer(box_indices.shape, "int32", "output")
         return te.extern(
             [out_shape, valid_box_count_shape],
-            [box_indices],
-            lambda ins, outs: rearrange_indices_out_ir(ins[0], outs[0], outs[1]),
+            [box_indices, indices],
+            lambda ins, outs: rearrange_indices_out_ir(ins[0], ins[1], outs[0], outs[1]),
             dtype="int32",
             out_buffers=[output, valid_box_count],
             name="rearrange_indices_out_gpu",
