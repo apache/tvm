@@ -539,11 +539,10 @@ def nms_ir(
                         (base_idx + sorted_index[i * num_anchors + j] * box_data_length + k)
                     ]
                 box_indices[i * num_anchors + j] = sorted_index[i * num_anchors + j]
-            with ib.if_scope(tvm.tir.all(top_k > 0, top_k < valid_count[i])):
-                with ib.for_range(0, valid_count[i] - nkeep) as j:
-                    with ib.for_range(0, box_data_length) as k:
-                        out[(base_idx + (j + nkeep) * box_data_length + k)] = -1.0
-                    box_indices[i * num_anchors + (j + nkeep)] = -1
+            with ib.for_range(0, num_anchors - nkeep) as j:
+                with ib.for_range(0, box_data_length) as k:
+                    out[(base_idx + (j + nkeep) * box_data_length + k)] = -1.0
+                box_indices[i * num_anchors + (j + nkeep)] = -1
     with ib.new_scope():
         nthread_by = batch_size
         by = te.thread_axis("blockIdx.y")
@@ -617,11 +616,6 @@ def nms_ir(
         ib.scope_attr(bx, "thread_extent", batch_size)
         i = bx
         base_idx = i * num_anchors * box_data_length
-        # Set invalid entry to be -1
-        with ib.for_range(0, num_anchors - valid_count[i]) as j:
-            with ib.for_range(0, box_data_length) as k:
-                out[base_idx + (j + valid_count[i]) * box_data_length + k] = -1.0
-            box_indices[i * num_anchors + j + valid_count[i]] = -1
         # Only return max_output_size number of valid boxes
         num_valid_boxes[0] = 0
         with ib.if_scope(max_output_size > 0):
