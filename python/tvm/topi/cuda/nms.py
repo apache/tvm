@@ -543,12 +543,19 @@ def nms_ir(
                 with ib.for_range(0, box_data_length) as k:
                     out[(base_idx + (j + nkeep) * box_data_length + k)] = -1.0
                 box_indices[i * num_anchors + (j + nkeep)] = -1
+
     with ib.new_scope():
         nthread_by = batch_size
         by = te.thread_axis("blockIdx.y")
         ib.scope_attr(by, "thread_extent", nthread_by)
         i = by
         base_idx = i * num_anchors * box_data_length
+        num_valid_boxes = ib.allocate("int32", (1,), name="num_valid_boxes", scope="local")
+        num_valid_boxes[0] = 0
+
+        with ib.if_scope(max_output_size == 0):
+            max_output_size = valid_count[i]
+
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
             with ib.for_range(0, valid_count[i]) as j:
@@ -556,6 +563,7 @@ def nms_ir(
                     offset_k = k * box_data_length
                     with ib.if_scope(
                         tvm.tir.all(
+                            num_valid_boxes[0] < max_output_size,
                             out[base_idx + offset_k + score_index] > 0,
                             tvm.tir.any(id_index < 0, out[base_idx + offset_k + id_index] >= 0),
                         )
@@ -584,6 +592,10 @@ def nms_ir(
                                 with ib.if_scope(id_index >= 0):
                                     out[base_idx + offset_j + id_index] = -1.0
                                 box_indices[i * num_anchors + j] = -1
+
+                with ib.if_scope(box_indices[i * num_anchors + j] != -1):
+                    num_valid_boxes[0] += 1
+
     with ib.new_scope():
         nthread_tx = max_threads
         nthread_bx = num_anchors // max_threads + 1
@@ -609,25 +621,6 @@ def nms_ir(
                 offset_j = j * box_data_length
                 out[(base_idx + offset_j + k)] = data[base_idx + offset_j + k]
                 box_indices[i * num_anchors + j] = j
-
-    with ib.new_scope():
-        num_valid_boxes = ib.allocate("int32", (1,), name="num_valid_boxes", scope="local")
-        bx = te.thread_axis("blockIdx.x")
-        ib.scope_attr(bx, "thread_extent", batch_size)
-        i = bx
-        base_idx = i * num_anchors * box_data_length
-        # Only return max_output_size number of valid boxes
-        num_valid_boxes[0] = 0
-        with ib.if_scope(max_output_size > 0):
-            with ib.for_range(0, valid_count[i]) as j:
-                offset_j = j * box_data_length
-                with ib.if_scope(out[base_idx + offset_j] >= 0):
-                    with ib.if_scope(num_valid_boxes[0] == max_output_size):
-                        with ib.for_range(0, box_data_length) as k:
-                            out[base_idx + offset_j + k] = -1.0
-                        box_indices[i * num_anchors + j] = -1
-                    with ib.else_scope():
-                        num_valid_boxes[0] += 1
 
     if return_indices:
         with ib.new_scope():
