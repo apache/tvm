@@ -1859,6 +1859,8 @@ class PyTorchOpConverter:
 
         num_boxes = _op.shape_of(scores)
 
+        # TVM NMS assumes score > 0
+        scores = scores - _op.min(scores) + _op.const(1.0)
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
         data = _op.concatenate([scores, boxes], -1)
