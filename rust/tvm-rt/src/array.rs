@@ -193,6 +193,7 @@ mod tests {
     use super::Array;
     use crate::function::Result;
     use crate::string::String;
+    use crate::object::{IsObjectRef, ObjectRef};
 
     #[test]
     fn create_array_and_get() -> Result<()> {
@@ -201,6 +202,15 @@ mod tests {
         assert_eq!(array.get(0)?.to_string(), "foo");
         assert_eq!(array.get(1)?.to_string(), "bar");
         assert_eq!(array.get(2)?.to_string(), "baz");
+        Ok(())
+    }
+
+    #[test]
+    fn downcast() -> Result<()> {
+        let vec: Vec<String> = vec!["foo".into(), "bar".into(), "baz".into()];
+        let array: ObjectRef = ObjectRef::from_ptr(Array::from_vec(vec)?.into_ptr());
+        let array: Array<ObjectRef> = array.downcast::<Array<ObjectRef>>().unwrap();
+        assert_eq!(array.get(1)?.downcast::<String>().unwrap(), "bar");
         Ok(())
     }
 }
