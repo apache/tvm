@@ -512,38 +512,34 @@ def nms_ir(
         )
         num_valid_boxes_local[0] = 0
 
-        def nms_loop(ib, j):
+        def nms_inner_loop(ib, j):
+            offset_j = j * box_data_length
+
             with ib.for_range(0, j) as k:
                 offset_k = k * box_data_length
+
                 with ib.if_scope(
                     tvm.tir.all(
+                        out[base_idx + offset_j + score_index] > -1.0,  # if already surpressed
                         out[base_idx + offset_k + score_index] > 0,
                         tvm.tir.any(id_index < 0, out[base_idx + offset_k + id_index] >= 0),
+                        tvm.tir.any(
+                            force_suppress > 0,
+                            id_index < 0,
+                            out[base_idx + offset_k + id_index]
+                            == out[base_idx + offset_j + id_index],
+                        ),
                     )
                 ):
-                    offset_j = j * box_data_length
-                    with ib.if_scope(
-                        tvm.tir.all(
-                            j > k,
-                            out[base_idx + offset_k + score_index] > 0,
-                            tvm.tir.any(id_index < 0, out[base_idx + offset_j + id_index] >= 0),
-                            tvm.tir.any(
-                                force_suppress > 0,
-                                id_index < 0,
-                                out[base_idx + offset_k + id_index]
-                                == out[base_idx + offset_j + id_index],
-                            ),
-                        )
-                    ):
-                        iou = calculate_overlap(
-                            out,
-                            base_idx + offset_j + coord_start,
-                            base_idx + offset_k + coord_start,
-                        )
-                        with ib.if_scope(iou >= iou_threshold):
-                            out[base_idx + offset_j + score_index] = -1.0
-                            with ib.if_scope(id_index >= 0):
-                                out[base_idx + offset_j + id_index] = -1.0
+                    iou = calculate_overlap(
+                        out,
+                        base_idx + offset_j + coord_start,
+                        base_idx + offset_k + coord_start,
+                    )
+                    with ib.if_scope(iou >= iou_threshold):
+                        out[base_idx + offset_j + score_index] = -1.0
+                        with ib.if_scope(id_index >= 0):
+                            out[base_idx + offset_j + id_index] = -1.0
 
             with ib.if_scope(out[base_idx + offset_j + score_index] > -1.0):
                 if return_indices:
@@ -554,11 +550,14 @@ def nms_ir(
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
             with ib.for_range(0, valid_count[i]) as j:
-                with ib.if_scope(max_output_size > 0):
-                    with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
-                        nms_loop(ib, j)
-                with ib.else_scope():
-                    nms_loop(ib, j)
+                with ib.if_scope(
+                    tvm.tir.any(id_index < 0, out[base_idx + j * box_data_length + id_index] >= 0)
+                ):
+                    with ib.if_scope(max_output_size > 0):
+                        with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
+                            nms_inner_loop(ib, j)
+                    with ib.else_scope():
+                        nms_inner_loop(ib, j)
 
             num_valid_boxes[i] = num_valid_boxes_local[0]
 
