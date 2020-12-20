@@ -512,52 +512,53 @@ def nms_ir(
         )
         num_valid_boxes_local[0] = 0
 
-        with ib.if_scope(max_output_size == 0):
-            max_output_size = valid_count[i]
+        def nms_loop(ib, j):
+            with ib.for_range(0, j) as k:
+                offset_k = k * box_data_length
+                with ib.if_scope(
+                    tvm.tir.all(
+                        out[base_idx + offset_k + score_index] > 0,
+                        tvm.tir.any(id_index < 0, out[base_idx + offset_k + id_index] >= 0),
+                    )
+                ):
+                    offset_j = j * box_data_length
+                    with ib.if_scope(
+                        tvm.tir.all(
+                            j > k,
+                            out[base_idx + offset_k + score_index] > 0,
+                            tvm.tir.any(id_index < 0, out[base_idx + offset_j + id_index] >= 0),
+                            tvm.tir.any(
+                                force_suppress > 0,
+                                id_index < 0,
+                                out[base_idx + offset_k + id_index]
+                                == out[base_idx + offset_j + id_index],
+                            ),
+                        )
+                    ):
+                        iou = calculate_overlap(
+                            out,
+                            base_idx + offset_j + coord_start,
+                            base_idx + offset_k + coord_start,
+                        )
+                        with ib.if_scope(iou >= iou_threshold):
+                            out[base_idx + offset_j + score_index] = -1.0
+                            with ib.if_scope(id_index >= 0):
+                                out[base_idx + offset_j + id_index] = -1.0
+
+            with ib.if_scope(out[base_idx + offset_j + score_index] > -1.0):
+                if return_indices:
+                    orig_idx = sorted_index[i * num_anchors + j]
+                    box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
+                num_valid_boxes_local[0] += 1
 
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Apply nms
             with ib.for_range(0, valid_count[i]) as j:
-                with ib.for_range(0, j) as k:
-                    offset_k = k * box_data_length
-                    with ib.if_scope(
-                        tvm.tir.all(
-                            num_valid_boxes_local[0] < max_output_size,
-                            out[base_idx + offset_k + score_index] > 0,
-                            tvm.tir.any(id_index < 0, out[base_idx + offset_k + id_index] >= 0),
-                        )
-                    ):
-                        offset_j = j * box_data_length
-                        with ib.if_scope(
-                            tvm.tir.all(
-                                j > k,
-                                out[base_idx + offset_k + score_index] > 0,
-                                tvm.tir.any(id_index < 0, out[base_idx + offset_j + id_index] >= 0),
-                                tvm.tir.any(
-                                    force_suppress > 0,
-                                    id_index < 0,
-                                    out[base_idx + offset_k + id_index]
-                                    == out[base_idx + offset_j + id_index],
-                                ),
-                            )
-                        ):
-                            iou = calculate_overlap(
-                                out,
-                                base_idx + offset_j + coord_start,
-                                base_idx + offset_k + coord_start,
-                            )
-                            with ib.if_scope(iou >= iou_threshold):
-                                out[base_idx + offset_j + score_index] = -1.0
-                                with ib.if_scope(id_index >= 0):
-                                    out[base_idx + offset_j + id_index] = -1.0
-
-                with ib.if_scope(out[base_idx + offset_j + score_index] > -1.0):
-                    if return_indices:
-                        box_indices[i * num_anchors + num_valid_boxes_local[0]] = indices[
-                            i, sorted_index[i * num_anchors + j]
-                        ]
-                        # box_indices[i * num_anchors + j] = sorted_index[i * num_anchors + j]
-                    num_valid_boxes_local[0] += 1
+                with ib.if_scope(max_output_size > 0):
+                    with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
+                        nms_loop(ib, j)
+                with ib.else_scope():
+                    nms_loop(ib, j)
 
             num_valid_boxes[i] = num_valid_boxes_local[0]
 
