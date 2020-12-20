@@ -51,6 +51,11 @@ def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
 
+
+def ceil_div(a, b):
+    return tvm.tir.indexdiv(a + b - 1, b)
+
+
 def rearrange_indices_out_ir(nms_box_indices, orig_indices, output, valid_box_count):
     """Compact and remap sorted indices to original indices.
 
@@ -511,9 +516,15 @@ def nms_ir(
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
 
     with ib.new_scope():
+        nthread_tx = max_threads
+        nthread_bx = ceil_div(num_anchors, max_threads)
         nthread_by = batch_size
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
         by = te.thread_axis("blockIdx.y")
         ib.scope_attr(by, "thread_extent", nthread_by)
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
         i = by
         base_idx = i * num_anchors * box_data_length
         with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
@@ -521,16 +532,18 @@ def nms_ir(
             nkeep = if_then_else(
                 tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i]
             )
-            with ib.for_range(0, nkeep) as j:
+            j = bx * max_threads + tx
+            with ib.if_scope(j < nkeep):
                 with ib.for_range(0, box_data_length) as k:
                     out[(base_idx + j * box_data_length + k)] = data[
                         (base_idx + sorted_index[i * num_anchors + j] * box_data_length + k)
                     ]
                 box_indices[i * num_anchors + j] = sorted_index[i * num_anchors + j]
-            with ib.for_range(0, num_anchors - nkeep) as j:
-                with ib.for_range(0, box_data_length) as k:
-                    out[(base_idx + (j + nkeep) * box_data_length + k)] = -1.0
-                box_indices[i * num_anchors + (j + nkeep)] = -1
+            with ib.else_scope():
+                with ib.if_scope(j < num_anchors):
+                    with ib.for_range(0, box_data_length) as k:
+                        out[(base_idx + j * box_data_length + k)] = -1.0
+                    box_indices[i * num_anchors + j] = -1
 
     with ib.new_scope():
         nthread_by = batch_size
