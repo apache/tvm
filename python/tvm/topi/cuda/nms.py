@@ -99,16 +99,8 @@ def rearrange_indices_out_ir(nms_box_indices, orig_indices, output, valid_box_co
         # TODO(masahi): Use execlusive scan here
         with ib.for_range(0, num_anchors, name="j") as j:
             with ib.if_scope(nms_box_indices[i, j] >= 0):
-                with ib.if_scope(nms_box_indices[i, j] > num_anchors):
-                    output[i, valid_idx[0]] = 0
-                    valid_idx[0] = valid_idx[0] + 1
-                with ib.else_scope():
-                    output[i, valid_idx[0]] = orig_indices[i, nms_box_indices[i, j]]
-                    valid_idx[0] = valid_idx[0] + 1
-            with ib.else_scope():
-                with ib.if_scope(nms_box_indices[i, j] < -num_anchors):
-                    output[i, valid_idx[0]] = 0
-                    valid_idx[0] = valid_idx[0] + 1
+                output[i, valid_idx[0]] = orig_indices[i, nms_box_indices[i, j]]
+                valid_idx[0] = valid_idx[0] + 1
             with ib.if_scope(j >= valid_idx[0]):
                 output[i, j] = -1
         valid_box_count[i, 0] = valid_idx[0]
