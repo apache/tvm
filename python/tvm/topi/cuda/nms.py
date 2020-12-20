@@ -51,7 +51,6 @@ def atomic_add(x, y):
     return tvm.tir.call_intrin(y.dtype, "tir.atomic_add", x, y)
 
 
-
 def ceil_div(a, b):
     return tvm.tir.indexdiv(a + b - 1, b)
 
@@ -540,10 +539,17 @@ def nms_ir(
                     ]
                 box_indices[i * num_anchors + j] = sorted_index[i * num_anchors + j]
             with ib.else_scope():
+                # Indices > nkeep are discarded
                 with ib.if_scope(j < num_anchors):
                     with ib.for_range(0, box_data_length) as k:
                         out[(base_idx + j * box_data_length + k)] = -1.0
                     box_indices[i * num_anchors + j] = -1
+        with ib.else_scope():
+            with ib.if_scope(j < valid_count[i]):
+                with ib.for_range(0, box_data_length) as k:
+                    offset = base_idx + j * box_data_length + k
+                    out[offset] = data[offset]
+                box_indices[i * num_anchors + j] = j
 
     with ib.new_scope():
         nthread_by = batch_size
@@ -596,32 +602,6 @@ def nms_ir(
 
                 with ib.if_scope(box_indices[i * num_anchors + j] != -1):
                     num_valid_boxes[0] += 1
-
-    with ib.new_scope():
-        nthread_tx = max_threads
-        nthread_bx = num_anchors // max_threads + 1
-        nthread_by = batch_size
-        nthread_bz = box_data_length
-        tx = te.thread_axis("threadIdx.x")
-        bx = te.thread_axis("blockIdx.x")
-        by = te.thread_axis("blockIdx.y")
-        bz = te.thread_axis("blockIdx.z")
-        ib.scope_attr(tx, "thread_extent", nthread_tx)
-        ib.scope_attr(bx, "thread_extent", nthread_bx)
-        ib.scope_attr(by, "thread_extent", nthread_by)
-        ib.scope_attr(bz, "thread_extent", nthread_bz)
-        tid = bx * max_threads + tx
-        i = by
-        j = tid
-        k = bz
-        base_idx = i * num_anchors * box_data_length
-        with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
-            pass
-        with ib.else_scope():
-            with ib.if_scope(j < valid_count[i]):
-                offset_j = j * box_data_length
-                out[(base_idx + offset_j + k)] = data[base_idx + offset_j + k]
-                box_indices[i * num_anchors + j] = j
 
     return ib.get()
 
