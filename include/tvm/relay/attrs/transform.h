@@ -401,6 +401,7 @@ struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   }
 };  // struct SparseToDenseAttrs
 
+/*! \brief Attributes used in sparsefillemptyRows operator */
 struct SparseFillEmptyRowsAttrs : public tvm::AttrsNode<SparseFillEmptyRowsAttrs> {
   Array<Integer> dense_shape;
 
