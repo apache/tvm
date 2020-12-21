@@ -38,9 +38,9 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
         How many numbers of input int32/uint32 will be multiplied and reduced.
         This is related to input channel.
     """
-    HPAD, WPAD = wkl.hpad, wkl.wpad
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    out_width = (wkl.width + pl + pr - wkl.wkernel) // WSTR + 1
 
     assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
         wkl.out_filter,
@@ -85,10 +85,10 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
         How many numbers of input int32/uint32 will be multiplied and reduced.
         This is related to input channel.
     """
-    HPAD, WPAD = wkl.hpad, wkl.wpad
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    out_height = (wkl.height + pt + pb - wkl.hkernel) // HSTR + 1
+    out_width = (wkl.width + pl + pr - wkl.wkernel) // WSTR + 1
 
     assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
         wkl.out_filter,

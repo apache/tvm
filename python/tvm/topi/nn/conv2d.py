@@ -40,8 +40,10 @@ Workload = namedtuple(
         "out_filter",
         "hkernel",
         "wkernel",
-        "hpad",
-        "wpad",
+        "padt",
+        "padb",
+        "padl",
+        "padr",
         "hstride",
         "wstride",
     ],
@@ -170,7 +172,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
     else:
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
+    pt, pl, pb, pr = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -182,7 +184,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
         '{} vs. {}".format(
         data.dtype, kernel.dtype
     )
-    return Workload(data.dtype, out_dtype, IH, IW, CI, GRPS, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    return Workload(data.dtype, out_dtype, IH, IW, CI, GRPS, CO, KH, KW, pt, pl, pb, pr, HSTR, WSTR)
 
 
 def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
