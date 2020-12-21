@@ -92,6 +92,7 @@ class PythonBasedMeasureCallback(MeasureCallback):
         """
         raise NotImplementedError
 
+
 @tvm._ffi.register_object("auto_scheduler.MeasureInput")
 class MeasureInput(Object):
     """Store the input of a measurement.
