@@ -1398,7 +1398,6 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  *
  * \return A Tensor whose op member is the sparsereshape operation
  */
-
 inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& sparse_values,
                                    const Tensor& prev_shape, const Tensor& new_shape,
                                    const std::string name = "T_sparsereshape",
@@ -1448,13 +1447,6 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
               return new_sparse_indices[0];
             } else {
               ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
-              if (const IntImmNode* op = ret.as<IntImmNode>()) {
-                if (op->value == -1) {
-                  continue;
-                } else {
-                  break;
-                }
-              }
             }
           }
           return ret;

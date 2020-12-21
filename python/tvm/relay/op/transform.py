@@ -1328,39 +1328,44 @@ def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
 
     Parameters
     ----------
-    inputs : List[relay.Expr]
-        Input tensor and indices.
-        The first tensor is input data and rests are indices.
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+    sparse_values : relay.Expr
+        A 1-D tensor[N] containing the sparse values for the sparse indices.
+    prev_shape : relay.Expr
+        A 1-D tensor containing the previous shape of the dense tensor
+    new_shape : relay.Expr
+        A 1-D tensor containing the new shape of the dense tensor
 
     Returns
     -------
     result: relay.Expr
         Output tensor.
     Examples
-        --------
-        .. code-block:: python
+    --------
+    .. code-block:: python
 
-            sparse_indices = [[0, 0, 0],
-                              [0, 0, 1],
-                              [0, 1, 0],
-                              [1, 0, 0],
-                              [1, 2, 3]]
+        sparse_indices = [[0, 0, 0],
+                            [0, 0, 1],
+                            [0, 1, 0],
+                            [1, 0, 0],
+                            [1, 2, 3]]
 
-            sparse_values = [7, 5, 6, 3, 9]
+        sparse_values = [7, 5, 6, 3, 9]
 
-            prev_shape = [2, 3, 4]
+        prev_shape = [2, 3, 4]
 
-            new_shape = [9, -1]
+        new_shape = [9, -1]
 
-            relay.sparsereshape(sparse_indices,
-                                sparse_values,
-                                prev_shape,
-                                new_shape)
-             =   [[0, 0],
-                  [0, 1],
-                  [1, 2],
-                  [4, 2],
-                  [8, 1]]
-
+        relay.sparsereshape(sparse_indices,
+                            sparse_values,
+                            prev_shape,
+                            new_shape)
+            =   [[0, 0],
+                [0, 1],
+                [1, 2],
+                [4, 2],
+                [8, 1]]
     """
     return _make.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)
