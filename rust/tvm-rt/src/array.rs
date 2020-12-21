@@ -55,8 +55,8 @@ impl<T: IsObjectRef> IsObjectRef for Array<T> {
     }
     fn from_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
         let object_ref = match object_ptr {
-          Some(o) => o.into(),
-          _ => panic!()
+            Some(o) => o.into(),
+            _ => panic!(),
         };
         Array {
             object: object_ref,
@@ -192,8 +192,8 @@ impl<'a, T: IsObjectRef> TryFrom<RetValue> for Array<T> {
 mod tests {
     use super::Array;
     use crate::function::Result;
-    use crate::string::String;
     use crate::object::{IsObjectRef, ObjectRef};
+    use crate::string::String;
 
     #[test]
     fn create_array_and_get() -> Result<()> {
