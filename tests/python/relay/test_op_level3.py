@@ -1043,15 +1043,15 @@ def test_scatter_add():
 
 
 @tvm.testing.uses_gpu
-def test_sparsefillemptyrows():
-    def ref_sparsefillemptyrows(
+def test_sparse_fill_empty_rows():
+    def ref_sparse_fill_empty_rows(
         sparse_indices: np.ndarray,
         sparse_values: np.ndarray,
         default_value: np.ndarray,
         dense_shape: np.ndarray,
     ) -> None:
         """
-        This function calculates the expected output of sparsefillemptyrows operator given the
+        This function calculates the expected output of sparse_fill_empty_rows operator given the
         inputs.
         """
         new_sparse_indices = -1 * np.ones(
@@ -1078,14 +1078,14 @@ def test_sparsefillemptyrows():
 
         return new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index
 
-    def verify_sparsefillemptyrows(
+    def verify_sparse_fill_empty_rows(
         sparse_indices_np: np.ndarray,
         sparse_values_np: np.ndarray,
         default_value_np: np.ndarray,
         dense_shape_np: np.ndarray,
     ) -> None:
         """
-        This function verifies the relay output of sparsefillemptyrows with its expected output.
+        This function verifies the relay output of sparse_fill_empty_rows with its expected output.
         """
         sparse_indices = relay.var(
             "sparse_indices",
@@ -1097,12 +1097,12 @@ def test_sparsefillemptyrows():
         default_value = relay.var(
             "default_value", relay.TensorType(default_value_np.shape, str(default_value_np.dtype))
         )
-        z = relay.op.sparsefillemptyrows(
+        z = relay.op.sparse_fill_empty_rows(
             sparse_indices, sparse_values, default_value, list(dense_shape_np)
         ).astuple()
         func = relay.Function([sparse_indices, sparse_values, default_value], z)
 
-        ref_res = ref_sparsefillemptyrows(
+        ref_res = ref_sparse_fill_empty_rows(
             sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
         )
         for target, ctx in tvm.testing.enabled_targets():
@@ -1116,7 +1116,7 @@ def test_sparsefillemptyrows():
     sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
     dense_shape_np = np.array([5, 6], dtype=np.int32)
     default_value_np = np.array([10], dtype=np.int32)
-    verify_sparsefillemptyrows(
+    verify_sparse_fill_empty_rows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
 
@@ -1124,7 +1124,7 @@ def test_sparsefillemptyrows():
     sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
     dense_shape_np = np.array([7, 7, 7], dtype=np.int32)
     default_value_np = np.array([10], dtype=np.int32)
-    verify_sparsefillemptyrows(
+    verify_sparse_fill_empty_rows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
 
@@ -1132,7 +1132,7 @@ def test_sparsefillemptyrows():
     sparse_values_np = np.array([7, 8], dtype=np.int32)
     dense_shape_np = np.array([5], dtype=np.int32)
     default_value_np = np.array([4], dtype=np.int32)
-    verify_sparsefillemptyrows(
+    verify_sparse_fill_empty_rows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
 
@@ -1140,7 +1140,7 @@ def test_sparsefillemptyrows():
     sparse_values_np = np.array([], dtype=np.int32)
     dense_shape_np = np.array([5], dtype=np.int32)
     default_value_np = np.array([4], dtype=np.int32)
-    verify_sparsefillemptyrows(
+    verify_sparse_fill_empty_rows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
 
@@ -1148,7 +1148,7 @@ def test_sparsefillemptyrows():
     sparse_values_np = np.array([], dtype=np.int32)
     dense_shape_np = np.array([9, 3, 7], dtype=np.int32)
     default_value_np = np.array([100], dtype=np.int32)
-    verify_sparsefillemptyrows(
+    verify_sparse_fill_empty_rows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
 
@@ -1424,7 +1424,7 @@ def test_adv_index():
 
 
 if __name__ == "__main__":
-    test_sparsefillemptyrows()
+    test_sparse_fill_empty_rows()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
