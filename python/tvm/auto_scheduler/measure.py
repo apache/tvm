@@ -70,6 +70,30 @@ class MeasureCallback(Object):
     """ The base class of measurement callback functions. """
 
 
+@tvm._ffi.register_object("auto_scheduler.PythonBasedMeasureCallback")
+class PythonBasedMeasureCallback(MeasureCallback):
+    """Base class for measure callbacks implemented in python"""
+
+    def __init__(self):
+        def callback_func(policy, inputs, results):
+            self.callback(policy, inputs, results)
+
+        self.__init_handle_by_constructor__(_ffi_api.PythonBasedMeasureCallback, callback_func)
+
+    def callback(self, policy, inputs, results):
+        """Update the cost model according to new measurement results (training data).
+
+        Parameters
+        ----------
+        policy: SearchPolicy
+            The search policy.
+        inputs : List[auto_scheduler.measure.MeasureInput]
+            The measurement inputs
+        results : List[auto_scheduler.measure.MeasureResult]
+            The measurement results
+        """
+        raise NotImplementedError
+
 @tvm._ffi.register_object("auto_scheduler.MeasureInput")
 class MeasureInput(Object):
     """Store the input of a measurement.

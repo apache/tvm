@@ -36,6 +36,7 @@ TVM_REGISTER_NODE_TYPE(MeasureInputNode);
 TVM_REGISTER_NODE_TYPE(BuildResultNode);
 TVM_REGISTER_NODE_TYPE(MeasureResultNode);
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
+TVM_REGISTER_OBJECT_TYPE(PythonBasedMeasureCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramRunnerNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramMeasurerNode);
@@ -358,6 +359,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.MeasureResult")
     .set_body_typed([](Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
                        double timestamp) {
       return MeasureResult(costs, error_no, error_msg, all_cost, timestamp);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.PythonBasedMeasureCallback")
+    .set_body_typed([](PackedFunc callback_func) {
+      return PythonBasedMeasureCallback(callback_func);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ProgramMeasurer")
