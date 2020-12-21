@@ -1595,7 +1595,8 @@ Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr defau
   return Call(op, {sparse_indices, sparse_values, default_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows").set_body_typed(MakeSparseFillEmptyRows);
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows")
+    .set_body_typed(MakeSparseFillEmptyRows);
 
 RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .describe(R"code(Return representation of a sparse tensor with empty rows filled with default 

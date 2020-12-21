@@ -1388,14 +1388,14 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
 
 /*!
  * \brief Fill Empty rows of a sparse tensor with default value
- * 
+ *
  * \param sparse_indices Indices where values of the dense tensor exist
  * \param sparse_values Values at the above indices respectively
  * \param default_value Default value at to be used at empty rows
  * \param dense_shape Dense shape of the sparse tensor
  * \param name The name of the operation
  * \param tag The tag to mark the operation
- * 
+ *
  * \return A Tensor whose op member is the SparseFillEmptyRows operation
  */
 inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Tensor& sparse_values,
