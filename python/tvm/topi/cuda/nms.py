@@ -466,7 +466,7 @@ def nms_ir(
 
     with ib.new_scope():
         nthread_tx = max_threads
-        nthread_bx = ceil_div(num_anchors, max_threads)
+        nthread_bx = tvm.tir.max(1, ceil_div(num_anchors, max_threads))
         nthread_by = batch_size
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
