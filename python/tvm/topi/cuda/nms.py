@@ -371,7 +371,15 @@ def nms_ir(
         is not used before non_max_suppression.
 
     out : Buffer
-        Output buffer.
+        Output buffer, to be filled with sorted boxes.
+
+    box_indices : Buffer
+        A indices tensor mapping sorted indices to original indices
+        This is the first output of NMS when return_indices=True.
+
+    num_valid_boxes : Buffer
+        Record the number of boxes that have survived IOU tests.
+        This is the second output of NMS when return_indices=True.
 
     max_output_size : int
         Max number of output valid boxes for each instance.
@@ -466,6 +474,7 @@ def nms_ir(
 
     with ib.new_scope():
         nthread_tx = max_threads
+        # num_anchors can be zero
         nthread_bx = tvm.tir.max(1, ceil_div(num_anchors, max_threads))
         nthread_by = batch_size
         tx = te.thread_axis("threadIdx.x")
@@ -485,6 +494,7 @@ def nms_ir(
             with ib.if_scope(j < num_anchors):
                 box_indices[i * num_anchors + j] = -1
             with ib.if_scope(j < nkeep):
+                # Fill in out with sorted boxes
                 with ib.for_range(0, box_data_length) as k:
                     out[(base_idx + j * box_data_length + k)] = data[
                         (base_idx + sorted_index[i * num_anchors + j] * box_data_length + k)
@@ -541,7 +551,9 @@ def nms_ir(
                         with ib.if_scope(id_index >= 0):
                             out[base_idx + offset_j + id_index] = -1.0
 
+            # Does the box j has survived IOU tests?
             with ib.if_scope(out[base_idx + offset_j + score_index] > -1.0):
+                # When return_indices is False, no need to populate box_indices
                 if return_indices:
                     orig_idx = sorted_index[i * num_anchors + j]
                     box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
@@ -557,12 +569,14 @@ def nms_ir(
                     tvm.tir.any(id_index < 0, out[base_idx + j * box_data_length + id_index] >= 0)
                 ):
                     with ib.if_scope(max_output_size > 0):
+                        # No need to do more iteration if we alread reach max_output_size boxes
                         with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
                             nms_inner_loop(ib, j)
                     with ib.else_scope():
                         nms_inner_loop(ib, j)
 
             num_valid_boxes[i] = num_valid_boxes_local[0]
+
         with ib.else_scope():
             num_valid_boxes[i] = 0
 
