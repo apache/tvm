@@ -1553,26 +1553,36 @@ RELAY_REGISTER_OP("meshgrid")
     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
-                      const TypeReporter& reporter) {
-  // types: [sparse_indices, sparse_values, prev_shape, new_shape, result]
-  ICHECK_EQ(types.size(), 5);
-  auto sparse_indices = types[0].as<TensorTypeNode>();
-  auto new_shape = types[3].as<TensorTypeNode>();
+TVM_REGISTER_NODE_TYPE(SparseReshapeAttrs);
 
-  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
-  reporter->Assign(types[4], TensorType(new_sparse_indices_shape, sparse_indices->dtype));
+bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // types: [sparse_indices, sparse_values, result]
+  // ICHECK_EQ(types.size(), 3);
+  auto sparse_indices = types[0].as<TensorTypeNode>();
+  const auto* param = attrs.as<SparseReshapeAttrs>();
+  CHECK(param != nullptr);
+  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0],
+                                           static_cast<int>((param->new_shape).size())};
+  reporter->Assign(types[2], TensorType(new_sparse_indices_shape, sparse_indices->dtype));
   return true;
 }
 
 Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                        const Type& out_type) {
-  return {topi::SparseReshape(inputs[0], inputs[1], inputs[2], inputs[3])};
+  // ICHECK_EQ(inputs.size(), 2);
+  const auto* param = attrs.as<SparseReshapeAttrs>();
+  CHECK(param != nullptr);
+  return {topi::SparseReshape(inputs[0], inputs[1], param->prev_shape, param->new_shape)};
 }
 
-Expr MakeSparseReshape(Expr sparse_indices, Expr sparse_values, Expr prev_shape, Expr new_shape) {
+Expr MakeSparseReshape(Expr sparse_indices, Expr sparse_values, Array<Integer> prev_shape,
+                       Array<Integer> new_shape) {
+  auto attrs = make_object<SparseReshapeAttrs>();
+  attrs->prev_shape = std::move(prev_shape);
+  attrs->new_shape = std::move(new_shape);
   static const Op& op = Op::Get("sparsereshape");
-  return Call(op, {sparse_indices, sparse_values, prev_shape, new_shape}, Attrs(), {});
+  return Call(op, {sparse_indices, sparse_values}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.sparsereshape").set_body_typed(MakeSparseReshape);
@@ -1580,11 +1590,10 @@ TVM_REGISTER_GLOBAL("relay.op._make.sparsereshape").set_body_typed(MakeSparseRes
 RELAY_REGISTER_OP("sparsereshape")
     .describe(R"code(Return twice of normal addition of two tensors.
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(4)
+    .set_num_inputs(2)
+    .set_attrs_type<SparseReshapeAttrs>()
     .add_argument("sparse_indices", "Tensor", "The first tensor")
     .add_argument("sparse_values", "Tensor", "The second tensor")
-    .add_argument("prev_shape", "Tensor", "The third tensor")
-    .add_argument("new_shape", "Tensor", "The fourth tensor")
     .add_type_rel("sparsereshape", SparseReshapeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3)

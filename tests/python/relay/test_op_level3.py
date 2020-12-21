@@ -1090,8 +1090,8 @@ def test_sparsereshape():
     def verify_sparsereshape(
         sparse_indices_np: np.ndarray,
         sparse_values_np: np.ndarray,
-        dense_shape_np: np.ndarray,
-        default_value_np: np.ndarray,
+        prev_shape_np: np.ndarray,
+        new_shape_np: np.ndarray,
     ):
         """
         This function verifies the relay output of sparsereshape with its expected output.
@@ -1103,25 +1103,19 @@ def test_sparsereshape():
         sparse_values = relay.var(
             "sparse_values", relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype))
         )
-        dense_shape = relay.var(
-            "dense_shape", relay.TensorType(dense_shape_np.shape, str(dense_shape_np.dtype))
+        z = relay.op.sparsereshape(
+            sparse_indices, sparse_values, list(prev_shape_np), list(new_shape_np)
         )
-        default_value = relay.var(
-            "default_value", relay.TensorType(default_value_np.shape, str(default_value_np.dtype))
-        )
-        z = relay.op.sparsereshape(sparse_indices, sparse_values, dense_shape, default_value)
 
-        func = relay.Function([sparse_indices, sparse_values, dense_shape, default_value], z)
+        func = relay.Function([sparse_indices, sparse_values], z)
 
         ref_res = ref_sparsereshape(
-            sparse_indices_np, sparse_values_np, dense_shape_np, default_value_np
+            sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
         )
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(
-                    sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
-                )
+                op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     sparse_indices_np = np.array(

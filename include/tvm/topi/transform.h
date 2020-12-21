@@ -1399,30 +1399,30 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  * \return A Tensor whose op member is the sparsereshape operation
  */
 inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& sparse_values,
-                                   const Tensor& prev_shape, const Tensor& new_shape,
+                                   Array<Integer> prev_shape, Array<Integer> new_shape,
                                    const std::string name = "T_sparsereshape",
                                    std::string tag = kInjective) {
   Array<Tensor> result;
-  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
-  std::vector<PrimExpr> multipliers(GetConstInt(prev_shape->shape[0]), 1);
-  std::vector<PrimExpr> dividers(GetConstInt(new_shape->shape[0]), 1);
+  int new_shape_size = new_shape.size();
+  int prev_shape_size = prev_shape.size();
+  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape_size};
+  std::vector<PrimExpr> multipliers(prev_shape_size, 1);
+  std::vector<PrimExpr> dividers(new_shape_size, 1);
 
-  tvm::te::compute(Array<PrimExpr>{1}, [&](const Array<Var>& indices) {
-    tvm::PrimExpr total_ele = prev_shape[0];
-    for (int i = GetConstInt(prev_shape->shape[0]) - 2; i >= 0; --i) {
-      multipliers[i] = prev_shape[i + 1] * multipliers[i + 1];
-      total_ele *= prev_shape[i + 1];
-    }
-    PrimExpr division_total_ele = 1;
-    for (int i = 0; i < GetConstInt(new_shape->shape[0]); ++i) {
-      division_total_ele *= if_then_else(new_shape[i] != -1, new_shape[i], 1);
-    }
-    for (int i = GetConstInt(new_shape->shape[0]) - 2; i >= 0; --i) {
-      dividers[i] = dividers[i + 1] * if_then_else(new_shape[i + 1] != -1, new_shape[i + 1],
-                                                   div(total_ele, division_total_ele));
-    }
-    return PrimExpr(1);
-  });
+  tvm::PrimExpr total_ele = prev_shape[0];
+  for (int i = prev_shape_size - 2; i >= 0; --i) {
+    multipliers[i] = prev_shape[i + 1] * multipliers[i + 1];
+    total_ele *= prev_shape[i + 1];
+  }
+  PrimExpr division_total_ele = 1;
+  for (int i = 0; i < new_shape_size; ++i) {
+    division_total_ele *= if_then_else(new_shape[i] != -1, new_shape[i], 1);
+  }
+  for (int i = new_shape_size - 2; i >= 0; --i) {
+    dividers[i] = dividers[i + 1] * if_then_else(new_shape[i + 1] != -1, new_shape[i + 1],
+                                                 div(total_ele, division_total_ele));
+  }
+
   result.push_back(compute(
       new_sparse_indices_shape,
       [&](const Array<Var>& indices) {
@@ -1435,14 +1435,14 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& s
           }
         }
         Array<PrimExpr> new_sparse_indices;
-        if (GetConstInt(new_shape->shape[0]) != 1) {
-          for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
+        if (new_shape_size != 1) {
+          for (int i = 0; i < new_shape_size; i++) {
             new_sparse_indices.push_back(floordiv(flattened_idx, dividers[i]));
             flattened_idx = floormod(flattened_idx, dividers[i]);
           }
           PrimExpr ret = -1;
 
-          for (int i = 0; i < GetConstInt(new_shape->shape[0]); i++) {
+          for (int i = 0; i < new_shape_size; i++) {
             if (indices.size() == 1) {
               return new_sparse_indices[0];
             } else {
