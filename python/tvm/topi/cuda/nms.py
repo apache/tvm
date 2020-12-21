@@ -569,7 +569,7 @@ def nms_ir(
                     tvm.tir.any(id_index < 0, out[base_idx + j * box_data_length + id_index] >= 0)
                 ):
                     with ib.if_scope(max_output_size > 0):
-                        # No need to do more iteration if we alread reach max_output_size boxes
+                        # No need to do more iteration if we already reach max_output_size boxes
                         with ib.if_scope(num_valid_boxes_local[0] < max_output_size):
                             nms_inner_loop(ib, j)
                     with ib.else_scope():
