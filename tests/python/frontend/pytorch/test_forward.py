@@ -1891,12 +1891,8 @@ def _get_default_vm_targets():
 
 def verify_script_model(pt_model, ishapes, targets, idtype=None):
     script_module = torch.jit.script(pt_model)
-    verify_model_vm(script_module, ishapes, targets=targets)
 
-    if idtype:
-        verify_model_vm(script_module, ishapes, idtype=idtype, targets=targets)
-    else:
-        verify_model_vm(script_module, ishapes, targets=targets)
+    verify_model_vm(script_module, ishapes, idtype=idtype, targets=targets)
 
 
 def verify_trace_model(pt_model, idata, targets):
@@ -1933,7 +1929,10 @@ def convert_pt_to_tvm_type(idtype):
     return curr_dtype
 
 
-def verify_model_vm(input_model, ishapes, idtype=torch.float, idata=None, targets=["llvm"]):
+def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llvm"]):
+    if not idtype:
+        idtype = torch.float
+
     input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
     tvm_dtype = convert_pt_to_tvm_type(idtype)
     input_dtypes = [tvm_dtype] * len(input_names)
