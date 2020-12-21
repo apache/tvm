@@ -1322,9 +1322,7 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def sparsefillemptyrows(
-    sparse_indices, sparse_values, dense_shape, default_value, return_as_tuple=True
-):
+def sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value):
     """
     Fill first column of the empty rows with default values for a sparse array.
 
