@@ -183,6 +183,7 @@ for idx, task in enumerate(tasks):
 #     hardware_params = auto_scheduler.HardwareParams(-1, 16, 64,
 #                                                     max_shared_memory_per_block, max_local_memory_per_block,
 #                                                     max_threads_per_block, max_vthread_extent, warp_size)
+#
 #  Now you could pass it to search task and tune
 #
 #   .. code-block:: python
