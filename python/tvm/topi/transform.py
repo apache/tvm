@@ -933,7 +933,7 @@ def adv_index(data, indices):
     return cpp.adv_index(data, indices)
 
 
-def sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shape):
+def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape):
     """
     Fill first column of the empty rows with default values for a sparse array.
 
@@ -1008,4 +1008,4 @@ def sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shap
 
     slice_element_index = [6]
     """
-    return cpp.sparsefillemptyrows(sparse_indices, sparse_values, default_value, dense_shape)
+    return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape)
