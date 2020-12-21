@@ -31,7 +31,6 @@ from ..nn.util import infer_pad
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 
 
-
 def group_conv2d_nchw(data, kernel, strides, padding, dilation, groups, out_dtype):
     """Compute group_conv2d with NCHW layout"""
     return group_conv2d_nchw_spatial_pack(
@@ -44,7 +43,7 @@ def schedule_group_conv2d_nchw(outs):
     return schedule_group_conv2d_nchwc(outs)
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, layout='NCHW'):
+def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, layout="NCHW"):
     """
     Get default schedule config for the workload
     """
@@ -99,7 +98,7 @@ def _fallback_schedule(cfg, wkl):
 
 @autotvm.register_topi_compute("group_conv2d_nchw.arm_cpu")
 def group_conv2d_nchw_spatial_pack(
-        cfg, data, kernel, strides, padding, dilation, groups, out_dtype='float32'
+    cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"
 ):
     """
     Compute group conv2d with NCHW layout, using GSPC algorithm.
@@ -202,7 +201,7 @@ def group_conv2d_nchw_spatial_pack(
     )
 
     # convolution
-    oshape = (groups, batch_size, kernels_per_group//oc_bn, out_height, out_width, oc_bn)
+    oshape = (groups, batch_size, kernels_per_group // oc_bn, out_height, out_width, oc_bn)
     unpack_shape = (batch_size, out_channel, out_height, out_width)
 
     ic = te.reduce_axis((0, (kernel_depth)), name="ic")
@@ -298,7 +297,6 @@ def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, 
         cfg["tile_ow"].size[-1],
         cfg["unroll_kw"].val,
     )
-
 
     # no stride and padding info here
     padding = infer_pad(data, data_pad)

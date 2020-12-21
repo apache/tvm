@@ -99,7 +99,7 @@ def _fallback_schedule(cfg, wkl):
 
 @autotvm.register_topi_compute("group_conv2d_nchw.x86")
 def group_conv2d_nchw_spatial_pack(
-        cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"
+    cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"
 ):
     """
     Compute group conv2d with NCHW layout, using GSPC algorithm.
@@ -289,8 +289,7 @@ def schedule_group_conv2d_nchwc(cfg, outs):
     return s
 
 
-def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec,
-                        conv_out, output, last):
+def _schedule_gspc_nchw(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, last):
     """Schedule GSPC"""
     ic_bn, oc_bn, reg_n, unroll_kw = (
         cfg["tile_ic"].size[-1],
