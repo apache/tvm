@@ -210,6 +210,7 @@ def get_valid_indices_ir(valid_boxes, valid_count, valid_indices):
         bx = te.thread_axis("blockIdx.x")
         ib.scope_attr(bx, "thread_extent", batch_size)
         with ib.if_scope(bx < batch_size):
+            valid_count[bx] = valid_indices[(bx + 1) * num_anchors - 1]
             valid_indices[(bx + 1) * num_anchors - 1] = 0
 
     with ib.for_range(0, lim, dtype="int64") as l2_width:
@@ -242,23 +243,6 @@ def get_valid_indices_ir(valid_boxes, valid_count, valid_indices):
                         by * num_anchors + end[0] - 1
                     ]
                     valid_indices[by * num_anchors + end[0] - 1] += tmp[0]
-
-    ## Write Sum to valid_count
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-    with ib.new_scope():
-        nthread_tx = max_threads
-        nthread_bx = ceil_div(batch_size, max_threads)
-        tx = te.thread_axis("threadIdx.x")
-        bx = te.thread_axis("blockIdx.x")
-        ib.scope_attr(tx, "thread_extent", nthread_tx)
-        ib.scope_attr(bx, "thread_extent", nthread_bx)
-        tid = bx * max_threads + tx
-        with ib.if_scope(tid < batch_size):
-            # Add valid_boxes[tid, num_anchors - 1] because valid_indices is
-            # an exclusive scan of valid_boxes
-            valid_count[tid] = (
-                valid_indices[tid, num_anchors - 1] + valid_boxes[tid, num_anchors - 1]
-            )
 
     return ib.get()
 
