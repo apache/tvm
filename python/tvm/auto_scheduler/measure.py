@@ -75,18 +75,16 @@ class PythonBasedMeasureCallback(MeasureCallback):
     """Base class for measure callbacks implemented in python"""
 
     def __init__(self):
-        def callback_func(policy, inputs, results):
-            self.callback(policy, inputs, results)
+        def callback_func(inputs, results):
+            self.callback(inputs, results)
 
         self.__init_handle_by_constructor__(_ffi_api.PythonBasedMeasureCallback, callback_func)
 
-    def callback(self, policy, inputs, results):
+    def callback(self, inputs, results):
         """Update the cost model according to new measurement results (training data).
 
         Parameters
         ----------
-        policy: SearchPolicy
-            The search policy.
         inputs : List[auto_scheduler.measure.MeasureInput]
             The measurement inputs
         results : List[auto_scheduler.measure.MeasureResult]

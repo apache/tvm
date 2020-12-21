@@ -239,6 +239,8 @@ class PythonBasedMeasureCallbackNode : public MeasureCallbackNode {
   /*! \brief Pointer to the callback funcion in python */
   PackedFunc callback_func;
 
+  void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
+                const Array<MeasureResult>& results) final;
   static constexpr const char* _type_key = "auto_scheduler.PythonBasedMeasureCallback";
   TVM_DECLARE_FINAL_OBJECT_INFO(PythonBasedMeasureCallbackNode, MeasureCallbackNode);
 };
@@ -251,9 +253,9 @@ class PythonBasedMeasureCallback : public MeasureCallback {
  public:
   /*!
    * \brief The constructor.
-   * \param callback The pointer to the callback function defined in python
+   * \param callback_func The pointer to the callback function defined in python
    */
-  PythonBasedMeasureCallback(PackedFunc callback);
+  explicit PythonBasedMeasureCallback(PackedFunc callback_func);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PythonBasedMeasureCallback, MeasureCallback,
                                         PythonBasedMeasureCallbackNode);

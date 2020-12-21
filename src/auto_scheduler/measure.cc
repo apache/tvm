@@ -184,6 +184,19 @@ Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
   return Array<MeasureResult>();
 }
 
+/********** MeasureCallback **********/
+PythonBasedMeasureCallback::PythonBasedMeasureCallback(PackedFunc callback_func) {
+  auto node = make_object<PythonBasedMeasureCallbackNode>();
+  node->callback_func = std::move(callback_func);
+  data_ = std::move(node);
+}
+
+void PythonBasedMeasureCallbackNode::Callback(const SearchPolicy& policy,
+                                              const Array<MeasureInput>& inputs,
+                                              const Array<MeasureResult>& results) {
+  callback_func(inputs, results);
+}
+
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                                  Optional<Array<MeasureCallback>> callbacks, int verbose,

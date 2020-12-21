@@ -24,7 +24,7 @@ from test_auto_scheduler_task_extraction import get_network
 
 class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
     """A simple Python-based callback for testing."""
-    def callback(self, policy, inputs, results):
+    def callback(self, inputs, results):
         for inp, res in zip(inputs, results):
             print(inp, res)
 
