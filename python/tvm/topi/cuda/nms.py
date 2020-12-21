@@ -475,7 +475,7 @@ def nms_ir(
     with ib.new_scope():
         nthread_tx = max_threads
         # num_anchors can be zero
-        nthread_bx = tvm.tir.max(1, ceil_div(num_anchors, max_threads))
+        nthread_bx = ceil_div(num_anchors, max_threads)
         nthread_by = batch_size
         tx = te.thread_axis("threadIdx.x")
         bx = te.thread_axis("blockIdx.x")
@@ -551,7 +551,7 @@ def nms_ir(
                         with ib.if_scope(id_index >= 0):
                             out[base_idx + offset_j + id_index] = -1.0
 
-            # Does the box j has survived IOU tests?
+            # Has the box j survived IOU tests?
             with ib.if_scope(out[base_idx + offset_j + score_index] > -1.0):
                 # When return_indices is False, no need to populate box_indices
                 if return_indices:
