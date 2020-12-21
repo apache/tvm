@@ -1322,6 +1322,9 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value):
-
-    return _make.sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value)
+def sparsefillemptyrows(
+    sparse_indices, sparse_values, dense_shape, default_value, return_as_tuple=True
+):
+    return TupleWrapper(
+        _make.sparsefillemptyrows(sparse_indices, sparse_values, dense_shape, default_value), 4
+    )

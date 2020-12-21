@@ -1419,18 +1419,48 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
         PrimExpr empty_row_count = 0;
         for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
           empty_row_count =
-              if_then_else(empty_row_indicator[i], empty_row_count, empty_row_count + 1);
-          PrimExpr condition =
-              (indices[0] == sparse_indices->shape[0] + empty_row_count - 1) && empty_row_count > 0;
+              if_then_else(empty_row_indicator[i], empty_row_count + 1, empty_row_count);
+          PrimExpr at_correct_index =
+              (indices[0] == (sparse_indices->shape[0] + empty_row_count - 1));
+          PrimExpr condition = at_correct_index && empty_row_indicator[i];
+
           ret = if_then_else(condition, i, ret);
           if (indices.size() > 1) {
-            ret = if_then_else(condition && indices[1] == 1, 0, ret);
+            ret = if_then_else(condition && indices[1] > 0, 0, ret);
           }
         }
         return ret;
       },
       name, tag));
   result.push_back(empty_row_indicator);
+  result.push_back(compute(
+      Array<PrimExpr>{sp_ordered_output_shape[0]},
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = -1;
+        ret = if_then_else(indices[0] < sparse_values->shape[0], sparse_values(indices), ret);
+        PrimExpr empty_row_count = 0;
+        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+          empty_row_count =
+              if_then_else(empty_row_indicator[i], empty_row_count + 1, empty_row_count);
+          PrimExpr condition =
+              (indices[0] == sparse_values->shape[0] + empty_row_count - 1) && empty_row_count > 0;
+          ret = if_then_else(condition, default_value[0], ret);
+        }
+        return ret;
+      },
+      name, tag));
+  result.push_back(compute(
+      Array<PrimExpr>{1},
+      [&](const Array<Var>& indices) {
+        PrimExpr new_sparse_values_len = sparse_values->shape[0];
+        PrimExpr empty_row_count = 0;
+        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+          new_sparse_values_len = if_then_else(empty_row_indicator[i], new_sparse_values_len + 1,
+                                               new_sparse_values_len);
+        }
+        return new_sparse_values_len;
+      },
+      name, tag));
   return result;
 }
 

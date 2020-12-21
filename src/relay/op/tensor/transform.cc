@@ -1557,12 +1557,12 @@ TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
-  // types: [ sparse_indices, sparse_values, default_value, result]
+  // types: [ sparse_indices, sparse_values, default_values, result]
   ICHECK_EQ(types.size(), 4);
   ICHECK_EQ(num_inputs, 3);
   std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
-
+  auto default_value = types[2].as<TensorTypeNode>();
   const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
   CHECK(param != nullptr);
 
@@ -1573,6 +1573,8 @@ bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attr
   }
   fields.push_back(TensorType(sp_ordered_output_shape, sparse_indices->dtype));
   fields.push_back(TensorType(Array<PrimExpr>{param->dense_shape[0]}, tvm::DataType::Bool()));
+  fields.push_back(TensorType(Array<PrimExpr>{sp_ordered_output_shape[0]}, default_value->dtype));
+  fields.push_back(TensorType(Array<PrimExpr>{1}, tvm::DataType::Int(32)));
   reporter->Assign(types[3], TupleType(Array<Type>(fields)));
   return true;
 }

@@ -1048,17 +1048,26 @@ def test_sparsefillemptyrows():
         new_sparse_indices = -1 * np.ones(
             (sparse_indices.shape[0] + dense_shape[0], sparse_indices.shape[1])
         )
-
         empty_row_indicator = np.ones(dense_shape[0], dtype=bool)
+        new_sparse_values = -1 * np.ones(sparse_indices.shape[0] + dense_shape[0])
+        slice_element_index = np.array(sparse_indices.shape[0], dtype=np.int32)
+
         for i in range(sparse_indices.shape[0]):
-            if len(sparse_indices.shape) == 1:
-                element = sparse_indices[i]
-            else:
-                element = sparse_indices[i][0]
+            empty_row_indicator[sparse_indices[i][0]] = False
 
-            empty_row_indicator[element] = False
+        new_sparse_indices[: sparse_indices.shape[0]][:] = sparse_indices[:]
+        new_sparse_values[: sparse_values.shape[0]] = sparse_values[:]
+        new_sparse_indices_index = sparse_indices.shape[0]
 
-        return new_sparse_indices, empty_row_indicator
+        for empty_row_index, element in enumerate(empty_row_indicator):
+            if element:
+                new_sparse_indices[new_sparse_indices_index, 0] = empty_row_index
+                new_sparse_indices[new_sparse_indices_index, 1:] = 0
+                new_sparse_values[new_sparse_indices_index] = default_value[0]
+                new_sparse_indices_index += 1
+                slice_element_index += 1
+
+        return new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index
 
     def verify_sparsefillemptyrows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
@@ -1075,8 +1084,7 @@ def test_sparsefillemptyrows():
         )
         z = relay.op.sparsefillemptyrows(
             sparse_indices, sparse_values, default_value, list(dense_shape_np)
-        )
-
+        ).astuple()
         func = relay.Function([sparse_indices, sparse_values, default_value], z)
 
         ref_res = ref_sparsefillemptyrows(
@@ -1089,13 +1097,44 @@ def test_sparsefillemptyrows():
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np, default_value_np)
                 for op_res_item, ref_res_item in zip(op_res, ref_res):
-                    print(op_res_item, ref_res_item)
                     tvm.testing.assert_allclose(op_res_item.asnumpy(), ref_res_item, rtol=1e-5)
 
     sparse_indices_np = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int32)
     sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
     dense_shape_np = np.array([5, 6], dtype=np.int32)
     default_value_np = np.array([10], dtype=np.int32)
+    verify_sparsefillemptyrows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int32)
+    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
+    dense_shape_np = np.array([7, 7, 7], dtype=np.int32)
+    default_value_np = np.array([10], dtype=np.int32)
+    verify_sparsefillemptyrows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.array([[1], [2]], dtype=np.int32)
+    sparse_values_np = np.array([7, 8], dtype=np.int32)
+    dense_shape_np = np.array([5], dtype=np.int32)
+    default_value_np = np.array([4], dtype=np.int32)
+    verify_sparsefillemptyrows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.ones((0, 1), dtype=np.int32)
+    sparse_values_np = np.array([], dtype=np.int32)
+    dense_shape_np = np.array([5], dtype=np.int32)
+    default_value_np = np.array([4], dtype=np.int32)
+    verify_sparsefillemptyrows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.ones((0, 3), dtype=np.int32)
+    sparse_values_np = np.array([], dtype=np.int32)
+    dense_shape_np = np.array([9, 3, 7], dtype=np.int32)
+    default_value_np = np.array([100], dtype=np.int32)
     verify_sparsefillemptyrows(
         sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
     )
