@@ -210,7 +210,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.arm_cpu.group_conv2d_nchw, has_groups=True),
                 wrap_topi_schedule(topi.arm_cpu.schedule_group_conv2d_nchw),
-                name="group_conv2d_nchw.arm_cpu"
+                name="group_conv2d_nchw.arm_cpu",
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
