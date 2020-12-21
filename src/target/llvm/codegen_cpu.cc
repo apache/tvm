@@ -794,10 +794,10 @@ llvm::Value* CodeGenCPU::RuntimeTVMParallelBarrier() {
 void CodeGenCPU::AddStartupFunction() {
   if (registry_functions_.size() != 0) {
     ICHECK(is_system_lib_) << "Loading of --system-lib modules is yet to be defined for C runtime";
-    std::vector<std::string> symbols;
+    Array<String> symbols;
     std::vector<llvm::Constant*> funcs;
     for (auto sym : registry_functions_) {
-      symbols.emplace_back(sym.first);
+      symbols.push_back(sym.first);
       funcs.emplace_back(llvm::ConstantExpr::getBitCast(
           sym.second, ftype_tvm_backend_packed_c_func_->getPointerTo()));
     }
