@@ -383,7 +383,10 @@ def conv2d_nhwc(
         # Infer shape for the rewritten layout
         # todo(merrymercy): wrap this with a more general interface.
         if len(Filter.shape) == 17:
-            # For mali
+            # For mali.
+            # GPU tile structure is SSSRRSRS
+            # You could refer function comment of DoMultiLevelTiling
+            # in the utils.h to see more detail explanation.
             kernel_h = Filter.shape[6] * Filter.shape[9] * Filter.shape[13]
             kernel_w = Filter.shape[7] * Filter.shape[10] * Filter.shape[14]
             channel = Filter.shape[8] * Filter.shape[11] * Filter.shape[15]

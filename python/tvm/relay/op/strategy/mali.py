@@ -21,7 +21,6 @@ from tvm import topi
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
-from .cuda import naive_schedule
 
 
 @conv2d_strategy.register("mali")
@@ -74,7 +73,9 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             if not is_auto_scheduler_enabled():
-                logger.error("conv2d NHWC layout is not enabled for mali with autotvm.")
+                raise RuntimeError(
+                    "conv2d NHWC layout is not enabled for mali without auto_scheduler."
+                )
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
                 naive_schedule,
@@ -114,7 +115,9 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             if not is_auto_scheduler_enabled():
-                logger.error("depthwise_conv2d NHWC layout is not enabled for mali with autotvm.")
+                raise RuntimeError(
+                    "depthwise_conv2d NHWC layout is not enabled for mali without auto_scheduler."
+                )
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 naive_schedule,
@@ -147,15 +150,16 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
             name="conv2d_nchw_winograd.mali",
         )
     elif layout == "NHWC":
-        if is_auto_scheduler_enabled():
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
-                naive_schedule,  # this implementation should never be picked by autotvm
-                name="conv2d_nhwc_winograd_without_weight_transform",
-                plevel=15,
+        if not is_auto_scheduler_enabled():
+            raise RuntimeError(
+                "Winograd conv2d NHWC is not enabled for mali without auto_scheduler."
             )
-        else:
-            logger.error("AutoTVM doesn't support NHWC winograd on Mali currently")
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
+            naive_schedule,  # this implementation should never be picked by autotvm
+            name="conv2d_nhwc_winograd_without_weight_transform",
+            plevel=15,
+        )
     else:
         raise RuntimeError(
             "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)

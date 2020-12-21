@@ -578,7 +578,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
 
 @conv2d_winograd_nhwc.register(["mali"])
-def conv2d_winograd_nhwc_cuda(
+def conv2d_winograd_nhwc_mali(
     data, weight, strides, padding, dilation, out_dtype, pre_computed=False
 ):
     """Conv2D Winograd in NHWC layout.

@@ -135,7 +135,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 network = "mobilenet"
 batch_size = 1
 layout = "NHWC"
-# replace this with the device key in your tracker
+# Replace this with the device key in your tracker
 device_key = "rk3399"
 # Set this to True if you use ndk tools for cross compiling
 use_ndk = True
@@ -165,6 +165,30 @@ tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, 
 for idx, task in enumerate(tasks):
     print("========== Task %d  (workload key: %s) ==========" % (idx, task.workload_key))
     print(task.compute_dag)
+######################################################################
+# .. note:: How to get the hardware parameters from remote device
+#
+#   .. code-block:: python
+#
+#     from tvm.auto_scheduler.utils import request_remote
+#     remote = request_remote(device_key, "0.0.0.0", 9190)
+#     ctx = remote.cl()
+#     max_shared_memory_per_block = ctx.max_shared_memory_per_block
+#     # There is no explicit local memory limition
+#     # so we can use INT32_MAX to disalbe the check on local_memory.
+#     max_local_memory_per_block = 2147483647 # INT32_MAX
+#     max_threads_per_block = ctx.max_threads_per_block
+#     max_vthread_extent = int(ctx.warp_size / 4) if int(ctx.warp_size / 4) > 1 else ctx.warp_size
+#     warp_size = ctx.warp_size
+#     hardware_params = auto_scheduler.HardwareParams(-1, 16, 64,
+#                                                     max_shared_memory_per_block, max_local_memory_per_block,
+#                                                     max_threads_per_block, max_vthread_extent, warp_size)
+#  Now you could pass it to search task and tune
+#
+#   .. code-block:: python
+#
+#     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target, target_host, hardware_params)
+#
 
 #################################################################
 # Tuning and Evaluate

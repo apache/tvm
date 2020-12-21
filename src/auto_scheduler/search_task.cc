@@ -92,8 +92,8 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
                           max_threads_per_block, max_vthread_extent, warp_size);
   } else if (target->kind->device_type == kDLOpenCL) {
     if (target->GetAttr<String>("device", "") == "mali") {
-      // We can not use device api to get attr like CUDA
-      // because like Mali target is normally on the remote machine
+      // We cannot use device API to get hardware attributes like CUDA,
+      // because like Mali target is normally on the remote machine.
       int max_shared_memory_per_block = 32768;
       int max_local_memory_per_block = INT32_MAX;  // skip the check on local memory
       int max_threads_per_block = 256;
