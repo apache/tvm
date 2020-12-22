@@ -17,7 +17,15 @@
 # pylint: disable=import-outside-toplevel, unused-argument
 """ Common utilities used by PyTorch frontend """
 from .. import op
-from ..dataflow_pattern import *
+from ..dataflow_pattern import (
+    is_constant,
+    is_op,
+    rewrite,
+    is_tuple,
+    is_tuple_get_item,
+    wildcard,
+    DFPatternCallback,
+)
 
 
 def is_version_greater_than(ver):
@@ -79,7 +87,7 @@ class NMSRewrite(DFPatternCallback):
 
     def __init__(self):
         super().__init__()
-        # exprs I want to extract
+        # exprs to extract
         self.boxes = wildcard()
         self.scores = wildcard()
         self.idxs = wildcard()
@@ -102,7 +110,7 @@ class NMSRewrite(DFPatternCallback):
             indices=indices,
             max_output_size=max_out_size,
             iou_threshold=iou_thres,
-            force_suppress=True,
+            force_suppress=False,
             top_k=top_k,
             coord_start=2,
             score_index=1,
