@@ -30,6 +30,7 @@ def is_version_greater_than(ver):
 
 
 def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
+    """A pattern to detect batched_nms function in torchvision"""
     one = is_constant()
     zero = is_constant()
 
@@ -73,34 +74,9 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     )
 
 
-def convert_batched_nms(boxes, scores, idxs, iou_thres):
-    scores = op.expand_dims(scores, axis=-1, num_newaxis=1)
-    idxs = op.expand_dims(idxs, axis=-1, num_newaxis=1)
-    idxs = op.cast(idxs, "float32")
-    data = op.concatenate([idxs, scores, boxes], -1)
-    data = op.expand_dims(data, 0, 1)
-    ct, data, indices = op.vision.get_valid_counts(
-        data, score_threshold=-1.0, id_index=0, score_index=1
-    )
-    top_k = max_out_size = -1
-    out = op.vision.non_max_suppression(
-        data=data,
-        valid_count=ct,
-        indices=indices,
-        max_output_size=max_out_size,
-        iou_threshold=iou_thres,
-        force_suppress=True,
-        top_k=top_k,
-        coord_start=1,
-        score_index=1,
-        id_index=0,
-        return_indices=True,
-        invalid_to_bottom=False,
-    )
-    return out.tuple_value
-
-
 class NMSRewrite(DFPatternCallback):
+    """A callback to rewrite nms and restore batched nms"""
+
     def __init__(self):
         super().__init__()
         # exprs I want to extract
@@ -110,14 +86,44 @@ class NMSRewrite(DFPatternCallback):
         self.iou_threshold = wildcard()
         self.pattern = batched_nms_pattern(self.boxes, self.scores, self.idxs, self.iou_threshold)
 
+    def convert_batched_nms(self, boxes, scores, idxs, iou_thres):
+        scores = op.expand_dims(scores, axis=-1, num_newaxis=1)
+        idxs = op.expand_dims(idxs, axis=-1, num_newaxis=1)
+        idxs = op.cast(idxs, "float32")
+        data = op.concatenate([idxs, scores, boxes], -1)
+        data = op.expand_dims(data, 0, 1)
+        ct, data, indices = op.vision.get_valid_counts(
+            data, score_threshold=-1.0, id_index=0, score_index=1
+        )
+        top_k = max_out_size = -1
+        out = op.vision.non_max_suppression(
+            data=data,
+            valid_count=ct,
+            indices=indices,
+            max_output_size=max_out_size,
+            iou_threshold=iou_thres,
+            force_suppress=True,
+            top_k=top_k,
+            coord_start=1,
+            score_index=1,
+            id_index=0,
+            return_indices=True,
+            invalid_to_bottom=False,
+        )
+        return out.tuple_value
+
     def callback(self, pre, post, node_map):
         boxes = node_map[self.boxes][0]
         scores = node_map[self.scores][0]
         idxs = node_map[self.idxs][0]
         iou_thres = node_map[self.iou_threshold][0]
-        return convert_batched_nms(boxes, scores, idxs, iou_thres)
+        return self.convert_batched_nms(boxes, scores, idxs, iou_thres)
 
 
 def rewrite_nms_to_batched_nms(mod):
+    """Rewrite the input graph to replace the costly non maximum surpression
+    in torchvision that does not take class id into account with the one
+    that avoids IOU tests between different classes.
+    """
     mod["main"] = rewrite(NMSRewrite(), mod["main"])
     return mod
