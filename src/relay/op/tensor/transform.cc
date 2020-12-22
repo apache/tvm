@@ -1558,13 +1558,13 @@ TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
   // types: [ sparse_indices, sparse_values, default_values, result]
-  ICHECK_EQ(types.size(), 4);
-  ICHECK_EQ(num_inputs, 3);
+  ICHECK_EQ(types.size(), 4) << "SparseFillEmptyRowsRel expects 4 arguments but provided "
+                             << types.size();
   std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
   const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
   Array<IndexExpr> sp_ordered_output_shape;
   sp_ordered_output_shape.push_back(param->dense_shape[0] + sparse_indices->shape[0]);
@@ -1581,9 +1581,10 @@ bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attr
 
 Array<te::Tensor> SparseFillEmptyRowsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
-  CHECK_EQ(inputs.size(), 3);
+  ICHECK_EQ(inputs.size(), 3) << "SparseFillEmptyRowsCompute expects 3 arguments but provided "
+                              << inputs.size();
   const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], param->dense_shape)};
 }
 
