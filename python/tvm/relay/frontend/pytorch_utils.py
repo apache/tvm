@@ -104,7 +104,7 @@ class NMSRewrite(DFPatternCallback):
             iou_threshold=iou_thres,
             force_suppress=True,
             top_k=top_k,
-            coord_start=1,
+            coord_start=2,
             score_index=1,
             id_index=0,
             return_indices=True,
