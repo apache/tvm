@@ -118,6 +118,7 @@ class RecordReader : public ObjectRef {
  * \param os A pointer to a output stream.
  * \param inputs The MeasureInputs to be written.
  * \param results The MeasureResults to be written.
+ * \param log_version The log version for the given record.
  */
 void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
                          const Array<MeasureResult>& results,
