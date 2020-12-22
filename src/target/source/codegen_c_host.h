@@ -59,18 +59,14 @@ class CodeGenCHost final : public CodeGenC {
 
   void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
 
-  /*! \brief Generate C runtime FuncRegistry global constant. */
-  void GenerateFuncRegistry();
-
-  /*! \brief Generate C runtime SystemLib entry point. */
-  void GenerateCrtSystemLib();
+  Array<String> GetFunctionNames() { return function_names_; }
 
  private:
   std::string module_name_;
   /* \brief tracks declared global variables which live despite GetUniqueName */
   std::set<std::string> declared_globals_;
   /* \brief names of the functions declared in this module */
-  std::vector<std::string> function_names_;
+  Array<String> function_names_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
 

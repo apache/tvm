@@ -49,7 +49,6 @@ def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
 def _make_session(workspace, mod):
     compiler = tvm.micro.DefaultCompiler(target=TARGET)
     opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
-
     micro_binary = tvm.micro.build_static_runtime(
         # the x86 compiler *expects* you to give the exact same dictionary for both
         # lib_opts and bin_opts. so the library compiler is mutating lib_opts and
