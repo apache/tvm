@@ -221,10 +221,6 @@ class SearchTask(Object):
             target_host = Target(target_host)
 
         self.dag = compute_dag
-        self.workload_key = workload_key
-        self.target = target
-        self.target_host = target_host
-        self.hardware_params = hardware_params
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params
         )
@@ -314,13 +310,12 @@ class SearchTask(Object):
 
     def __setstate__(self, state):
         self.dag = state["dag"]
-        self.workload_key = state["workload_key"]
 
         # Register the workload if needed
         try:
-            workload = json.loads(self.workload_key)
+            workload = json.loads(state["workload_key"])
         except Exception:  # pylint: disable=broad-except
-            raise RuntimeError("Invalid workload key %s" % self.workload_key)
+            raise RuntimeError("Invalid workload key %s" % state["workload_key"])
 
         # The workload from a compute DAG does not have arguments and is not registered
         # by default so we register it here. If the workload has already been registered,
@@ -328,16 +323,13 @@ class SearchTask(Object):
         if len(workload) == 1:
             register_workload_tensors(workload[0], self.dag.tensors)
 
-        self.target = state["target"]
-        self.target_host = state["target_host"]
-        self.hardware_params = state["hardware_params"]
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             self.dag,
-            self.workload_key,
-            self.target,
-            self.target_host,
-            self.hardware_params,
+            state["workload_key"],
+            state["target"],
+            state["target_host"],
+            state["hardware_params"],
         )
 
 

@@ -119,12 +119,10 @@ def test_stage_order():
     assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
     assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
 
-    # Serialize and deserialize the search task.
+    # Serialize and deserialize the search task. Note that we intentionally skip hardware_params
+    # to test if the default one is serialized along with other attributes as well.
     task = auto_scheduler.SearchTask(
-        compute_dag=dag,
-        workload_key=json.dumps(("test-key",)),
-        target=tvm.target.Target("llvm"),
-        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64, 0, 0, 0, 0, 0),
+        compute_dag=dag, workload_key=json.dumps(("test-key",)), target=tvm.target.Target("llvm")
     )
 
     task2 = pickle.loads(pickle.dumps(task))
