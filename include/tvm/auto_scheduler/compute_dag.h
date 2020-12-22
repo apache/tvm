@@ -173,17 +173,20 @@ class ComputeDAGNode : public Object {
    * This is used as the input of `tvm.lower` or `tvm.build`.
    */
   Array<te::Tensor> tensors;
+  /*! \brief The schedule used to create this ComputeDAG. */
+  te::Schedule sch;
   /*! \brief All used operations in topo order. */
   Array<te::Operation> ops;
   /*! \brief The number of float operations in this ComputeDAG. */
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
-  /*! \brief The static read-write access analyzer */
+  /*! \brief The static read-write access analyzer. */
   AccessAnalyzer access_analyzer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tensors", &tensors);
+    v->Visit("sch", &sch);
     v->Visit("ops", &ops);
     v->Visit("flop_ct", &flop_ct);
     v->Visit("init_state", &init_state);

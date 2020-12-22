@@ -220,7 +220,6 @@ class SearchTask(Object):
         if isinstance(target_host, str):
             target_host = Target(target_host)
 
-        self.dag = compute_dag
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params
         )
@@ -301,7 +300,7 @@ class SearchTask(Object):
 
     def __getstate__(self):
         return {
-            "dag": self.dag,
+            "compute_dag": self.compute_dag,
             "workload_key": self.workload_key,
             "target": self.target,
             "target_host": self.target_host,
@@ -309,8 +308,6 @@ class SearchTask(Object):
         }
 
     def __setstate__(self, state):
-        self.dag = state["dag"]
-
         # Register the workload if needed
         try:
             workload = json.loads(state["workload_key"])
@@ -321,11 +318,11 @@ class SearchTask(Object):
         # by default so we register it here. If the workload has already been registered,
         # the later registration overrides the prvious one.
         if len(workload) == 1:
-            register_workload_tensors(workload[0], self.dag.tensors)
+            register_workload_tensors(workload[0], state["compute_dag"].tensors)
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
-            self.dag,
+            state["compute_dag"],
             state["workload_key"],
             state["target"],
             state["target_host"],

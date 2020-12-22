@@ -87,8 +87,6 @@ class ComputeDAG(Object):
                 "Invalid compute type: %s. ComputeDAG expects string, list of Tensor, or Schedule"
                 % type(compute_or_sche)
             )
-        self.compute = compute
-        self.sche = sche
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, compute, sche)
 
     def get_init_state(self):
@@ -230,9 +228,9 @@ class ComputeDAG(Object):
         return "\n".join(lines)
 
     def __getstate__(self):
-        return {"compute": SaveJSON(self.compute), "sche": SaveJSON(self.sche)}
+        return {"compute": SaveJSON(self.tensors), "sch": SaveJSON(self.sch)}
 
     def __setstate__(self, state):
-        self.compute = LoadJSON(state["compute"])  # pylint: disable=assignment-from-no-return
-        self.sche = LoadJSON(state["sche"])  # pylint: disable=assignment-from-no-return
-        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, self.compute, self.sche)
+        self.__init_handle_by_constructor__(
+            _ffi_api.ComputeDAG, LoadJSON(state["compute"]), LoadJSON(state["sch"])
+        )

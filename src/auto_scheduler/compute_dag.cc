@@ -694,6 +694,7 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   // Make sure it is a valid compute definition
   CheckComputeValidity(sch);
 
+  node->sch = std::move(sch);
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
@@ -720,6 +721,7 @@ ComputeDAG::ComputeDAG(const te::Schedule& sch) {
     }
   }
   node->tensors = std::move(tensors);
+  node->sch = std::move(sch);
   node->access_analyzer = AccessAnalyzer(node->tensors);
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
@@ -1412,11 +1414,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
     .set_body_typed([](Optional<Array<te::Tensor>> tensors, Optional<te::Schedule> sch) {
-      if (tensors) {
-        return ComputeDAG(tensors.value());
+      if (sch) {
+        return ComputeDAG(sch.value());
       }
-      ICHECK(sch) << "Both tensors and schedule are null";
-      return ComputeDAG(sch.value());
+      ICHECK(tensors) << "Both tensors and schedule are null";
+      return ComputeDAG(tensors.value());
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
