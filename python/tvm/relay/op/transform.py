@@ -1325,6 +1325,7 @@ def adv_index(inputs):
 def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value):
     """
     Fill first column of the empty rows with default values for a sparse array.
+    It returns a TupleWrapper with four outputs
 
     Parameters
     ----------
@@ -1344,8 +1345,6 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
 
     Returns
     -------
-    TupleWrapper with the following four outputs
-
     new_sparse_indices : relay.Expr
         A 2-D tensor[N + dense_shape[0], n_dim] of integers containing location of new sparse
         indices where N is the number of sparse values. It is filled with -1 at irrelevant indices
@@ -1357,7 +1356,7 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
 
     new_sparse_values : relay.Expr
         A 1-D tensor[dense_shape[0]] containing the sparse values for the sparse indices. It is
-        filled with -1 at to_be_discarded indices.
+        filled with -1 at to_be_discarded indices
 
     slice_element_index : relay.Expr
         A 1-D tensor containing the amount of elements in the sparse_indices and new_sparse_values
@@ -1366,39 +1365,38 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
 
     Examples
     -------
-
     .. code-block:: python
 
-    sparse_indices = [[0, 1],
-                      [0, 3],
-                      [2, 0],
-                      [3, 1]]
-    sparse_values = [1, 2, 3, 4]
-    default_value = [10]
-    dense_shape = [5, 6]
-    new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index =
-                        relay.sparsereshape(
-                        sparse_indices,
-                        sparse_values,
-                        prev_shape,
-                        new_shape)
-    new_sparse_indices =       [[0, 1],
-                               [0, 3],
-                               [2, 0],
-                               [3, 1],
-                               [1, 0],
-                               [4, 0],
-                               [-1, -1],
-                               [-1, -1],
-                               [-1, -1]]
+        sparse_indices = [[0, 1],
+                         [0, 3],
+                         [2, 0],
+                         [3, 1]]
+        sparse_values = [1, 2, 3, 4]
+        default_value = [10]
+        dense_shape = [5, 6]
+        new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index =
+                            relay.sparse_fill_empty_rows(
+                            sparse_indices,
+                            sparse_values,
+                            default_value,
+                            dense_shape)
+        new_sparse_indices = [[0, 1],
+                             [0, 3],
+                             [2, 0],
+                             [3, 1],
+                             [1, 0],
+                             [4, 0],
+                             [-1, -1],
+                             [-1, -1],
+                             [-1, -1]]
 
-    empty_row_indicator = [False, True, False, False, True]
+        empty_row_indicator = [False, True, False, False, True]
 
-    new_sparse_values = [1, 2, 3, 4, 10, 10, -1, -1, -1]
+        new_sparse_values = [1, 2, 3, 4, 10, 10, -1, -1, -1]
 
-    slice_element_index = [6]
+        slice_element_index = [6]
+
     """
-
     return TupleWrapper(
         _make.sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_value), 4
     )
