@@ -1407,6 +1407,7 @@ inline Array<Tensor> SparseSegmentSum(const Tensor& data, const Tensor& indices,
     new_data_shape.push_back(data->shape[i]);
   }
   auto selected_data = tvm::topi::take(data, indices, 0, "clip");
+
   result.push_back(compute(
       new_data_shape,
       [&](const Array<Var>& indices) {
@@ -1418,6 +1419,16 @@ inline Array<Tensor> SparseSegmentSum(const Tensor& data, const Tensor& indices,
           ret += if_then_else(indices[0] == segment_ids[i], selected_data(secondary_indices), 0);
         }
         return ret;
+      },
+      name, tag));
+  result.push_back(compute(
+      Array<PrimExpr>{1},
+      [&](const Array<Var>& indices) {
+        PrimExpr output_num_segments = num_segments;
+        for (int i = 0; i < GetConstInt(segment_ids->shape[0]); ++i) {
+          output_num_segments = tvm::max(segment_ids[i] + 1, output_num_segments);
+        }
+        return output_num_segments;
       },
       name, tag));
   return result;

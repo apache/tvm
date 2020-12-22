@@ -1568,7 +1568,10 @@ bool SparseSegmentSumRel(const Array<Type>& types, int num_inputs, const Attrs& 
   for (int i = 1; i < static_cast<int>(data->shape.size()); ++i) {
     new_data_shape.push_back(data->shape[i]);
   }
-  reporter->Assign(types[3], TensorType(new_data_shape, data->dtype));
+  std::vector<Type> fields;
+  fields.push_back(TensorType(new_data_shape, data->dtype));
+  fields.push_back(TensorType(Array<PrimExpr>{1}, tvm::DataType::Int(32)));
+  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
   return true;
 }
 
