@@ -1553,52 +1553,55 @@ RELAY_REGISTER_OP("meshgrid")
     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-TVM_REGISTER_NODE_TYPE(SparseReshapeAttrs);
+TVM_REGISTER_NODE_TYPE(SparseSegmentSumAttrs);
 
-bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                      const TypeReporter& reporter) {
-  // types: [sparse_indices, sparse_values, result]
-  ICHECK_EQ(types.size(), 3) << "SparseReshapeRel expects 3 types but provided " << types.size();
-  auto sparse_indices = types[0].as<TensorTypeNode>();
-  const auto* param = attrs.as<SparseReshapeAttrs>();
+bool SparseSegmentSumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                         const TypeReporter& reporter) {
+  // types: [data, indices, segment_ids, result]
+  ICHECK_EQ(types.size(), 4) << "SparseSegmentSumRel expects 4 types but provided " << types.size();
+  auto data = types[0].as<TensorTypeNode>();
+  auto indices = types[1].as<TensorTypeNode>();
+  const auto* param = attrs.as<SparseSegmentSumAttrs>();
   ICHECK(param != nullptr);
-  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0],
-                                           static_cast<int>((param->new_shape).size())};
-  reporter->Assign(types[2], TensorType(new_sparse_indices_shape, sparse_indices->dtype));
+  Array<PrimExpr> new_data_shape;
+  new_data_shape.push_back(tvm::max(indices->shape[0], param->num_segments));
+  for (int i = 1; i < static_cast<int>(data->shape.size()); ++i) {
+    new_data_shape.push_back(data->shape[i]);
+  }
+  reporter->Assign(types[3], TensorType(new_data_shape, data->dtype));
   return true;
 }
 
-Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                       const Type& out_type) {
-  ICHECK_EQ(inputs.size(), 2) << "SparseReshapeCompute expects 2 input but provided "
+Array<te::Tensor> SparseSegmentSumCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                          const Type& out_type) {
+  ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSumCompute expects 3 input but provided "
                               << inputs.size();
-  const auto* param = attrs.as<SparseReshapeAttrs>();
+  const auto* param = attrs.as<SparseSegmentSumAttrs>();
   ICHECK(param != nullptr);
-  return {topi::SparseReshape(inputs[0], inputs[1], param->prev_shape, param->new_shape)};
+  return {topi::SparseSegmentSum(inputs[0], inputs[1], inputs[2], param->num_segments)};
 }
 
-Expr MakeSparseReshape(Expr sparse_indices, Expr sparse_values, Array<Integer> prev_shape,
-                       Array<Integer> new_shape) {
-  auto attrs = make_object<SparseReshapeAttrs>();
-  attrs->prev_shape = std::move(prev_shape);
-  attrs->new_shape = std::move(new_shape);
-  static const Op& op = Op::Get("sparse_reshape");
-  return Call(op, {sparse_indices, sparse_values}, Attrs(attrs), {});
+Expr MakeSparseSegmentSum(Expr data, Expr indices, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SparseSegmentSumAttrs>();
+  attrs->num_segments = std::move(num_segments);
+  static const Op& op = Op::Get("sparse_segment_sum");
+  return Call(op, {data, indices, segment_ids}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparse_reshape").set_body_typed(MakeSparseReshape);
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_segment_sum").set_body_typed(MakeSparseSegmentSum);
 
-RELAY_REGISTER_OP("sparse_reshape")
-    .describe(R"code(Return new sparse indices of the reshaped tensor
+RELAY_REGISTER_OP("sparse_segment_sum")
+    .describe(R"code(Return sparse segment sum of the tensor given segments
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(2)
-    .set_attrs_type<SparseReshapeAttrs>()
-    .add_argument("sparse_indices", "Tensor", "The first tensor")
-    .add_argument("sparse_values", "Tensor", "The second tensor")
-    .add_type_rel("sparse_reshape", SparseReshapeRel)
+    .set_num_inputs(3)
+    .set_attrs_type<SparseSegmentSumAttrs>()
+    .add_argument("data", "Tensor", "The first tensor")
+    .add_argument("indices", "Tensor", "The second tensor")
+    .add_argument("segment_ids", "Tensor", "The third tensor")
+    .add_type_rel("sparse_segment_sum", SparseSegmentSumRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3)
-    .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);
+    .set_attr<FTVMCompute>("FTVMCompute", SparseSegmentSumCompute);
 
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);

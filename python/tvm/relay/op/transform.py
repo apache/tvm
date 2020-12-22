@@ -1322,7 +1322,7 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def sparse_reshape(sparse_indices, sparse_values, prev_shape, new_shape):
+def sparse_segment_sum(data, indices, segment_ids, num_segments=None):
     """
     Reshape a Sparse Tensor
 
@@ -1358,7 +1358,7 @@ def sparse_reshape(sparse_indices, sparse_values, prev_shape, new_shape):
 
         new_shape = [9, -1]
 
-        relay.sparse_reshape(sparse_indices,
+        relay.sparse_segment_sum(sparse_indices,
                             sparse_values,
                             prev_shape,
                             new_shape)
@@ -1368,4 +1368,6 @@ def sparse_reshape(sparse_indices, sparse_values, prev_shape, new_shape):
                 [4, 2],
                 [8, 1]]
     """
-    return _make.sparse_reshape(sparse_indices, sparse_values, prev_shape, new_shape)
+    if not num_segments:
+        num_segments = -1
+    return _make.sparse_segment_sum(data, indices, segment_ids, num_segments)

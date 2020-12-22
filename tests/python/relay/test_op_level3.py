@@ -1043,114 +1043,67 @@ def test_scatter_add():
 
 
 @tvm.testing.uses_gpu
-def test_sparse_reshape():
-    def ref_sparse_reshape(
-        sparse_indices: np.ndarray,
-        sparse_values: np.ndarray,
-        prev_shape: np.ndarray,
-        new_shape: np.ndarray,
+def test_sparse_segment_sum():
+    def ref_sparse_segment_sum(
+        data: np.ndarray,
+        indices: np.ndarray,
+        segment_ids: np.ndarray,
+        num_segments: int = None,
     ):
         """
-        This function calculates the expected output of sparseshape operator given the inputs.
+        This function calculates the expected output of sparse_segment_sum operator given the inputs.
         """
-        new_sparse_indices = np.ones(
-            (sparse_values.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
-        )
-        multipliers = np.ones(prev_shape.shape[0])
-        dividers = np.ones(new_shape.shape[0])
-        total_ele = np.prod(prev_shape)
-        division_total_ele = 1
-        for i in range(new_shape.shape[0]):
-            if new_shape[i] == -1:
-                continue
-            division_total_ele *= new_shape[i]
-        for i in range(prev_shape.shape[0] - 2, -1, -1):
-            multipliers[i] = prev_shape[i + 1] * multipliers[i + 1]
-        for i in range(new_shape.shape[0] - 2, -1, -1):
-            if new_shape[i + 1] == -1:
-                dividers[i] = (total_ele // division_total_ele) * dividers[i + 1]
-            else:
-                dividers[i] = new_shape[i + 1] * dividers[i + 1]
-        for row_num, sparse_row in enumerate(sparse_indices):
-            flat_idx = 0
-            if len(sparse_indices.shape) != 1:
-                for i, ele in enumerate(sparse_row):
-                    flat_idx += sparse_row[i] * multipliers[i]
-            else:
-                flat_idx += sparse_row
-            if len(new_sparse_indices.shape) != 1:
-                for i in range(new_sparse_indices.shape[1]):
-                    new_sparse_indices[row_num][i] = flat_idx // dividers[i]
-                    flat_idx = flat_idx % dividers[i]
-            else:
-                new_sparse_indices[row_num] = flat_idx
+        if num_segments:
+            result = np.ones(((num_segments,) + data.shape[1:]), dtype=data.dtype)
+        else:
+            result = np.ones(((indices.shape[0],) + data.shape[1:]), dtype=data.dtype)
+        return result
 
-        return new_sparse_indices
-
-    def verify_sparse_reshape(
-        sparse_indices_np: np.ndarray,
-        sparse_values_np: np.ndarray,
-        prev_shape_np: np.ndarray,
-        new_shape_np: np.ndarray,
+    def verify_sparse_segment_sum(
+        data_np: np.ndarray,
+        indices_np: np.ndarray,
+        segment_ids_np: np.ndarray,
+        num_segments: int = None,
     ):
         """
-        This function verifies the relay output of sparse_reshape with its expected output.
+        This function verifies the relay output of sparse_segment_sum with its expected output.
         """
-        sparse_indices = relay.var(
-            "sparse_indices",
-            relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
+        data = relay.var(
+            "data",
+            relay.TensorType(data_np.shape, str(data_np.dtype)),
         )
-        sparse_values = relay.var(
-            "sparse_values", relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype))
+        indices = relay.var(
+            "indices",
+            relay.TensorType(indices_np.shape, str(indices_np.dtype)),
         )
-        z = relay.op.sparse_reshape(
-            sparse_indices, sparse_values, list(prev_shape_np), list(new_shape_np)
+        segment_ids = relay.var(
+            "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
         )
+        z = relay.op.sparse_segment_sum(data, indices, segment_ids, num_segments)
 
-        func = relay.Function([sparse_indices, sparse_values], z)
+        func = relay.Function([data, indices, segment_ids], z)
 
-        ref_res = ref_sparse_reshape(
-            sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
-        )
+        ref_res = ref_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
         for target, ctx in tvm.testing.enabled_targets():
+            if target == "nvptx":
+                continue
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np)
+                op_res = intrp.evaluate(func)(data_np, indices_np, segment_ids_np)
+                print(op_res, ref_res)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-    sparse_indices_np = np.array(
-        [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32
-    )
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([2, 3, 6], dtype=np.int32)
-    new_shape_np = np.array([9, 4], dtype=np.int32)
-    verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
+    data_np = np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.int32)
+    indices_np = np.array([0, 1], dtype=np.int32)
+    segment_ids_np = np.array([0, 2], dtype=np.int32)
+    num_segments = 4
+    verify_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
 
-    sparse_indices_np = np.array(
-        [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]], dtype=np.int32
-    )
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([2, 3, 6, 7], dtype=np.int32)
-    new_shape_np = np.array([9, -1, 7], dtype=np.int32)
-    verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([9, 4], dtype=np.int32)
-    new_shape_np = np.array([2, -1, 6], dtype=np.int32)
-    verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([9, 4], dtype=np.int32)
-    new_shape_np = np.array([-1], dtype=np.int32)
-    verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
-
-    sparse_indices_np = np.array([0, 5, 10, 20, 24], dtype=np.int32)
-    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
-    prev_shape_np = np.array([25], dtype=np.int32)
-    new_shape_np = np.array([5, 5], dtype=np.int32)
-    verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
+    data_np = np.array([1, 2, 3, 4], dtype=np.int32)
+    indices_np = np.array([0, 1, 3], dtype=np.int32)
+    segment_ids_np = np.array([0, 1], dtype=np.int32)
+    num_segments = None
+    verify_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
 
 
 @tvm.testing.uses_gpu
@@ -1424,7 +1377,10 @@ def test_adv_index():
 
 
 if __name__ == "__main__":
-    test_sparse_reshape()
+    test_sparse_segment_sum()
+    import sys
+
+    sys.exit()
     test_cast()
     test_zeros_ones()
     test_unary_identity()

@@ -401,15 +401,13 @@ struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   }
 };  // struct SparseToDenseAttrs
 
-/*! \brief Attributes used in sparse_reshape operator */
-struct SparseReshapeAttrs : public tvm::AttrsNode<SparseReshapeAttrs> {
-  Array<Integer> prev_shape;
-  Array<Integer> new_shape;
-  TVM_DECLARE_ATTRS(SparseReshapeAttrs, "relay.attrs.SparseReshapeAttrs") {
-    TVM_ATTR_FIELD(prev_shape).describe("Previous shape of the dense output tensor");
-    TVM_ATTR_FIELD(new_shape).describe("New Shape of the dense output tensor");
+/*! \brief Attributes used in sparse_segment_sum operator */
+struct SparseSegmentSumAttrs : public tvm::AttrsNode<SparseSegmentSumAttrs> {
+  int num_segments;
+  TVM_DECLARE_ATTRS(SparseSegmentSumAttrs, "relay.attrs.SparseSegmentSumAttrs") {
+    TVM_ATTR_FIELD(num_segments).describe("Number of Segments in the output tensor");
   }
-};  // struct SparseReshapeAttrs
+};  // struct SparseSegmentSumAttrs
 
 /*! \brief Attributes for ndarray_size operator */
 struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {

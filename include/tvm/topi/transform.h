@@ -1387,72 +1387,37 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
 }
 
 /*!
- * \brief Compute new sparse indices and return them after the sparse_reshape operation
+ * \brief Compute new sparse indices and return them after the sparse_segment_sum operation
  *
- * \param sparse_indices Indices where values of the dense tensor exist
- * \param sparse_values Values at the above indices respectively
- * \param prev_shape Old Shape of the sparse tensor corresponding to sparse_indices
- * \param new_shape Desired Shape of the sparse tensor which will correspond to output
- * \param name The name of the operation
+ * \param data Indices where values of the dense tensor exist
+ * \param segment_ids Values at the above indices respectively
+ * \param max_indices Old Shape of the sparse tensor corresponding to sparse_indices
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the sparse_reshape operation
+ * \return A Tensor whose op member is the sparse_segment_sum operation
  */
-inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& sparse_values,
-                                   Array<Integer> prev_shape, Array<Integer> new_shape,
-                                   const std::string name = "T_sparse_reshape",
-                                   std::string tag = kInjective) {
+inline Array<Tensor> SparseSegmentSum(const Tensor& data, const Tensor& indices,
+                                      const Tensor& segment_ids, int num_segments,
+                                      const std::string name = "T_sparse_segment_sum",
+                                      std::string tag = kInjective) {
   Array<Tensor> result;
-  int new_shape_size = new_shape.size();
-  int prev_shape_size = prev_shape.size();
-  Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape_size};
-  std::vector<PrimExpr> multipliers(prev_shape_size, 1);
-  std::vector<PrimExpr> dividers(new_shape_size, 1);
-
-  tvm::PrimExpr total_ele = prev_shape[0];
-  for (int i = prev_shape_size - 2; i >= 0; --i) {
-    multipliers[i] = prev_shape[i + 1] * multipliers[i + 1];
-    total_ele *= prev_shape[i + 1];
+  Array<PrimExpr> new_data_shape;
+  new_data_shape.push_back(tvm::max(indices->shape[0], num_segments));
+  for (int i = 1; i < static_cast<int>(data->shape.size()); ++i) {
+    new_data_shape.push_back(data->shape[i]);
   }
-  PrimExpr division_total_ele = 1;
-  for (int i = 0; i < new_shape_size; ++i) {
-    division_total_ele *= if_then_else(new_shape[i] != -1, new_shape[i], 1);
-  }
-  for (int i = new_shape_size - 2; i >= 0; --i) {
-    dividers[i] = dividers[i + 1] * if_then_else(new_shape[i + 1] != -1, new_shape[i + 1],
-                                                 div(total_ele, division_total_ele));
-  }
-
+  auto selected_data = tvm::topi::take(data, indices, 0, "clip");
   result.push_back(compute(
-      new_sparse_indices_shape,
+      new_data_shape,
       [&](const Array<Var>& indices) {
-        PrimExpr flattened_idx = 0;
-        if (sparse_indices->shape.size() == 1) {
-          flattened_idx += sparse_indices[indices[0]];
-        } else {
-          for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
-            flattened_idx += (sparse_indices[indices[0]][k] * multipliers[k]);
-          }
+        PrimExpr ret = 0;
+        for (int i = 0; i < GetConstInt(segment_ids->shape[0]); ++i) {
+          Array<PrimExpr> secondary_indices;
+          secondary_indices.push_back(i);
+          secondary_indices.insert(secondary_indices.end(), indices.begin() + 1, indices.end());
+          ret += if_then_else(indices[0] == segment_ids[i], selected_data(secondary_indices), 0);
         }
-        Array<PrimExpr> new_sparse_indices;
-        if (new_shape_size != 1) {
-          for (int i = 0; i < new_shape_size; i++) {
-            new_sparse_indices.push_back(floordiv(flattened_idx, dividers[i]));
-            flattened_idx = floormod(flattened_idx, dividers[i]);
-          }
-          PrimExpr ret = -1;
-
-          for (int i = 0; i < new_shape_size; i++) {
-            if (indices.size() == 1) {
-              return new_sparse_indices[0];
-            } else {
-              ret = if_then_else(indices[1] == i, new_sparse_indices[i], ret);
-            }
-          }
-          return ret;
-        } else {
-          return flattened_idx;
-        }
+        return ret;
       },
       name, tag));
   return result;
