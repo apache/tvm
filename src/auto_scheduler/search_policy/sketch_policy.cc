@@ -115,20 +115,34 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
     node->mutation_rules.push_back(std::make_shared<MutateParallel>(0.01));
   } else if (IsGPUTask(node->search_task)) {
     // Sketch Generation Rules
-    node->sketch_rules.push_back(&rule_add_cache_read_stage);
-    node->sketch_rules.push_back(&rule_special_compute_location_gpu);
-    node->sketch_rules.push_back(&rule_always_inline);
-    node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
-    node->sketch_rules.push_back(&rule_cross_thread_reduction);
-    node->sketch_rules.push_back(&rule_add_cache_write_stage);
-    node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
-    node->sketch_rules.push_back(&rule_multi_level_tiling);
-    node->sketch_rules.push_back(&rule_skip_stage);
+    if (node->search_task->target->GetAttr<String>("device", "") == "mali") {
+      node->sketch_rules.push_back(&rule_always_inline);
+      node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+      node->sketch_rules.push_back(&rule_add_rfactor);
+      node->sketch_rules.push_back(&rule_add_cache_write_stage);
+      node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+      node->sketch_rules.push_back(&rule_multi_level_tiling);
+      node->sketch_rules.push_back(&rule_skip_stage);
+    } else {
+      node->sketch_rules.push_back(&rule_add_cache_read_stage);
+      node->sketch_rules.push_back(&rule_special_compute_location_gpu);
+      node->sketch_rules.push_back(&rule_always_inline);
+      node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+      node->sketch_rules.push_back(&rule_cross_thread_reduction);
+      node->sketch_rules.push_back(&rule_add_cache_write_stage);
+      node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+      node->sketch_rules.push_back(&rule_multi_level_tiling);
+      node->sketch_rules.push_back(&rule_skip_stage);
+    }
 
     // Initial Population Generation Rules
     node->init_rules.push_back(&init_fill_tile_size);
     node->init_rules.push_back(&init_thread_bind);
     node->init_rules.push_back(&init_unroll);
+
+    if (node->search_task->target->GetAttr<String>("device", "") == "mali") {
+      node->init_rules.push_back(&init_vectorization);
+    }
 
     // Mutation Rules for Evolutionary Search
     node->mutation_rules.push_back(std::make_shared<MutateTileSize>(0.90));
@@ -389,23 +403,22 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     std::vector<State> temp_states(population);
 
     // Sample a batch of states randomly
-    support::parallel_for(0, population,
-                          [this, &temp_states, &sketches, &rand_gens](int index) {
-                            // Randomly choose a sketch
-                            State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
-                            // Apply random annotation rules one by one
-                            bool valid = true;
-                            for (const auto& rule : init_rules) {
-                              if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
-                                  PopulationGenerationRule::ResultKind::kInvalid) {
-                                valid = false;
-                                break;
-                              }
-                            }
-                            if (valid) {
-                              temp_states[index] = std::move(tmp_s);
-                            }
-                          });
+    support::parallel_for(0, population, [this, &temp_states, &sketches, &rand_gens](int index) {
+      // Randomly choose a sketch
+      State tmp_s = sketches[(rand_gens[index])() % sketches.size()];
+      // Apply random annotation rules one by one
+      bool valid = true;
+      for (const auto& rule : init_rules) {
+        if (rule->Apply(this, &tmp_s, &rand_gens[index]) ==
+            PopulationGenerationRule::ResultKind::kInvalid) {
+          valid = false;
+          break;
+        }
+      }
+      if (valid) {
+        temp_states[index] = std::move(tmp_s);
+      }
+    });
 
     // Filter out the states that were failed to apply initial rules
     Array<State> cand_states;
