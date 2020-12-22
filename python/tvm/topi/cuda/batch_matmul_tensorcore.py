@@ -72,8 +72,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
                 target.kind.name, target.model, 'batch_matmul_tensorcore.cuda')
             cfg.fallback_with_reference_log(ref_log)
 
-        # ??? Deal with op fusion, such as bias and relu ??? is this needed?
-        # Deal with slice after padding
+        # Deal with op fusion, such as bias/relu and slice after padding
         if C.op not in s.outputs and "injective" in s.outputs[0].tag:
             s[C].compute_inline()
             C = s.outputs[0].output(0)
