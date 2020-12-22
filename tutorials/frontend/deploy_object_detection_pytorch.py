@@ -42,7 +42,7 @@ be unstable.
 
 import tvm
 from tvm import relay
-from tvm import relay
+from tvm.relay.frontend.pytorch_utils import rewrite_nms_to_batched_nms
 from tvm.runtime.vm import VirtualMachine
 from tvm.contrib.download import download
 
@@ -114,6 +114,14 @@ img = np.expand_dims(img, axis=0)
 input_name = "input0"
 shape_list = [(input_name, input_shape)]
 mod, params = relay.frontend.from_pytorch(script_module, shape_list)
+
+######################################################################
+# Rewrite the graph for more performance
+# -------------------------
+# We provide a graph rewrite utility to replace the costly non maximum
+# surpression in torchvision that does not take class id into account
+# with more efficient one.
+mod = rewrite_nms_to_batched_nms(mod)
 
 ######################################################################
 # Compile with Relay VM

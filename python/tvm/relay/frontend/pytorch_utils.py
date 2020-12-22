@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, unused-argument
 """ Common utilities used by PyTorch frontend """
 from .. import op
 from ..dataflow_pattern import *
@@ -110,8 +110,7 @@ class NMSRewrite(DFPatternCallback):
         self.iou_threshold = wildcard()
         self.pattern = batched_nms_pattern(self.boxes, self.scores, self.idxs, self.iou_threshold)
 
-    def callback(self, _, node_map):
-        print("matched")
+    def callback(self, pre, post, node_map):
         boxes = node_map[self.boxes][0]
         scores = node_map[self.scores][0]
         idxs = node_map[self.idxs][0]
