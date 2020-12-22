@@ -67,12 +67,12 @@ def dense(data, weight, bias=None, out_dtype=None):
 
 @tvm.target.generic_func
 def dense_legalize(attrs, inputs, types):
-    """Legalizes Conv2D op.
+    """Legalizes dense op.
 
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current dense
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     types : list of types

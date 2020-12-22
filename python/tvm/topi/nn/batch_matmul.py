@@ -64,12 +64,12 @@ def batch_matmul(x, y, oshape=None):
 
 @tvm.target.generic_func
 def batch_matmul_legalize(attrs, inputs, types):
-    """Legalizes Conv2D op.
+    """Legalizes batch_matmul op.
 
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current batch_matmul
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     types : list of types
