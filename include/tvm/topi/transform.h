@@ -1387,11 +1387,14 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
 }
 
 /*!
- * \brief Compute new sparse indices and return them after the sparse_segment_sum operation
+ * \brief Compute the sparse segment sum on the indices over the segment_ids
  *
- * \param data Indices where values of the dense tensor exist
- * \param segment_ids Values at the above indices respectively
- * \param max_indices Old Shape of the sparse tensor corresponding to sparse_indices
+ * \param data A Tensor with data that will be assembled in the output.
+ * \param indices A 1-D Tensor with indices into data. Has same rank as segment_ids.
+ * \param segment_ids A 1-D Tensor with indices into the output Tensor. Values should be sorted and
+ * can be repeated.
+ * \param num_segments An optional int32 scalar. Indicates the size of the output Tensor.
+ * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the sparse_segment_sum operation

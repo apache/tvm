@@ -935,49 +935,50 @@ def adv_index(data, indices):
 
 def sparse_segment_sum(data, indices, segment_ids, num_segments=None):
     """
-    Reshape a Sparse Tensor
+    Compute the sparse segment sum on the indices over the segment_ids
 
     Parameters
     ----------
-    sparse_indices : relay.Expr
-        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
-        number of sparse values and n_dim is the number of dimensions of the dense_shape
-    sparse_values : relay.Expr
-        A 1-D tensor[N] containing the sparse values for the sparse indices.
-    prev_shape : relay.Expr
-        A 1-D tensor containing the previous shape of the dense tensor
-    new_shape : relay.Expr
-        A 1-D tensor containing the new shape of the dense tensor
+    data : relay.Expr
+        A Tensor with data that will be assembled in the output.
+    indices : relay.Expr
+       A 1-D Tensor with indices into data. Has same rank as segment_ids.
+    segment_ids : relay.Expr
+        A 1-D Tensor with indices into the output Tensor. Values should be sorted and can be
+        repeated.
+    num_segments : Optional[int]
+        An optional int32 scalar. Indicates the size of the output Tensor.
 
     Returns
     -------
     result: relay.Expr
-        Output tensor.
+        Output tensor containing the sparse segment sum
+    output_num_segments: relay.Expr
+        Number of output segments. If the number of rows in the result is greater than the
+        output_num_segments, this op will be followed by a strided_slice op. If num_segments is not
+        None, then output_num_segments = num_segments
+
     Examples
     --------
     .. code-block:: python
 
-        sparse_indices = [[0, 0, 0],
-                            [0, 0, 1],
-                            [0, 1, 0],
-                            [1, 0, 0],
-                            [1, 2, 3]]
+        data = [[1,2,3,4], [-1,-2,-3,-4], [5,6,7,8]]
 
-        sparse_values = [7, 5, 6, 3, 9]
+        indices = [0, 1]
 
-        prev_shape = [2, 3, 4]
+        segment_ids = [0, 2]
 
-        new_shape = [9, -1]
+        num_segments = 4
 
-        relay.sparse_segment_sum(sparse_indices,
-                            sparse_values,
-                            prev_shape,
-                            new_shape)
-            =   [[0, 0],
-                [0, 1],
-                [1, 2],
-                [4, 2],
-                [8, 1]]
+        result, output_num_segments = relay.sparse_segment_sum(data,
+                                        indices,
+                                        segment_ids,
+                                        num_segments)
+        result    =  [[ 1  2  3  4]
+                      [ 0  0  0  0]
+                      [-1 -2 -3 -4]
+                      [ 0  0  0  0]]
+        num_segments = 4
     """
     if not num_segments:
         num_segments = -1
