@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel, unused-argument
+# pylint: disable=import-outside-toplevel, unused-argument, invalid-name
 """ Common utilities used by PyTorch frontend """
 from .. import op
 from ..dataflow_pattern import (
@@ -42,16 +42,13 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     one = is_constant()
     zero = is_constant()
 
-    # %1796 = expand_dims(%1795, axis=-1);
     score_expand_dims = is_op("expand_dims")(scores)
 
-    # %1824 = cast(%1823, dtype="float32");
     cast = is_op("cast")(idxs)
     mx = is_op("max")(boxes)
     add = is_op("add")(mx, one)
     mul = is_op("multiply")(cast, add)
 
-    # %1828 = cast_like(0, meta[op.Constant][127]);
     cast_like = is_op("cast_like")(zero, is_constant())
     less = is_op("less")(is_constant(), cast_like)
     shape_of = is_op("shape_of")(mul)
@@ -61,7 +58,6 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     shape_of = is_op("shape_of")(mul)
     cast = is_op("cast")(shape_of)
 
-    # %1836 = dyn.strided_slice(%1827, %1833, %1835, meta[op.Constant][128], begin=None, end=None, strides=None);
     dyn_strided_slice = is_op("dyn.strided_slice")(mul, where, cast, is_constant())
 
     expand_dims = is_op("expand_dims")(dyn_strided_slice)
@@ -70,13 +66,11 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     concat = is_op("concatenate")(tup)
     expand_dims = is_op("expand_dims")(concat)
 
-    # %1842 = vision.get_valid_counts(%1841, -1f, meta[op.attrs.GetValidCountsAttrs][1]);
     get_valid_counts_out = is_op("vision.get_valid_counts")(expand_dims, is_constant())
     data = is_tuple_get_item(get_valid_counts_out, 1)
     valid_counts = is_tuple_get_item(get_valid_counts_out, 0)
     indices = is_tuple_get_item(get_valid_counts_out, 2)
 
-    # %1169 = vision.non_max_suppression(%1166, %1167, %1168, -1, 0.7f, meta[op.attrs.NonMaximumSuppressionAttrs][0]);
     return is_op("vision.non_max_suppression")(
         data, valid_counts, indices, is_constant(), iou_threshold
     )
@@ -95,6 +89,7 @@ class NMSRewrite(DFPatternCallback):
         self.pattern = batched_nms_pattern(self.boxes, self.scores, self.idxs, self.iou_threshold)
 
     def convert_batched_nms(self, boxes, scores, idxs, iou_thres):
+        """Restore class-aware NMS using extracted class indices"""
         scores = op.expand_dims(scores, axis=-1, num_newaxis=1)
         idxs = op.expand_dims(idxs, axis=-1, num_newaxis=1)
         idxs = op.cast(idxs, "float32")
@@ -129,7 +124,7 @@ class NMSRewrite(DFPatternCallback):
 
 
 def rewrite_nms_to_batched_nms(mod):
-    """Rewrite the input graph to replace the costly non maximum surpression
+    """Rewrite the input graph to replace non maximum surpression
     in torchvision that does not take class id into account with the one
     that avoids IOU tests between different classes.
     """
