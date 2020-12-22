@@ -1558,10 +1558,10 @@ TVM_REGISTER_NODE_TYPE(SparseReshapeAttrs);
 bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
   // types: [sparse_indices, sparse_values, result]
-  // ICHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3) << "SparseReshapeRel expects 3 types but provided " << types.size();
   auto sparse_indices = types[0].as<TensorTypeNode>();
   const auto* param = attrs.as<SparseReshapeAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0],
                                            static_cast<int>((param->new_shape).size())};
   reporter->Assign(types[2], TensorType(new_sparse_indices_shape, sparse_indices->dtype));
@@ -1570,9 +1570,10 @@ bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& att
 
 Array<te::Tensor> SparseReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                        const Type& out_type) {
-  // ICHECK_EQ(inputs.size(), 2);
+  ICHECK_EQ(inputs.size(), 2) << "SparseReshapeCompute expects 2 input but provided "
+                              << inputs.size();
   const auto* param = attrs.as<SparseReshapeAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   return {topi::SparseReshape(inputs[0], inputs[1], param->prev_shape, param->new_shape)};
 }
 
@@ -1588,7 +1589,7 @@ Expr MakeSparseReshape(Expr sparse_indices, Expr sparse_values, Array<Integer> p
 TVM_REGISTER_GLOBAL("relay.op._make.sparse_reshape").set_body_typed(MakeSparseReshape);
 
 RELAY_REGISTER_OP("sparse_reshape")
-    .describe(R"code(Return twice of normal addition of two tensors.
+    .describe(R"code(Return new sparse indices of the reshaped tensor
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .set_attrs_type<SparseReshapeAttrs>()
