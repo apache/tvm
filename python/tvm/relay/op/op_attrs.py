@@ -469,6 +469,11 @@ class QuantizeAttrs(Attrs):
     """Attributes used in quantize operators"""
 
 
+@tvm._ffi.register_object("relay.attrs.DequantizeAttrs")
+class DequantizeAttrs(Attrs):
+    """Attributes used in dequantize operators"""
+
+
 @tvm._ffi.register_object("relay.attrs.ReduceAttrs")
 class ReduceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
@@ -537,3 +542,13 @@ class TupleGetItemAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.WithFuncIdAttrs")
 class WithFuncIdAttrs(Attrs):
     """Attributes used in with_funcid annotation operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SpaceToBatchNDAttrs")
+class SpaceToBatchNDAttrs(Attrs):
+    """Attributes used in SpaceToBatchND operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.BatchToSpaceNDAttrs")
+class BatchToSpaceNDAttrs(Attrs):
+    """Attributes used in BatchToSpaceNDAttrs operators"""

@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
+set -ex
 
 # TVM
 # NOTE: TVM is presumed to be mounted already by Vagrantfile.
@@ -26,13 +26,16 @@ apps/microtvm/reference-vm/zephyr/rebuild-tvm.sh
 
 cd apps/microtvm/reference-vm/zephyr
 
+poetry env use 3.6
+# NOTE: due to https://github.com/python-poetry/poetry/issues/2247, download torch here.
+poetry run pip3 install torch==1.4.0 torchvision==0.5.0
+
 echo "------------------------------[ TVM Message ]------------------------------"
 echo "WARNING: running 'poetry lock', which could take several minutes (depending"
 echo "on your network connection and the state of PyPI) as dependencies are"
 echo "downloaded and cached for future use."
 echo "------------------------------[ TVM Message ]------------------------------"
-
-poetry lock
+poetry lock -vvv
 poetry install
 poetry run pip3 install -r ~/zephyr/zephyr/scripts/requirements.txt
 

@@ -23,6 +23,7 @@ import numpy as np
 
 from tvm.ir import IRModule
 
+from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, autotvm
 from ..target import Target
@@ -123,8 +124,20 @@ class BuildModule(object):
         # Setup the params.
         if params:
             self._set_params(params)
-        # Build the IR module
+
+        # Build the IR module. If auto_scheduler is not enabled,
+        # then use the TOPI-defined schedule.
+        use_auto_scheduler = PassContext.current().config.get(
+            "relay.backend.use_auto_scheduler", False
+        )
+
+        # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
+        old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
+        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
+
         self._build(mod, target, target_host)
+        autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+
         # Get artifacts
         graph_json = self.get_json()
         mod = self.get_module()
@@ -188,16 +201,16 @@ class BuildModule(object):
 
 
 def build(mod, target=None, target_host=None, params=None, mod_name="default"):
-    """Helper function that builds a Relay function to run on TVM graph
-    runtime.
+    # fmt: off
+    # pylint: disable=line-too-long
+    """Helper function that builds a Relay function to run on TVM graph runtime.
 
     Parameters
     ----------
     mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
-    name) to str/tvm.target.Target, optional
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context name) to str/tvm.target.Target, optional
         For heterogeneous compilation, it is a dictionary indicating context to
         target mapping. For homogeneous compilation, it is a build target.
 
@@ -228,6 +241,8 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
     params : dict
         The parameters of the final graph.
     """
+    # pylint: enable=line-too-long
+    # fmt: on
     if not isinstance(mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
@@ -393,10 +408,26 @@ class GraphExecutor(_interpreter.Executor):
 def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     """Factory function to create an executor.
 
+    Example
+    -------
+    .. code-block:: python
+
+        import tvm.relay
+        import numpy as np
+
+        x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+        expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+        tvm.relay.create_executor(
+            kind="vm", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr))
+        ).evaluate()(np.array([2], dtype="float32"))
+        # returns `array([3.], dtype=float32)`
+
     Parameters
     ----------
     kind : str
-        The type of executor
+        The type of executor. Avaliable options are `debug` for the
+        interpreter, `graph` for the graph runtime, and `vm` for the virtual
+        machine.
 
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
@@ -406,6 +437,10 @@ def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
 
     target : :py:class:`tvm.Target`
         The corresponding context
+
+    Returns
+    -------
+    executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
     """
     if mod is None:
         mod = IRModule()

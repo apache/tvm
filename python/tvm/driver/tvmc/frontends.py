@@ -161,16 +161,7 @@ class OnnxFrontend(Frontend):
         # pylint: disable=E1101
         model = onnx.load(path)
 
-        # pylint: disable=E1101
-        name = model.graph.input[0].name
-
-        # pylint: disable=E1101
-        proto_shape = model.graph.input[0].type.tensor_type.shape.dim
-        shape = [d.dim_value for d in proto_shape]
-
-        shape_dict = {name: shape}
-
-        return relay.frontend.from_onnx(model, shape_dict)
+        return relay.frontend.from_onnx(model)
 
 
 class TensorflowFrontend(Frontend):

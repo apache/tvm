@@ -34,7 +34,6 @@ We implement these in python to utilize python's multiprocessing and error handl
 import os
 import time
 import shutil
-import traceback
 import tempfile
 import multiprocessing
 
@@ -48,20 +47,18 @@ from tvm.contrib import tar, ndk
 from . import _ffi_api
 from .loop_state import StateObject
 from .utils import (
-    get_const_tuple,
     call_func_with_timeout,
-    request_remote,
     check_remote,
+    get_const_tuple,
+    make_traceback_info,
+    request_remote,
 )
-from .compute_dag import ComputeDAG
-from .search_task import SearchTask
+from .compute_dag import LayoutRewriteOption
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
 )
 
-# The maximum length of error message
-MAX_ERROR_MSG_LEN = 512
 
 # The time cost for measurements with errors
 # We use 1e10 instead of sys.float_info.max for better readability in log
@@ -180,13 +177,15 @@ def recover_measure_input(inp, rebuild_state=False):
     new_input: MeasureInput
         The fully recovered MeasureInput with all fields rebuilt.
     """
+    # pylint: disable=import-outside-toplevel
+    from .search_task import SearchTask  # lazily import to avoid recursive dependency
+
     task = inp.task
     new_task = SearchTask(
-        ComputeDAG(task.workload_key),
-        task.workload_key,
-        task.target,
-        task.target_host,
-        task.hardware_params,
+        workload_key=task.workload_key,
+        target=task.target,
+        target_host=task.target_host,
+        hardware_params=task.hardware_params,
     )
 
     if rebuild_state:
@@ -331,6 +330,10 @@ class LocalRunner(ProgramRunner):
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
+        if enable_cpu_cache_flush:
+            number = 1
+            min_repeat_ms = 0
+
         self.__init_handle_by_constructor__(
             _ffi_api.LocalRunner,
             timeout,
@@ -519,6 +522,7 @@ class LocalRPCMeasureContext:
         # Close the tracker and server before exit
         self.tracker.terminate()
         self.server.terminate()
+        time.sleep(0.5)
 
 
 class MeasureErrorNo(object):
@@ -536,16 +540,6 @@ class MeasureErrorNo(object):
     UNKNOWN_ERROR = 8  # Unknown error
 
 
-def make_error_msg():
-    """ Get the error message from traceback. """
-    error_msg = str(traceback.format_exc())
-    if len(error_msg) > MAX_ERROR_MSG_LEN:
-        error_msg = (
-            error_msg[: MAX_ERROR_MSG_LEN // 2] + "\n...\n" + error_msg[-MAX_ERROR_MSG_LEN // 2 :]
-        )
-    return error_msg
-
-
 def _timed_func(inp_serialized, build_func, verbose):
     tic = time.time()
     inp = MeasureInput.deserialize(inp_serialized)
@@ -556,18 +550,19 @@ def _timed_func(inp_serialized, build_func, verbose):
     args = []
 
     try:
-        sch, args = task.compute_dag.apply_steps_from_state(inp.state, layout_rewrite=True)
+        sch, args = task.compute_dag.apply_steps_from_state(
+            inp.state, layout_rewrite=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+        )
     # pylint: disable=broad-except
     except Exception:
         error_no = MeasureErrorNo.INSTANTIATION_ERROR
-        error_msg = make_error_msg()
+        error_msg = make_traceback_info()
 
     if error_no == 0:
         dirname = tempfile.mkdtemp()
         filename = os.path.join(dirname, "tmp_func." + build_func.output_format)
 
         try:
-            # TODO(merrymercy): Port the unroll pass.
             with transform.PassContext():
                 func = build_module.build(
                     sch, args, target=task.target, target_host=task.target_host
@@ -576,7 +571,7 @@ def _timed_func(inp_serialized, build_func, verbose):
         # pylint: disable=broad-except
         except Exception:
             error_no = MeasureErrorNo.COMPILE_HOST
-            error_msg = make_error_msg()
+            error_msg = make_traceback_info()
     else:
         filename = ""
 
@@ -585,6 +580,7 @@ def _timed_func(inp_serialized, build_func, verbose):
             print(".", end="")
         else:
             print(".E", end="")  # Build error
+
     return filename, args, error_no, error_msg, time.time() - tic
 
 
@@ -615,6 +611,10 @@ def local_build_worker(args):
         if verbose >= 1:
             print(".T", end="")  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
+    elif isinstance(res, Exception):
+        if verbose >= 1:
+            print(".E", end="")  # Build error
+        res = None, [], MeasureErrorNo.COMPILE_HOST, str(res), timeout
 
     return res
 
@@ -703,7 +703,7 @@ def _timed_eval_func(
     except Exception:
         costs = (MAX_FLOAT,)
         error_no = MeasureErrorNo.COMPILE_DEVICE
-        error_msg = make_error_msg()
+        error_msg = make_traceback_info()
 
     if error_no == 0:
         try:
@@ -718,7 +718,7 @@ def _timed_eval_func(
         except Exception:
             costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
-            error_msg = make_error_msg()
+            error_msg = make_traceback_info()
 
     shutil.rmtree(os.path.dirname(build_res.filename))
     toc = time.time()
@@ -825,6 +825,17 @@ def local_run(
                     build_res.time_cost + timeout,
                     time.time(),
                 )
+            elif isinstance(res, Exception):
+                if verbose >= 1:
+                    print("*E", end="")  # Run error
+                res = (
+                    (MAX_FLOAT,),
+                    MeasureErrorNo.RUNTIME_DEVICE,
+                    str(res),
+                    build_res.time_cost + timeout,
+                    time.time(),
+                )
+
         measure_results.append(MeasureResult(*res))
 
     if verbose >= 1:
@@ -876,7 +887,7 @@ def _timed_rpc_run(
     except Exception:
         costs = (MAX_FLOAT,)
         error_no = MeasureErrorNo.COMPILE_DEVICE
-        error_msg = make_error_msg()
+        error_msg = make_traceback_info()
 
     if error_no == 0:
         try:
@@ -900,7 +911,7 @@ def _timed_rpc_run(
         except Exception:
             costs = (MAX_FLOAT,)
             error_no = MeasureErrorNo.RUNTIME_DEVICE
-            error_msg = make_error_msg()
+            error_msg = make_traceback_info()
 
     shutil.rmtree(os.path.dirname(build_res.filename))
     toc = time.time()
@@ -939,7 +950,6 @@ def _rpc_run_worker(args):
         )
 
     res = call_func_with_timeout(timeout, _timed_rpc_run, args=args)
-
     if isinstance(res, TimeoutError):
         if verbose >= 1:
             print("*T", end="")  # Run timeout
@@ -950,6 +960,17 @@ def _rpc_run_worker(args):
             build_res.time_cost + timeout,
             time.time(),
         )
+    elif isinstance(res, Exception):
+        if verbose >= 1:
+            print("*E", end="")  # Run error
+        res = (
+            (MAX_FLOAT,),
+            MeasureErrorNo.RUNTIME_DEVICE,
+            str(res),
+            build_res.time_cost + timeout,
+            time.time(),
+        )
+
     return res
 
 

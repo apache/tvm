@@ -16,6 +16,7 @@
 # under the License.
 
 """Test ComputeDAG (replay, infer bound)"""
+import json
 import pickle
 
 import tvm
@@ -24,6 +25,7 @@ from tvm import auto_scheduler, te
 
 from test_auto_scheduler_common import (
     get_tiled_matmul,
+    invalid_compute_definition,
     matmul_auto_scheduler_test,
     parallel_matmul_auto_scheduler_test,
 )
@@ -119,12 +121,14 @@ def test_stage_order():
 
     # Serialize and deserialize the search task.
     task = auto_scheduler.SearchTask(
-        dag,
-        "test1",
-        tvm.target.Target("llvm"),
-        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64),
+        compute_dag=dag,
+        workload_key=json.dumps(("test-key",)),
+        target=tvm.target.Target("llvm"),
+        hardware_params=auto_scheduler.HardwareParams(100000, 16, 64, 0, 0, 0, 0, 0),
     )
+
     task2 = pickle.loads(pickle.dumps(task))
+    assert "test-key" in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
     assert str(task.dag.get_init_state()) == str(task2.dag.get_init_state())
     assert len(task.dag.get_init_state().stage_ops) == len(task2.dag.get_init_state().stage_ops)
     assert task.workload_key == task2.workload_key
@@ -134,8 +138,20 @@ def test_stage_order():
     assert task.hardware_params.cache_line_bytes == task2.hardware_params.cache_line_bytes
 
 
+def test_invalid_compute_dag():
+    failed = False
+    try:
+        A, B = invalid_compute_definition()
+        dag = auto_scheduler.ComputeDAG([A, B])
+    except tvm.TVMError as e:
+        failed = True
+
+    assert failed
+
+
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
     test_estimate_flop()
     test_stage_order()
+    test_invalid_compute_dag()

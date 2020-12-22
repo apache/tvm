@@ -20,19 +20,15 @@
 import multiprocessing
 import logging
 from collections import defaultdict
-import time
 
 import numpy as np
-
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
 
 from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
 from ..measure_record import RecordReader
+
+xgb = None
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -93,8 +89,11 @@ class XGBModel(PythonBasedModel):
     """
 
     def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
-
-        if xgb is None:
+        global xgb
+        try:
+            if xgb is None:
+                xgb = __import__("xgboost")
+        except ImportError:
             raise ImportError(
                 "XGBoost is required for XGBModel. "
                 "Please install its python package first. "
@@ -138,7 +137,6 @@ class XGBModel(PythonBasedModel):
         if len(inputs) <= 0:
             return
         assert len(inputs) == len(results)
-        tic = time.time()
 
         self.inputs.extend(inputs)
         self.results.extend(results)
@@ -177,8 +175,6 @@ class XGBModel(PythonBasedModel):
                 )
             ],
         )
-
-        logger.info("XGBModel Training time: %.2f s", time.time() - tic)
 
     def predict(self, task, states):
         """Predict the scores of states
@@ -517,7 +513,11 @@ def custom_callback(
     # pylint: disable=import-outside-toplevel
     from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
-    from xgboost.training import aggcv
+
+    try:
+        from xgboost.training import aggcv
+    except ImportError:
+        from xgboost.callback import _aggcv as aggcv
 
     state = {}
     metric_shortname = metric.split("-")[1]

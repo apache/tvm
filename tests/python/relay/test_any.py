@@ -25,6 +25,8 @@ from tvm.relay.testing import run_infer_type as infer_type
 from utils.assert_diagnostic import DiagnosticTesting
 import tvm.topi.testing
 
+import os
+
 
 def int32(val):
     return relay.const(val, "int32")
@@ -38,27 +40,44 @@ def any_dims(ndim):
 
 
 def check_result(
-    args, mod, expected, flatten=False, assert_shape=False, only_vm=False, targets=None
+    args,
+    mod,
+    expected,
+    flatten=False,
+    assert_shape=False,
+    only_vm=False,
+    targets=None,
+    disable_targets=None,
 ):
+    if not isinstance(expected, list):
+        expected = [expected]
     for kind in ["debug", "vm"]:
         targets = targets or tvm.testing.enabled_targets()
         for tgt, ctx in targets:
+            print(tgt)
+            if disable_targets and tgt in disable_targets:
+                continue
             if kind == "debug" and (only_vm or ctx.device_type != tvm.cpu().device_type):
                 continue
             ex = relay.create_executor(kind, mod=mod, ctx=ctx, target=tgt)
             result = ex.evaluate()(*args)
-            result = result.asnumpy()
-            if assert_shape:
-                assert result.shape == expected, "Shape mismatch: expect %s but got %s." % (
-                    str(expected),
-                    str(result.shape),
-                )
-                return
+            if isinstance(result, tvm.runtime.container.ADT):
+                result = [r.asnumpy() for r in result]
+            else:
+                result = [result.asnumpy()]
 
-            if flatten:
-                result = result.flatten()
-                expected = expected.flatten()
-            tvm.testing.assert_allclose(result, expected, atol=2e-6)
+            for r, e in zip(result, expected):
+                if assert_shape:
+                    assert r.shape == e, "Shape mismatch: expect %s but got %s." % (
+                        str(e),
+                        str(r),
+                    )
+                    return
+
+                if flatten:
+                    r = r.flatten()
+                    e = e.flatten()
+                tvm.testing.assert_allclose(r, e, atol=2e-6)
 
 
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
@@ -181,6 +200,15 @@ def test_any_concat():
     ref = np.concatenate([x_np - 3.0, y_np * 5.0], axis=0)
     check_result([x_np, y_np], mod, ref)
 
+    num_inputs = 25
+    x = [relay.var("x", shape=(relay.Any(),), dtype="float32") for _ in range(num_inputs)]
+    z = relay.op.concatenate(x, axis=0)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function(x, z)
+    x_np = [np.random.uniform(size=(1,)).astype("float32") for _ in range(num_inputs)]
+    ref = np.concatenate(x_np, axis=0)
+    check_result(x_np, mod, ref)
+
 
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, variable_newshape=False):
     x = relay.var("x", shape=x_shape, dtype="float32")
@@ -219,30 +247,23 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     mod["main"] = relay.Function([x], y)
     data = np.random.choice([0, 1, 2, 3], size=x_np_shape).astype(dtype)
     expected = np.argwhere(data)
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data).asnumpy()
-        assert result.shape == expected.shape
-        tvm.testing.assert_allclose(result.flatten(), expected.flatten())
-
-    # TODO(@zhiics) argwhere gpu schedule is currently not avaiable
-    # check_result([data], mod, expected, flatten=True)
+    check_result([data], mod, expected, flatten=True)
 
 
 @tvm.testing.uses_gpu
 def test_any_argwhere():
     verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
+    verify_any_argwhere(any_dims(2), (5, 5), "int32")
+    verify_any_argwhere(any_dims(2), (5, 5), "int8")
     verify_any_argwhere(any_dims(3), (5, 5, 5))
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5))
     verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5))
     verify_any_argwhere(any_dims(1), (5,), "int32")
-    verify_any_argwhere(any_dims(2), (5, 5), "int32")
     verify_any_argwhere(any_dims(3), (5, 5, 5), "int32")
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5), "int32")
     verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5), "int32")
     verify_any_argwhere(any_dims(1), (5,), "int8")
-    verify_any_argwhere(any_dims(2), (5, 5), "int8")
     verify_any_argwhere(any_dims(3), (5, 5, 5), "int8")
     verify_any_argwhere(any_dims(4), (5, 5, 5, 5), "int8")
     verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5), "int8")
@@ -559,9 +580,7 @@ def verify_any_conv2d_transpose_nchw(
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result(
-        [data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=[("llvm", tvm.cpu())]
-    )
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -815,15 +834,10 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
     else:
         ref_out = sorted[0:kval]
 
-    for kind in ["debug", "vm"]:
-        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(*in_vals)
-        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
-
-    # TODO(@zhiics) Fix topk cuda schedule for dynamic inputs
-    # check_result(in_vals, mod, ref_out)
+    check_result(in_vals, mod, ref_out)
 
 
+@tvm.testing.uses_gpu
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
@@ -989,7 +1003,10 @@ def test_recursive_concat_with_wrong_annotation():
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
     with DiagnosticTesting() as diagnostics:
-        diagnostics.assert_message("in particular dimension 0 conflicts 2 does not match 1")
+        diagnostics.assert_message(
+            "The Relay type checker is unable to show the following types "
+            "match.\nIn particular dimension 0 conflicts: 2 does not match 1."
+        )
         func = infer_type(func)
 
 
@@ -1367,6 +1384,70 @@ def test_any_where():
     verify_any_where(any_dims(1), any_dims(1), any_dims(2), (5,), (5,), (5, 5))
     verify_any_where(
         any_dims(2), any_dims(2), any_dims(2), (3, 4), (3, 1), (1, 4), y_np_shape_invalid=(2, 4)
+    )
+
+
+# TODO(kevinthesun): enable gpu test when Thrust is available in ci.
+# @tvm.testing.uses_gpu
+def test_non_max_suppression():
+    x0 = relay.var("x0", relay.ty.TensorType((1, relay.Any(), 6), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((1,), "int32"))
+    x2 = relay.var("x2", relay.ty.TensorType((1, relay.Any()), "int32"))
+    x3 = relay.var("x3", relay.ty.TensorType((), "int32"))
+    z = relay.vision.non_max_suppression(
+        x0,
+        x1,
+        x2,
+        x3,
+        iou_threshold=0.5,
+        force_suppress=True,
+        top_k=2,
+        return_indices=True,
+        invalid_to_bottom=False,
+    )
+    z = z.astuple()
+    func = relay.Function([x0, x1, x2, x3], z)
+    mod = tvm.IRModule()
+    mod["main"] = func
+
+    np_data = np.array(
+        [
+            [
+                [0, 0.8, 1, 20, 25, 45],
+                [1, 0.7, 30, 60, 50, 80],
+                [0, 0.4, 4, 21, 19, 40],
+                [2, 0.9, 35, 61, 52, 79],
+                [1, 0.5, 100, 60, 70, 110],
+            ]
+        ]
+    ).astype("float32")
+    np_valid_count = np.array([4]).astype("int32")
+    np_indices = np.array([[0, 1, 3, 4, -1]]).astype("int32")
+    np_max_output_size = -1
+    np_indices_result = np.array([[4, 0, -1, -1, -1]])
+    np_valid_box_count = np.array([[2]]).astype("int32")
+
+    check_result(
+        [np_data, np_valid_count, np_indices, np_max_output_size],
+        mod,
+        [np_indices_result, np_valid_box_count],
+        only_vm=False,
+        disable_targets=["nvptx"],
+    )
+
+    np_data = np.zeros((1, 0, 6)).astype("float32")
+    np_valid_count = np.array([0]).astype("int32")
+    np_indices = np.zeros((1, 0)).astype("int32")
+    np_max_output_size = -1
+    np_indices_result = np.zeros((1, 0))
+    np_valid_box_count = np.array([[0]]).astype("int32")
+
+    check_result(
+        [np_data, np_valid_count, np_indices, np_max_output_size],
+        mod,
+        [np_indices_result, np_valid_box_count],
+        only_vm=False,
+        disable_targets=["nvptx"],
     )
 
 

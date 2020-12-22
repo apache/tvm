@@ -665,7 +665,7 @@ def _conv3d(opname):
     return _impl
 
 
-def _nms():
+def _nms(return_scores=False):
     def _impl(inputs, attr, params, mod):
         # Get parameter values
         try:
@@ -724,6 +724,16 @@ def _nms():
         ret = get_relay_op("strided_slice")(
             data_slice, begin=_expr.const([0]), end=size, slice_mode="size"
         )
+
+        # NonMaxSuppressionV5 returns scores. pad_output is always False for NMSv5.
+        if return_scores:
+            if "soft_nms_sigma" in attr and attr["soft_nms_sigma"] != 0.0:
+                raise tvm.error.OpAttributeUnImplemented(
+                    "soft_nms_sigma for NonMaxSuppressionV5 is not supported"
+                )
+            ret_scores = _op.take(inputs[1], ret, axis=0)
+            return _expr.TupleWrapper(_expr.Tuple([ret, ret_scores, size]), 3)
+
         return ret
 
     return _impl
@@ -916,6 +926,13 @@ def _sparse_tensor_dense_matmul():
 
         data = inputs[3]
 
+        # By default, in tensorflow the first input ,i.e., data is sparse
+        sparse_lhs = True
+
+        # If both are true means First input was dense and second was sparse
+        if attr.get("adjoint_a") and attr.get("adjoint_b"):
+            sparse_lhs = False
+
         rows = [x[0] for x in indices_tensor]
         cols = [x[1] for x in indices_tensor]
 
@@ -923,21 +940,31 @@ def _sparse_tensor_dense_matmul():
         weight_sp = csr_matrix(
             (values_tensor, (rows, cols)), shape=tuple(dense_shape_tensor.tolist())
         )
-        weight_sp = csr_matrix(weight_sp.transpose())
+
+        if sparse_lhs:
+            data = _op.transpose(data)
+        else:
+            weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
         weight_indptrs = _expr.const(weight_sp.indptr, weight_sp.indptr.dtype)
         weight_indices = _expr.const(weight_sp.indices, weight_sp.indices.dtype)
 
-        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs])
+        ret = _op.nn.sparse_dense(data, [weight_data, weight_indices, weight_indptrs], sparse_lhs)
 
-        # If both are true means First input was dense and second was sparse
-        # TODO(ANSHUMAN87): Support other adjoint option too
-        if attr.get("adjoint_a") and attr.get("adjoint_b"):
+        if not sparse_lhs:
             ret = _op.transpose(ret)
-        else:
+
+        # Case 1. If both are true means first input was dense and second was sparse
+        # Case 2. If both are false means first input was sparse and second was dense
+        # TODO(ANSHUMAN87): Support other adjoint option too
+        if not (
+            (attr.get("adjoint_a") and attr.get("adjoint_b"))
+            or ((not attr.get("adjoint_a")) and (not attr.get("adjoint_b")))
+        ):
             raise tvm.error.OpAttributeUnImplemented(
                 "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
+                "or with adjoint_a=False and adjoint_b=False"
                 " is supported, but adjoint_a={} and adjoint_b={} was supplied.".format(
                     attr.get("adjoint_a"), attr.get("adjoint_b")
                 )
@@ -1329,9 +1356,9 @@ def _space_to_depth():
 def _sparse_to_dense():
     def _impl(inputs, attr, params, mod):
         sparse_indices = inputs[0]
+        output_shape = inputs[1]
         sparse_values = inputs[2]
         default_value = inputs[3]
-        output_shape = attr["_output_shapes"][0]
 
         return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
 
@@ -1454,9 +1481,9 @@ def _shape():
                 break
 
         if is_symbolic_shape:
-            ret = _op.shape_of(inputs[0], dtype="int32")
+            ret = _op.shape_of(inputs[0], dtype=attr["out_type"].name)
         else:
-            ret = np.array(input_shape, dtype="int32")
+            ret = np.array(input_shape, dtype=attr["out_type"].name)
         return ret
 
     return _impl
@@ -1589,6 +1616,9 @@ def _stridedSlice():
         data_shape = get_const_tuple(in_type.checked_type.shape)
         data_dim = len(data_shape)
         stride_dim = len(stride)
+        if data_dim == 0 and isinstance(inputs[0], _expr.Constant):
+            new_data = inputs[0].data.asnumpy().reshape(1)
+            return _expr.const(new_data, inputs[0].data.dtype)
 
         # This is a special routine to handle strided_slice after shape_of.
         # We need this since in some cases we want to do strided_slice on
@@ -1862,11 +1892,11 @@ def _range():
 
         dtype = attr["Tidx"].name if "Tidx" in attr else str(start.dtype)
         if isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)):
-            start = _expr.const(start)
+            start = _expr.const(start, dtype=dtype)
         if isinstance(limit, (np.int32, np.int64, int, np.float32, np.float64, float)):
-            limit = _expr.const(limit)
+            limit = _expr.const(limit, dtype=dtype)
         if isinstance(delta, (np.int32, np.int64, int, np.float32, np.float64, float)):
-            delta = _expr.const(delta)
+            delta = _expr.const(delta, dtype=dtype)
 
         return AttrCvt(
             op_name="arange",
@@ -2060,8 +2090,6 @@ def _logical(name):
 
 def _space_to_batch_nd():
     def _impl(inputs, attr, params, mod):
-        input_node = inputs[0]
-        input_shape = _infer_shape(input_node, mod)
         try:
             block_shape = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
@@ -2075,48 +2103,18 @@ def _space_to_batch_nd():
             if len(paddings.shape) == 1:
                 paddings = np.expand_dims(paddings, axis=0)
             paddings = paddings.tolist()
-        N = len(input_shape)
-        M = len(block_shape)
-        batch = input_shape[0]
-        remaining_shape_length = N - M - 1
-        paddings = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
-        # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/space-to-batch-n-d:
-        # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
-        # to produce padded of shape padded_shape.
-        padded = tvm.relay.nn.pad(input_node, pad_width=paddings)
-        # Reshape padded to reshaped_padded of shape:
-        # [batch] + [padded_shape[1] / block_shape[0], block_shape[0], ...,
-        # padded_shape[M] / block_shape[M-1], block_shape[M-1]] + remaining_shape
-        shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
-        reshaped_padded = tvm.relay.reshape(padded, newshape=shape1)
-        # Permute dimensions of reshaped_padded to produce permuted_reshaped_padded of shape:
-        # block_shape + [batch] + [padded_shape[1] / block_shape[0], ...,
-        # padded_shape[M] / block_shape[M-1]] + remaining_shape
-        axes = (
-            [2 * i + 2 for i in range(M)]
-            + [0]
-            + [2 * i + 1 for i in range(M)]
-            + list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
-        )
-        permuted_reshaped_padded = tvm.relay.transpose(reshaped_padded, axes=axes)
-        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded, mod)
-        # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
-        # producing an output tensor of shape:
-        # [batch * prod(block_shape)] + [padded_shape[1] / block_shape[0], ...,
-        # padded_shape[M] / block_shape[M-1]] + remaining_shape
-        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1 :]
-        reshaped_permuted_reshaped_padded = tvm.relay.reshape(
-            permuted_reshaped_padded, newshape=shape2
-        )
-        return reshaped_permuted_reshaped_padded
+
+        attr["block_shape"] = block_shape
+        attr["paddings"] = paddings
+        out = AttrCvt("space_to_batch_nd", ignores=["Tblock_shape", "Tpaddings"])([inputs[0]], attr)
+
+        return out
 
     return _impl
 
 
 def _batch_to_space_nd():
     def _impl(inputs, attr, params, mod):
-        input_node = inputs[0]
-        input_shape = _infer_shape(input_node, mod)
         try:
             block_shape = _get_list_param(params, inputs[1])
         except (IndexError, KeyError, AttributeError):
@@ -2130,46 +2128,12 @@ def _batch_to_space_nd():
             if len(crops.shape) == 1:
                 crops = np.expand_dims(crops, axis=0)
             crops = crops.tolist()
-        M = len(block_shape)
-        batch = input_shape[0]
-        # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d:
-        # Reshape input to reshaped of shape:
-        # [block_shape[0], ..., block_shape[M-1], batch / prod(block_shape),
-        #  input_shape[1], ..., input_shape[N-1]]
-        shape1 = block_shape + [batch // np.prod(block_shape)] + list(input_shape[1:])
-        reshaped = tvm.relay.reshape(input_node, newshape=shape1)
-        # Permute dimensions of reshaped to produce permuted of shape
-        # [batch / prod(block_shape), input_shape[1], block_shape[0], ...,
-        # input_shape[M], block_shape[M-1], input_shape[M+1], ..., input_shape[N-1]]
-        axes = (
-            [M]
-            + [axis for i in range(M) for axis in [M + i + 1, i]]
-            + list(range(2 * M + 1, len(shape1)))
-        )
-        permuted = tvm.relay.transpose(reshaped, axes=axes)
-        # Reshape permuted to produce reshaped_permuted of shape
-        # [batch / prod(block_shape), input_shape[1] * block_shape[0], ...,
-        #  input_shape[M] * block_shape[M-1], input_shape[M+1], ..., input_shape[N-1]]
-        shape2 = [0] + [-3] * M + [-2]
-        reshaped_permuted = tvm.relay.reshape(permuted, newshape=shape2)
-        # Crop the start and end of dimensions [1, ..., M] of reshaped_permuted according to crops
-        # to produce the output of shape:
-        # [batch / prod(block_shape), input_shape[1] * block_shape[0] - crops[0,0] - crops[0,1],
-        #  ..., input_shape[M] * block_shape[M-1] - crops[M-1,0] - crops[M-1,1],
-        #  input_shape[M+1], ..., input_shape[N-1]]
-        reshaped_permuted_shape = _infer_shape(reshaped_permuted, mod)
-        cropped = reshaped_permuted
-        for axis in range(1, M + 1):
-            crop = crops[axis - 1]
-            if crop != [0, 0]:
-                indices = tvm.relay.arange(
-                    _expr.const(crop[0]),
-                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
-                    dtype="int32",
-                )
-                cropped = tvm.relay.take(cropped, indices=indices, axis=axis)
 
-        return cropped
+        attr["block_shape"] = block_shape
+        attr["crops"] = crops
+        out = AttrCvt("batch_to_space_nd", ignores=["Tblock_shape", "Tcrops"])([inputs[0]], attr)
+
+        return out
 
     return _impl
 
@@ -2420,6 +2384,7 @@ _convert_map = {
     "NonMaxSuppressionV2": _nms(),
     "NonMaxSuppressionV3": _nms(),
     "NonMaxSuppressionV4": _nms(),
+    "NonMaxSuppressionV5": _nms(True),
     "NoOp": _no_op(),
     "NotEqual": _broadcast("not_equal"),
     "OneHot": _one_hot(),
@@ -2439,6 +2404,7 @@ _convert_map = {
     "ResizeNearestNeighbor": _resize("nearest_neighbor"),
     "ReverseV2": _reverse_v2(),
     "RightShift": AttrCvt("right_shift"),
+    "Rint": AttrCvt("round"),
     "Round": AttrCvt("round"),
     "Rsqrt": _rsqrt(),
     "Select": _where(),
@@ -3401,7 +3367,7 @@ class GraphProto(object):
         return ret
 
     def _convert_operator(
-        self, op_name, inputs, attrs, graph, identity_list=None, convert_map=None
+        self, op_name, node_name, inputs, attrs, identity_list=None, convert_map=None
     ):
         """Convert from Tensorflow operator to relay operator.
         The converter must specify conversions explicitly for incompatible name, and
@@ -3440,6 +3406,23 @@ class GraphProto(object):
             sym = self._partition_call_operator(inputs, attrs)
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
+
+        sym = self._set_span(sym, node_name)
+
+        return sym
+
+    @staticmethod
+    def _set_span(sym, node_name):
+        span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
+        if isinstance(sym, _expr.Call):
+            sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
+        elif isinstance(sym, _expr.TupleWrapper):
+            tuple_value = sym.tuple_value
+            if isinstance(tuple_value, _expr.Call):
+                tuple_value = _expr.Call(
+                    tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
+                )
+                sym = _expr.TupleWrapper(tuple_value, sym.size)
         return sym
 
     def _licm_construct(self, loop_name, node_name):
@@ -3576,7 +3559,7 @@ class GraphProto(object):
                         actual_input = self._licm_construct(plname, iname)
                         inputs[i] = actual_input
 
-                op = self._convert_operator(node.op, inputs, attr, self._graph)
+                op = self._convert_operator(node.op, node.name, inputs, attr)
 
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)

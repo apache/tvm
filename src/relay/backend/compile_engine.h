@@ -242,6 +242,15 @@ class CompileEngine : public ObjectRef {
 };
 
 /*!
+ * \brief Create schedule for target.
+ * \param source_func The primitive function to be lowered.
+ * \param target The target we want to create schedule for.
+ * \return Pair of schedule and cache.
+ *  The funcs field in cache is not yet populated.
+ */
+CachedFunc CreateSchedule(const Function& source_func, const Target& target);
+
+/*!
  * \brief Check if the type is dynamic.
  * \param ty The type to be checked.
  * \return The result.

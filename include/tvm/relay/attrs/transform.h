@@ -129,6 +129,14 @@ struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
   }
 };
 
+struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
+  Array<Integer> out_shape;
+
+  TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
+    TVM_ATTR_FIELD(out_shape).describe("Output shape of the scatter.");
+  }
+};
+
 struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
   Integer axis;
 
@@ -347,6 +355,20 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relay.attrs.LayoutTransformAttrs") {
     TVM_ATTR_FIELD(src_layout).describe("The source layout of the tensor. (e.g. NCHW)");
     TVM_ATTR_FIELD(dst_layout).describe("The destination layout of the tensor. (e.g. NCHW16c)");
+  }
+};
+
+/*! \brief Attributes for AutoSchedulerLayoutTransform operator */
+struct AutoSchedulerLayoutTransformAttrs
+    : public tvm::AttrsNode<AutoSchedulerLayoutTransformAttrs> {
+  std::string src_layout;
+  std::string dst_layout;
+
+  TVM_DECLARE_ATTRS(AutoSchedulerLayoutTransformAttrs,
+                    "relay.attrs.AutoSchedulerLayoutTransformAttrs") {
+    TVM_ATTR_FIELD(src_layout).describe("The source layout of the tensor. (e.g. 1N32C112H112W)");
+    TVM_ATTR_FIELD(dst_layout)
+        .describe("The destination layout of the tensor. (e.g. 1N2C112H112W16c)");
   }
 };
 

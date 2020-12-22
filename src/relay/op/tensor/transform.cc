@@ -977,6 +977,75 @@ RELAY_REGISTER_OP("scatter_add")
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
+// scatter_nd operator
+TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
+
+bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  // `types` contains: [data, indices, result]
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "ScatterND: expect input data type to be TensorType but got " << types[0];
+    return false;
+  }
+  if (indices == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "ScatterND: expect indices type to be TensorType but got " << types[1];
+    return false;
+  }
+  ICHECK(indices->dtype.is_int()) << "ScatterND: indices must be a tensor of integers.";
+  const auto out_shape = attrs.as<ScatterNDAttrs>()->out_shape;
+  const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
+  const size_t kdim = indices->shape.size() - 1;
+  const size_t ndim = out_shape.size();
+  ICHECK_LE(size_t(mdim->value), ndim)
+      << "ScatterND: Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), and indices "
+         "with shape (M, Y_0, ..., Y_{K-1}), M must be less than or equal to N.";
+  // Indices: (M, Y_0, .. Y_{K-1}) data: (Y_0, .. Y_{K-1}, ...), verify Y's.
+  for (size_t i = 0; i < kdim; i++) {
+    reporter->AssertEQ(indices->shape[i + 1], data->shape[i]);
+  }
+
+  std::vector<IndexExpr> oshape;
+  for (auto& x : out_shape) {
+    oshape.push_back(x);
+  }
+
+  // data: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
+  for (size_t i = mdim->value; i < ndim; i++) {
+    reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
+  }
+
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeScatterND(Expr data, Expr indices, const Array<Integer> out_shape) {
+  auto attrs = make_object<ScatterNDAttrs>();
+  attrs->out_shape = out_shape;
+  static const Op& op = Op::Get("scatter_nd");
+  return Call(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.scatter_nd").set_body_typed(MakeScatterND);
+
+RELAY_REGISTER_OP("scatter_nd")
+    .describe(R"code(Scatter elements or slices from data and store to a tensor
+whose shape is defined by indices.
+
+Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}) and indices with shape
+(M, Y_0, ..., Y_{K-1}), the output will have shape (X_0, X_1, ..., X_{N-1}).
+)code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .set_support_level(3)
+    .add_type_rel("ScatterND", ScatterNDRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
@@ -1320,6 +1389,9 @@ RELAY_REGISTER_OP("arange")
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<ArangeAttrs>()
     .set_num_inputs(3)
+    .add_argument("start", "Expr", "Start of interval. The interval includes this value.")
+    .add_argument("end", "Expr", "Stop of interval. The interval does not include this value.")
+    .add_argument("step", "Expr", "Spacing between values.")
     .set_support_level(3)
     .add_type_rel("Arange", ArangeRel)
     .set_attr<FTVMCompute>("FTVMCompute", ArangeCompute)
@@ -2312,6 +2384,7 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
   const StridedSliceAttrs* param = attrs.as<StridedSliceAttrs>();
   ICHECK(param != nullptr);
   Array<Integer> begin, end, strides;
+  Array<PrimExpr> begin_expr, end_expr, strides_expr;
   begin = param->begin.value();
   end = param->end.value();
   strides = param->strides.value();
@@ -2324,8 +2397,6 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       out_shape.push_back(tvm::tir::Var("dim"));
     }
-    Array<PrimExpr> begin_expr;
-    Array<PrimExpr> strides_expr;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       int64_t begin_i = begin[i]->value;
       if (begin_i < 0) {
@@ -2346,8 +2417,19 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
           return input(real_indices);
         },
         std::string{"T_strided_slice_dynamic"}, std::string{topi::kInjective})};
+  } else {
+    for (size_t i = 0; i < begin.size(); ++i) {
+      begin_expr.push_back(begin[i]);
+    }
+    for (size_t i = 0; i < end.size(); ++i) {
+      end_expr.push_back(end[i]);
+    }
+    for (size_t i = 0; i < strides.size(); ++i) {
+      strides_expr.push_back(strides[i]);
+    }
   }
-  return Array<te::Tensor>{topi::strided_slice(inputs[0], begin, end, strides, param->slice_mode)};
+  return Array<te::Tensor>{
+      topi::strided_slice(inputs[0], begin_expr, end_expr, strides_expr, param->slice_mode)};
 }
 
 // Positional relay function to create StridedSlice operator used by frontend FFI.
@@ -2663,8 +2745,7 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
           << topi::GetConstInt(src_shape[axis]);
     }
   }
-  return Array<te::Tensor>{topi::strided_slice(inputs[0], GetIntArray(begin_idx),
-                                               GetIntArray(end_idx), GetIntArray(strides), "end")};
+  return Array<te::Tensor>{topi::strided_slice(inputs[0], begin_idx, end_idx, strides, "end")};
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.slice_like").set_body_typed(MakeSliceLike);
@@ -2738,7 +2819,55 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
     .set_support_level(5)
     .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
 
-/* relay._contrib_reverse_reshape */
+// relay.auto_scheduler_layout_transform
+TVM_REGISTER_NODE_TYPE(AutoSchedulerLayoutTransformAttrs);
+
+Array<te::Tensor> AutoSchedulerLayoutTransformCompute(const Attrs& attrs,
+                                                      const Array<te::Tensor>& inputs,
+                                                      const Type& out_type) {
+  const auto* param = attrs.as<AutoSchedulerLayoutTransformAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{
+      topi::auto_scheduler_layout_transform(inputs[0], param->src_layout, param->dst_layout)};
+}
+
+bool AutoSchedulerLayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                                     const TypeReporter& reporter) {
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  const AutoSchedulerLayoutTransformAttrs* params = attrs.as<AutoSchedulerLayoutTransformAttrs>();
+
+  Array<IndexExpr> dst_shape;
+  std::vector<std::string> dst_axes;
+
+  topi::parse_auto_scheduler_layout(params->dst_layout, &dst_shape, &dst_axes);
+
+  reporter->Assign(types[1], TensorType(dst_shape, data->dtype));
+  return true;
+}
+
+Expr MakeAutoSchedulerLayoutTransform(Expr data, String src_layout, String dst_layout) {
+  auto attrs = make_object<AutoSchedulerLayoutTransformAttrs>();
+  attrs->src_layout = std::move(src_layout);
+  attrs->dst_layout = std::move(dst_layout);
+  static const Op& op = Op::Get("auto_scheduler_layout_transform");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.auto_scheduler_layout_transform")
+    .set_body_typed(MakeAutoSchedulerLayoutTransform);
+
+RELAY_REGISTER_OP("auto_scheduler_layout_transform")
+    .describe(R"code(Transform the input kernel layout.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<AutoSchedulerLayoutTransformAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("auto_scheduler_layout_transform", AutoSchedulerLayoutTransformRel)
+    .set_support_level(5)
+    .set_attr<FTVMCompute>("FTVMCompute", AutoSchedulerLayoutTransformCompute);
+
+// relay._contrib_reverse_reshape
 Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
@@ -2837,9 +2966,9 @@ RELAY_REGISTER_OP("gather")
 
 E.g. for a 3D tensor, output is computed as:
 
-	out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
-	out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
-	out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
+       out[i][j][k] = data[indices[i][j][k]][j][k]  # if axis == 0
+       out[i][j][k] = data[i][indices[i][j][k]][k]  # if axis == 1
+       out[i][j][k] = data[i][j][indices[i][j][k]]  # if axis == 2
 
 ``indices`` must have same shape as ``data``, except at dimension ``axis``
 which must just be not null. Output will have same shape as ``indices``.
@@ -2905,6 +3034,7 @@ output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices of values to gather.")
     .set_support_level(3)
     .add_type_rel("GatherND", GatherNDRel)
     .set_attr<FTVMCompute>("FTVMCompute", GatherNDCompute)
@@ -3135,6 +3265,8 @@ Example::
   -  unravel_index([22, 41, 37], (7, 6)) = [[3, 6, 6], [4, 5, 1]]
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("shape", "Tensor", "The shape tensor.")
     .set_support_level(3)
     .add_type_rel("UnRavelIndexRel", UnRavelIndexRel)
     .set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
@@ -3179,16 +3311,21 @@ Array<te::Tensor> SparseToDenseCompute(const Attrs& attrs, const Array<te::Tenso
   ICHECK_EQ(inputs.size(), 3);
   const auto* param = attrs.as<SparseToDenseAttrs>();
   ICHECK(param != nullptr);
-  return {topi::sparse_to_dense(inputs[0], param->output_shape, inputs[1], inputs[2]())};
+  Array<IndexExpr> output_shape;
+  for (auto val : param->output_shape) {
+    output_shape.push_back(val);
+  }
+  return {topi::sparse_to_dense(inputs[0], output_shape, inputs[1], inputs[2]())};
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparse_to_dense")
-    .set_body_typed([](Expr indices, Array<Integer> output_shape, Expr values, Expr default_value) {
-      auto attrs = make_object<SparseToDenseAttrs>();
-      attrs->output_shape = std::move(output_shape);
-      static const Op& op = Op::Get("sparse_to_dense");
-      return Call(op, {indices, values, default_value}, Attrs(attrs));
-    });
+Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value) {
+  auto attrs = make_object<SparseToDenseAttrs>();
+  attrs->output_shape = std::move(output_shape);
+  static const Op& op = Op::Get("sparse_to_dense");
+  return Call(op, {indices, values, default_value}, Attrs(attrs));
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_to_dense").set_body_typed(MakeSparseToDense);
 
 RELAY_REGISTER_OP("sparse_to_dense")
     .describe(R"code(A dense tensor from a sparse representation.

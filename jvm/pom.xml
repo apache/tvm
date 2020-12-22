@@ -7,7 +7,7 @@
   <artifactId>tvm4j-parent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>TVM4J Package - Parent</name>
-  <url>https://github.com/apache/incubator-tvm/tree/main/jvm</url>
+  <url>https://github.com/apache/tvm/tree/main/jvm</url>
   <description>TVM4J Package</description>
   <organization>
     <name>Apache Software Foundation</name>
@@ -20,9 +20,9 @@
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:git@github.com:apache/incubator-tvm.git</connection>
-    <developerConnection>scm:git:git@github.com:apache/incubator-tvm.git</developerConnection>
-    <url>https://github.com/apache/incubator-tvm</url>
+    <connection>scm:git:git@github.com:apache/tvm.git</connection>
+    <developerConnection>scm:git:git@github.com:apache/tvm.git</developerConnection>
+    <url>https://github.com/apache/tvm</url>
   </scm>
 
   <properties>

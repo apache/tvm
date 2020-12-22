@@ -88,8 +88,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
     if (e.lib == nil) {
       if (fmt_ == "metal") {
         MTLCompileOptions* opts = [MTLCompileOptions alloc];
-        // Use the Metal 1.2 for now.
-        opts.languageVersion = MTLLanguageVersion1_2;
+        opts.languageVersion = MTLLanguageVersion2_3;
         opts.fastMathEnabled = YES;
         // opts = nil;
         e.lib = [w->devices[device_id]

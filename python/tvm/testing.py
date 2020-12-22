@@ -56,6 +56,8 @@ function in this module. Then targets using this node should be added to the
 """
 import logging
 import os
+import sys
+import time
 import pytest
 import numpy as np
 import tvm
@@ -712,6 +714,32 @@ def parametrize_targets(*args):
         targets = [t for t, _ in enabled_targets()]
         return wrap(targets)(args[0])
     return wrap(args)
+
+
+def identity_after(x, sleep):
+    """Testing function to return identity after sleep
+
+    Parameters
+    ----------
+    x : int
+        The input value.
+
+    sleep : float
+        The amount of time to sleep
+
+    Returns
+    -------
+    x : object
+        The original value
+    """
+    if sleep:
+        time.sleep(sleep)
+    return x
+
+
+def terminate_self():
+    """Testing function to terminate the process."""
+    sys.exit(-1)
 
 
 tvm._ffi._init_api("testing", __name__)

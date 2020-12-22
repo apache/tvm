@@ -30,7 +30,7 @@ from .. import op as _op
 from .. import qnn as _qnn
 from ... import nd as _nd
 from .common import ExprTable
-from .common import infer_shape as _infer_shape
+from .common import infer_shape as _infer_shape, to_int_list
 from .tflite_flexbuffer import FlexBufferDecoder
 
 
@@ -325,6 +325,7 @@ class OperatorConverter(object):
             return {
                 TensorType.UINT8: np.uint8,
                 TensorType.INT8: np.int8,
+                TensorType.FLOAT16: np.float16,
                 TensorType.FLOAT32: np.float32,
                 TensorType.INT32: np.int32,
                 TensorType.INT64: np.int64,
@@ -345,7 +346,7 @@ class OperatorConverter(object):
         data = tensor_wrapper.buffer.DataAsNumpy()
 
         if tensor_wrapper.tensor.ShapeLength() != 0:
-            shape = tensor_wrapper.tensor.ShapeAsNumpy()
+            shape = to_int_list(tensor_wrapper.tensor.ShapeAsNumpy())
         else:
             shape = []
 
@@ -362,6 +363,8 @@ class OperatorConverter(object):
             return "int8"
         if tensor_type == TensorType.UINT8:
             return "uint8"
+        if tensor_type == TensorType.FLOAT16:
+            return "float16"
         if tensor_type == TensorType.FLOAT32:
             return "float32"
         if tensor_type == TensorType.INT32:
@@ -503,7 +506,7 @@ class OperatorConverter(object):
             op_options = op.BuiltinOptions()
             reshape_options = ReshapeOptions()
             reshape_options.Init(op_options.Bytes, op_options.Pos)
-            target_shape = tuple(reshape_options.NewShapeAsNumpy())
+            target_shape = to_int_list(reshape_options.NewShapeAsNumpy())
 
         in_expr = self.get_expr(input_tensor_idx)
 
@@ -1387,7 +1390,7 @@ class OperatorConverter(object):
         axis = gather_options.Axis()
 
         # Check the indices are with in bounds.
-        data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
+        data_shape = to_int_list(input_tensors[0].tensor.ShapeAsNumpy())
         data_dim = len(data_shape)
 
         axis = data_dim + axis if axis < 0 else axis
@@ -1505,7 +1508,7 @@ class OperatorConverter(object):
         new_axis_mask = options.NewAxisMask()
         shrink_axis_mask = options.ShrinkAxisMask()
 
-        data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
+        data_shape = to_int_list(input_tensors[0].tensor.ShapeAsNumpy())
         data_dim = len(data_shape)
         stride_dim = len(stride)
 
@@ -1638,7 +1641,8 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         # axis
-        axis = tuple(self.get_tensor_value(input_tensors[1]))
+        axis_value = self.get_tensor_value(input_tensors[1])
+        axis = tuple(axis_value) if len(axis_value.shape) > 0 else tuple((axis_value.item(),))
 
         # Options - keep_dims (bool)
         assert op.BuiltinOptionsType() == BuiltinOptions.ReducerOptions
@@ -1757,7 +1761,7 @@ class OperatorConverter(object):
         output_tensor_type = output_tensor.tensor.Type()
         output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
-        weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
+        weight_tensor_shape = to_int_list(weight_tensor.tensor.ShapeAsNumpy())
 
         # Weight should have only 2 dimensions(TFLite convention)
         assert len(weight_tensor_shape) == 2, "Weight should be only 2-dim"
@@ -1951,15 +1955,17 @@ class OperatorConverter(object):
         padding = conv_options.Padding()
         fused_activation_fn = conv_options.FusedActivationFunction()
 
-        _, input_h, input_w, input_c = input_tensor.tensor.ShapeAsNumpy()
+        _, input_h, input_w, input_c = to_int_list(input_tensor.tensor.ShapeAsNumpy())
 
         if is_depthwise_conv:
             # TFLite depthwise convolution kernel layout is:
             # 1 KH KW C(input_c * depth_multiplier)
-            _, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
+            _, kernel_h, kernel_w, in_channels = to_int_list(weight_tensor.tensor.ShapeAsNumpy())
             assert in_channels == input_c * depth_multiplier
         else:
-            output_channels, kernel_h, kernel_w, _ = weight_tensor.tensor.ShapeAsNumpy()
+            output_channels, kernel_h, kernel_w, _ = to_int_list(
+                weight_tensor.tensor.ShapeAsNumpy()
+            )
 
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
         dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
@@ -1988,25 +1994,39 @@ class OperatorConverter(object):
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
-        weight_value = self.get_tensor_value(weight_tensor)
 
-        # TFLite kernel layout:
-        # convolution:
-        # OC KH KW IC, we require KH KW IC OC (HWIO)
-        # depthwise convolution:
-        # 1 KH KW C(input_c * depth_multiplier), we require
-        # KH KW IC M (depth_multiplier) (HWOI)
-        if is_depthwise_conv:
-            weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+        # TFLite converts float32 models to float16 models by introducing
+        # a Dequantize op in every op that contains a float32 values.
+        # (weights, biases, and constants etc. )
+        # So conv op may have weight and bias as tensors instead of values.
+        if self.has_expr(weight_tensor.tensor_idx):
+            weight_expr = self.get_expr(weight_tensor.tensor_idx)
+            if is_depthwise_conv:
+                weight_expr = _op.reshape(
+                    weight_expr, (kernel_h, kernel_w, input_c, depth_multiplier)
+                )
+            else:
+                weight_expr = _op.transpose(weight_expr, axes=(1, 2, 3, 0))
         else:
-            weight_value = weight_value.transpose((1, 2, 3, 0))
+            weight_value = self.get_tensor_value(weight_tensor)
+            # TFLite kernel layout:
+            # convolution:
+            # OC KH KW IC, we require KH KW IC OC (HWIO)
+            # depthwise convolution:
+            # 1 KH KW C(input_c * depth_multiplier), we require
+            # KH KW IC M (depth_multiplier) (HWOI)
+            if is_depthwise_conv:
+                weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+            else:
+                weight_value = weight_value.transpose((1, 2, 3, 0))
 
-        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
+            weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
         if padding == Padding.VALID:
             pass
         elif padding == Padding.SAME:
             pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
+
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
             do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
             if do_pad:
@@ -2035,9 +2055,12 @@ class OperatorConverter(object):
             # bias tensor type should be INT32 (quantization) or FLOAT32
             assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(
-                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
-            )
+            if self.has_expr(bias_tensor.tensor_idx):
+                bias_expr = self.get_expr(bias_tensor.tensor_idx)
+            else:
+                bias_expr = self.exp_tab.new_const(
+                    self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+                )
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
@@ -2160,7 +2183,7 @@ class OperatorConverter(object):
         size = list(self.get_tensor_value(input_tensors[2]))
         # strided_slice(Relay) needs the slice's end indices, not the size
         end = size
-        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
+        input_tensor_shape = to_int_list(input_tensor.tensor.ShapeAsNumpy())
         input_tensor_rank = len(input_tensor_shape)
         for i in range(input_tensor_rank):
             if size[i] == -1:
@@ -2322,7 +2345,7 @@ class OperatorConverter(object):
 
         in_expr = self.get_expr(input_tensor_idx)
 
-        _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
+        _, input_h, input_w, _ = to_int_list(input_tensor.tensor.ShapeAsNumpy())
         if padding == Padding.VALID:
             pass
         elif padding == Padding.SAME:
@@ -2570,46 +2593,12 @@ class OperatorConverter(object):
         input_tensor_idx = input_tensor.tensor_idx
         in_expr = self.get_expr(input_tensor_idx)
 
-        input_shape = list(input_tensor.tensor.ShapeAsNumpy())
-        batch = input_shape[0]
-
         block_shape = list(self.get_tensor_value(input_tensors[1]))
-        M = len(block_shape)
+        crops = self.get_tensor_value(input_tensors[2]).tolist()
 
-        crops = list(self.get_tensor_value(input_tensors[2]))
+        out = _op.nn.batch_to_space_nd(in_expr, block_shape, crops)
 
-        # From https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d:
-        # Reshape input to reshaped of shape
-        shape1 = block_shape + [batch // np.prod(block_shape)] + input_shape[1:]
-        reshaped = _op.reshape(in_expr, newshape=shape1)
-
-        # Permute dimensions of reshaped to produce permuted of shape
-        axes = (
-            [M]
-            + [axis for i in range(M) for axis in [M + i + 1, i]]
-            + list(range(2 * M + 1, len(shape1)))
-        )
-        permuted = _op.transpose(reshaped, axes=axes)
-
-        # Reshape permuted to produce reshaped_permuted of shape
-        shape2 = [0] + [-3] * M + [-2]
-        reshaped_permuted = _op.reshape(permuted, newshape=shape2)
-
-        # Crop the start and end of dimensions [1, ..., M] of reshaped_permuted according to crops
-        # to produce the output of shape:
-        reshaped_permuted_shape = _infer_shape(reshaped_permuted)
-        cropped = reshaped_permuted
-        for axis in range(1, M + 1):
-            crop = crops[axis - 1]
-            if (crop != [0, 0]).any():
-                indices = _op.arange(
-                    _expr.const(crop[0]),
-                    _expr.const(reshaped_permuted_shape[axis] - crop[1]),
-                    dtype="int32",
-                )
-                cropped = _op.take(cropped, indices=indices, axis=axis)
-
-        return cropped
+        return out
 
     def convert_space_to_batch_nd(self, op):
         """space_to_batch_nd implementation."""
@@ -2620,51 +2609,12 @@ class OperatorConverter(object):
         input_tensor_idx = input_tensor.tensor_idx
         in_expr = self.get_expr(input_tensor_idx)
 
-        input_shape = list(input_tensor.tensor.ShapeAsNumpy())
-        batch = input_shape[0]
-        N = len(input_shape)
-
         block_shape = list(self.get_tensor_value(input_tensors[1]))
-        M = len(block_shape)
+        paddings = self.get_tensor_value(input_tensors[2]).tolist()
 
-        paddings = list(self.get_tensor_value(input_tensors[2]))
+        out = _op.nn.space_to_batch_nd(in_expr, block_shape, paddings)
 
-        # From https://www.tensorflow.org/api_docs/python/tf/space_to_batch_nd:
-        # Zero-pad the start and end of dimensions [1, ..., M] of the input according to paddings
-        # to produce padded of shape padded_shape.
-        remaining_shape_length = N - M - 1
-        padded_list = [(0, 0)] + paddings + [(0, 0)] * remaining_shape_length
-
-        padded_shape = []
-        for element in padded_list:
-            if isinstance(element, np.ndarray):
-                element = element.tolist()
-
-            padded_shape.append(element)
-
-        padded_shape = tuple(padded_shape)
-        padded = _op.nn.pad(in_expr, pad_width=tuple(padded_shape))
-
-        # Reshape padded to reshaped_padded of shape:
-        shape1 = [batch] + [item for i in range(M) for item in [-4, -1, block_shape[i]]] + [-2]
-        reshaped_padded = _op.reshape(padded, newshape=shape1)
-
-        # Permute dimensions of reshaped_padded to produce permuted_reshaped_padded of shape:
-        axes = (
-            [2 * i + 2 for i in range(M)]
-            + [0]
-            + [2 * i + 1 for i in range(M)]
-            + list(range(1 + 2 * M, 1 + 2 * M + remaining_shape_length))
-        )
-        permuted_reshaped_padded = _op.transpose(reshaped_padded, axes=axes)
-        permuted_reshaped_padded_shape = _infer_shape(permuted_reshaped_padded)
-
-        # Reshape permuted_reshaped_padded to flatten block_shape into the batch dimension,
-        # producing an output tensor of shape:
-        shape2 = [batch * np.prod(block_shape)] + list(permuted_reshaped_padded_shape)[M + 1 :]
-        reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
-
-        return reshaped_permuted_reshaped_padded
+        return out
 
     def convert_depth_to_space(self, op):
         """Convert TFLite DEPTH_TO_SPACE"""
@@ -2774,10 +2724,12 @@ class OperatorConverter(object):
 
         # Input (data) Tensor. NHWC layout
         input_tensor = input_tensors[2]
-        _, input_h, input_w, input_c = input_tensor.tensor.ShapeAsNumpy()
+        _, input_h, input_w, input_c = to_int_list(input_tensor.tensor.ShapeAsNumpy())
         # Weights tensor. TFLite uses OHWI layout
         weights_tensor = input_tensors[1]
-        out_channels, kernel_h, kernel_w, in_channels = weights_tensor.tensor.ShapeAsNumpy()
+        out_channels, kernel_h, kernel_w, in_channels = to_int_list(
+            weights_tensor.tensor.ShapeAsNumpy()
+        )
         assert (
             input_c == in_channels
         ), "Input channel in the filter should match to channel in the input"
@@ -2809,7 +2761,7 @@ class OperatorConverter(object):
         # Weights
         weights_tensor_type = weights_tensor.tensor.Type()
         # weights tensor type should be UINT8 (quantization) or FLOAT32
-        assert weights_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        assert weights_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
         weight_value_ohwi = self.get_tensor_value(weights_tensor)
         # Relay kernel_layout should be OIHW
@@ -2831,19 +2783,40 @@ class OperatorConverter(object):
         else:
             padding = (0, 0, 0, 0)
 
-        out = _op.nn.conv2d_transpose(
-            in_expr,
-            weight_expr_iohw,
-            strides=(stride_h, stride_w),
-            padding=padding,
-            channels=int(out_channels),
-            kernel_size=(int(kernel_h), int(kernel_w)),
-            data_layout="NHWC",
-            kernel_layout="OIHW",
-            out_dtype=output_tensor_type_str,
-        )
+        if input_tensor.qnn_params:
+            input_zero_point = input_tensor.qnn_params["zero_point"]
+            kernel_zero_point = weights_tensor.qnn_params["zero_point"]
+            input_scale = input_tensor.qnn_params["scale"]
+            kernel_scale = weights_tensor.qnn_params["scale"]
+            out = _qnn.op.conv2d_transpose(
+                in_expr,
+                weight_expr_iohw,
+                input_zero_point,
+                kernel_zero_point,
+                input_scale,
+                kernel_scale,
+                strides=(stride_h, stride_w),
+                padding=padding,
+                channels=int(out_channels),
+                kernel_size=(int(kernel_h), int(kernel_w)),
+                data_layout="NHWC",
+                kernel_layout="OIHW",
+                out_dtype="int32",
+            )
+        else:
+            out = _op.nn.conv2d_transpose(
+                in_expr,
+                weight_expr_iohw,
+                strides=(stride_h, stride_w),
+                padding=padding,
+                channels=int(out_channels),
+                kernel_size=(int(kernel_h), int(kernel_w)),
+                data_layout="NHWC",
+                kernel_layout="OIHW",
+                out_dtype=output_tensor_type_str,
+            )
 
-        # if we have bias
+        # Checking if there is a fused bias
         if len(input_tensors) == 4:
             bias_tensor = input_tensors[3]
             bias_tensor_type = bias_tensor.tensor.Type()
@@ -2856,6 +2829,31 @@ class OperatorConverter(object):
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
+        if output_tensor.qnn_params:
+            # Calculate the intermediate scale and zero point of the int32 output.
+            data_scale = input_tensor.qnn_params["scale"]
+            data_scale_val = get_scalar_from_constant(data_scale)
+
+            weight_scale = weights_tensor.qnn_params["scale"]
+            # If weight scale is scalar, it is per-tensor quantization
+            if isinstance(weight_scale, float):
+                weight_scale_val = get_scalar_from_constant(weight_scale)
+            else:
+                weight_scale_val = get_tensor_from_constant(weight_scale)
+
+            new_input_scale_val = data_scale_val * weight_scale_val
+            new_input_scale = relay.const(new_input_scale_val, "float32")
+            new_input_zero_point = relay.const(0, "int32")
+
+            out = _qnn.op.requantize(
+                out,
+                input_scale=new_input_scale,
+                input_zero_point=new_input_zero_point,
+                output_scale=output_tensor.qnn_params["scale"],
+                output_zero_point=output_tensor.qnn_params["zero_point"],
+                out_dtype=output_tensor_type_str,
+                axis=3,
+            )
         return out
 
     def convert_quantize(self, op):
@@ -2891,10 +2889,22 @@ class OperatorConverter(object):
 
     def convert_dequantize(self, op):
         """Convert TFLite Dequantize"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
+
+        if input_tensor.tensor.Type() == TensorType.FLOAT16:
+            dtype = self.get_tensor_type_str(input_tensor.tensor.Type())
+            input_value = self.get_tensor_value(input_tensor)
+            in_expr = self.exp_tab.new_const(input_value, dtype=dtype)
+            out = relay.cast(in_expr, dtype="float32")
+            return out
+
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         # The input must be quantized
@@ -3147,7 +3157,7 @@ class OperatorConverter(object):
             ), "TFLite MATRIX_DIAG requires diagonal and output tensors' \
                     scale and zero points to be equal"
 
-        shape = diagonal.tensor.ShapeAsNumpy()
+        shape = to_int_list(diagonal.tensor.ShapeAsNumpy())
         shape = np.append(shape, shape[-1])
         dtype = self.get_tensor_type_str(diagonal.tensor.Type())
 

@@ -199,7 +199,7 @@ class ComputeDAGNode : public Object {
  * This is an optimization to rewrite the layout of input tensors according to the schedule we get.
  */
 enum class LayoutRewriteOption : int {
-  /*! \brief Do not process layout rewrite. */
+  /*! \brief Do not perform layout rewrite. */
   NoRewrite = 0,
   /*! \brief Insert layout transformation stages for input placeholders in the compute DAG */
   InsertTransformStage = 1,
@@ -207,7 +207,7 @@ enum class LayoutRewriteOption : int {
    * \brief Do not insert layout transformation stages and assume the input placeholders
    * are pre-transformed.
    * \note The lowered function with this option does not accept the origial input shapes,
-   * so this option must be used along with a layout conversion pass in Relay.
+   * so this option must be used along with `AutoSchedulerLayoutRewrite` pass in Relay.
    */
   RewriteForPreTransformed = 2,
 };

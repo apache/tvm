@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "search_policy/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -669,7 +670,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     math_op_counter(node->value);
     std::vector<float> mem_bytes_list;
     std::vector<float> compute_ops_list;
-    int cur_compute_ops;
+    double cur_compute_ops;
 
     // Group 1: Computation related features
     ExtractComputationFeature(node, math_op_counter);
@@ -768,7 +769,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
 
   // Extract buffer access related features (group 2)
   void ExtractBufferAccessFeature(const BufferStoreNode* node, const MathOpCounter& math_op_counter,
-                                  int* cur_compute_ops, std::vector<float>* compute_ops_list,
+                                  double* cur_compute_ops, std::vector<float>* compute_ops_list,
                                   std::vector<float>* mem_bytes_list) {
     FeatureSet& fea = buffer_features[node->buffer];
 
@@ -920,7 +921,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   }
 
   // Extract arithmetic intensity related feature (group 3)
-  void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, int cur_compute_ops,
+  void ExtractArithmeticIntensityFeature(const BufferStoreNode* node, double cur_compute_ops,
                                          const std::vector<float>& compute_ops_list,
                                          const std::vector<float>& mem_bytes_list) {
     FeatureSet& fea = buffer_features[node->buffer];
@@ -1267,7 +1268,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
   Array<te::Tensor> tensors;
 
   std::tie(sch, tensors) = task->compute_dag.ApplySteps(state->transform_steps);
-  sch = sch.normalize();
+  sch = sch.normalize_for_feature_extraction();
   auto bounds = te::InferBound(sch);
 
   try {
@@ -1296,7 +1297,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     }
     auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
-    if (task->target->kind->device_type == kDLGPU) {
+    if (IsGPUTask(task)) {
       auto pass_list = Array<tvm::transform::Pass>();
       // Phase 0
       pass_list.push_back(tir::transform::InjectPrefetch());
@@ -1310,7 +1311,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
       pass_list.push_back(tir::transform::Simplify());
       tvm::Map<String, tvm::PrimExpr> gpu_params{
           {"max_shared_memory_per_block", task->hardware_params->max_shared_memory_per_block},
-          {"max_local_memory_per_block", task->hardware_params->max_registers_per_block},
+          {"max_local_memory_per_block", task->hardware_params->max_local_memory_per_block},
           {"max_threads_per_block", task->hardware_params->max_threads_per_block},
           {"max_vector_bytes", task->hardware_params->vector_unit_bytes},
           {"max_vthread", task->hardware_params->max_vthread_extent},
@@ -1345,11 +1346,6 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const SearchTask&
                           GetPerStoreFeaturesWorkerFunc(task, states[i], max_n_bufs,
                                                         &(*features)[i], &error_ct);
                         });
-
-  if (error_ct > 0) {
-    std::cerr << "Encountered " << error_ct
-              << " errors during feature extraction, which are safely ignored." << std::endl;
-  }
 }
 
 void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector<SearchTask>& tasks,
@@ -1365,11 +1361,6 @@ void GetPerStoreFeaturesFromStates(const Array<State>& states, const std::vector
                           GetPerStoreFeaturesWorkerFunc(tasks[i], states[i], max_n_bufs,
                                                         &(*features)[i], &error_ct);
                         });
-
-  if (error_ct > 0) {
-    std::cerr << "Encountered " << error_ct
-              << " errors during feature extraction. which are safely ignored." << std::endl;
-  }
 }
 
 void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int max_n_bufs,

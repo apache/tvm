@@ -21,7 +21,8 @@ from __future__ import absolute_import
 import logging
 import numpy as np
 import tvm
-from tvm import te, autotvm, auto_scheduler
+from tvm import te, autotvm
+from tvm.ir.transform import PassContext
 from tvm.runtime import Object
 from tvm.support import libinfo
 from tvm.target import Target
@@ -121,7 +122,10 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
         The list of all valid op implementations.
     """
     fstrategy = op.get_attr("FTVMStrategy")
-    assert fstrategy is not None, "%s doesn't have FTVMStrategy registered" % op.name
+    assert fstrategy is not None, (
+        "%s doesn't have an FTVMStrategy registered. You can register "
+        "one in python with `tvm.relay.op.register_strategy`." % op.name
+    )
     with target:
         strategy = fstrategy(attrs, inputs, out_type, target)
     analyzer = tvm.arith.Analyzer()
@@ -185,6 +189,11 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
 
+    # Disable autotvm if auto_scheduler is enabled.
+    # (i.e., always return the implementation with the highest priority for auto-scheduler).
+    if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+        use_autotvm = False
+
     # If not use autotvm, always return the implementation with the highest priority
     if not use_autotvm:
         logger.info(
@@ -196,25 +205,13 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
-    # If auto-scheduler is enabled for Relay, always prefer auto-scheduler
-    if auto_scheduler.is_relay_integration_enabled():
-        auto_scheduler_impls = []
-        for impl in all_impls:
-            if impl.name.endswith(auto_scheduler.relay_integration.auto_schedule_impl_suffix):
-                auto_scheduler_impls.append(impl)
-
-        if auto_scheduler_impls:
-            assert len(auto_scheduler_impls) == 1
-            impl = auto_scheduler_impls[0]
-            outs = impl.compute(attrs, inputs, out_type)
-            return impl, outs
-
     # Otherwise, try autotvm templates
     outputs = {}
     workloads = {}
     best_autotvm_impl = None
     best_cfg = None
     dispatch_ctx = autotvm.task.DispatchContext.current
+    old_silent = autotvm.GLOBAL_SCOPE.silent
     autotvm.GLOBAL_SCOPE.silent = True
     for impl in all_impls:
         outs = impl.compute(attrs, inputs, out_type)
@@ -232,7 +229,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
-    autotvm.GLOBAL_SCOPE.silent = False
+    autotvm.GLOBAL_SCOPE.silent = old_silent
 
     if best_autotvm_impl:
         # The best autotvm implementation definitely doesn't use fallback config
@@ -251,7 +248,10 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
             "is used, which may bring great performance regression."
             % (target, workloads[best_plevel_impl])
         )
-        if msg not in autotvm.task.DispatchContext.warning_messages:
+        if (
+            not autotvm.env.GLOBAL_SCOPE.silent
+            and msg not in autotvm.task.DispatchContext.warning_messages
+        ):
             autotvm.task.DispatchContext.warning_messages.add(msg)
             autotvm_logger.warning(msg)
     logger.info(
@@ -300,7 +300,6 @@ def lower_call(call, inputs, target):
         best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
-        #   Currently, we just use the implementation with highest plevel
         best_impl, outputs = select_implementation(
             op, call.attrs, inputs, ret_type, target, use_autotvm=False
         )

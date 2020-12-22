@@ -1993,17 +1993,27 @@ def batch_matmul(x, y):
     return _make.batch_matmul(x, y)
 
 
-def sparse_dense(data, weight):
+# pylint: disable=no-else-return,inconsistent-return-statements
+def sparse_dense(dense_mat, sparse_mat, sparse_lhs=False):
     r"""
-    Computes the matrix multiplication of `data` and `weight`, where `data` is
-    a dense matrix and `weight` is a sparse (either BSR or CSR) namedtuple with
+    Computes the matrix multiplication of `dense_mat` and `sparse_mat`, where `dense_mat` is
+    a dense matrix and `sparse_mat` is a sparse (either BSR or CSR) namedtuple with
     fields `data`, `indices`, and `indptr`.
 
-    .. math::
+    \if sparse_lhs=False:
+        .. math::
 
-        \mbox{sparse_dense}(data, weight)[m, n] = \mbox{matmul}(x, \mbox{as_dense}(weight)^T)[m, n]
+            \mbox{sparse_dense}(dense_mat, sparse_mat)[m, n]
+            = \mbox{matmul}(D, \mbox{as_dense}(S)^T)[m, n]
 
-    where `as_dense` returns dense equivalent of the given sparse matrix.
+    \if sparse_lhs=True:
+        .. math::
+
+            \mbox{sparse_dense}(dense_mat, sparse_mat)[m, n]
+            = \mbox{matmul}(\mbox{as_dense}(S), (D)^T)[m, n]
+
+    where `as_dense` returns dense equivalent of the given S(sparse matrix)
+    while performing matmul with given D(dense matrix).
 
     See
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html
@@ -2013,20 +2023,28 @@ def sparse_dense(data, weight):
 
     Parameters
     ----------
-    data : tvm.relay.Expr
-        The input data for the matrix multiplication
+    dense_mat : tvm.relay.Expr
+        The input dense matrix for the matrix multiplication
 
-    weight : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
-        The sparse weight matrix for the matrix multiplication.
+    sparse_mat : Union[namedtuple, Tuple[ndarray, ndarray, ndarray]].
+        The input sparse matrix for the matrix multiplication.
+
+    sparse_lhs : bool, optional
+        Indicates whether lhs or rhs matrix is sparse. Default value is False.
 
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    if hasattr(weight, "indices"):
-        return _make.sparse_dense(data, weight.data, weight.indices, weight.indptr)
-    return _make.sparse_dense(data, weight[0], weight[1], weight[2])
+    if hasattr(sparse_mat, "indices"):
+        return _make.sparse_dense(
+            dense_mat, sparse_mat.data, sparse_mat.indices, sparse_mat.indptr, sparse_lhs
+        )
+    else:
+        return _make.sparse_dense(
+            dense_mat, sparse_mat[0], sparse_mat[1], sparse_mat[2], sparse_lhs
+        )
 
 
 def sparse_transpose(x):
@@ -3158,3 +3176,64 @@ def correlation(
     return _make.correlation(
         data1, data2, kernel_size, max_displacement, stride1, stride2, padding, is_multiply, layout
     )
+
+
+def space_to_batch_nd(data, block_shape, paddings, pad_value=0):
+    r"""Divide spatial dimensions of the data into a grid of blocks
+    and interleave them into batch dim.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        N-D with shape [batch, spatial_shape, remaining_shape]
+
+    block_shape : relay.Expr
+        1-D of size [M] where M is number of spatial dims, specifies block size
+        for each spatial dimension.
+
+    paddings : relay.Expr
+        2-D of shape [M, 2] where M is number of spatial dims, specifies
+        [before, after] paddings for each spatial dimension.
+
+    pad_value : float, or relay.Expr, optional, default=0
+        The value used for padding.
+
+    Returns
+    -------
+    result : relay.Expr
+        N-D Tensor with shape
+        [in_batch * prod(block_shape),
+        padded_data[1] / block_shape[0], ..., padded_data[M] / block_shape[M-1],
+        remaining_shape]
+    """
+
+    return _make.space_to_batch_nd(data, block_shape, paddings, pad_value)
+
+
+def batch_to_space_nd(data, block_shape, crops):
+    r"""Reshape the batch dimension into spatial dimensions.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        N-D with shape [batch, spatial_shape, remaining_shape]
+
+    block_shape : relay.Expr
+        1-D of size [M] where M is number of spatial dims, specifies block size
+        for each spatial dimension.
+
+    crops : relay.Expr
+        2-D of shape [M, 2] where M is number of spatial dims, specifies
+        [begin, end] crop size for each spatial dimension.
+
+    Returns
+    -------
+    result : relay.Expr
+        N-D Tensor with shape
+        [batch / prod(block_shape),
+        in_shape[1] * block_shape[0] - crops[0,0] - crops[0,1], ...,
+        in_shape[M] * block_shape[M-1] - crops[M-1, 0] - crops[M-1, 1],
+        remaining_shape]
+    """
+
+    return _make.batch_to_space_nd(data, block_shape, crops)

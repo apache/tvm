@@ -436,8 +436,7 @@ def test_strided_slice():
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
 
 
-# TODO(mbrookhart): enable once vm supports heterogenous execution
-# @tvm.testing.uses_gpu
+@tvm.testing.uses_gpu
 def test_dyn_strided_slice():
     def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
         ndim = len(dshape)
@@ -468,7 +467,6 @@ def test_dyn_strided_slice():
             op_res = intrp.evaluate()(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
     verify(
         (1, 224, 224, 3),
         [0, 20, 20, 0],

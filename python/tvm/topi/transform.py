@@ -22,7 +22,7 @@ from tvm import te
 from tvm import topi
 from . import cpp
 from . import tag
-from .utils import within_index, make_idx
+from .utils import within_index, make_idx, const_vector
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -200,6 +200,20 @@ def strided_slice(a, begin, end, strides=None, slice_mode="end"):
     -------
     ret : tvm.te.Tensor
     """
+    if (
+        isinstance(begin, tvm.te.Tensor)
+        or isinstance(end, tvm.te.Tensor)
+        or isinstance(strides, tvm.te.Tensor)
+    ):
+        if not isinstance(begin, tvm.te.Tensor):
+            begin = const_vector(begin)
+        if not isinstance(end, tvm.te.Tensor):
+            end = const_vector(end)
+        if strides is None:
+            strides = [1] * begin.shape[0].value
+        if not isinstance(strides, tvm.te.Tensor):
+            strides = const_vector(strides)
+        return cpp.dynamic_strided_slice(a, begin, end, strides)
     if strides is None:
         strides = []
     return cpp.strided_slice(a, begin, end, strides, slice_mode)
@@ -410,6 +424,28 @@ def take(a, indices, axis=None, mode="clip"):
     if axis is None:
         return cpp.take(a, indices, mode)
     return cpp.take(a, indices, int(axis), mode)
+
+
+@tvm.target.generic_func
+def take_legalize(attrs, inputs, types):
+    """Legalizes dyn.topk op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    if tvm.relay.ty.is_dynamic(types[0]):
+        return tvm.relay.take(tvm.relay.annotation.stop_fusion(inputs[0]), inputs[1], **attrs)
+    return None
 
 
 def gather(data, axis, indices):

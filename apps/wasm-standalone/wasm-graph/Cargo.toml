@@ -22,7 +22,7 @@ authors = ["TVM Contributors"]
 edition = "2018"
 description = "WebAssembly graph to deep learning frameworks using TVM"
 readme = "README.md"
-repository = "https://github.com/apache/incubator-tvm"
+repository = "https://github.com/apache/tvm"
 license = "Apache-2.0"
 keywords = ["wasm", "machine learning", "tvm"]
 

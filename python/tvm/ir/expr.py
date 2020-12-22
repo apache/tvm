@@ -107,20 +107,23 @@ class Range(Node):
     end : Optional[PrimExpr]
         The end value of the range.
 
+    span : Optional[Span]
+        The location of this itervar in the source code.
+
     Note
     ----
     The constructor creates the range `[begin, end)`
     if the end argument is not None. Otherwise, it creates `[0, begin)`.
     """
 
-    def __init__(self, begin, end=None):
+    def __init__(self, begin, end=None, span=None):
         if end is None:
-            self.__init_handle_by_constructor__(_ffi_api.Range, 0, begin)
+            self.__init_handle_by_constructor__(_ffi_api.Range, 0, begin, span)
         else:
-            self.__init_handle_by_constructor__(_ffi_api.Range, begin, end)
+            self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
-    def from_min_extent(min_value, extent):
+    def from_min_extent(min_value, extent, span=None):
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)
@@ -133,9 +136,12 @@ class Range(Node):
         extent : PrimExpr
             The extent of the range.
 
+        span : Optional[Span]
+            The location of this itervar in the source code.
+
         Returns
         -------
         rng : Range
             The constructed range.
         """
-        return _ffi_api.Range_from_min_extent(min_value, extent)
+        return _ffi_api.Range_from_min_extent(min_value, extent, span)

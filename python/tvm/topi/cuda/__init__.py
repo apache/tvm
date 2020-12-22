@@ -55,3 +55,4 @@ from .conv2d_hwnc_tensorcore import *
 from .correlation import *
 from .sparse import *
 from . import tensorcore_alter_op
+from .argwhere import *

@@ -52,6 +52,8 @@ Expr MakeFull(Expr fill_value, Array<Integer> shape, DataType dtype);
 
 Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
 
+Expr MakeAutoSchedulerLayoutTransform(Expr data, String src_layout, String dst_layout);
+
 Expr MakeOnes(Array<Integer> shape, DataType dtype);
 
 Expr MakePad(Expr data, Array<Array<Integer>> pad_width, double pad_value, String pad_mode);
@@ -93,6 +95,8 @@ Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis
 
 Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
                 String coordinate_transformation_mode, DataType out_dtype);
+
+Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
 
 }  // namespace relay
 }  // namespace tvm

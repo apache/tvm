@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Auto-tuning a convolutional network for Mobile GPU
+Auto-tuning a Convolutional Network for Mobile GPU
 ==================================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Eddie Yan <https://github.com/eqy>`_
 
@@ -31,7 +31,7 @@ the best knob values for all required operators. When the TVM compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`Mobile GPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#mobile-gpu>`_
+`Mobile GPU Benchmark <https://github.com/apache/tvm/wiki/Benchmark#mobile-gpu>`_
 to see the results.
 
 Note that this tutorial will not run on Windows or recent versions of macOS. To
@@ -47,7 +47,7 @@ __name__ == "__main__":` block.
 #
 # .. code-block:: bash
 #
-#   pip3 install --user psutil xgboost tornado
+#   pip3 install --user psutil xgboost tornado cloudpickle
 #
 # To make TVM run faster during tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute
@@ -163,7 +163,7 @@ def get_network(name, batch_size):
 #   (replace :code:`[HOST_IP]` with the IP address of your host machine)
 #
 # * For Android:
-#   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/main/apps/android_rpc>`_ to
+#   Follow this `readme page <https://github.com/apache/tvm/tree/main/apps/android_rpc>`_ to
 #   install TVM RPC APK on the android device. Make sure you can pass the android RPC test.
 #   Then you have already registered your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.

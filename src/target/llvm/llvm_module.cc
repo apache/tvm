@@ -32,6 +32,7 @@
 
 #include "../../runtime/file_utils.h"
 #include "../../runtime/library_module.h"
+#include "../func_registry_generator.h"
 #include "codegen_blob.h"
 #include "codegen_llvm.h"
 #include "llvm_common.h"
@@ -59,6 +60,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     if (name == "__tvm_is_system_module") {
       bool flag = (mptr_->getFunction("__tvm_module_startup") != nullptr);
       return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
+    } else if (name == "get_func_names") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
+    } else if (name == "get_symbol") {
+      return PackedFunc(nullptr);
+    } else if (name == "get_const_vars") {
+      return PackedFunc(nullptr);
     } else if (name == "_get_target_triple") {
       std::string target_triple = tm_->getTargetTriple().str();
       // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
@@ -199,17 +207,33 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     std::vector<PrimFunc> funcs;
     std::string entry_func;
+    Map<String, LinkedParam> linked_params;
+    bool found_linked_params = false;
+    bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
     for (auto kv : mod->functions) {
-      ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+      if (could_have_linked_params &&
+          kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
+        Map<String, ObjectRef> attrs_dict =
+            Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
+        CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
+            << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
+        linked_params =
+            Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
+        found_linked_params = true;
+        continue;
+      }
+      ICHECK(kv.second->IsInstance<PrimFuncNode>())
+          << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       auto f = Downcast<PrimFunc>(kv.second);
+      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      ICHECK(global_symbol.defined());
+      function_names_.push_back(global_symbol.value());
       if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-        auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-        ICHECK(global_symbol.defined());
         entry_func = global_symbol.value();
       }
       funcs.push_back(f);
     }
-    ICHECK_NE(funcs.size(), 0U);
+    ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
@@ -222,6 +246,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       cg->AddMainFunction(entry_func);
     }
 
+    if (found_linked_params) {
+      cg->LinkParameters(linked_params);
+    }
     module_ = cg->Finish();
     module_->addModuleFlag(llvm::Module::Warning, "tvm_target",
                            llvm::MDString::get(*ctx_, LLVMTargetToString(target)));
@@ -358,6 +385,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   std::unique_ptr<llvm::Module> module_;
   // the context.
   std::shared_ptr<llvm::LLVMContext> ctx_;
+  /* \brief names of the functions declared in this module */
+  Array<String> function_names_;
 };
 
 TVM_REGISTER_GLOBAL("target.build.llvm")

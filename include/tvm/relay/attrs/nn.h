@@ -120,6 +120,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
+  std::string auto_scheduler_rewritten_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -937,7 +938,15 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
 
 /*! \brief Attributes for sparse_dense operator */
 struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
-  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {}
+  bool sparse_lhs;
+
+  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
+    TVM_ATTR_FIELD(sparse_lhs)
+        .set_default(false)
+        .describe(
+            "Indicate whether sparse matrix is multiplied on the right or the left. If true, then "
+            "the operation is S * D^T (D dense, S sparse). If false, the operation is D * S^T");
+  }
 };
 
 /*! \brief Attributes for sparse_transpose operator */
@@ -1323,6 +1332,34 @@ struct CorrelationAttrs : public tvm::AttrsNode<CorrelationAttrs> {
         "dimensions respectively.");
   }
 };  // struct CorrelationAttrs
+
+/*! \brief Attributes used in SpaceToBatchND operator */
+struct SpaceToBatchNDAttrs : public tvm::AttrsNode<SpaceToBatchNDAttrs> {
+  Array<Integer> block_shape;
+  Array<Array<IndexExpr>> paddings;
+  double pad_value;
+
+  TVM_DECLARE_ATTRS(SpaceToBatchNDAttrs, "relay.attrs.SpaceToBatchNDAttrs") {
+    TVM_ATTR_FIELD(block_shape)
+        .set_default(Array<Integer>({1, 1}))
+        .describe("1-D containing block size for each spatial dimension.");
+    TVM_ATTR_FIELD(paddings).describe("2-D containing paddings for each spatial dimension.");
+    TVM_ATTR_FIELD(pad_value).set_default(0.0).describe("The value used for padding.");
+  }
+};  // struct SpaceToBatchNDAttrs
+
+/*! \brief Attributes used in BatchToSpaceND operator */
+struct BatchToSpaceNDAttrs : public tvm::AttrsNode<BatchToSpaceNDAttrs> {
+  Array<Integer> block_shape;
+  Array<Array<IndexExpr>> crops;
+
+  TVM_DECLARE_ATTRS(BatchToSpaceNDAttrs, "relay.attrs.BatchToSpaceNDAttrs") {
+    TVM_ATTR_FIELD(block_shape)
+        .set_default(Array<Integer>({1, 1}))
+        .describe("1-D containing block size for each spatial dimension.");
+    TVM_ATTR_FIELD(crops).describe("2-D containing amount to crop from spatial dimension.");
+  }
+};  // struct BatchToSpaceNDAttrs
 
 }  // namespace relay
 }  // namespace tvm

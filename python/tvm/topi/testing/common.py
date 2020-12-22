@@ -17,8 +17,10 @@
 # pylint: disable=invalid-name
 """Common utility for topi test"""
 
+import numpy as np
 import tvm
 from tvm import topi
+from tvm.testing import assert_allclose
 
 _injective_schedule = {
     "generic": topi.generic.schedule_injective,
@@ -77,3 +79,32 @@ _conv2d_nchw_implement = {
 
 def get_conv2d_nchw_implement(target):
     return dispatch(target, _conv2d_nchw_implement)
+
+
+def compare_numpy_tvm(inputs, output, target, ctx, compute, schedule):
+    """Compare a numpy inputs and output of a function to the results of the TVM version.
+
+    Parameters
+    ----------
+    inputs : Sequence[numpy.nd.array]
+        List of input numpy arrays to pass to the function.
+    output : numpy.nd.array
+        Verified correct function output.
+    target : tvm.target.Target
+        Target to run on.
+    ctx : tvm.TVMContext
+        Context to run on.
+    compute : callable
+        Topi compute function to test against.
+    schedule : callable
+        Topi scheduling function to test against.
+    """
+    te_inputs = [tvm.te.placeholder(shape=i.shape, dtype=str(i.dtype)) for i in inputs]
+    te_out = tvm.nd.array(np.zeros(output.shape).astype(output.dtype), ctx=ctx)
+    with tvm.target.Target(target):
+        out = compute(*te_inputs)
+        s = schedule([out])
+        func = tvm.build(s, te_inputs + [out])
+        arys = [tvm.nd.array(x, ctx=ctx) for x in inputs]
+        func(*(arys + [te_out]))
+        assert_allclose(te_out.asnumpy(), output, atol=1e-4, rtol=1e-4)

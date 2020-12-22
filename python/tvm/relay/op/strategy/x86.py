@@ -20,6 +20,7 @@ import logging
 
 import re
 from tvm import topi
+from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.relay.ty import is_dynamic
 from .generic import *
@@ -117,15 +118,17 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
+            if not is_auto_scheduler_enabled():
+                logger.warning("conv2d NHWC layout is not optimized for x86 with autotvm.")
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.conv2d_nhwc),
+                wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
                 wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.x86",
             )
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
-            logger.warning("conv2d HWCN layout is not optimized for x86.")
+            if not is_auto_scheduler_enabled():
+                logger.warning("conv2d HWCN layout is not optimized for x86 with autotvm.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_hwcn),
                 wrap_topi_schedule(topi.generic.schedule_conv2d_hwcn),
@@ -158,7 +161,10 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             return depthwise_conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            logger.warning("depthwise_conv2d NHWC layout is not optimized for x86.")
+            if not is_auto_scheduler_enabled():
+                logger.warning(
+                    "depthwise_conv2d NHWC layout is not optimized for x86 with autotvm."
+                )
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
@@ -169,7 +175,8 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            logger.warning("group_conv2d is not optimized for x86.")
+            if not is_auto_scheduler_enabled():
+                logger.warning("group_conv2d is not optimized for x86 with autotvm.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
@@ -177,7 +184,8 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             )
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            logger.warning("group_conv2d is not optimized for x86.")
+            if not is_auto_scheduler_enabled():
+                logger.warning("group_conv2d is not optimized for x86 with autotvm.")
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nhwc, has_groups=True),
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nhwc),
@@ -444,5 +452,18 @@ def bitserial_dense_strategy_cpu(attrs, inputs, out_type, target):
         wrap_compute_bitserial_dense(topi.x86.bitserial_dense),
         wrap_topi_schedule(topi.x86.schedule_bitserial_dense),
         name="bitserial_dense.x86",
+    )
+    return strategy
+
+
+@scatter_nd_strategy.register("cpu")
+def scatter_nd_strategy_cpu(attrs, inputs, out_type, target):
+    """scatter_nd x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_scatter_nd(topi.x86.scatter_nd),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="scatter_nd.x86",
+        plevel=10,
     )
     return strategy

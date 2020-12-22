@@ -875,6 +875,20 @@ def test_tuple_return_value():
     parse_module(program)
 
 
+def test_parse_if_in_binding():
+    program = """
+    def @example(%b: bool) {
+        %0 = if (%b) {
+            1
+        } else {
+            0
+        };
+        %0
+    }
+    """
+    parse_module(program)
+
+
 def test_op_string_attr():
     call = parse_text(
         """

@@ -138,6 +138,17 @@ def softmax_abcd_auto_scheduler_test(a, b, c, d):
 
 
 @auto_scheduler.register_workload
+def invalid_compute_definition():
+    A = te.placeholder((10, 10), name="A")
+    # The names of the following two iterators are the same.
+    # This is invalid.
+    r1 = te.reduce_axis((0, 2), name="r1")
+    r2 = te.reduce_axis((0, 2), name="r1")
+    B = te.compute((10,), lambda i: te.sum(A[i][r1 + r2], axis=[r1, r2]), name="B")
+    return [A, B]
+
+
+@auto_scheduler.register_workload
 def conv2d_winograd_nhwc_auto_scheduler_test(
     N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1
 ):

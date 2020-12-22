@@ -73,8 +73,8 @@ Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
 
 TVM_REGISTER_NODE_TYPE(TupleNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields) {
-  return Tuple(fields);
+TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
+  return Tuple(fields, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -121,8 +121,8 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
 TVM_REGISTER_NODE_TYPE(CallNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Call")
-    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args) {
-      return Call(op, args, attrs, type_args);
+    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+      return Call(op, args, attrs, type_args, span);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

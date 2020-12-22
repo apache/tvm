@@ -189,6 +189,16 @@ class DynamicToStaticMutator : public MixedModeMutator {
            }
            return Expr(nullptr);
          }},
+        {Op::Get("dyn.sparse_to_dense"),
+         [](const CallNode* call_node) {
+           const ConstantNode* output_shape = call_node->args[3].as<ConstantNode>();
+           if (output_shape) {
+             ICHECK_EQ(output_shape->data->ndim, 1);
+             return MakeSparseToDense(call_node->args[0], ToVector(output_shape->data),
+                                      call_node->args[1], call_node->args[2]);
+           }
+           return Expr(nullptr);
+         }},
     };
   }
 

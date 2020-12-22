@@ -51,7 +51,7 @@ use enumn::N;
 use thiserror::Error;
 
 /// Device type represents the set of devices supported by
-/// [TVM](https://github.com/apache/incubator-tvm).
+/// [TVM](https://github.com/apache/tvm).
 ///
 /// ## Example
 ///

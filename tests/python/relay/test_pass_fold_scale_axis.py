@@ -311,6 +311,44 @@ def test_fold_fwd_relu_fail():
     check((2, 11, 10, 2, 2), 4, (2, 2), in_scale)
 
 
+def test_fold_fwd_let_fail():
+    """testcase where we canont fold"""
+
+    def before(x, conv_weight, in_bias, in_scale, channels):
+        args = [x, conv_weight, in_bias]
+        x = relay.multiply(x, in_scale)
+        x = relay.nn.relu(x)
+        x = relay.add(x, in_bias)
+        x_var = relay.Var("x_var")
+        y1 = relay.nn.conv2d(
+            x_var,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+            padding=(1, 1),
+        )
+        z = relay.add(y1, x)
+        let = relay.Let(x_var, x, z)
+        return relay.Function(args, let)
+
+    def check(shape, channels):
+        x = relay.var("x", shape=shape)
+        in_channels = shape[-1]
+        in_bias = relay.var("in_bias", shape=(in_channels,))
+        in_scale = relay.const(_get_positive_scale(size=(in_channels,)))
+        # test depthwise
+        assert in_channels == channels
+        weight = relay.var("weight")
+        y1 = before(x, weight, in_bias, in_scale, channels)
+        y1 = run_opt_pass(y1, transform.InferType())
+        y1_folded = run_opt_pass(y1, transform.ForwardFoldScaleAxis())
+        assert tvm.ir.structural_equal(y1, y1_folded)
+
+    check((2, 11, 10, 4), 4)
+
+
 def test_fold_fwd_negative_scale():
     """Testcase of folding negative scale"""
 

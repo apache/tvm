@@ -55,20 +55,23 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   return Downcast<PrimExpr>(ref);
 }
 
-IntImm::IntImm(DataType dtype, int64_t value) {
-  ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar.";
-  ICHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm supports only int or uint type.";
+IntImm::IntImm(DataType dtype, int64_t value, Span span) {
+  ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype
+                            << " was supplied.";
+  ICHECK(dtype.is_int() || dtype.is_uint())
+      << "ValueError: IntImm supports only int or uint type, but " << dtype << " was supplied.";
   if (dtype.is_uint()) {
     ICHECK_GE(value, 0U);
   }
   ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
   node->dtype = dtype;
   node->value = value;
+  node->span = span;
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value) {
-  return IntImm(dtype, value);
+TVM_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value, Span span) {
+  return IntImm(dtype, value, span);
 });
 
 TVM_REGISTER_NODE_TYPE(IntImmNode);
@@ -83,16 +86,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
-FloatImm::FloatImm(DataType dtype, double value) {
+FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;
+  node->span = span;
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double value) {
-  return FloatImm(dtype, value);
+TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double value, Span span) {
+  return FloatImm(dtype, value, span);
 });
 
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
@@ -116,17 +120,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
-Range::Range(PrimExpr begin, PrimExpr end)
-    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin))) {}
+Range::Range(PrimExpr begin, PrimExpr end, Span span)
+    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
-Range Range::FromMinExtent(PrimExpr min, PrimExpr extent) {
-  return Range(make_object<RangeNode>(min, extent));
+Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
+  return Range(make_object<RangeNode>(min, extent, span));
 }
 
 TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
 TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Range(args[0], args[1]);
+  *ret = Range(args[0], args[1], args[2]);
 });
 
 TVM_REGISTER_NODE_TYPE(RangeNode);

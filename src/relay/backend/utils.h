@@ -160,8 +160,7 @@ inline std::vector<int64_t> GetIntShape(const Array<IndexExpr>& shape) {
   std::vector<int64_t> ret;
   for (const auto& dim : shape) {
     const int64_t* pval = tir::as_const_int(dim);
-    ICHECK(pval) << "Expect integer, but received: " << dim->GetTypeKey();
-    ret.push_back(*pval);
+    ret.push_back(pval ? *pval : -1);
   }
   return ret;
 }
@@ -293,6 +292,15 @@ inline std::string GetExtSymbol(const Function& func) {
   const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
+}
+
+/*!
+ * \brief Return whether the auto scheduler is enabled in the pass context.
+ */
+inline bool IsAutoSchedulerEnabled() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
+      .value();
 }
 
 }  // namespace backend

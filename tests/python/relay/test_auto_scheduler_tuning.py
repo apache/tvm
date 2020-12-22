@@ -23,26 +23,24 @@ from tvm import auto_scheduler, relay
 from test_auto_scheduler_task_extraction import get_network
 
 
-@tvm.testing.requires_cuda
-def test_tuning_cuda():
-    auto_scheduler.enable_relay_integration()
-
+def tune_network(network, target):
     # Extract tasks
-    mod, params = get_network("mlp")
-    target = tvm.target.Target("cuda")
+    mod, params = get_network(network)
+    target = tvm.target.Target(target)
     tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
-    objective = lambda costs: sum(c * w for c, w in zip(costs, task_weights))
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
 
         # Tuning
-        measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=100)
-        tuner = auto_scheduler.TaskScheduler(tasks, objective)
+        measure_ctx = auto_scheduler.LocalRPCMeasureContext(timeout=60)
+        tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
         tune_option = auto_scheduler.TuningOptions(
-            num_measure_trials=2,
-            num_measures_per_round=1,
+            num_measure_trials=100,
+            num_measures_per_round=2,
+            early_stopping=1,
             runner=measure_ctx.runner,
+            builder=auto_scheduler.LocalBuilder(timeout=60),
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         tuner.tune(tune_option, search_policy="sketch.random")
@@ -50,12 +48,20 @@ def test_tuning_cuda():
 
         # Compile with the history best
         with auto_scheduler.ApplyHistoryBest(log_file):
-            with tvm.transform.PassContext(opt_level=3):
+            with tvm.transform.PassContext(
+                opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+            ):
                 lib = relay.build(mod, target=target, params=params)
 
-    # Todo(merrymercy): compile without any history to test the fallback mechanism
+    # Todo(merrymercy): when the cpu backend is upstreamed, do the following things:
+    # 1. compile without history to test the fallback mechanism
+    # 2. check the correctness of layout rewrite / winograd pre-transform
 
-    auto_scheduler.enable_relay_integration(False)
+
+@tvm.testing.requires_cuda
+def test_tuning_cuda():
+    tune_network("mlp", "cuda")
+    tune_network("winograd-test", "cuda")
 
 
 if __name__ == "__main__":

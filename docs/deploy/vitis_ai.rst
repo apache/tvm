@@ -101,11 +101,11 @@ Hardware setup and docker build
    .. code:: bash
 
       git clone --recurse-submodules https://github.com/Xilinx/Vitis-AI
-   
+
 2. Install Docker, and add the user to the docker group. Link the user
    to docker installation instructions from the following docker's
    website:
-   
+
 
    -  https://docs.docker.com/install/linux/docker-ce/ubuntu/
    -  https://docs.docker.com/install/linux/docker-ce/centos/
@@ -114,11 +114,11 @@ Hardware setup and docker build
 3. Download the latest Vitis AI Docker with the following command. This container runs on CPU.
 
    .. code:: bash
-      
+
       docker pull xilinx/vitis-ai:latest
-    
+
    To accelerate the quantization, you can optionally use the Vitis-AI GPU docker image. Use the below commands to build the Vitis-AI GPU docker container:
-   
+
    .. code:: bash
 
       cd Vitis-AI/docker
@@ -141,32 +141,32 @@ Hardware setup and docker build
    -  Run the following commands:
 
       .. code:: bash
-      
+
          cd Vitis-AI/alveo/packages
          sudo su
          ./install.sh
-      
+
    -  Power cycle the system.
-   
+
 5. Clone tvm repo and pyxir repo
 
    .. code:: bash
-     
-      git clone --recursive https://github.com/apache/incubator-tvm.git
+
+      git clone --recursive https://github.com/apache/tvm.git
       git clone --recursive https://github.com/Xilinx/pyxir.git
-   
+
 6. Build and start the tvm runtime Vitis-AI Docker Container.
 
    .. code:: bash
 
-      ./incubator-tvm/docker/build.sh demo_vitis_ai bash
-      ./incubator-tvm/docker/bash.sh tvm.demo_vitis_ai
-	  
+      ./tvm/docker/build.sh demo_vitis_ai bash
+      ./tvm/docker/bash.sh tvm.demo_vitis_ai
+
       #Setup inside container
       source /opt/xilinx/xrt/setup.sh
       . $VAI_ROOT/conda/etc/profile.d/conda.sh
       conda activate vitis-ai-tensorflow
-      
+
 7. Install PyXIR
 
    .. code:: bash
@@ -174,27 +174,27 @@ Hardware setup and docker build
      cd pyxir
      python3 setup.py install --use_vai_rt_dpucadx8g --user
 
-   
+
 8. Build TVM inside the container with Vitis-AI
 
    .. code:: bash
 
-      cd incubator-tvm
+      cd tvm
       mkdir build
       cp cmake/config.cmake build
-      cd build  
+      cd build
       echo set\(USE_LLVM ON\) >> config.cmake
       echo set\(USE_VITIS_AI ON\) >> config.cmake
       cmake ..
       make -j$(nproc)
-   
+
 9.  Install TVM
 
     .. code:: bash
 
-      cd incubator-tvm/python
+      cd tvm/python
       pip3 install -e . --user
-      
+
 Edge (DPUCZDX8G)
 ^^^^^^^^^^^^^^^^
 
@@ -238,19 +238,19 @@ Host setup and docker build
 
    .. code:: bash
 
-      git clone --recursive https://github.com/apache/incubator-tvm.git
+      git clone --recursive https://github.com/apache/tvm.git
 2. Build and start the tvm runtime Vitis-AI Docker Container.
 
    .. code:: bash
 
-      cd incubator-tvm 
-      ./incubator-tvm/docker/build.sh demo_vitis_ai bash
-      ./incubator-tvm/docker/bash.sh tvm.demo_vitis_ai
-   
+      cd tvm
+      ./tvm/docker/build.sh demo_vitis_ai bash
+      ./tvm/docker/bash.sh tvm.demo_vitis_ai
+
       #Setup inside container
       . $VAI_ROOT/conda/etc/profile.d/conda.sh
       conda activate vitis-ai-tensorflow
-   
+
 3. Install PyXIR
 
    .. code:: bash
@@ -258,13 +258,13 @@ Host setup and docker build
       git clone --recursive https://github.com/Xilinx/pyxir.git
       cd pyxir
       python3 setup.py install --user
-   
-   
+
+
 4. Build TVM inside the container with Vitis-AI.
 
    .. code:: bash
 
-      cd incubator-tvm 
+      cd tvm
       mkdir build
       cp cmake/config.cmake build
       cd build
@@ -272,12 +272,12 @@ Host setup and docker build
       echo set\(USE_VITIS_AI ON\) >> config.cmake
       cmake ..
       make -j$(nproc)
-   
+
 5. Install TVM
 
    .. code:: bash
 
-      cd incubator-tvm/python
+      cd tvm/python
       pip3 install -e . --user
 
 Edge requirements
@@ -299,10 +299,10 @@ platform. The following development boards can be used out-of-the-box:
 
 Edge hardware setup
 ^^^^^^^^^^^^^^^^^^^
-.. note:: 
+.. note::
 
-  This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but 
-  Petalinux based flows are also supported. 
+  This section provides instructions for setting up with the `Pynq <http://www.pynq.io/>`__ platform but
+  Petalinux based flows are also supported.
 
 1. Download the Pynq v2.5 image for your target (use Z1 or Z2 for
    Ultra96 target depending on board version) Link to image:
@@ -318,7 +318,7 @@ Edge hardware setup
    .. code:: bash
 
      python3 -c 'from pynq_dpu import DpuOverlay ; overlay = DpuOverlay("dpu.bit")'
-  
+
 6. Check whether the DPU kernel is alive:
 
    .. code:: bash
@@ -328,10 +328,10 @@ Edge hardware setup
 Edge TVM setup
 ^^^^^^^^^^^^^^
 
-.. note:: 
+.. note::
 
-  When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building     
-  hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or 
+  When working on Petalinux instead of Pynq, the following steps might take more manual work (e.g building
+  hdf5 from source). Also, TVM has a scipy dependency which you then might have to build from source or
   circumvent. We don't depend on scipy in our flow.
 
 Building TVM depends on the Xilinx
@@ -344,7 +344,7 @@ interface between TVM and Vitis-AI tools.
 
       apt-get install libhdf5-dev
       pip3 install pydot h5py
-      
+
 2. Install PyXIR
 
    .. code:: bash
@@ -352,25 +352,25 @@ interface between TVM and Vitis-AI tools.
       git clone --recursive https://github.com/Xilinx/pyxir.git
       cd pyxir
       sudo python3 setup.py install --use_vai_rt_dpuczdx8g
-   
+
 3. Build TVM with Vitis-AI
 
    .. code:: bash
 
-      git clone --recursive https://github.com/apache/incubator-tvm
-      cd incubator-tvm
+      git clone --recursive https://github.com/apache/tvm
+      cd tvm
       mkdir build
       cp cmake/config.cmake build
       cd build
       echo set\(USE_VITIS_AI ON\) >> config.cmake
-      cmake ..     
+      cmake ..
       make
-   
+
 4. Install TVM
 
    .. code:: bash
 
-      cd incubator-tvm/python
+      cd tvm/python
       pip3 install -e . --user
 
 5. Check whether the setup was successful in the Python shell:
@@ -467,7 +467,7 @@ build call.
    tvm_target = 'llvm'
    target='DPUCADX8G'
 
-   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target}):   
+   with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target}):
       lib = relay.build(mod, tvm_target, params=params)
 
 As one more step before we can accelerate a model with Vitis-AI in TVM
@@ -488,7 +488,7 @@ will take a substantial amount of time.
    # be executed on the CPU
    # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
    for i in range(128):
-      module.set_input(input_name, inputs[i]) 
+      module.set_input(input_name, inputs[i])
       module.run()
 
 Afterwards, inference will be accelerated on the DPU.
@@ -563,11 +563,11 @@ The Vitis-AI target is DPUCZDX8G-zcu104 as we are targeting the edge DPU
 on the ZCU104 board and this target is passed as a config to the TVM
 build call. Note that different identifiers can be passed for different
 targets, see `edge targets info <#edge-requirements>`__. Additionally, we
-provide the 'export_runtime_module' config that points to a file to which we 
+provide the 'export_runtime_module' config that points to a file to which we
 can export the Vitis-AI runtime module. We have to do this because we will
 first be compiling and quantizing the model on the host machine before building
-the model for edge deployment. As you will see later on, the exported runtime 
-module will be passed to the edge build so that the Vitis-AI runtime module 
+the model for edge deployment. As you will see later on, the exported runtime
+module will be passed to the edge build so that the Vitis-AI runtime module
 can be included.
 
 .. code:: python
@@ -575,17 +575,17 @@ can be included.
    from tvm.contrib import util
 
    temp = util.tempdir()
-   
+
    tvm_target = 'llvm'
    target='DPUCZDX8G-zcu104'
    export_rt_mod_file = temp.relpath("vitis_ai.rtmod")
-  
+
    with tvm.transform.PassContext(opt_level=3, config= {'relay.ext.vitis_ai.options.target': target,
-   						        'relay.ext.vitis_ai.options.export_runtime_module': export_rt_mod_file}):   
+   						        'relay.ext.vitis_ai.options.export_runtime_module': export_rt_mod_file}):
       lib = relay.build(mod, tvm_target, params=params)
-      
-We will quantize and compile the model for execution on the DPU using on-the-fly 
-quantization on the host machine. This makes use of TVM inference calls 
+
+We will quantize and compile the model for execution on the DPU using on-the-fly
+quantization on the host machine. This makes use of TVM inference calls
 (module.run) to quantize the model on the host with the first N inputs.
 
 .. code:: python
@@ -596,10 +596,10 @@ quantization on the host machine. This makes use of TVM inference calls
    # be executed on the CPU
    # This config can be changed by setting the 'PX_QUANT_SIZE' (e.g. export PX_QUANT_SIZE=64)
    for i in range(128):
-      module.set_input(input_name, inputs[i]) 
+      module.set_input(input_name, inputs[i])
       module.run()
-      
-Save the TVM lib module so that the Vitis-AI runtime module will also be exported 
+
+Save the TVM lib module so that the Vitis-AI runtime module will also be exported
 (to the 'export_runtime_module' path we previously passed as a config).
 
 .. code:: python
@@ -609,9 +609,9 @@ Save the TVM lib module so that the Vitis-AI runtime module will also be exporte
    temp = util.tempdir()
    lib.export_library(temp.relpath("tvm_lib.so"))
 
-After quantizing and compiling the model for Vitis-AI acceleration using the 
-first N inputs we can build the model for execution on the ARM edge device. 
-Here we pass the previously exported Vitis-AI runtime module so it can be included 
+After quantizing and compiling the model for Vitis-AI acceleration using the
+first N inputs we can build the model for execution on the ARM edge device.
+Here we pass the previously exported Vitis-AI runtime module so it can be included
 in the TVM build.
 
 .. code:: python
@@ -637,7 +637,7 @@ section.
 Edge steps
 ^^^^^^^^^^
 
-After setting up TVM with Vitis-AI on the edge device, you can now load 
+After setting up TVM with Vitis-AI on the edge device, you can now load
 the TVM runtime module into memory and feed inputs for inference.
 
 .. code:: python

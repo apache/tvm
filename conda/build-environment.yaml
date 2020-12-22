@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Build environment.
+# Build environment that can be used to build tvm.
 name: tvm-build
 
+# The conda channels to lookup the dependencies
 channels:
   - anaconda
   - conda-forge
 
+# The packages to install to the environment
 dependencies:
   - conda-build
   - git

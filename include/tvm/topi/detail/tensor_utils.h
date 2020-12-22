@@ -89,6 +89,43 @@ inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>&
          D * x_lerp * y_lerp;
 }
 
+/*!
+ * \brief Sample a point in a tensor using bilinear interpolation.
+ *
+ * \param input The input tensor.
+ * \param indices The index of the target point, which can be fractional
+ * \param max_y The maximum of y dimension
+ * \param max_x The maximum of x dimension
+ *
+ * \return The interpolated value in the given index.
+ */
+inline PrimExpr bilinear_sample_nhwc(const Tensor& input, const Array<PrimExpr>& indices,
+                                     const PrimExpr max_y, const PrimExpr max_x) {
+  auto in_y = indices[1];
+  auto yf = tvm::floor(in_y);
+  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
+
+  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
+  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
+  auto y_lerp = in_y - yf;
+
+  auto in_x = indices[2];
+  auto xf = tvm::floor(in_x);
+  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
+
+  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
+  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
+  auto x_lerp = in_x - xf;
+
+  auto A = input(indices[0], y0, x0, indices[3]);
+  auto B = input(indices[0], y0, x1, indices[3]);
+  auto C = input(indices[0], y1, x0, indices[3]);
+  auto D = input(indices[0], y1, x1, indices[3]);
+
+  return A * (1 - x_lerp) * (1 - y_lerp) + B * x_lerp * (1 - y_lerp) + C * (1 - x_lerp) * y_lerp +
+         D * x_lerp * y_lerp;
+}
+
 }  // namespace detail
 }  // namespace topi
 }  // namespace tvm

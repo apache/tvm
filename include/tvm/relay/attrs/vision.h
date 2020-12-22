@@ -73,14 +73,12 @@ struct MultiBoxTransformLocAttrs : public tvm::AttrsNode<MultiBoxTransformLocAtt
 
 /*! \brief Attributes used in get_valid_counts operator */
 struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
-  double score_threshold;
+  Optional<FloatImm> score_threshold;
   int id_index;
   int score_index;
 
   TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
-    TVM_ATTR_FIELD(score_threshold)
-        .set_default(0.0)
-        .describe("Lower limit of score for valid bounding boxes.");
+    TVM_ATTR_FIELD(score_threshold).describe("Lower limit of score for valid bounding boxes.");
     TVM_ATTR_FIELD(id_index).set_default(0).describe("Axis index of id.");
     TVM_ATTR_FIELD(score_index).set_default(1).describe("Index of the scores/confidence of boxes.");
   }
@@ -89,7 +87,7 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
 /*! \brief Attributes used in non_maximum_suppression operator */
 struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
   Optional<Integer> max_output_size;
-  double iou_threshold;
+  Optional<FloatImm> iou_threshold;
   bool force_suppress;
   int top_k;
   int coord_start;
@@ -100,9 +98,7 @@ struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionA
 
   TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
     TVM_ATTR_FIELD(max_output_size).describe("Max number of output valid boxes for each instance.");
-    TVM_ATTR_FIELD(iou_threshold)
-        .set_default(0.5)
-        .describe("Non-maximum suppression iou threshold.");
+    TVM_ATTR_FIELD(iou_threshold).describe("Non-maximum suppression iou threshold.");
     TVM_ATTR_FIELD(force_suppress)
         .set_default(false)
         .describe("Suppress all detections regardless of class_id.");

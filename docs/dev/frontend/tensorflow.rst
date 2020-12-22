@@ -57,7 +57,7 @@ Export
 
 TensorFlow frontend expects a frozen protobuf (.pb) or saved model as input. It currently does not support checkpoint (.ckpt). The graphdef needed by the TensorFlow frontend can be extracted from the active session, or by using the `TFParser`_ helper class.
 
-.. _TFParser: https://github.com/apache/incubator-tvm/blob/main/python/tvm/relay/frontend/tensorflow_parser.py
+.. _TFParser: https://github.com/apache/tvm/blob/main/python/tvm/relay/frontend/tensorflow_parser.py
 
 The model should be exported with a number of transformations to prepare the model for inference. It is also important to set ```add_shapes=True```, as this will embed the output shapes of each node into the graph. Here is one function to export a model as a protobuf given a session:
 
@@ -101,7 +101,7 @@ Import the Model
 Explicit Shape:
 ~~~~~~~~~~~~~~~
 
-To ensure shapes can be known throughout the entire graph, pass the ```shape``` argument to ```from_tensorflow```. This dictionary maps input names to input shapes. Please refer to these `test cases <https://github.com/apache/incubator-tvm/blob/main/tests/python/frontend/tensorflow/test_forward.py#L36>`_ for examples.
+To ensure shapes can be known throughout the entire graph, pass the ```shape``` argument to ```from_tensorflow```. This dictionary maps input names to input shapes. Please refer to these `test cases <https://github.com/apache/tvm/blob/main/tests/python/frontend/tensorflow/test_forward.py#L36>`_ for examples.
 
 Data Layout
 ~~~~~~~~~~~

@@ -227,6 +227,7 @@ Second example is for a lightly-layout sensitive operator - batch normalization.
 ********
 4. Usage
 ********
+.. _convert-layout-usage:
 
 ConvertLayout pass is extremely easy to use. The pass is not a part of default relay.build pipeline. The intended usage is to call it between the framework-to-relay parser and relay.build module call.
 
@@ -264,5 +265,5 @@ The ordering of the layouts is defined by the implementation of `register_conver
 
 Current implementation has support for almost all the operators commonly used in image classification models. However, if one encounters too many data layout transforms in the graph, it is highly likely that there is an operator whose layouts need special handling as described in Section 3. Some pull requests that can help in such a situation are
 
-- Layout inference for `Batch Norm <https://github.com/apache/incubator-tvm/pull/4600>`_ - Batch normalization falls into the category of lightly-sensitive operator. The PR shows how to handle the layout inference for batch norm.
-- Python Callback for `Convolution <https://github.com/apache/incubator-tvm/pull/4335>`_- For highly-sensitive operators, one might have to do python callback as well. The PR shows how to define a python callback function for Convolution operator.
+- Layout inference for `Batch Norm <https://github.com/apache/tvm/pull/4600>`_ - Batch normalization falls into the category of lightly-sensitive operator. The PR shows how to handle the layout inference for batch norm.
+- Python Callback for `Convolution <https://github.com/apache/tvm/pull/4335>`_- For highly-sensitive operators, one might have to do python callback as well. The PR shows how to define a python callback function for Convolution operator.

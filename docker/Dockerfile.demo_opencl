@@ -62,7 +62,7 @@ RUN echo "Cloning TVM source & submodules"
 ENV TVM_PAR_DIR="/usr"
 RUN mkdir -p TVM_PAR_DIR && \
 	cd ${TVM_PAR_DIR} && \
-	git clone --depth=1 https://github.com/apache/incubator-tvm tvm --recursive
+	git clone --depth=1 https://github.com/apache/tvm tvm --recursive
 #RUN git submodule update --init --recursive
 
 

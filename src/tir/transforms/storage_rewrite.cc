@@ -86,7 +86,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
-    ICHECK(it != alloc_info_.end());
+    ICHECK(it != alloc_info_.end()) << "Could not find buffer `" << buf->name_hint
+                                    << "` in the list of allocated buffers. Perhaps you are "
+                                       "missing a storage_scope attr for this buffer.";
     ICHECK(it->second.alloc == nullptr);
     it->second.alloc = op;
     it->second.level = level;
@@ -552,11 +554,10 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
         }
 
-        auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
-
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          PrimExpr sz = foldl(fmul, make_const(DataType::Int(32), 1), e->allocs[0]->extents);
+          PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                              make_const(DataType::Int(32), 1), e->allocs[0]->extents);
           e->new_alloc =
               Allocate(e->alloc_var, alloc_type, {sz}, e->allocs[0]->condition, Evaluate(0));
           if (e->scope.tag.length() != 0) {
@@ -569,7 +570,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            PrimExpr sz = foldl(fmul, make_const(DataType::Int(32), 1), op->extents);
+            PrimExpr sz = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                                make_const(DataType::Int(32), 1), op->extents);
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {

@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <tvm/runtime/crt/error_codes.h>
 
 enum {
   JSON_READ_TYPE_U8 = 1,
@@ -80,14 +81,23 @@ typedef struct JSONReader {
   void (*BeginObject)(struct JSONReader* reader);
   uint8_t (*NextObjectItem)(struct JSONReader* reader, char* out_key, size_t out_key_size);
   uint8_t (*NextArrayItem)(struct JSONReader* reader);
+  int (*ArrayLength)(struct JSONReader* reader, size_t* num_elements);
 } JSONReader;
 
 /*!
  * \brief Constructor of JSONReader class
  * \param is the input source.
+ * \param reader Pointer to the JSONReader to initialize.
+ * \return kTvmErrorNoError on success.
  */
-JSONReader JSONReader_Create(const char* is);
+tvm_crt_error_t JSONReader_Create(const char* is, JSONReader* reader);
 
-void JSONReader_Release(JSONReader* reader);
+/*!
+ * \brief Deallocate dynamic memory used in the JSONReader instance.
+ * NOTE: this doesn't actually free the passed-in reader itself, just dynamically-allocated members.
+ * \param reader Pointer to a JSONReader passed to JSONReader_Create.
+ * \return kTvmErrorNoError on success.
+ */
+tvm_crt_error_t JSONReader_Release(JSONReader* reader);
 
 #endif  // TVM_RUNTIME_CRT_INCLUDE_TVM_RUNTIME_CRT_INTERNAL_GRAPH_RUNTIME_LOAD_JSON_H_
