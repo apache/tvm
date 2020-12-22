@@ -175,48 +175,6 @@ class ModulePass;
  * at this level have the full control of a given Relay program including
  * addition and deletion of functions.
  */
-class ModulePassNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief The pass function sketches the real optimization. For example,
-   * we may need to perform dead code elimination on the module level. We could
-   * implement the algorithm in the `pass_func` and let it run on a module. It
-   * will then remove the dead code including the unused functions in the module.
-   */
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func;
-
-  ModulePassNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
-
-  /*!
-   * \brief Run a module pass on given pass context.
-   *
-   * \param mod The module that an optimization pass is applied on.
-   * \param mod The context that an optimization pass executes on.
-   *
-   * \return Return the updated module.
-   */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "transform.ModulePass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModulePassNode, PassNode);
-};
-
-class ModulePass : public Pass {
- public:
-  ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-             PassInfo pass_info);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
-};
 
 /*!
  * \brief The SequentialNode contains a set of passes that transform Relay

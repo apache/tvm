@@ -279,11 +279,12 @@ void ReportAt(const DiagnosticContext& context, std::ostream& out, const Span& s
 // TODO(@jroesch): eventually modularize the rendering interface to provide control of how to
 // format errors.
 DiagnosticRenderer TerminalRenderer(std::ostream& out) {
-  return DiagnosticRenderer([&](const DiagnosticContext& ctx) {
-    for (auto diagnostic : ctx->diagnostics) {
-      ReportAt(ctx, out, diagnostic->span, diagnostic);
-    }
-  });
+  return DiagnosticRenderer({[&](const DiagnosticContext& ctx) {
+                               for (auto diagnostic : ctx->diagnostics) {
+                                 ReportAt(ctx, out, diagnostic->span, diagnostic);
+                               }
+                             },
+                             "TerminalRenderer"});
 }
 
 TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cout); });
