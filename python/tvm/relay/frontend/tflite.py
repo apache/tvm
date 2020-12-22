@@ -325,6 +325,7 @@ class OperatorConverter(object):
             return {
                 TensorType.UINT8: np.uint8,
                 TensorType.INT8: np.int8,
+                TensorType.FLOAT16: np.float16,
                 TensorType.FLOAT32: np.float32,
                 TensorType.INT32: np.int32,
                 TensorType.INT64: np.int64,
@@ -362,6 +363,8 @@ class OperatorConverter(object):
             return "int8"
         if tensor_type == TensorType.UINT8:
             return "uint8"
+        if tensor_type == TensorType.FLOAT16:
+            return "float16"
         if tensor_type == TensorType.FLOAT32:
             return "float32"
         if tensor_type == TensorType.INT32:
@@ -1991,20 +1994,33 @@ class OperatorConverter(object):
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
-        weight_value = self.get_tensor_value(weight_tensor)
 
-        # TFLite kernel layout:
-        # convolution:
-        # OC KH KW IC, we require KH KW IC OC (HWIO)
-        # depthwise convolution:
-        # 1 KH KW C(input_c * depth_multiplier), we require
-        # KH KW IC M (depth_multiplier) (HWOI)
-        if is_depthwise_conv:
-            weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+        # TFLite converts float32 models to float16 models by introducing
+        # a Dequantize op in every op that contains a float32 values.
+        # (weights, biases, and constants etc. )
+        # So conv op may have weight and bias as tensors instead of values.
+        if self.has_expr(weight_tensor.tensor_idx):
+            weight_expr = self.get_expr(weight_tensor.tensor_idx)
+            if is_depthwise_conv:
+                weight_expr = _op.reshape(
+                    weight_expr, (kernel_h, kernel_w, input_c, depth_multiplier)
+                )
+            else:
+                weight_expr = _op.transpose(weight_expr, axes=(1, 2, 3, 0))
         else:
-            weight_value = weight_value.transpose((1, 2, 3, 0))
+            weight_value = self.get_tensor_value(weight_tensor)
+            # TFLite kernel layout:
+            # convolution:
+            # OC KH KW IC, we require KH KW IC OC (HWIO)
+            # depthwise convolution:
+            # 1 KH KW C(input_c * depth_multiplier), we require
+            # KH KW IC M (depth_multiplier) (HWOI)
+            if is_depthwise_conv:
+                weight_value = weight_value.reshape(kernel_h, kernel_w, input_c, depth_multiplier)
+            else:
+                weight_value = weight_value.transpose((1, 2, 3, 0))
 
-        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
+            weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
         if padding == Padding.VALID:
             pass
@@ -2039,9 +2055,12 @@ class OperatorConverter(object):
             # bias tensor type should be INT32 (quantization) or FLOAT32
             assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(
-                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
-            )
+            if self.has_expr(bias_tensor.tensor_idx):
+                bias_expr = self.get_expr(bias_tensor.tensor_idx)
+            else:
+                bias_expr = self.exp_tab.new_const(
+                    self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+                )
             channel_axis = 3
             out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
@@ -2870,10 +2889,22 @@ class OperatorConverter(object):
 
     def convert_dequantize(self, op):
         """Convert TFLite Dequantize"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
+
+        if input_tensor.tensor.Type() == TensorType.FLOAT16:
+            dtype = self.get_tensor_type_str(input_tensor.tensor.Type())
+            input_value = self.get_tensor_value(input_tensor)
+            in_expr = self.exp_tab.new_const(input_value, dtype=dtype)
+            out = relay.cast(in_expr, dtype="float32")
+            return out
+
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
         # The input must be quantized

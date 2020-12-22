@@ -95,6 +95,7 @@ _CRT_GENERATED_LIB_OPTIONS = copy.copy(_CRT_DEFAULT_OPTIONS)
 #   void* arg0 = (((TVMValue*)args)[0].v_handle);
 #   int32_t arg0_code = ((int32_t*)arg_type_ids)[(0)];
 _CRT_GENERATED_LIB_OPTIONS["cflags"].append("-Wno-unused-variable")
+_CRT_GENERATED_LIB_OPTIONS["ccflags"].append("-Wno-unused-variable")
 
 
 # Many TVM-intrinsic operators (i.e. expf, in particular)
@@ -159,9 +160,6 @@ def build_static_runtime(
     mod_build_dir = workspace.relpath(os.path.join("build", "module"))
     os.makedirs(mod_build_dir)
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))
-    os.makedirs(mod_src_dir)
-    mod_src_path = os.path.join(mod_src_dir, "module.c")
-    module.save(mod_src_path, "cc")
 
     libs = []
     for mod_or_src_dir in (extra_libs or []) + RUNTIME_LIB_SRC_DIRS:
@@ -181,7 +179,15 @@ def build_static_runtime(
 
         libs.append(compiler.library(lib_build_dir, lib_srcs, lib_opts))
 
-    libs.append(compiler.library(mod_build_dir, [mod_src_path], generated_lib_opts))
+    mod_src_dir = workspace.relpath(os.path.join("src", "module"))
+    os.makedirs(mod_src_dir)
+    libs.append(
+        module.export_library(
+            mod_build_dir,
+            workspace_dir=mod_src_dir,
+            fcompile=lambda bdir, srcs, **kwargs: compiler.library(bdir, srcs, generated_lib_opts),
+        )
+    )
 
     runtime_build_dir = workspace.relpath(f"build/runtime")
     os.makedirs(runtime_build_dir)

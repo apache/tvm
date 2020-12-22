@@ -53,6 +53,8 @@ def test_sort():
         verify_sort((2, 3, 4), axis=0, is_ascend=False, is_dyn=is_dyn)
         verify_sort((1, 4, 6), axis=1, is_ascend=True, is_dyn=is_dyn)
         verify_sort((3, 5, 6), axis=-1, is_ascend=False, is_dyn=is_dyn)
+        verify_sort((3, 2000, 6), axis=1, is_ascend=False, is_dyn=is_dyn)
+        verify_sort((1, 122640), axis=1, is_ascend=False, is_dyn=is_dyn)
 
 
 @tvm.testing.uses_gpu
@@ -66,9 +68,9 @@ def test_argsort():
         func = relay.Function([x], z)
         x_data = np.random.uniform(size=shape).astype("float32")
         if is_ascend:
-            ref_res = np.argsort(x_data, axis=axis)
+            ref_res = np.argsort(x_data, axis=axis, kind="stable")
         else:
-            ref_res = np.argsort(-x_data, axis=axis)
+            ref_res = np.argsort(-x_data, axis=axis, kind="stable")
 
         if is_dyn:
             backends = ["vm", "debug"]
@@ -86,6 +88,8 @@ def test_argsort():
             verify_argsort((2, 3, 4), axis=0, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
             verify_argsort((1, 4, 6), axis=1, is_ascend=True, dtype=dtype, is_dyn=is_dyn)
             verify_argsort((3, 5, 6), axis=-1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+            verify_argsort((3, 2000, 6), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
+            verify_argsort((1, 122640), axis=1, is_ascend=False, dtype=dtype, is_dyn=is_dyn)
 
 
 @tvm.testing.uses_gpu

@@ -206,7 +206,7 @@ bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 RELAY_REGISTER_OP("memory.kill")
     .describe(R"code(Mark a tensor for release to the allocator.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
+    .set_num_inputs(1)
     .add_argument("to_free", "Tensor", "The tensor to free.")
     .add_type_rel("Kill", KillRel)
     .set_support_level(10)

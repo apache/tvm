@@ -29,7 +29,7 @@ import numpy as np
 import tvm
 import tvm.rpc
 import tvm.micro
-import tvm.relay
+import tvm.relay as relay
 
 from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
@@ -141,6 +141,34 @@ def test_compile_runtime(platform):
 
     with _make_add_sess(model, zephyr_board) as sess:
         test_basic_add(sess)
+
+
+def test_relay(platform):
+    """Testing a simple relay graph"""
+    model, zephyr_board = PLATFORMS[platform]
+    shape = (10,)
+    dtype = "int8"
+
+    # Construct Relay program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+
+    target = tvm.target.target.micro(model)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        graph, mod, params = tvm.relay.build(func, target=target)
+
+    with _make_session(model, target, zephyr_board, mod) as session:
+        graph_mod = tvm.micro.create_local_graph_runtime(
+            graph, session.get_system_lib(), session.context
+        )
+        graph_mod.set_input(**params)
+        x_in = np.random.randint(10, size=shape[0], dtype=dtype)
+        graph_mod.run(x=x_in)
+        result = graph_mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(graph_mod.get_input(0).asnumpy(), x_in)
+        tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 
 if __name__ == "__main__":

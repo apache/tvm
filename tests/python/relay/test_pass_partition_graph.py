@@ -273,19 +273,23 @@ def test_multi_node_compiler():
 
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
-    check_result(
-        mod,
-        map_inputs,
-        (30, 10),
-        np.concatenate(
-            (
-                ((x_data + w_data[0]) - w_data[1]) * w_data[2],
-                ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-                x_data + w_data[6] - w_data[7],
+
+    targets = ["llvm", "c -runtime=c --system-lib"]
+    for tgt in targets:
+        check_result(
+            mod,
+            map_inputs,
+            (30, 10),
+            np.concatenate(
+                (
+                    ((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                    ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                    x_data + w_data[6] - w_data[7],
+                ),
+                axis=0,
             ),
-            axis=0,
-        ),
-    )
+            target=tgt,
+        )
 
 
 def test_extern_ccompiler_single_op():
