@@ -1581,20 +1581,20 @@ Expr MakeSparseReshape(Expr sparse_indices, Expr sparse_values, Array<Integer> p
   auto attrs = make_object<SparseReshapeAttrs>();
   attrs->prev_shape = std::move(prev_shape);
   attrs->new_shape = std::move(new_shape);
-  static const Op& op = Op::Get("sparsereshape");
+  static const Op& op = Op::Get("sparse_reshape");
   return Call(op, {sparse_indices, sparse_values}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparsereshape").set_body_typed(MakeSparseReshape);
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_reshape").set_body_typed(MakeSparseReshape);
 
-RELAY_REGISTER_OP("sparsereshape")
+RELAY_REGISTER_OP("sparse_reshape")
     .describe(R"code(Return twice of normal addition of two tensors.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .set_attrs_type<SparseReshapeAttrs>()
     .add_argument("sparse_indices", "Tensor", "The first tensor")
     .add_argument("sparse_values", "Tensor", "The second tensor")
-    .add_type_rel("sparsereshape", SparseReshapeRel)
+    .add_type_rel("sparse_reshape", SparseReshapeRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3)
     .set_attr<FTVMCompute>("FTVMCompute", SparseReshapeCompute);

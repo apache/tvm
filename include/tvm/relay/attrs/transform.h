@@ -401,7 +401,7 @@ struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   }
 };  // struct SparseToDenseAttrs
 
-/*! \brief Attributes used in sparsereshape operator */
+/*! \brief Attributes used in sparse_reshape operator */
 struct SparseReshapeAttrs : public tvm::AttrsNode<SparseReshapeAttrs> {
   Array<Integer> prev_shape;
   Array<Integer> new_shape;

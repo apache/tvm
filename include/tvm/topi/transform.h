@@ -1387,7 +1387,7 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
 }
 
 /*!
- * \brief Compute new sparse indices and return them after the sparsereshape operation
+ * \brief Compute new sparse indices and return them after the sparse_reshape operation
  *
  * \param sparse_indices Indices where values of the dense tensor exist
  * \param sparse_values Values at the above indices respectively
@@ -1396,11 +1396,11 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the sparsereshape operation
+ * \return A Tensor whose op member is the sparse_reshape operation
  */
 inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& sparse_values,
                                    Array<Integer> prev_shape, Array<Integer> new_shape,
-                                   const std::string name = "T_sparsereshape",
+                                   const std::string name = "T_sparse_reshape",
                                    std::string tag = kInjective) {
   Array<Tensor> result;
   int new_shape_size = new_shape.size();

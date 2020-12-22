@@ -933,7 +933,7 @@ def adv_index(data, indices):
     return cpp.adv_index(data, indices)
 
 
-def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
+def sparse_reshape(sparse_indices, sparse_values, prev_shape, new_shape):
     """
     Reshape a Sparse Tensor
 
@@ -969,7 +969,7 @@ def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
 
         new_shape = [9, -1]
 
-        relay.sparsereshape(sparse_indices,
+        relay.sparse_reshape(sparse_indices,
                             sparse_values,
                             prev_shape,
                             new_shape)
@@ -979,4 +979,4 @@ def sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape):
                 [4, 2],
                 [8, 1]]
     """
-    return cpp.sparsereshape(sparse_indices, sparse_values, prev_shape, new_shape)
+    return cpp.sparse_reshape(sparse_indices, sparse_values, prev_shape, new_shape)
