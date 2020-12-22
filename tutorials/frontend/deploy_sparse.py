@@ -327,6 +327,7 @@ def run_relay_models():
             dense_output, sparse_output, equal_nan=True, verbose=True, atol=1e-5, rtol=1e-5
         )
 
+
 # If true, then all relay models(dense and sparse) will be benchmarked.
 benchmark = False
 
