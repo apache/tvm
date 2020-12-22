@@ -24,6 +24,8 @@ from tvm import relay
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
+from typing import Optional
+
 import tvm.testing
 
 
@@ -1048,24 +1050,27 @@ def test_sparse_segment_sum():
         data: np.ndarray,
         indices: np.ndarray,
         segment_ids: np.ndarray,
-        num_segments: int = None,
+        num_segments: Optional[int] = None,
     ):
         """
         This function calculates the expected output of sparse_segment_sum operator given the inputs.
         """
+        selected_data = np.take(data, indices, axis=0, mode="clip")
         if num_segments:
-            result = np.ones(((num_segments,) + data.shape[1:]), dtype=data.dtype)
+            result = np.zeros(((num_segments,) + data.shape[1:]), dtype=data.dtype)
         else:
-            result = np.ones(((indices.shape[0],) + data.shape[1:]), dtype=data.dtype)
+            result = np.zeros(((indices.shape[0],) + data.shape[1:]), dtype=data.dtype)
             num_segments = -1
+        for row_num, element in enumerate(segment_ids):
+            result[element] += selected_data[row_num]
 
-        return result, max(np.max(segment_ids), num_segments)
+        return result, max(np.max(segment_ids) + 1, num_segments)
 
     def verify_sparse_segment_sum(
         data_np: np.ndarray,
         indices_np: np.ndarray,
         segment_ids_np: np.ndarray,
-        num_segments: int = None,
+        num_segments: Optional[int] = None,
     ):
         """
         This function verifies the relay output of sparse_segment_sum with its expected output.
@@ -1081,19 +1086,20 @@ def test_sparse_segment_sum():
         segment_ids = relay.var(
             "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
         )
-        z = relay.op.sparse_segment_sum(data, indices, segment_ids, num_segments)
+        z = relay.op.sparse_segment_sum(data, indices, segment_ids, num_segments).astuple()
 
         func = relay.Function([data, indices, segment_ids], z)
 
         ref_res = ref_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
         for target, ctx in tvm.testing.enabled_targets():
-            if target == "nvptx":
-                continue
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, segment_ids_np)
-                print(op_res)
-                # tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                print(op_res, ref_res)
+                for op_res_item, ref_res_item in zip(op_res, ref_res):
+                    tvm.testing.assert_allclose(
+                        op_res_item.asnumpy(), ref_res_item, rtol=1e-5, atol=1e-5
+                    )
 
     data_np = np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.int32)
     indices_np = np.array([0, 1], dtype=np.int32)
@@ -1380,9 +1386,6 @@ def test_adv_index():
 
 if __name__ == "__main__":
     test_sparse_segment_sum()
-    import sys
-
-    sys.exit()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
