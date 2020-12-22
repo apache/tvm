@@ -1348,8 +1348,9 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, dense_shape, default_v
 
     new_sparse_indices : relay.Expr
         A 2-D tensor[N + dense_shape[0], n_dim] of integers containing location of new sparse
-        indices where N is the number of sparse values. It is filled with -1 at to_be_discarded
-        indices.
+        indices where N is the number of sparse values. It is filled with -1 at irrelevant indices
+        which will be sliced in a future op discarding non-useful elements. This is done since the
+        real rows of new_sparse_indices depends on the input.
 
     empty_row_indicator : relay.Expr
         A 1-D Boolean tensor[dense_shape[0]] indicating whether the particular row is empty
