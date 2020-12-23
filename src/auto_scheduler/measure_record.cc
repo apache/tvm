@@ -279,8 +279,6 @@ namespace auto_scheduler {
 TVM_REGISTER_OBJECT_TYPE(RecordToFileNode);
 TVM_REGISTER_OBJECT_TYPE(RecordReaderNode);
 
-const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.4";  // NOLINT(*)
-
 RecordToFile::RecordToFile(String filename) {
   auto node = make_object<RecordToFileNode>();
   node->filename = std::move(filename);
@@ -288,13 +286,13 @@ RecordToFile::RecordToFile(String filename) {
 }
 
 void WriteMeasureRecords(std::ostream* os, const Array<MeasureInput>& inputs,
-                         const Array<MeasureResult>& results) {
+                         const Array<MeasureResult>& results, const std::string log_version) {
   dmlc::JSONWriter writer(os);
   for (size_t i = 0; i < inputs.size(); ++i) {
     writer.BeginObject(false);
     writer.WriteObjectKeyValue("i", *inputs[i].operator->());
     writer.WriteObjectKeyValue("r", *results[i].operator->());
-    writer.WriteObjectKeyValue("v", AUTO_SCHEDULER_LOG_VERSION);
+    writer.WriteObjectKeyValue("v", log_version);
     writer.EndObject();
     *os << "\n";
   }
@@ -397,6 +395,23 @@ TVM_REGISTER_GLOBAL("auto_scheduler.RecordReaderReadNext").set_body_typed([](Rec
     return Array<ObjectRef>();
   }
 });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.ReadMeasureRecord").set_body_typed([](const std::string& str) {
+  auto inp = make_object<MeasureInputNode>();
+  auto res = make_object<MeasureResultNode>();
+  std::string log_version;
+  ReadMeasureRecord(str, inp.get(), res.get(), &log_version);
+  return Array<ObjectRef>{ObjectRef(inp), ObjectRef(res)};
+});
+
+TVM_REGISTER_GLOBAL("auto_scheduler.WriteMeasureRecords")
+    .set_body_typed([](MeasureInput inp, MeasureResult res) {
+      auto inps = Array<MeasureInput>({inp});
+      auto ress = Array<MeasureResult>({res});
+      std::ostringstream ss;
+      WriteMeasureRecords(&ss, inps, ress);
+      return String(ss.str());
+    });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SaveRecords")
     .set_body_typed([](String filename, Array<MeasureInput> in, Array<MeasureResult> res) {
