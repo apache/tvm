@@ -35,7 +35,7 @@ logger = logging.getLogger("topi")
 
 
 def _get_default_config(
-    cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False, layout="NCHW"
+    cfg, data, kernel, strides, padding, dilation, out_dtype, is_depthwise=False, layout="NCHW"
 ):
     """
     Get default schedule config for the workload
@@ -48,12 +48,12 @@ def _get_default_config(
             static_data_shape.append(dim)
     data = te.placeholder(static_data_shape, dtype=data.dtype)
     if is_depthwise:
-        wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
+        wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype)
         from .depthwise_conv2d import _fallback_schedule
 
         _fallback_schedule(cfg, wkl)
     else:
-        wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
+        wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype, layout)
         is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
         if is_kernel_1x1:
             conv2d_avx_1x1._fallback_schedule(cfg, wkl)
@@ -210,6 +210,7 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
             ),
             strides,
             padding,
+            dilation,
             out_dtype,
         )
 
