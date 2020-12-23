@@ -27,6 +27,8 @@
 
 #include <algorithm>
 
+#include "search_policy/empty_policy.h"
+#include "search_policy/sketch_policy.h"
 #include "utils.h"
 
 namespace tvm {
@@ -194,7 +196,13 @@ PythonBasedMeasureCallback::PythonBasedMeasureCallback(PackedFunc callback_func)
 void PythonBasedMeasureCallbackNode::Callback(const SearchPolicy& policy,
                                               const Array<MeasureInput>& inputs,
                                               const Array<MeasureResult>& results) {
-  callback_func(inputs, results);
+  if (auto* sketch_policy = static_cast<SketchPolicyNode*>(policy.operator->())) {
+    callback_func(GetRef<SketchPolicy>(sketch_policy), inputs, results);
+  } else if (auto* empty_policy = static_cast<EmptyPolicyNode*>(policy.operator->())) {
+    callback_func(GetRef<EmptyPolicy>(empty_policy), inputs, results);
+  } else {
+    LOG(FATAL) << "Unrecognized search policy type. Expect SketchPolicy or EmptyPolicy";
+  }
 }
 
 /********** ProgramMeasurer **********/
