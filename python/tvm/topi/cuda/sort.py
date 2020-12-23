@@ -106,7 +106,7 @@ def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_f
     return axis_mul_before, axis_mul_after
 
 
-def _sort_inplace(
+def _sort_common(
     ib,
     size,
     axis_mul_before,
@@ -320,7 +320,7 @@ def sort_ir(
         value_init_func=lambda _, tid: tvm.tir.generic.cast(tid, indices_out.dtype),
     )
 
-    return _sort_inplace(
+    return _sort_common(
         ib,
         shape[axis],
         axis_mul_before,
@@ -377,10 +377,10 @@ def sort_by_key_ir(
     values_out_swap = ib.buffer_ptr(values_out_swap)
 
     axis_mul_before, axis_mul_after = _sort_init(
-        ib, axis, keys_in, keys_out, values_out, value_init_func=lambda idx, _: values_in[idx]
+        ib, shape, axis, keys_in, keys_out, values_out, value_init_func=lambda idx, _: values_in[idx]
     )
 
-    return _sort_inplace(
+    return _sort_common(
         ib,
         shape[axis],
         axis_mul_before,
@@ -872,7 +872,9 @@ def sort_by_key(keys, values, axis=-1, is_ascend=1):
 
     out_bufs = [
         tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
-        tvm.tir.decl_buffer(keys.shape, values.dtype, "values_buf", data_alignment=8),
+        tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8),
+        tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_swap_buf", data_alignment=8),
+        tvm.tir.decl_buffer(values.shape, values.dtype, "values_swap_buf", data_alignment=8),
     ]
     out = te.extern(
         [keys.shape, values.shape, keys.shape, values.shape],

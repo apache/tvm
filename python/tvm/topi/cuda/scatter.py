@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 from ..scatter import _verify_scatter_nd_inputs
 from .nms import atomic_add
-from .sort import stable_sort_by_key_thrust, is_thrust_available
+from .sort import stable_sort_by_key_thrust, is_thrust_available, sort_by_key
 
 
 def ceil_div(a, b):
@@ -417,7 +417,7 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
     return ib.get()
 
 
-def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
+def gen_scatter_1d_sorted(data, indices_sorted, updates_sorted, axis, out, _):
     """Generate scatter ir for 1d inputs, using a sorting based approach.
     By sorting indices and comparing neighboring two indices, we can tell which
     of elements in the indices tensor can scatter its update value into the output.
@@ -473,12 +473,6 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
 
     ni = indices_sorted.shape[0]
 
-    def do_update(ib, index, update):
-        with ib.if_scope(index < 0):
-            out_ptr[index + n] = update
-        with ib.else_scope():
-            out_ptr[index] = update
-
     with ib.new_scope():
         nthread_bx = ceil_div(ni, nthread_tx)
         tx = te.thread_axis("threadIdx.x")
@@ -491,7 +485,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
             # The last element can always update.
             index = indices_ptr[tid]
             update = updates_ptr[tid]
-            do_update(ib, index, update)
+            out_ptr[index] = update
 
         with ib.else_scope():
             with ib.if_scope(tid < ni - 1):
@@ -503,7 +497,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
                 # This thread can update the output.
                 with ib.if_scope(index != index_next):
                     update = updates_ptr[tid]
-                    do_update(ib, index, update)
+                    out_ptr[index] = update
 
     return ib.get()
 
@@ -539,7 +533,7 @@ def scatter(data, indices, updates, axis=0):
     assert 1 <= rank <= 4, "scatter only supports 1-4 dimensions"
 
     ir_funcs = {
-        1: gen_ir_1d,
+        1: gen_scatter_1d_sorted,
         2: gen_ir_2d,
         3: gen_ir_3d,
         4: gen_ir_4d,
@@ -553,14 +547,14 @@ def scatter(data, indices, updates, axis=0):
 
     in_bufs = [data]
 
-    if rank == 1 and is_thrust_available():
-        ir_funcs[1] = gen_scatter_1d_thrust
+    if False and rank == 1 and is_thrust_available():
         indices_sorted, updates_sorted = stable_sort_by_key_thrust(
             indices, updates, for_scatter=True
         )
         in_bufs += [indices_sorted, updates_sorted]
     else:
-        in_bufs += [indices, updates]
+        indices_sorted, updates_sorted = sort_by_key(indices, updates)
+        in_bufs += [indices_sorted, updates_sorted]
 
     out = te.extern(
         [out_shape],
