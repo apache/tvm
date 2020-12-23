@@ -343,8 +343,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (backend::IsAutoSchedulerEnabled() && targets.size() == 1) {
       const auto& target = (*targets.begin()).second;
       Pass major_pass = transform::AutoSchedulerLayoutRewrite();
-
-      if (target->kind->device_type == kDLCPU && pass_ctx.PassEnabled(major_pass->Info())) {
+      bool enable_layout_rewrite_targets =
+          target->kind->device_type == kDLCPU || target->GetAttr<String>("device", "") == "mali";
+      if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
         With<Target> tctx(target);
         relay_module = major_pass(relay_module);
         // Defuse ops to fold constants, then fuse them again
@@ -510,18 +511,14 @@ class RelayBuildModule : public runtime::ModuleNode {
         // If we cannot decide the target is LLVM, we create an empty CSourceModule.
         // The code content is initialized with ";" to prevent complaining
         // from CSourceModuleNode::SaveToFile.
-        ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
+        ret_.mod = tvm::codegen::CSourceModuleCreate(";", "", Array<String>{});
       }
     } else {
       ret_.mod = tvm::build(lowered_funcs, target_host_);
     }
 
-    Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
-    // TODO(zhiics) We should be able to completely switch to MetadataModule no
-    // matter whether there are external modules or not.
-    if (!ext_mods.empty()) {
-      ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods);
-    }
+    auto ext_mods = graph_codegen_->GetExternalModules();
+    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, GetTargetHost());
   }
 
  private:

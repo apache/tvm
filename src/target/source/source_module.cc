@@ -27,6 +27,8 @@
 
 #include "../../runtime/file_utils.h"
 #include "../../runtime/meta_data.h"
+#include "../../support/str_escape.h"
+#include "../func_registry_generator.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -46,40 +48,66 @@ using runtime::SaveBinaryToFile;
  *        codegens, such as graph runtime codegen and the vm compiler.
  *
  * \param params The metadata for initialization of all modules.
- * \param dso_module The DSO module that contains TVM primitives.
- * \param modules The submodules that will be wrapped, e.g. CSource modules that
- *        contain vendor library calls or customized runtime modules.
- *
+ * \param target_module the internal module that is compiled by tvm.
+ * \param ext_modules The external modules that needs to be imported inside the metadata
+ * module(s).
+ * \param target The target that all the modules are compiled for
  * \return The created metadata module that manages initialization of metadata.
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
-    const runtime::Module& dso_module, const Array<runtime::Module>& modules) {
+    tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target) {
+  Array<tvm::runtime::Module> csource_modules;
+  Array<tvm::runtime::Module> binary_modules;
+
+  auto DSOExportable = [](tvm::runtime::Module& mod) {
+    return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
+  };
+
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
-  for (runtime::Module it : modules) {
-    auto pf_sym = it.GetFunction("get_symbol");
-    auto pf_var = it.GetFunction("get_const_vars");
+  for (tvm::runtime::Module mod : ext_modules) {
+    auto pf_sym = mod.GetFunction("get_symbol");
+    auto pf_var = mod.GetFunction("get_const_vars");
+    std::vector<std::string> arrays;
     if (pf_sym != nullptr && pf_var != nullptr) {
       String symbol = pf_sym();
       Array<String> variables = pf_var();
-      std::vector<std::string> arrays;
       for (size_t i = 0; i < variables.size(); i++) {
         arrays.push_back(variables[i].operator std::string());
       }
       ICHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
       sym_metadata[symbol] = arrays;
     }
+    // We only need loading of serialized constant data
+    // if there are constants present and required by the
+    // runtime module to be initialized by the binary
+    // metadata module. If not rest of the modules are
+    // wrapped in c-source metadata module.
+
+    // TODO(@manupa-arm) : we should be able to use csource_metadata
+    // if the variables are empty when all the runtime modules implement get_func_names
+    if (arrays.empty() && DSOExportable(mod) && target->kind->name == "c") {
+      csource_modules.push_back(mod);
+    } else {
+      binary_modules.push_back(mod);
+    }
   }
 
-  // Wrap the modules.
-  runtime::Module init_m = runtime::MetadataModuleCreate(params, sym_metadata);
-  init_m.Import(dso_module);
-  for (const auto& it : modules) {
-    init_m.Import(it);
+  if (target.defined() && target->kind->name == "c") {
+    csource_modules.push_back(target_module);
+    target_module = CreateCSourceMetadataModule(csource_modules, target);
   }
 
-  return init_m;
+  if (!binary_modules.empty()) {
+    runtime::Module binary_meta_mod = runtime::MetadataModuleCreate(params, sym_metadata);
+    binary_meta_mod.Import(target_module);
+    for (const auto& it : binary_modules) {
+      binary_meta_mod.Import(it);
+    }
+    return binary_meta_mod;
+  }
+  return target_module;
 }
 
 // Simulator function
@@ -109,18 +137,25 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
 // Simulator function
 class CSourceModuleNode : public runtime::ModuleNode {
  public:
-  CSourceModuleNode(const std::string& code, const std::string& fmt, const std::string& symbol,
-                    const Array<String>& const_vars)
-      : code_(code), fmt_(fmt), symbol_(symbol), const_vars_(const_vars) {}
+  CSourceModuleNode(const std::string& code, const std::string& fmt,
+                    const Array<String>& func_names, const Array<String>& const_vars)
+      : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
   const char* type_key() const { return "c"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    // Currently c-source module is used as demonstration purposes with binary metadata module
+    // that expects get_symbol interface. When c-source module is used as external module, it
+    // will only contain one function. However, when its used as an internal module (e.g., target
+    // "c") it can have many functions.
     if (name == "get_symbol") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_; });
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_[0]; });
     } else if (name == "get_const_vars") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_vars_; });
+    } else if (name == "get_func_names") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_; });
     } else {
       return PackedFunc(nullptr);
     }
@@ -131,7 +166,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
-    if (fmt == "cc") {
+    if (fmt == "c") {
       ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
@@ -142,15 +177,107 @@ class CSourceModuleNode : public runtime::ModuleNode {
  protected:
   std::string code_;
   std::string fmt_;
-  std::string symbol_;
   Array<String> const_vars_;
+  Array<String> func_names_;
 };
 
-runtime::Module CSourceModuleCreate(const String& code, const String& fmt, const String& symbol,
+runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
+                                    const Array<String>& func_names,
                                     const Array<String>& const_vars) {
   auto n = make_object<CSourceModuleNode>(code.operator std::string(), fmt.operator std::string(),
-                                          symbol.operator std::string(), const_vars);
+                                          func_names, const_vars);
   return runtime::Module(n);
+}
+
+class CSourceMetadataModuleNode : public runtime::ModuleNode {
+ public:
+  CSourceMetadataModuleNode(const Array<String>& func_names, const std::string& fmt, Target target)
+      : fmt_(fmt), func_names_(func_names), target_(target) {
+    CreateSource();
+  }
+  const char* type_key() const { return "c"; }
+
+  std::string GetSource(const std::string& format) final { return code_.str(); }
+
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    return PackedFunc(nullptr);
+  }
+
+  void SaveToFile(const std::string& file_name, const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    std::string meta_file = GetMetaFilePath(file_name);
+    if (fmt == "c") {
+      auto code_str = code_.str();
+      ICHECK_NE(code_str.length(), 0);
+      SaveBinaryToFile(file_name, code_str);
+    } else {
+      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    }
+  }
+
+ protected:
+  std::stringstream code_;
+  std::string fmt_;
+  Array<String> func_names_;
+  Target target_;
+
+  void CreateFuncRegistry() {
+    code_ << "#include <tvm/runtime/crt/module.h>\n";
+    for (const auto& fname : func_names_) {
+      code_ << "#ifdef __cplusplus\n";
+      code_ << "extern \"C\"\n";
+      code_ << "#endif\n";
+      code_ << "TVM_DLL int32_t " << fname.data();
+      code_ << "(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, int* "
+               "out_type_code);\n";
+    }
+    code_ << "static TVMBackendPackedCFunc _tvm_func_array[] = {\n";
+    for (auto f : func_names_) {
+      code_ << "    (TVMBackendPackedCFunc)" << f << ",\n";
+    }
+    code_ << "};\n";
+    auto registry = target::GenerateFuncRegistryNames(func_names_);
+    code_ << "static const TVMFuncRegistry _tvm_func_registry = {\n"
+          << "    \"" << ::tvm::support::StrEscape(registry.data(), registry.size(), true) << "\","
+          << "    _tvm_func_array,\n"
+          << "};\n";
+  }
+
+  void GenerateCrtSystemLib() {
+    code_ << "static const TVMModule _tvm_system_lib = {\n"
+          << "    &_tvm_func_registry,\n"
+          << "};\n"
+          << "const TVMModule* TVMSystemLibEntryPoint(void) {\n"
+          << "    return &_tvm_system_lib;\n"
+          << "}\n";
+  }
+
+  void CreateSource() {
+    if (target_->GetAttr<Bool>("system-lib").value_or(Bool(false)) && !func_names_.empty()) {
+      CreateFuncRegistry();
+      GenerateCrtSystemLib();
+    }
+    code_ << ";";
+  }
+};
+
+runtime::Module CreateCSourceMetadataModule(const Array<runtime::Module>& modules, Target target) {
+  Array<String> func_names;
+  for (runtime::Module mod : modules) {
+    auto pf_funcs = mod.GetFunction("get_func_names");
+    if (pf_funcs != nullptr) {
+      Array<String> func_names_ = pf_funcs();
+      for (const auto& fname : func_names_) {
+        func_names.push_back(fname);
+      }
+    }
+  }
+  auto n = make_object<CSourceMetadataModuleNode>(func_names, "cc", target);
+  auto csrc_metadata_module = runtime::Module(n);
+  for (const auto& mod : modules) {
+    csrc_metadata_module.Import(mod);
+  }
+  return std::move(csrc_metadata_module);
 }
 
 // supports limited save without cross compile
@@ -209,8 +336,14 @@ runtime::Module DeviceSourceModuleCreate(
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
-    .set_body_typed([](String code, String fmt, String symbol, Array<String> const_vars) {
-      return CSourceModuleCreate(code, fmt, symbol, const_vars);
+    .set_body_typed([](String code, String fmt, Array<String> func_names,
+                       Array<String> const_vars) {
+      return CSourceModuleCreate(code, fmt, func_names, const_vars);
+    });
+
+TVM_REGISTER_GLOBAL("runtime.CreateCSourceMetadataModule")
+    .set_body_typed([](const Array<runtime::Module>& modules, Target target) {
+      return CreateCSourceMetadataModule(modules, target);
     });
 
 }  // namespace codegen

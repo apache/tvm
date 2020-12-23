@@ -149,7 +149,7 @@ grid_sample often cooperates with affine_grid which generates sampling grids for
             (batch_size, channels, in_height, in_width) for NCHW
             (batch_size, in_height, in_width, channels) for NHWC
 
-- **grid**: out is 4D array of shape [batch, 2, out_height, out_width], where each vector
+- **grid**: grid is 4D array of shape [batch, 2, out_height, out_width], where each vector
            :math:`out[b, :, h, w]` represents the coordinate :math:`(x, y)`
 
 - **out**: out is 4D array of shape
@@ -160,6 +160,7 @@ grid_sample often cooperates with affine_grid which generates sampling grids for
     .set_num_inputs(2)
     .set_attrs_type<GridSampleAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("grid", "Tensor", "The grid tensor.")
     .set_support_level(5)
     .add_type_rel("GridSample", GridSampleRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective);

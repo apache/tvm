@@ -408,7 +408,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
         # This implementation should never be picked by autotvm
         strategy.add_implementation(
             wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
-            wrap_topi_schedule(naive_schedule),
+            naive_schedule,
             name="deformable_conv2d_nhwc.generic",
         )
     else:
@@ -767,6 +767,30 @@ def schedule_sparse_transpose(attrs, outs, target):
     """schedule sparse_transpose"""
     with target:
         return topi.generic.schedule_sparse_transpose(outs)
+
+
+# sort
+def wrap_compute_sort(topi_compute):
+    """Wrap sort topi compute"""
+
+    def _compute_sort(attrs, inputs, _):
+        axis = get_const_int(attrs.axis)
+        is_ascend = bool(get_const_int(attrs.is_ascend))
+        return [topi_compute(inputs[0], axis=axis, is_ascend=is_ascend)]
+
+    return _compute_sort
+
+
+@override_native_generic_func("sort_strategy")
+def sort_strategy(attrs, inputs, out_type, target):
+    """sort generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.sort),
+        wrap_topi_schedule(topi.generic.schedule_sort),
+        name="sort.generic",
+    )
+    return strategy
 
 
 # argsort

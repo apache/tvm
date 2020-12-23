@@ -21,6 +21,48 @@ from tvm import te
 from .utils import get_const_tuple
 
 
+def sort(data, axis=-1, is_ascend=1):
+    """Performs sorting along the given axis and returns an array
+    in sorted order.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input tensor.
+
+    axis : int, optional
+        Axis along which to sort the input tensor.
+        By default the flattened array is used.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    dtype : string, optional
+        DType of the output indices.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        Sorted index tensor.
+
+    """
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    out_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "out_buf", data_alignment=8)
+    out = te.extern(
+        data.shape,
+        [data],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.sort.sort", ins[0], outs[0], axis, is_ascend
+        ),
+        dtype=data.dtype,
+        in_buffers=[data_buf],
+        out_buffers=out_buf,
+        name="sort_cpu",
+        tag="sort_cpu",
+    )
+    return out
+
+
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array
     of indices having the same shape as an input array that index

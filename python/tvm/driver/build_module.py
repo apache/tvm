@@ -277,7 +277,7 @@ def _build_for_device(input_mod, target, target_host):
                 lambda f: "calling_conv" not in f.attrs
                 or f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH
             ),
-            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target)),
+            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target_host)),
             tvm.tir.transform.LowerTVMBuiltin(),
             tvm.tir.transform.LowerDeviceStorageAccessInfo(),
             tvm.tir.transform.LowerCustomDatatypes(),
@@ -424,4 +424,16 @@ def build(inputs, args=None, target=None, target_host=None, name="default_functi
     for mdev in device_modules:
         if mdev:
             rt_mod_host.import_module(mdev)
+
+    if not isinstance(target_host, Target):
+        target_host = Target(target_host)
+    if (
+        "system-lib" in target_host.attrs
+        and target_host.attrs["system-lib"].value == 1
+        and target_host.kind.name == "c"
+    ):
+        create_csource_metadata_module = tvm._ffi.get_global_func(
+            "runtime.CreateCSourceMetadataModule"
+        )
+        return create_csource_metadata_module([rt_mod_host], target_host)
     return rt_mod_host

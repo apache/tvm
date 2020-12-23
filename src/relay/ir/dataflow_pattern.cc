@@ -81,27 +81,41 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "ConstantPattern()";
     });
 
-CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
+CallPattern::CallPattern(DFPattern op, Array<DFPattern> args) {
   ObjectPtr<CallPatternNode> n = make_object<CallPatternNode>();
   n->op = std::move(op);
   n->args = std::move(args);
-  n->attrs = std::move(attrs);
-  n->type_args = std::move(type_args);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(CallPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.CallPattern")
-    .set_body_typed([](DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
-      return CallPattern(op, args, attrs, type_args);
-    });
+    .set_body_typed([](DFPattern op, Array<DFPattern> args) { return CallPattern(op, args); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const CallPatternNode*>(ref.get());
-      p->stream << "CallPatternNode(" << node->op << ", " << node->args << ", " << node->attrs
-                << ", " << node->type_args << ")";
+      p->stream << "CallPatternNode(" << node->op << ", " << node->args << ")";
+    });
+
+FunctionPattern::FunctionPattern(Array<DFPattern> params, DFPattern body) {
+  ObjectPtr<FunctionPatternNode> n = make_object<FunctionPatternNode>();
+  n->params = std::move(params);
+  n->body = std::move(body);
+  data_ = std::move(n);
+}
+TVM_REGISTER_NODE_TYPE(FunctionPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.FunctionPattern")
+    .set_body_typed([](Array<DFPattern> params, DFPattern body) {
+      return FunctionPattern(params, body);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<FunctionPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const FunctionPatternNode*>(ref.get());
+      p->stream << "FunctionPatternNode(" << node->params << ", " << node->body << ")";
     });
 
 TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {

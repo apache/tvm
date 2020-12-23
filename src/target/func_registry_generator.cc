@@ -29,7 +29,7 @@
 namespace tvm {
 namespace target {
 
-std::string GenerateFuncRegistryNames(const std::vector<std::string>& function_names) {
+std::string GenerateFuncRegistryNames(const Array<String>& function_names) {
   std::stringstream ss;
   ss << (unsigned char)(function_names.size());
   for (auto f : function_names) {

@@ -71,13 +71,13 @@ def convert_to_list(x):
 #######################################################################
 # Get a real image for e2e testing
 # --------------------------------
-def get_real_image(im_height, im_width):
+def get_real_image(im_height, im_width, quantized=True):
     repo_base = "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/"
     img_name = "elephant-299.jpg"
     image_url = os.path.join(repo_base, img_name)
     img_path = download_testdata(image_url, img_name, module="data")
     image = Image.open(img_path).resize((im_height, im_width))
-    x = np.array(image).astype("uint8")
+    x = np.array(image).astype("uint8") if quantized else np.array(image).astype("float32")
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
 
@@ -2750,27 +2750,36 @@ def test_forward_one_hot():
 # ----
 
 
-def _test_pack(data, axis):
+def _test_pack(data, is_var, axis):
     """ One iteration of pack """
 
     assert len(data) >= 1
+    assert len(data) == len(is_var)
 
     with tf.Graph().as_default():
         in_data = [
-            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name="in_{}".format(idx))
-            for idx, tensor in enumerate(data)
+            array_ops.placeholder(shape=d.shape, dtype=d.dtype, name="in_" + str(idx))
+            if is_var[idx]
+            else constant_op.constant(
+                d, shape=d.shape, dtype=d.dtype, name="in_constant_" + str(idx)
+            )
+            for idx, d in enumerate(data)
         ]
-        out = array_ops.pack(in_data, axis=axis)
-        name = ["in_{}:0".format(idx) for idx in range(len(data))]
 
-        compare_tflite_with_tvm(data, name, in_data, [out])
+        out = array_ops.pack(in_data, axis=axis)
+        name = [_.name for _ in in_data]
+        compare_tflite_with_tvm(data, name, in_data, [out], experimental_new_converter=True)
 
 
 def test_forward_pack():
     """ Pack """
-    _test_pack([np.arange(6).reshape((1, 2, 1, 3)), np.arange(6).reshape((1, 2, 1, 3))], 1)
+    _test_pack([np.int32(1), np.int32(5)], [False, False], 0)
+    _test_pack([np.array([1, 4]), np.array([2, 5]), np.array([3, 6])], [True, False, False], 0)
+    _test_pack(
+        [np.arange(6).reshape((1, 2, 1, 3)), np.arange(6).reshape((1, 2, 1, 3))], [True, True], 1
+    )
 
-    _test_pack([np.arange(6).reshape((3, 2)), np.arange(6).reshape((3, 2))], 1)
+    _test_pack([np.arange(6).reshape((3, 2)), np.arange(6).reshape((3, 2))], [True, True], 1)
 
     _test_pack(
         [
@@ -2778,6 +2787,7 @@ def test_forward_pack():
             np.arange(6).reshape((2, 1, 1, 3)),
             np.arange(6).reshape((2, 1, 1, 3)),
         ],
+        [True, True, True],
         1,
     )
 
@@ -3792,6 +3802,35 @@ def test_forward_tflite2_qnn_mobilenet_v2():
         tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
+def test_forward_tflite_float16():
+    """Test float16 quantized model"""
+    # MobilenetV2
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_02_22/mobilenet_v1_0.25_128.tgz",
+        "mobilenet_v1_0.25_128_frozen.pb",
+    )
+
+    converter = tf.lite.TFLiteConverter.from_frozen_graph(
+        tflite_model_file, ["input"], ["MobilenetV1/Predictions/Reshape_1"]
+    )
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.target_spec.supported_types = [tf.float16]
+    tflite_model_buf = converter.convert()
+
+    # Test image. Checking the labels because the requantize implementation is different between
+    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
+    # labels. Also, giving a real image, instead of random inputs.
+    data = get_real_image(128, 128, quantized=False)
+
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, "input")
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+
 #######################################################################
 # Quantized SSD Mobilenet
 # -----------------------
@@ -4057,3 +4096,5 @@ if __name__ == "__main__":
     test_forward_tflite2_qnn_resnet50()
     test_forward_tflite2_qnn_inception_v1()
     test_forward_tflite2_qnn_mobilenet_v2()
+
+    test_forward_tflite_float16()

@@ -259,9 +259,13 @@ def auto_schedule_topi(outs, has_complex_op):
 
     key = register_workload_tensors(dag.hash_key(), io_tensors)
 
-    # only enable layout rewrite for cpu backend
+    # only enable layout rewrite for cpu / mali backend
     target = tvm.target.Target.current()
-    enable_layout_rewrite = "cpu" in target.keys
+    enable_layout_rewrite_targets = ["cpu", "mali"]
+    enable_layout_rewrite = any(
+        enable_layout_rewrite_target in target.keys
+        for enable_layout_rewrite_target in enable_layout_rewrite_targets
+    )
 
     env = TracingEnvironment.current
     if env is None:
