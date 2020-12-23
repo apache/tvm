@@ -3199,8 +3199,9 @@ class OperatorConverter(object):
 
         # NOTE: With current implementation in TFLite, Densify Op does not need to be present
         # in runtime.
-        # But in case it is needed in future, we can always use the sparse_indices output
+        # TODO(ANSHUMAN87): we need to use the sparse_indices output
         # from below function and use that in sparse_to_dense Op.
+        # Once the stack corruption issue is resolved in sparse_to_dense Op.
         _, dense_weight = prepare_dense_matrix_from_sparse(
             sparse_weight_tensor.tensor,
             self.get_tensor_value(sparse_weight_tensor, is_sparse=True),
