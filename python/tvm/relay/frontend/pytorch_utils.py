@@ -38,17 +38,53 @@ def is_version_greater_than(ver):
 
 
 def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
-    """A pattern to detect batched_nms function in torchvision"""
+    """A pattern to detect batched_nms function in torchvision
+
+    The inputs to this function, boxes, scores, idxs, iou_threshold are wildcard
+    patterns which can be used later in the rewriting to extract matched Relay fragments.
+
+    We want to detect the following PyTorch code snippet:
+
+    def batched_nms(boxes, scores, idxs, iou_threshold):
+        max_coordinate = boxes.max()
+        offsets = idxs.to(boxes) * (max_coordinate + torch.tensor(1).to(boxes))
+        boxes_for_nms = boxes + offsets[:, None]
+        keep = nms(boxes_for_nms, scores, iou_threshold)
+        return keep
+
+    Here is how PyTorch frontend lowers above PyTorch code. For simplicity, Relay ops for
+    dealing with dynamic strided_slice are omitted.
+
+    %2 = expand_dims(%scores, axis=-1);
+    %3 = cast(%idxs, dtype="float32");
+    %4 = max(%boxes);
+    %5 = add(%4, 1f);
+    %6 = multiply(%3, %5);
+    %7 = strided_slice(%6, begin=[0], end=[4507], strides=[1]);
+    %8 = expand_dims(%7, axis=1);
+    %9 = add(%boxes, %8);
+    %10 = (%2, %9);
+    %11 = concatenate(%10, axis=-1);
+    %12 = expand_dims(%11, axis=0);
+    %13 = vision.get_valid_counts(%12, -1f, meta[relay.attrs.GetValidCountsAttrs][0]);
+    %14 = %13.1;
+    %15 = %13.0;
+    %16 = %13.2;
+    %17 = vision.non_max_suppression(%14, %15, %16, -1, 0.7f, ...);
+
+    """
     one = is_constant()
     zero = is_constant()
 
-    score_expand_dims = is_op("expand_dims")(scores)
-
+    # Equivelent PyTorch code from above snippet
+    # offsets = idxs.to(boxes) * (max_coordinate + torch.tensor(1).to(boxes))
     cast = is_op("cast")(idxs)
     mx = is_op("max")(boxes)
     add = is_op("add")(mx, one)
     mul = is_op("multiply")(cast, add)
 
+    # The following doesn't appear in the above Relay snippet. It is required for dynamic
+    # stride_slice handling
     cast_like = is_op("cast_like")(zero, is_constant())
     less = is_op("less")(is_constant(), cast_like)
     shape_of = is_op("shape_of")(mul)
@@ -58,10 +94,16 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     shape_of = is_op("shape_of")(mul)
     cast = is_op("cast")(shape_of)
 
+    # This corresponds to offsets[:, None], where offsets is the result of multiplication
     dyn_strided_slice = is_op("dyn.strided_slice")(mul, where, cast, is_constant())
 
+    # Add offsets to the boxes
     expand_dims = is_op("expand_dims")(dyn_strided_slice)
     add = is_op("add")(boxes, expand_dims)
+
+    # The rest of patterns correspond to the PyTorch frontend conversion
+    # function for torchvision::nms
+    score_expand_dims = is_op("expand_dims")(scores)
     tup = is_tuple([score_expand_dims, add])
     concat = is_op("concatenate")(tup)
     expand_dims = is_op("expand_dims")(concat)
