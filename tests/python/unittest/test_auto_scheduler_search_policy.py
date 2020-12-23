@@ -29,6 +29,7 @@ from tvm import auto_scheduler
 from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingThread
 import multiprocessing
 
+
 class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
     """A simple Python-based callback for testing."""
 
@@ -37,6 +38,7 @@ class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
         for inp, res in zip(inputs, results):
             assert isinstance(inp, auto_scheduler.MeasureInput)
             assert isinstance(res, auto_scheduler.MeasureResult)
+
 
 def search_common(
     workload=matmul_auto_scheduler_test,
