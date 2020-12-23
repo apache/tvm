@@ -18,6 +18,8 @@
 """Scatter operator """
 import tvm
 from tvm import te
+from .. import tag
+from ..transform import where, shape
 from ..scatter import _verify_scatter_nd_inputs
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust, is_thrust_available, sort_by_key
@@ -502,6 +504,52 @@ def gen_scatter_1d_sorted(data, indices_sorted, updates_sorted, axis, out, _):
     return ib.get()
 
 
+def _remove_negative_indices(indices):
+    """Convert negative indices to corresponding positive indices"""
+
+    def _ir(indices, out):
+        size = indices.shape[0]
+        ib = tvm.tir.ir_builder.create()
+
+        indices = ib.buffer_ptr(indices)
+        out = ib.buffer_ptr(out)
+
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        nthread_tx = max_threads
+        nthread_bx = ceil_div(size, max_threads)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+
+        tid = bx * max_threads + tx
+        with ib.if_scope(tid < size):
+            with ib.if_scope(indices[tid] < 0):
+                out[tid] = indices[tid] + size
+            with ib.else_scope():
+                out[tid] = indices[tid]
+
+        return ib.get()
+
+    indices_buf = tvm.tir.decl_buffer(indices.shape, indices.dtype, "indices_buf", data_alignment=8)
+    out_indices_buf = tvm.tir.decl_buffer(
+        indices.shape, indices.dtype, "out_indices_buf", data_alignment=8
+    )
+    return te.extern(
+        [indices.shape],
+        [indices],
+        lambda ins, outs: _ir(
+            ins[0],
+            outs[0],
+        ),
+        dtype=[indices.dtype],
+        in_buffers=[indices_buf],
+        out_buffers=[out_indices_buf],
+        name="remove_negative_indices",
+        tag="remove_negative_indices",
+    )
+
+
 def scatter(data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
@@ -547,12 +595,13 @@ def scatter(data, indices, updates, axis=0):
 
     in_bufs = [data]
 
-    if False and rank == 1 and is_thrust_available():
+    if rank == 1 and is_thrust_available():
         indices_sorted, updates_sorted = stable_sort_by_key_thrust(
             indices, updates, for_scatter=True
         )
         in_bufs += [indices_sorted, updates_sorted]
     else:
+        indices = _remove_negative_indices(indices)
         indices_sorted, updates_sorted = sort_by_key(indices, updates)
         in_bufs += [indices_sorted, updates_sorted]
 
