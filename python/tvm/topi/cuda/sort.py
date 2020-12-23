@@ -865,10 +865,6 @@ def sort_by_key(keys, values, axis=-1, is_ascend=1):
     """
     keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
     values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
-    keys_swap_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_swap_buf", data_alignment=8)
-    values_swap_buf = tvm.tir.decl_buffer(
-        values.shape, values.dtype, "values_swap_buf", data_alignment=8
-    )
 
     out_bufs = [
         tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
