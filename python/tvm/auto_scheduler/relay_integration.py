@@ -126,7 +126,8 @@ def extract_tasks(
                 target=target,
                 target_host=target_host,
                 hardware_params=hardware_params,
-                # In default, try to apply layout rewrite to improve the performance
+                # When auto scheduler is used in end to end network, try to apply layout rewrite
+                # to improve the overall performance
                 layout_rewrite_option=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
             )
         )

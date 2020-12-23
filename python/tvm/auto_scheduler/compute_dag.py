@@ -32,7 +32,12 @@ from .workload_registry import workload_key_to_tensors
 
 
 class LayoutRewriteOption:
-    """Options for applying layout rewrite."""
+    """
+    Options for applying layout rewrite.
+
+    The NO_REWRITE and INSERT_TRANSFORM_STAGE is expected to be used when tuning a dependent op,
+    and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a network.
+    """
 
     # Do not perform layout rewrite
     NO_REWRITE = 0

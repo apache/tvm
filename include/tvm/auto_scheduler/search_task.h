@@ -118,8 +118,8 @@ class SearchTaskNode : public Object {
   Target target_host;
   /*! \brief Hardware parameters used in this search task. */
   HardwareParams hardware_params;
-  /*! \brief */
-  int layout_rewrite_option;
+  /*! \brief Layout rewrite option used during program measuring. */
+  LayoutRewriteOption layout_rewrite_option;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("compute_dag", &compute_dag);
@@ -149,7 +149,7 @@ class SearchTask : public ObjectRef {
    * \param hardware_params Hardware parameters used in this search task.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
-             Optional<HardwareParams> hardware_params, int layout_rewrite_option);
+             Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };

@@ -179,6 +179,11 @@ class SearchTask(Object):
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
     layout_rewrite_option : LayoutRewriteOption = LayoutRewriteOption.NO_REWRITE
+        The default layout rewrite option used during program measuring.
+        Cost model will adjust the auto scheduler to find a better schedule for the specified
+        layout rewrite option.
+        It's excepted to use NO_REWRITE or INSERT_TRANSFORM_STAGE when tuning a dependent op, and
+        to use REWRITE_FOR_PRE_TRANSFORMED when tuning ops inside a network for better performance.
 
     Examples
     --------
@@ -243,15 +248,18 @@ class SearchTask(Object):
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
 
-    def apply_best(self, log_file, layout_rewrite_option=None):
+    def apply_best(self, log_file, layout_rewrite_option=LayoutRewriteOption.NO_REWRITE):
         """Apply the history best from a log file and return the schedule.
 
         Parameters
         ----------
         log_file : str
            The name of the log file.
-        layout_rewrite_option : Optional[LayoutRewriteOption]
+        layout_rewrite_option : LayoutRewriteOption = LayoutRewriteOption.NO_REWRITE
            The layout rewrite option.
+           For a dependent op, NO_REWRITE or INSERT_TRANSFORM_STAGE may result on different
+           performance. In experience, op with large shape may get benefit from the option
+           INSERT_TRANSFORM_STAGE.
 
         Returns
         -------
@@ -263,10 +271,6 @@ class SearchTask(Object):
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
             )
 
-        if layout_rewrite_option is None:
-            layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
-            if self.target.kind.name == "llvm":
-                layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
         sch, args = self.compute_dag.apply_steps_from_state(inp.state, layout_rewrite_option)
         return sch, args
 

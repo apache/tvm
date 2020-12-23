@@ -114,7 +114,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
 
 SearchTask::SearchTask(ComputeDAG compute_dag, String workload_key, Target target,
                        Target target_host, Optional<HardwareParams> hardware_params,
-                       int layout_rewrite_option) {
+                       LayoutRewriteOption layout_rewrite_option) {
   auto node = make_object<SearchTaskNode>();
   node->compute_dag = std::move(compute_dag);
   node->workload_key = std::move(workload_key);
@@ -144,7 +144,7 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SearchTask")
                        Target target_host, Optional<HardwareParams> hardware_params,
                        int layout_rewrite_option) {
       return SearchTask(compute_dag, workload_key, target, target_host, hardware_params,
-                        layout_rewrite_option);
+                        LayoutRewriteOption(layout_rewrite_option));
     });
 
 }  // namespace auto_scheduler
