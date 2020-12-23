@@ -69,8 +69,8 @@ def _conv2d_infer_layout(workload, cfg):
     idxdiv = tvm.tir.indexdiv
 
     pt, pl, pb, pr = get_pad_tuple(padding, (k_height, k_width))
-    dilated_kernel_h = (wkl.hkernel - 1) * wkl.hdilation + 1
-    dilated_kernel_w = (wkl.wkernel - 1) * wkl.wdilation + 1
+    dilated_kernel_h = (workload.hkernel - 1) * workload.hdilation + 1
+    dilated_kernel_w = (workload.wkernel - 1) * workload.wdilation + 1
     out_height = idxdiv(in_height + pt + pb - dilated_kernel_h, strides[0]) + 1
     out_width = idxdiv(in_width + pl + pr - dilated_kernel_w, strides[1]) + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
