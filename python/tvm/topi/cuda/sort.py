@@ -21,7 +21,6 @@ from tvm import te
 from tvm._ffi import get_global_func
 
 from .injective import schedule_injective_from_existing
-from ..math import identity
 from ..transform import strided_slice, transpose
 from .. import tag
 
@@ -67,7 +66,7 @@ def ceil_div(a, b):
 
 
 def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
-
+    """Initialize the output buffers by copying from inputs"""
     axis_mul_before = 1
     axis_mul_after = 1
     if axis < 0:
@@ -117,6 +116,8 @@ def _sort_common(
     values=None,
     values_swap=None,
 ):
+    """Either sort only values or sort values by keys."""
+
     ## we are looping over the array doing mergesort from the bottom up.
     ## The outer loop runs on the host and launches a cuda kernel for each iteration
     ## of the algorithm.
@@ -269,7 +270,7 @@ def _sort_common(
 def sort_ir(
     data, values_out, values_out_swap, axis, is_ascend, indices_out=None, indices_out_swap=None
 ):
-    """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
+    """Low level IR to do sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
 
     Parameters
     ----------
@@ -336,18 +337,27 @@ def sort_ir(
 def sort_by_key_ir(
     keys_in, values_in, keys_out, values_out, keys_out_swap, values_out_swap, axis, is_ascend
 ):
-    """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
+    """Low level IR to do sort by key on the GPU.
 
     Parameters
     ----------
     keys_in: Buffer
-        Buffer of input keys_in. Keys_in will be sorted in place.
+        Buffer of input keys.
+
+    values_in: Buffer
+        Buffer of input keys.
 
     keys_out : Buffer
-        Output buffer of values of sorted tensor with same shape as keys_in.
+        Buffer of output sorted keys.
+
+    values_out : Buffer
+        Buffer of output sorted values.
 
     keys_out_swap : Buffer
         Output buffer of values with same shape as keys_in to use as swap.
+
+    values_out_swap : Buffer
+        Output buffer of values with same shape as values_in to use as swap.
 
     axis : Int
         Axis long which to sort the input tensor.
@@ -377,7 +387,13 @@ def sort_by_key_ir(
     values_out_swap = ib.buffer_ptr(values_out_swap)
 
     axis_mul_before, axis_mul_after = _sort_init(
-        ib, shape, axis, keys_in, keys_out, values_out, value_init_func=lambda idx, _: values_in[idx]
+        ib,
+        shape,
+        axis,
+        keys_in,
+        keys_out,
+        values_out,
+        value_init_func=lambda idx, _: values_in[idx],
     )
 
     return _sort_common(
@@ -850,10 +866,16 @@ def sort_by_key(keys, values, axis=-1, is_ascend=1):
     Parameters
     ----------
     keys: tvm.te.Tensor
-        The 1D input keys.
+        The input keys.
 
     values : tvm.te.Tensor,
-        The 1D input values.
+        The input values.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
 
     Returns
     -------
