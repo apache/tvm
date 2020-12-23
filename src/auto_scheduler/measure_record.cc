@@ -401,16 +401,15 @@ TVM_REGISTER_GLOBAL("auto_scheduler.ReadMeasureRecord").set_body_typed([](const 
   auto res = make_object<MeasureResultNode>();
   std::string log_version;
   ReadMeasureRecord(str, inp.get(), res.get(), &log_version);
-  return Array<ObjectRef>{ObjectRef(inp), ObjectRef(res), String(log_version)};
+  return Array<ObjectRef>{ObjectRef(inp), ObjectRef(res)};
 });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.WriteMeasureRecords")
-    .set_body_typed([](MeasureInput inp, MeasureResult res, String log_version) {
+    .set_body_typed([](MeasureInput inp, MeasureResult res) {
       auto inps = Array<MeasureInput>({inp});
       auto ress = Array<MeasureResult>({res});
       std::ostringstream ss;
-
-      WriteMeasureRecords(&ss, inps, ress, log_version);
+      WriteMeasureRecords(&ss, inps, ress);
       return String(ss.str());
     });
 

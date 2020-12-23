@@ -109,13 +109,13 @@ def load_record_from_string(record):
 
     Returns
     -------
-    ret: Tuple[MeasureInput, MeasureResult, str]
-        A tuple of MeasureInput, MeasureResult, and the log version.
+    ret: Tuple[MeasureInput, MeasureResult]
+        A tuple of MeasureInput, MeasureResult.
     """
     return _ffi_api.ReadMeasureRecord(record)
 
 
-def dump_record_to_string(inp, res, log_version):
+def dump_record_to_string(inp, res):
     """
     Dump the measure record to a string.
 
@@ -127,15 +127,12 @@ def dump_record_to_string(inp, res, log_version):
     res: MeasureResult
         The measure result.
 
-    log_version: str
-        The log version of the given record.
-
     Returns
     -------
     ret: str
         The dumped string.
     """
-    return _ffi_api.WriteMeasureRecords(inp, res, log_version)
+    return _ffi_api.WriteMeasureRecords(inp, res)
 
 
 def load_records(filename):

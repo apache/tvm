@@ -35,12 +35,11 @@ def record_common(dag, s):
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
 
     # Test in-memory record processing.
-    record_str = auto_scheduler.measure_record.dump_record_to_string(inp, res, "v0.4")
-    r_inp, r_res, r_log_ver = auto_scheduler.measure_record.load_record_from_string(record_str)
+    record_str = auto_scheduler.measure_record.dump_record_to_string(inp, res)
+    r_inp, r_res = auto_scheduler.measure_record.load_record_from_string(record_str)
     # Only check the workload_key for simplification.
     assert inp.task.workload_key == r_inp.task.workload_key
     assert str(res) == str(r_res)
-    assert "v0.4" == r_log_ver
 
     # Test file-based record processing.
     with tempfile.NamedTemporaryFile() as fp:
