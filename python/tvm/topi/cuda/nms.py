@@ -738,7 +738,7 @@ def non_max_suppression(
         )
     else:
         sort_tensor = argsort(
-            score_tensor, valid_count=None, axis=1, is_ascend=False, dtype=valid_count_dtype
+            score_tensor, axis=1, is_ascend=False, dtype=valid_count_dtype
         )
 
     sort_tensor_buf = tvm.tir.decl_buffer(

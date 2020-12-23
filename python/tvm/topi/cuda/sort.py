@@ -103,6 +103,8 @@ def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_f
             if values_out is not None:
                 values_out[idx] = value_init_func(idx, tid)
 
+    return axis_mul_before, axis_mul_after
+
 
 def _sort_inplace(
     ib,
@@ -203,7 +205,7 @@ def _sort_inplace(
             bottom_up_merge(source, dest, source_idx, dest_idx, start[0], middle[0], end[0], even)
 
     lim = tvm.tir.generic.cast(
-        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(shape[axis], "float64"))), "int64"
+        tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(size, "float64"))), "int64"
     )
     with ib.for_range(0, lim, dtype="int64") as l2_width:
         width = 2 << l2_width
@@ -581,6 +583,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
         name="argsort_gpu",
         tag="argsort_gpu",
     )[1]
+    return out
 
 
 def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
@@ -838,6 +841,52 @@ def schedule_topk(outs):
       The computation schedule for the op.
     """
     return _schedule_sort(outs)
+
+
+def sort_by_key(keys, values, axis=-1, is_ascend=1):
+    """Sort values with respect to keys. Both keys and values will
+     be sorted and returned.
+
+    Parameters
+    ----------
+    keys: tvm.te.Tensor
+        The 1D input keys.
+
+    values : tvm.te.Tensor,
+        The 1D input values.
+
+    Returns
+    -------
+    keys_sorted : tvm.te.Tensor
+        The sorted keys
+
+    values_sorted : tvm.te.Tensor
+        The values sorted with respect to the keys
+    """
+    keys_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8)
+    values_buf = tvm.tir.decl_buffer(values.shape, values.dtype, "values_buf", data_alignment=8)
+    keys_swap_buf = tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_swap_buf", data_alignment=8)
+    values_swap_buf = tvm.tir.decl_buffer(
+        values.shape, values.dtype, "values_swap_buf", data_alignment=8
+    )
+
+    out_bufs = [
+        tvm.tir.decl_buffer(keys.shape, keys.dtype, "keys_buf", data_alignment=8),
+        tvm.tir.decl_buffer(keys.shape, values.dtype, "values_buf", data_alignment=8),
+    ]
+    out = te.extern(
+        [keys.shape, values.shape, keys.shape, values.shape],
+        [keys, values],
+        lambda ins, outs: sort_by_key_ir(
+            ins[0], ins[1], outs[0], outs[1], outs[2], outs[3], axis, is_ascend
+        ),
+        in_buffers=[keys_buf, values_buf],
+        out_buffers=out_bufs,
+        dtype=[keys.dtype, values.dtype],
+        name="sort_by_key",
+        tag="sort_by_key",
+    )
+    return out[0], out[1]
 
 
 def stable_sort_by_key_thrust(keys, values, for_scatter=False):
