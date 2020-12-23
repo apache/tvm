@@ -45,6 +45,26 @@ external! {
     fn array_size(array: ObjectRef) -> i64;
 }
 
+impl<T: IsObjectRef> IsObjectRef for Array<T> {
+    type Object = Object;
+    fn as_ptr(&self) -> Option<&ObjectPtr<Self::Object>> {
+        self.object.as_ptr()
+    }
+    fn into_ptr(self) -> Option<ObjectPtr<Self::Object>> {
+        self.object.into_ptr()
+    }
+    fn from_ptr(object_ptr: Option<ObjectPtr<Self::Object>>) -> Self {
+        let object_ref = match object_ptr {
+            Some(o) => o.into(),
+            _ => panic!(),
+        };
+        Array {
+            object: object_ref,
+            _data: PhantomData,
+        }
+    }
+}
+
 impl<T: IsObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
         let iter = data.into_iter().map(T::into_arg_value).collect();
@@ -131,8 +151,8 @@ impl<T: IsObjectRef> FromIterator<T> for Array<T> {
     }
 }
 
-impl<T: IsObjectRef> From<Array<T>> for ArgValue<'static> {
-    fn from(array: Array<T>) -> ArgValue<'static> {
+impl<'a, T: IsObjectRef> From<Array<T>> for ArgValue<'a> {
+    fn from(array: Array<T>) -> ArgValue<'a> {
         array.object.into()
     }
 }
@@ -172,6 +192,7 @@ impl<'a, T: IsObjectRef> TryFrom<RetValue> for Array<T> {
 mod tests {
     use super::Array;
     use crate::function::Result;
+    use crate::object::{IsObjectRef, ObjectRef};
     use crate::string::String;
 
     #[test]
@@ -181,6 +202,15 @@ mod tests {
         assert_eq!(array.get(0)?.to_string(), "foo");
         assert_eq!(array.get(1)?.to_string(), "bar");
         assert_eq!(array.get(2)?.to_string(), "baz");
+        Ok(())
+    }
+
+    #[test]
+    fn downcast() -> Result<()> {
+        let vec: Vec<String> = vec!["foo".into(), "bar".into(), "baz".into()];
+        let array: ObjectRef = ObjectRef::from_ptr(Array::from_vec(vec)?.into_ptr());
+        let array: Array<ObjectRef> = array.downcast::<Array<ObjectRef>>().unwrap();
+        assert_eq!(array.get(1)?.downcast::<String>().unwrap(), "bar");
         Ok(())
     }
 }
