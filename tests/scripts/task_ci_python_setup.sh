@@ -31,3 +31,4 @@ set -o pipefail
 echo "Addtiional setup in" ${CI_IMAGE_NAME}
 
 python3 -m pip install --user tlcpack-sphinx-addon==0.1.3 synr==0.2.1
+python3 -m pip install --user setuptools_rust tokenizers transformers
