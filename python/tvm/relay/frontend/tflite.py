@@ -2524,9 +2524,6 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 1, "input tensors should greater than 1"
-        in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
-
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
 
@@ -2535,8 +2532,11 @@ class OperatorConverter(object):
         pack_options = PackOptions()
         pack_options.Init(op_options.Bytes, op_options.Pos)
         pack_axis = pack_options.Axis()
+        pack_values_count = pack_options.ValuesCount()
+        assert len(input_tensors) == pack_values_count, "Discordance in input values count"
 
-        in_exprs_reshaped = [_op.expand_dims(i, axis=pack_axis, num_newaxis=1) for i in in_exprs]
+        in_exprs = [self.get_tensor_expr(_) for _ in input_tensors]
+        in_exprs_reshaped = [_op.expand_dims(_, axis=pack_axis, num_newaxis=1) for _ in in_exprs]
         out = _op.concatenate(in_exprs_reshaped, pack_axis)
         return out
 

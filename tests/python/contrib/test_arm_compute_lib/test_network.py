@@ -152,7 +152,32 @@ def test_quantized_mobilenet():
     )
 
 
+def test_squeezenet():
+    Device.load("test_config.json")
+
+    if skip_runtime_test():
+        return
+
+    import tvm.relay.testing.tf as tf_testing
+
+    device = Device()
+
+    def get_model():
+        model_path = tf_testing.get_workload_official(
+            "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/squeezenet_2018_04_27.tgz",
+            "squeezenet.tflite",
+        )
+        inputs = {"Placeholder": ((1, 224, 224, 3), "float32")}
+        mod, params = _get_tflite_model(model_path, inputs_dict=inputs)
+        return mod, params, inputs
+
+    _build_and_run_network(
+        *get_model(), device=device, tvm_ops=10, acl_partitions=30, atol=8, rtol=0
+    )
+
+
 if __name__ == "__main__":
     test_vgg16()
     test_mobilenet()
     test_quantized_mobilenet()
+    test_squeezenet()

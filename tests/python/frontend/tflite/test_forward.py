@@ -2750,27 +2750,36 @@ def test_forward_one_hot():
 # ----
 
 
-def _test_pack(data, axis):
+def _test_pack(data, is_var, axis):
     """ One iteration of pack """
 
     assert len(data) >= 1
+    assert len(data) == len(is_var)
 
     with tf.Graph().as_default():
         in_data = [
-            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name="in_{}".format(idx))
-            for idx, tensor in enumerate(data)
+            array_ops.placeholder(shape=d.shape, dtype=d.dtype, name="in_" + str(idx))
+            if is_var[idx]
+            else constant_op.constant(
+                d, shape=d.shape, dtype=d.dtype, name="in_constant_" + str(idx)
+            )
+            for idx, d in enumerate(data)
         ]
-        out = array_ops.pack(in_data, axis=axis)
-        name = ["in_{}:0".format(idx) for idx in range(len(data))]
 
-        compare_tflite_with_tvm(data, name, in_data, [out])
+        out = array_ops.pack(in_data, axis=axis)
+        name = [_.name for _ in in_data]
+        compare_tflite_with_tvm(data, name, in_data, [out], experimental_new_converter=True)
 
 
 def test_forward_pack():
     """ Pack """
-    _test_pack([np.arange(6).reshape((1, 2, 1, 3)), np.arange(6).reshape((1, 2, 1, 3))], 1)
+    _test_pack([np.int32(1), np.int32(5)], [False, False], 0)
+    _test_pack([np.array([1, 4]), np.array([2, 5]), np.array([3, 6])], [True, False, False], 0)
+    _test_pack(
+        [np.arange(6).reshape((1, 2, 1, 3)), np.arange(6).reshape((1, 2, 1, 3))], [True, True], 1
+    )
 
-    _test_pack([np.arange(6).reshape((3, 2)), np.arange(6).reshape((3, 2))], 1)
+    _test_pack([np.arange(6).reshape((3, 2)), np.arange(6).reshape((3, 2))], [True, True], 1)
 
     _test_pack(
         [
@@ -2778,6 +2787,7 @@ def test_forward_pack():
             np.arange(6).reshape((2, 1, 1, 3)),
             np.arange(6).reshape((2, 1, 1, 3)),
         ],
+        [True, True, True],
         1,
     )
 
