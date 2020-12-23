@@ -50,7 +50,7 @@ def tune_network(network, target):
             early_stopping=1,
             runner=measure_ctx.runner,
             builder=auto_scheduler.LocalBuilder(timeout=60),
-            measure_callbacks=[auto_scheduler.RecordToFile(log_file), CustomMeasureCallback()],
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
         tuner.tune(tune_option, search_policy="sketch.random")
         del measure_ctx
