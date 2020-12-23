@@ -29,7 +29,10 @@ def _fallback_schedule(cfg, wkl):
     simd_width = get_fp32_len()
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
     HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_width = (wkl.width + pl + pr - wkl.wkernel) // WSTR + 1
+    _, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilated_kernel_w = (wkl.wkernel - 1) * dw + 1
+
+    out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
 
     oc_bn = 1
     for bn in range(simd_width, 0, -1):

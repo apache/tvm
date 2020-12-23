@@ -41,9 +41,11 @@ Workload = namedtuple(
         "hkernel",
         "wkernel",
         "padt",
-        "padb",
         "padl",
+        "padb",
         "padr",
+        "hdilation",
+        "wdilation",
         "hstride",
         "wstride",
     ],
@@ -156,7 +158,7 @@ def conv2d_infer_layout(workload, cfg):
     raise ValueError("missing register for topi.nn.conv2d_infer_layout")
 
 
-def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
+def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
     """ Get the workload structure. """
     if data_layout == "NCHW":
         _, CI, IH, IW = get_const_tuple(data.shape)
@@ -173,6 +175,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
     pt, pl, pb, pr = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
+    hdilation, wdilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -184,7 +187,25 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
         '{} vs. {}".format(
         data.dtype, kernel.dtype
     )
-    return Workload(data.dtype, out_dtype, IH, IW, CI, GRPS, CO, KH, KW, pt, pl, pb, pr, HSTR, WSTR)
+    return Workload(
+        data.dtype,
+        out_dtype,
+        IH,
+        IW,
+        CI,
+        GRPS,
+        CO,
+        KH,
+        KW,
+        pt,
+        pl,
+        pb,
+        pr,
+        hdilation,
+        wdilation,
+        HSTR,
+        WSTR,
+    )
 
 
 def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
