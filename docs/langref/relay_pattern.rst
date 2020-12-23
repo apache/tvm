@@ -167,6 +167,19 @@ The next example is matching a pattern of batch_norm -> get(0) -> relu. Note tha
         out = relay.nn.relu(tuple_get_item_node)
         pat.match(out)
 
+If we have a pattern that crosses a function boundary, we might want to match the Function itself
+
+
+.. code-block:: python
+
+  def test_match_func():
+      x = relay.var("x")
+      y = relay.var("y")
+      wc1 = wildcard()
+      wc2 = wildcard()
+      func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
+      assert func_pattern.match(relay.Function([x, y], x + y))
+
 The next example is matching a constant node regarding its values. This is useful to check
 if a specific parameter in a subgraph has been bound or not.
 
@@ -283,6 +296,7 @@ The high level design is to introduce a language of patterns for now we propose 
             | is_tuple_get_item(pattern, index = None)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
+            | FunctionPattern(params, body)
 
 The above language then provides a matching interface with both can select sub-graphs as well as verify that the graph does match the pattern.
 
@@ -331,6 +345,11 @@ Domination
 **********
 
 Match child pattern, find a match for the parent pattern, insuring that the child ultimately dominates the parrent (i.e., no nodes outside the pattern use outputs of the parent), and that ever node betwen the child and the pattern matches the path pattern.
+
+Function Pattern
+****************
+
+Match a Function with a body and parameters
 
 Applications
 ============
