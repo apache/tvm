@@ -81,7 +81,7 @@ class PythonBasedMeasureCallback(MeasureCallback):
         self.__init_handle_by_constructor__(_ffi_api.PythonBasedMeasureCallback, callback_func)
 
     def callback(self, policy, inputs, results):
-        """Update the cost model according to new measurement results (training data).
+        """The callback function.
 
         Parameters
         ----------
