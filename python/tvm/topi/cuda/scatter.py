@@ -18,8 +18,6 @@
 """Scatter operator """
 import tvm
 from tvm import te
-from .. import tag
-from ..transform import where, shape
 from ..scatter import _verify_scatter_nd_inputs
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust, is_thrust_available, sort_by_key
@@ -424,7 +422,7 @@ def gen_scatter_1d_sorted(data, indices_sorted, updates_sorted, axis, out, _):
     By sorting indices and comparing neighboring two indices, we can tell which
     of elements in the indices tensor can scatter its update value into the output.
     Sorting of indices, and sorting of updates with respect to indices, can be done
-    at the same time by thrust's sort_by_key function. It is important that sorting
+    at the same time by  sort_by_key function. It is important that sorting
     be done in a "stable" way via stable_sort, to guarantee deterministic output.
 
     Parameters
@@ -505,7 +503,7 @@ def gen_scatter_1d_sorted(data, indices_sorted, updates_sorted, axis, out, _):
 
 
 def _remove_negative_indices(indices):
-    """Convert negative indices to corresponding positive indices"""
+    """Convert negative indices to corresponding positive indices."""
 
     def _ir(indices, out):
         size = indices.shape[0]
