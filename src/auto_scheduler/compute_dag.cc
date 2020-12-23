@@ -694,7 +694,6 @@ ComputeDAG::ComputeDAG(Array<te::Tensor> tensors) {
   // Make sure it is a valid compute definition
   CheckComputeValidity(sch);
 
-  node->sch = std::move(sch);
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);
   data_ = std::move(node);
@@ -721,7 +720,6 @@ ComputeDAG::ComputeDAG(const te::Schedule& sch) {
     }
   }
   node->tensors = std::move(tensors);
-  node->sch = std::move(sch);
   node->access_analyzer = AccessAnalyzer(node->tensors);
   node->flop_ct = FlopEstimator().EstimateFlop(node->ops);
   node->init_state = State(node->ops);

@@ -91,11 +91,6 @@ def test_stage_order():
         elif op.name in ["B", "C"]:
             assert stage_ops_1[idx + 1].name == "%s.shared" % op.name
 
-    # Serialize and deserialize the ComputeDAG constructed by a schedule.
-    loaded_dag = pickle.loads(pickle.dumps(dag))
-    assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
-    assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
-
     # Apply the same schedule to Ansor state and it should have the same stage order
     dag = auto_scheduler.ComputeDAG([A, B, C, D, E])
     state = dag.get_init_state()
@@ -142,8 +137,8 @@ def test_invalid_compute_dag():
     failed = False
     try:
         A, B = invalid_compute_definition()
-        dag = auto_scheduler.ComputeDAG([A, B])
-    except tvm.TVMError as e:
+        auto_scheduler.ComputeDAG([A, B])
+    except tvm.TVMError:
         failed = True
 
     assert failed

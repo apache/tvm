@@ -228,9 +228,9 @@ class ComputeDAG(Object):
         return "\n".join(lines)
 
     def __getstate__(self):
-        return {"compute": SaveJSON(self.tensors), "sch": SaveJSON(self.sch)}
+        return {"tensors": SaveJSON(self.tensors)}
 
     def __setstate__(self, state):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ComputeDAG, LoadJSON(state["compute"]), LoadJSON(state["sch"])
-        )
+        # Since we always use tensors to recover the ComputeDAG, we do not support
+        # (de)serialization of the ComputeDAG constructed by a schedule.
+        self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, LoadJSON(state["tensors"]), None)
