@@ -180,10 +180,10 @@ class SearchTask(Object):
         Hardware parameters used in this search task.
     layout_rewrite_option : LayoutRewriteOption = LayoutRewriteOption.NO_REWRITE
         The default layout rewrite option used during program measuring.
-        Cost model will adjust the auto scheduler to find a better schedule for the specified
-        layout rewrite option.
-        It's excepted to use NO_REWRITE or INSERT_TRANSFORM_STAGE when tuning a dependent op, and
-        to use REWRITE_FOR_PRE_TRANSFORMED when tuning ops inside a network for better performance.
+        Auto_scheduler will find a better schedule for the specified layout rewrite option.
+        The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
+        op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
+        network.
 
     Examples
     --------

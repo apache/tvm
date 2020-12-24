@@ -35,7 +35,7 @@ class LayoutRewriteOption:
     """
     Options for applying layout rewrite.
 
-    The NO_REWRITE and INSERT_TRANSFORM_STAGE is expected to be used when tuning a dependent op,
+    The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone op,
     and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a network.
     """
 
