@@ -185,15 +185,15 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   return {engine, context, network_input_names_, network_output_names_, device_buffers};
 }
 
-void TensorRTBuilder::CreateDeviceBuffers(TensorRTEngineAndContext& engine_and_context) {
-  std::vector<runtime::NDArray> device_buffers(engine_and_context.engine->getNbBindings());
+void TensorRTBuilder::CreateDeviceBuffers(TensorRTEngineAndContext* engine_and_context) {
+  std::vector<runtime::NDArray> device_buffers(engine_and_context->engine->getNbBindings());
   for (size_t i = 0; i < network_input_names_.size(); ++i) {
-    AllocateDeviceBuffer(engine_and_context.engine, network_input_names_[i], &device_buffers);
+    AllocateDeviceBuffer(engine_and_context->engine, network_input_names_[i], &device_buffers);
   }
   for (size_t i = 0; i < network_output_names_.size(); ++i) {
-    AllocateDeviceBuffer(engine_and_context.engine, network_output_names_[i], &device_buffers);
+    AllocateDeviceBuffer(engine_and_context->engine, network_output_names_[i], &device_buffers);
   }
-  engine_and_context.device_buffers = device_buffers;
+  engine_and_context->device_buffers = device_buffers;
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
