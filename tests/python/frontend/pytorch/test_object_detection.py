@@ -71,7 +71,7 @@ def generate_jit_model(index):
     ]
 
     model_func = model_funcs[index]
-    model = TraceWrapper(model_func(pretrained=True, rpn_post_nms_top_n_test=200))
+    model = TraceWrapper(model_func(pretrained=True, rpn_pre_nms_top_n_test=200))
 
     model.eval()
     inp = torch.Tensor(np.random.uniform(0.0, 250.0, size=(1, 3, in_size, in_size)))
