@@ -34,7 +34,7 @@ class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
     """A simple Python-based callback for testing."""
 
     def callback(self, policy, inputs, results):
-        assert isinstance(policy, auto_scheduler.search_policy.SketchPolicy)
+        assert isinstance(policy, auto_scheduler.search_policy.SearchPolicy)
         for inp, res in zip(inputs, results):
             assert isinstance(inp, auto_scheduler.MeasureInput)
             assert isinstance(res, auto_scheduler.MeasureResult)
