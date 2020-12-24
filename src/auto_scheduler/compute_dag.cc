@@ -1418,18 +1418,17 @@ Array<PrimExpr> GetShapeFromRewrittenLayout(String rewritten_layout, Array<Strin
 
   Array<PrimExpr> ret(axis_names.size(), 1);
 
+  size_t ct = 0;
   for (size_t i = 0; i < axis_names.size(); ++i) {
-    bool found = false;
     for (size_t j = 0; j < extracted_names.size(); ++j) {
       if (axis_names[i] == extracted_names[j]) {
         ret.Set(i, ret[i] * shape[j]);
-        found = true;
+        ct++;
       }
     }
-
-    ICHECK(found) << "Cannot find axis " << axis_names[i] << " in layout string \""
-                  << rewritten_layout << "\"";
   }
+
+  CHECK_EQ(ct, extracted_names.size()) << "The number or names of axes do not match";
 
   return ret;
 }
