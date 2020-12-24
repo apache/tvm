@@ -114,8 +114,8 @@ class TensorRTBuilder {
   TensorRTEngineAndContext BuildEngine();
 
   /*!
-   * \brief Create Device Buffers for TensorRTEngineAndContext when Loading from Cache
-   * \param engine_and_context The TensorRTEngineAndContext 
+   * \brief Create Device Buffers for TensorRTEngineAndContext when Loading from Cache.
+   * \param engine_and_context The TensorRTEngineAndContext. 
    */
   void CreateDeviceBuffers(TensorRTEngineAndContext* engine_and_context);
 
