@@ -157,6 +157,8 @@ def softmax_strategy(attrs, inputs, out_type, target):
 @override_native_generic_func("fast_softmax_strategy")
 def fast_softmax_strategy(attrs, inputs, out_type, target):
     """fast softmax generic strategy"""
+    # NOTE: This op does not have an optimized manual schedule,
+    # so it should only be used together with auto-scheduler.
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.fast_softmax),

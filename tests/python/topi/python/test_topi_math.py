@@ -196,6 +196,7 @@ def test_cast():
     verify("bool", "float32")
     verify("bool", "int32")
 
+
 def test_fastmath():
     def test_apply(func, name, f_numpy, low, high, step, dtype="float32"):
         a_np = np.arange(low, high, step).astype(dtype).reshape((1, -1))
@@ -223,7 +224,14 @@ def test_fastmath():
     test_apply(topi.fast_exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(topi.fast_erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)
     test_apply(topi.fast_tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
-    test_apply(topi.nn.fast_softmax, "fast_softmax", tvm.topi.testing.softmax_python, low=-10, high=10, step=0.01)
+    test_apply(
+        topi.nn.fast_softmax,
+        "fast_softmax",
+        tvm.topi.testing.softmax_python,
+        low=-10,
+        high=10,
+        step=0.01,
+    )
 
 
 if __name__ == "__main__":
