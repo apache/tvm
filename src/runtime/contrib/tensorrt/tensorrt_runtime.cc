@@ -180,7 +180,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) {
       TensorRTEngineAndContext& engine_and_context =
-        trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
+          trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
       size_t binding_num = engine_and_context.engine->getNbBindings();
       if (engine_and_context.device_buffers.size() == binding_num) {
         return;
@@ -221,7 +221,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // Allocate Device Buffers
     if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) {
       TensorRTEngineAndContext& engine_and_context =
-        trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
+          trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
       if (engine_and_context.device_buffers.size() == 0) {
         builder.CreateDeviceBuffers(&engine_and_context);
         return;
