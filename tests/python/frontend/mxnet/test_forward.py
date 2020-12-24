@@ -638,6 +638,12 @@ def test_forward_l2_normalize():
     mx_sym = mx.sym.L2Normalization(data, mode="channel")
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
 
+    mx_sym = mx.sym.L2Normalization(data, mode="instance")
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
+
+    mx_sym = mx.sym.L2Normalization(data, mode="spatial")
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
+
 
 @tvm.testing.uses_gpu
 def test_forward_logistic_regression_output():
