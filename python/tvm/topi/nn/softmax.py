@@ -21,7 +21,49 @@ import tvm
 from tvm import te, topi
 
 
+@tvm.te.tag_scope(tag="softmax_output")
+def softmax(x, axis=-1):
+    """Perform softmax activation on the data.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        can be any dimension
+
+    axis : int
+        channel axis
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        output shape is the same as input
+    """
+    return softmax_common(x, axis, False)
+
+
+@tvm.te.tag_scope(tag="fast_softmax_output")
+def fast_softmax(x, axis=-1):
+    """Perform softmax activation on the data.
+    Use approximation to compute exponent for faster speed.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        can be any dimension
+
+    axis : int
+        channel axis
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        output shape is the same as input
+    """
+    return softmax_common(x, axis, True)
+
+
 def softmax_common(x, axis, use_fast_exp):
+    """The common part of softmax and fast_softmax"""
     shape = x.shape
     if axis < 0:
         axis = len(shape) + axis
@@ -78,46 +120,6 @@ def softmax_common(x, axis, use_fast_exp):
         name="T_softmax_norm",
         attrs={"axis": axis},
     )
-
-
-@tvm.te.tag_scope(tag="softmax_output")
-def softmax(x, axis=-1):
-    """Perform softmax activation on the data
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        can be any dimension
-
-    axis : int
-        channel axis
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        output shape is the same as input
-    """
-    return softmax_common(x, axis, False)
-
-
-@tvm.te.tag_scope(tag="fast_softmax_output")
-def fast_softmax(x, axis=-1):
-    """Perform softmax activation on the data
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        can be any dimension
-
-    axis : int
-        channel axis
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        output shape is the same as input
-    """
-    return softmax_common(x, axis, True)
 
 
 @tvm.te.tag_scope(tag="log_softmax_output")
