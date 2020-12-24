@@ -117,7 +117,7 @@ importer-keras = ["tensorflow", "tensorflow-estimator"]
 importer-onnx = ["onnx", "onnxruntime", "torch", "torchvision", "future"]
 importer-pytorch = ["torch", "torchvision", "future"]
 importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
-importer-tflite = ["tlfite", "tensorflow", "tensorflow-estimator"]
+importer-tflite = ["tflite", "tensorflow", "tensorflow-estimator"]
 
 [tool.poetry.dev-dependencies]
 autodocsumm = "^0.1"
