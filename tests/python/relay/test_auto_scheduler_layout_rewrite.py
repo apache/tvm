@@ -82,7 +82,7 @@ def get_relay_dense(m=128, n=128, k=128):
     return mod, data, weight
 
 
-def get_relay_batchmm(batch=8, m=512, n=512, k=512):
+def get_relay_batchmm(batch=4, m=128, n=128, k=128):
     dtype = "float32"
     d = relay.var("data", shape=(batch, m, k), dtype=dtype)
     w = relay.var("weight", shape=(batch, n, k), dtype=dtype)
@@ -132,7 +132,7 @@ def tune_and_check(mod, data, weight):
         actual_output = compile_and_run()
         expected_output = compile_and_run(disabled_pass={"AutoSchedulerLayoutRewrite"})
 
-        tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4)
+        tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4, atol=1e-4)
 
 
 def test_conv2d():
