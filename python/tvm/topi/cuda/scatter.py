@@ -424,6 +424,8 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
     Sorting of indices, and sorting of updates with respect to indices, can be done
     at the same time by thrust's sort_by_key function. It is important that sorting
     be done in a "stable" way via stable_sort, to guarantee deterministic output.
+    Negative indices are assumed to have been converted to corresponding positive
+    indices.
 
     Parameters
     ----------
@@ -473,12 +475,6 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
 
     ni = indices_sorted.shape[0]
 
-    def do_update(ib, index, update):
-        with ib.if_scope(index < 0):
-            out_ptr[index + n] = update
-        with ib.else_scope():
-            out_ptr[index] = update
-
     with ib.new_scope():
         nthread_bx = ceil_div(ni, nthread_tx)
         tx = te.thread_axis("threadIdx.x")
@@ -491,7 +487,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
             # The last element can always update.
             index = indices_ptr[tid]
             update = updates_ptr[tid]
-            do_update(ib, index, update)
+            out_ptr[index] = update
 
         with ib.else_scope():
             with ib.if_scope(tid < ni - 1):
@@ -503,7 +499,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
                 # This thread can update the output.
                 with ib.if_scope(index != index_next):
                     update = updates_ptr[tid]
-                    do_update(ib, index, update)
+                    out_ptr[index] = update
 
     return ib.get()
 
