@@ -469,8 +469,8 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
       }
 
       for (int j = 0; j < g_time_evaluator_state.number; j++) {
-        err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args,
-                          ret_val, ret_type_code);
+        err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
+                          ret_type_code);
         if (err != kTvmErrorNoError) {
           goto release_and_return;
         }
@@ -493,17 +493,16 @@ tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* 
   ret_val->v_handle = result_byte_arr;
   return err;
 
-  release_and_return:
-  {
-    tvm_crt_error_t release_err = TVMPlatformMemoryFree(
-      (void*) &result_byte_arr->data, result_byte_ctx);
-    if (release_err != kTvmErrorNoError) {
-      release_err = TVMPlatformMemoryFree((void*) &result_byte_arr, result_byte_ctx);
-    }
-
-    if (err == kTvmErrorNoError && release_err != kTvmErrorNoError) {
-      err = release_err;
-    }
+release_and_return : {
+  tvm_crt_error_t release_err =
+      TVMPlatformMemoryFree((void*)&result_byte_arr->data, result_byte_ctx);
+  if (release_err != kTvmErrorNoError) {
+    release_err = TVMPlatformMemoryFree((void*)&result_byte_arr, result_byte_ctx);
   }
+
+  if (err == kTvmErrorNoError && release_err != kTvmErrorNoError) {
+    err = release_err;
+  }
+}
   return err;
 }
