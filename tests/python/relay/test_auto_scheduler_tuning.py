@@ -23,15 +23,6 @@ from tvm import auto_scheduler, relay
 from test_auto_scheduler_task_extraction import get_network
 
 
-class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
-    """A simple Python-based callback for testing."""
-
-    def callback(self, policy, inputs, results):
-        assert isinstance(policy, auto_scheduler.search_policy.SketchPolicy)
-        for inp, res in zip(inputs, results):
-            print(policy, inp, res)
-
-
 def tune_network(network, target):
     # Extract tasks
     mod, params = get_network(network)
