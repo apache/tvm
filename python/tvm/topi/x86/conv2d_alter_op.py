@@ -73,7 +73,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             if cfg.is_fallback:
                 _get_default_config(
-                    cfg, data_tensor, kernel_tensor, strides, padding, dilation, out_dtype, False, data_layout
+                    cfg,
+                    data_tensor,
+                    kernel_tensor,
+                    strides,
+                    padding,
+                    dilation,
+                    out_dtype,
+                    False,
+                    data_layout,
                 )
             batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
             out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
@@ -118,7 +126,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         if cfg.is_fallback:
             _get_default_config_int8(
-                cfg, data_tensor, kernel_tensor, strides, padding, dilation, out_dtype, False, data_layout
+                cfg,
+                data_tensor,
+                kernel_tensor,
+                strides,
+                padding,
+                dilation,
+                out_dtype,
+                False,
+                data_layout,
             )
 
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
@@ -174,7 +190,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         if data_layout == "NCHW" and kernel_layout == "OIHW":
             if cfg.is_fallback:
                 _get_default_config(
-                    cfg, data_tensor, kernel_tensor, strides, padding, dilation, out_dtype, True, data_layout
+                    cfg,
+                    data_tensor,
+                    kernel_tensor,
+                    strides,
+                    padding,
+                    dilation,
+                    out_dtype,
+                    True,
+                    data_layout,
                 )
 
             batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
