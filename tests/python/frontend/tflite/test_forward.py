@@ -1251,30 +1251,61 @@ def test_forward_transpose_conv():
 # -------
 
 
-def _test_reshape(data, out_shape, wrap_shape):
+def _test_reshape(data, out_shape, wrap_shape, quantized=False):
     """ One iteration of reshape operation with given data and out shape """
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-
-        out_shape = out_shape if not wrap_shape else np.array(out_shape, dtype=np.int32)
-
-        in_shape = (
-            out_shape
-            if not wrap_shape
-            else array_ops.placeholder(
-                shape=out_shape.shape, dtype=out_shape.dtype, name="Newshape"
+    if quantized:
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in")
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=-100, max=100, name="inq_0"
             )
-        )
 
-        out = array_ops.reshape(in_data, in_shape)
+            input_range = {"inq_0": (-100, 100)}
+            out_shape = out_shape if not wrap_shape else np.array(out_shape, dtype=np.int32)
 
-        compare_tflite_with_tvm(
-            [data, out_shape] if wrap_shape else [data],
-            ["Placeholder:0", "Newshape:0"] if wrap_shape else ["Placeholder:0"],
-            [in_data, in_shape] if wrap_shape else [in_data],
-            [out],
-            mode="vm",
-        )
+            in_shape = (
+                out_shape
+                if not wrap_shape
+                else array_ops.placeholder(
+                    shape=out_shape.shape, dtype=out_shape.dtype, name="Newshape"
+                )
+            )
+
+            out = array_ops.reshape(inq_data, in_shape)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-200, max=200, name="out")
+            compare_tflite_with_tvm(
+                [data, out_shape] if wrap_shape else [data],
+                ["inq_0:0", "Newshape:0"] if wrap_shape else ["inq_0:0"],
+                [inq_data, in_shape] if wrap_shape else [inq_data],
+                [out],
+                quantized=True,
+                input_range=input_range,
+                mode="vm",
+            )
+    else:
+        # Test with tensor and constant
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+
+            out_shape = out_shape if not wrap_shape else np.array(out_shape, dtype=np.int32)
+
+            in_shape = (
+                out_shape
+                if not wrap_shape
+                else array_ops.placeholder(
+                    shape=out_shape.shape, dtype=out_shape.dtype, name="Newshape"
+                )
+            )
+
+            out = array_ops.reshape(in_data, in_shape)
+
+            compare_tflite_with_tvm(
+                [data, out_shape] if wrap_shape else [data],
+                ["Placeholder:0", "Newshape:0"] if wrap_shape else ["Placeholder:0"],
+                [in_data, in_shape] if wrap_shape else [in_data],
+                [out],
+                mode="vm",
+            )
 
 
 def test_forward_reshape():
@@ -1283,6 +1314,9 @@ def test_forward_reshape():
         _test_reshape(np.arange(6), [-1, 2], wrap)
         _test_reshape(np.arange(6), [3, -1], wrap)
         _test_reshape(np.arange(6), [-1], wrap)
+
+    _test_reshape(np.arange(6, dtype=np.uint8), [2, 3], False, True)
+    _test_reshape(np.arange(6, dtype=np.uint8), [-1, 2], False, True)
 
 
 #######################################################################
@@ -2750,25 +2784,51 @@ def test_forward_one_hot():
 # ----
 
 
-def _test_pack(data, is_var, axis):
+def _test_pack(data, is_var, axis, quantized=False):
     """ One iteration of pack """
 
     assert len(data) >= 1
     assert len(data) == len(is_var)
+    if quantized:
+        with tf.Graph().as_default():
+            in_data = [
+                array_ops.placeholder(shape=d.shape, dtype="float32", name="in_" + str(idx))
+                if is_var[idx]
+                else constant_op.constant(
+                    d, shape=d.shape, dtype="float32", name="in_constant_" + str(idx)
+                )
+                for idx, d in enumerate(data)
+            ]
+            inq_data = [
+                tf.quantization.fake_quant_with_min_max_args(
+                    i_data, min=-100, max=100, name="inq_{}".format(idx)
+                )
+                for idx, i_data in enumerate(in_data)
+            ]
+            input_range = {}
+            for i in range(len(data)):
+                input_range["inq_{}".format(i)] = (-100, 100)
 
-    with tf.Graph().as_default():
-        in_data = [
-            array_ops.placeholder(shape=d.shape, dtype=d.dtype, name="in_" + str(idx))
-            if is_var[idx]
-            else constant_op.constant(
-                d, shape=d.shape, dtype=d.dtype, name="in_constant_" + str(idx)
+            out = array_ops.pack(inq_data, axis=axis)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
+            name = ["inq_{}:0".format(idx) for idx in range(len(data))]
+            compare_tflite_with_tvm(
+                data, name, inq_data, [out], quantized=True, input_range=input_range
             )
-            for idx, d in enumerate(data)
-        ]
+    else:
+        with tf.Graph().as_default():
+            in_data = [
+                array_ops.placeholder(shape=d.shape, dtype=d.dtype, name="in_" + str(idx))
+                if is_var[idx]
+                else constant_op.constant(
+                    d, shape=d.shape, dtype=d.dtype, name="in_constant_" + str(idx)
+                )
+                for idx, d in enumerate(data)
+            ]
 
-        out = array_ops.pack(in_data, axis=axis)
-        name = [_.name for _ in in_data]
-        compare_tflite_with_tvm(data, name, in_data, [out], experimental_new_converter=True)
+            out = array_ops.pack(in_data, axis=axis)
+            name = [_.name for _ in in_data]
+            compare_tflite_with_tvm(data, name, in_data, [out], experimental_new_converter=True)
 
 
 def test_forward_pack():
@@ -2789,6 +2849,17 @@ def test_forward_pack():
         ],
         [True, True, True],
         1,
+    )
+
+    _test_pack(
+        [
+            np.arange(6, dtype=np.uint8).reshape((2, 1, 1, 3)),
+            np.arange(6, dtype=np.uint8).reshape((2, 1, 1, 3)),
+            np.arange(6, dtype=np.uint8).reshape((2, 1, 1, 3)),
+        ],
+        [True, True, True],
+        1,
+        quantized=True,
     )
 
 
