@@ -33,6 +33,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/topi/transform.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -1450,6 +1451,30 @@ TVM_REGISTER_GLOBAL("auto_scheduler.RewriteIndexForNewLayout")
                        const PrimExpr& body) {
       IndexRewriter index_rewriter(placeholder_op, new_layout);
       return index_rewriter.Rewrite(body);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.GetShapeFromRewrittenLayout")
+    .set_body_typed([](String rewritten_layout, Array<String> axis_names) {
+      Array<PrimExpr> shape;
+      std::vector<std::string> extracted_names;
+      topi::parse_auto_scheduler_layout(rewritten_layout, &shape, &extracted_names);
+
+      Array<PrimExpr> ret(axis_names.size(), 1);
+
+      for (size_t i = 0; i < axis_names.size(); ++i) {
+        bool found = false;
+        for (size_t j = 0; j < extracted_names.size(); ++j) {
+          if (axis_names[i] == extracted_names[j]) {
+            ret.Set(i, ret[i] * shape[j]);
+            found = true;
+          }
+        }
+
+        ICHECK(found) << "Cannot find axis " << axis_names[i] << " in layout string \""
+                      << rewritten_layout << "\"";
+      }
+
+      return ret;
     });
 
 }  // namespace auto_scheduler

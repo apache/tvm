@@ -845,6 +845,8 @@ If the input has size k on axis 1, then both gamma and beta have shape (k,).
     .add_type_rel("GroupNorm", GroupNormRel);
 
 // relay.nn.batch_matmul
+TVM_REGISTER_NODE_TYPE(BatchMatmulAttrs);
+
 bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
@@ -885,8 +887,9 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 // Positional relay function to create batch_matmul operator used by frontend FFI.
 Expr MakeBatchMatmul(Expr x, Expr y) {
+  auto attrs = make_object<BatchMatmulAttrs>();
   static const Op& op = Op::Get("nn.batch_matmul");
-  return Call(op, {x, y}, Attrs(), {});
+  return Call(op, {x, y}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul").set_body_typed(MakeBatchMatmul);

@@ -24,9 +24,10 @@ import tempfile
 
 import tvm
 import tvm.testing
+from tvm.testing import PropagatingThread
 from tvm import auto_scheduler
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingThread
+from test_auto_scheduler_common import matmul_auto_scheduler_test
 import multiprocessing
 
 

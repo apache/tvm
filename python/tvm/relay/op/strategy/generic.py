@@ -199,7 +199,6 @@ def wrap_compute_conv2d(
         data_layout = attrs.get_str("data_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
-        auto_scheduler_rewritten_layout = get_auto_scheduler_rewritten_layout(attrs)
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
         args = [inputs[0], inputs[1], strides, padding, dilation]
         if has_groups:
@@ -210,7 +209,7 @@ def wrap_compute_conv2d(
             args.append(out_layout)
         args.append(out_dtype)
         if need_auto_scheduler_layout:
-            args.append(auto_scheduler_rewritten_layout)
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv2d
@@ -684,14 +683,17 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
 
 
 # dense
-def wrap_compute_dense(topi_compute):
+def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
     """wrap dense topi compute"""
 
     def _compute_dense(attrs, inputs, out_type):
         """Compute definition of dense"""
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-        return [topi_compute(inputs[0], inputs[1], None, out_dtype)]
+        args = [inputs[0], inputs[1], None, out_dtype]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_dense
 
@@ -710,11 +712,14 @@ def dense_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute):
+def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1], out_type.shape)]
+        args = [inputs[0], inputs[1], out_type.shape]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_batch_matmul
 

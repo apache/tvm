@@ -361,6 +361,12 @@ def conv2d_nhwc(
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
+    out_dtype: str = "float32",
+        The type of output tensor
+
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -381,34 +387,9 @@ def conv2d_nhwc(
 
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
-        # todo(merrymercy): wrap this with a more general interface.
-        if len(Filter.shape) == 17:
-            # For mali.
-            # GPU tile structure is SSSRRSRS
-            # You could refer function comment of DoMultiLevelTiling
-            # in the utils.h to see more detail explanation.
-            kernel_h = Filter.shape[6] * Filter.shape[9] * Filter.shape[13]
-            kernel_w = Filter.shape[7] * Filter.shape[10] * Filter.shape[14]
-            channel = Filter.shape[8] * Filter.shape[11] * Filter.shape[15]
-            num_filter = Filter.shape[12] * Filter.shape[16]
-            for i in range(6):
-                num_filter *= Filter.shape[i]
-        elif len(Filter.shape) >= 10:
-            # For cpu tile structure SSRSRS
-            base = len(Filter.shape) - 10
-            kernel_h = Filter.shape[2 + base] * Filter.shape[6 + base]
-            kernel_w = Filter.shape[3 + base] * Filter.shape[7 + base]
-            channel = Filter.shape[4 + base] * Filter.shape[8 + base]
-            num_filter = Filter.shape[5 + base] * Filter.shape[9 + base]
-            for i in range(base + 2):
-                num_filter *= Filter.shape[i]
-        elif len(Filter.shape) == 4:
-            num_filter, kernel_h, kernel_w, channel = Filter.shape
-        else:
-            raise ValueError(
-                "Don't know how to infer the layout for filter shape: %s. "
-                "Please add a new branch to handle this case." % str(Filter)
-            )
+        kernel_h, kernel_w, channel, num_filter = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout, ["ry", "rx", "rc", "ff"]
+        )
         auto_scheduler.remove_index_check(Filter)
     else:
         kernel_h, kernel_w, channel, num_filter = Filter.shape

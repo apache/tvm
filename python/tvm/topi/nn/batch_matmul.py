@@ -20,7 +20,7 @@ from tvm import te
 from ..utils import get_const_tuple
 
 
-def batch_matmul(x, y, oshape=None):
+def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch. Supports broadcasting for batch dimension.
 
@@ -36,6 +36,9 @@ def batch_matmul(x, y, oshape=None):
         Explicit intended output shape of the computation. Can be useful in cases
         with dynamic input shapes.
 
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -43,7 +46,15 @@ def batch_matmul(x, y, oshape=None):
     """
     assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     x_shape = get_const_tuple(x.shape)
-    y_shape = get_const_tuple(y.shape)
+    if auto_scheduler_rewritten_layout:
+        # Infer shape for the rewritten layout
+        y_shape = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout, ["b", "j", "k"]
+        )
+        auto_scheduler.remove_index_check(y)
+    else:
+        y_shape = get_const_tuple(y.shape)
+
     XB = x_shape[0]
     YB = y_shape[0]
     _, M, K = x.shape
