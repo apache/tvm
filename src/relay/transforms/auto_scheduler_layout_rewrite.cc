@@ -163,7 +163,7 @@ TVM_REGISTER_GLOBAL("relay.attrs.get_auto_scheduler_rewritten_layout")
       } else {
         LOG(FATAL) << "Unhandled attribute: " << attrs;
       }
-      return std::string();
+      return tvm::String();
     });
 
 }  // namespace transform
