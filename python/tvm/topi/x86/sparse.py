@@ -28,16 +28,16 @@ def schedule_sparse_dense(outs):
 
     def _callback(op):
         simd_width = get_fp32_len()
-        if op.tag == "sparse_dense_csrmm_v2" or op.tag == "sparse_dense_csrmm_v1":
+        if op.tag == "sparse_dense_sp_lhs_csrmm" or op.tag == "sparse_dense_sp_lhs_csrmm":
             (y_o, y_i) = s[op].split(s[op].op.axis[1], 2)
             fused = s[op].fuse(s[op].op.axis[0], y_o)
             s[op].parallel(fused)
             s[op].vectorize(y_i)
-        elif op.tag == "sparse_dense_bsrmm_v2" or op.tag == "sparse_dense_bsrmm_v1":
+        elif op.tag == "sparse_dense_sp_rhs_bsrmm" or op.tag == "sparse_dense_sp_rhs_bsrmm":
             y_bsrmm = op.input_tensors[0]
             assert (
-                y_bsrmm.op.tag == "sparse_dense_bsrmm_block_v2"
-                or y_bsrmm.op.tag == "sparse_dense_bsrmm_block_v1"
+                y_bsrmm.op.tag == "sparse_dense_sp_rhs_bsrmm_block"
+                or y_bsrmm.op.tag == "sparse_dense_sp_lhs_bsrmm_block"
             )
             y_reshape = op
             (m, num_blocks, b_r) = s[y_bsrmm].op.axis
