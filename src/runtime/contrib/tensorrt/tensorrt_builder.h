@@ -113,6 +113,12 @@ class TensorRTBuilder {
    */
   TensorRTEngineAndContext BuildEngine();
 
+  /*!
+   * \brief Create Device Buffers for TensorRTEngineAndContext when Loading from Cache
+   * \param engine_and_context The TensorRTEngineAndContext 
+   */
+  void CreateDeviceBuffers(TensorRTEngineAndContext& engine_and_context);
+
  private:
   /*! \brief Convert a DLTensor to a TensorRT weight. */
   nvinfer1::Weights GetDLTensorAsWeights(const DLTensor* dptr, DLDeviceType src_device);

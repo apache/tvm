@@ -83,8 +83,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
-    if (GetCachedEnginesFromDisk()) return;
     SetupConstants(consts);
+    if (GetCachedEnginesFromDisk()) return;
   }
 
   void LoadGlobalAttributes() {
@@ -178,7 +178,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
    */
   void BuildEngine() {
     batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
-    if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) return;
+    if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) {
+      TensorRTEngineAndContext& engine_and_context = 
+        trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
+      size_t binding_num = engine_and_context.engine->getNbBindings();
+      if(engine_and_context.device_buffers.size() == binding_num) {
+        return;
+      }
+    }
     DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_
                << " with batch size " << batch_size_;
     const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
@@ -209,6 +216,17 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // Add outputs.
     for (size_t i = 0; i < outputs_.size(); ++i) {
       builder.AddOutput(outputs_[i], EntryID(outputs_[i]));
+    }
+    
+    // Allocate Device Buffers
+    
+    if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) {
+      TensorRTEngineAndContext& engine_and_context = 
+        trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
+      if(engine_and_context.device_buffers.size() == 0) {
+        builder.CreateDeviceBuffers(engine_and_context);
+        return;
+      }
     }
 
     // Build engine.
