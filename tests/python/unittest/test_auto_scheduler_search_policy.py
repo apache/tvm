@@ -30,6 +30,16 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test, PropagatingTh
 import multiprocessing
 
 
+class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
+    """A simple Python-based callback for testing."""
+
+    def callback(self, policy, inputs, results):
+        assert isinstance(policy, auto_scheduler.search_policy.SearchPolicy)
+        for inp, res in zip(inputs, results):
+            assert isinstance(inp, auto_scheduler.MeasureInput)
+            assert isinstance(res, auto_scheduler.MeasureResult)
+
+
 def search_common(
     workload=matmul_auto_scheduler_test,
     target="llvm",
@@ -68,7 +78,7 @@ def search_common(
             early_stopping=1,
             runner=runner,
             verbose=2,
-            measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+            measure_callbacks=[auto_scheduler.RecordToFile(log_file), CustomMeasureCallback()],
         )
         task.tune(tuning_options=tuning_options, search_policy=search_policy)
         sch, args = task.apply_best(log_file)
