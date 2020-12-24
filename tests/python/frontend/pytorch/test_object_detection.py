@@ -86,6 +86,15 @@ def generate_jit_model(index):
         return script_module
 
 
+def count_valid_scores(scores, score_threshold):
+    num_valid_scores = 0
+    for score in scores:
+        if score >= score_threshold:
+            num_valid_scores += 1
+        else:
+            return num_valid_scores
+
+
 def test_detection_models():
     img = "test_street_small.jpg"
     img_url = (
@@ -128,3 +137,7 @@ def test_detection_models():
         )
         # Class ids
         np.testing.assert_equal(pt_res[2].cpu().numpy(), tvm_res[2].asnumpy())
+
+        score_threshold = 0.9
+        print("Num boxes:", pt_res[0].cpu().numpy().shape[0])
+        print("Num valid boxes:", count_valid_scores(pt_res[1].cpu().numpy(), score_threshold))
