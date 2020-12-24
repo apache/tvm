@@ -41,3 +41,7 @@ RUN bash /install/ubuntu_install_python_package.sh
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
+
+# Arm(R) Compute Library
+COPY install/ubuntu_install_arm_compute_lib.sh /install/ubuntu_install_arm_compute_lib.sh
+RUN bash /install/ubuntu_install_arm_compute_lib.sh

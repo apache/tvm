@@ -382,7 +382,18 @@ def conv2d_nhwc(
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         # todo(merrymercy): wrap this with a more general interface.
-        if len(Filter.shape) >= 10:
+        if len(Filter.shape) == 17:
+            # For mali.
+            # GPU tile structure is SSSRRSRS
+            # You could refer function comment of DoMultiLevelTiling
+            # in the utils.h to see more detail explanation.
+            kernel_h = Filter.shape[6] * Filter.shape[9] * Filter.shape[13]
+            kernel_w = Filter.shape[7] * Filter.shape[10] * Filter.shape[14]
+            channel = Filter.shape[8] * Filter.shape[11] * Filter.shape[15]
+            num_filter = Filter.shape[12] * Filter.shape[16]
+            for i in range(6):
+                num_filter *= Filter.shape[i]
+        elif len(Filter.shape) >= 10:
             # For cpu tile structure SSRSRS
             base = len(Filter.shape) - 10
             kernel_h = Filter.shape[2 + base] * Filter.shape[6 + base]

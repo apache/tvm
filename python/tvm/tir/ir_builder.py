@@ -21,6 +21,7 @@ from tvm.ir import container as _container, PointerType, PrimType
 
 from . import stmt as _stmt
 from . import expr as _expr
+from . import op
 
 
 class WithScope(object):
@@ -200,6 +201,9 @@ class IRBuilder(object):
             node = _expr.StringImm(node)
         if isinstance(value, string_types):
             value = _expr.StringImm(value)
+        # thread_extent could be zero for dynamic workloads
+        if attr_key == "thread_extent":
+            value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
     def for_range(self, begin, end, name="i", dtype="int32", for_type="serial"):

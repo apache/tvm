@@ -205,6 +205,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     if (value_dtype == "int32") {
       thrust_stable_sort_by_key<int, int>(keys_in, values_in, keys_out, values_out,
                                           for_scatter);
+    } else if (value_dtype == "int64") {
+      thrust_stable_sort_by_key<int, int64_t>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
     } else if (value_dtype == "float32") {
       thrust_stable_sort_by_key<int, float>(keys_in, values_in, keys_out, values_out,
                                             for_scatter);
@@ -215,6 +218,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     if (value_dtype == "int32") {
       thrust_stable_sort_by_key<int64_t, int>(keys_in, values_in, keys_out, values_out,
                                               for_scatter);
+    } else if (value_dtype == "int64") {
+      thrust_stable_sort_by_key<int64_t, int64_t>(keys_in, values_in, keys_out, values_out,
+                                                  for_scatter);
     } else if (value_dtype == "float32") {
       thrust_stable_sort_by_key<int64_t, float>(keys_in, values_in, keys_out, values_out,
                                                 for_scatter);
@@ -225,6 +231,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     if (value_dtype == "int32") {
       thrust_stable_sort_by_key<float, int>(keys_in, values_in, keys_out, values_out,
                                             for_scatter);
+    } else if (value_dtype == "int64") {
+      thrust_stable_sort_by_key<float, int64_t>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
     } else if (value_dtype == "float32") {
       thrust_stable_sort_by_key<float, float>(keys_in, values_in, keys_out, values_out,
                                               for_scatter);

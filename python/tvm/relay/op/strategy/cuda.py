@@ -17,7 +17,6 @@
 """Definition of CUDA/GPU operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 from tvm import topi
-import tvm
 from tvm.auto_scheduler import is_auto_scheduler_enabled
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
@@ -99,18 +98,6 @@ def schedule_lrn_cuda(attrs, outs, target):
     """schedule LRN for cuda"""
     with target:
         return topi.cuda.schedule_lrn(outs)
-
-
-def naive_schedule(_, outs, target):
-    """Return the naive default schedule"""
-    if "gpu" in target.keys:
-        # For GPU, we at least need thread binding to make a valid schedule.
-        # So the naive schedule cannot be compiled.
-        raise RuntimeError(
-            "Cannot compile for GPU targets if no tuned schedule is found. "
-            "Please see the warning messages above for more information about the failed workloads."
-        )
-    return tvm.te.create_schedule(outs[-1].op)
 
 
 @conv2d_strategy.register(["cuda", "gpu"])
@@ -197,7 +184,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             if judge_winograd_autotvm:
                 if (
                     target.kind.name == "cuda"
-                    and nvcc.have_tensorcore(tvm.gpu(0).compute_version)
+                    and nvcc.have_tensorcore(target=target)
                     and judge_winograd_tensorcore
                 ):
                     strategy.add_implementation(
@@ -215,7 +202,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     )
             if (
                 target.kind.name == "cuda"
-                and nvcc.have_tensorcore(tvm.gpu(0).compute_version)
+                and nvcc.have_tensorcore(target=target)
                 and (
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
                     or (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
@@ -436,7 +423,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
         )
         if (
             target.kind.name == "cuda"
-            and nvcc.have_tensorcore(tvm.gpu(0).compute_version)
+            and nvcc.have_tensorcore(target=target)
             and judge_winograd_tensorcore
         ):
             strategy.add_implementation(
@@ -475,13 +462,23 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
 def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """deformable_conv2d cuda strategy"""
     layout = attrs.data_layout
-    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
-        name="deformable_conv2d_nchw.cuda",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
+            name="deformable_conv2d_nchw.cuda",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
+            naive_schedule,
+            name="deformable_conv2d_nhwc.cuda",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformable conv2d on CUDA" % layout)
     return strategy
 
 
@@ -563,7 +560,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
         N, _, _, _, _ = get_const_tuple(data.shape)
         _, _, _, CI, CO = get_const_tuple(kernel.shape)
         if target.kind.name == "cuda":
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+            if nvcc.have_tensorcore(target=target):
                 if (
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
                     or (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
@@ -679,7 +676,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 plevel=5,
             )
         if target.kind.name == "cuda":
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+            if nvcc.have_tensorcore(target=target):
                 if (
                     (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
                     or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0)
@@ -783,6 +780,26 @@ def scatter_nd_cuda(attrs, inputs, out_type, target):
         name="scatter_nd.cuda",
         plevel=10,
     )
+
+
+@sort_strategy.register(["cuda", "gpu"])
+def sort_strategy_cuda(attrs, inputs, out_type, target):
+    """sort cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.cuda.sort),
+        wrap_topi_schedule(topi.cuda.schedule_sort),
+        name="sort.cuda",
+    )
+    if target.kind.name == "cuda" and get_global_func(
+        "tvm.contrib.thrust.sort", allow_missing=True
+    ):
+        strategy.add_implementation(
+            wrap_compute_sort(topi.cuda.sort_thrust),
+            wrap_topi_schedule(topi.cuda.schedule_sort),
+            name="sort_thrust.cuda",
+            plevel=15,
+        )
     return strategy
 
 

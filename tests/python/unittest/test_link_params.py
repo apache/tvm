@@ -266,7 +266,7 @@ def test_c_link_params():
             lib = tvm.relay.build(mod, target, params=param_init)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
-            src = lib.lib.get_source()
+            src = lib.lib.imported_modules[0].get_source()
             lib.lib.save("test.c", "cc")
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")

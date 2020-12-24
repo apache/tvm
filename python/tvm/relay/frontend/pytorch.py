@@ -2059,9 +2059,21 @@ class PyTorchOpConverter:
         src = inputs[3]
         return _op.scatter_add(data, index, src, axis=axis)
 
+    def is_floating_point(self, inputs, input_types):
+        assert len(inputs) == 1
+
+        if isinstance(inputs[0], _expr.Expr):
+            input_type = self.infer_type(inputs[0]).dtype
+        else:
+            input_type = input_types[0]
+
+        is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
+        return _expr.const(is_float)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
+            "aten::is_floating_point": self.is_floating_point,
             "aten::pixel_shuffle": self.pixel_shuffle,
             "aten::device": self.none,
             "prim::device": self.none,
@@ -2077,6 +2089,7 @@ class PyTorchOpConverter:
             "aten::div": self.make_elemwise("divide"),
             "aten::div_": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
+            "aten::floor_divide_": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
@@ -3038,7 +3051,10 @@ def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dt
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
-    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
+    if isinstance(ret, list):
+        # ListConstruct kept original python list. Convert to tuple.
+        ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
+    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
     return transform.RemoveUnusedFunctions()(mod), tvm_params

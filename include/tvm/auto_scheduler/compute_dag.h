@@ -179,7 +179,7 @@ class ComputeDAGNode : public Object {
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
-  /*! \brief The static read-write access analyzer */
+  /*! \brief The static read-write access analyzer. */
   AccessAnalyzer access_analyzer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {

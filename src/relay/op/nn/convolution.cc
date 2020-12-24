@@ -563,7 +563,9 @@ by concating all the *g* results.
     .add_argument("offset", "Tensor", "The offset tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_support_level(5)
-    .add_type_rel("DeformableConv2D", DeformableConv2DRel<DeformableConv2DAttrs>);
+    .add_type_rel("DeformableConv2D", DeformableConv2DRel<DeformableConv2DAttrs>)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   DeformableConvInferCorrectLayout<DeformableConv2DAttrs>);
 
 // Positional relay function to create deformable_conv2d operator
 // used by frontend FFI.

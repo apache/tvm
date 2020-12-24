@@ -27,6 +27,18 @@ from .. import op as _op
 logger = logging.getLogger("strategy")
 
 
+def naive_schedule(_, outs, target):
+    """Return the naive default schedule"""
+    if "gpu" in target.keys:
+        # For GPU, we at least need thread binding to make a valid schedule.
+        # So the naive schedule cannot be compiled.
+        raise RuntimeError(
+            "Cannot compile for GPU targets if no tuned schedule is found. "
+            "Please see the warning messages above for more information about the failed workloads."
+        )
+    return te.create_schedule(outs[-1].op)
+
+
 def wrap_topi_schedule(topi_schedule):
     """Wrap TOPI schedule which doesn't use attrs"""
 
@@ -357,7 +369,6 @@ def wrap_compute_deformable_conv2d(topi_compute):
     """wrap deformable_conv2d topi compute"""
 
     def _compute_deformable_conv2d(attrs, inputs, out_dtype):
-        assert attrs.data_layout == "NCHW"
         padding = get_const_tuple(attrs.padding)
         strides = get_const_tuple(attrs.strides)
         dilation = get_const_tuple(attrs.dilation)
@@ -384,15 +395,24 @@ def wrap_compute_deformable_conv2d(topi_compute):
 @override_native_generic_func("deformable_conv2d_strategy")
 def deformable_conv2d_strategy(attrs, inputs, out_type, target):
     """deformable_conv2d generic strategy"""
-    logger.warning("deformable_conv2d is not optimized for this platform.")
     layout = attrs.data_layout
-    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
-        wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
-        name="deformable_conv2d.generic",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
+            wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
+            name="deformable_conv2d_nchw.generic",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
+            naive_schedule,
+            name="deformable_conv2d_nhwc.generic",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformable conv2d" % layout)
     return strategy
 
 
@@ -717,7 +737,7 @@ def wrap_compute_sparse_dense(topi_compute):
     """wrap sparse dense topi compute"""
 
     def _compute_sparse_dense(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3], attrs["sparse_lhs"])]
 
     return _compute_sparse_dense
 
@@ -747,6 +767,30 @@ def schedule_sparse_transpose(attrs, outs, target):
     """schedule sparse_transpose"""
     with target:
         return topi.generic.schedule_sparse_transpose(outs)
+
+
+# sort
+def wrap_compute_sort(topi_compute):
+    """Wrap sort topi compute"""
+
+    def _compute_sort(attrs, inputs, _):
+        axis = get_const_int(attrs.axis)
+        is_ascend = bool(get_const_int(attrs.is_ascend))
+        return [topi_compute(inputs[0], axis=axis, is_ascend=is_ascend)]
+
+    return _compute_sort
+
+
+@override_native_generic_func("sort_strategy")
+def sort_strategy(attrs, inputs, out_type, target):
+    """sort generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.sort),
+        wrap_topi_schedule(topi.generic.schedule_sort),
+        name="sort.generic",
+    )
+    return strategy
 
 
 # argsort
@@ -865,9 +909,11 @@ def wrap_compute_get_valid_counts(topi_compute):
     """wrap get_valid_counts topi compute"""
 
     def _compute_get_valid_counts(attrs, inputs, out_type):
-        score_threshold = get_const_float(attrs.score_threshold)
+        score_threshold = inputs[1]
         id_index = get_const_int(attrs.id_index)
         score_index = get_const_int(attrs.score_index)
+        if attrs.score_threshold is not None:
+            score_threshold = get_const_float(attrs.score_threshold)
         return topi_compute(inputs[0], score_threshold, id_index, score_index)
 
     return _compute_get_valid_counts
@@ -891,10 +937,12 @@ def wrap_compute_nms(topi_compute):
 
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[3]
+        iou_threshold = inputs[4]
         if attrs.max_output_size is not None:
             max_output_size = attrs.max_output_size
+        if attrs.iou_threshold is not None:
+            iou_threshold = get_const_float(attrs.iou_threshold)
         return_indices = bool(get_const_int(attrs.return_indices))
-        iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
         coord_start = get_const_int(attrs.coord_start)

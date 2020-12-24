@@ -413,7 +413,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     // Create a CSource module
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code, "c", sym, variables);
+    // TODO(@manupa-arm): pass the function names to enable system-lib creation
+    return (*pf)(code, "c", Array<String>{sym}, variables);
   }
 
  private:

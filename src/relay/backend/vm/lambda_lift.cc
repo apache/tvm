@@ -111,6 +111,15 @@ class LambdaLifter : public ExprMutator {
       }
       captured_vars.push_back(var);
     }
+
+    Array<Var> typed_captured_vars;
+    Map<Var, Expr> rebinding_map;
+    for (auto free_var : captured_vars) {
+      auto var = Var(free_var->name_hint(), free_var->checked_type());
+      typed_captured_vars.push_back(var);
+      rebinding_map.Set(free_var, var);
+    }
+
     if (recursive) {
       if (!captured_vars.empty()) {
         Array<Expr> fvs;
@@ -122,6 +131,7 @@ class LambdaLifter : public ExprMutator {
         lambda_map_.emplace(letrec_.back(), global);
       }
     }
+
     auto body = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
 
     // When performing this optimization there are two cases.
@@ -150,7 +160,25 @@ class LambdaLifter : public ExprMutator {
     if (captured_vars.size() == 0 && free_type_vars.size() == 0) {
       lifted_func = Function(body->params, body->body, body->ret_type, body->type_params);
     } else {
-      lifted_func = Function(captured_vars, body, func->func_type_annotation(), free_type_vars);
+      // When a closure is locally bound in a program, we have its full type information
+      // avalible to us.
+      //
+      // If we lift the closure out of its bound context it may have free variables which
+      // do not have type annotations.
+      //
+      // In this case we first type check the program assigning a type to all sub-expressions.
+      //
+      // We then change the un-annotated free variables into annotated free variables, use
+      // bind to go from unannotated free variables -> annotated free variables and then
+      // construct the "closure" function with fully annotated arguments, no longer relying
+      // on type inference.
+      auto before = Downcast<Function>(body)->params.size();
+      auto rebound_body = Function(func->params, Bind(body->body, rebinding_map), func->ret_type,
+                                   func->type_params, func->attrs, func->span);
+      auto after = Downcast<Function>(rebound_body)->params.size();
+      CHECK_EQ(before, after);
+      lifted_func =
+          Function(typed_captured_vars, rebound_body, func->func_type_annotation(), free_type_vars);
       lifted_func = MarkClosure(lifted_func);
     }
 
@@ -164,6 +192,7 @@ class LambdaLifter : public ExprMutator {
       global = module_->GetGlobalVar(name);
     } else {
       // Add the lifted function to the module.
+      std::cout << AsText(lifted_func) << std::endl;
       module_->Add(global, lifted_func);
     }
 

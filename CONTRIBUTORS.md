@@ -46,6 +46,7 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu - vta, chisel, intel FPGA, c runtime
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PPMC): @zhiics - relay, quantization, pass manager
+- [Chenfan](https://github.com/jcf94): @jcf94 - autoscheduling
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
@@ -78,7 +79,6 @@ We do encourage everyone to work anything they are interested in.
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Matthew Barrett](https://github.com/mbaret): @mbaret
-- [Luke Hutton](https://github.com/lhutton1): @lhutton1
 - [Arnaud Bergeron](https://github.com/abergeron): @abergeron
 - [Matthew Brookhart](https://github.com/mbrookhart): @mbrookhart
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
@@ -93,11 +93,12 @@ We do encourage everyone to work anything they are interested in.
 - [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
+- [Luke Hutton](https://github.com/lhutton1): @lhutton1
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305
 - [Hua Jiang](https://github.com/huajsj): @huajsj
+- [Leandro Nunes](https://github.com/leandron): @leandron
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
-- [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame

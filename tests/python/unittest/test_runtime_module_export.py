@@ -58,7 +58,7 @@ def generate_engine_module():
     import tvm.runtime._ffi_api
 
     gen_engine_header()
-    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", "", None)
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc", [], None)
     return csource_module
 
 
