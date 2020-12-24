@@ -3277,7 +3277,6 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
         elif VectorType(v_type) == VectorType.Uint8:
             return N.Uint8Flags
         else:
-            # raise UnsupportedError("The provided type {} is not supported".format(type))
             raise tvm.error.OpNotImplemented("The provided type {} is not supported".format(v_type))
 
     def _get_flattened_index(indices, shape):
