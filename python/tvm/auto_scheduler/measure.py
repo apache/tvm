@@ -602,9 +602,9 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print(".", end="")
+            print(".", end="", flush=True)
         else:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
 
     return filename, args, error_no, error_msg, time.time() - tic
 
@@ -634,11 +634,11 @@ def local_build_worker(args):
     res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
     if isinstance(res, TimeoutError):
         if verbose >= 1:
-            print(".T", end="")  # Build timeout
+            print(".T", end="", flush=True)  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
     elif isinstance(res, Exception):
         if verbose >= 1:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
         res = None, [], MeasureErrorNo.COMPILE_HOST, str(res), timeout
 
     return res
@@ -751,9 +751,9 @@ def _timed_eval_func(
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print("*", end="")
+            print("*", end="", flush=True)
         else:
-            print("*E", end="")  # Run error
+            print("*E", end="", flush=True)  # Run error
     return costs, error_no, error_msg, toc - tic + build_res.time_cost, toc
 
 
@@ -839,10 +839,11 @@ def local_run(
                     enable_cpu_cache_flush,
                     verbose,
                 ),
+                add_thread_wrapper=True,
             )
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
-                    print("*T", end="")  # Run timeout
+                    print("*T", end="", flush=True)  # Run timeout
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUN_TIMEOUT,
@@ -852,7 +853,7 @@ def local_run(
                 )
             elif isinstance(res, Exception):
                 if verbose >= 1:
-                    print("*E", end="")  # Run error
+                    print("*E", end="", flush=True)  # Run error
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUNTIME_DEVICE,
@@ -864,7 +865,7 @@ def local_run(
         measure_results.append(MeasureResult(*res))
 
     if verbose >= 1:
-        print("")
+        print("", flush=True)
 
     return measure_results
 
