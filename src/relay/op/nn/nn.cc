@@ -24,6 +24,7 @@
 
 #include "nn.h"
 
+#include <tvm/auto_scheduler/compute_dag.h>
 #include <tvm/relay/attrs/image.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
@@ -845,37 +846,49 @@ If the input has size k on axis 1, then both gamma and beta have shape (k,).
     .add_type_rel("GroupNorm", GroupNormRel);
 
 // relay.nn.batch_matmul
+TVM_REGISTER_NODE_TYPE(BatchMatmulAttrs);
+
 bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   ICHECK_EQ(types.size(), 3);
   const auto* x = types[0].as<TensorTypeNode>();
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
-  ICHECK(x->shape.size() == 3 && y->shape.size() == 3);
+
+  const auto* param = attrs.as<BatchMatmulAttrs>();
+  Array<PrimExpr> y_shape;
+  if (param->auto_scheduler_rewritten_layout.size() == 0) {
+    y_shape = y->shape;
+  } else {
+    y_shape = auto_scheduler::GetShapeFromRewrittenLayout(param->auto_scheduler_rewritten_layout,
+                                                          {"b", "j", "k"});
+  }
+
+  ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
   bool is_dyn = false;
   Array<tvm::PrimExpr> oshape;
   for (size_t i = 0; i < 3; ++i) {
-    if (x->shape[i].as<tir::AnyNode>() != nullptr || y->shape[i].as<tir::AnyNode>() != nullptr) {
+    if (x->shape[i].as<tir::AnyNode>() != nullptr || y_shape[i].as<tir::AnyNode>() != nullptr) {
       is_dyn = true;
       oshape.push_back(Any());
     } else {
       if (i == 0) {
-        oshape.push_back(max(x->shape[i], y->shape[i]));
+        oshape.push_back(max(x->shape[i], y_shape[i]));
       } else {
         oshape.push_back(x->shape[i]);
       }
     }
   }
   if (!is_dyn) {
-    ICHECK(reporter->AssertEQ(x->shape[0], y->shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
-           reporter->AssertEQ(y->shape[0], 1))
+    ICHECK(reporter->AssertEQ(x->shape[0], y_shape[0]) || reporter->AssertEQ(x->shape[0], 1) ||
+           reporter->AssertEQ(y_shape[0], 1))
         << "BatchDot: batch dimensions don't match, "
-        << " x shape=" << x->shape << ", y shape=" << y->shape;
-    ICHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
+    ICHECK(reporter->AssertEQ(x->shape[2], y_shape[2]))
         << "BatchDot: shapes of x and y is inconsistent, "
-        << " x shape=" << x->shape << ", y shape=" << y->shape;
+        << " x shape=" << x->shape << ", y shape=" << y_shape;
 
-    oshape.Set(2, y->shape[1]);
+    oshape.Set(2, y_shape[1]);
   }
 
   // assign output type
@@ -885,8 +898,9 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 // Positional relay function to create batch_matmul operator used by frontend FFI.
 Expr MakeBatchMatmul(Expr x, Expr y) {
+  auto attrs = make_object<BatchMatmulAttrs>();
   static const Op& op = Op::Get("nn.batch_matmul");
-  return Call(op, {x, y}, Attrs(), {});
+  return Call(op, {x, y}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul").set_body_typed(MakeBatchMatmul);
