@@ -147,8 +147,7 @@ log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
 
 #################################################################
 # Start an RPC Tracker and Register Devices to the Tracker
-# -----------------------------------------------------
-#
+# --------------------------------------------------------
 # Please refer to the "Start RPC Tracker" and "Register Devices to RPC Tracker" setions
 # in this :ref:`tutorial <tutorials-autotvm-start-rpc-tracker>` to start an RPC tracker
 # and register devices to the tracker.
