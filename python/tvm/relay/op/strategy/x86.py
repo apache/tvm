@@ -325,6 +325,15 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
         name="dense_nopack.x86",
         plevel=10,
     )
+
+    if is_auto_scheduler_enabled():
+        strategy.add_implementation(
+            wrap_compute_dense(topi.nn.dense, need_auto_scheduler_layout=True),
+            naive_schedule,
+            name="dense.generic",
+            plevel=11,
+        )
+
     if "cblas" in target.libs:
         with SpecializedCondition(same_type and dtype in ["float32", "float64"]):
             strategy.add_implementation(
@@ -350,7 +359,7 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
                 plevel=15,
             )
     with SpecializedCondition(m >= 16):
-        # this implementation may not be well-optimized, so use plevel=8 for now.
+        # this implementation may not be well-optimized, so use plevel=5 for now.
         strategy.add_implementation(
             wrap_compute_dense(topi.x86.dense_pack),
             wrap_topi_schedule(topi.x86.schedule_dense_pack),
@@ -364,9 +373,9 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
-    if is_dynamic(out_type):
+    if is_dynamic(out_type) or is_auto_scheduler_enabled():
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.nn.batch_matmul),
+            wrap_compute_batch_matmul(topi.nn.batch_matmul, need_auto_scheduler_layout=True),
             wrap_topi_schedule(topi.generic.nn.schedule_batch_matmul),
             name="batch_matmul.generic",
             plevel=10,

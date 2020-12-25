@@ -120,7 +120,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
-  std::string auto_scheduler_rewritten_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -924,6 +924,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
@@ -934,6 +935,13 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
   }
+};
+
+/*! \brief Attributes for batch matmul operator */
+struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+
+  TVM_DECLARE_ATTRS(BatchMatmulAttrs, "relay.attrs.BatchMatmulAttrs") {}
 };
 
 /*! \brief Attributes for sparse_dense operator */

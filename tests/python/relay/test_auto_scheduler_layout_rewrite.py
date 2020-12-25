@@ -23,6 +23,7 @@ import tvm
 from tvm import relay, auto_scheduler
 from tvm.contrib import graph_runtime
 import tvm.testing
+from tvm.testing import PropagatingThread
 
 
 def get_np_array(var, dtype):
@@ -70,6 +71,28 @@ def get_relay_conv2d(
     return mod, data, weight
 
 
+def get_relay_dense(m=128, n=128, k=128):
+    dtype = "float32"
+    d = relay.var("data", shape=(m, k), dtype=dtype)
+    w = relay.var("weight", shape=(n, k), dtype=dtype)
+    y = relay.nn.dense(d, w, units=n)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([d, w], y)
+    data, weight = get_np_array(d, dtype), get_np_array(w, dtype)
+    return mod, data, weight
+
+
+def get_relay_batchmm(batch=4, m=128, n=128, k=128):
+    dtype = "float32"
+    d = relay.var("data", shape=(batch, m, k), dtype=dtype)
+    w = relay.var("weight", shape=(batch, n, k), dtype=dtype)
+    y = relay.nn.batch_matmul(d, w)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([d, w], y)
+    data, weight = get_np_array(d, dtype), get_np_array(w, dtype)
+    return mod, data, weight
+
+
 def tune_and_check(mod, data, weight):
     # Extract tasks from a relay program
     target = tvm.target.Target("llvm")
@@ -109,13 +132,33 @@ def tune_and_check(mod, data, weight):
         actual_output = compile_and_run()
         expected_output = compile_and_run(disabled_pass={"AutoSchedulerLayoutRewrite"})
 
-        tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4)
+        tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4, atol=1e-4)
 
 
 def test_conv2d():
+    # wrap the search in a new thread to avoid the conflict
+    # between python's multiprocessing and tvm's thread pool
     mod, data, weight = get_relay_conv2d(kh=1, kw=1)
-    tune_and_check(mod, data, weight)
+    t = PropagatingThread(target=tune_and_check, args=(mod, data, weight))
+    t.start()
+    t.join()
+
+
+def test_dense():
+    mod, data, weight = get_relay_dense()
+    t = PropagatingThread(target=tune_and_check, args=(mod, data, weight))
+    t.start()
+    t.join()
+
+
+def test_batch_matmul():
+    mod, data, weight = get_relay_batchmm()
+    t = PropagatingThread(target=tune_and_check, args=(mod, data, weight))
+    t.start()
+    t.join()
 
 
 if __name__ == "__main__":
     test_conv2d()
+    test_dense()
+    test_batch_matmul()

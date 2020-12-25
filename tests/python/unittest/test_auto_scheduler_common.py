@@ -16,9 +16,6 @@
 # under the License.
 
 """Common functions for auto_scheduler test cases"""
-
-import threading
-
 import tvm
 from tvm import te, auto_scheduler
 from tvm import topi
@@ -251,18 +248,3 @@ def get_tiled_matmul():
     )
 
     return dag, s0
-
-
-class PropagatingThread(threading.Thread):
-    def run(self):
-        self.exc = None
-        try:
-            self.ret = self._target(*self._args, **self._kwargs)
-        except BaseException as e:
-            self.exc = e
-
-    def join(self):
-        super(PropagatingThread, self).join()
-        if self.exc:
-            raise self.exc
-        return self.ret
