@@ -70,6 +70,49 @@ def get_relay_conv2d(
     return mod, data, weight
 
 
+def get_relay_conv3d(
+    outc=8,
+    inc=8,
+    depth=8,
+    height=7,
+    width=7,
+    kd=1,
+    kh=1,
+    kw=1,
+    batch=1,
+    pad=0,
+    stride=1,
+    dilation=1,
+    layout="NDHWC",
+):
+    dtype = "float32"
+    if layout == "NDHWC":
+        kernel_layout = "DHWIO"
+        d = relay.var("data", shape=(batch, depth, height, width, inc), dtype=dtype)
+        w = relay.var("weight", shape=(kd, kh, kw, inc, outc), dtype=dtype)
+    elif layout == "NCDHW":
+        kernel_layout = "OIDHW"
+        d = relay.var("data", shape=(batch, inc, depth, height, width), dtype=dtype)
+        w = relay.var("weight", shape=(outc, inc, kd, kh, kw), dtype=dtype)
+
+    y = relay.nn.conv3d(
+        d,
+        w,
+        padding=pad,
+        kernel_size=(kd, kh, kw),
+        strides=(stride, stride, stride),
+        dilation=(dilation, dilation, dilation),
+        channels=outc,
+        groups=1,
+        data_layout=layout,
+        kernel_layout=kernel_layout,
+    )
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([d, w], y)
+    data, weight = get_np_array(d, dtype), get_np_array(w, dtype)
+    return mod, data, weight
+
+
 def get_relay_dense(m=128, n=128, k=128):
     dtype = "float32"
     d = relay.var("data", shape=(m, k), dtype=dtype)
@@ -95,7 +138,9 @@ def get_relay_batchmm(batch=4, m=128, n=128, k=128):
 def tune_and_check(mod, data, weight):
     # Extract tasks from a relay program
     target = tvm.target.Target("llvm")
-    tasks, task_weights = auto_scheduler.extract_tasks(mod, target=target, params={})
+    tasks, task_weights = auto_scheduler.extract_tasks(
+        mod, target=target, params={"weight": weight}
+    )
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -135,9 +180,17 @@ def tune_and_check(mod, data, weight):
 
 
 def test_conv2d():
-    # wrap the search in a new thread to avoid the conflict
-    # between python's multiprocessing and tvm's thread pool
     mod, data, weight = get_relay_conv2d(kh=1, kw=1)
+    tune_and_check(mod, data, weight)
+
+
+def test_conv2d_winograd():
+    mod, data, weight = get_relay_conv2d(kh=3, kw=3)
+    tune_and_check(mod, data, weight)
+
+
+def test_conv3d():
+    mod, data, weight = get_relay_conv3d()
     tune_and_check(mod, data, weight)
 
 
@@ -153,5 +206,7 @@ def test_batch_matmul():
 
 if __name__ == "__main__":
     test_conv2d()
+    test_conv2d_winograd()
+    test_conv3d()
     test_dense()
     test_batch_matmul()
