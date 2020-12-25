@@ -58,7 +58,6 @@ import logging
 import os
 import sys
 import time
-import threading
 import pytest
 import numpy as np
 import tvm
@@ -741,23 +740,6 @@ def identity_after(x, sleep):
 def terminate_self():
     """Testing function to terminate the process."""
     sys.exit(-1)
-
-
-class PropagatingThread(threading.Thread):
-    """A thread that propagates the exection to the main thread"""
-
-    def run(self):
-        self.exc = None
-        try:
-            self.ret = self._target(*self._args, **self._kwargs)
-        except BaseException as e:
-            self.exc = e
-
-    def join(self, timeout=None):
-        super(PropagatingThread, self).join(timeout)
-        if self.exc:
-            raise self.exc
-        return self.ret
 
 
 tvm._ffi._init_api("testing", __name__)
