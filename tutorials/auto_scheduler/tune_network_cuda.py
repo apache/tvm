@@ -306,7 +306,7 @@ print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), n
 #    in function :code:`run_tuning`. Say,
 #    :code:`tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=log_file)`
 # 4. If you have multiple target GPUs, you can use all of them for measurements to
-#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
+#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-scale-up-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
 #    with :any:`auto_scheduler.RPCRunner`.

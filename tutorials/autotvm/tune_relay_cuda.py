@@ -311,12 +311,12 @@ def tune_and_evaluate(tuning_opt):
 #
 #   Finally, always feel free to ask our community for help on https://discuss.tvm.apache.org
 
+#################################################################
+# .. _tutorials-autotvm-scale-up-rpc-tracker:
 
 #################################################################
 # Scale up measurement by using multiple devices
 # ----------------------------------------------
-# .. _tutorials-autotvm-rpc-tracker:
-#
 # If you have multiple devices, you can use all of them for measurement.
 # TVM uses the RPC Tracker to manage distributed devices.
 # The RPC Tracker is a centralized controller node. We can register all devices to
@@ -337,8 +337,8 @@ def tune_and_evaluate(tuning_opt):
 #
 #   INFO:RPCTracker:bind to 0.0.0.0:9190
 #
-# Then open another new terminal for the RPC server. We need to start one server
-# for each dedicated device. We use a string key to distinguish the types of devices.
+# Then open another new terminal for the RPC server. We need to start one dedicated server
+# for each device. We use a string key to distinguish the types of devices.
 # You can pick a name you like.
 # (Note: For rocm backend, there are some internal errors with the compiler,
 # we need to add `--no-fork` to the argument list.)
