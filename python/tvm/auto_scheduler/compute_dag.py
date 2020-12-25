@@ -234,3 +234,21 @@ class ComputeDAG(Object):
         # Since we always use tensors to recover the ComputeDAG, we do not support
         # (de)serialization of the ComputeDAG constructed by a schedule.
         self.__init_handle_by_constructor__(_ffi_api.ComputeDAG, LoadJSON(state["tensors"]), None)
+
+
+def get_shape_from_rewritten_layout(rewritten_layout, axis_names):
+    """Get the orginal shape from a rewritten layout string.
+
+    Parameters
+    ----------
+    rewritten_layout: str
+        The layout after rewrite
+    axis_names: List[str]
+        Specify the order of axes by names
+
+    Returns
+    -------
+    shape: List[PrimExpr]
+        The original shape
+    """
+    return _ffi_api.GetShapeFromRewrittenLayout(rewritten_layout, axis_names)

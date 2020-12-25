@@ -33,6 +33,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/topi/transform.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -1410,6 +1411,28 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ss.str();
     });
 
+Array<PrimExpr> GetShapeFromRewrittenLayout(String rewritten_layout, Array<String> axis_names) {
+  Array<PrimExpr> shape;
+  std::vector<std::string> extracted_names;
+  topi::parse_auto_scheduler_layout(rewritten_layout, &shape, &extracted_names);
+
+  Array<PrimExpr> ret(axis_names.size(), 1);
+
+  size_t ct = 0;
+  for (size_t i = 0; i < axis_names.size(); ++i) {
+    for (size_t j = 0; j < extracted_names.size(); ++j) {
+      if (axis_names[i] == extracted_names[j]) {
+        ret.Set(i, ret[i] * shape[j]);
+        ct++;
+      }
+    }
+  }
+
+  CHECK_EQ(ct, extracted_names.size()) << "The number or names of axes do not match";
+
+  return ret;
+}
+
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
     .set_body_typed([](Optional<Array<te::Tensor>> tensors, Optional<te::Schedule> sch) {
       if (sch) {
@@ -1451,6 +1474,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.RewriteIndexForNewLayout")
       IndexRewriter index_rewriter(placeholder_op, new_layout);
       return index_rewriter.Rewrite(body);
     });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.GetShapeFromRewrittenLayout")
+    .set_body_typed(GetShapeFromRewrittenLayout);
 
 }  // namespace auto_scheduler
 }  // namespace tvm
