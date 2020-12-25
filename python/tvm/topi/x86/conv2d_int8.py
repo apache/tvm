@@ -139,8 +139,8 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
     pt, pl, pb, pr = get_pad_tuple(padding, (kernel_height, kernel_width))
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
-    dilated_kernel_h = (wkl.hkernel - 1) * dh + 1
-    dilated_kernel_w = (wkl.wkernel - 1) * dw + 1
+    dilated_kernel_h = (kernel_height - 1) * dh + 1
+    dilated_kernel_w = (kernel_width - 1) * dw + 1
     oh = (ih - dilated_kernel_h + pt + pb) // sh + 1
     ow = (iw - dilated_kernel_w + pl + pr) // sw + 1
 
