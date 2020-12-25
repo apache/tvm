@@ -142,6 +142,7 @@ def test_compile_runtime(platform):
     with _make_add_sess(model, zephyr_board) as sess:
         test_basic_add(sess)
 
+
 def test_platform_timer(platform):
     """Test compiling the on-device runtime."""
 
@@ -167,6 +168,7 @@ def test_platform_timer(platform):
 
     with _make_add_sess(model, zephyr_board) as sess:
         test_basic_add(sess)
+
 
 def test_relay(platform):
     """Testing a simple relay graph"""
