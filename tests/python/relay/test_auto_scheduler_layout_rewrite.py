@@ -23,7 +23,6 @@ import tvm
 from tvm import relay, auto_scheduler
 from tvm.contrib import graph_runtime
 import tvm.testing
-from tvm.testing import PropagatingThread
 
 
 def get_np_array(var, dtype):
@@ -139,23 +138,17 @@ def test_conv2d():
     # wrap the search in a new thread to avoid the conflict
     # between python's multiprocessing and tvm's thread pool
     mod, data, weight = get_relay_conv2d(kh=1, kw=1)
-    t = PropagatingThread(target=tune_and_check, args=(mod, data, weight))
-    t.start()
-    t.join()
+    tune_and_check(mod, data, weight)
 
 
 def test_dense():
     mod, data, weight = get_relay_dense()
-    t = PropagatingThread(target=tune_and_check, args=(mod, data, weight))
-    t.start()
-    t.join()
+    tune_and_check(mod, data, weight)
 
 
 def test_batch_matmul():
     mod, data, weight = get_relay_batchmm()
-    t = PropagatingThread(target=tune_and_check, args=(mod, data, weight))
-    t.start()
-    t.join()
+    tune_and_check(mod, data, weight)
 
 
 if __name__ == "__main__":
