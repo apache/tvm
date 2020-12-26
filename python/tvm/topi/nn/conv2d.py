@@ -982,6 +982,7 @@ def _conv2d_winograd_nhwc_impl(
     out_dtype,
     tile_size,
     pre_computed=False,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd implementation in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -1002,8 +1003,10 @@ def _conv2d_winograd_nhwc_impl(
         Specifies the output data type.
     tile_size : int
         The size of the tile to use for the Winograd filter
-    pre_computed: bool
+    pre_computed: bool = False
         Whether the kernel is precomputed
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -1020,7 +1023,16 @@ def _conv2d_winograd_nhwc_impl(
     if not pre_computed:
         KH, KW, CI, CO = get_const_tuple(weight.shape)
     else:
-        H_CAT, W_CAT, CO, CI = get_const_tuple(weight.shape)
+        if auto_scheduler_rewritten_layout:
+            H_CAT, W_CAT, CO, CI = get_const_tuple(
+                auto_scheduler.get_shape_from_rewritten_layout(
+                    auto_scheduler_rewritten_layout, ["eps", "nu", "co", "ci"]
+                )
+            )
+            auto_scheduler.remove_index_check(weight)
+        else:
+            H_CAT, W_CAT, CO, CI = get_const_tuple(weight.shape)
+
         KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
 
     pad_t, pad_l, pad_b, pad_r = get_pad_tuple(padding, (KH, KW))
@@ -1052,8 +1064,10 @@ def _conv2d_winograd_nhwc_impl(
             ),
             name="kernel_pack",
         )
+        attrs = {}
     else:
         kernel_pack = weight
+        attrs = {"layout_free_placeholders": [kernel_pack]}
 
     # pack data tile
     input_tile = te.compute(
@@ -1085,8 +1099,11 @@ def _conv2d_winograd_nhwc_impl(
             data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][co][ci], axis=[ci]
         ),
         name="bgemm",
-        attrs={"layout_free_placeholders": [kernel_pack]},
+        attrs=attrs,
     )
+
+    if auto_scheduler_rewritten_layout:
+        bgemm = auto_scheduler.rewrite_compute_body(bgemm, auto_scheduler_rewritten_layout)
 
     # inverse transform
     r_a = te.reduce_axis((0, alpha), "r_a")
@@ -1112,7 +1129,16 @@ def _conv2d_winograd_nhwc_impl(
 
 
 @tvm.target.generic_func
-def conv2d_winograd_nhwc(data, weight, strides, padding, dilation, out_dtype, pre_computed=False):
+def conv2d_winograd_nhwc(
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    pre_computed=False,
+    auto_scheduler_rewritten_layout="",
+):
     """Conv2D Winograd in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
 
@@ -1132,6 +1158,8 @@ def conv2d_winograd_nhwc(data, weight, strides, padding, dilation, out_dtype, pr
         Specifies the output data type.
     pre_computed: bool
         Whether the kernel is precomputed
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -1149,11 +1177,18 @@ def conv2d_winograd_nhwc(data, weight, strides, padding, dilation, out_dtype, pr
         out_dtype,
         tile_size,
         pre_computed,
+        auto_scheduler_rewritten_layout,
     )
 
 
 def conv2d_winograd_nhwc_without_weight_transform(
-    data, weight, strides, padding, dilation, out_dtype
+    data,
+    weight,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    auto_scheduler_rewritten_layout="",
 ):
     """Conv2D Winograd without layout transform in NHWC layout.
     This is a clean version to be used by the auto-scheduler for both CPU and GPU.
@@ -1172,6 +1207,8 @@ def conv2d_winograd_nhwc_without_weight_transform(
         dilation size, or [dilation_height, dilation_width]
     out_dtype : str, optional
         Specifies the output data type.
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
 
     Returns
     -------
@@ -1180,5 +1217,12 @@ def conv2d_winograd_nhwc_without_weight_transform(
     """
 
     return conv2d_winograd_nhwc(
-        data, weight, strides, padding, dilation, out_dtype, pre_computed=True
+        data,
+        weight,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        pre_computed=True,
+        auto_scheduler_rewritten_layout=auto_scheduler_rewritten_layout,
     )

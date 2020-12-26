@@ -46,7 +46,7 @@ def get_network(name, batch_size=1, layout="NHWC"):
             num_layers=50, batch_size=batch_size, layout=layout, image_shape=image_shape
         )
     elif name == "winograd-test":
-        input_shape = [1, 23, 40, 128]
+        input_shape = [1, 23, 40, 32]
 
         data = relay.var("data", shape=input_shape, dtype="float32")
         net = relay.testing.layers.conv2d(

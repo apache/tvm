@@ -91,6 +91,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     """conv2d x86 strategy"""
     strategy = _op.OpStrategy()
     data, kernel = inputs
+    stride_h, stride_w = get_const_tuple(attrs.strides)
     dilation_h, dilation_w = get_const_tuple(attrs.dilation)
     groups = attrs.groups
     layout = attrs.data_layout
@@ -125,6 +126,35 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.x86.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.x86",
             )
+
+            judge_winograd_auto_scheduler = False
+            if len(kernel.shape) == 4:
+                kernel_h, kernel_w, _, co = get_const_tuple(kernel.shape)
+                judge_winograd_auto_scheduler = (
+                    "float" in data.dtype
+                    and "float" in kernel.dtype
+                    and kernel_h == 3
+                    and kernel_w == 3
+                    and stride_h == 1
+                    and stride_w == 1
+                    and dilation_h == 1
+                    and dilation_w == 1
+                    and 64 < co < 512
+                    # The last condition of co is based on our profiling of resnet workloads
+                    # on skylake avx512 machines. We found winograd is faster than direct
+                    # only when co is within this range
+                )
+
+            # register auto-scheduler implementations
+            if is_auto_scheduler_enabled() and judge_winograd_auto_scheduler:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(
+                        topi.nn.conv2d_winograd_nhwc, need_auto_scheduler_layout=True
+                    ),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nhwc.winograd",
+                    plevel=15,
+                )
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             if not is_auto_scheduler_enabled():
@@ -269,20 +299,39 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
     """conv3d generic strategy"""
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
-    if layout == "NCDHW":
-        strategy.add_implementation(
-            wrap_compute_conv3d(topi.x86.conv3d_ncdhw),
-            wrap_topi_schedule(topi.x86.schedule_conv3d_ncdhw),
-            name="conv3d_ncdhw.x86",
-        )
-    elif layout == "NDHWC":
-        strategy.add_implementation(
-            wrap_compute_conv3d(topi.x86.conv3d_ndhwc),
-            wrap_topi_schedule(topi.x86.schedule_conv3d_ndhwc),
-            name="conv3d_ndhwc.x86",
-        )
+    if is_auto_scheduler_enabled():
+        # Use auto-scheduler. We should provide clear compute definition without autotvm templates
+        # or packed layouts.
+        if layout == "NCDHW":
+            strategy.add_implementation(
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw, need_auto_scheduler_layout=True),
+                naive_schedule,
+                name="conv3d_ncdhw.x86",
+            )
+        elif layout == "NDHWC":
+            strategy.add_implementation(
+                wrap_compute_conv3d(topi.nn.conv3d_ndhwc, need_auto_scheduler_layout=True),
+                naive_schedule,
+                name="conv3d_ndhwc.x86",
+            )
+        else:
+            raise ValueError("Not support this layout {} yet".format(layout))
     else:
-        raise ValueError("Not support this layout {} yet".format(layout))
+        # Use autotvm templates
+        if layout == "NCDHW":
+            strategy.add_implementation(
+                wrap_compute_conv3d(topi.x86.conv3d_ncdhw),
+                wrap_topi_schedule(topi.x86.schedule_conv3d_ncdhw),
+                name="conv3d_ncdhw.x86",
+            )
+        elif layout == "NDHWC":
+            strategy.add_implementation(
+                wrap_compute_conv3d(topi.x86.conv3d_ndhwc),
+                wrap_topi_schedule(topi.x86.schedule_conv3d_ndhwc),
+                name="conv3d_ndhwc.x86",
+            )
+        else:
+            raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
 
 
@@ -475,4 +524,31 @@ def scatter_nd_strategy_cpu(attrs, inputs, out_type, target):
         name="scatter_nd.x86",
         plevel=10,
     )
+    return strategy
+
+
+@conv2d_winograd_without_weight_transfrom_strategy.register("cpu")
+def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transfrom cpu strategy"""
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.data_layout
+    strides = attrs.get_int_tuple("strides")
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert strides == (1, 1), "Do not support strides now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+    strategy = _op.OpStrategy()
+    if layout == "NHWC":
+        strategy.add_implementation(
+            wrap_compute_conv2d(
+                topi.nn.conv2d_winograd_nhwc_without_weight_transform,
+                need_auto_scheduler_layout=True,
+            ),
+            naive_schedule,
+            name="ansor.winograd",
+        )
+    else:
+        raise RuntimeError(
+            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+        )
     return strategy
