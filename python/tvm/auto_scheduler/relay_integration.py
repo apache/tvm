@@ -63,6 +63,27 @@ def call_all_topi_funcs(mod, params, target):
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
+def enable_layout_rewrite(target):
+    """Check if this target should enable_layout_rewrite.
+
+    Parameters
+    ----------
+    target: tvm.target.Target
+        The compilation target.
+
+    Returns
+    -------
+    enable_layout_rewrite: bool
+    """
+    # only enable layout rewrite for cpu / mali backend
+    enable_layout_rewrite_targets = ["cpu", "mali"]
+    enable_layout_rewrite = any(
+        enable_layout_rewrite_target in target.keys
+        for enable_layout_rewrite_target in enable_layout_rewrite_targets
+    )
+    return enable_layout_rewrite
+
+
 def extract_tasks(
     mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
 ):
@@ -128,7 +149,8 @@ def extract_tasks(
                 hardware_params=hardware_params,
                 # When auto scheduler is used in end to end network, try to apply layout rewrite
                 # to improve the overall performance
-                layout_rewrite_option=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+                layout_rewrite_option=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED \
+                    if enable_layout_rewrite(target) else LayoutRewriteOption.NO_REWRITE
             )
         )
         weights.append(use_count_dict[ccache_key] + 1)
@@ -262,13 +284,7 @@ def auto_schedule_topi(outs, has_complex_op):
 
     key = register_workload_tensors(dag.hash_key(), io_tensors)
 
-    # only enable layout rewrite for cpu / mali backend
     target = tvm.target.Target.current()
-    enable_layout_rewrite_targets = ["cpu", "mali"]
-    enable_layout_rewrite = any(
-        enable_layout_rewrite_target in target.keys
-        for enable_layout_rewrite_target in enable_layout_rewrite_targets
-    )
 
     env = TracingEnvironment.current
     if env is None:
@@ -287,7 +303,7 @@ def auto_schedule_topi(outs, has_complex_op):
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
-        if enable_layout_rewrite and has_layout_free:
+        if enable_layout_rewrite(target) and has_layout_free:
             dispatch_ctx = DispatchContext.current
             state = dispatch_ctx.query(target, key, has_complex_op, dag)
             if state is None:

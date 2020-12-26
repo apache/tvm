@@ -166,6 +166,8 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     writer->WriteArrayItem(*data.hardware_params.get());
     if (data.target_host.defined()) {
       writer->WriteArrayItem(data.target_host->str());
+    } else {
+      writer->WriteArrayItem("");
     }
     writer->EndArray();
   }
@@ -184,10 +186,6 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     reader->Read(&str_value);
     data->target = ::tvm::Target(str_value);
     s = reader->NextArrayItem();
-    ICHECK(s);
-    reader->Read(&int_value);
-    data->layout_rewrite_option = ::tvm::auto_scheduler::LayoutRewriteOption(int_value);
-    s = reader->NextArrayItem();
     if (s) {
       reader->Read(hardware_params_node.get());
       s = reader->NextArrayItem();
@@ -195,6 +193,10 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
       if (s) {
         reader->Read(&str_value);
         data->target_host = ::tvm::Target(str_value);
+        s = reader->NextArrayItem();
+        ICHECK(s);
+        reader->Read(&int_value);
+        data->layout_rewrite_option = ::tvm::auto_scheduler::LayoutRewriteOption(int_value);
         s = reader->NextArrayItem();
         ICHECK(!s);
       }

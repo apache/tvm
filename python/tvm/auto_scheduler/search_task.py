@@ -178,7 +178,7 @@ class SearchTask(Object):
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
-    layout_rewrite_option : LayoutRewriteOption = LayoutRewriteOption.NO_REWRITE
+    layout_rewrite_option : Optional[LayoutRewriteOption]
         The default layout rewrite option used during program measuring.
         Auto_scheduler will find a better schedule for the specified layout rewrite option.
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
@@ -210,7 +210,7 @@ class SearchTask(Object):
         target=None,
         target_host=None,
         hardware_params=None,
-        layout_rewrite_option=LayoutRewriteOption.NO_REWRITE
+        layout_rewrite_option=None
     ):
         assert (
             func is not None or workload_key is not None
@@ -226,6 +226,12 @@ class SearchTask(Object):
             target = Target(target)
         if isinstance(target_host, str):
             target_host = Target(target_host)
+
+        if layout_rewrite_option is None:
+            layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
+            if target.kind.name == "llvm" or \
+                ("device" in target.attrs.keys and target.attrs["device"] == "mali"):
+                layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
 
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params,
@@ -248,18 +254,16 @@ class SearchTask(Object):
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
 
-    def apply_best(self, log_file, layout_rewrite_option=LayoutRewriteOption.NO_REWRITE):
+    def apply_best(self, log_file, layout_rewrite_option=None):
         """Apply the history best from a log file and return the schedule.
 
         Parameters
         ----------
         log_file : str
            The name of the log file.
-        layout_rewrite_option : LayoutRewriteOption = LayoutRewriteOption.NO_REWRITE
+        layout_rewrite_option : Optional[LayoutRewriteOption]
            The layout rewrite option.
-           For a dependent op, NO_REWRITE or INSERT_TRANSFORM_STAGE may result on different
-           performance. In experience, op with large shape may get benefit from the option
-           INSERT_TRANSFORM_STAGE.
+           
 
         Returns
         -------
@@ -271,7 +275,9 @@ class SearchTask(Object):
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
             )
 
-        sch, args = self.compute_dag.apply_steps_from_state(inp.state, layout_rewrite_option)
+        sch, args = self.compute_dag.apply_steps_from_state(
+            inp.state, layout_rewrite_option or self.layout_rewrite_option
+        )
         return sch, args
 
     def print_best(self, log_file, print_mode="schedule"):
