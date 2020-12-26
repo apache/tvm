@@ -109,17 +109,17 @@ def test_detection_models():
     with torch.no_grad():
         pt_res = scripted_model(data)
 
-    def compile_and_run_vm(mod, params, data_np):
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
+    def compile_and_run_vm(mod, params, data_np, target):
+        with tvm.transform.PassContext(opt_level=3):
             vm_exec = relay.vm.compile(mod, target=target, params=params)
 
-        ctx = tvm.cpu()
+        ctx = tvm.context(target, 0)
         vm = VirtualMachine(vm_exec, ctx)
         vm.set_input("main", **{input_name: data_np})
         return vm.run()
 
     for target in ["cuda", "llvm"]:
-        tvm_res = compile_and_run_vm(mod, params, data_np)
+        tvm_res = compile_and_run_vm(mod, params, data_np, target)
 
         # Bounding boxes
         tvm.testing.assert_allclose(
@@ -141,8 +141,8 @@ def test_detection_models():
     after = mod["main"]
     assert not tvm.ir.structural_equal(after, before)
 
-    tvm_res_after_rewrite = compile_and_run_vm(mod, params, data_np)
+    tvm_res_after_rewrite = compile_and_run_vm(mod, params, data_np, "llvm")
 
     # Results should be equivalent after rewriting
     for res1, res2 in zip(tvm_res, tvm_res_after_rewrite):
-        tvm.testing.assert_allclose(res1, res2)
+        tvm.testing.assert_allclose(res1.asnumpy(), res2.asnumpy())

@@ -22,7 +22,6 @@ from ..dataflow_pattern import (
     is_op,
     rewrite,
     is_tuple,
-    is_tuple_get_item,
     wildcard,
     DFPatternCallback,
 )
@@ -37,7 +36,7 @@ def is_version_greater_than(ver):
     )
 
 
-def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
+def batched_nms_pattern(boxes, scores, idxs, iou_threshold, num_boxes, indices):
     """A pattern to detect batched_nms function in torchvision
 
     The inputs to this function, boxes, scores, idxs, iou_threshold are wildcard
@@ -53,7 +52,9 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
         return keep
 
     Here is how PyTorch frontend lowers above PyTorch code. For simplicity, Relay ops for
-    dealing with dynamic strided_slice are omitted.
+    dealing with dynamic strided_slice are omitted. %num_boxes, %indices are complex
+    expressions, but since we can use the wildcard part for them, we do not need to construct
+    their patterns.
 
     %2 = expand_dims(%scores, axis=-1);
     %3 = cast(%idxs, dtype="float32");
@@ -66,11 +67,9 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     %10 = (%2, %9);
     %11 = concatenate(%10, axis=-1);
     %12 = expand_dims(%11, axis=0);
-    %13 = vision.get_valid_counts(%12, -1f, meta[relay.attrs.GetValidCountsAttrs][0]);
-    %14 = %13.1;
-    %15 = %13.0;
-    %16 = %13.2;
-    %17 = vision.non_max_suppression(%14, %15, %16, -1, 0.7f, ...);
+    ...
+    ...
+    %17 = vision.non_max_suppression(%12, %num_boxes, %indices, -1, 0.7f, ...);
 
     """
     one = is_constant()
@@ -106,15 +105,10 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold):
     score_expand_dims = is_op("expand_dims")(scores)
     tup = is_tuple([score_expand_dims, add])
     concat = is_op("concatenate")(tup)
-    expand_dims = is_op("expand_dims")(concat)
-
-    get_valid_counts_out = is_op("vision.get_valid_counts")(expand_dims, is_constant())
-    data = is_tuple_get_item(get_valid_counts_out, 1)
-    valid_counts = is_tuple_get_item(get_valid_counts_out, 0)
-    indices = is_tuple_get_item(get_valid_counts_out, 2)
+    data = is_op("expand_dims")(concat)
 
     return is_op("vision.non_max_suppression")(
-        data, valid_counts, indices, is_constant(), iou_threshold
+        data, num_boxes, indices, is_constant(), iou_threshold
     )
 
 
@@ -128,22 +122,30 @@ class NMSRewrite(DFPatternCallback):
         self.scores = wildcard()
         self.idxs = wildcard()
         self.iou_threshold = wildcard()
-        self.pattern = batched_nms_pattern(self.boxes, self.scores, self.idxs, self.iou_threshold)
+        self.num_boxes = wildcard()
+        self.indices = wildcard()
 
-    def convert_batched_nms(self, boxes, scores, idxs, iou_thres):
+        self.pattern = batched_nms_pattern(
+            self.boxes,
+            self.scores,
+            self.idxs,
+            self.iou_threshold,
+            self.num_boxes,
+            self.indices,
+        )
+
+    def convert_batched_nms(self, boxes, scores, idxs, iou_thres, num_boxes, indices):
         """Restore class-aware NMS using extracted class indices"""
         scores = op.expand_dims(scores, axis=-1, num_newaxis=1)
         idxs = op.expand_dims(idxs, axis=-1, num_newaxis=1)
         idxs = op.cast(idxs, "float32")
         data = op.concatenate([idxs, scores, boxes], -1)
         data = op.expand_dims(data, 0, 1)
-        ct, data, indices = op.vision.get_valid_counts(
-            data, score_threshold=-1.0, id_index=0, score_index=1
-        )
+
         top_k = max_out_size = -1
         out = op.vision.non_max_suppression(
             data=data,
-            valid_count=ct,
+            valid_count=num_boxes,
             indices=indices,
             max_output_size=max_out_size,
             iou_threshold=iou_thres,
@@ -162,7 +164,9 @@ class NMSRewrite(DFPatternCallback):
         scores = node_map[self.scores][0]
         idxs = node_map[self.idxs][0]
         iou_thres = node_map[self.iou_threshold][0]
-        return self.convert_batched_nms(boxes, scores, idxs, iou_thres)
+        num_boxes = node_map[self.num_boxes][0]
+        indices = node_map[self.indices][0]
+        return self.convert_batched_nms(boxes, scores, idxs, iou_thres, num_boxes, indices)
 
 
 def rewrite_nms_to_batched_nms(mod):
