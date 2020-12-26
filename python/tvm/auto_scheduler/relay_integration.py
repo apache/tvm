@@ -149,8 +149,9 @@ def extract_tasks(
                 hardware_params=hardware_params,
                 # When auto scheduler is used in end to end network, try to apply layout rewrite
                 # to improve the overall performance
-                layout_rewrite_option=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED \
-                    if enable_layout_rewrite(target) else LayoutRewriteOption.NO_REWRITE
+                layout_rewrite_option=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+                if enable_layout_rewrite(target)
+                else LayoutRewriteOption.NO_REWRITE,
             )
         )
         weights.append(use_count_dict[ccache_key] + 1)

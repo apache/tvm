@@ -210,7 +210,7 @@ class SearchTask(Object):
         target=None,
         target_host=None,
         hardware_params=None,
-        layout_rewrite_option=None
+        layout_rewrite_option=None,
     ):
         assert (
             func is not None or workload_key is not None
@@ -229,13 +229,19 @@ class SearchTask(Object):
 
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
-            if target.kind.name == "llvm" or \
-                ("device" in target.attrs and target.attrs["device"] == "mali"):
+            if target.kind.name == "llvm" or (
+                "device" in target.attrs and target.attrs["device"] == "mali"
+            ):
                 layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params,
-            layout_rewrite_option
+            _ffi_api.SearchTask,
+            compute_dag,
+            workload_key,
+            target,
+            target_host,
+            hardware_params,
+            layout_rewrite_option,
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -263,7 +269,7 @@ class SearchTask(Object):
            The name of the log file.
         layout_rewrite_option : Optional[LayoutRewriteOption]
            The layout rewrite option.
-           
+
 
         Returns
         -------
@@ -318,7 +324,7 @@ class SearchTask(Object):
             "target": self.target,
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
-            "layout_rewrite_option": self.layout_rewrite_option
+            "layout_rewrite_option": self.layout_rewrite_option,
         }
 
     def __setstate__(self, state):
@@ -341,7 +347,7 @@ class SearchTask(Object):
             state["target"],
             state["target_host"],
             state["hardware_params"],
-            state["layout_rewrite_option"]
+            state["layout_rewrite_option"],
         )
 
 
