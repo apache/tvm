@@ -717,7 +717,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  std::string layout;
+  tvm::String layout;
   bool ceil_mode;
   bool count_include_pad;
 
@@ -977,8 +977,8 @@ struct FIFOBufferAttrs : public tvm::AttrsNode<FIFOBufferAttrs> {
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   double scale_h;
   double scale_w;
-  std::string layout;
-  std::string method;
+  tvm::String layout;
+  tvm::String method;
   bool align_corners;
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
