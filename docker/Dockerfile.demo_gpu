@@ -18,7 +18,7 @@
 # Minimum docker image for demo purposes
 # CI docker GPU env
 # tag: v0.54
-FROM tvmai/ci-gpu:v0.55
+FROM tlcpack/ci-gpu:v0.55
 
 # Jupyter notebook.
 RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
