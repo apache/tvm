@@ -49,6 +49,31 @@ class LayoutRewriteOption:
     # so this option must be used along with `AutoSchedulerLayoutRewrite` pass in Relay.
     REWRITE_FOR_PRE_TRANSFORMED = 2
 
+    @staticmethod
+    def get_target_default(target, in_relay_integration=False):
+        """ Get the default layout rewrite option for the specified target.
+        Currently we only enable layout rewrite for cpu / mali backend for now
+
+        Parameters
+        ----------
+        target: tvm.target.Target
+            The compilation target.
+        in_relay_integration: bool
+            If this check is ask for relay integration.
+
+        Returns
+        -------
+        layout_rewrite_option: LayoutRewriteOption
+            The default layout rewrite option for the specified target.
+        """
+        layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
+        if target.kind.name == "llvm" or (
+            "device" in target.attrs and target.attrs["device"] == "mali"
+        ):
+            layout_rewrite_option = LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED \
+                if in_relay_integration else LayoutRewriteOption.INSERT_TRANSFORM_STAGE
+
+        return layout_rewrite_option
 
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
 class ComputeDAG(Object):

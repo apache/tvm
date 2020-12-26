@@ -179,8 +179,8 @@ class SearchTask(Object):
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
     layout_rewrite_option : Optional[LayoutRewriteOption]
-        The layout rewrite option used during program measuring. If None, the
-        INSERT_TRANSFORM_STAGE will be used for cpu and mali gpu, else NO_REWRITE will be used.
+        The layout rewrite option used for measuring programs. If None, the default value will be
+        set depending on the specified target.
         Auto_scheduler will find a better schedule for the specified layout rewrite option.
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
         op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
@@ -228,13 +228,6 @@ class SearchTask(Object):
         if isinstance(target_host, str):
             target_host = Target(target_host)
 
-        if layout_rewrite_option is None:
-            layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
-            if target.kind.name == "llvm" or (
-                "device" in target.attrs and target.attrs["device"] == "mali"
-            ):
-                layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
-
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             compute_dag,
@@ -242,7 +235,7 @@ class SearchTask(Object):
             target,
             target_host,
             hardware_params,
-            layout_rewrite_option,
+            layout_rewrite_option or LayoutRewriteOption.get_target_default(target),
         )
 
     def tune(self, tuning_options, search_policy=None):
