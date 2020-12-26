@@ -51,7 +51,7 @@ class LayoutRewriteOption:
 
     @staticmethod
     def get_target_default(target, in_relay_integration=False):
-        """ Get the default layout rewrite option for the specified target.
+        """Get the default layout rewrite option for the specified target.
         Currently we only enable layout rewrite for cpu / mali backend for now
 
         Parameters
@@ -70,10 +70,14 @@ class LayoutRewriteOption:
         if target.kind.name == "llvm" or (
             "device" in target.attrs and target.attrs["device"] == "mali"
         ):
-            layout_rewrite_option = LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED \
-                if in_relay_integration else LayoutRewriteOption.INSERT_TRANSFORM_STAGE
+            layout_rewrite_option = (
+                LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+                if in_relay_integration
+                else LayoutRewriteOption.INSERT_TRANSFORM_STAGE
+            )
 
         return layout_rewrite_option
+
 
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
 class ComputeDAG(Object):

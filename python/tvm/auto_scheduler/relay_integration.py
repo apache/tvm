@@ -281,8 +281,10 @@ def auto_schedule_topi(outs, has_complex_op):
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
-        if LayoutRewriteOption.get_target_default(target, True) != LayoutRewriteOption.NO_REWRITE \
-            and has_layout_free:
+        if (
+            LayoutRewriteOption.get_target_default(target, True) != LayoutRewriteOption.NO_REWRITE
+            and has_layout_free
+        ):
             dispatch_ctx = DispatchContext.current
             state = dispatch_ctx.query(target, key, has_complex_op, dag)
             if state is None:
