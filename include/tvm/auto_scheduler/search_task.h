@@ -147,6 +147,7 @@ class SearchTask : public ObjectRef {
    * \param target The target device of this search task.
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
+   * \param layout_rewrite_option The default layout rewrite option used during program measuring.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
              Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option);

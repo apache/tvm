@@ -179,7 +179,8 @@ class SearchTask(Object):
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
     layout_rewrite_option : Optional[LayoutRewriteOption]
-        The default layout rewrite option used during program measuring.
+        The layout rewrite option used during program measuring. If None, the
+        INSERT_TRANSFORM_STAGE will be used for cpu and mali gpu, else NO_REWRITE will be used.
         Auto_scheduler will find a better schedule for the specified layout rewrite option.
         The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
         op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
