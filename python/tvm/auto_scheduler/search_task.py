@@ -230,7 +230,7 @@ class SearchTask(Object):
         if layout_rewrite_option is None:
             layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
             if target.kind.name == "llvm" or \
-                ("device" in target.attrs.keys and target.attrs["device"] == "mali"):
+                ("device" in target.attrs and target.attrs["device"] == "mali"):
                 layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
 
         self.__init_handle_by_constructor__(

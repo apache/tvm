@@ -186,7 +186,7 @@ def recover_measure_input(inp, rebuild_state=False):
         target=task.target,
         target_host=task.target_host,
         hardware_params=task.hardware_params,
-        layout_rewrite_option=task.layout_rewrite_option
+        layout_rewrite_option=task.layout_rewrite_option,
     )
 
     if rebuild_state:
