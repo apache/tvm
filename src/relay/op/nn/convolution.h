@@ -356,8 +356,16 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
 
-    // assign result to reporter
-    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    if (param->auto_scheduler_rewritten_layout.size() == 0) {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    } else {
+      // If the layout is rewritten by auto-scheduler,
+      // we just forcly apply the layout provided by auto-scheduler and
+      // skip the normal inference logic.
+      {}  // do nothing
+    }
+
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;

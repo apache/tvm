@@ -28,7 +28,10 @@ logger = logging.getLogger("strategy")
 
 
 def naive_schedule(_, outs, target):
-    """Return the naive default schedule"""
+    """Return the naive default schedule.
+    This function acts as a placeholder for op implementations that uses auto-scheduler.
+    Implemenations using this function should only be used along with auto-scheduler.
+    """
     if "gpu" in target.keys:
         # For GPU, we at least need thread binding to make a valid schedule.
         # So the naive schedule cannot be compiled.
@@ -502,7 +505,7 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # conv3d
-def wrap_compute_conv3d(topi_compute, need_layout=False):
+def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_layout=False):
     """wrap conv3d topi compute"""
 
     def _compute_conv3d(attrs, inputs, out_type):
@@ -519,11 +522,14 @@ def wrap_compute_conv3d(topi_compute, need_layout=False):
             raise ValueError("Dilation should be positive value")
         if groups != 1:
             raise ValueError("Not support arbitrary group number for conv3d")
+
+        args = [inputs[0], inputs[1], strides, padding, dilation]
         if need_layout:
-            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)
-        else:
-            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation, out_dtype)
-        return [out]
+            args.append(layout)
+        args.append(out_dtype)
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_conv3d
 
