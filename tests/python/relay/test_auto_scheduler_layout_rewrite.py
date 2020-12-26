@@ -30,8 +30,8 @@ def get_np_array(var, dtype):
 
 
 def get_relay_conv2d(
-    outc=128,
-    inc=64,
+    outc=32,
+    inc=32,
     height=14,
     width=14,
     kh=3,
@@ -155,16 +155,19 @@ def tune_and_check(mod, data, weight):
         )
         tuner.tune(tune_option, search_policy="sketch.random")
 
-        # Compile and run
-        def compile_and_run(disabled_pass={}):
-            with auto_scheduler.ApplyHistoryBest(log_file):
-                with tvm.transform.PassContext(
-                    opt_level=3,
-                    config={"relay.backend.use_auto_scheduler": True},
-                    disabled_pass=disabled_pass,
-                ):
-                    lib = relay.build(mod, target=target, params={"weight": weight})
+        # Compile
+        with auto_scheduler.ApplyHistoryBest(log_file):
+            with tvm.transform.PassContext(
+                opt_level=3,
+                config={"relay.backend.use_auto_scheduler": True},
+            ):
+                lib = relay.build(mod, target=target, params={"weight": weight})
 
+        # Compile without auto-scheduler for correctness check
+        with tvm.transform.PassContext(opt_level=0):
+            lib2 = relay.build(mod, target=target, params={"weight": weight})
+
+        def get_output(data, lib):
             ctx = tvm.cpu()
             module = graph_runtime.GraphModule(lib["default"](ctx))
             module.set_input("data", data)
@@ -173,8 +176,8 @@ def tune_and_check(mod, data, weight):
             return module.get_output(0).asnumpy()
 
         # Check correctness
-        actual_output = compile_and_run()
-        expected_output = compile_and_run(disabled_pass={"AutoSchedulerLayoutRewrite"})
+        actual_output = get_output(data, lib)
+        expected_output = get_output(data, lib2)
 
         tvm.testing.assert_allclose(actual_output, expected_output, rtol=1e-4, atol=1e-4)
 

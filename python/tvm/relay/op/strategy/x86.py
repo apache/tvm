@@ -140,6 +140,9 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     and dilation_h == 1
                     and dilation_w == 1
                     and 64 < co < 512
+                    # The last condition of co is based on our profiling of resnet workloads
+                    # on skylake avx512 machines. We found winograd is faster than direct
+                    # only when co is within this range
                 )
 
             # register auto-scheduler implementations
@@ -526,7 +529,7 @@ def scatter_nd_strategy_cpu(attrs, inputs, out_type, target):
 
 @conv2d_winograd_without_weight_transfrom_strategy.register("cpu")
 def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
+    """conv2d_winograd_without_weight_transfrom cpu strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
