@@ -167,7 +167,7 @@ struct Handler<::tvm::auto_scheduler::SearchTaskNode> {
     if (data.target_host.defined()) {
       writer->WriteArrayItem(data.target_host->str());
     } else {
-      writer->WriteArrayItem("");
+      writer->WriteArrayItem(std::string(""));
     }
     writer->EndArray();
   }
