@@ -77,11 +77,10 @@ def enable_layout_rewrite(target):
     """
     # only enable layout rewrite for cpu / mali backend
     enable_layout_rewrite_targets = ["cpu", "mali"]
-    enable_layout_rewrite = any(
+    return any(
         enable_layout_rewrite_target in target.keys
         for enable_layout_rewrite_target in enable_layout_rewrite_targets
     )
-    return enable_layout_rewrite
 
 
 def extract_tasks(
