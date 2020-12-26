@@ -135,8 +135,6 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 network = "mobilenet"
 batch_size = 1
 layout = "NHWC"
-# Replace this with the device key in your tracker
-device_key = "rk3399"
 # Set this to True if you use ndk tools for cross compiling
 use_ndk = True
 # Path to cross compiler
@@ -145,6 +143,18 @@ target_host = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
 target = tvm.target.Target("opencl -device=mali")
 dtype = "float32"
 log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
+
+
+#################################################################
+# Start an RPC Tracker and Register Devices to the Tracker
+# --------------------------------------------------------
+# Please refer to the "Start RPC Tracker" and "Register Devices to RPC Tracker" setions
+# in this :ref:`tutorial <tutorials-autotvm-start-rpc-tracker>` to start an RPC tracker
+# and register devices to the tracker.
+
+# Replace this with the device key in your tracker
+device_key = "rk3399"
+
 
 #################################################################
 # Extract Search Tasks
@@ -339,9 +349,14 @@ def tune_and_evaluate():
 # 1. During the tuning, the auto-scheduler needs to compile many programs and
 #    extract feature from them. This part is CPU-intensive,
 #    so a high-performance CPU with many cores is recommended for faster search.
-# 2. If you have multiple target devices, you can use all of them for measurements to
-#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-rpc-tracker>`
+# 2. You can use :code:`python3 -m tvm.auto_scheduler.measure_record --mode distill --i log.json`
+#    to distill the large log file and only save the best useful records.
+# 3. You can resume a search from the previous log file. You just need to
+#    add a new argument :code:`load_log_file` when creating the task scheduler
+#    in function :code:`run_tuning`. Say,
+#    :code:`tuner = auto_scheduler.TaskScheduler(tasks, task_weights, load_log_file=log_file)`
+# 4. If you have multiple target GPUs, you can use all of them for measurements to
+#    parallelize the measurements. Check this :ref:`section <tutorials-autotvm-scale-up-rpc-tracker>`
 #    to learn how to use the RPC Tracker and RPC Server.
 #    To use the RPC Tracker in auto-scheduler, replace the runner in :code:`TuningOptions`
 #    with :any:`auto_scheduler.RPCRunner`.
-#
