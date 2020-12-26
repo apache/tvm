@@ -389,7 +389,7 @@ def verify_conv2d_nchw_int8(
 
     def verify_fallback_schedule_cpu_padding():
         _, _, out_height, out_width = get_const_tuple(c_np.shape)
-        wkl = _get_workload(data, kernel, (stride, stride), padding, dilation, dtype)
+        wkl = _get_workload(A, W, (stride, stride), padding, dilation, dtype)
         int32_lanes, num_int8_elements = num_filter, in_channel
 
         # check if tile_ow candidates are the factors of the right output weight.
