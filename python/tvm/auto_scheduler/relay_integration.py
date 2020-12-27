@@ -58,19 +58,20 @@ def call_all_topi_funcs(mod, params, target):
         config={"relay.backend.use_auto_scheduler": True},
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
-        # try:
-        #     opt_mod, _ = relay.optimize(mod, target, params)
-        #     grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-        #     grc.codegen(opt_mod["main"])
-        # except tvm.TVMError as e:
-        #     print(
-        #         "Get errors with GraphRuntimeCodegen for task extraction. "
-        #         "Fallback to VMCompiler. Error details:\n%s" % str(e)
-        #     )
-        compiler = relay.vm.VMCompiler()
-        if params:
-            compiler.set_params(params)
-        compiler.lower(mod, target)
+        try:
+            opt_mod, _ = relay.optimize(mod, target, params)
+            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc.codegen(opt_mod["main"])
+        except tvm.TVMError:
+            print(
+                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Fallback to VMCompiler."
+            )
+            compiler = relay.vm.VMCompiler()
+            if params:
+                compiler.set_params(params)
+            mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
+            compiler.lower(mod, target)
 
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
@@ -237,6 +238,7 @@ def traverse_to_get_io_tensors(outs):
 
     io_tensors = inputs + list(outs)
     for tensor in io_tensors:
+        # Reject the compute if any of its I/O tensors has dynamic shape.
         if any([not isinstance(v, int) for v in get_const_tuple(tensor.shape)]):
             return ([], False)
 
