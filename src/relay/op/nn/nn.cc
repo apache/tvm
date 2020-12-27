@@ -310,6 +310,33 @@ RELAY_REGISTER_OP("nn.softmax")
     .set_support_level(1)
     .add_type_rel("Identity", IdentityRel);
 
+// relay.fast_softmax
+TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.fast_softmax").set_body_typed([](Expr data, int axis) {
+  auto attrs = make_object<SoftmaxAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.fast_softmax");
+  return Call(op, {data}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("nn.fast_softmax")
+    .describe(R"code(Softmax layer.
+    Use approximation to compute exponent for faster speed.
+
+.. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+.. note::
+    This operator can be optimized away for inference.
+
+- **data**: The input data
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SoftmaxAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_support_level(1)
+    .add_type_rel("Identity", IdentityRel);
+
 // relay.nn.log_softmax
 TVM_REGISTER_GLOBAL("relay.op.nn._make.log_softmax").set_body_typed([](Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();

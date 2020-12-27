@@ -174,36 +174,17 @@ print(task.print_best(log_file))
 # In the example below we resume the status and do more 5 trials.
 
 
-def resume_search(task, log_file_name):
+def resume_search(task, log_file):
+    print("Resume search:")
     cost_model = auto_scheduler.XGBModel()
-    cost_model.update_from_file(log_file_name)
+    cost_model.update_from_file(log_file)
     search_policy = auto_scheduler.SketchPolicy(
-        task,
-        cost_model,
-        init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file_name)],
+        task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
     )
     tune_option = auto_scheduler.TuningOptions(
-        num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file_name)]
+        num_measure_trials=5, measure_callbacks=[auto_scheduler.RecordToFile(log_file)]
     )
     task.tune(tune_option, search_policy=search_policy)
 
 
-# resume_search(task, log_file)
-
-######################################################################
-# .. note::
-#   We cannot run the line above because of the conflict between
-#   python's multiprocessing and tvm's thread pool.
-#   After running a tvm generated binary the python's multiprocessing library
-#   will hang forever. You have to make sure that you don't run any tvm
-#   generated binaries before calling auot-scheduler's search.
-#   To run the function above, you should comment out all code in
-#   "Check correctness and evaluate performance" section.
-#
-#   You should be careful about this problem in your applications.
-#   There are other workarounds for this problem.
-#   For example, you can start a new thread/process (with the builtin python library
-#   threading or multiprocessing) and run the tvm binaries in the new thread/process.
-#   This provides an isolation and avoids the conflict in the main thread/process.
-#   You can also use :any:`auto_scheduler.LocalRPCMeasureContext` for auto-scheduler,
-#   as shown in the GPU tutorial (:ref:`auto-scheduler-conv-gpu`).
+resume_search(task, log_file)
