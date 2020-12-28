@@ -91,9 +91,9 @@ bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
   return false;
 }
 
-#define TVM_CHECK_CANONICAL_SIMPLIFY_CAST(DTYPE, VALUE)  \
-  if (!CheckCastImpl(DTYPE, VALUE, analyzer)) {          \
-    return false;                                        \
+#define TVM_CHECK_CANONICAL_SIMPLIFY_CAST(DTYPE, VALUE) \
+  if (!CheckCastImpl(DTYPE, VALUE, analyzer)) {         \
+    return false;                                       \
   }
 
 /*!
