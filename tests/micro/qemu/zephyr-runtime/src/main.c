@@ -99,10 +99,10 @@ int g_utvm_timer_running = 0;
 static struct device* led_pin;
 #endif  // CONFIG_LED
 
-int TVMPlatformTimerStart() {
+tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     TVMLogf("timer already running");
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
 
 #ifdef CONFIG_LED
@@ -111,13 +111,13 @@ int TVMPlatformTimerStart() {
   k_timer_start(&g_utvm_timer, TIME_TIL_EXPIRY, TIME_TIL_EXPIRY);
   g_utvm_start_time = k_cycle_get_32();
   g_utvm_timer_running = 1;
-  return 0;
+  return kTvmErrorNoError;
 }
 
-int TVMPlatformTimerStop(double* res_us) {
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     TVMLogf("timer not running");
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
 
   uint32_t stop_time = k_cycle_get_32();
@@ -134,7 +134,7 @@ int TVMPlatformTimerStop(double* res_us) {
   }
 
   uint32_t ns_spent = (uint32_t)k_cyc_to_ns_floor64(cycles_spent);
-  double hw_clock_res_us = ns_spent / 1000.0;
+  double hw_clock_elapsed_seconds = ns_spent / 1e9;
 
   // need to grab time remaining *before* stopping. when stopped, this function
   // always returns 0.
@@ -152,13 +152,13 @@ int TVMPlatformTimerStop(double* res_us) {
   // if we approach the limits of the HW clock datatype (uint32_t), use the
   // coarse-grained timer result instead
   if (approx_num_cycles > (0.5 * (~((uint32_t)0)))) {
-    *res_us = timer_res_ms * 1000.0;
+    *elapsed_time_seconds = timer_res_ms / 1e3;
   } else {
-    *res_us = hw_clock_res_us;
+    *elapsed_time_seconds = hw_clock_elapsed_seconds;
   }
 
   g_utvm_timer_running = 0;
-  return 0;
+  return kTvmErrorNoError;
 }
 
 #define RING_BUF_SIZE 512
