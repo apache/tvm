@@ -530,20 +530,21 @@ def nms_ir(
         def nms_inner_loop(ib, j):
             # the box j is valid, invalidate other boxes that overlap with j above iou_threshold
 
-            # # When return_indices is False, no need to populate box_indices
-            # if return_indices:
-            #     # Only one thread needs to this write
-            #     with ib.if_scope(tx == 0):
-            #         orig_idx = sorted_index[i * num_anchors + j]
-            #         box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
+            # When return_indices is False, no need to populate box_indices
+            if return_indices:
+                orig_idx = sorted_index[i * num_anchors + j]
+                box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
 
-            orig_idx = sorted_index[i * num_anchors + j]
-            box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
+            # TODO(masahi): Want to do this instead of above, but the following is eliminated during codegen
+            # # Only one thread needs to this write
+            # with ib.if_scope(tx == 0):
+            #     orig_idx = sorted_index[i * num_anchors + j]
+            #     box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
 
             num_valid_boxes_local[0] += 1
 
             offset_j = j * box_data_length
-            num_iter_per_thread = ceil_div(num_anchors - (j + 1), nthread_tx)
+            num_iter_per_thread = ceil_div(valid_count[i] - (j + 1), nthread_tx)
 
             with ib.for_range(0, num_iter_per_thread) as _k:
                 k = j + 1 + _k * nthread_tx + tx
@@ -552,7 +553,7 @@ def nms_ir(
                 with ib.if_scope(
                     tvm.tir.all(
                         k < num_anchors,
-                        out[base_idx + offset_k + score_index] > 0, # is the box k still valid?
+                        out[base_idx + offset_k + score_index] > 0,  # is the box k still valid?
                         tvm.tir.any(id_index < 0, out[base_idx + offset_k + id_index] >= 0),
                         tvm.tir.any(
                             force_suppress > 0,
@@ -596,8 +597,10 @@ def nms_ir(
                     with ib.else_scope():
                         nms_inner_loop(ib, j)
 
-            # with ib.if_scope(tx == 0):
             num_valid_boxes[i] = num_valid_boxes_local[0]
+            # TODO(masahi): Want to do this instead of above, but the following is eliminated during codegen
+            # with ib.if_scope(tx == 0):
+            #     num_valid_boxes[i] = num_valid_boxes_local[0]
 
         with ib.else_scope():
             num_valid_boxes[i] = 0
