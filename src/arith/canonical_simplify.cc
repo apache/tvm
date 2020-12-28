@@ -91,9 +91,9 @@ bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
   return false;
 }
 
-#define CHECK_CAST(DTYPE, VALUE)                \
-  if (!CheckCastImpl(DTYPE, VALUE, analyzer)) { \
-    return false;                               \
+#define TVM_CHECK_CANONICAL_SIMPLIFY_CAST(DTYPE, VALUE)  \
+  if (!CheckCastImpl(DTYPE, VALUE, analyzer)) {          \
+    return false;                                        \
   }
 
 /*!
@@ -165,19 +165,19 @@ class SplitExprNode : public CanonicalExprNode {
     if (this->scale == 0) {
       return true;
     }
-    CHECK_CAST(dtype, res)
+    TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
     if (this->upper_factor != SplitExprNode::kPosInf) {
       res = ModImpl(res, make_const(this->dtype, this->upper_factor), div_mode);
-      CHECK_CAST(dtype, res)
+      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
     }
     if (this->lower_factor != 1) {
       res = DivImpl(res, make_const(this->dtype, this->lower_factor), div_mode);
-      CHECK_CAST(dtype, res)
+      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
     }
     if (this->scale != 1) {
       ICHECK(!this->dtype.is_uint() || this->scale > 0);
       res = res * make_const(this->dtype, this->scale);
-      CHECK_CAST(dtype, res)
+      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
     }
     return true;
   }
@@ -336,23 +336,23 @@ class SumExprNode : public CanonicalExprNode {
     for (size_t i = 0; i < args.size(); ++i) {
       if (args[i]->scale > 0) {
         res = res + args[i]->Normalize();
-        CHECK_CAST(dtype, res)
+        TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
       }
     }
     if (base > 0) {
       res = res + make_const(dtype, base);
-      CHECK_CAST(dtype, res)
+      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
     }
     // negative scales follows using sub.
     for (size_t i = 0; i < args.size(); ++i) {
       if (args[i]->scale < 0) {
         res = res - args[i]->NormalizeWithScale(-1);
-        CHECK_CAST(dtype, res)
+        TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
       }
     }
     if (base < 0) {
       res = res - make_const(dtype, -base);
-      CHECK_CAST(dtype, res)
+      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
     }
     for (const auto& arg : args) {
       if (!arg->CheckCast(dtype, analyzer)) {
@@ -501,6 +501,8 @@ class SumExprNode : public CanonicalExprNode {
     return res;
   }
 };
+
+#undef TVM_CHECK_CANONICAL_SIMPLIFY_CAST
 
 class SumExpr : public PrimExpr {
  public:
