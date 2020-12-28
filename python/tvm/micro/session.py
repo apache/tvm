@@ -23,6 +23,7 @@ import sys
 from ..error import register_error
 from .._ffi import get_global_func
 from ..contrib import graph_runtime
+from ..contrib.debugger import debug_runtime
 from ..rpc import RPCSession
 from .transport import IoTimeoutError
 from .transport import TransportLogger

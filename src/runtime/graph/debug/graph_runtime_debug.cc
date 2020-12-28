@@ -58,54 +58,104 @@ class GraphRuntimeDebug : public GraphRuntime {
   std::string RunIndividual(int number, int repeat, int min_repeat_ms) {
     // warmup run
     GraphRuntime::Run();
-    std::ostringstream os;
+    std::string tkey = module_->type_key();
     std::vector<double> time_per_op(op_execs_.size(), 0);
-    for (int i = 0; i < repeat; ++i) {
-      std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin,
-          tend;
-      double duration_ms = 0.0;
-      do {
-        std::fill(time_per_op.begin(), time_per_op.end(), 0);
-        if (duration_ms > 0.0) {
-          number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
-                                             number * 1.618));  // 1.618 is chosen by random
-        }
-        tbegin = std::chrono::high_resolution_clock::now();
-        for (int k = 0; k < number; k++) {
-          for (size_t index = 0; index < op_execs_.size(); ++index) {
-            if (op_execs_[index]) {
-              const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
-              auto op_tbegin = std::chrono::high_resolution_clock::now();
-              op_execs_[index]();
-              TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-              auto op_tend = std::chrono::high_resolution_clock::now();
-              double op_duration =
-                  std::chrono::duration_cast<std::chrono::duration<double> >(op_tend - op_tbegin)
-                      .count();
-              time_per_op[index] += op_duration * 1e6;  // us
+    if (tkey == "rpc") {
+      // RPC modules rely on remote timing which implements the logic from the else branch.
+      for (size_t index = 0; index < op_execs_.size(); ++index) {
+        time_per_op[index] += RunOpRPC(index, number, repeat, min_repeat_ms);
+      }
+    } else {
+      for (int i = 0; i < repeat; ++i) {
+        std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds>
+            tbegin, tend;
+        double duration_ms = 0.0;
+        do {
+          std::fill(time_per_op.begin(), time_per_op.end(), 0);
+          if (duration_ms > 0.0) {
+            number = static_cast<int>(std::max((min_repeat_ms / (duration_ms / number) + 1),
+                                               number * 1.618));  // 1.618 is chosen by random
+          }
+          tbegin = std::chrono::high_resolution_clock::now();
+          for (int k = 0; k < number; k++) {
+            for (size_t index = 0; index < op_execs_.size(); ++index) {
+              if (op_execs_[index]) {
+                time_per_op[index] += RunOpHost(index);
+              }
             }
           }
-        }
-        tend = std::chrono::high_resolution_clock::now();
-        duration_ms =
-            std::chrono::duration_cast<std::chrono::duration<double> >(tend - tbegin).count() *
-            1000;
-      } while (duration_ms < min_repeat_ms);
+          tend = std::chrono::high_resolution_clock::now();
+          duration_ms =
+              std::chrono::duration_cast<std::chrono::duration<double> >(tend - tbegin).count() *
+              1000;
+        } while (duration_ms < min_repeat_ms);
 
-      LOG(INFO) << "Iteration: " << i;
-      int op = 0;
-      for (size_t index = 0; index < time_per_op.size(); index++) {
-        if (op_execs_[index]) {
-          time_per_op[index] /= number;
-          LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": " << time_per_op[index]
-                    << " us/iter";
+        LOG(INFO) << "Iteration: " << i;
+        int op = 0;
+        for (size_t index = 0; index < time_per_op.size(); index++) {
+          if (op_execs_[index]) {
+            time_per_op[index] /= number;
+            LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": " << time_per_op[index]
+                      << " us/iter";
+          }
         }
       }
     }
+
+    std::ostringstream os;
     for (size_t index = 0; index < time_per_op.size(); index++) {
       os << time_per_op[index] << ",";
     }
     return os.str();
+  }
+
+  double RunOpRPC(int index, int number, int repeat, int min_repeat_ms) {
+    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
+    TVMOpParam param = nodes_[index].param;
+    std::string name = param.func_name;
+    uint32_t num_inputs = param.num_inputs;
+    uint32_t num_outputs = param.num_outputs;
+
+    PackedFunc time_eval = runtime::Registry::Get("runtime.RPCTimeEvaluator")
+                               ->
+                               operator()(module_, name, static_cast<int>(ctx.device_type),
+                                          ctx.device_id, number, repeat, min_repeat_ms, "");
+
+    int num_flat_args = num_inputs + num_outputs;
+    std::unique_ptr<TVMValue> values(new TVMValue[num_flat_args]);
+    std::unique_ptr<int> type_codes(new int[num_flat_args]);
+    TVMArgsSetter setter(values.get(), type_codes.get());
+    int offs = 0;
+    const auto& inode = nodes_[index];
+    for (const auto& e : inode.inputs) {
+      uint32_t eid = this->entry_id(e);
+      DLTensor* arg = const_cast<DLTensor*>(data_entry_[eid].operator->());
+      setter(offs, arg);
+      offs++;
+    }
+    for (uint32_t i = 0; i < num_outputs; ++i) {
+      uint32_t eid = this->entry_id(index, i);
+      DLTensor* arg = const_cast<DLTensor*>(data_entry_[eid].operator->());
+      setter(offs, arg);
+      offs++;
+    }
+    TVMRetValue rv;
+    time_eval.CallPacked(TVMArgs(values.get(), type_codes.get(), num_flat_args), &rv);
+    std::string results = rv.operator std::string();
+    const double* results_arr = reinterpret_cast<const double*>(results.data());
+    LOG(INFO) << "Got op timing: " << results_arr[0];
+    return results_arr[0];
+  }
+
+  double RunOpHost(int index) {
+    auto op_tbegin = std::chrono::high_resolution_clock::now();
+    op_execs_[index]();
+    const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
+    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
+    auto op_tend = std::chrono::high_resolution_clock::now();
+    double op_duration =
+        std::chrono::duration_cast<std::chrono::duration<double> >(op_tend - op_tbegin).count();
+    return op_duration;
   }
 
   /*!
