@@ -998,11 +998,20 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             transform_steps->Set(i, std::move(step));
           }
         }
+
+        // Add schedule for the new added transform stage
         Array<Integer> to_fuse;
-        for (size_t i = 0; i < new_shape.size() - 1; i++) {
-          to_fuse.push_back(i);
+
+        if (new_shape.size() >= 5) {
+          to_fuse.push_back(0);
+          to_fuse.push_back(1);
+          to_fuse.push_back(2);
+          transform_steps->push_back(FuseStep(stage_id, to_fuse));
+        } else if (new_shape.size() >= 3) {
+          to_fuse.push_back(0);
+          to_fuse.push_back(1);
+          transform_steps->push_back(FuseStep(stage_id, to_fuse));
         }
-        transform_steps->push_back(FuseStep(stage_id, to_fuse));
         transform_steps->push_back(AnnotationStep(stage_id, 0, IteratorAnnotation::kParallel));
       }
 
@@ -1024,7 +1033,10 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             }
             original_compute_op = op;
             CHECK(!new_compute_op.defined());
-            new_compute_op = te::ComputeOp(pop->name, pop->tag, pop->attrs, pop->axis, new_body);
+            auto new_attrs = pop->attrs;
+            new_attrs.Set("ori_placeholder_layout", tvm::String(origin_layout));
+            new_attrs.Set("new_placeholder_layout", tvm::String(new_layout));
+            new_compute_op = te::ComputeOp(pop->name, pop->tag, new_attrs, pop->axis, new_body);
           }
         }
       }

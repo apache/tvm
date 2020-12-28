@@ -32,7 +32,12 @@ from .workload_registry import workload_key_to_tensors
 
 
 class LayoutRewriteOption:
-    """Options for applying layout rewrite."""
+    """
+    Options for applying layout rewrite.
+
+    The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone op,
+    and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a network.
+    """
 
     # Do not perform layout rewrite
     NO_REWRITE = 0
@@ -43,6 +48,35 @@ class LayoutRewriteOption:
     # Note: The lowered function with this option does not accept the origial input shapes,
     # so this option must be used along with `AutoSchedulerLayoutRewrite` pass in Relay.
     REWRITE_FOR_PRE_TRANSFORMED = 2
+
+    @staticmethod
+    def get_target_default(target, in_relay_integration=False):
+        """Get the default layout rewrite option for the specified target.
+        Currently we only enable layout rewrite for cpu / mali backend for now
+
+        Parameters
+        ----------
+        target: tvm.target.Target
+            The compilation target.
+        in_relay_integration: bool
+            If this check is ask for relay integration.
+
+        Returns
+        -------
+        layout_rewrite_option: LayoutRewriteOption
+            The default layout rewrite option for the specified target.
+        """
+        layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
+        if target.kind.name == "llvm" or (
+            "device" in target.attrs and target.attrs["device"] == "mali"
+        ):
+            layout_rewrite_option = (
+                LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+                if in_relay_integration
+                else LayoutRewriteOption.INSERT_TRANSFORM_STAGE
+            )
+
+        return layout_rewrite_option
 
 
 @tvm._ffi.register_object("auto_scheduler.ComputeDAG")
