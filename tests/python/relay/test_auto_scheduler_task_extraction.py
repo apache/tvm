@@ -180,7 +180,6 @@ def test_task_extraction():
         out = relay.max(data)
         return relay.Function(relay.analysis.free_vars(out), out)
 
-
     def get_func_with_control_flow():
         data = relay.var("data", shape=(1, 3, 224, 224))
         weight = relay.var("weight", shape=(32, 3, 3, 3))
