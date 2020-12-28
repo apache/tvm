@@ -1397,8 +1397,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                    << select->false_value << ")= " << '(' << preduce->source[0] << ','
                    << preduce->source[1] << ")\n";
               } else {
-                ss << "UnsupportedReduce(" << combiner << ")\n";
-                //LOG(FATAL) << "Unsupported reduction operator" << combiner;
+                ss << "reduce" << combiner << "\n";
               }
             } else {
               ss << " = " << pop->body[k] << "\n";
