@@ -138,8 +138,6 @@ def test_task_extraction():
             mod["main"], None, target, include_simple_tasks=include_simple_tasks
         )
 
-        for t in tasks:
-            print(t.compute_dag)
         assert len(tasks) == expected_task
         assert len(task_weights) == expected_task
 
@@ -176,6 +174,12 @@ def test_task_extraction():
         data = relay.var("data", shape=(relay.Any(), 28, 28), dtype="float32")
         out = relay.shape_of(data)
         return relay.Function([data], out)
+
+    def get_func_with_dynamic_shape():
+        data = relay.var("data", shape=(relay.Any(), 32), dtype="float32")
+        out = relay.max(data)
+        return relay.Function(relay.analysis.free_vars(out), out)
+
 
     def get_func_with_control_flow():
         data = relay.var("data", shape=(1, 3, 224, 224))
@@ -223,6 +227,9 @@ def test_task_extraction():
 
     # "relay.shape_of" has TOpPattern=kOpaque so it is defined as a "complex" op.
     verify_task_extraction(get_shape_of_func(), 1)
+
+    # The Relay function with dynamic shape inputs/outputs will not be extracted.
+    verify_task_extraction(get_func_with_dynamic_shape(), 0)
 
     # The Conv2D in the Relay function with control flow could still be a task.
     verify_task_extraction(get_func_with_control_flow(), 1)

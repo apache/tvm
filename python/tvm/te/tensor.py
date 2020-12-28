@@ -85,12 +85,11 @@ class Tensor(DataProducer, _expr.ExprOp):
                 return _expr.EqualOp(self, other)
             return False
         if self.ndim == 0 and other.ndim == 0:
-            return self.same_as(other)
-            # raise ValueError(
-            #     "Equal == comparison among rank-0 tensor is ambiguous, "
-            #     "use Tensor.equal for content expression equvalence, "
-            #     "use Tensor.same_as for exact reference comparison"
-            # )
+            raise ValueError(
+                "Equal == comparison among rank-0 tensor is ambiguous, "
+                "use Tensor.equal for content expression equvalence, "
+                "use Tensor.same_as for exact reference comparison"
+            )
         return _ffi_api.TensorEqual(self, other)
 
     @property

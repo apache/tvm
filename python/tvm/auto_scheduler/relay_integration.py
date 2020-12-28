@@ -222,7 +222,10 @@ def traverse_to_get_io_tensors(outs):
     visited = set()
 
     def traverse(t):
-        if t in visited:
+        # We cannot directly add tensors to the set, because the comparison of
+        # two tensors with ndim=0 is ambiguous.
+        assert t.handle is not None
+        if t.handle.value in visited:
             return
         if isinstance(t.op, PlaceholderOp):
             inputs.append(t)
@@ -231,7 +234,7 @@ def traverse_to_get_io_tensors(outs):
                 layout_free_ops.append(t.op)
             for x in t.op.input_tensors:
                 traverse(x)
-        visited.add(t)
+        visited.add(t.handle.value)
 
     for t in outs:
         traverse(t)
@@ -256,6 +259,7 @@ def auto_schedule_topi(outs, has_complex_op):
     ----------
     outs: List[Tensor]
         The output tensors of topi compute functions
+
     has_complex_op: bool
         Whether the topi compute function includes at least one complex op.
 
