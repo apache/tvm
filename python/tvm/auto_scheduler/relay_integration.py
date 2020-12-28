@@ -33,7 +33,7 @@ from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import expr as _expr
 from . import _ffi_api
-from .compute_dag import ComputeDAG
+from .compute_dag import ComputeDAG, LayoutRewriteOption
 from .dispatcher import DispatchContext
 from .search_task import SearchTask
 from .workload_registry import register_workload_tensors
@@ -126,6 +126,9 @@ def extract_tasks(
                 target=target,
                 target_host=target_host,
                 hardware_params=hardware_params,
+                # When auto scheduler is used in end to end network, try to apply layout rewrite
+                # to improve the overall performance
+                layout_rewrite_option=LayoutRewriteOption.get_target_default(target, True),
             )
         )
         weights.append(use_count_dict[ccache_key] + 1)
@@ -259,13 +262,7 @@ def auto_schedule_topi(outs, has_complex_op):
 
     key = register_workload_tensors(dag.hash_key(), io_tensors)
 
-    # only enable layout rewrite for cpu / mali backend
     target = tvm.target.Target.current()
-    enable_layout_rewrite_targets = ["cpu", "mali"]
-    enable_layout_rewrite = any(
-        enable_layout_rewrite_target in target.keys
-        for enable_layout_rewrite_target in enable_layout_rewrite_targets
-    )
 
     env = TracingEnvironment.current
     if env is None:
@@ -284,7 +281,10 @@ def auto_schedule_topi(outs, has_complex_op):
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
-        if enable_layout_rewrite and has_layout_free:
+        if (
+            LayoutRewriteOption.get_target_default(target, True) != LayoutRewriteOption.NO_REWRITE
+            and has_layout_free
+        ):
             dispatch_ctx = DispatchContext.current
             state = dispatch_ctx.query(target, key, has_complex_op, dag)
             if state is None:
