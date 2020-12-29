@@ -942,8 +942,6 @@ def sparse_reshape(sparse_indices, prev_shape, new_shape):
     sparse_indices : relay.Expr
         A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
         number of sparse values and n_dim is the number of dimensions of the dense_shape
-    sparse_values : relay.Expr
-        A 1-D tensor[N] containing the sparse values for the sparse indices.
     prev_shape : relay.Expr
         A 1-D tensor containing the previous shape of the dense tensor
     new_shape : relay.Expr
@@ -963,19 +961,18 @@ def sparse_reshape(sparse_indices, prev_shape, new_shape):
                             [1, 0, 0],
                             [1, 2, 3]]
 
-        sparse_values = [7, 5, 6, 3, 9]
-
         prev_shape = [2, 3, 4]
 
         new_shape = [9, -1]
 
-        relay.sparse_reshape(sparse_indices,
+        new_sparse_indices, new_shape = relay.sparse_reshape(sparse_indices,
                             prev_shape,
                             new_shape)
-            =   [[0, 0],
-                [0, 1],
-                [1, 2],
-                [4, 2],
-                [8, 1]]
+        new_sparse_indices = [[0, 0],
+                              [0, 1],
+                              [1, 2],
+                              [4, 2],
+                              [8, 1]]
+        new_shape = [9, 4]
     """
     return cpp.sparse_reshape(sparse_indices, prev_shape, new_shape)
