@@ -4752,5 +4752,4 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    test_forward_sparse_reshape()
-    # pytest.main([__file__])
+    pytest.main([__file__])
