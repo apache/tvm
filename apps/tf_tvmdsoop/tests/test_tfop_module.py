@@ -33,22 +33,21 @@ def test_use_tvmdso_op():
     def export_cpu_add_lib():
         """create cpu add op lib"""
         n = te.var("n")
-        ph_a = te.placeholder((n,), name='ph_a')
-        ph_b = te.placeholder((n,), name='ph_b')
-        ph_c = te.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
+        ph_a = te.placeholder((n,), name="ph_a")
+        ph_b = te.placeholder((n,), name="ph_b")
+        ph_c = te.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name="ph_c")
         sched = te.create_schedule(ph_c.op)
         fadd_dylib = tvm.build(sched, [ph_a, ph_b, ph_c], "c", name="vector_add")
         lib_path = tempfile.mktemp("tvm_add_dll.so")
         fadd_dylib.export_library(lib_path)
         return lib_path
 
-
     def export_gpu_add_lib():
         """create gpu add op lib"""
         n = te.var("n")
-        ph_a = te.placeholder((n,), name='ph_a')
-        ph_b = te.placeholder((n,), name='ph_b')
-        ph_c = te.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
+        ph_a = te.placeholder((n,), name="ph_a")
+        ph_b = te.placeholder((n,), name="ph_b")
+        ph_c = te.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name="ph_c")
         sched = te.create_schedule(ph_c.op)
         b_axis, t_axis = sched[ph_c].split(ph_c.op.axis[0], factor=64)
         sched[ph_c].bind(b_axis, te.thread_axis("blockIdx.x"))
@@ -57,7 +56,6 @@ def test_use_tvmdso_op():
         lib_path = tempfile.mktemp("tvm_add_cuda_dll.so")
         fadd_dylib.export_library(lib_path)
         return lib_path
-
 
     def test_add(session, lib_path, tf_device):
         """test add lib with TensorFlow wrapper"""
@@ -83,7 +81,6 @@ def test_use_tvmdso_op():
             output3 = session.run(add3(left, right), feed_dict)
             np.testing.assert_equal(output3, expect)
 
-
     def cpu_test(session):
         """test function for cpu"""
         cpu_lib = None
@@ -93,7 +90,6 @@ def test_use_tvmdso_op():
         finally:
             if cpu_lib is not None:
                 os.remove(cpu_lib)
-
 
     def gpu_test(session):
         """test function for gpu"""

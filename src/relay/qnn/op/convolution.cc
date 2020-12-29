@@ -31,8 +31,8 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/data_layout.h>
 
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {
@@ -42,28 +42,45 @@ namespace qnn {
 
 bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 7);
+  // Expected Types: data, weight, input_zero_point, weight_zero_point, input_scale, weight_scale,
+  // out_type
+  ICHECK_EQ(types.size(), 7);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<Conv2DAttrs>();
-  CHECK(param != nullptr) << "Conv2DAttrs cannot be nullptr.";
-  CHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
+  ICHECK(param != nullptr) << "Conv2DAttrs cannot be nullptr.";
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
       << "Expected qnn conv2d type(int8, uint8) for input but was " << data->dtype;
-  CHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
+  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected qnn conv2d type(int8, uint8) for weight but was " << weight->dtype;
-  CHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32))
+  ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32))
       << "Expected qnn conv2d type(int32, int16) for output but was " << param->out_dtype;
-  CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
+  ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
-  CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
+  for (size_t i = 2; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));    // weight_zero_point
+  ICHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
   // Kernel scale can be a vector of length output_channels or a scalar.
-  size_t axis = param->kernel_layout.find('O');
-  CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
-  AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
+  if (param->groups == 1) {
+    size_t axis = param->kernel_layout.operator std::string().find('O');
+    ICHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
+    AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // weight_scale
+  } else {
+    // Here, total number of output channels depend on depth multiplier.
+    size_t o_axis = param->kernel_layout.operator std::string().find('O');
+    size_t i_axis = param->kernel_layout.operator std::string().find('I');
+    ICHECK(o_axis != std::string::npos || i_axis != std::string::npos)
+        << "Kernel layout attribute is not defined";
+    AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
+               reporter);  // weight_scale
+  }
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
@@ -248,7 +265,7 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
   // We can reduce the H and W axis by using avg_pool2d. However, avg_pool2d averages the sum.
   // Since, this is integer division (floor), we can first multiply the data by the pool_size and
   // then perform avg_pool2d. Reversing this causes inaccuracy due to floor division. If the
-  // pool_size is 1x1, we don't need avg_pool2d.
+  // pool_size and strides are 1x1, we don't need avg_pool2d.
   auto reduced_t2 = casted_t2;
   if (kernel_h * kernel_w != 1) {
     auto scaled_hw_t2 =
@@ -258,6 +275,16 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
         AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, padding, param->data_layout,
                   false,   // ceil_mode
                   false);  // count_include_pad
+  } else {
+    int stride1 = get_const_int(param->strides[0]);
+    int stride2 = get_const_int(param->strides[1]);
+    if (stride1 * stride2 != 1) {
+      Array<IndexExpr> padding({0, 0});
+      reduced_t2 =
+          AvgPool2D(reduced_t2, param->kernel_size, param->strides, padding, param->data_layout,
+                    false,   // ceil_mode
+                    false);  // count_include_pad
+    }
   }
 
   auto multiplied_t2 = reduced_t2;
@@ -404,7 +431,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
   // Keep dims true to retain 4D tensor
   auto reduced_c_t2 = Sum(casted_t2, axes_t2, true, false);
 
-  // If the pool_size is 1x1, we don't need avg_pool2d.
+  // If the pool_size and strides are 1x1, we don't need avg_pool2d.
   auto reduced_t2 = reduced_c_t2;
   if (kernel_h * kernel_w != 1) {
     reduced_c_t2 =
@@ -413,6 +440,15 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
         AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
                   false,   // ceil_mode
                   false);  // count_include_pad
+  } else {
+    int stride1 = get_const_int(param->strides[0]);
+    int stride2 = get_const_int(param->strides[1]);
+    if (stride1 * stride2 != 1) {
+      reduced_t2 =
+          AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
+                    false,   // ceil_mode
+                    false);  // count_include_pad
+    }
   }
 
   auto multiplied_t2 = reduced_t2;
@@ -599,18 +635,18 @@ Expr Conv2DCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3,
  */
 Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                            const Array<tvm::relay::Type>& arg_types) {
-  CHECK_EQ(new_args.size(), 6);
+  ICHECK_EQ(new_args.size(), 6);
   Expr data = new_args[0];
   Expr weight = new_args[1];
   Expr input_zero_point = new_args[2];
   Expr kernel_zero_point = new_args[3];
   const auto* param = attrs.as<Conv2DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   // Assertion checks for exisiing support.
-  CHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
+  ICHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
       << "qnn.conv2d supports only NCHW/NHWC input data layout.";
-  CHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||
-        param->kernel_layout == "HWOI")
+  ICHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||
+         param->kernel_layout == "HWOI")
       << "qnn.conv2d supports only OIHW/HWIO/HWOI kernel data layout.";
 
   int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;
@@ -626,14 +662,14 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // traverse the elements in dilated manner. Currently, we do not have strided pool. So, in case of
   // dilated conv with non-zero kernel point, we fall back to simpler but slow lowering.
 
-  CHECK_EQ(param->dilation.size(), 2) << "qnn.conv2d only supports 2D dilation";
+  ICHECK_EQ(param->dilation.size(), 2) << "qnn.conv2d only supports 2D dilation";
   auto dilation_h = get_const_int(param->dilation[0]);
   auto dilation_w = get_const_int(param->dilation[1]);
   if ((kernel_zero_point_int != 0 && (dilation_h != 1 || dilation_w != 1)) ||
       (param->groups != 1 && !is_depthwise(param))) {
     return Conv2DFallBack(data, weight, input_zero_point, kernel_zero_point, param);
   } else if (is_depthwise(param)) {
-    CHECK_NE(channel_multiplier, -1);
+    ICHECK_NE(channel_multiplier, -1);
     auto padded_data = Conv2DPadInput(data, input_zero_point, param);
     auto term1 = Conv2DFirstTerm(padded_data, weight, param);
     auto term2 = DepthwiseConv2DSecondTerm(padded_data, kernel_zero_point, param, kernel_h,
@@ -662,8 +698,8 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 Expr MakeQnnConv2D(Expr data, Expr weight, Expr input_zero_point, Expr kernel_zero_point,
                    Expr input_scale, Expr kernel_scale, Array<IndexExpr> strides,
                    Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
-                   IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
-                   std::string kernel_layout, std::string out_layout, DataType out_dtype) {
+                   IndexExpr channels, Array<IndexExpr> kernel_size, String data_layout,
+                   String kernel_layout, String out_layout, DataType out_dtype) {
   auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -704,6 +740,7 @@ operator to understand how to scale back the int32 output to (u)int8.
                   "The quantization zero_point of the weight tensor.")
     .set_support_level(11)
     .add_type_rel("QnnConv2D", QnnConv2DRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConvInferCorrectLayout);
 

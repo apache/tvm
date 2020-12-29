@@ -62,7 +62,7 @@ RUN echo "Cloning TVM source & submodules"
 ENV TVM_PAR_DIR="/usr"
 RUN mkdir -p TVM_PAR_DIR && \
 	cd ${TVM_PAR_DIR} && \
-	git clone --depth=1 https://github.com/apache/incubator-tvm tvm --recursive
+	git clone --depth=1 https://github.com/apache/tvm tvm --recursive
 #RUN git submodule update --init --recursive
 
 
@@ -76,6 +76,5 @@ RUN mkdir -p ${TVM_BUILD_DIR} && \
 	make -j6
 
 RUN echo "Building Python package"
-ENV PYTHONPATH=${TVM_HOME}/python:${TVM_HOME}/topi/python:${PYTHONPATH}
+ENV PYTHONPATH=${TVM_HOME}/python:${PYTHONPATH}
 RUN cd ${TVM_HOME}/python && python3 setup.py install --user
-RUN cd ${TVM_HOME}/topi/python && python3 setup.py install --user

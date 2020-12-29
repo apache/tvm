@@ -28,7 +28,7 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <dlpack/dlpack.h>
-#include <dmlc/logging.h>
+#include <tvm/support/logging.h>
 
 #include <cstdint>
 #if CUDART_VERSION >= 10010
@@ -63,10 +63,10 @@ inline const char* GetCublasErrorString(int error) {
 }
 
 #ifndef CHECK_CUBLAS_ERROR
-#define CHECK_CUBLAS_ERROR(fn)                                                           \
-  do {                                                                                   \
-    int error = static_cast<int>(fn);                                                    \
-    CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << GetCublasErrorString(error); \
+#define CHECK_CUBLAS_ERROR(fn)                                                            \
+  do {                                                                                    \
+    int error = static_cast<int>(fn);                                                     \
+    ICHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << GetCublasErrorString(error); \
   } while (0)  // ; intentionally left off.
 #endif         // CHECK_CUBLAS_ERROR
 

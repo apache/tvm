@@ -83,7 +83,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
   // internal variable map
-  std::unordered_map<Var, PrimExpr, ObjectHash, ObjectEqual> var_map_;
+  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
 
   std::vector<PrimExpr> literal_constraints_;
 
@@ -97,6 +97,13 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    * \return comparison result.
    */
   CompareResult TryCompare(const PrimExpr& x, int64_t val);
+
+  /*!
+   * \brief Internal function to check whether or not to inline let.
+   * \param op The let expr.
+   * \return The inline decision.
+   */
+  bool CanInlineLet(const LetNode* op);
 
  private:
   // Whether x >= val

@@ -54,6 +54,7 @@ class CodeGenOpenCL final : public CodeGenC {
   std::string CastFromTo(std::string value, DataType from, DataType target);  // NOLINT(*)
 
   // overload visitor
+  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;   // NOLINT(*)
 
@@ -61,6 +62,8 @@ class CodeGenOpenCL final : public CodeGenC {
   // whether enable fp16 and fp64 extension
   bool enable_fp16_{false};
   bool enable_fp64_{false};
+  // Whether to enable atomics extension.
+  bool enable_atomics_{false};
 };
 
 }  // namespace codegen

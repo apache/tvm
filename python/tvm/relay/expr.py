@@ -35,8 +35,10 @@ Expr = RelayExpr
 # will be registered afterwards
 _op_make = None
 
+
 class ExprWithOp(RelayExpr):
     """Basetype of all relay expressions that defines op overloading."""
+
     def astype(self, dtype):
         """Cast the content type of the current data to dtype.
 
@@ -160,6 +162,7 @@ class ExprWithOp(RelayExpr):
         """
         return Call(self, args)
 
+
 @tvm._ffi.register_object("relay.Constant")
 class Constant(ExprWithOp):
     """A constant expression in Relay.
@@ -169,6 +172,7 @@ class Constant(ExprWithOp):
     data : tvm.nd.NDArray
         The data content of the constant expression.
     """
+
     def __init__(self, data):
         self.__init_handle_by_constructor__(_ffi_api.Constant, data)
 
@@ -181,9 +185,13 @@ class Tuple(ExprWithOp):
     ----------
     fields : List[tvm.relay.Expr]
         The fields in the tuple.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
     """
-    def __init__(self, fields):
-        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields)
+
+    def __init__(self, fields, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -214,14 +222,14 @@ class Var(ExprWithOp):
     type_annotation: tvm.relay.Type, optional
         The type annotation on the variable.
     """
+
     def __init__(self, name_hint, type_annotation=None):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Var, name_hint, type_annotation)
+        self.__init_handle_by_constructor__(_ffi_api.Var, name_hint, type_annotation)
 
     @property
     def name_hint(self):
         """Get name hint of the current var."""
-        name = self.vid.name_hint
+        name = str(self.vid.name_hint)
         return name
 
 
@@ -234,7 +242,7 @@ class Call(ExprWithOp):
 
     Parameters
     ----------
-    op: tvm.relay.Op or any tvm.relay.Expr with function type.
+    op: tvm.ir.Op or any tvm.relay.Expr with function type.
         The operation to be called.
 
     args: List[tvm.relay.Expr]
@@ -246,12 +254,15 @@ class Call(ExprWithOp):
     type_args: Optional[List[tvm.relay.Type]]
         The additional type arguments, this is only
         used in advanced usecase of template functions.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
     """
-    def __init__(self, op, args, attrs=None, type_args=None):
+
+    def __init__(self, op, args, attrs=None, type_args=None, span=None):
         if not type_args:
             type_args = []
-        self.__init_handle_by_constructor__(
-            _ffi_api.Call, op, args, attrs, type_args)
+        self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
 
 
 @tvm._ffi.register_object("relay.Let")
@@ -269,9 +280,9 @@ class Let(ExprWithOp):
     body: tvm.relay.Expr
         The body of the let binding.
     """
+
     def __init__(self, variable, value, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Let, variable, value, body)
+        self.__init_handle_by_constructor__(_ffi_api.Let, variable, value, body)
 
 
 @tvm._ffi.register_object("relay.If")
@@ -289,9 +300,9 @@ class If(ExprWithOp):
     false_branch: tvm.relay.Expr
         The expression evaluated when condition is false.
     """
+
     def __init__(self, cond, true_branch, false_branch):
-        self.__init_handle_by_constructor__(
-            _ffi_api.If, cond, true_branch, false_branch)
+        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch)
 
 
 @tvm._ffi.register_object("relay.TupleGetItem")
@@ -306,9 +317,9 @@ class TupleGetItem(ExprWithOp):
     index: int
         The index.
     """
+
     def __init__(self, tuple_value, index):
-        self.__init_handle_by_constructor__(
-            _ffi_api.TupleGetItem, tuple_value, index)
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)
 
 
 @tvm._ffi.register_object("relay.RefCreate")
@@ -319,6 +330,7 @@ class RefCreate(ExprWithOp):
     value: tvm.relay.Expr
        The initial value.
     """
+
     def __init__(self, value):
         self.__init_handle_by_constructor__(_ffi_api.RefCreate, value)
 
@@ -331,6 +343,7 @@ class RefRead(ExprWithOp):
     ref: tvm.relay.Expr
          The reference.
     """
+
     def __init__(self, ref):
         self.__init_handle_by_constructor__(_ffi_api.RefRead, ref)
 
@@ -347,6 +360,7 @@ class RefWrite(ExprWithOp):
     value: tvm.relay.Expr
         The new value.
     """
+
     def __init__(self, ref, value):
         self.__init_handle_by_constructor__(_ffi_api.RefWrite, ref, value)
 
@@ -358,6 +372,7 @@ class TempExpr(ExprWithOp):
     useful to define intermediate result in the
     rewriting pass such as layout or type transformation.
     """
+
     def realize(self):
         """Convert the expression to a normal(non-temp) Expr.
 
@@ -383,6 +398,7 @@ class TupleWrapper(object):
     size: int
         The size of the tuple.
     """
+
     def __init__(self, tuple_value, size):
         self.tuple_value = tuple_value
         self.size = size
@@ -411,17 +427,13 @@ class TupleWrapper(object):
         return self.size
 
     def __repr__(self):
-        return ("TupleWrapper(" + self.tuple_value.__repr__() +
-                ", " + str(self.size) + ")")
+        return "TupleWrapper(" + self.tuple_value.__repr__() + ", " + str(self.size) + ")"
 
     def astype(self, _):
         raise TypeError("astype cannot be used on tuple")
 
 
-def var(name_hint,
-        type_annotation=None,
-        shape=None,
-        dtype="float32"):
+def var(name_hint, type_annotation=None, shape=None, dtype="float32"):
     """Create a new tvm.relay.Var.
 
     This is a simple wrapper function that allows specify
@@ -492,10 +504,9 @@ def const(value, dtype=None):
 
     if not dtype:
         # when dtype is None: int maps to "int32", float maps to "float32"
-        map_dtype = {
-            _np.dtype('int64'): _np.int32,
-            _np.dtype('float64'): _np.float32
-            }.get(value.dtype, None)
+        map_dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
+            value.dtype, None
+        )
         if map_dtype:
             value = value.astype(map_dtype)
 
@@ -504,6 +515,7 @@ def const(value, dtype=None):
 
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
+
     return Constant(value)
 
 
@@ -517,7 +529,7 @@ def bind(expr, binds):
     expr : tvm.relay.Expr
         The input expression.
 
-    binds : Union[Map[tvm.relay.Var, tvm.relay.Expr], Map[str, tvm.relay.Expr]]
+    binds : Map[tvm.relay.Var, tvm.relay.Expr]
         The specific bindings.
 
     Returns

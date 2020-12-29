@@ -23,6 +23,7 @@
  */
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
@@ -96,7 +97,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
+    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     vextent_[op->loop_var.as<VarNode>()] = op->extent.dtype();
     return StmtExprVisitor::VisitStmt_(op);
   }
@@ -104,8 +105,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
-      CHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var, Range::make_by_min_extent(0, op->value));
+      ICHECK_NE(iv->thread_tag.length(), 0U);
+      analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
     } else {
@@ -208,36 +209,36 @@ class DataTypeRewriter : public StmtExprMutator {
     is_index_ = true;
     PrimExpr index = this->VisitExpr(op->index);
     is_index_ = false;
-    Stmt s = StoreNode::make(op->buffer_var, op->value, index, op->predicate);
+    Stmt s = Store(op->buffer_var, op->value, index, op->predicate);
     return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
     Stmt s = StmtExprMutator::VisitStmt_(op);
     op = s.as<ForNode>();
-    CHECK(op != nullptr) << "Expected type to be ForNode"
-                         << ", but get " << s->GetTypeKey();
+    ICHECK(op != nullptr) << "Expected type to be ForNode"
+                          << ", but get " << s->GetTypeKey();
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var>(e);
-    return ForNode::make(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent),
-                         op->for_type, op->device_api, op->body);
+    return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->for_type,
+               op->device_api, op->body);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       Stmt s = StmtExprMutator::VisitStmt_(op);
       op = s.as<AttrStmtNode>();
-      CHECK(op != nullptr) << "Expected type to be AttrStmtNode"
-                           << ", but get " << s->GetTypeKey();
+      ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
+                            << ", but get " << s->GetTypeKey();
       const IterVarNode* iv = op->node.as<IterVarNode>();
-      CHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                           << ", but get " << op->node->GetTypeKey();
+      ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
+                            << ", but get " << op->node->GetTypeKey();
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
-        ivmap_[iv] = IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag);
+        ivmap_[iv] = IterVar(iv->dom, var, iv->iter_type, iv->thread_tag);
       }
-      return AttrStmtNode::make(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
+      return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -266,7 +267,7 @@ class DataTypeRewriter : public StmtExprMutator {
     is_index_ = true;
     PrimExpr index = this->VisitExpr(op->index);
     is_index_ = false;
-    PrimExpr e = LoadNode::make(op->dtype, op->buffer_var, index, op->predicate);
+    PrimExpr e = Load(op->dtype, op->buffer_var, index, op->predicate);
     return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
   }
 
@@ -283,9 +284,9 @@ class DataTypeRewriter : public StmtExprMutator {
     if (is_index_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
       PrimExpr e = StmtExprMutator::VisitExpr_(op);
       const CastNode* new_op = e.as<CastNode>();
-      CHECK(new_op != nullptr) << "Expected type to be CastNode"
-                               << ", but get " << e->GetTypeKey();
-      return CastNode::make(visitor_.vmap[op], new_op->value);
+      ICHECK(new_op != nullptr) << "Expected type to be CastNode"
+                                << ", but get " << e->GetTypeKey();
+      return Cast(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -318,6 +319,8 @@ class DataTypeRewriter : public StmtExprMutator {
   std::unordered_map<const IterVarNode*, IterVar> ivmap_;
   // indicator of LoadNode::index and StoreNode::index
   bool is_index_{false};
+  // cached ops
+  const Op& builtin_pow_ = Op::Get("tir.pow");
 };
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC) \
@@ -350,25 +353,25 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
-  CHECK(op != nullptr) << "Expected type to be CallNode"
-                       << ", but get " << e->GetTypeKey();
-  if (op->call_type == CallNode::PureIntrinsic) {
-    if (op->name == intrinsic::tvm_if_then_else) {
-      return if_then_else(op->args[0], op->args[1], op->args[2]);
-    } else if (op->name == CallNode::shift_right) {
-      return op->args[0] >> op->args[1];
-    } else if (op->name == CallNode::shift_left) {
-      return op->args[0] << op->args[1];
-    } else if (op->name == CallNode::bitwise_and) {
-      return op->args[0] & op->args[1];
-    } else if (op->name == CallNode::bitwise_or) {
-      return op->args[0] | op->args[1];
-    } else if (op->name == CallNode::bitwise_xor) {
-      return op->args[0] ^ op->args[1];
-    } else if (op->name == "pow") {
-      return pow(op->args[0], op->args[1]);
-    }
+  ICHECK(op != nullptr) << "Expected type to be CallNode"
+                        << ", but get " << e->GetTypeKey();
+
+  if (op->op.same_as(builtin::if_then_else())) {
+    return if_then_else(op->args[0], op->args[1], op->args[2]);
+  } else if (op->op.same_as(builtin::shift_right())) {
+    return op->args[0] >> op->args[1];
+  } else if (op->op.same_as(builtin::shift_left())) {
+    return op->args[0] << op->args[1];
+  } else if (op->op.same_as(builtin::bitwise_and())) {
+    return op->args[0] & op->args[1];
+  } else if (op->op.same_as(builtin::bitwise_or())) {
+    return op->args[0] | op->args[1];
+  } else if (op->op.same_as(builtin::bitwise_xor())) {
+    return op->args[0] ^ op->args[1];
+  } else if (op->op.same_as(builtin_pow_)) {
+    return pow(op->args[0], op->args[1]);
   }
+
   return e;
 }
 

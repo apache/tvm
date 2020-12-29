@@ -23,6 +23,7 @@
 #include "codegen_hybrid.h"
 
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 
 #include <cctype>
 #include <iomanip>
@@ -64,14 +65,14 @@ std::string CodeGenHybrid::Finish() { return stream.str(); }
 void CodeGenHybrid::PrintType(DataType t, std::ostream& os) {
   if (t.is_float()) {
     os << "float";
-    CHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+    ICHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   } else if (t.is_int()) {
     os << "int";
-    CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+    ICHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   } else {
-    CHECK(t.is_uint()) << "Unsupported type " << t;
+    ICHECK(t.is_uint()) << "Unsupported type " << t;
     os << "uint";
-    CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+    ICHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   }
   os << t.bits();
 }
@@ -92,7 +93,7 @@ template <typename T>
 inline void PrintBinaryExpr(const T* op, const char* opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenHybrid* p) {
-  CHECK(op->dtype.lanes() == 1) << "vec bin op not implemented";
+  ICHECK(op->dtype.lanes() == 1) << "vec bin op not implemented";
   if (isalpha(opstr[0])) {
     os << opstr << '(';
     p->PrintExpr(op->a, os);
@@ -113,8 +114,8 @@ inline void PrintBinaryExpr(const T* op, const char* opstr,
 inline void PrintBinaryIntrinsitc(const CallNode* op, const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
-  CHECK(op->dtype.lanes() == 1) << "vec bin intrin not implemented";
-  CHECK_EQ(op->args.size(), 2U);
+  ICHECK(op->dtype.lanes() == 1) << "vec bin intrin not implemented";
+  ICHECK_EQ(op->args.size(), 2U);
   os << '(';
   p->PrintExpr(op->args[0], os);
   os << opstr;
@@ -202,40 +203,58 @@ void CodeGenHybrid::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT
   PrintExpr(op->a, os);
 }
 
+void CodeGenHybrid::VisitExpr_(const ProducerLoadNode* op, std::ostream& os) {  // NOLINT(*)
+  auto tensor = Downcast<Tensor>(op->producer);
+
+  os << GetTensorID(tensor);
+  os << "[";
+  for (size_t i = 0; i < op->indices.size(); ++i) {
+    if (i) os << ", ";
+    std::stringstream idx;
+    PrintExpr(op->indices[i], idx);
+    os << idx.str();
+  }
+  os << "]";
+}
 void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == CallNode::Halide) {
-    os << GetTensorID(op->func, op->value_index);
-    os << "[";
-    for (size_t i = 0; i < op->args.size(); ++i) {
-      if (i) os << ", ";
-      std::stringstream idx;
-      PrintExpr(op->args[i], idx);
-      os << idx.str();
-    }
-    os << "]";
-  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+  if (op->op.same_as(builtin::bitwise_and())) {
     PrintBinaryIntrinsitc(op, "&", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
+  } else if (op->op.same_as(builtin::bitwise_xor())) {
     PrintBinaryIntrinsitc(op, "^", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
+  } else if (op->op.same_as(builtin::bitwise_or())) {
     PrintBinaryIntrinsitc(op, "|", os, this);
-  } else if (op->is_intrinsic(CallNode::shift_left)) {
+  } else if (op->op.same_as(builtin::shift_left())) {
     PrintBinaryIntrinsitc(op, "<<", os, this);
-  } else if (op->is_intrinsic(CallNode::shift_right)) {
+  } else if (op->op.same_as(builtin::shift_right())) {
     PrintBinaryIntrinsitc(op, ">>", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
-    CHECK_EQ(op->args.size(), 1U);
+  } else if (op->op.same_as(builtin::bitwise_not())) {
+    ICHECK_EQ(op->args.size(), 1U);
     os << "(~";
     PrintExpr(op->args[0], os);
     os << ')';
-  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+  } else if (op->op.same_as(builtin::if_then_else())) {
     PrintExpr(op->args[1], os);
     os << " if ";
     PrintExpr(op->args[0], os);
     os << " else ";
     PrintExpr(op->args[2], os);
+  } else if (op->op.same_as(builtin::call_pure_extern()) ||
+             op->op.same_as(builtin::call_extern())) {
+    StringImm fname = Downcast<StringImm>(op->args[0]);
+    os << fname << "(";
+    for (size_t i = 1; i < op->args.size(); i++) {
+      PrintExpr(op->args[i], os);
+      if (i < op->args.size() - 1) {
+        os << ", ";
+      }
+    }
+    os << ")";
   } else {
-    os << op->name << "(";
+    auto* ptr_op = op->op.as<OpNode>();
+    ICHECK(ptr_op != nullptr);
+    std::string name = ptr_op->name;
+    ICHECK_EQ(name.compare(0, 4, "tir."), 0);
+    os << name.substr(4) << "(";
     for (size_t i = 0; i < op->args.size(); i++) {
       PrintExpr(op->args[i], os);
       if (i < op->args.size() - 1) {
@@ -286,7 +305,7 @@ void CodeGenHybrid::VisitStmt_(const LetStmtNode* op) {
 void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     auto iter_var = op->node.as<IterVarNode>();
-    CHECK(iter_var);
+    ICHECK(iter_var);
     binds_[iter_var->var.get()] = dot_to_underscore(iter_var->var->name_hint);
     PrintIndent();
     stream << "for " << binds_[iter_var->var.get()] << " in bind('" << iter_var->var->name_hint
@@ -297,7 +316,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
     PrintStmt(op->body);
     indent_ -= tab_;
   } else if (op->attr_key == tir::attr::realize_scope) {
-    auto v = Downcast<FunctionRef>(op->node);
+    auto v = Downcast<Operation>(op->node);
     alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
     PrintStmt(op->body);
   } else {
@@ -306,20 +325,21 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-void CodeGenHybrid::VisitStmt_(const RealizeNode* op) {
-  CHECK(alloc_storage_scope_.count(op->func));
-  if (!alloc_storage_scope_[op->func].empty()) {
+void CodeGenHybrid::VisitStmt_(const ProducerRealizeNode* op) {
+  auto tensor = Downcast<Tensor>(op->producer);
+  ICHECK(alloc_storage_scope_.count(tensor->op));
+  if (!alloc_storage_scope_[tensor->op].empty()) {
     PrintIndent();
-    stream << GetTensorID(op->func, op->value_index) << " = allocate((";
+    stream << GetTensorID(tensor) << " = allocate((";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
       if (i) stream << ", ";
       stream << PrintExpr(op->bounds[i]->extent);
     }
     if (op->bounds.size() == 1) stream << ", ";
     stream << "), '";
-    PrintType(op->dtype, stream);
+    PrintType(tensor->dtype, stream);
     stream << "', '";
-    stream << alloc_storage_scope_[op->func] << "')\n";
+    stream << alloc_storage_scope_[tensor->op] << "')\n";
   }
   PrintStmt(op->body);
 }
@@ -334,13 +354,14 @@ void CodeGenHybrid::VisitStmt_(const AssertStmtNode* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenHybrid::VisitStmt_(const ProvideNode* op) {
+void CodeGenHybrid::VisitStmt_(const ProducerStoreNode* op) {
+  auto tensor = Downcast<Tensor>(op->producer);
   PrintIndent();
-  stream << GetTensorID(op->func, op->value_index);
+  stream << GetTensorID(tensor);
   stream << "[";
-  for (size_t i = 0; i < op->args.size(); ++i) {
+  for (size_t i = 0; i < op->indices.size(); ++i) {
     if (i) stream << ", ";
-    PrintExpr(op->args[i], stream);
+    PrintExpr(op->indices[i], stream);
   }
   stream << "] = ";
   PrintExpr(op->value, stream);
@@ -360,7 +381,7 @@ void CodeGenHybrid::VisitStmt_(const ForNode* op) {
 
 bool is_noop(const Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (auto eval = stmt.as<EvaluateNode>()) return is_const(eval->value);
+  if (auto eval = stmt.as<EvaluateNode>()) return is_const_int(eval->value);
   return false;
 }
 
@@ -388,7 +409,7 @@ void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   std::string str = PrintExpr(op->value);
   if (!str.empty()) stream << str << "\n";
 }
@@ -404,14 +425,14 @@ std::string CodeGenHybrid::GetVarID(const VarNode* v) {
   return id_map_[key] = GetUniqueName(v->name_hint);
 }
 
-std::string CodeGenHybrid::GetTensorID(const FunctionRef& func, int value_index) {
-  auto key = std::make_pair(func.get(), value_index);
+std::string CodeGenHybrid::GetTensorID(const Tensor& tensor) {
+  auto key = std::make_pair(tensor->op.get(), tensor->value_index);
   if (id_map_.count(key)) {
     return id_map_[key];
   }
-  std::string name_hint = func->func_name();
-  if (func->num_outputs() > 1) {
-    name_hint += "_v" + std::to_string(value_index);
+  std::string name_hint = tensor->op->name;
+  if (tensor->op->num_outputs() > 1) {
+    name_hint += "_v" + std::to_string(tensor->value_index);
   }
   return id_map_[key] = GetUniqueName(name_hint);
 }
@@ -469,10 +490,10 @@ void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (i) stream << ", ";
     if (auto tensor = inputs[i].as<TensorNode>()) {
-      stream << GetTensorID(tensor->op, tensor->value_index);
+      stream << GetTensorID(GetRef<Tensor>(tensor));
     } else {
       auto var = inputs[i].as<VarNode>();
-      CHECK(var) << "Input should either be a tensor or a variable!";
+      ICHECK(var) << "Input should either be a tensor or a variable!";
       stream << GetVarID(var);
     }
   }
@@ -480,7 +501,7 @@ void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
   indent_ += tab_;
   for (size_t i = 0; i < outputs.size(); ++i) {
     PrintIndent();
-    stream << GetTensorID(outputs[i]->op, outputs[i]->value_index) << " = output_tensor((";
+    stream << GetTensorID(outputs[i]) << " = output_tensor((";
     for (size_t j = 0; j < outputs[i]->shape.size(); ++j) {
       if (j) stream << ", ";
       PrintExpr(outputs[i]->shape[j], stream);
@@ -493,7 +514,7 @@ void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
   stream << "return ";
   for (size_t i = 0; i < outputs.size(); ++i) {
     if (i) stream << ", ";
-    stream << GetTensorID(outputs[i]->op, outputs[i]->value_index);
+    stream << GetTensorID(outputs[i]);
   }
   stream << "\n";
 }

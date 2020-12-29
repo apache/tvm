@@ -16,76 +16,86 @@
 # under the License.
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
-# pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
+# pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
+# pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
 import itertools
 import logging
 import sys
+import math
 
 import numpy as np
 
 import tvm
+from tvm.topi.utils import get_const_tuple
+from tvm.ir import IRModule
 
 from .. import analysis as _analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
-from .common import get_relay_op
-from .common import infer_shape as _infer_shape
+from .. import transform
+from .common import AttrCvt, get_relay_op
 from .common import infer_value as _infer_value
-from .common import infer_type as _infer_type
+from .common import try_infer_value
+from .common import infer_value_simulated as _infer_value_simulated
 from ..prelude import Prelude, StaticTensorArrayOps
+from ..expr_functor import ExprMutator
 
 from . import qnn_torch
+from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
 
+# This returns a "subgraph" which puts variables whenever
+# the type is known. It also records things to map the input
+# nodes to the extracted graph's nodes.
+# As Python objects are not round-trippable through C++, and
+# our type annotations only live in Python, we need to map
+# the we need to map the nodes we get in visiting to the nodes
+# we used to construct the graph (they are the same in C++,
+# match each other in dictionary lookups, but are not the same
+# in Python) by using the hint dictionary filled as
+# {node: node for node in nodes} to get the type annotations.
+# https://discuss.tvm.apache.org/t/round-tripping-objects-through-the-ffi/8440
+class _TypeFinder(ExprMutator):
+    def __init__(self, types):
+        super().__init__()
+        self.counter = 0
+        self.vars = {}
+        self.types = types
+        self.leave = set()  # some variables are not inputs
 
-# List ADT utilities
-def _infer_type_with_prelude(val, prelude):
-    body = _infer_type(val, prelude.mod)
-    return body.checked_type
+    def visit_let(self, let):
+        self.leave.add(let.var)
+        return super().visit_let(let)
 
+    def visit_function(self, fn):
+        self.leave.update(fn.params)
+        return super().visit_function(fn)
 
-def _convert_to_list_adt(py_lst, prelude):
-    elem_tys = [_infer_type_with_prelude(elem, prelude) for elem in py_lst]
-    msg = "List elements should have identical types"
-    assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
-
-    adt_lst = prelude.nil()
-    for elem in reversed(py_lst):
-        adt_lst = prelude.cons(elem, adt_lst)
-    return adt_lst
-
-
-def _map_tensor_array_constructor(adt_lst, prelude, shape):
-    static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-    static_tensor_array_ops.register()
-    tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
-    return prelude.map(tensor_create, adt_lst)
-
-
-def _convert_to_tensor_array(adt_lst, prelude):
-    if prelude.length(adt_lst) == 0:
-        return prelude.nil()
-
-    checked_type = _infer_type_with_prelude(prelude.hd(adt_lst), prelude)
-    shape = checked_type.shape
-    tensor_array = _map_tensor_array_constructor(adt_lst, prelude, shape)
-    return tensor_array, tuple(shape)
+    def visit(self, expr):
+        if expr in self.leave:
+            return super().visit(expr)
+        if expr in self.vars:
+            return self.vars[expr]
+        if isinstance(expr, tvm.relay.Var):
+            self.vars[expr] = expr
+            return expr
+        if expr in self.types:
+            ty = self.types[expr]
+            v = tvm.relay.var(f"_{self.counter}", type_annotation=ty)
+            self.counter += 1
+            self.vars[expr] = v
+            return v
+        v = super().visit(expr)
+        return v
 
 
 def _should_construct_dynamic_list(list_construct_node):
     # if this list is element-accessed or modified at runtime, generate List ADT
-    def is_used_by_list_add(uses):
-        for use in uses:
-            op_name = use.user.kind()
-            output_type = _get_node_type(use.user)
-            if op_name in ["aten::add", "aten::add_"] and output_type == "ListType":
-                return True
-        return False
-
     def inplace_add_to_add(op_name):
         if op_name == "aten::add_":
             return "aten::add"
@@ -102,109 +112,266 @@ def _should_construct_dynamic_list(list_construct_node):
 
     op_names = map(inplace_add_to_add, set(use.user.kind() for use in uses))
 
-    list_ops = set(["aten::add", "aten::__getitem__", "aten::stack"])
+    list_ops = set(["aten::add", "aten::__getitem__"])
     intersect = list_ops.intersection(op_names)
 
     if len(intersect) > 0 and intersect != set(["aten::add"]):
         return True
 
-    if is_used_by_list_add(filter(lambda use: use.user.kind() != "prim::Loop", uses)):
-        return True
+    # if add op outputs list, it is dynamic so we need to construct List ADT
+    for use in filter(lambda use: use.user.kind() in ["aten::add", "aten::add_"], uses):
+        output_type = _get_node_type(use.user)
+        if output_type == "ListType":
+            return True
 
     return False
 
 
+def _is_int_seq(seq):
+    # TODO (t-vi): handle non-int constants? (like numpy.intXX)
+    return len(seq) > 0 and all([isinstance(i, int) for i in seq])
+
+
 # operator implementation
-def _elemwise(name):
-    def _impl(inputs, input_types):
-        # TODO: Figure out a better way to get typing to work for tensor + scalar
-        type0 = input_types[0]
-        if isinstance(inputs[1], _expr.Expr):
-            type0 = input_types[1]
+class PyTorchOpConverter:
+    """A helper class for holding PyTorch op converters."""
 
-        type1 = input_types[1]
-        if isinstance(inputs[0], _expr.Expr):
-            type1 = input_types[0]
+    def __init__(self, prelude, default_dtype):
+        self.prelude = prelude
+        self.default_dtype = default_dtype
+        self.create_convert_map()
+        self.types = {}  # map from nodes to (Relay) type annotations
 
-        data0 = _convert_elemwise_input(inputs[0], type0)
-        data1 = _convert_elemwise_input(inputs[1], type1)
+    # this incrementally infers the type, see the comments on the type visitor
+    # above.
+    def infer_type(self, node, mod=None):
+        """An incremental method to infer the type of a node in the relay graph."""
 
-        return get_relay_op(name)(data0, data1)
-    return _impl
+        if node in self.types:
+            return self.types[node]
+        if isinstance(node, tvm.relay.Var):
+            return node.type_annotation
 
+        tf = _TypeFinder(types=self.types)
+        new_node = tf.visit(node)
+        fn = _function.Function(list(tf.vars.values()), new_node)
+        new_mod = IRModule({"main": fn})
+        if mod is not None:
+            new_mod.update(mod)
+        new_mod = transform.RemoveUnusedFunctions()(new_mod)
+        new_mod = transform.InferType()(new_mod)
+        entry = new_mod["main"]
+        ty = entry.body.checked_type
+        self.types[node] = ty
+        return self.types[node]
 
-def _unary(name):
-    def _impl(inputs, input_types):
-        input_type = input_types[0]
-        data = _convert_elemwise_input(inputs[0], input_type)
+    def infer_type_with_prelude(self, val):
+        body = self.infer_type(val, self.prelude.mod)
+        return body
 
-        return get_relay_op(name)(data)
-    return _impl
+    # list ADT utilities
+    def convert_to_list_adt(self, py_lst):
+        elem_tys = [self.infer_type_with_prelude(elem) for elem in py_lst]
+        msg = "List elements should have identical types"
+        assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
 
+        # get_type returns type_name, ctor1, ..., ctorN
+        # 1 is nil
+        _, cons, nil = self.prelude.mod.get_type("List")
+        adt_lst = nil()
+        for elem in reversed(py_lst):
+            adt_lst = cons(elem, adt_lst)
+        return adt_lst
 
-def _log1p():
-    def _impl(inputs, input_types):
+    def map_tensor_array_constructor(self, adt_lst, shape):
+        static_tensor_array_ops = StaticTensorArrayOps(self.prelude, "float32", shape)
+        static_tensor_array_ops.register()
+        tensor_create = self.prelude.get_tensor_ctor_static("tensor_constructor", "float32", shape)
+        return self.prelude.map(tensor_create, adt_lst)
+
+    def convert_to_tensor_array(self, adt_lst):
+        _, cons, nil = self.prelude.mod.get_type("List")
+        if self.prelude.length(adt_lst) == 0:
+            return nil()
+
+        checked_type = self.infer_type_with_prelude(self.prelude.hd(adt_lst))
+        shape = checked_type.shape
+        tensor_array = self.map_tensor_array_constructor(adt_lst, shape)
+        return tensor_array, tuple(shape)
+
+    def infer_shape(self, inputs, mod=None):
+        """A method to get the output type of an intermediate node in the graph."""
+        typ = self.infer_type(inputs, mod=mod)
+        if hasattr(typ, "shape"):
+            # Regular operator that outputs tensors
+            return get_const_tuple(typ.shape)
+        # The return type is not a tensor, for example List
+        return typ
+
+    def infer_shape_with_prelude(self, inputs):
+        return self.infer_shape(inputs, mod=self.prelude.mod)
+
+    def record_output_type(self, output):
+        if isinstance(output, tuple):
+            cleaned_output = [o for o in output if o is not None]
+            types = self.infer_type_with_prelude(_expr.Tuple(cleaned_output))
+            for o, t in zip(cleaned_output, types.fields):
+                self.types[o] = t
+        elif isinstance(output, _expr.Expr):
+            self.infer_type_with_prelude(output)
+        # it can also happen that the type is int or so
+
+    def pytorch_promote_types(self, inputs, dtypes):
+        """This promotes TVM inputs with TVM dtypes passed like PyTorch would"""
+        actual_dtypes = []
+        for i, inp in enumerate(inputs):
+            if isinstance(inp, _expr.Expr):
+                idt = self.infer_type(inp).dtype
+                actual_dtypes.append(idt)
+            else:
+                actual_dtypes.append(dtypes[i])
+        dtypes = actual_dtypes
+        tensor_dtypes = [dt for inp, dt in zip(inputs, dtypes) if not np.isscalar(inp)]
+        non_tensor_inputs = [inp for inp in inputs if np.isscalar(inp)]
+        result_type = _pytorch_result_type(tensor_dtypes, non_tensor_inputs)
+        results = []
+        for inp, dt in zip(inputs, dtypes):
+            if np.isscalar(inp):
+                results.append(_expr.const(inp, dtype=result_type))
+            elif dt == result_type:
+                results.append(inp)
+            else:
+                results.append(_op.cast(inp, result_type))
+        return results
+
+    def is_quantized_tensor(self, data):
+        # If a quantized Torch module is saved and loaded back, dtype will be dropped
+        # Since dtypes from Torch tensors are not reliable in such cases, we use
+        # Relay's type inference result to decide if an input tensor is quantized
+        ty = self.infer_type_with_prelude(data)
+        return ty.dtype == "uint8"
+
+    # Operator implementations
+    def make_elemwise(self, name):
+        def elemwise(inputs, input_types):
+            data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+            return get_relay_op(name)(data0, data1)
+
+        return elemwise
+
+    def min_max_common(self, name_elemwise, name_reduce, inputs, input_types):
+        if len(inputs) == 1:
+            data = self.pytorch_promote_types(inputs[:1], input_types[:1])
+            return get_relay_op(name_reduce)(data[0])
+        elif len(inputs) >= 2 and isinstance(inputs[1], int):
+            data = self.pytorch_promote_types(inputs[:1], input_types[:1])
+            dim = inputs[1]
+            keepdims = inputs[2] if len(inputs) > 2 else False
+            # also return dummy indices
+            return get_relay_op(name_reduce)(data[0], axis=dim, keepdims=keepdims), None
+        else:
+            data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
+            return get_relay_op(name_elemwise)(data0, data1)
+
+    def max(self, inputs, input_types):
+        return self.min_max_common("maximum", "max", inputs, input_types)
+
+    def min(self, inputs, input_types):
+        return self.min_max_common("minimum", "min", inputs, input_types)
+
+    def make_unary(self, name):
+        def unary(inputs, input_types):
+            # this is just to ensure tensor input
+            (data,) = self.pytorch_promote_types(inputs[:1], input_types[:1])
+            return get_relay_op(name)(data)
+
+        return unary
+
+    def log1p(self, inputs, input_types):
         # 1_plus_log x = log(x + 1)
-        one = _expr.const(1, dtype="float32")
+        (dtype,) = input_types
+        one = _expr.const(1, dtype=dtype)
         return _op.log(inputs[0] + one)
-    return _impl
 
+    def arange(self, inputs, input_types):
+        def _get_value(val, dtype):
+            # dtype is a tvm dtype
+            if isinstance(val, _expr.Expr):
+                inp = _op.cast(val, dtype)
+                ret, _ = try_infer_value(inp, lambda ret: _expr.const(ret, dtype))
+            else:
+                ret = _create_typed_const(val, dtype)
+            return ret
 
-def _arange():
-    def _impl(inputs, input_types):
+        def _get_type(val, inp_type):
+            if isinstance(val, _expr.Expr):
+                dtype = str(self.infer_type(val))
+                return dtype
+            return inp_type
+
+        # PyTorch arange uses the following type semantics:
+        # - if a dtype is given, start, stop, step are converted to that dtype
+        # - if no dtype is given and all args are integral, dtype is int64
+        # - if no dtype is given and there is a float arg, dtype is float32
         if len(inputs) == 5:
-            dtype = "float" if "float" in input_types[0:1] else _convert_dtype_value(inputs[1])
-            start = _create_typed_const(0, dtype)
-            stop = _create_typed_const(inputs[0], dtype)
-            step = _create_typed_const(1, dtype)
+            dtype0 = _get_type(inputs[0], input_types[0])
+            if inputs[1] is not None:
+                dtype = _convert_dtype_value(inputs[1])
+            elif dtype0.startswith("float"):
+                dtype = "float32"
+            else:
+                dtype = "int64"
+            start = _expr.const(0, dtype)
+            stop = _get_value(inputs[0], dtype)
+            step = _expr.const(1, dtype)
         elif len(inputs) == 7:
-            dtype = "float" if "float" in input_types[0:3] else _convert_dtype_value(inputs[3])
-            start = _create_typed_const(inputs[0], dtype)
-            stop = _create_typed_const(inputs[1], dtype)
-            step = _create_typed_const(inputs[2], dtype)
+            types = [_get_type(inputs[i], input_types[i]) for i in range(3)]
+            if inputs[3] is not None:
+                dtype = _convert_dtype_value(inputs[3])
+            elif any([t.startswith("float") for t in types]):
+                dtype = "float32"
+            else:
+                dtype = "int64"
+            start = _get_value(inputs[0], dtype)
+            stop = _get_value(inputs[1], dtype)
+            step = _get_value(inputs[2], dtype)
         else:
             msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
             raise AssertionError(msg)
-        return _op.transform.arange(start=start,
-                                    stop=stop,
-                                    step=step,
-                                    dtype=_convert_data_type(dtype))
-    return _impl
 
-def _squeeze():
-    def _impl(inputs, input_types):
+        return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
+
+    def squeeze(self, inputs, input_types):
         data = inputs[0]
         if len(inputs) == 1:
             axis = None
         else:
+            # TODO (t-vi): why is the cast to int needed? similarly elsewhere
             axis = [int(inputs[1])]
 
         return _op.transform.squeeze(data, axis)
-    return _impl
 
-def _unsqueeze():
-    def _impl(inputs, input_types):
+    def unsqueeze(self, inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
 
         return _op.transform.expand_dims(data, int(axis), 1)
-    return _impl
 
+    def concatenate(self, inputs, input_types):
+        def tensor_array_concat(lst, axis):
+            assert axis == 0, "Tensor array concat supported only for axis 0"
+            tensor_array, shape = self.convert_to_tensor_array(lst)
+            concat_shape = (Any(),) + shape[1:]
+            concat = self.prelude.get_global_var_static("tensor_array_concat", "float32", shape)
+            concatenated = concat(tensor_array)
 
-def _concatenate(prelude):
-    def tensor_array_concat(lst, axis):
-        assert axis == 0, "Tensor array concat supported only for axis 0"
-        tensor_array, shape = _convert_to_tensor_array(lst, prelude)
-        concat_shape = (Any(),) + shape[1:]
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(concat_shape)
+            static_tensor_array_ops = StaticTensorArrayOps(self.prelude, "float32", concat_shape)
+            static_tensor_array_ops.register()
+            get_tensor = self.prelude.get_global_var_static(
+                "tensor_get_data", "float32", concat_shape
+            )
+            return get_tensor(concatenated)
 
-        concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
-        concatenated = concat(tensor_array)
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
-        return get_tensor(concatenated)
-
-    def _impl(inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
 
@@ -215,115 +382,179 @@ def _concatenate(prelude):
             data = [data]
 
         return _op.tensor.concatenate(data, int(axis))
-    return _impl
 
-def _slice():
-    def _impl(inputs, input_types):
+    def slice(self, inputs, input_types):
+        axis_dtype = "int64"
+        index_size_limit = 2 ** 63 - 1
         data = inputs[0]
-        strides = []
+        dshape = self.infer_shape(data)
+        ndim = len(dshape)
+        end = []
+        for dim in dshape:
+            if isinstance(dim, tvm.tir.Any):
+                end = _op.shape_of(data)
+                break
+            end.append(int(dim))
 
-        if isinstance(data, _expr.Expr):
-            inferred_shape = _infer_shape(data)
-            end = []
-            for infer in inferred_shape:
-                end.append(int(infer))
-            if isinstance(data, _expr.Var):
-                end = inferred_shape
-                end = list(end)
-        else:
-            end = data.shape
-
-        begin = [0] * len(end)
+        begin = [0] * ndim
         dim = int(inputs[1])
-        begin[dim] = int(inputs[2])
+        stride = int(inputs[4])
+        if isinstance(inputs[2], _expr.Call):
+            begin[dim], _ = try_infer_value(inputs[2], lambda ret: np.asscalar(ret.astype(np.int)))
+        else:
+            begin[dim] = int(inputs[2])
+
+        # Process begin
+        if not isinstance(begin[dim], int):
+            tmp = []
+            for b in begin:
+                if isinstance(b, int):
+                    tmp.append(_op.expand_dims(_expr.const(b, axis_dtype), axis=0))
+                else:
+                    tmp.append(_op.cast(_op.expand_dims(b, axis=0), axis_dtype))
+            begin = _op.concatenate(tmp, axis=0)
+            btype = self.infer_type(begin).dtype
+            if str(btype) != axis_dtype:
+                begin = _op.cast(begin, axis_dtype)
 
         if isinstance(inputs[3], str) and inputs[3].isdigit():
-            end[dim] = min(end[dim], int(inputs[3]))
+            target_end = int(inputs[3])
         else:
-            end[dim] = inputs[3]
+            if isinstance(inputs[3], _expr.Expr):
+                target_end, _ = try_infer_value(
+                    inputs[3], lambda ret: np.asscalar(ret.astype(np.int))
+                )
+            else:
+                target_end = inputs[3]
 
-        strides.append(int(inputs[4]))
-        return _op.transform.strided_slice(data, begin, end, strides)
-    return _impl
+            if isinstance(target_end, int) and target_end >= index_size_limit:
+                # Quick path for original data.
+                if (
+                    isinstance(begin, _expr.Constant)
+                    and begin.data.asnumpy().tolist()[dim] == 0
+                    and stride == 1
+                ):
+                    return data
+                target_end = dshape[dim]
 
-def _split():
-    def _impl(inputs, input_types):
+        # Process end
+        if isinstance(target_end, int):
+            if isinstance(end, list):
+                end[dim] = target_end
+            else:
+                all_static = True
+                for i, shape_dim in enumerate(dshape):
+                    if i != dim and isinstance(shape_dim, tvm.tir.Any):
+                        all_static = False
+
+                if all_static:
+                    end = list(get_const_tuple(dshape))
+                    end[dim] = target_end
+                else:
+                    target_end = _expr.const(target_end)
+                    end = _op.scatter(
+                        end,
+                        _op.expand_dims(_expr.const(dim), axis=0),
+                        _op.expand_dims(target_end, axis=0),
+                        axis=0,
+                    )
+        else:
+            end = _op.cast(_op.shape_of(data), axis_dtype)
+            if not isinstance(target_end, tvm.tir.Any):
+                ttype = self.infer_type(target_end).dtype
+                if str(ttype) != axis_dtype:
+                    target_end = _op.cast(target_end, axis_dtype)
+                end = _op.scatter(
+                    end,
+                    _op.expand_dims(_expr.const(dim), axis=0),
+                    _op.expand_dims(target_end, axis=0),
+                    axis=0,
+                )
+
+        if not isinstance(end, list):
+            etype = self.infer_type(end).dtype
+            if str(etype) != axis_dtype:
+                end = _op.cast(end, axis_dtype)
+
+        strides = [1] * ndim
+        strides[dim] = int(inputs[4])
+
+        return _op.transform.strided_slice(
+            data, begin=begin, end=end, strides=strides, slice_mode="end"
+        )
+
+    def split(self, inputs, input_types):
         data = inputs[0]
         split_size = int(inputs[1])
         dim = int(inputs[2])
 
         split_index = split_size
         indices = []
-        while split_index < _infer_shape(data)[dim]:
+        while split_index < self.infer_shape(data)[dim]:
             indices.append(split_index)
             split_index += split_size
 
         return _op.split(data, indices, dim)
-    return _impl
 
-def _split_with_sizes():
-    def _impl(inputs, inputs_types):
+    def split_with_sizes(self, inputs, input_types):
         data = inputs[0]
+        sections = inputs[1]
         dim = int(inputs[2])
+
+        if len(sections) == 1:
+            # a special case used in torchvision detection models
+            return _expr.TupleWrapper(_expr.Tuple([data]), 1)
 
         split_index = 0
         indices = []
-        sections = _infer_shape(inputs[1])
         for i in range(len(sections) - 1):
-            split_index += sections[i]
+            index, _ = try_infer_value(sections[i], lambda ret: int(ret))
+            split_index += index
             indices.append(split_index)
 
         return _op.split(data, indices, dim)
-    return _impl
 
-def _select():
-    def _impl(inputs, input_types):
+    def select(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
         index = _wrap_const(inputs[2])
         return _op.transform.take(data, index, axis=dim)
-    return _impl
 
-def _take():
-    def _impl(inputs, input_types):
+    def take(self, inputs, input_types):
         data = inputs[0]
         indices = _op.cast(inputs[1], "int32")
 
         return _op.transform.take(data, indices=indices)
-    return _impl
 
-def _topk():
-    def _impl(inputs, input_types):
+    def topk(self, inputs, input_types):
         data = inputs[0]
-        k = int(inputs[1])
         axis = int(inputs[2])
         is_ascend = not bool(inputs[3])
         sort = bool(inputs[4])
+
+        if isinstance(inputs[1], _expr.Expr):
+            k, _ = try_infer_value(inputs[1], lambda ret: ret.tolist())
+        else:
+            k = inputs[1]
 
         if not sort:
             msg = "Currently supports only sorted output for topk operator."
             raise AssertionError(msg)
 
-        outs = _op.topk(data, k=k, axis=axis, is_ascend=is_ascend, ret_type="both")
+        outs = _op.topk(data, k=k, axis=axis, is_ascend=is_ascend, ret_type="both", dtype="int64")
 
         return outs[0], outs[1]
-    return _impl
 
-def _reciprocal():
-    def _impl(inputs, input_types):
+    def reciprocal(self, inputs, input_types):
         data = inputs[0]
-        return _expr.const(1.0) / data
-    return _impl
+        return _expr.const(1.0, dtype=input_types[0]) / data
 
-def _repeat():
-    def _impl(inputs, input_types):
+    def repeat(self, inputs, input_types):
         data = inputs[0]
-        reps = _get_dims(inputs[1])
+        reps = inputs[1]
         return _op.transform.tile(data, reps=reps)
-    return _impl
 
-def _repeat_interleave():
-    def _impl(inputs, input_types):
+    def repeat_interleave(self, inputs, input_types):
         data = inputs[0]
         if isinstance(inputs[1], int):
             repeats = inputs[1]
@@ -331,154 +562,158 @@ def _repeat_interleave():
         else:
             msg = "Only repeat with one value as repeat is currently supported."
             raise AssertionError(msg)
-        if axis is None: # Flatten the data if no axis is given from torch
+        if axis is None:  # Flatten the data if no axis is given from torch
             data = _op.transform.reshape(data, [-1])
             axis = 0
         return _op.transform.repeat(data, repeats=repeats, axis=axis)
-    return _impl
 
-
-def _addcdiv():
-    def _impl(inputs, input_types):
-        data = inputs[0]
-        c = _expr.const(inputs[3])
-        t1 = inputs[1]
-        t2 = inputs[2]
-
+    def addcdiv(self, inputs, input_types):
+        data, t1, t2, c = self.pytorch_promote_types(inputs[:4], input_types[:4])
         return data + (c * (t1 / t2))
-    return _impl
 
-
-def _addcmul():
-    def _impl(inputs, input_types):
-        data = inputs[0]
-        c = _expr.const(inputs[3])
-        t1 = inputs[1]
-        t2 = inputs[2]
-
+    def addcmul(self, inputs, input_types):
+        data, t1, t2, c = self.pytorch_promote_types(inputs[:4], input_types[:4])
         return data + (c * (t1 * t2))
-    return _impl
 
+    def where(self, inputs, input_types):
+        if len(inputs) == 1:
+            return self.nonzero([inputs[0], True], input_types)
 
-def _where():
-    def _impl(inputs, input_types):
         cond = inputs[0]
-        x = inputs[1]
-        y = inputs[2]
-
+        x, y = self.pytorch_promote_types(inputs[1:3], input_types[1:3])
         return _op.where(cond, x, y)
 
-    return _impl
+    def full_impl(self, data, fill_value, dtype):
+        size = []
+        need_reshape = False
+        new_shape = []
+        for dim in data:
+            if isinstance(dim, _expr.Expr):
+                if isinstance(dim, _expr.Constant):
+                    dim = int(dim.data.asnumpy())
+                    if isinstance(size, list):
+                        size.append(dim)
+                    new_shape.append(dim)
+                else:
+                    dim, success = try_infer_value(dim, lambda ret: int(ret), lambda: 0)
+                    new_shape.append(dim)
 
+                    if success:
+                        if isinstance(size, list):
+                            size.append(dim)
+                    else:
+                        size = None
+                        need_reshape = True
+            else:
+                if isinstance(size, list):
+                    size.append(dim)
+                new_shape.append(dim)
 
-def _ones():
-    def _impl(inputs, input_types):
+        if size is None:
+            tmp = []
+            for dim in data:
+                tmp.append(_op.cast(_op.expand_dims(dim, axis=0), "int64"))
+            size = _op.concatenate(tmp, axis=0)
+
+        out = _op.full(_expr.const(fill_value), size, dtype=dtype)
+        if need_reshape:
+            out = _op.reshape(out, new_shape)
+        return out
+
+    def ones(self, inputs, input_types):
         data = inputs[0]
 
         import torch
-        if isinstance(data, _expr.Expr):
-            shape = _infer_shape(data)
-        elif isinstance(data, list):
-            shape = data
-        elif isinstance(data, (torch.Tensor, np.ndarray)):
-            shape = data.shape
-        else:
+
+        if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
             msg = "Data type %s could not be parsed in ones op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_data_type(_convert_dtype_value(inputs[1]))
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = self.default_dtype
+        return self.full_impl(data, 1, dtype)
 
-        return _op.full(_expr.const(1), shape, dtype=dtype)
-    return _impl
-
-def _ones_like():
-    def _impl(inputs, input_types):
+    def ones_like(self, inputs, input_types):
         data = inputs[0]
         out = _op.ones_like(data)
 
         # If the input and the output datatype is different, do a cast
-        dtype = _convert_data_type(_convert_dtype_value(inputs[1]))
-        if input_types[0] not in dtype:
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = self.default_dtype
+        if input_types[0] != dtype:
             out = _op.cast(out, dtype)
 
         return out
-    return _impl
 
-
-def _zeros():
-    def _impl(inputs, input_types):
+    def zeros(self, inputs, input_types):
         data = inputs[0]
 
         import torch
-        if isinstance(data, _expr.Expr):
-            shape = _infer_shape(data)
-        elif isinstance(data, list):
-            shape = data
-        elif isinstance(data, (torch.Tensor, np.ndarray)):
-            shape = data.shape
-        else:
+
+        if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
             msg = "Data type %s could not be parsed in zeros op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_data_type(_convert_dtype_value(inputs[1]))
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = self.default_dtype
+        return self.full_impl(data, 0, dtype)
 
-        return _op.full(_expr.const(0), shape, dtype=dtype)
-    return _impl
-
-
-def _zeros_like():
-    def _impl(inputs, input_types):
+    def zeros_like(self, inputs, input_types):
         data = inputs[0]
         out = _op.zeros_like(data)
 
         # If the input and the output datatype is different, do a cast
-        dtype = _convert_data_type(_convert_dtype_value(inputs[1]))
+        if inputs[1] is not None:
+            dtype = _convert_dtype_value(inputs[1])
+        else:
+            dtype = self.default_dtype
         if input_types[0] not in dtype:
             out = _op.cast(out, dtype)
 
         return out
-    return _impl
 
-
-def _full():
-    def _impl(inputs, input_types):
+    def full(self, inputs, input_types):
         data = inputs[0]
-
         fill_value = inputs[1]
+
         import torch
-        if isinstance(data, _expr.Expr):
-            shape = _infer_shape(data)
-        elif isinstance(data, list):
-            shape = data
-        elif isinstance(data, (torch.Tensor, np.ndarray)):
-            shape = data.shape
-        else:
-            msg = "Data type %s could not be parsed in zeros op" % (type(data))
+
+        if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
+            msg = "Data type %s could not be parsed in full op" % (type(data))
             raise AssertionError(msg)
 
-        dtype = _convert_data_type(_convert_dtype_value(inputs[2]))
+        if inputs[2] is not None:  # dtype given
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            # if dtype is None, torch uses a global default set by torch.set_default_tensor_type()
+            dtype = self.default_dtype
 
-        return _op.full(_expr.const(fill_value), shape, dtype=dtype)
-    return _impl
+        return self.full_impl(data, fill_value, dtype)
 
-def _full_like():
-    def _impl(inputs, input_types):
+    def full_like(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
 
         out = _op.full_like(data, _expr.const(fill_value))
 
         # If the input and the output datatype is different, do a cast
-        dtype = _convert_data_type(_convert_dtype_value(inputs[2]))
+        if inputs[2] is not None:  # dtype given
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            # if dtype is None, torch uses a global default set by torch.set_default_tensor_type()
+            dtype = self.default_dtype
         if input_types[0] not in dtype:
             out = _op.cast(out, dtype)
 
         return out
-    return _impl
 
-
-def _linspace():
-    def _impl(inputs, input_types):
+    def linspace(self, inputs, input_types):
         start = inputs[0]
         stop = inputs[1]
         step = inputs[2]
@@ -490,203 +725,170 @@ def _linspace():
         else:
             stop = start + step
 
-        dtype = "float" if "float" in input_types[0:3] else _convert_dtype_value(inputs[3])
+        dtype = "float32" if inputs[3] is not None else _convert_dtype_value(inputs[3])
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
 
-        return _op.transform.arange(start=start,
-                                    stop=stop,
-                                    step=step,
-                                    dtype=_convert_data_type(dtype))
-    return _impl
+        return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
 
-
-def _relu():
-    def _impl(inputs, input_types):
+    def relu(self, inputs, input_types):
         data = inputs[0]
-        if input_types[0] == "quint8":
+        if self.is_quantized_tensor(data):
             assert len(inputs) == 3, "Input quant param not found in op inputs"
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
-    return _impl
 
-def _prelu():
-    def _impl(inputs, input_types):
+    def prelu(self, inputs, input_types):
         data = inputs[0]
         alpha = inputs[1]
         return _op.nn.prelu(data, alpha)
-    return _impl
 
-def _leaky_relu():
-    def _impl(inputs, input_types):
+    def leaky_relu(self, inputs, input_types):
         data = inputs[0]
         alpha = float(inputs[1])
         return _op.nn.leaky_relu(data, alpha)
-    return _impl
 
-def _elu():
-    def _impl(inputs, input_types):
+    def elu(self, inputs, input_types):
         data = inputs[0]
-        alpha = _expr.const(float(inputs[1]))
-        return alpha * _op.nn.relu(_expr.const(1.0) - _op.exp(data)) + _op.nn.relu(data)
-    return _impl
+        dtype = input_types[0]
+        alpha = _expr.const(float(inputs[1]), dtype=dtype)
+        return alpha * _op.nn.relu(_expr.const(1, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
 
-def _celu():
-    def _impl(inputs, input_types):
+    def celu(self, inputs, input_types):
         data = inputs[0]
-        alpha = _expr.const(float(inputs[1]))
-        return alpha * _op.nn.relu(_expr.const(1.0) - _op.exp(data / alpha)) + _op.nn.relu(data)
-    return _impl
+        dtype = input_types[0]
+        alpha = _expr.const(float(inputs[1]), dtype=dtype)
+        return alpha * _op.nn.relu(
+            _expr.const(1, dtype=dtype) - _op.exp(data / alpha)
+        ) + _op.nn.relu(data)
 
-def _gelu():
-    def _impl(inputs, input_types):
-        import math
+    def gelu(self, inputs, input_types):
         data = inputs[0]
+        dtype = input_types[0]
+        # gelu is data  * normcdf(data)
+        # normcdf expressed as erf because we don't currently have that intrinsic
+        # note that there is also a fastgelu variant approximating normcdf
+        # with tanh and third order polynomials, but this is "true" gelu
+        return data * (
+            _expr.const(0.5, dtype=dtype)
+            + _op.erf(data * _expr.const(0.5 ** 0.5, dtype=dtype)) * _expr.const(0.5, dtype=dtype)
+        )
 
-        def _pow3(x):
-            return x * x * x
-        return _expr.const(0.5) * data * (_expr.const(1.0) +
-                                          _op.tanh(_expr.const(math.sqrt(2.0 / math.pi)) *
-                                                   (data + _expr.const(0.044715) * _pow3(data))))
-    return _impl
-
-def _selu():
-    def _impl(inputs, input_types):
+    def selu(self, inputs, input_types):
         data = inputs[0]
         # https://pytorch.org/docs/stable/nn.html#selu
-        alpha = _expr.const(-1.6732632423543772848170429916717)
-        gamma = _expr.const(1.0507009873554804934193349852946)
-        return gamma * (alpha * _op.nn.relu(_expr.const(1.0)
-                                            - _op.exp(data)) + _op.nn.relu(data))
-    return _impl
+        dtype = input_types[0]
+        alpha = _expr.const(-1.6732632423543772848170429916717, dtype=dtype)
+        gamma = _expr.const(1.0507009873554804934193349852946, dtype=dtype)
+        return gamma * (
+            alpha * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(data)) + _op.nn.relu(data)
+        )
 
-def _log_sigmoid():
-    def _impl(inputs, input_types):
+    def log_sigmoid(self, inputs, input_types):
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
-    return _impl
 
-def _adaptive_avg_pool_2d():
-    def _impl(inputs, input_types):
+    def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
-        output_size = _infer_shape(inputs[1])
+        output_size = inputs[1]
 
         def func(x):
             return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
 
-        if input_types[0] == "quint8":
+        if self.is_quantized_tensor(data):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
 
-    return _impl
-
-def _adaptive_max_pool_2d():
-    def _impl(inputs, input_types):
+    def adaptive_max_pool_2d(self, inputs, input_types):
         data = inputs[0]
-        output_size = _infer_shape(inputs[1])
+        output_size = inputs[1]
 
         # returns dummy indices too
-        return _op.nn.adaptive_max_pool2d(
-            data,
-            output_size=output_size), None
-    return _impl
+        return _op.nn.adaptive_max_pool2d(data, output_size=output_size), None
 
-def _adaptive_max_pool_3d():
-    def _impl(inputs, input_types):
+    def adaptive_max_pool_3d(self, inputs, input_types):
         data = inputs[0]
-        output_size = _infer_shape(inputs[1])
+        output_size = inputs[1]
         # returns dummy indices too
         return _op.nn.adaptive_max_pool3d(data, output_size=output_size), None
 
-    return _impl
-
-def _adaptive_avg_pool_3d():
-    def _impl(inputs, input_types):
+    def adaptive_avg_pool_3d(self, inputs, input_types):
         data = inputs[0]
-        output_size = _infer_shape(inputs[1])
+        output_size = inputs[1]
         return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
 
-    return _impl
-
-def _maxpool_2d():
-    def _impl(inputs, input_types):
+    def maxpool_2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = _infer_shape(inputs[1])
-        strides = _infer_shape(inputs[2])
-        padding = _infer_shape(inputs[3])
-        dilation = _infer_shape(inputs[4])
+        pool_size = inputs[1]
+        strides = inputs[2] if inputs[2] else pool_size
+        padding = inputs[3]
+        dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != (1, 1):
+        if dilation != [1, 1]:
             msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
-    return _impl
 
-def _maxpool_1d():
-    def _impl(inputs, input_types):
+    def maxpool_2d_with_indices(self, inputs, input_types):
+        # returns dummy indices too
+        return self.maxpool_2d(inputs, input_types), None
+
+    def maxpool_1d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = _infer_shape(inputs[1])
-        strides = _infer_shape(inputs[2])
-        padding = _infer_shape(inputs[3])
-        dilation = _infer_shape(inputs[4])
+        pool_size = inputs[1]
+        strides = inputs[2] if inputs[2] else pool_size
+        padding = inputs[3]
+        dilation = inputs[4]
         ceil_mode = int(inputs[5])
 
-        if dilation != (1,):
+        if dilation != [1]:
             msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
-    return _impl
 
-def _maxpool_3d():
-    def _impl(inputs, input_types):
+    def maxpool_3d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = _infer_shape(inputs[1])
-        strides = _infer_shape(inputs[2])
-        padding = _infer_shape(inputs[3])
-        dilation = _infer_shape(inputs[4])
+        pool_size = inputs[1]
+        strides = inputs[2] if inputs[2] else pool_size
+        padding = inputs[3]
+        dilation = inputs[4]
         ceil_mode = int(inputs[5])
-        if dilation != (1, 1, 1):
+        if dilation != [1, 1, 1]:
             msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
-        return _op.nn.max_pool3d(data,
-                                 pool_size=pool_size,
-                                 strides=strides,
-                                 padding=padding,
-                                 ceil_mode=ceil_mode)
-    return _impl
+        return _op.nn.max_pool3d(
+            data, pool_size=pool_size, strides=strides, padding=padding, ceil_mode=ceil_mode
+        )
 
-def _hardtanh():
-    def _impl(inputs, input_types):
+    def hardtanh(self, inputs, input_types):
         a = inputs[0]
         tanh_min = float(inputs[1])
         tanh_max = float(inputs[2])
         return _op.tensor.clip(a, tanh_min, tanh_max)
-    return _impl
 
-def _convolution():
-    def _impl(inputs, input_types):
+    def convolution(self, inputs, input_types):
         # Use transpose or normal
         use_transpose = True if inputs[6] == 1 else False
 
         data = inputs[0]
         weight = inputs[1]
         bias = inputs[2]
-        strides = inputs[3]
-        padding = inputs[4]
-        dilation = inputs[5]
+        strides = tuple(inputs[3])
+        padding = tuple(inputs[4])
+        dilation = tuple(inputs[5])
 
         if isinstance(weight, _expr.Expr):
-            inferred_shape = _infer_shape(weight)
+            inferred_shape = self.infer_shape(weight)
             weight_shape = []
             for infer in inferred_shape:
                 weight_shape.append(infer)
@@ -708,79 +910,82 @@ def _convolution():
         # If groups > 1 but weight_shape[1] != 1, this is group convolution
         if groups > 1 and weight_shape[1] == 1:
             channel_multiplier = channels // groups
-            new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
+            new_weight_shape = (groups, channel_multiplier) + tuple(weight_shape[2:])
             weight = _op.transform.reshape(weight, new_weight_shape)
 
         kernel_size = weight_shape[2:]
         use_bias = isinstance(bias, _expr.Expr)
 
-        if isinstance(strides, _expr.Expr):
-            strides = _infer_shape(strides)
-
-        if isinstance(padding, _expr.Expr):
-            padding = _infer_shape(padding)
-
-        if isinstance(dilation, _expr.Expr):
-            dilation = _infer_shape(dilation)
-
-        data_layout = "NCHW"
-        kernel_layout = "OIHW"
-        conv_op = _op.nn.conv2d
+        if len(kernel_size) == 1:
+            strides = (1,) + strides
+            padding = (0,) + padding
+            dilation = (1,) + dilation
 
         if use_transpose:
-            assert len(kernel_size) == 2, "ConvTranspose 3D not supported"
-            conv_op = _op.nn.conv2d_transpose
+            if len(kernel_size) == 3:
+                conv_op = _op.nn.conv3d_transpose
+            else:
+                conv_op = _op.nn.conv2d_transpose
+        else:
+            if len(kernel_size) == 3:
+                conv_op = _op.nn.conv3d
+            else:
+                conv_op = _op.nn.conv2d
+
         if len(kernel_size) == 3:
-            conv_op = _op.nn.conv3d
             data_layout = "NCDHW"
             kernel_layout = "OIDHW"
-
-        conv_out = conv_op(data,
-                           weight,
-                           strides=strides,
-                           padding=padding,
-                           dilation=dilation,
-                           groups=groups,
-                           channels=channels,
-                           kernel_size=kernel_size,
-                           data_layout=data_layout,
-                           kernel_layout=kernel_layout,
-                           out_layout="",
-                           out_dtype="")
-        if use_bias:
-            return _op.nn.bias_add(conv_out, bias)
         else:
-            return conv_out
-    return _impl
+            data_layout = "NCHW"
+            kernel_layout = "OIHW"
 
-def _softmax():
-    def _impl(inputs, input_types):
+        if len(kernel_size) == 1:
+            data = _op.expand_dims(data, axis=2)
+            weight = _op.expand_dims(weight, axis=2)
+
+        conv_out = conv_op(
+            data,
+            weight,
+            strides=strides,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            channels=channels,
+            kernel_size=[1] + kernel_size if len(kernel_size) == 1 else kernel_size,
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+            out_layout="",
+            out_dtype="",
+        )
+        if use_bias:
+            res = _op.nn.bias_add(conv_out, bias)
+        else:
+            res = conv_out
+        if len(kernel_size) == 1:
+            res = _op.squeeze(res, axis=[2])
+        return res
+
+    def softmax(self, inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
         if isinstance(axis, str):
             axis = int(axis)
 
         return _op.nn.softmax(data, axis=axis)
-    return _impl
 
-def _threshold():
-    def _impl(inputs, input_types):
+    def threshold(self, inputs, input_types):
         data = inputs[0]
         return _op.nn.relu(data)
-    return _impl
 
-def _contiguous():
-    def _impl(inputs, input_types):
+    def contiguous(self, inputs, input_types):
         data = inputs[0]
         return _op.tensor.copy(data)
-    return _impl
 
-def _batch_norm():
-    def _impl(inputs, input_types):
+    def batch_norm(self, inputs, input_types):
         data = inputs[0]
         data_type = input_types[0]
 
-        channels = _infer_shape(data)
+        channels = self.infer_shape(data)
 
         if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
             scale = center = True
@@ -800,22 +1005,22 @@ def _batch_norm():
         moving_var = inputs[4]
         epsilon = float(inputs[7])
 
-        return _op.nn.batch_norm(data,
-                                 gamma,
-                                 beta,
-                                 moving_mean,
-                                 moving_var,
-                                 axis=1,
-                                 epsilon=epsilon,
-                                 center=center,
-                                 scale=scale)[0]
-    return _impl
+        return _op.nn.batch_norm(
+            data,
+            gamma,
+            beta,
+            moving_mean,
+            moving_var,
+            axis=1,
+            epsilon=epsilon,
+            center=center,
+            scale=scale,
+        )[0]
 
-def _instance_norm():
-    def _impl(inputs, input_types):
+    def instance_norm(self, inputs, input_types):
         data = inputs[0]
         data_type = input_types[0]
-        channels = _infer_shape(data)
+        channels = self.infer_shape(data)
 
         if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
             scale = center = True
@@ -832,70 +1037,65 @@ def _instance_norm():
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         epsilon = float(inputs[7])
-        return _op.nn.instance_norm(data,
-                                    gamma,
-                                    beta,
-                                    axis=1,
-                                    epsilon=epsilon,
-                                    center=center,
-                                    scale=scale)
-    return _impl
+        return _op.nn.instance_norm(
+            data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
+        )
 
-def _get_dims(data):
-    import torch
-    if isinstance(data, _expr.Expr):
-        dims = _infer_shape(data)
-    elif isinstance(data, list):
-        dims = data
-    elif isinstance(data, (torch.Tensor, np.ndarray)):
-        dims = data.shape
-    else:
-        msg = "Data type %s could not be parsed" % type(data)
-        raise AssertionError(msg)
-    return dims
+    @staticmethod
+    def get_dims(data):
+        import torch
 
-def _layer_norm():
-    def _impl(inputs, input_types):
+        if isinstance(data, _expr.Expr):
+            dims = self.infer_shape(data)
+        elif isinstance(data, list):
+            dims = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
+            dims = data.shape
+        else:
+            msg = "Data type %s could not be parsed" % type(data)
+            raise AssertionError(msg)
+        return dims
+
+    def layer_norm(self, inputs, input_types):
         data = inputs[0]
-        ndims = len(_get_dims(inputs[1]))
+        ndims = len(self.get_dims(inputs[1]))
         assert ndims == 1, "Support only normalization over last one dimension."
 
-        return _op.nn.layer_norm(data,
-                                 gamma=inputs[2],
-                                 beta=inputs[3],
-                                 axis=-1,
-                                 epsilon=float(inputs[4]),
-                                 center=True,
-                                 scale=True)
-    return _impl
+        return _op.nn.layer_norm(
+            data,
+            gamma=inputs[2],
+            beta=inputs[3],
+            axis=-1,
+            epsilon=float(inputs[4]),
+            center=True,
+            scale=True,
+        )
 
-
-def _group_norm():
-    def _impl(inputs, input_types):
+    def group_norm(self, inputs, input_types):
         data = inputs[0]
         gamma = inputs[2]
         beta = inputs[3]
         num_groups = inputs[1]
         epsilon = float(inputs[4])
 
-        return _op.nn.group_norm(data,
-                                 gamma=gamma,
-                                 beta=beta,
-                                 num_groups=num_groups,
-                                 axis=1,
-                                 epsilon=epsilon,
-                                 center=True,
-                                 scale=True)
-    return _impl
+        return _op.nn.group_norm(
+            data,
+            gamma=gamma,
+            beta=beta,
+            num_groups=num_groups,
+            axis=1,
+            epsilon=epsilon,
+            center=True,
+            scale=True,
+        )
 
-
-def _transpose(prelude):
-    def _impl(inputs, input_types):
+    def transpose(self, inputs, input_types):
         data = inputs[0]
 
         import torch
+
         if isinstance(data, _expr.Expr):
-            ndims = len(_infer_shape(data, prelude.mod))
+            ndims = len(self.infer_shape_with_prelude(data))
         elif isinstance(data, list):
             ndims = data
         elif isinstance(data, (torch.Tensor, np.ndarray)):
@@ -923,75 +1123,78 @@ def _transpose(prelude):
             axes[src] = dst
             axes[dst] = src
         else:
-            axes = _infer_shape(inputs[1], prelude.mod)
+            axes = inputs[1]
         return _op.transform.transpose(data, axes)
-    return _impl
 
-def _flatten():
-    def _impl(inputs, input_types):
+    def flatten(self, inputs, input_types):
         data = inputs[0]
-        return _op.nn.batch_flatten(data)
-    return _impl
+        start = int(inputs[1])
+        end = int(inputs[2])
+        dshape = get_const_tuple(self.infer_shape_with_prelude(data))
+        ndim = len(dshape)
+        if end < 0:
+            end += ndim
+        new_shape = [0] * start
 
-def _dense():
-    def _impl(inputs, input_types):
-        use_bias = isinstance(inputs[0], _expr.Expr)
+        new_shape.append(-1)
+        squeeze_axes = []
+        for i in range(start + 1, end + 1):
+            new_shape.append(1)
+            squeeze_axes.append(i)
+        for _ in range(end + 1, ndim):
+            new_shape.append(0)
+        out = _op.reshape(data, new_shape)
+        if squeeze_axes:
+            out = _op.squeeze(out, axis=squeeze_axes)
+        return out
 
-        data = inputs[1]
+    def addmm(self, inputs, input_types):
+        input_mat = inputs[0]
+        mat1 = inputs[1]
         data_type = input_types[1]
-        weight = inputs[2]
+        mat2 = inputs[2]
 
         beta = inputs[3]
         alpha = inputs[4]
 
-        if not isinstance(alpha, _expr.Expr):
+        if not isinstance(alpha, _expr.Expr) and alpha != 1:
             alpha = _create_typed_const(alpha, data_type)
-            data *= alpha
+            mat1 *= alpha
 
-        if not isinstance(beta, _expr.Expr):
+        if not isinstance(beta, _expr.Expr) and beta != 1:
             beta = _create_typed_const(beta, data_type)
-            weight *= beta
+            mat2 *= beta
 
-        weight_out = _op.transform.transpose(weight, axes=[1, 0])
+        transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
 
-        units = _infer_shape(weight_out)[0]
-        dense_out = _op.nn.dense(data, weight_out, units=units)
+        units = self.infer_shape(transposed_mat2)[0]
+        dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
 
-        if use_bias:
-            bias = inputs[0]
-            return _op.nn.bias_add(dense_out, bias)
-        else:
-            return dense_out
-    return _impl
+        return dense_out + input_mat
 
-
-def _size(prelude):
-    def _impl_dynamic(inp, axis):
-        shape_dynamic = _op.shape_of(inp)
-        if axis is not None:
-            return _op.take(shape_dynamic, _expr.const(axis), 0)
-        return shape_dynamic
-
-    def _impl(inputs, input_types):
-        shape = _infer_shape(inputs[0], prelude.mod)
+    def size(self, inputs, input_types):
+        shape = self.infer_shape_with_prelude(inputs[0])
         axis = None
         if len(inputs) > 1:
             axis = int(inputs[1])
 
         if any(map(lambda s: isinstance(s, tvm.tir.expr.Any), shape)):
             if axis is None or isinstance(shape[axis], tvm.tir.expr.Any):
-                return _impl_dynamic(inputs[0], axis)
+                shape_dynamic = _op.shape_of(inputs[0], dtype="int32")
+                if axis is not None:
+                    return _op.take(shape_dynamic, _expr.const(axis), 0)
+                return shape_dynamic
 
         if axis is not None:
-            return shape[axis]
-        return shape
-    return _impl
+            return _expr.const(shape[axis])
+        return _expr.const(shape)
 
-
-def _numtotensor():
-    def _impl(inputs, input_types):
+    def numtotensor(self, inputs, input_types):
         val = inputs[0]
-        dtype = type(val)
+        dtype = input_types[0]
+
+        if isinstance(val, _expr.Expr):
+            return val
 
         if isinstance(val, tvm.tir.IntImm):
             val = val.__int__()
@@ -999,175 +1202,238 @@ def _numtotensor():
 
         arr = val * np.ones([]).astype(dtype)
         return arr
-    return _impl
 
-def _view():
-    def _impl(inputs, input_types):
+    def tensortonum(self, inputs, input_types):
+        return inputs[0]
+
+    def view(self, inputs, input_types):
         data = inputs[0]
 
         if len(inputs) == 3:
-            new_shape = [inputs[1], _infer_shape(inputs[2])[0]]
+            shape_inp = [inputs[1], self.infer_shape(inputs[2])[0]]
         else:
             if isinstance(inputs[1], list):
-                new_shape = inputs[1]
+                shape_inp = inputs[1]
             else:
-                new_shape = _infer_shape(inputs[1])
+                shape_inp = self.infer_shape(inputs[1])
+        new_shape = shape_inp
+        for i, shape in enumerate(shape_inp):
+            if isinstance(shape, _expr.Expr):
+                val = _infer_value_simulated(shape, {})
+                new_shape[i] = np.asscalar(val.asnumpy())
 
         return _op.transform.reshape(data, new_shape)
-    return _impl
 
-def _reshape():
-    def _impl(inputs, input_types):
+    def reshape(self, inputs, input_types):
         data = inputs[0]
-        if isinstance(inputs[1], list):
-            new_shape = inputs[1]
-        else:
-            new_shape = _infer_shape(inputs[1])
-        return _op.transform.reshape(data, new_shape)
-    return _impl
+        new_shape = inputs[1]
 
-def _clone():
-    def _impl(inputs, input_types):
+        tmp_shape = []
+        is_dyn = False
+        for s in new_shape:
+            if isinstance(s, _expr.Constant):
+                tmp_shape.append(int(s.data.asnumpy()))
+            elif isinstance(s, _expr.Expr):
+                dim, success = try_infer_value(s, lambda ret: int(ret))
+                tmp_shape.append(dim)
+
+                if not success:
+                    is_dyn = True
+            else:
+                tmp_shape.append(s)
+
+        if is_dyn:
+            new_shape = []
+            for i, s in enumerate(tmp_shape):
+                if not isinstance(s, _expr.Expr):
+                    s = _expr.const(s, "int64")
+                else:
+                    s = _op.cast(s, "int64")
+                new_shape.append(_op.expand_dims(s, axis=0))
+            new_shape = _op.concatenate(new_shape, axis=0)
+        else:
+            new_shape = tmp_shape
+        return _op.transform.reshape(data, new_shape)
+
+    def pixel_shuffle(self, inputs, input_types):
+        data = inputs[0]
+        upscale_factor = inputs[1]
+        upscale_squared = upscale_factor * upscale_factor
+        b, c, h, w = self.infer_shape(data)
+        assert (
+            c % upscale_squared == 0
+        ), "input channel should be divisible by square of upscale_factor"
+
+        ndims = len(self.infer_shape_with_prelude(data))
+        axes = list(range(ndims))
+        num_inputs = len(inputs)
+        oc = c // upscale_squared
+        oh = h * upscale_factor
+        ow = w * upscale_factor
+
+        new_shape = [b, oc, upscale_factor, upscale_factor, h, w]
+        out_shape = [b, oc, oh, ow]
+
+        data = _op.transform.reshape(data, new_shape)
+        # The data will be transposed to
+        # [b, oc, h, upscale_factor, w, upscale_factor]
+        # for further reshape
+        axes = [0, 1, 4, 2, 5, 3]
+        data = _op.transform.transpose(data, axes)
+        return _op.transform.reshape(data, out_shape)
+
+    def clone(self, inputs, input_types):
         data = inputs[0]
         return _op.tensor.copy(data)
-    return _impl
 
-def _log_softmax():
-    def _impl(inputs, input_types):
+    def log_softmax(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
         return _op.nn.log_softmax(data, axis)
-    return _impl
 
-def _sigmoid():
-    def _impl(inputs, input_types):
+    def sigmoid(self, inputs, input_types):
         data = inputs[0]
         return _op.tensor.sigmoid(data)
-    return _impl
 
-def _softplus():
-    def _impl(inputs, input_types):
+    def softplus(self, inputs, input_types):
         data = inputs[0]
-        beta = _expr.const(float(inputs[1]))
-        return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.)) / beta
-    return _impl
+        dtype = input_types[0]
+        beta = _expr.const(float(inputs[1]), dtype=dtype)
+        return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
 
-def _avg_pool2d():
-    def _impl(inputs, input_types):
+    def avg_pool2d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = _infer_shape(inputs[1])
-        if inputs[2]:
-            strides = _infer_shape(inputs[2])
-        else:
-            strides = pool_size
-        padding = _infer_shape(inputs[3])
-
+        pool_size = inputs[1]
+        strides = inputs[2] if inputs[2] else pool_size
+        padding = inputs[3]
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
         def func(x):
-            return _op.nn.avg_pool2d(x,
-                                     pool_size=pool_size,
-                                     strides=strides,
-                                     padding=padding,
-                                     ceil_mode=ceil_mode,
-                                     count_include_pad=count_include_pad)
+            return _op.nn.avg_pool2d(
+                x,
+                pool_size=pool_size,
+                strides=strides,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+            )
 
-        if input_types[0] == "quint8":
+        if self.is_quantized_tensor(data):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
 
-    return _impl
-
-def _avg_pool3d():
-    def _impl(inputs, input_types):
+    def avg_pool3d(self, inputs, input_types):
         data = inputs[0]
 
-        pool_size = _infer_shape(inputs[1])
-        if inputs[2]:
-            strides = _infer_shape(inputs[2])
-        else:
-            strides = pool_size
-        padding = _infer_shape(inputs[3])
-
+        pool_size = inputs[1]
+        strides = inputs[2] if inputs[2] else pool_size
+        padding = inputs[3]
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
-        return _op.nn.avg_pool3d(data,
-                                 pool_size=pool_size,
-                                 strides=strides,
-                                 padding=padding,
-                                 ceil_mode=ceil_mode,
-                                 count_include_pad=count_include_pad)
-    return _impl
+        return _op.nn.avg_pool3d(
+            data,
+            pool_size=pool_size,
+            strides=strides,
+            padding=padding,
+            ceil_mode=ceil_mode,
+            count_include_pad=count_include_pad,
+        )
 
-def _dropout():
-    def _impl(inputs, input_types):
+    def dropout(self, inputs, input_types):
         data = inputs[0]
         rate = float(inputs[1])
 
         return _op.nn.dropout(data, rate)
-    return _impl
 
-def _reduce(name):
-    def _impl(inputs, input_types):
+    def make_reduce(self, name):
+        def reduce(inputs, input_types):
+            data = inputs[0]
+            axis = None
+            keepdims = False
+
+            if len(inputs) > 2:  # default, torch have only data, axis=None, keepdims=False
+                if isinstance(inputs[1], int):
+                    axis = int(inputs[1])
+                elif _is_int_seq(inputs[1]):
+                    axis = inputs[1]
+                else:
+                    axis = list(self.infer_shape(inputs[1]))
+                keepdims = bool(inputs[2])
+
+            return get_relay_op(name)(data, axis=axis, keepdims=keepdims)
+
+        return reduce
+
+    def norm(self, inputs, input_types):
+        data = inputs[0]
+        dtype = input_types[0]
+        axis = None
+        keepdims = False
+        if len(inputs) > 3:
+            axis = inputs[2]
+            keepdims = bool(inputs[3])
+
+        order = inputs[1]
+        if order == np.inf:
+            return _op.reduce.max(_op.abs(data), axis=axis, keepdims=keepdims)
+        elif order == np.NINF:
+            return _op.reduce.min(_op.abs(data), axis=axis, keepdims=keepdims)
+        else:
+            reci_order = _expr.const(1.0 / order, dtype=dtype)
+            order = _expr.const(order)
+            return _op.power(
+                _op.reduce.sum(_op.power(_op.abs(data), order), axis=axis, keepdims=keepdims),
+                reci_order,
+            )
+
+    def frobenius_norm(self, inputs, input_types):
         data = inputs[0]
         axis = None
         keepdims = False
-
-        if len(inputs) > 2: # default, torch have only data, axis=None, keepdims=False
-            if isinstance(inputs[1], int):
-                axis = int(inputs[1])
-            else:
-                axis = list(_infer_shape(inputs[1]))
+        if len(inputs) > 2:
+            axis = inputs[1] if len(inputs[1]) > 0 else None
             keepdims = bool(inputs[2])
 
-        return get_relay_op(name)(data, axis=axis, keepdims=keepdims)
+        return _op.sqrt(_op.reduce.sum((data * data), axis=axis, keepdims=keepdims))
 
-    return _impl
-
-def _std():
-    def _impl(inputs, input_types):
+    def std(self, inputs, input_types):
         data = inputs[0]
-        axis = list(_infer_shape(inputs[1]))
-        keepdims = bool(inputs[3])
-        unbiased = bool(inputs[2])
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = inputs[1]
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
 
-        if unbiased:
-            msg = "Currently only supports standard-deviation calculated via the biased "\
-                  "estimator. Pytorch's Bessel's correction is not supported."
-            raise NotImplementedError(msg)
+        return _op.reduce.std(data, axis=axis, keepdims=keepdims, unbiased=unbiased)
 
-        return _op.reduce.std(data, axis=axis, keepdims=keepdims)
-
-    return _impl
-
-def _variance():
-    def _impl(inputs, input_types):
+    def variance(self, inputs, input_types):
         data = inputs[0]
-        axis = list(_infer_shape(inputs[1]))
-        keepdims = bool(inputs[3])
-        unbiased = bool(inputs[2])
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = inputs[1]
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
 
-        if unbiased:
-            msg = "Currently only supports standard-deviation calculated via the biased "\
-                  "estimator. Pytorch's Bessel's correction is not supported."
-            raise NotImplementedError(msg)
+        return _op.reduce.variance(data, axis=axis, keepdims=keepdims, unbiased=unbiased)
 
-        return _op.reduce.variance(data, axis=axis, keepdims=keepdims)
-
-    return _impl
-
-def _mean():
-    def _impl(inputs, input_types):
+    def mean(self, inputs, input_types):
         data = inputs[0]
 
         if inputs[1]:
-            axis = _infer_shape(inputs[1])
+            axis = inputs[1]
         else:
             axis = None
+
         if len(inputs) > 2 and inputs[2]:
             keepdims = int(inputs[2])
         else:
@@ -1180,26 +1446,22 @@ def _mean():
         def func(x):
             return _op.mean(x, axis, keepdims, exclude)
 
-        if input_types[0] == "quint8":
+        if self.is_quantized_tensor(data):
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
-            return qnn_torch.quantized_mean(data, input_scale,
-                                            input_zero_point, func)
+            return qnn_torch.quantized_mean(data, input_scale, input_zero_point, func)
 
         return func(data)
 
-    return _impl
-
-def _chunk(prelude):
-    def _impl(inputs, input_types):
+    def chunk(self, inputs, input_types):
         data = inputs[0]
 
         num_chunks = int(inputs[1])
         axis = int(inputs[2])
 
         if isinstance(data, _expr.Expr):
-            inferred_shape = _infer_shape(data, prelude.mod)
+            inferred_shape = self.infer_shape_with_prelude(data)
 
         shape = []
         for infer in inferred_shape:
@@ -1220,7 +1482,7 @@ def _chunk(prelude):
             end[axis] = i + unif_size
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
             chunks.append(chunk_out)
 
         if dim % num_chunks:
@@ -1230,31 +1492,58 @@ def _chunk(prelude):
             end[axis] = dim
             stride = [1] * len(shape)
 
-            chunk_out = _op.transform.strided_slice(data, begin, end, stride)
+            chunk_out = _op.transform.strided_slice(data, begin=begin, end=end, strides=stride)
             chunks.append(chunk_out)
 
         return chunks
-    return _impl
 
-def _matmul():
-    def _impl(inputs, input_types):
-        data0 = inputs[0]
-        data1 = inputs[1]
-        data1_t = _op.transpose(data1, axes=(1, 0))
+    def matmul(self, inputs, input_types):
 
-        return _op.nn.dense(data0, data1_t)
-    return _impl
+        inputs_0 = inputs[0]
+        inputs_1 = inputs[1]
 
+        # Need to check input shape as batch matmul must be supported.
+        a_shape = self.infer_shape_with_prelude(inputs_0)
+        b_shape = self.infer_shape_with_prelude(inputs_1)
 
-def _expand():
-    def _impl(inputs, input_types):
+        # When performing a batch matmul, we need to properly handle N-dim shapes.
+        if len(a_shape) > 2 or len(b_shape) > 2:
+            # Convert a and b into 3 dimensional tensors.
+            a = _op.reshape(inputs_0, [-1, a_shape[-2], a_shape[-1]])
+            b = _op.reshape(inputs_1, [-1, b_shape[-2], b_shape[-1]])
+            # Broadcast b to match batch size of a
+            new_b_shape = list(self.infer_shape_with_prelude(b))
+            new_a_shape = self.infer_shape_with_prelude(a)
+            if new_a_shape[0] > new_b_shape[0]:
+                new_b_shape[0] = new_a_shape[0]
+                b = _op.broadcast_to(b, new_b_shape)
+            # Transpose matrix dimensions of b.
+            b = _op.transpose(b, [0, 2, 1])
+            # Perform a batch matmul.
+            output = _op.nn.batch_matmul(a, b)
+            # Reshape output to original dimensions.
+            return _op.reshape(output, [*a_shape[:-2], a_shape[-2], b_shape[-1]])
+
+        # Otherwise a simple dense op will get the job done.
+        if len(b_shape) == 1:
+            input_1 = _op.expand_dims(inputs_1, 0, 1)
+        else:
+            input_1 = _op.transpose(inputs_1, axes=(1, 0))
+
+        out = _op.nn.dense(inputs_0, input_1)
+
+        if len(b_shape) == 1:
+            out = _op.squeeze(out, axis=[-1])
+
+        return out
+
+    def expand(self, inputs, input_types):
         data_in = inputs[0]
-        if isinstance(data_in, _expr.Expr):
-            shape = list(_infer_shape(data_in))
+        shape = list(self.infer_shape(data_in))
 
         ndims = len(shape)
-        sizes = _infer_shape(inputs[1])
-        out = inputs[0]
+        sizes = inputs[1]
+        out = data_in
 
         out_dims = len(sizes)
         if ndims < out_dims:
@@ -1262,154 +1551,190 @@ def _expand():
             out = _op.expand_dims(out, axis=0, num_newaxis=num_newaxis)
             shape = [1] * num_newaxis + shape
 
-        for i in range(ndims):
-            if sizes[i] == -1 or sizes[i] == shape[i]:
-                continue
-            data = list()
-            for temp in range(sizes[i]):
-                data.append(out)
-
-            out = _op.tensor.concatenate(data, i)
+        for i in range(out_dims):
+            if sizes[i] != -1 and shape[i] == 1:
+                if not isinstance(sizes[i], int):
+                    sizes[i] = int(_infer_value(sizes[i], {}).asnumpy())
+                out = _op.repeat(out, sizes[i], axis=i)
 
         return out
-    return _impl
 
-
-def _int():
-    def _impl(inputs, input_types):
+    def int(self, inputs, input_types):
         if isinstance(inputs[0], _expr.Expr):
             return inputs[0]
         return int(inputs[0])
-    return _impl
 
-def _identity():
-    def _impl(inputs, input_types):
+    def identity(self, inputs, input_types):
         return inputs[0]
-    return _impl
 
-def _none():
-    def _impl(inputs, input_types):
+    def none(self, inputs, input_types):
         return None
-    return _impl
 
-def _pad():
-    def _impl(inputs, input_types):
-        data = inputs[0]
-        padding = inputs[1]
-        pad_width = list(zip(padding, padding))
-        pad_value = inputs[2]
-        return _op.nn.pad(data, pad_width, pad_value)
-    return _impl
+    def make_pad(self, mode):
+        def pad(inputs, input_types):
+            data = inputs[0]
+            if isinstance(inputs[1], list):
+                pad_list = inputs[1]
+            else:
+                pad_list = list(self.infer_shape(inputs[1]))
 
+            # initialize paddings based on input len
+            pad_len = len(self.infer_shape(data)) * 2
+            paddings = [0] * pad_len
 
-def _clamp():
-    def _impl(inputs, input_types):
+            if len(pad_list) >= 2:
+                paddings[-1] = pad_list[1]
+                paddings[-2] = pad_list[0]
+            if len(pad_list) >= 4:
+                paddings[-3] = pad_list[3]
+                paddings[-4] = pad_list[2]
+            if len(pad_list) >= 6:
+                paddings[-5] = pad_list[5]
+                paddings[-6] = pad_list[4]
+
+            # group into tuple of 2 ints
+            paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
+
+            const_paddings = []
+            for pad in paddings:
+                const_paddings.append([])
+                for p in pad:
+                    if not isinstance(p, int):
+                        p = int(_infer_value(p, {}).asnumpy())
+                    const_paddings[-1].append(p)
+
+            if mode == "constant":
+                return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
+            else:
+                return _op.nn.pad(data, const_paddings, pad_mode=mode)
+
+        return pad
+
+    def clamp(self, inputs, input_types):
         data = inputs[0]
         amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
         amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
         return _op.clip(data, amin, amax)
-    return _impl
 
-
-def _to():
-    def _impl(inputs, input_types):
+    def to(self, inputs, input_types):
         data = inputs[0]
-        if inputs[3] in ["cpu", "cuda"]:
-            return data
+        dtype = inputs[1] if inputs[1] is not None and not isinstance(inputs[1], str) else inputs[2]
         # special handling for aten::to(data, 6, _, _, _) case
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
-        cast_func = {
-            6: float,
-            3: int,
+        cast_map = {
+            5: "float16",
+            6: "float32",
+            7: "float64",
+            3: "int32",
+            4: "int64",
         }
-        cast_func_expr = {
-            6: lambda x: _op.cast(x, "float32"),
-            3: lambda x: _op.cast(x, "int32"),
-        }
-        if inputs[1] in cast_func and not isinstance(data, _expr.Expr):
-            return cast_func[inputs[1]](data)
-        elif inputs[1] in cast_func and isinstance(data, _expr.Expr):
-            return cast_func_expr[inputs[1]](data)
-        return data
 
-    return _impl
+        cast_func = {5: float, 6: float, 7: float, 3: int, 4: int}
 
-def _upsample(method):
-    def _impl(inputs, input_types):
-        if isinstance(inputs[1], _expr.Var):
-            out_size = _infer_shape(inputs[1])
-        elif isinstance(inputs[1], list):
-            infer_res = [_infer_value(size, {}) for size in inputs[1]]
-            out_size = [np.asscalar(res.asnumpy().astype(np.int))
-                        for res in infer_res]
+        ret = data
+        if isinstance(data, _expr.Expr):
+            actual_dtype = str(self.infer_type(data).dtype)
+            if dtype in cast_map and cast_map[dtype] != actual_dtype:
+                ret = _op.cast(data, cast_map[dtype])
+        elif dtype in cast_map:
+            ret = cast_func[dtype](data)
 
-        data = inputs[0]
+        return ret
 
-        if len(inputs) > 2:
-            align_corners = inputs[2]
+    def get_upsample_out_size(self, inputs, method):
+        # This assumes a static shape
+        out_size = []
+        if inputs[1] is not None:
+            for size in inputs[1]:
+                if not isinstance(size, int):
+                    out_size.append(int(_infer_value(size, {}).asnumpy()))
+                else:
+                    out_size.append(size)
         else:
-            align_corners = False
+            scale_index = 3 if method in ["bilinear", "trilinear"] else 2
+            scales = inputs[scale_index]
+            assert scales is not None, "neither out size nor scale provided"
+            assert isinstance(scales, list)
+            ishape = self.infer_shape(inputs[0])
+            for i, scale in enumerate(scales):
+                out_size.append(int(math.floor(float(ishape[2 + i]) * scale)))
 
-        if align_corners:
-            coord_trans = "align_corners"
-        else:
-            coord_trans = "half_pixel"
+        return out_size
 
-        def func(x):
-            return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
+    def make_upsample(self, method):
+        def upsample(inputs, input_types):
+            data = inputs[0]
+            out_size = self.get_upsample_out_size(inputs, method)
 
-        if input_types[0] == "quint8":
-            import torch
-            from packaging import version
-
-            # Torch version > 1.4 changed upsampling API
-            if version.parse(torch.__version__) > version.parse("1.4.0"):
-                num_inputs = 7
+            if len(inputs) > 2 and method == "bilinear":
+                align_corners = inputs[2]
             else:
-                num_inputs = 5
+                align_corners = False
 
-            assert len(inputs) == num_inputs, "Input quant param not found in op inputs"
+            if method == "nearest_neighbor":
+                coord_trans = "asymmetric"
+            elif align_corners:
+                coord_trans = "align_corners"
+            else:
+                coord_trans = "half_pixel"
 
-            input_scale = _expr.const(inputs[-2])
-            input_zero_point = _expr.const(inputs[-1])
-            return qnn_torch.quantized_upsample(data, input_scale,
-                                                input_zero_point, func)
-        return func(data)
+            def func(x):
+                return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
-    return _impl
+            if self.is_quantized_tensor(data):
+                # input qparams are manually appended by us
+                assert isinstance(inputs[-2], float)
+                assert isinstance(inputs[-1], int)
+                input_scale = _expr.const(inputs[-2])
+                input_zero_point = _expr.const(inputs[-1])
+                return qnn_torch.quantized_upsample(data, input_scale, input_zero_point, func)
 
-def _expand_as():
-    def _impl(inputs, input_types):
-        # TODO: maybe fix this
-        # This assumes expand_as can be removed because TVM has broadcast op
-        msg = "aten::expand_as(...) found, assume it is part of broadcast op"
-        logging.warning(msg)
-        return inputs[0]
-    return _impl
+            return func(data)
 
+        return upsample
 
-def _Bool():
-    def _impl(inputs, input_types):
+    def make_upsample3d(self, method):
+        def upsample3d(inputs, input_types):
+            data = inputs[0]
+            out_size = self.get_upsample_out_size(inputs, method)
+
+            if len(inputs) > 2 and method == "trilinear":
+                align_corners = inputs[2]
+            else:
+                align_corners = False
+
+            if method == "nearest_neighbor":
+                coord_trans = "asymmetric"
+            elif align_corners:
+                coord_trans = "align_corners"
+            else:
+                coord_trans = "half_pixel"
+
+            return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+
+        return upsample3d
+
+    def expand_as(self, inputs, input_types):
+        target = inputs[1]
+        t0 = self.infer_type(inputs[0]).dtype
+        t1 = self.infer_type(inputs[1]).dtype
+        if str(t0) != str(t1):
+            target = _op.cast(target, t0)
+        return _op.broadcast_to_like(inputs[0], target)
+
+    def Bool(self, inputs, input_types):
         assert len(inputs) == 1
         return inputs[0]
-    return _impl
 
-def _Float():
-    def _impl(inputs, input_types):
+    def Float(self, inputs, input_types):
         assert len(inputs) == 1
         return _op.cast(inputs[0], "float32")
-    return _impl
 
-
-def _mm():
-    def _impl(inputs, input_types):
+    def mm(self, inputs, input_types):
         return _op.nn.dense(inputs[0], inputs[1])
-    return _impl
 
-
-def _bitwise_not():
-    def _impl(inputs, input_types):
+    def bitwise_not(self, inputs, input_types):
         data = inputs[0]
         # The input tensor must be of integral or Boolean types.
         # For bool tensors, it computes the logical NOT
@@ -1419,157 +1744,854 @@ def _bitwise_not():
             out = _op.bitwise_not(_op.cast(data, "int"))
 
         return out
-    return _impl
 
-
-def _bitwise_xor():
-    def _impl(inputs, input_types):
+    def bitwise_xor(self, inputs, input_types):
         lhs = inputs[0]
         rhs = inputs[1]
         lhs = _op.cast(lhs, "bool") if input_types[0] == "bool" else _op.cast(lhs, "int")
         rhs = _op.cast(rhs, "bool") if input_types[1] == "bool" else _op.cast(rhs, "int")
 
         return _op.bitwise_xor(lhs, rhs)
-    return _impl
 
-
-def _logical_not():
-    def _impl(inputs, input_types):
-        data = inputs[0]
-
+    def logical_not(self, inputs, input_types):
+        data = _wrap_const(inputs[0])
         return _op.logical_not(_op.cast(data, "bool"))
-    return _impl
 
-
-def _logical_xor():
-    def _impl(inputs, input_types):
+    def logical_xor(self, inputs, input_types):
         lhs = _op.cast(inputs[0], "bool")
         rhs = _op.cast(inputs[1], "bool")
 
         return _op.logical_xor(lhs, rhs)
-    return _impl
 
+    def list_getitem(self, inputs, input_types):
+        return self.prelude.nth(inputs[0], _wrap_const(inputs[1]))
 
-def _list_getitem(prelude):
-    def _impl(inputs, input_types):
-        return prelude.nth(inputs[0], _wrap_const(inputs[1]))
-    return _impl
+    def list_len(self, inputs, input_types):
+        return self.prelude.length(inputs[0])
 
+    def type_as(self, inputs, input_types):
+        assert len(inputs) == 2
+        assert len(input_types) == 2
+        return _op.cast(inputs[0], input_types[1])
 
-def _list_len(prelude):
-    def _impl(inputs, input_types):
-        return prelude.length(inputs[0])
-    return _impl
+    def gather(self, inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        indices = inputs[2]
 
+        return _op.gather(data, axis, indices)
 
-def _add(prelude):
-    # add_ is overloaded for tensor add and list concat
-    def _impl(inputs, input_types):
+    def add(self, inputs, input_types):
+        # add_ is overloaded for tensor add and list concat
         if input_types[0] == "ListType":
-            return prelude.concat(inputs[0], inputs[1])
-        return _elemwise("add")(inputs, input_types)
-    return _impl
+            return self.prelude.concat(inputs[0], inputs[1])
+        return self.make_elemwise("add")(inputs, input_types)
 
-
-def _tensor_array_stack(prelude):
-    def _impl(inputs, input_types):
-        tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
-        stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
-        stacked = stack(tensor_array)
+    def tensor_array_stack(self, inputs, input_types):
+        dim = inputs[1]
+        assert dim == 0, "stacking on a dynamic tensor list only supported on a first axis"
+        tensor_array, shape = self.convert_to_tensor_array(inputs[0])
 
         stacked_shape = (Any(),) + shape
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(stacked_shape)
-        # passing stacked_shape below gives "'Prelude' object has no attribute" error
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+        stack = self.prelude.get_global_var_static("tensor_array_stack", "float32", shape)
+        stacked = stack(tensor_array)
+
+        static_tensor_array_ops = StaticTensorArrayOps(self.prelude, "float32", stacked_shape)
+        static_tensor_array_ops.register()
+        get_tensor = self.prelude.get_global_var_static("tensor_get_data", "float32", stacked_shape)
         return get_tensor(stacked)
-    return _impl
 
+    def stack(self, inputs, input_types):
+        if isinstance(inputs[0], list):
+            # a static python list of tensors
+            dim = inputs[1]
+            return _op.stack(inputs[0], dim)
+        else:
+            # List ADT case
+            assert isinstance(inputs[0], _expr.Expr)
+            ty = self.infer_type_with_prelude(inputs[0])
+            list_ty = self.prelude.mod.get_global_type_var("List")
+            msg = "The input list is expected to be List ADT"
+            assert isinstance(ty, tvm.ir.TypeCall) and ty.func == list_ty, msg
+            return self.tensor_array_stack(inputs, input_types)
 
-def _rsub():
-    def _impl(inputs, input_types):
-        # TODO: Figure out a better way to get typing to work for tensor + scalar
-        type0 = input_types[0]
-        if isinstance(inputs[1], _expr.Expr):
-            type0 = input_types[1]
+    def rsub(self, inputs, input_types):
+        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
 
-        type1 = input_types[1]
-        if isinstance(inputs[0], _expr.Expr):
-            type1 = input_types[0]
-
-        data1 = _convert_elemwise_input(inputs[0], type0)
-        data0 = _convert_elemwise_input(inputs[1], type1)
+        # TODO (t-vi): should this also be part of the type promotion?
         alpha = _expr.const(float(inputs[2]))
 
-        return get_relay_op("subtract")(data0, alpha * data1)
-    return _impl
+        # note: rsub means data0 and data1 swap places
+        return get_relay_op("subtract")(data1, alpha * data0)
 
-
-def _embedding():
-    def _impl(inputs, input_types):
+    def embedding(self, inputs, input_types):
         weight = inputs[0]
         indices = inputs[1]
 
-        return _op.take(weight, indices.astype('int32'), axis=0)
-    return _impl
+        return _op.take(weight, indices.astype("int32"), axis=0)
 
-
-def _one_hot():
-    def _impl(inputs, input_types):
-        indices = inputs[0].astype('int32')
+    def one_hot(self, inputs, input_types):
+        indices = inputs[0].astype("int32")
         num_classes = inputs[1]
         if num_classes == -1:
             msg = "Inferring the number of classes is not yet supported."
             raise NotImplementedError(msg)
 
-        dtype = 'int32'
+        dtype = "int32"
         on_value = tvm.relay.const(1.0, dtype)
         off_value = tvm.relay.const(0.0, dtype)
 
         return _op.one_hot(indices, on_value, off_value, num_classes, -1, dtype)
-    return _impl
+
+    def index(self, inputs, input_types):
+        data = inputs[0]
+        indices = inputs[1]
+        return _op.adv_index([data] + indices)
+
+    def meshgrid(self, inputs, input_types):
+        data = inputs[0]
+        return _op.meshgrid(data, indexing="ij")
+
+    def nms(self, inputs, input_types):
+        boxes = inputs[0]
+        scores = inputs[1]
+        iou_threshold = inputs[2]
+
+        num_boxes = _op.shape_of(scores)
+
+        # TVM NMS assumes score > 0
+        scores = scores - _op.min(scores) + _op.const(1.0)
+        # Generate data with shape (1, num_anchors, 5)
+        scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
+        data = _op.concatenate([scores, boxes], -1)
+        data = _op.expand_dims(data, 0, 1)
+        # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
+        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
+        indices = _op.expand_dims(indices, 0, 1)
+        ct = num_boxes
+
+        # Perform Non-Maximum Suppression,
+        # PyTorch NMS doesn't have parameter top_k and max_output_size
+        score_index = 0
+        top_k = max_out_size = -1
+        nms_ret = get_relay_op("non_max_suppression")(
+            data=data,
+            valid_count=ct,
+            indices=indices,
+            max_output_size=max_out_size,
+            iou_threshold=iou_threshold,
+            force_suppress=True,
+            top_k=top_k,
+            coord_start=1,
+            score_index=score_index,
+            id_index=-1,
+            return_indices=True,
+            invalid_to_bottom=False,
+        )
+
+        # squeeze the two outputs of nms for strided_slice
+        size = get_relay_op("squeeze")(nms_ret[1], axis=[1])
+        data_slice = get_relay_op("squeeze")(nms_ret[0], axis=[0])
+
+        # strided slice to get the dynamic result
+        ret = get_relay_op("strided_slice")(
+            data_slice, begin=_expr.const([0]), end=size, slice_mode="size"
+        )
+        # in torchvision, indices from nms are int64
+        return _op.cast(ret, "int64")
+
+    def logsumexp(self, inputs, input_types):
+        data = self.pytorch_promote_types(inputs[:1], input_types[:1])
+        dim_list = inputs[1]
+        keepdim = inputs[2] if len(inputs) > 2 else False
+        # dim is output of prim::ListConstruct, even if it is int in python code
+        assert isinstance(dim_list, list), "dim is expected to be a list"
+        return _op.logsumexp(data[0], axis=dim_list, keepdims=keepdim)
+
+    def roi_align(self, inputs, input_types):
+        data = inputs[0]
+        boxes = inputs[1]
+
+        output_size = (inputs[3], inputs[4])
+        spatial_scale = inputs[2]
+        sample_ratio = inputs[5]
+        aligned = False if len(inputs) < 7 else inputs[6]
+
+        if aligned:
+            boxes -= _expr.const(0.5 / spatial_scale)
+
+        return _op.vision.roi_align(data, boxes, output_size, spatial_scale, sample_ratio)
+
+    def unbind(self, inputs, input_types):
+        data = inputs[0]
+        dim = int(inputs[1])
+        ishapes = self.infer_shape(data)
+        if dim >= len(ishapes):
+            msg = "Please check input dim, it shouldn't be greater than or equal to rank."
+            raise AttributeError(msg)
+
+        selections = ishapes[dim]
+        res_split = _op.split(data, selections, dim)
+        # squeeze each split piece to get same shape as aten::unbind
+        # TODO (yongwww): add new op to avoid the squeeze overhead
+        ret = []
+        for i in range(selections):
+            ret.append(_op.transform.squeeze(res_split[i], axis=[dim]))
+        ret = _expr.TupleWrapper(_expr.Tuple(ret), selections)
+        return ret
+
+    def shape_as_tensor(self, inputs, input_types):
+        is_symbolic_shape = False
+        input_shape = self.infer_shape(inputs[0], self.prelude.mod)
+        for axis in input_shape:
+            if not isinstance(axis, (int, tvm.tir.IntImm)):
+                is_symbolic_shape = True
+                break
+
+        if is_symbolic_shape:
+            ret = _op.shape_of(inputs[0], dtype="int64")
+        else:
+            ret = _expr.const(np.array(input_shape), dtype="int64")
+
+        return ret
+
+    def logical_and(self, inputs, input_types):
+        lhs = _op.cast(inputs[0], "bool")
+        rhs = _op.cast(inputs[1], "bool")
+
+        return _op.logical_and(lhs, rhs)
+
+    def nonzero(self, inputs, input_types, is_numpy_style=False):
+        data = inputs[0]
+        ret = _op.transform.argwhere(data)
+        if is_numpy_style or (len(inputs) > 1 and inputs[1]):
+            return self.unbind([ret, 1], None)
+        return ret
+
+    def nonzero_numpy(self, inputs, input_types):
+        return self.nonzero(inputs, input_types, is_numpy_style=False)
+
+    def scatter(self, inputs, input_types):
+        data = inputs[0]
+        axis = int(inputs[1])
+        index = inputs[2]
+        src = inputs[3]
+        return _op.transform.scatter(data, index, src, axis)
+
+    def scalar_tensor(self, inputs, input_types):
+        data = inputs[0]
+        cast_map = {
+            6: "float32",
+            7: "float64",
+            3: "int32",
+            4: "int64",
+        }
+        type_key = inputs[1]
+        if isinstance(data, _expr.Constant):
+            data = data.data.asnumpy().tolist()
+        return _expr.const(data, cast_map[type_key])
+
+    def interpolate(self, inputs, input_types):
+        if isinstance(inputs[1], _expr.Expr):
+            out_size = inputs[1]
+        elif isinstance(inputs[1], list):
+            out_size = []
+            for i in [0, 1]:
+                size, _ = try_infer_value(
+                    inputs[1][i],
+                    lambda ret: ret.astype(np.int),
+                    lambda: _op.expand_dims(inputs[1][i], axis=0),
+                )
+                out_size.append(size)
+            out_size = _op.concatenate(out_size, axis=0)
+
+        data = inputs[0]
+        align_corners = inputs[4]
+        method = inputs[3]
+        if method.startswith("nearest"):
+            method = "nearest_neighbor"
+
+        if method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        elif align_corners:
+            coord_trans = "align_corners"
+        else:
+            coord_trans = "half_pixel"
+
+        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+
+    def numel(self, inputs, input_types):
+        return _op.ndarray_size(inputs[0])
+
+    def empty(self, inputs, input_types):
+        shape = inputs[0]
+        return _op.zeros(shape, _convert_dtype_value(inputs[1]))
+
+    def bincount(self, inputs, input_types):
+        data = inputs[0]
+        weights = inputs[1]
+        input_type = self.infer_type(data).dtype
+        if input_type == "int64":
+            logging.warning(
+                "Casting an int64 input to int32, since we do not have int64 atomic add"
+                "needed for bincount yet."
+            )
+            data = _op.cast(data, "int32")
+        maximum = _op.max(data)
+        dim = maximum + _expr.const(1, dtype="int32")
+        if weights:
+            weight_type = self.infer_type(weights)
+            out_dtype = weight_type.dtype
+            updates = weights
+        else:
+            out_dtype = "int32"
+            updates = _op.ones_like(data)
+
+        counts = _op.zeros(_op.reshape(dim, [1]), out_dtype)
+        out = _op.scatter_add(counts, data, updates, axis=0)
+        if input_type == "int32":
+            # Torch always outputs int64 results for bincount
+            return _op.cast(out, "int64")
+        return out
+
+    def scatter_add(self, inputs, input_types):
+        data = inputs[0]
+        axis = inputs[1]
+        index = inputs[2]
+        src = inputs[3]
+        return _op.scatter_add(data, index, src, axis=axis)
+
+    def is_floating_point(self, inputs, input_types):
+        assert len(inputs) == 1
+
+        if isinstance(inputs[0], _expr.Expr):
+            input_type = self.infer_type(inputs[0]).dtype
+        else:
+            input_type = input_types[0]
+
+        is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
+        return _expr.const(is_float)
+
+    # Operator mappings
+    def create_convert_map(self):
+        self.convert_map = {
+            "aten::is_floating_point": self.is_floating_point,
+            "aten::pixel_shuffle": self.pixel_shuffle,
+            "aten::device": self.none,
+            "prim::device": self.none,
+            "aten::sub": self.make_elemwise("subtract"),
+            "aten::sub_": self.make_elemwise("subtract"),
+            "aten::max": self.max,
+            "aten::min": self.min,
+            "aten::mul": self.make_elemwise("multiply"),
+            "aten::mul_": self.make_elemwise("multiply"),
+            "aten::pow": self.make_elemwise("power"),
+            "aten::arange": self.arange,
+            "aten::meshgrid": self.meshgrid,
+            "aten::div": self.make_elemwise("divide"),
+            "aten::div_": self.make_elemwise("divide"),
+            "aten::floor_divide": self.make_elemwise("floor_divide"),
+            "aten::floor_divide_": self.make_elemwise("floor_divide"),
+            "aten::true_divide": self.make_elemwise("divide"),
+            "aten::addcdiv": self.addcdiv,
+            "aten::addcmul": self.addcmul,
+            "aten::ones": self.ones,
+            "aten::ones_like": self.ones_like,
+            "aten::zeros": self.zeros,
+            "aten::zeros_like": self.zeros_like,
+            "aten::full": self.full,
+            "aten::full_like": self.full_like,
+            "aten::linspace": self.linspace,
+            "aten::reciprocal": self.reciprocal,
+            "aten::repeat": self.repeat,
+            "aten::repeat_interleave": self.repeat_interleave,
+            "aten::to": self.to,
+            "aten::squeeze": self.squeeze,
+            "aten::unsqueeze": self.unsqueeze,
+            "aten::cat": self.concatenate,
+            "aten::slice": self.slice,
+            "aten::split": self.split,
+            "aten::split_with_sizes": self.split_with_sizes,
+            "aten::select": self.select,
+            "aten::take": self.take,
+            "aten::where": self.where,
+            "aten::topk": self.topk,
+            "aten::relu": self.relu,
+            "aten::relu_": self.relu,
+            "aten::prelu": self.prelu,
+            "aten::leaky_relu": self.leaky_relu,
+            "aten::leaky_relu_": self.leaky_relu,
+            "aten::elu": self.elu,
+            "aten::elu_": self.elu,
+            "aten::celu": self.celu,
+            "aten::gelu": self.gelu,
+            "aten::selu": self.selu,
+            "aten::log_sigmoid": self.log_sigmoid,
+            "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
+            "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
+            "aten::max_pool2d": self.maxpool_2d,
+            "aten::max_pool2d_with_indices": self.maxpool_2d_with_indices,
+            "aten::max_pool1d": self.maxpool_1d,
+            "aten::max_pool3d": self.maxpool_3d,
+            "aten::hardtanh": self.hardtanh,
+            "aten::hardtanh_": self.hardtanh,
+            "aten::_convolution": self.convolution,
+            "aten::softmax": self.softmax,
+            "aten::threshold": self.threshold,
+            "aten::threshold_": self.threshold,
+            "aten::contiguous": self.contiguous,
+            "aten::batch_norm": self.batch_norm,
+            "aten::instance_norm": self.instance_norm,
+            "aten::layer_norm": self.layer_norm,
+            "aten::group_norm": self.group_norm,
+            "aten::transpose": self.transpose,
+            "aten::transpose_": self.transpose,
+            "aten::t": self.transpose,
+            "aten::flatten": self.flatten,
+            "aten::addmm": self.addmm,
+            "aten::size": self.size,
+            "aten::view": self.view,
+            "aten::reshape": self.reshape,
+            "aten::clone": self.clone,
+            "aten::log_softmax": self.log_softmax,
+            "aten::sigmoid": self.sigmoid,
+            "aten::softplus": self.softplus,
+            "aten::avg_pool2d": self.avg_pool2d,
+            "aten::avg_pool3d": self.avg_pool3d,
+            "aten::dropout": self.dropout,
+            "aten::dropout_": self.dropout,
+            "aten::feature_dropout": self.dropout,
+            "aten::alpha_dropout": self.dropout,
+            "aten::mean": self.mean,
+            "aten::chunk": self.chunk,
+            "aten::matmul": self.matmul,
+            "aten::bmm": self.matmul,
+            "aten::expand": self.expand,
+            "aten::Int": self.int,
+            "prim::NumToTensor": self.numtotensor,
+            "prim::ImplicitTensorToNum": self.tensortonum,
+            "aten::ScalarImplicit": self.tensortonum,
+            "aten::constant_pad_nd": self.make_pad("constant"),
+            "aten::reflection_pad1d": self.make_pad("reflect"),
+            "aten::reflection_pad2d": self.make_pad("reflect"),
+            "aten::replication_pad1d": self.make_pad("edge"),
+            "aten::replication_pad2d": self.make_pad("edge"),
+            "aten::replication_pad3d": self.make_pad("edge"),
+            "aten::permute": self.transpose,
+            "aten::sum": self.make_reduce("sum"),
+            "aten::prod": self.make_reduce("prod"),
+            "aten::argmin": self.make_reduce("argmin"),
+            "aten::argmax": self.make_reduce("argmax"),
+            "aten::norm": self.norm,
+            "aten::frobenius_norm": self.frobenius_norm,
+            "aten::std": self.std,
+            "aten::var": self.variance,
+            "aten::abs": self.make_unary("abs"),
+            "aten::neg": self.make_unary("negative"),
+            "aten::cos": self.make_unary("cos"),
+            "aten::cosh": self.make_unary("cosh"),
+            "aten::sin": self.make_unary("sin"),
+            "aten::sinh": self.make_unary("sinh"),
+            "aten::tan": self.make_unary("tan"),
+            "aten::tanh": self.make_unary("tanh"),
+            "aten::acos": self.make_unary("acos"),
+            "aten::asin": self.make_unary("asin"),
+            "aten::atan": self.make_unary("atan"),
+            "aten::log": self.make_unary("log"),
+            "aten::log2": self.make_unary("log2"),
+            "aten::log10": self.make_unary("log10"),
+            "aten::log1p": self.log1p,
+            "aten::exp": self.make_unary("exp"),
+            "aten::erf": self.make_unary("erf"),
+            "aten::trunc": self.make_unary("trunc"),
+            "aten::sign": self.make_unary("sign"),
+            "aten::sqrt": self.make_unary("sqrt"),
+            "aten::rsqrt": self.make_unary("rsqrt"),
+            "aten::ceil": self.make_unary("ceil"),
+            "aten::floor": self.make_unary("floor"),
+            "aten::round": self.make_unary("round"),
+            "aten::isfinite": self.make_unary("isfinite"),
+            "aten::isinf": self.make_unary("isinf"),
+            "aten::isnan": self.make_unary("isnan"),
+            "aten::clamp": self.clamp,
+            "aten::clamp_": self.clamp,
+            "aten::detach": self.identity,
+            "aten::upsample_bilinear2d": self.make_upsample("bilinear"),
+            "aten::upsample_nearest2d": self.make_upsample("nearest_neighbor"),
+            "aten::upsample_trilinear3d": self.make_upsample3d("trilinear"),
+            "aten::upsample_nearest3d": self.make_upsample3d("nearest_neighbor"),
+            "aten::expand_as": self.expand_as,
+            "aten::lt": self.make_elemwise("less"),
+            "aten::gt": self.make_elemwise("greater"),
+            "aten::le": self.make_elemwise("less_equal"),
+            "aten::ge": self.make_elemwise("greater_equal"),
+            "aten::ne": self.make_elemwise("not_equal"),
+            "aten::eq": self.make_elemwise("equal"),
+            "aten::logical_not": self.logical_not,
+            "aten::logical_xor": self.logical_xor,
+            "aten::bitwise_not": self.bitwise_not,
+            "aten::bitwise_xor": self.bitwise_xor,
+            "aten::Bool": self.Bool,
+            "aten::Float": self.Float,
+            "aten::adaptive_avg_pool3d": self.adaptive_avg_pool_3d,
+            "aten::adaptive_max_pool3d": self.adaptive_max_pool_3d,
+            "aten::rsub": self.rsub,
+            "aten::embedding": self.embedding,
+            "aten::one_hot": self.one_hot,
+            "aten::mm": self.matmul,
+            "aten::add": self.add,
+            "aten::add_": self.add,
+            "aten::stack": self.stack,
+            "aten::__getitem__": self.list_getitem,
+            "aten::len": self.list_len,
+            "aten::type_as": self.type_as,
+            "aten::gather": self.gather,
+            "aten::index_select": self.select,
+            "aten::index": self.index,
+            "torchvision::nms": self.nms,
+            "aten::logsumexp": self.logsumexp,
+            "torchvision::roi_align": self.roi_align,
+            "aten::unbind": self.unbind,
+            "aten::__and__": self.logical_and,
+            "aten::_shape_as_tensor": self.shape_as_tensor,
+            "aten::nonzero": self.nonzero,
+            "aten::nonzero_numpy": self.nonzero_numpy,
+            "aten::scatter": self.scatter,
+            "aten::scalar_tensor": self.scalar_tensor,
+            "aten::__interpolate": self.interpolate,
+            "aten::IntImplicit": self.identity,
+            "aten::tensor": self.identity,  # used for example in tensor(1.0)
+            "aten::numel": self.numel,
+            "aten::empty": self.empty,
+            "aten::bincount": self.bincount,
+            "aten::scatter_add": self.scatter_add,
+            "aten::__not__": self.logical_not,
+        }
+
+    def update_convert_map(self, custom_map):
+        self.convert_map.update(custom_map)
+
+    def report_missing_conversion(self, op_names):
+        """ Check if all ops in an input graph are supported by TVM """
+        known_ops = [
+            "prim::Constant",
+            "prim::GetAttr",
+            "prim::ListConstruct",
+            "prim::ListUnpack",
+            "prim::TupleConstruct",
+            "prim::TupleUnpack",
+            "prim::RaiseException",
+            "prim::If",
+            "prim::Loop",
+        ]
+        known_ops += list(self.convert_map.keys())
+        known_ops += list(qnn_torch.convert_map.keys())
+
+        missing = [op_name for op_name in op_names if op_name not in known_ops]
+
+        if missing:
+            msg = "The following operators are not implemented: {}".format(missing)
+            raise NotImplementedError(msg)
+
+    def convert_block(self, block, outputs):
+        """ Translate Torch "Block", used for prim::If and prim::Loop """
+        ops = _get_operator_nodes(block.nodes())
+        ret_names = _get_input_names(block.returnNode())
+        return self.convert_operators(ops, outputs, ret_names)
+
+    def convert_if(self, if_node, outputs):
+        """ Translate Torch prim::If to Relay If """
+        cond = outputs[if_node.inputsAt(0).debugName()]
+        blocks = list(if_node.blocks())
+        true_branch = self.convert_block(blocks[0], outputs)
+        false_branch = self.convert_block(blocks[1], outputs)
+        assert len(true_branch) == 1 and len(false_branch) == 1
+        return _expr.If(cond, true_branch[0], false_branch[0])
+
+    def convert_loop(self, loop_node, outputs):
+        """ Translate Torch prim::Loop to Relay while_loop """
+
+        def get_input(index):
+            ivalue = loop_node.inputsAt(index)
+            inode = ivalue.node()
+            if inode.kind() == "prim::Constant":
+                return _expr.const(_get_constant(inode))
+            var_name = ivalue.debugName()
+            assert var_name in outputs
+            return _wrap_const(outputs[var_name])
+
+        # Refer to the spec for prim::Loop below
+        # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
+        # The first input: %max_trip_count
+        # The second input: %initial_condition
+        # The rest of input: loop variables
+        max_loop_count = get_input(0)
+        init_cond = get_input(1)
+        num_loop_var = len(list(loop_node.inputs())) - 2
+        init_vals = [get_input(i + 2) for i in range(num_loop_var)]
+
+        # while loop has always max_loop_count being int64 max
+        # max_loop_count.data (tvm.runtime.NDArray) is -1, so _get_constant again
+        is_while_loop = (
+            isinstance(max_loop_count, _expr.Constant)
+            and _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize
+        )
+
+        if is_while_loop:
+            loop_iter_dtype = "bool"
+            # while loop with non input dependent condition such as while i < 10:
+            # init_cond is int, need to cast to bool to type check
+            if isinstance(init_cond, _expr.Constant):
+                init_cond = _op.cast(init_cond, "bool")
+            init_loop_iter_val = init_cond
+        else:
+            loop_iter_dtype = "int32"
+            # always count from 0
+            init_loop_iter_val = _expr.const(0, dtype="int32")
+
+        body_block = list(loop_node.blocks())[0]
+        block_input_names = _get_input_names(body_block)
+        num_block_inputs = len(block_input_names)
+        name_val_pairs = list(zip(block_input_names, [init_loop_iter_val] + init_vals))
+        outputs.update(name_val_pairs)
+
+        def get_var(name, val):
+            if val:
+                checked_type = self.infer_type_with_prelude(val)
+                if hasattr(checked_type, "shape"):
+                    shape = get_const_tuple(checked_type.shape)
+                    actual_shape = []
+                    for dim in shape:
+                        if isinstance(dim, int) and dim == 0:
+                            actual_shape.append(Any())
+                        else:
+                            actual_shape.append(dim)
+                    return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+                else:
+                    return _expr.var(name, type_annotation=checked_type)
+            return _expr.var(name)
+
+        loop_iter_var = _expr.var(block_input_names[0], shape=(), dtype=loop_iter_dtype)
+        loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
+
+        # Add non constant free variables to loop variables to prevent code blow up
+        # Without this, if there are two for loops in a row, which often happens
+        # if the outer loop is unrolled, the computation corresponding to the first for loop
+        # is inlined inside loop body, turning O(N) + O(N) computation into O(N^2).
+        # This issue was found when converting from Stacked LSTM test. Torch does not add the
+        # outputof the eariler loop into loop variables of the next loop.
+        # So the variable corresponding to the first loop output appears free in the second
+        # loop body.
+        free_vars = [
+            var
+            for var in _get_free_vars_from_block(body_block)
+            if var in outputs
+            and not isinstance(outputs[var], (_expr.Constant, int, float, str))
+            and outputs[var]
+        ]
+
+        prev_outputs = {}
+        for name in free_vars:
+            prev_output = outputs[name]
+            new_loop_var = get_var(name, prev_output)
+            prev_outputs[name] = prev_output
+            outputs[name] = new_loop_var
+            loop_vars.append(new_loop_var)
+            init_vals.append(prev_output)
+
+        def cond(*current_vals):
+            i = current_vals[0]
+
+            if is_while_loop:
+                return _op.equal(i, _expr.const(True, "bool"))
+
+            return _op.less(i, max_loop_count)
+
+        def body(*current_vals):
+            # Update loop variables using the prev iteration outputs
+            assert len(current_vals) == num_block_inputs + len(free_vars)
+
+            for (i, val) in enumerate(current_vals):
+                if i < num_block_inputs:
+                    outputs[block_input_names[i]] = val
+                else:
+                    outputs[free_vars[i - num_block_inputs]] = val
+
+            block_outputs = self.convert_block(body_block, outputs)
+            block_outputs += [outputs[name] for name in free_vars]
+
+            if not is_while_loop:
+                # iter var increment implicit in torch, so do it manually
+                # for while loop, block_outputs[0] is already a boolean,
+                # the result of termination check
+                incr = _expr.const(1, dtype="int32")
+                block_outputs[0] = current_vals[0] + incr
+
+            return block_outputs
+
+        loop = while_loop(cond, [loop_iter_var] + loop_vars, body)
+        loop_val = loop(init_loop_iter_val, *init_vals)
+
+        # restore original output values for free vars
+        outputs.update(prev_outputs)
+
+        # The first element is a loop counter or boolean condition, ignore it
+        return [_expr.TupleGetItem(loop_val, i + 1) for i in range(num_loop_var)]
+
+    def convert_operators(self, operators, outputs, ret_names):
+        """ Convert each Torch IR operators to Relay equivalent """
+        for node_name, op_node in operators:
+            operator = op_node.kind()
+            inputs = _get_op_inputs(op_node, outputs)
+
+            if operator == "prim::Constant":
+                outputs[node_name] = _get_constant(op_node)
+            elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
+                outputs[node_name] = self.convert_to_list_adt(inputs)
+            elif operator == "prim::ListConstruct":
+                # This assumes that no more elements will be appended to this list
+                # In this case, we keep the Python list
+                outputs[node_name] = inputs
+            elif operator == "prim::TupleConstruct":
+                outputs[node_name] = _expr.Tuple(inputs)
+            elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
+                assert len(inputs) == 1
+                if isinstance(inputs[0], (list, _expr.TupleWrapper)):
+                    unpacked = inputs[0]
+                else:
+                    unpacked = _unpack_tuple(inputs[0])
+                outputs.update(zip(_get_output_names(op_node), unpacked))
+            elif operator == "prim::prim::RaiseException":
+                logging.warning("raising exceptions is ignored")
+                outputs[node_name] = None
+            elif operator == "prim::If":
+                if_out = self.convert_if(op_node, outputs)
+                outputs[node_name] = if_out
+            elif operator == "prim::Loop":
+                loop_out = self.convert_loop(op_node, outputs)
+                unpacked_names = _get_output_names(op_node)
+                assert len(loop_out) == len(unpacked_names)
+                outputs.update(zip(unpacked_names, loop_out))
+            else:
+                relay_op = self.convert_map[operator]
+                relay_out = relay_op(
+                    inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
+                )
+                self.record_output_type(relay_out)
+
+                if isinstance(relay_out, tuple):
+                    # This is for torch operators that return multiple outputs
+                    # See _adaptive_max_2d above for example
+                    out_names = _get_output_names(op_node)
+                    outputs.update(zip(out_names, relay_out))
+                else:
+                    assert op_node.outputsSize() == 1
+                    outputs[node_name] = relay_out
+
+        return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+
+
+def _pytorch_result_type(dtypes, non_tensor_inputs):
+    """This promotes TVM dtypes like PyTorch would"""
+    import torch
+
+    dtype_map = {
+        "float64": torch.float64,
+        "float32": torch.float32,
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+        "int64": torch.int64,
+        "int32": torch.int32,
+        "int16": torch.int16,
+        "int8": torch.int8,
+        "uint8": torch.uint8,
+        "bool": torch.bool,
+    }
+    if len(dtypes) > 0:
+        result_type = dtypes[0]
+        for dt in dtypes[1:]:
+            if dt != result_type:  # we don't want to work with same types as we
+                # don't do quantized here (which cannot be promoted?)
+                result_type = _convert_data_type(
+                    str(
+                        torch.result_type(
+                            torch.zeros((), dtype=dtype_map[result_type]),
+                            torch.zeros((), dtype=dtype_map[dt]),
+                        )
+                    )
+                )
+    else:
+        result_type = "bool"  # this is the smallest type...
+    for inp in non_tensor_inputs:
+        result_type = _convert_data_type(
+            str(torch.result_type(torch.zeros((), dtype=dtype_map[result_type]), inp))
+        )
+    return result_type
 
 
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
-    convert_torch_dtype_map = {7:"torch.float64",
-                               6:"torch.float32",
-                               5:"torch.float16",
-                               4:"torch.int64",
-                               3:"torch.int32",
-                               2:"torch.int16",
-                               1:"torch.int8",
-                               0:"torch.unit8",
-                               None:"torch.int64"} # Default is torch.int64
+    """converts a PyTorch the PyTorch numeric type id to a torch scalar type."""
+    convert_torch_dtype_map = {
+        7: "torch.float64",
+        6: "torch.float32",
+        5: "torch.float16",
+        4: "torch.int64",
+        3: "torch.int32",
+        2: "torch.int16",
+        1: "torch.int8",
+        0: "torch.unit8",
+        None: "torch.int64",
+    }  # Default is torch.int64
     if val in convert_torch_dtype_map:
-        return convert_torch_dtype_map[val]
+        return _convert_data_type(convert_torch_dtype_map[val])
     else:
         msg = "Torch data type value %d is not handled yet." % (val)
         raise NotImplementedError(msg)
 
-def _convert_data_type(input_type):
-    if input_type in ["double", "torch.float64"]:
-        return "float64"
-    elif input_type in ["float", "torch.float32"]:
-        return "float32"
-    elif input_type in ["half", "torch.float16"]:
-        return "float16"
-    elif input_type in ["long", "torch.int64"]:
-        return "int64"
-    elif input_type in ["int", "torch.int32"]:
-        return "int32"
-    elif input_type in ["short", "torch.int16"]:
-        return "int16"
-    elif input_type in ["char", "torch.int8"]:
-        return "int8"
-    elif input_type in ["byte", "torch.uint8"]:
-        return "uint8"
-    else:
-        raise NotImplementedError("input_type {} is not handled yet" % (input_type))
-    return "float32"
 
-def _create_typed_const(data, data_type):
-    dtype = _convert_data_type(data_type)
+def _convert_data_type(input_type, default_dtype=None):
+    """converts the PyTorch scalar type input_type to a TVM dtype.
+    optionally, default_dtype can be a TVM dtype that is used
+    if input_type is None (but not when it is unknown)"""
+    if input_type is None and default_dtype is not None:
+        return default_dtype
+
+    input_type = input_type.lower()
+    if input_type in ["double", "float64", "torch.float64"]:
+        return "float64"
+    elif input_type in ["float", "float32", "torch.float32"]:
+        return "float32"
+    elif input_type in ["half", "float16", "torch.float16"]:
+        return "float16"
+    elif input_type in ["long", "int64", "torch.int64"]:
+        return "int64"
+    elif input_type in ["int", "int32", "torch.int32"]:
+        return "int32"
+    elif input_type in ["short", "int16", "torch.int16"]:
+        return "int16"
+    elif input_type in ["char", "int8", "torch.int8"]:
+        return "int8"
+    elif input_type in ["byte", "uint8", "torch.uint8"]:
+        return "uint8"
+    elif input_type in ["quint8", "torch.quint8"]:
+        return "quint8"
+    elif input_type in ["qint8", "torch.qint8"]:
+        return "qint8"
+    elif input_type in ["qint32", "torch.qint32"]:
+        return "qint32"
+    elif input_type in ["bool", "torch.bool"]:
+        return "bool"
+    elif input_type in ["str"]:
+        return "str"
+    else:
+        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+    return "float32"  # Never reached
+
+
+def _create_typed_const(data, dtype):
+    """create a (scalar) constant of given value and dtype.
+    dtype should be a TVM dtype"""
 
     if dtype == "float64":
         typed_data = _expr.const(np.float64(data), dtype=dtype)
@@ -1588,190 +2610,33 @@ def _create_typed_const(data, data_type):
     elif dtype == "uint8":
         typed_data = _expr.const(np.uint8(data), dtype=dtype)
     else:
-        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
+        raise NotImplementedError("input_type {} is not handled yet".format(dtype))
     return typed_data
 
-def _convert_elemwise_input(data, input_type):
-    import torch
-    if isinstance(data, torch.Tensor):
-        return _expr.const(data.item(), dtype=_convert_data_type(input_type))
-    elif not isinstance(data, _expr.Expr):
-        return _expr.const(data, dtype=_convert_data_type(input_type))
-    else:
-        return data
 
 def _wrap_const(c):
     if not isinstance(c, (_expr.Expr, list, tvm.tir.expr.Any)):
         return _expr.const(c)
     return c
 
-# Operator mappings
-def _get_convert_map(prelude):
-    convert_map = {
-        "aten::device"                          : _none(),
-        "aten::sub"                             : _elemwise("subtract"),
-        "aten::sub_"                            : _elemwise("subtract"),
-        "aten::max"                             : _elemwise("maximum"),
-        "aten::min"                             : _elemwise("minimum"),
-        "aten::mul"                             : _elemwise("multiply"),
-        "aten::mul_"                            : _elemwise("multiply"),
-        "aten::pow"                             : _elemwise("power"),
-        "aten::arange"                          : _arange(),
-        "aten::div"                             : _elemwise("divide"),
-        "aten::div_"                            : _elemwise("divide"),
-        "aten::addcdiv"                         : _addcdiv(),
-        "aten::addcmul"                         : _addcmul(),
-        "aten::ones"                            : _ones(),
-        "aten::ones_like"                       : _ones_like(),
-        "aten::zeros"                           : _zeros(),
-        "aten::zeros_like"                      : _zeros_like(),
-        "aten::full"                            : _full(),
-        "aten::full_like"                       : _full_like(),
-        "aten::linspace"                        : _linspace(),
-        "aten::reciprocal"                      : _reciprocal(),
-        "aten::repeat"                          : _repeat(),
-        "aten::repeat_interleave"               : _repeat_interleave(),
-        "aten::to"                              : _to(),
-        "aten::squeeze"                         : _squeeze(),
-        "aten::unsqueeze"                       : _unsqueeze(),
-        "aten::cat"                             : _concatenate(prelude),
-        "aten::slice"                           : _slice(),
-        "aten::split"                           : _split(),
-        "aten::split_with_sizes"                : _split_with_sizes(),
-        "aten::select"                          : _select(),
-        "aten::take"                            : _take(),
-        "aten::where"                           : _where(),
-        "aten::topk"                            : _topk(),
-        "aten::relu"                            : _relu(),
-        "aten::relu_"                           : _relu(),
-        "aten::prelu"                           : _prelu(),
-        "aten::leaky_relu"                      : _leaky_relu(),
-        "aten::elu"                             : _elu(),
-        "aten::celu"                            : _celu(),
-        "aten::gelu"                            : _gelu(),
-        "aten::selu"                            : _selu(),
-        "aten::log_sigmoid"                     : _log_sigmoid(),
-        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
-        "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
-        "aten::max_pool2d"                      : _maxpool_2d(),
-        "aten::max_pool2d_with_indices"         : _maxpool_2d(),
-        "aten::max_pool1d"                      : _maxpool_1d(),
-        "aten::max_pool3d"                      : _maxpool_3d(),
-        "aten::hardtanh"                        : _hardtanh(),
-        "aten::hardtanh_"                       : _hardtanh(),
-        "aten::_convolution"                    : _convolution(),
-        "aten::softmax"                         : _softmax(),
-        "aten::threshold"                       : _threshold(),
-        "aten::threshold_"                      : _threshold(),
-        "aten::contiguous"                      : _contiguous(),
-        "aten::batch_norm"                      : _batch_norm(),
-        "aten::instance_norm"                   : _instance_norm(),
-        "aten::layer_norm"                      : _layer_norm(),
-        "aten::group_norm"                      : _group_norm(),
-        "aten::transpose"                       : _transpose(prelude),
-        "aten::transpose_"                      : _transpose(prelude),
-        "aten::t"                               : _transpose(prelude),
-        "aten::flatten"                         : _flatten(),
-        "aten::addmm"                           : _dense(),
-        "aten::size"                            : _size(prelude),
-        "aten::view"                            : _view(),
-        "aten::reshape"                         : _reshape(),
-        "aten::clone"                           : _clone(),
-        "aten::log_softmax"                     : _log_softmax(),
-        "aten::sigmoid"                         : _sigmoid(),
-        "aten::softplus"                        : _softplus(),
-        "aten::avg_pool2d"                      : _avg_pool2d(),
-        "aten::avg_pool3d"                      : _avg_pool3d(),
-        "aten::dropout"                         : _dropout(),
-        "aten::dropout_"                        : _dropout(),
-        "aten::feature_dropout"                 : _dropout(),
-        "aten::alpha_dropout"                   : _dropout(),
-        "aten::mean"                            : _mean(),
-        "aten::chunk"                           : _chunk(prelude),
-        "aten::matmul"                          : _matmul(),
-        "aten::expand"                          : _expand(),
-        "aten::Int"                             : _int(),
-        "prim::NumToTensor"                     : _numtotensor(),
-        "aten::constant_pad_nd"                 : _pad(),
-        "aten::permute"                         : _transpose(prelude),
-        "aten::sum"                             : _reduce("sum"),
-        "aten::prod"                            : _reduce("prod"),
-        "aten::argmin"                          : _reduce("argmin"),
-        "aten::argmax"                          : _reduce("argmax"),
-        "aten::std"                             : _std(),
-        "aten::var"                             : _variance(),
-        "aten::abs"                             : _unary("abs"),
-        "aten::neg"                             : _unary("negative"),
-        "aten::cos"                             : _unary("cos"),
-        "aten::cosh"                            : _unary("cosh"),
-        "aten::sin"                             : _unary("sin"),
-        "aten::sinh"                            : _unary("sinh"),
-        "aten::tan"                             : _unary("tan"),
-        "aten::tanh"                            : _unary("tanh"),
-        "aten::acos"                            : _unary("acos"),
-        "aten::asin"                            : _unary("asin"),
-        "aten::atan"                            : _unary("atan"),
-        "aten::log"                             : _unary("log"),
-        "aten::log2"                            : _unary("log2"),
-        "aten::log10"                           : _unary("log10"),
-        "aten::log1p"                           : _log1p(),
-        "aten::exp"                             : _unary("exp"),
-        "aten::erf"                             : _unary("erf"),
-        "aten::trunc"                           : _unary("trunc"),
-        "aten::sign"                            : _unary("sign"),
-        "aten::sqrt"                            : _unary("sqrt"),
-        "aten::rsqrt"                           : _unary("rsqrt"),
-        "aten::ceil"                            : _unary("ceil"),
-        "aten::floor"                           : _unary("floor"),
-        "aten::round"                           : _unary("round"),
-        "aten::isfinite"                        : _unary("isfinite"),
-        "aten::isnan"                           : _unary("isnan"),
-        "aten::clamp"                           : _clamp(),
-        "aten::detach"                          : _identity(),
-        "aten::upsample_bilinear2d"             : _upsample("bilinear"),
-        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
-        "aten::expand_as"                       : _expand_as(),
-        "aten::lt"                              : _elemwise("less"),
-        "aten::gt"                              : _elemwise("greater"),
-        "aten::le"                              : _elemwise("less_equal"),
-        "aten::ge"                              : _elemwise("greater_equal"),
-        "aten::ne"                              : _elemwise("not_equal"),
-        "aten::eq"                              : _elemwise("equal"),
-        "aten::logical_not"                     : _logical_not(),
-        "aten::logical_xor"                     : _logical_xor(),
-        "aten::bitwise_not"                     : _bitwise_not(),
-        "aten::bitwise_xor"                     : _bitwise_xor(),
-        "aten::Bool"                            : _Bool(),
-        "aten::Float"                           : _Float(),
-        "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
-        "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d(),
-        "aten::rsub"                            : _rsub(),
-        "aten::embedding"                       : _embedding(),
-        "aten::one_hot"                         : _one_hot(),
-        "aten::mm"                              : _matmul(),
-        "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
-        "aten::add"                             : _add(prelude),
-        "aten::add_"                            : _add(prelude),
-        "aten::stack"                           : _tensor_array_stack(prelude),
-        "aten::__getitem__"                     : _list_getitem(prelude),
-        "aten::len"                             : _list_len(prelude),
-    }
-    return convert_map
-
 
 def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
+    # pylint: disable=c-extension-no-member
     import torch
-    torch._C._jit_pass_inline(graph)
 
-
-def _is_int_seq(seq):
-    return len(seq) > 0 and all([isinstance(i, int) for i in seq])
+    if is_version_greater_than("1.5.1"):
+        # This is required for torchvision detection models from 1.6 above
+        # It is the same as _jit_pass_inline, except that it has some special
+        # case behaviors for some ops such as aten::__interpolate()
+        torch._C._jit_pass_onnx_function_substitution(graph)
+    else:
+        torch._C._jit_pass_inline(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
     tensor = tvm.nd.array(torch_tensor.cpu().numpy())
-    var = _expr.var(name, shape=tensor.shape)
+    var = _expr.var(name, shape=tensor.shape, dtype=tensor.dtype)
     return tensor, var
 
 
@@ -1808,51 +2673,6 @@ def _get_users(node):
     return [use.user for use in _get_uses(node)]
 
 
-def _report_missing_conversion(op_names, convert_map):
-    """ Check if all ops in an input graph are supported by TVM """
-    known_ops = ["prim::Constant", "prim::GetAttr",
-                 "prim::ListConstruct", "prim::ListUnpack",
-                 "prim::TupleConstruct", "prim::TupleUnpack",
-                 "prim::If", "prim::Loop"]
-    known_ops += list(convert_map.keys())
-    known_ops += list(qnn_torch.convert_map.keys())
-
-    missing = [op_name for op_name in op_names
-               if op_name not in known_ops]
-
-    if missing:
-        msg = "The following operators are not implemented: {}".format(missing)
-        raise NotImplementedError(msg)
-
-
-def _check_inputs(graph, input_shapes):
-    """
-    Check the graph inputs match the expected number of inputs
-    and are in the correct format
-    """
-    ir_inputs = _get_graph_input_names(graph)
-
-    if not isinstance(input_shapes, list):
-        msg = "Graph inputs input_shapes should be list"
-        raise RuntimeError(msg)
-    missing_inputs = len(ir_inputs) - len(input_shapes)
-    if missing_inputs > 0:
-        msg = "Missing {} graph input(s) in input_shapes".format(missing_inputs)
-        raise RuntimeError(msg)
-
-    for num, inp in enumerate(input_shapes):
-        if num < len(ir_inputs):
-            if not isinstance(inp, tuple):
-                msg = "Graph input {} is not a tuple".format(num)
-                raise RuntimeError(msg)
-            if (len(inp) != 2 or not isinstance(inp[0], str)):
-                msg = "Graph input {} is not valid, expected ('name', shape)".format(inp)
-                raise RuntimeError(msg)
-        else:
-            msg = "Unused graph input {} in input_shapes".format(inp)
-            logging.warning(msg)
-
-
 def _getattr_attr_name(node):
     attribute_names = node.attributeNames()
     assert len(attribute_names) == 1
@@ -1864,36 +2684,46 @@ def _getattr_full_name(getattrs):
     return ".".join([_getattr_attr_name(node) for node in getattrs])
 
 
-def _get_input_types(op_node):
-    """ Returns a torch type for each input nodes """
-    input_list_types = []
-    for input_node in op_node.inputs():
-        in_ty = input_node.type()
-        input_node_kind = in_ty.kind()
-        if input_node_kind == 'TensorType':
-            if in_ty.scalarType() is None:
-                # Tensor's type can be unknown if we use torch.jit.script(...)
-                # Defaults to float for now
-                logging.warning("Untyped Tensor found, assume it is float")
-                input_list_types.append("float")
-            else:
-                input_list_types.append(in_ty.scalarType().lower())
-
-        elif input_node_kind == 'ListType':
-            input_list_types.append("ListType")
-        elif input_node_kind in ['IntType', 'FloatType', 'BoolType',
-                                 'StringType', 'OptionalType']:
-            input_list_types.append(str(in_ty).lower())
+def _get_pytorch_value_type(typ, default_dtype="float32"):
+    kind = typ.kind()
+    if kind == "TensorType":
+        if typ.scalarType() is None:
+            # Tensor's type can be unknown if we use torch.jit.script(...)
+            # Defaults can be passed in, if not it is float32
+            logging.warning("Untyped Tensor found, assume it is %s", default_dtype)
+            return default_dtype
         else:
-            input_list_types.append('UnsupportedType')
+            return _convert_data_type(typ.scalarType())
 
-    if op_node.kind() in ['aten::ones', 'aten::zeros']:
-        node_type = op_node.output().type()
-        scalar_type = node_type.scalarType()
-        if scalar_type:
-            input_list_types[0] = scalar_type.lower()
+    elif kind == "ListType":
+        return "ListType"
+    elif kind in ["IntType", "FloatType", "BoolType", "StringType", "OptionalType"]:
+        pt_dtype = str(typ).lower()
+        dtype = pt_dtype if pt_dtype == "OptionalType" else _convert_data_type(pt_dtype)
+        return dtype
+    else:
+        return "UnsupportedType"
 
-    return input_list_types
+
+def _get_input_types(op_node, outputs, default_dtype="float32"):
+    """Returns a TVM dtype for each input nodes derived from the torch type"""
+    in_types = []
+    for inp in op_node.inputs():
+        if inp.node().kind() == "prim::GetAttr":
+            # GetAttr nodes always return None when we call scalarType() on it
+            name = inp.debugName()
+            assert name in outputs
+            if isinstance(outputs[name], _expr.Var):
+                in_types.append(outputs[name].type_annotation.dtype)
+            else:
+                # For quantized modules with parameters, here we would get
+                # "prim::GetAttr[name="_packed_params"]". Since the dtype corresponding to
+                # _packed_params is not needed by quantized ops, we return an arbitrary type.
+                in_types.append(default_dtype)
+        else:
+            in_types.append(_get_pytorch_value_type(inp.type(), default_dtype=default_dtype))
+
+    return in_types
 
 
 def _get_constant(node):
@@ -1905,16 +2735,21 @@ def _get_constant(node):
         attr_name = attribute_names[0]
         ty = node.output().type().kind()
 
-        if ty in ["IntType", "BoolType"]:
+        if ty == "IntType":
             return node.i(attr_name)
+        elif ty == "BoolType":
+            return bool(node.i(attr_name))
         elif ty in ["FloatType", "LongType"]:
             return node.f(attr_name)
         elif ty in ["TensorType", "CompleteTensorType"]:
             tensor = node.t(attr_name)
+            if tensor.is_cuda:
+                tensor = tensor.cpu()
             if len(tensor.shape) == 0:  # tensor(0.1)
-                return float(tensor)
+                # TODO(t-vi): When is this needed?
+                return tensor.item()
             return _wrap_const(tensor.numpy())
-        elif ty == "DeviceObjType":
+        elif ty in ["DeviceObjType", "StringType"]:
             return node.s(attr_name)
         elif ty == "FunctionType":
             return None
@@ -1930,6 +2765,8 @@ def _get_operator_nodes(nodes):
     ops = []
     # Traverse nodes and add to graph
     for node in nodes:
+        if node.outputsSize() == 0:
+            continue
         if node.outputsSize() > 1:
             node_name = "_".join(_get_output_names(node))
         else:
@@ -1941,35 +2778,91 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_graph_input_names(graph):
-    """ Get the graph input names (use after graph copy and run jit passes) """
-    # Variable names could change the first time a copy is made and after
-    # _run_jit_passes is called, expected that those functions already invoked
-    ir_inputs = _get_input_names(graph)
-    return ir_inputs[1:]  # remove self at the 0th arg
-
-
-def _get_relay_input_vars(graph, input_shapes, prelude):
+def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_dtype="float32"):
     """
     Return Relay vars from input shapes and create entries based on
     expected graph inputs - to allow translation
     """
-    def get_relay_ty(ishape):
-        if _is_int_seq(ishape) or len(ishape) == 0:
-            return TensorType(ishape)
-        elif isinstance(ishape, tuple):
-            return TupleType([get_relay_ty(elem) for elem in ishape])
-        elif isinstance(ishape, list):
-            assert len(ishape) > 0
-            elem_tys = [get_relay_ty(s) for s in ishape]
-            msg = "List elements should have identical types"
-            assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
-            return prelude.l(elem_tys[0])
+
+    graph_inputs = list(graph.inputs())
+    if is_module:
+        # a module has "self" as first input, which we do not need/want
+        graph_inputs = graph_inputs[1:]
+
+    if not isinstance(input_infos, list):
+        msg = "Graph inputs input_infos should be a list"
+        raise RuntimeError(msg)
+
+    if len(graph_inputs) != len(input_infos):
+        msg = "PyTorch has {} inputs and input_infos lists {}.".format(
+            len(graph_inputs), len(input_infos)
+        )
+        raise RuntimeError(msg)
+
+    def get_relay_ty(ishape, itype, pt_type):
+        if pt_type.kind() == "TensorType":
+            if not (_is_int_seq(ishape) or len(ishape) == 0):
+                msg = "Shape for Tensors must be lists of ints"
+                raise RuntimeError(msg)
+            if (pt_type.dim() is not None and pt_type.dim() != len(ishape)) or (
+                pt_type.sizes() is not None
+                and any([s1 != s2 for s1, s2 in zip(pt_type.sizes(), ishape)])
+            ):
+                msg = "Shapes of input list and information in the graph do not match"
+                raise RuntimeError(msg)
+            pt_dtype = pt_type.scalarType()
+            if not pt_dtype and itype:
+                pt_dtype = itype
+            dtype = _convert_data_type(pt_dtype, default_dtype=default_dtype)
+            return TensorType(ishape, dtype)
+        elif pt_type.kind() == "TupleType":
+            if not isinstance(ishape, tuple):
+                msg = "Shapes for tuples must be tuples"
+                raise RuntimeError(msg)
+            return TupleType(
+                [get_relay_ty(elem, itype, pt_t) for elem, pt_t in zip(ishape, pt_type.elements())]
+            )
+        elif pt_type.kind() == "ListType":
+            if not isinstance(ishape, list):
+                msg = "Shapes for lists must be lists"
+                raise RuntimeError(msg)
+            pt_elemtype = pt_type.getElementType()
+            elem_tys = [get_relay_ty(s, itype, pt_elemtype) for s in ishape]
+            if len(elem_tys) > 0 and not all(map(lambda ty: ty == elem_tys[0], elem_tys)):
+                msg = "List elements need have identical types"
+                raise RuntimeError(msg)
+            rlist, _, _ = prelude.mod.get_type("List")
+            return rlist(elem_tys[0])
+        elif pt_type.kind() == "OptionalType":
+            # we do not support None yet, so we fill in the type
+            return get_relay_ty(ishape, itype, pt_type.getElementType())
+        # TODO: scalar inputs
         raise NotImplementedError("unsupported input type")
 
-    input_types = [(tup[0], get_relay_ty(tup[1])) for tup in input_shapes]
     input_vars = {}
-    ir_inputs = _get_graph_input_names(graph)
+
+    new_input_infos = []
+    for num, inp in enumerate(input_infos):
+        if not isinstance(inp, tuple):
+            msg = "Graph input {} is not a tuple".format(num)
+            raise RuntimeError(msg)
+        if len(inp) != 2 or not isinstance(inp[0], str):
+            msg = (
+                "Graph input {} is not valid,"
+                " expected ('name', shape) or ('name', (shape, dtype))".format(inp)
+            )
+            raise RuntimeError(msg)
+        if not isinstance(inp[1], tuple) or len(inp[1]) == 0 or not isinstance(inp[1][-1], str):
+            new_input_infos.append((inp[0], (inp[1], default_dtype)))
+        else:
+            new_input_infos.append(inp)
+
+    input_types = [
+        (name, get_relay_ty(info[0], info[1], gi.type()))
+        for (name, info), gi in zip(new_input_infos, graph_inputs)
+    ]
+
+    ir_inputs = [i.debugName() for i in graph_inputs]
     for ir_input, (name, itype) in zip(ir_inputs, input_types):
         inp = _expr.var(name, type_annotation=itype)
         # Translate from graph input to user input name
@@ -2009,6 +2902,7 @@ def get_use_chains(root_node, terminate=lambda _: False):
     Track a chain of users of this node forward, returning a list of chains
     See get_attr_chains below for its usage
     """
+
     def concat_lists(lists):
         return itertools.chain.from_iterable(lists)
 
@@ -2024,7 +2918,7 @@ def get_use_chains(root_node, terminate=lambda _: False):
 
 
 def get_attr_chains(root_getattr_node):
-    """ Returns chains of attribute access starting from root_getattr_node
+    """Returns chains of attribute access starting from root_getattr_node
 
     For example, given attribute "block", as in "self.block" when "self" points
     to the top level torch.nn.Module, it returns lists of attribute "chains",
@@ -2035,6 +2929,7 @@ def get_attr_chains(root_getattr_node):
     and "self.block.0._packed_params" will return the parameters of the first
     submodule.
     """
+
     def terminate(users):
         next_attrs = [user for user in users if user.kind() == "prim::GetAttr"]
         return len(next_attrs) == 0
@@ -2051,6 +2946,7 @@ def convert_params(graph, state_dict):
     params = {}
     param_tensors = {}
     packed_param_map = {}
+    vars_by_name = {}
     seen = set()
 
     for node in getattr_nodes:
@@ -2064,198 +2960,18 @@ def convert_params(graph, state_dict):
             full_attr_node_name = _get_output_name(getattrs[-1])
 
             if full_attr.endswith("_packed_params"):  # for quantized models
-                err_msg = "parameter %s not found in state dict" % full_attr
-                assert full_attr in state_dict, err_msg
                 packed_param_map[full_attr_node_name] = full_attr
             elif full_attr in state_dict:
-                torch_tensor = state_dict[full_attr]
-                tensor, var = _get_tensor_and_var(torch_tensor,
-                                                  full_attr_node_name)
-                param_tensors[full_attr_node_name] = tensor
+                if full_attr in vars_by_name:
+                    var = vars_by_name[full_attr]
+                else:
+                    torch_tensor = state_dict[full_attr]
+                    tensor, var = _get_tensor_and_var(torch_tensor, full_attr)
+                    param_tensors[full_attr] = tensor
+                    vars_by_name[full_attr] = var
                 params[full_attr_node_name] = var
 
     return params, param_tensors, packed_param_map
-
-
-def convert_block(block, outputs, convert_map, prelude):
-    """ Translate Torch "Block", used for prim::If and prim::Loop """
-    ops = _get_operator_nodes(block.nodes())
-    ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, ret_names, convert_map, prelude)
-
-
-def convert_if(if_node, outputs, convert_map, prelude):
-    """ Translate Torch prim::If to Relay If """
-    cond = outputs[if_node.inputsAt(0).debugName()]
-    blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs, convert_map, prelude)
-    false_branch = convert_block(blocks[1], outputs, convert_map, prelude)
-    assert len(true_branch) == 1 and len(false_branch) == 1
-    return _expr.If(cond, true_branch[0], false_branch[0])
-
-
-def convert_loop(loop_node, outputs, convert_map, prelude):
-    """ Translate Torch prim::Loop to Relay while_loop """
-    def get_input(index):
-        ivalue = loop_node.inputsAt(index)
-        inode = ivalue.node()
-        if inode.kind() == "prim::Constant":
-            return _expr.const(_get_constant(inode))
-        var_name = ivalue.debugName()
-        assert var_name in outputs
-        return _wrap_const(outputs[var_name])
-
-    # Refer to the spec for prim::Loop below
-    # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
-    # The first input: %max_trip_count
-    # The second input: %initial_condition
-    # The rest of input: loop variables
-    max_loop_count = get_input(0)
-    init_cond = get_input(1)
-    num_loop_var = len(list(loop_node.inputs())) - 2
-    init_vals = [get_input(i + 2) for i in range(num_loop_var)]
-
-    # while loop has always max_loop_count being int64 max
-    # max_loop_count.data (tvm.runtime.NDArray) is -1, so _get_constant again
-    is_while_loop = (isinstance(max_loop_count, _expr.Constant) and
-                     _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize)
-
-    if is_while_loop:
-        loop_iter_dtype = "bool"
-        # while loop with non input dependent condition such as while i < 10:
-        # init_cond is int, need to cast to bool to type check
-        if isinstance(init_cond, _expr.Constant):
-            init_cond = _op.cast(init_cond, "bool")
-        init_loop_iter_val = init_cond
-    else:
-        loop_iter_dtype = "int32"
-        # always count from 0
-        init_loop_iter_val = _expr.const(0, dtype="int32")
-
-    body_block = list(loop_node.blocks())[0]
-    block_input_names = _get_input_names(body_block)
-    num_block_inputs = len(block_input_names)
-    name_val_pairs = list(zip(block_input_names,
-                              [init_loop_iter_val] + init_vals))
-    outputs.update(name_val_pairs)
-
-    def get_var(name, val):
-        if val:
-            checked_type = _infer_type_with_prelude(val, prelude)
-            return _expr.var(name, type_annotation=checked_type)
-        return _expr.var(name)
-
-    loop_iter_var = _expr.var(block_input_names[0], shape=(),
-                              dtype=loop_iter_dtype)
-    loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
-
-    # Add non constant free variables to loop variables to prevent code blow up
-    # Without this, if there are two for loops in a row, which often happens
-    # if the outer loop is unrolled, the computation corresponding to the first for loop
-    # is inlined inside loop body, turning O(N) + O(N) computation into O(N^2).
-    # This issue was found when converting from Stacked LSTM test. Torch does not add the output
-    # of the eariler loop into loop variables of the next loop.
-    # So the variable corresponding to the first loop output appears free in the second loop body.
-    free_vars = [var for var in _get_free_vars_from_block(body_block)
-                 if var in outputs and not isinstance(outputs[var], (_expr.Constant, int, float))
-                 and outputs[var]]
-
-    prev_outputs = {}
-    for name in free_vars:
-        prev_output = outputs[name]
-        new_loop_var = get_var(name, prev_output)
-        prev_outputs[name] = prev_output
-        outputs[name] = new_loop_var
-        loop_vars.append(new_loop_var)
-        init_vals.append(prev_output)
-
-    def cond(*current_vals):
-        i = current_vals[0]
-
-        if is_while_loop:
-            return _op.equal(i, _expr.const(True, 'bool'))
-
-        return _op.less(i, max_loop_count)
-
-    def body(*current_vals):
-        # Update loop variables using the prev iteration outputs
-        assert len(current_vals) == num_block_inputs + len(free_vars)
-
-        for (i, val) in enumerate(current_vals):
-            if i < num_block_inputs:
-                outputs[block_input_names[i]] = val
-            else:
-                outputs[free_vars[i-num_block_inputs]] = val
-
-        block_outputs = convert_block(body_block, outputs, convert_map, prelude)
-        block_outputs += [outputs[name] for name in free_vars]
-
-        if not is_while_loop:
-            # iter var increment implicit in torch, so do it manually
-            # for while loop, block_outputs[0] is already a boolean,
-            # the result of termination check
-            incr = _expr.const(1, dtype="int32")
-            block_outputs[0] = current_vals[0] + incr
-
-        return block_outputs
-
-    loop = while_loop(cond, [loop_iter_var] + loop_vars, body)
-    loop_val = loop(init_loop_iter_val, *init_vals)
-
-    # restore original output values for free vars
-    outputs.update(prev_outputs)
-
-    # The first element is a loop counter or boolean condition, ignore it
-    return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
-
-
-def convert_operators(operators, outputs, ret_names, convert_map, prelude):
-    """ Convert each Torch IR operators to Relay equivalent """
-    for node_name, op_node in operators:
-        operator = op_node.kind()
-        inputs = _get_op_inputs(op_node, outputs)
-
-        if operator == "prim::Constant":
-            outputs[node_name] = _get_constant(op_node)
-        elif operator == "prim::ListConstruct" and _is_int_seq(inputs):
-            outputs[node_name] = _expr.var(node_name, shape=inputs)
-        elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
-            outputs[node_name] = _convert_to_list_adt(inputs, prelude)
-        elif operator == "prim::ListConstruct":
-            # This assumes that no more elements will be appended to this list
-            # In this case, we keep the Python list
-            outputs[node_name] = inputs
-        elif operator == "prim::TupleConstruct":
-            outputs[node_name] = _expr.Tuple(inputs)
-        elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
-            assert len(inputs) == 1
-            if isinstance(inputs[0], (list, _expr.TupleWrapper)):
-                unpacked = inputs[0]
-            else:
-                unpacked = _unpack_tuple(inputs[0])
-            outputs.update(zip(_get_output_names(op_node), unpacked))
-        elif operator == "prim::If":
-            if_out = convert_if(op_node, outputs, convert_map, prelude)
-            outputs[node_name] = if_out
-        elif operator == "prim::Loop":
-            loop_out = convert_loop(op_node, outputs, convert_map, prelude)
-            unpacked_names = _get_output_names(op_node)
-            assert len(loop_out) == len(unpacked_names)
-            outputs.update(zip(unpacked_names, loop_out))
-        else:
-            relay_op = convert_map[operator]
-            relay_out = relay_op(inputs, _get_input_types(op_node))
-
-            if isinstance(relay_out, tuple):
-                # This is for torch operators that return multiple outputs
-                # See _adaptive_max_2d above for example
-                out_names = _get_output_names(op_node)
-                outputs.update(zip(out_names, relay_out))
-            else:
-                outputs[node_name] = relay_out
-
-    return [_wrap_const(outputs[ret_name])
-            for ret_name in ret_names]
 
 
 def get_all_op_names(graph):
@@ -2270,8 +2986,8 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def from_pytorch(script_module, input_shapes, custom_convert_map=None):
-    """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
+def from_pytorch(script_module, input_infos, custom_convert_map=None, default_dtype="float32"):
+    """Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
     Parameters
@@ -2280,12 +2996,17 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_shapes : List of tuples of input name and input dimensions
-        Graph level input shape list
+    input_infos : List of tuples
+        Can be (input name, input shape) or (input name, (input shape, input types))
+        Graph level input shape and type list
         The same input names need to be used for deployment, so choose easy to
         remember names (such as: input0, input1)
+        e.g.
+        [('input0', (1, 2)), ('input1', (3, 4))]
+        or
+        [('input0', ((1, 2), 'int')), ('input1', ((3, 4), 'float'))]
 
-    custom_convert_map: Dictionary of str to Relay op
+    custom_convert_map : Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
 
     Returns
@@ -2296,23 +3017,27 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     params : dict of str to tvm.runtime.NDArray
         Dict of converted parameters stored in tvm.runtime.ndarray format
     """
+    import torch
+
     mod = tvm.IRModule()
     prelude = Prelude(mod)
 
-    convert_map = _get_convert_map(prelude)
+    converter = PyTorchOpConverter(prelude, default_dtype)
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
 
     if custom_convert_map:
-        convert_map.update(custom_convert_map)
+        converter.update_convert_map(custom_convert_map)
 
     op_names = get_all_op_names(graph)
-    _report_missing_conversion(op_names, convert_map)
-    _check_inputs(graph, input_shapes)
+    converter.report_missing_conversion(op_names)
 
-    params = script_module.state_dict()
-    outputs = _get_relay_input_vars(graph, input_shapes, prelude)
+    is_module = isinstance(script_module, torch.jit.ScriptModule)
+    params = script_module.state_dict() if is_module else {}
+    outputs = _get_relay_input_vars(
+        graph, input_infos, prelude, default_dtype=default_dtype, is_module=is_module
+    )
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
@@ -2320,18 +3045,18 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
-    if "aten::quantize_per_tensor" in op_names:
+    quantized_ops = set(["aten::quantize_per_tensor", "quantized::linear_dynamic"])
+    if len(quantized_ops.intersection(set(op_names))) > 0:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs,
-                                              packed_param_map,
-                                              weight_quant_params)
+        qnn_torch.add_quant_params_to_outputs(outputs, packed_param_map, weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
-        convert_map.update(qnn_torch.convert_map)
+        converter.update_convert_map(qnn_torch.convert_map)
 
-    ret = convert_operators(_get_operator_nodes(graph.nodes()),
-                            outputs, ret_name, convert_map, prelude)
+    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
+    if isinstance(ret, list):
+        # ListConstruct kept original python list. Convert to tuple.
+        ret = _expr.Tuple(ret)
 
-    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
-
-    return mod, tvm_params
+    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret), ret)
+    return transform.RemoveUnusedFunctions()(mod), tvm_params

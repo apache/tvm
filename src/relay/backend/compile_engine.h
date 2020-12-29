@@ -82,7 +82,7 @@ struct CachedFuncNode : public Object {
   /*! \brief The schedule to the function */
   te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
-  IRModule funcs = IRModule::Empty();
+  IRModule funcs = IRModule(Map<GlobalVar, BaseFunc>({}));
 
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
@@ -154,7 +154,7 @@ class CCacheKey : public ObjectRef {
   const CCacheKeyNode* operator->() const { return static_cast<const CCacheKeyNode*>(get()); }
   // comparator
   inline bool operator==(const CCacheKey& other) const {
-    CHECK(defined() && other.defined());
+    ICHECK(defined() && other.defined());
     return (*this)->Equal(other.operator->());
   }
   using ContainerType = CCacheKeyNode;
@@ -238,8 +238,17 @@ class CompileEngine : public ObjectRef {
   CompileEngineNode* operator->() { return static_cast<CompileEngineNode*>(get_mutable()); }
   using ContainerType = CompileEngineNode;
   /*! \brief The global compile engine. */
-  TVM_DLL static const CompileEngine& Global();
+  TVM_DLL static CompileEngine& Global();
 };
+
+/*!
+ * \brief Create schedule for target.
+ * \param source_func The primitive function to be lowered.
+ * \param target The target we want to create schedule for.
+ * \return Pair of schedule and cache.
+ *  The funcs field in cache is not yet populated.
+ */
+CachedFunc CreateSchedule(const Function& source_func, const Target& target);
 
 /*!
  * \brief Check if the type is dynamic.
@@ -272,7 +281,7 @@ namespace std {
 template <>
 struct hash<::tvm::relay::CCacheKey> {
   size_t operator()(const ::tvm::relay::CCacheKey& key) const {
-    CHECK(key.defined());
+    ICHECK(key.defined());
     return key->Hash();
   }
 };

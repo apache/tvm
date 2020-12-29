@@ -22,6 +22,10 @@ set -u
 export PYTHONPATH=python
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 
+# to avoid CI CPU thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=1
+
 CURR_DIR=$(cd `dirname $0`; pwd)
 SCRIPT_DIR=$CURR_DIR/../../jvm/core/src/test/scripts
 TEMP_DIR=$(mktemp -d)

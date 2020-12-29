@@ -105,7 +105,7 @@ Build TVM with NNPACK support
 
 .. code:: bash
 
-   git clone --recursive https://github.com/apache/incubator-tvm tvm
+   git clone --recursive https://github.com/apache/tvm tvm
 
 - Set `set(USE_NNPACK ON)` in config.cmake.
 - Set `NNPACK_PATH` to the $(YOUR_NNPACK_INSTALL_PATH)

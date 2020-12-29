@@ -22,10 +22,12 @@ from tvm import relay
 from tvm.relay import transform
 import model_zoo
 
+
 def compare_graph(lhs_mod, rhs_mod):
     lhs_mod = transform.InferType()(lhs_mod)
     rhs_mod = transform.InferType()(rhs_mod)
     assert tvm.ir.structural_equal(lhs_mod["main"], rhs_mod["main"])
+
 
 def test_mlp():
     shape = {"data": (1, 1, 28, 28)}
@@ -55,7 +57,7 @@ def test_resnet():
 
 def test_squeezenet():
     shape = {"data": (1, 3, 224, 224)}
-    for version in ['1.0', '1.1']:
+    for version in ["1.0", "1.1"]:
         mx_sym = model_zoo.mx_squeezenet(version)
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape)
         relay_mod = model_zoo.relay_squeezenet(version)
@@ -105,8 +107,7 @@ def test_multi_outputs():
         return tvm.IRModule.from_expr(func)
 
     mx_sym = mx_compose(mx, num_outputs=3, axis=1)
-    mod, _ = relay.frontend.from_mxnet(
-        mx_sym, shape={"x":xshape, "y":yshape})
+    mod, _ = relay.frontend.from_mxnet(mx_sym, shape={"x": xshape, "y": yshape})
     relay_mod = relay_compose(relay, indices_or_sections=3, axis=1)
     compare_graph(mod, relay_mod)
 

@@ -37,7 +37,7 @@
 
 #include "./combine_parallel_op.h"
 #include "./expr_subst.h"
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -95,7 +95,7 @@ class ParallelOpBatchCombiner : public ParallelOpCombiner {
    * \param branches branches that are to be combined
    * \return new call with branches combined as batch op by stacking args
    */
-  Call MakeCombinedOp(const Group& branches) final;
+  virtual Call MakeCombinedOp(const Group& branches);
 
   /*
    * \brief Checks if argument of op following combined ops are able to be combined

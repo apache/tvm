@@ -31,7 +31,7 @@ namespace tvm {
 // Attrs used to python API
 struct TestAttrs : public AttrsNode<TestAttrs> {
   int axis;
-  std::string name;
+  String name;
   Array<PrimExpr> padding;
   TypedEnvFunc<int(int)> func;
 

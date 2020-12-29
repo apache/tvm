@@ -17,10 +17,11 @@
 import tvm
 from tvm import te
 
+
 def test_lower_rfactor():
     n = te.size_var("n")
     m = te.size_var("m")
-    A = te.placeholder((n, m), name='A')
+    A = te.placeholder((n, m), name="A")
     k = te.reduce_axis((0, m), "k")
     B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
     s = te.create_schedule(B.op)
@@ -33,23 +34,29 @@ def test_lower_rfactor():
     s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
     fapi = tvm.lower(s, [A, B])
 
+
 def test_dependent_output_shape():
-    n, m, x = te.size_var('n'), te.size_var('m'), te.size_var('x')
+    n, m, x = te.size_var("n"), te.size_var("m"), te.size_var("x")
     A = te.placeholder((n, m))
-    B = te.compute((m, n//x), lambda i, j: A[i,j] , name='B')
+    B = te.compute((m, n // x), lambda i, j: A[i, j], name="B")
     s = te.create_schedule(B.op)
     mod = tvm.build(s, [A, B, x])
 
+
 def test_split_uneven_unique_likely():
-    a = te.placeholder((16, 16),)
-    b = te.placeholder((16, 16),)
+    a = te.placeholder(
+        (16, 16),
+    )
+    b = te.placeholder(
+        (16, 16),
+    )
     c = te.compute((16, 16), lambda x, y: a[x, y] + b[x, y])
 
     x, y = c.op.axis
     sch = te.create_schedule(c.op)
     xo, xi = sch[c].split(x, 5)
     stmt = tvm.lower(sch, [a, b, c])["main"].body
-    assert isinstance(stmt.body.body.body, tvm.tir.stmt.IfThenElse)
+    assert isinstance(stmt.body.body, tvm.tir.stmt.IfThenElse)
 
 
 if __name__ == "__main__":

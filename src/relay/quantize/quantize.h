@@ -29,7 +29,7 @@
 
 #include <string>
 
-#include "../transforms/pattern_util.h"
+#include "../transforms/pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -67,12 +67,14 @@ class QConfigNode : public Object {
   std::string calibrate_mode = "global_scale";
   double global_scale = 8.0;
   std::string weight_scale = "power2";
+  bool skip_dense_layer = true;
   Array<Expr> skip_conv_layers = Array<Expr>(ObjectPtr<Object>(nullptr));
   bool do_simulation = false;
   bool round_for_shift = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(ObjectPtr<Object>(nullptr));
   std::string rounding = "UPWARD";
   int calibrate_chunk_by = -1;
+  std::string partition_conversions = "disabled";
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("nbit_input", &nbit_input);
@@ -84,12 +86,14 @@ class QConfigNode : public Object {
     v->Visit("calibrate_mode", &calibrate_mode);
     v->Visit("global_scale", &global_scale);
     v->Visit("weight_scale", &weight_scale);
+    v->Visit("skip_dense_layer", &skip_dense_layer);
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
     v->Visit("rounding", &rounding);
     v->Visit("calibrate_chunk_by", &calibrate_chunk_by);
+    v->Visit("partition_conversions", &partition_conversions);
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";

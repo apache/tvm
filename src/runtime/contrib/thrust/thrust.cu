@@ -130,7 +130,7 @@ void thrust_sort_common(DLTensor* input,
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort_nms")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_GE(args.num_args, 5);
+  ICHECK_GE(args.num_args, 5);
   DLTensor* input = args[0];
   DLTensor* valid_count = args[1];
   DLTensor* values_out = args[2];
@@ -149,7 +149,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort_nms")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_GE(args.num_args, 4);
+  ICHECK_GE(args.num_args, 4);
   DLTensor* input = args[0];
   DLTensor* values_out = args[1];
   DLTensor* indices_out = args[2];
@@ -163,5 +163,87 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
   thrust_sort_common(input, values_out, indices_out, is_ascend, get_sort_len,
                      data_dtype, out_dtype);
 });
+
+template<typename KeyType, typename ValueType>
+void thrust_stable_sort_by_key(DLTensor* keys_in,
+                               DLTensor* values_in,
+                               DLTensor* keys_out,
+                               DLTensor* values_out,
+                               bool for_scatter) {
+  const auto size = keys_in->shape[0];
+  thrust::device_ptr<KeyType> keys_in_ptr(static_cast<KeyType *>(keys_in->data));
+  thrust::device_ptr<ValueType> values_in_ptr(static_cast<ValueType *>(values_in->data));
+  thrust::device_ptr<KeyType> keys_out_ptr(static_cast<KeyType *>(keys_out->data));
+  thrust::device_ptr<ValueType> values_out_ptr(static_cast<ValueType *>(values_out->data));
+
+  if (for_scatter) {
+    thrust::transform(keys_in_ptr, keys_in_ptr + size, keys_out_ptr, [size] __device__(KeyType k) {
+      if (k < 0) return k + static_cast<KeyType>(size);
+      return k;
+    });
+  } else {
+    thrust::copy(keys_in_ptr, keys_in_ptr + size, keys_out_ptr);
+  }
+  thrust::copy(values_in_ptr, values_in_ptr + size, values_out_ptr);
+
+  thrust::stable_sort_by_key(keys_out_ptr, keys_out_ptr + size, values_out_ptr);
+}
+
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ICHECK_GE(args.num_args, 5);
+  DLTensor* keys_in = args[0];
+  DLTensor* values_in = args[1];
+  DLTensor* keys_out = args[2];
+  DLTensor* values_out = args[3];
+  bool for_scatter = args[4];
+
+  auto key_dtype = DLDataType2String(keys_in->dtype);
+  auto value_dtype = DLDataType2String(values_in->dtype);
+
+  if (key_dtype == "int32") {
+    if (value_dtype == "int32") {
+      thrust_stable_sort_by_key<int, int>(keys_in, values_in, keys_out, values_out,
+                                          for_scatter);
+    } else if (value_dtype == "int64") {
+      thrust_stable_sort_by_key<int, int64_t>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
+    } else if (value_dtype == "float32") {
+      thrust_stable_sort_by_key<int, float>(keys_in, values_in, keys_out, values_out,
+                                            for_scatter);
+    } else {
+      LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+    }
+  } else if (key_dtype == "int64") {
+    if (value_dtype == "int32") {
+      thrust_stable_sort_by_key<int64_t, int>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
+    } else if (value_dtype == "int64") {
+      thrust_stable_sort_by_key<int64_t, int64_t>(keys_in, values_in, keys_out, values_out,
+                                                  for_scatter);
+    } else if (value_dtype == "float32") {
+      thrust_stable_sort_by_key<int64_t, float>(keys_in, values_in, keys_out, values_out,
+                                                for_scatter);
+    } else {
+      LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+    }
+  } else if (key_dtype == "float32") {
+    if (value_dtype == "int32") {
+      thrust_stable_sort_by_key<float, int>(keys_in, values_in, keys_out, values_out,
+                                            for_scatter);
+    } else if (value_dtype == "int64") {
+      thrust_stable_sort_by_key<float, int64_t>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
+    } else if (value_dtype == "float32") {
+      thrust_stable_sort_by_key<float, float>(keys_in, values_in, keys_out, values_out,
+                                              for_scatter);
+    } else {
+      LOG(FATAL) << "Unsupported value dtype: " << value_dtype;
+    }
+  } else {
+    LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
+  }
+});
+
 }  // namespace contrib
 }  // namespace tvm

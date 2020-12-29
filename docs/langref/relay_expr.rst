@@ -267,7 +267,7 @@ Operators
 An operator is a primitive operation, such as :code:`add` or :code:`conv2d`, not defined in the Relay
 language. Operators are declared in the global operator
 registry in C++. Many common operators are backed by TVM's
-Tensor Operator Inventory (`TOPI <https://github.com/apache/incubator-tvm/tree/master/topi>`__).
+Tensor Operator Inventory.
 
 To register an operator a user must provide an implementation
 of the operator, its type, and any other desired metadata.

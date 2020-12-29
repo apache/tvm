@@ -188,7 +188,7 @@ inline TFunc WithAttr(TFunc func, const std::string& attr_key, ObjectRef attr_va
   if (node->attrs.defined()) {
     node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
   } else {
-    Map<std::string, ObjectRef> dict = {{attr_key, attr_value}};
+    Map<String, ObjectRef> dict = {{attr_key, attr_value}};
     node->attrs = DictAttrs(dict);
   }
   return func;

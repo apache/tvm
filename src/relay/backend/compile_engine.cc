@@ -23,7 +23,6 @@
  */
 #include "compile_engine.h"
 
-#include <topi/tags.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
@@ -37,6 +36,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/topi/tags.h>
 
 #include <functional>
 #include <limits>
@@ -45,6 +45,7 @@
 #include <utility>
 #include <vector>
 
+#include "../transforms/pass_utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -70,27 +71,6 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
   data_ = std::move(n);
 }
 
-struct IsDynamicVisitor : public TypeVisitor {
-  bool is_dyn{false};
-  void VisitType_(const TensorTypeNode* tt) {
-    for (auto dim : tt->shape) {
-      if (dim.as<Any>()) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
-};
-
-bool IsDynamic(const Type& ty) {
-  IsDynamicVisitor v;
-  v.VisitType(ty);
-  return v.is_dyn;
-}
-
-// TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
-
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // for now, we always use int32 shape when possible
   // even if the result of shape inference becomes int64.
@@ -98,9 +78,13 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   for (IndexExpr val : shape) {
     const int64_t* pval = tir::as_const_int(val);
     if (pval != nullptr) {
-      CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
-      CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
+#ifndef TVM_INDEX_DEFAULT_I64
+      ICHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
+      ICHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
       res.push_back(IntImm(DataType::Int(32), *pval));
+#else
+      res.push_back(val);
+#endif  // TVM_INDEX_DEFAULT_I64
     } else if (val->IsInstance<tir::AnyNode>()) {
       res.push_back(val.as<tir::AnyNode>()->ToVar());
     } else {
@@ -115,7 +99,10 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
   explicit ScheduleGetter(Target target)
-      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
+      : target_(target), device_copy_op_(Op::Get("device_copy")) {
+    // Whether to use auto_scheduler schedule.
+    use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
+  }
 
   CachedFunc Create(const Function& prim_func) {
     auto cache_node = make_object<CachedFuncNode>();
@@ -132,7 +119,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
         for (Type field : tuple_type->fields) {
           const auto* ttype = field.as<TensorTypeNode>();
           // TODO(@icemelon): Allow recursive tuple
-          CHECK(ttype != nullptr);
+          ICHECK(ttype != nullptr);
           tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype);
           cache_node->inputs.push_back(tensor);
           inputs.push_back(tensor);
@@ -151,8 +138,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       candidate_name = truncated_name.str();
     }
     cache_node->func_name = candidate_name;
-
-    CHECK(master_op_.defined());
+    ICHECK(anchor_op_.defined());
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.
     // Hence schedule only non PlaceholderOp outputs.
@@ -162,11 +148,27 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
         tensor_outs.push_back(tensor);
       }
     }
+
     te::Schedule schedule;
     // No need to register schedule for device copy op.
-    if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      CHECK(master_implementation_.defined());
-      schedule = master_implementation_.Schedule(master_attrs_, tensor_outs, target_);
+    if (anchor_attrs_.as<DeviceCopyAttrs>() == nullptr) {
+      if (use_auto_scheduler_) {
+        const auto* fauto_schedule =
+            runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
+        ICHECK(fauto_schedule != nullptr)
+            << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
+        bool has_complex_op = anchor_op_pattern_ >= kCommReduce;
+        ObjectRef obj = (*fauto_schedule)(tensor_outs, has_complex_op);
+        if (obj.defined()) {
+          schedule = Downcast<te::Schedule>(obj);
+        }
+      }
+
+      // Use TOPI schdule if user specificed, or the function has no auto_scheduler schedule.
+      if (!schedule.defined()) {
+        ICHECK(anchor_implementation_.defined());
+        schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);
+      }
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {
           schedule[scalar].compute_inline();
@@ -184,7 +186,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
 
   Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
     using tir::make_const;
-    CHECK(op->is_scalar());
+    ICHECK(op->is_scalar());
     void* data = op->data->data;
     DataType dtype = DataType(op->data->dtype);
     auto value = te::compute(
@@ -211,9 +213,9 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
-    static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
     static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
-    CHECK(flower_call) << "relay.backend.lower_call is not registered.";
+    ICHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -226,10 +228,10 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
       }
     }
     if (count_tuple) {
-      CHECK_EQ(call_node->args.size(), 1U) << "Only allow function with a single tuple input";
+      ICHECK_EQ(call_node->args.size(), 1U) << "Only allow function with a single tuple input";
     }
 
-    CHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
+    ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
 
     Array<te::Tensor> outputs;
@@ -237,8 +239,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     // Skip fcompute for device copy operators as it is not registered.
     if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
-      outputs.push_back(
-          te::TensorNode::make(copy_input->shape, copy_input->dtype, te::Operation(), 0));
+      outputs.push_back(te::Tensor(copy_input->shape, copy_input->dtype, te::Operation(), 0));
     } else {
       LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
       outputs = lowered_out->outputs;
@@ -246,21 +247,21 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     }
 
     int op_pattern = fpattern[op];
-    if (op_pattern >= kCommReduce) {
-      CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
-          << "Two complicated op in a primitive function "
-          << " master=" << master_op_ << " current=" << op;
+    if (!use_auto_scheduler_ && op_pattern >= kCommReduce) {
+      ICHECK(!anchor_op_.defined() || anchor_op_pattern_ < kCommReduce)
+          << "Cannot apply TOPI schedule to a primitive function with two complicated ops"
+          << " anchor=" << anchor_op_ << " current=" << op;
     }
-    if (op_pattern >= master_op_pattern_) {
-      master_op_ = op;
-      master_attrs_ = call_node->attrs;
-      master_op_pattern_ = op_pattern;
-      master_implementation_ = impl;
+    if (op_pattern >= anchor_op_pattern_) {
+      anchor_op_ = op;
+      anchor_attrs_ = call_node->attrs;
+      anchor_op_pattern_ = op_pattern;
+      anchor_implementation_ = impl;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type = call_node->checked_type().as<TupleTypeNode>();
-      CHECK(tuple_type) << "Expect output to be a tuple type";
-      CHECK_EQ(tuple_type->fields.size(), outputs.size());
+      ICHECK(tuple_type) << "Expect output to be a tuple type";
+      ICHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
     // Set the name to `__copy`. It will be detected in graph runtime to perform
     // data copy across devices.
@@ -280,7 +281,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
 
   Array<te::Tensor> VisitExpr_(const LetNode* op) final {
     Array<te::Tensor> val = VisitExpr(op->value);
-    CHECK(!memo_.count(op->var));
+    ICHECK(!memo_.count(op->var));
     memo_[op->var] = val;
     return VisitExpr(op->body);
   }
@@ -288,9 +289,9 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
-      CHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
+      ICHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
       Array<te::Tensor> res = VisitExpr(field);
-      CHECK_EQ(res.size(), 1);
+      ICHECK_EQ(res.size(), 1);
       fields.push_back(res[0]);
     }
     return fields;
@@ -299,24 +300,36 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   Array<te::Tensor> VisitExpr_(const TupleGetItemNode* op) final {
     const auto* tuple_type = op->tuple->type_as<TupleTypeNode>();
     Array<te::Tensor> tuple = VisitExpr(op->tuple);
-    CHECK_EQ(tuple_type->fields.size(), tuple.size());
-    CHECK_GE(op->index, 0);
-    CHECK_LT(static_cast<size_t>(op->index), tuple.size());
+    ICHECK_EQ(tuple_type->fields.size(), tuple.size());
+    ICHECK_GE(op->index, 0);
+    ICHECK_LT(static_cast<size_t>(op->index), tuple.size());
     return {tuple[op->index]};
   }
 
  private:
   tvm::Target target_;
-  Op master_op_;
-  Attrs master_attrs_;
-  int master_op_pattern_{0};
-  OpImplementation master_implementation_;
+  Op anchor_op_;
+  Attrs anchor_attrs_;
+  int anchor_op_pattern_{0};
+  OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
+  bool use_auto_scheduler_;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
 };
+
+/*!
+ * \brief Create schedule for target.
+ * \param source_func The primitive function to be lowered.
+ * \param target The target we want to create schedule for.
+ * \return Pair of schedule and cache.
+ *  The funcs field in cache is not yet populated.
+ */
+CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
+  return ScheduleGetter(target).Create(source_func);
+}
 
 // Creates shape function from functor.
 class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
@@ -350,10 +363,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
         // flatten tuple of tensor type.
         const auto* tuple_type = param->type_as<TupleTypeNode>();
         // TODO(@icemelon): Support recursive tuple
-        CHECK(tuple_type);
+        ICHECK(tuple_type);
         for (Type field : tuple_type->fields) {
           const auto* ttype = field.as<TensorTypeNode>();
-          CHECK(ttype);
+          ICHECK(ttype);
           add_placeholder(ttype);
         }
       }
@@ -423,7 +436,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       LOG(FATAL) << "Free variable " << var->name_hint();
       return {};
     } else {
-      CHECK(data_dependants_.size());
+      ICHECK(data_dependants_.size());
       bool data_dependant = data_dependants_.back();
       if (data_dependant) {
         param_states_[var] |= kNeedInputData;
@@ -437,9 +450,29 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
     using tir::make_const;
-    CHECK(data_dependants_.size());
-    CHECK(op->is_scalar());
+    ICHECK(data_dependants_.size());
     bool data_dependant = data_dependants_.back();
+    if (!op->is_scalar()) {
+      // This is a constant weight, extract the shape of the weight tensor.
+      // This can not be data dependent.
+      CHECK(!data_dependant);
+      auto ttype = op->checked_type().as<TensorTypeNode>();
+      int ndim = static_cast<int>(ttype->shape.size());
+      Array<PrimExpr> out_shape{ndim};
+      te::Tensor value = tvm::te::compute(
+          out_shape,
+          [&](const Array<tvm::tir::Var>& indices) {
+            auto idx = indices[0];
+            PrimExpr ret = make_const(DataType::Int(64), 0);
+            for (int i = 0; i < ndim; i++) {
+              ret = tvm::if_then_else(idx == i, ttype->shape[i], ret);
+            }
+            return ret;
+          },
+          "shape_const", topi::kBroadcast);
+      scalars_.push_back(value);
+      return {value};
+    }
     if (data_dependant) {
       void* data = op->data->data;
       DataType dtype = DataType(op->data->dtype);
@@ -474,18 +507,18 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
-    static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
-    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>("TShapeDataDependant");
-    CHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
+    static auto fshape_func = Op::GetAttrMap<FShapeFunc>("FShapeFunc");
+    static auto tshape_data_dependant = Op::GetAttrMap<TShapeDataDependant>("TShapeDataDependant");
+    ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    CHECK(data_dependants_.empty() || !data_dependants_.back())
+    ICHECK(data_dependants_.empty() || !data_dependants_.back())
         << "Error in op fusion: output of the shape func is fed to a "
         << "data-dependant shape func";
-    CHECK_GT(fshape_func.count(op), 0) << "Internal error, cannot find ShapeFunc for " << op->name;
-    CHECK_GT(tshape_data_dependant.count(op), 0)
+    ICHECK_GT(fshape_func.count(op), 0) << "Internal error, cannot find ShapeFunc for " << op->name;
+    ICHECK_GT(tshape_data_dependant.count(op), 0)
         << "Internal error, cannot find TShapeDataDependant for " << op->name;
 
-    data_dependants_.push_back(tshape_data_dependant[op]);
+    data_dependants_.push_back(IsDataDependant(call_node));
     // Visit all inputs
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -498,7 +531,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       }
     }
     if (count_tuple) {
-      CHECK_EQ(call_node->args.size(), 1U) << "Only allow function with a single tuple input";
+      ICHECK_EQ(call_node->args.size(), 1U) << "Only allow function with a single tuple input";
     }
     // Get output ndims
     auto ret_type = call_node->checked_type();
@@ -508,10 +541,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     } else {
       auto rtype = ret_type.as<TupleTypeNode>();
       // TODO(@icemelon): Allow recursive tuple
-      CHECK(rtype);
+      ICHECK(rtype);
       for (size_t i = 0; i < rtype->fields.size(); ++i) {
         auto ttype = rtype->fields[i].as<TensorTypeNode>();
-        CHECK(ttype);
+        ICHECK(ttype);
         out_ndims.push_back(IntImm(DataType::Int(32), ttype->shape.size()));
       }
     }
@@ -529,7 +562,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   Array<te::Tensor> VisitExpr_(const LetNode* op) final {
     Array<te::Tensor> val = VisitExpr(op->value);
-    CHECK(!memo_.count(op->var));
+    ICHECK(!memo_.count(op->var));
     memo_[op->var] = val;
     return VisitExpr(op->body);
   }
@@ -537,23 +570,30 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
-      CHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
+      ICHECK(field->checked_type().as<TensorTypeNode>()) << "Only allow Tuple of Tensor";
       Array<te::Tensor> res = VisitExpr(field);
-      CHECK_EQ(res.size(), 1);
+      ICHECK_EQ(res.size(), 1);
       fields.push_back(res[0]);
     }
     return fields;
+  }
+
+  Array<te::Tensor> VisitExpr_(const TupleGetItemNode* op) final {
+    Array<te::Tensor> input_shapes = VisitExpr(op->tuple);
+    Array<te::Tensor> out;
+    out.push_back(input_shapes[op->index]);
+    return out;
   }
 
  private:
   /*! \brief String stream for function name */
   std::ostringstream readable_name_stream_;
   /*! \brief Map from parameter to its shape function usage state */
-  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> param_states_;
+  std::unordered_map<Expr, int, ObjectPtrHash, ObjectPtrEqual> param_states_;
   /*! \brief Map from parameter to list of data placeholder */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_data_;
+  std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_shapes_;
+  std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_shapes_;
   /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
   /*! \brief Scalars used in the shape function */
@@ -574,7 +614,7 @@ class CompileEngineImpl : public CompileEngineNode {
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
       m = (*f)(value->cached_func->funcs, key->target);
     } else {
-      m = build(value->cached_func->funcs, key->target, Target(nullptr), BuildConfig::Current());
+      m = build(value->cached_func->funcs, key->target, Target(nullptr));
     }
     value->packed_func = m.GetFunction(value->cached_func->func_name);
     return value->packed_func;
@@ -585,35 +625,41 @@ class CompileEngineImpl : public CompileEngineNode {
   }
 
   Array<tvm::runtime::Module> LowerExternalFunctions() {
-    std::unordered_map<std::string, IRModule> ext_mods;
+    Array<tvm::runtime::Module> ret;
+    std::unordered_map<std::string, std::string> cached_symbol;
     std::vector<CCacheKey> cached_ext_funcs;
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
-      CHECK(src_func.defined());
+      ICHECK(src_func.defined());
       if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
         auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
-        CHECK(code_gen.defined()) << "No external codegen is set";
+        ICHECK(code_gen.defined()) << "No external codegen is set";
         std::string code_gen_name = code_gen.value();
-        if (ext_mods.find(code_gen_name) == ext_mods.end()) {
-          ext_mods[code_gen_name] = IRModule({}, {});
-        }
-        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-        CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
-                                     << AsText(src_func, false);
-        auto gv = GlobalVar(std::string(symbol_name.value()));
-        ext_mods[code_gen_name]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
-      }
-    }
 
-    Array<tvm::runtime::Module> ret;
-    for (const auto& it : ext_mods) {
-      std::string ext_name = "relay.ext." + it.first;
-      auto pf = tvm::runtime::Registry::Get(ext_name);
-      CHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
-      runtime::Module ext_mod = (*pf)(it.second);
-      CHECK(ext_mod.defined()) << "No external runtime is generated.";
-      ret.push_back(ext_mod);
+        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        ICHECK(symbol_name.defined()) << "No external symbol is set for:\n"
+                                      << AsText(src_func, false);
+
+        std::string sn = symbol_name.value();
+        if (cached_symbol.count(sn)) {
+          cached_symbol[sn] = code_gen_name;
+        } else {
+          ICHECK_NE(sn, code_gen_name)
+              << "Found duplicated symbol: " << sn << " for: " << code_gen_name;
+        }
+
+        std::string ext_name = "relay.ext." + code_gen_name;
+        auto pf = tvm::runtime::Registry::Get(ext_name);
+        ICHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
+        // No need to keep compiler attribute at this point, functions have been
+        // extracted for specific codegen.
+        src_func = WithAttr(std::move(src_func), attr::kCompiler, NullValue<ObjectRef>());
+        runtime::Module ext_mod = (*pf)(src_func);
+
+        ICHECK(ext_mod.defined()) << "No external runtime is generated.";
+        ret.push_back(ext_mod);
+      }
     }
 
     // No need to cache external functions as we collected them all to create
@@ -625,6 +671,7 @@ class CompileEngineImpl : public CompileEngineNode {
   }
 
   void Clear() final { cache_.clear(); }
+
   // List all items in the cache.
   Array<ObjectRef> ListItems() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -635,16 +682,12 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     return items;
   }
+
   /*!
-   * \brief Create schedule for target.
-   * \param source_func The primitive function to be lowered.
-   * \param target The target we want to create schedule for.
-   * \return Pair of schedule and cache.
-   *  The funcs field in cache is not yet populated.
+   * \brief Get the cache key of the function that is being lowered currently
+   * \return the cache key
    */
-  CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
-    return ScheduleGetter(target).Create(source_func);
-  }
+  CCacheKey GetCurrentCCacheKey() { return cur_ccache_key_; }
 
  private:
   // implement lowered func
@@ -661,21 +704,24 @@ class CompileEngineImpl : public CompileEngineNode {
       value->use_count = 0;
       cache_[key] = value;
     }
+    cur_ccache_key_ = key;
+
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
     if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node = key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      CHECK(name_node.defined()) << "External function has not been attached a name yet.";
+      ICHECK(name_node.defined()) << "External function has not been attached a name yet.";
       cache_node->func_name = std::string(name_node.value());
-      cache_node->target = tvm::target::ext_dev();
+      cache_node->target = Target("ext_dev");
+      cache_node->funcs->Add(GlobalVar(cache_node->func_name), key->source_func);
       value->cached_func = CachedFunc(cache_node);
       return value;
     }
     // Enforce use the target.
     With<Target> target_scope(key->target);
 
-    CHECK(!value->cached_func.defined());
+    ICHECK(!value->cached_func.defined());
     auto cfunc = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_object<CachedFuncNode>(*(cfunc.operator->()));
 
@@ -698,9 +744,11 @@ class CompileEngineImpl : public CompileEngineNode {
     if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
       cache_node->funcs = (*f)(cfunc->schedule, all_args, cache_node->func_name, key->source_func);
     } else {
-      tvm::BuildConfig bcfg = BuildConfig::Create();
+      using tvm::transform::PassContext;
+      With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
+
       std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds, bcfg);
+      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name, binds);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -722,7 +770,7 @@ class CompileEngineImpl : public CompileEngineNode {
     // Enforce use the target.
     With<Target> target_scope(key->target);
 
-    CHECK(!value->cached_func.defined());
+    ICHECK(!value->cached_func.defined());
     auto spair = MakeShapeFunc().Create(key->source_func);
     auto cache_node = make_object<CachedFuncNode>(*(spair.second.operator->()));
     cache_node->func_name = GetUniqueName(cache_node->func_name);
@@ -732,9 +780,12 @@ class CompileEngineImpl : public CompileEngineNode {
     for (te::Tensor arg : cache_node->outputs) {
       all_args.push_back(arg);
     }
-    tvm::BuildConfig bcfg = BuildConfig::Create();
+
+    using tvm::transform::PassContext;
+    With<PassContext> fresh_pass_ctx_scope(PassContext::Create());
+
     std::unordered_map<te::Tensor, tir::Buffer> binds;
-    cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
+    cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds);
     value->cached_func = CachedFunc(cache_node);
     return value;
   }
@@ -769,15 +820,19 @@ class CompileEngineImpl : public CompileEngineNode {
   std::unordered_map<CCacheKey, CCacheValue> cache_;
   /*! \brief internal compiler cache for shape funcs */
   std::unordered_map<CCacheKey, CCacheValue> shape_func_cache_;
+  /*! \brief the cache key of the function that is being lowered currently*/
+  CCacheKey cur_ccache_key_;
 };
 
 /*! \brief The global compile engine */
-const CompileEngine& CompileEngine::Global() {
+CompileEngine& CompileEngine::Global() {
   // intentionally allocate raw pointer to avoid
   // free during destructuion.
   static CompileEngine* inst = new CompileEngine(make_object<CompileEngineImpl>());
   return *inst;
 }
+
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
     .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
@@ -810,7 +865,17 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")
     .set_body_typed([](CompileEngine self, CCacheKey key) { return self->JIT(key); });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems").set_body_typed([](CompileEngine self) {
-  return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
+  CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+  ICHECK(ptr != nullptr);
+  return ptr->ListItems();
 });
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGetCurrentCCacheKey")
+    .set_body_typed([](CompileEngine self) {
+      CompileEngineImpl* ptr = dynamic_cast<CompileEngineImpl*>(self.operator->());
+      ICHECK(ptr != nullptr);
+      return ptr->GetCurrentCCacheKey();
+    });
+
 }  // namespace relay
 }  // namespace tvm

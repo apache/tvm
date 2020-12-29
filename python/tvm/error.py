@@ -27,6 +27,7 @@ copy the examples and raise errors with the same message convention.
 """
 from tvm._ffi.base import register_error, TVMError
 
+
 @register_error
 class InternalError(TVMError):
     """Internal error in the system.
@@ -43,11 +44,14 @@ class InternalError(TVMError):
         # Example code in python
         raise InternalError("internal error detail")
     """
+
     def __init__(self, msg):
         # Patch up additional hint message.
         if "TVM hint:" not in msg:
-            msg += ("\nTVM hint: You hit an internal error. " +
-                    "Please open a thread on https://discuss.tvm.ai/ to report it.")
+            msg += (
+                "\nTVM hint: You hit an internal error. "
+                + "Please open a thread on https://discuss.tvm.apache.org/ to report it."
+            )
         super(InternalError, self).__init__(msg)
 
 
@@ -120,4 +124,12 @@ class OpAttributeUnImplemented(OpError, NotImplementedError):
         raise OpAttributeUnImplemented(
             "Attribute {} is not supported in operator {}".format(
                 attr_name, op_name))
+    """
+
+
+@register_error
+class DiagnosticError(TVMError):
+    """Error diagnostics were reported during the execution of a pass.
+
+    See the configured diagnostic renderer for detailed error information.
     """

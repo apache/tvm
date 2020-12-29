@@ -17,8 +17,8 @@
 
 .. _dev-security:
 
-Security
-========
+Security Guide
+==============
 
 Reporting Security Issues
 -------------------------

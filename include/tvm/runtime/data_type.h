@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/support/logging.h>
 
 #include <string>
 #include <type_traits>
@@ -40,12 +40,21 @@ namespace runtime {
  */
 class DataType {
  public:
-  /*! \brief Type code for the DataType. */
+  /*!
+   * \brief Type code for the DataType.
+   *
+   * DLPack consistency:
+   * 1) kInt is consistent with kDLInt
+   * 2) kUInt is consistent with kDLUInt
+   * 3) kFloat is consistent with kDLFloat
+   */
   enum TypeCode {
     kInt = kDLInt,
     kUInt = kDLUInt,
     kFloat = kDLFloat,
-    kHandle = TVMTypeCode::kTVMOpaqueHandle,
+    kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
+    kBFloat = kDLBfloat,
+    kCustomBegin = 129
   };
   /*! \brief default constructor */
   DataType() {}
@@ -64,6 +73,9 @@ class DataType {
     data_.code = static_cast<uint8_t>(code);
     data_.bits = static_cast<uint8_t>(bits);
     data_.lanes = static_cast<uint16_t>(lanes);
+    if (code == kBFloat) {
+      ICHECK_EQ(bits, 16);
+    }
   }
   /*! \return The type code. */
   int code() const { return static_cast<int>(data_.code); }
@@ -81,6 +93,8 @@ class DataType {
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
+  /*! \return whether type is a bfloat16 type. */
+  bool is_bfloat16() const { return code() == DataType::kBFloat && bits() == 16; }
   /*! \return whether type is an int type. */
   bool is_int() const { return code() == DataType::kInt; }
   /*! \return whether type is an uint type. */
@@ -112,8 +126,8 @@ class DataType {
   DataType element_of() const { return with_lanes(1); }
   /*!
    * \brief Equal comparator.
-   * \param other The data type to compre against.
-   * \return The comparison resilt.
+   * \param other The data type to compare against.
+   * \return The comparison result.
    */
   bool operator==(const DataType& other) const {
     return data_.code == other.data_.code && data_.bits == other.data_.bits &&
@@ -121,8 +135,8 @@ class DataType {
   }
   /*!
    * \brief NotEqual comparator.
-   * \param other The data type to compre against.
-   * \return The comparison resilt.
+   * \param other The data type to compare against.
+   * \return The comparison result.
    */
   bool operator!=(const DataType& other) const { return !operator==(other); }
   /*!
@@ -198,7 +212,7 @@ inline int GetVectorBytes(DataType dtype) {
       dtype == DataType::Int(1)) {
     return 1;
   }
-  CHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
+  ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
   return data_bits / 8;
 }
 
@@ -248,7 +262,7 @@ TVM_DLL uint8_t ParseCustomDatatype(const std::string& s, const char** scan);
  * \param type_code The type code .
  * \return The name of type code.
  */
-inline const char* TypeCode2Str(int type_code);
+inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code);
 
 /*!
  * \brief convert a string to TVM type.
@@ -265,38 +279,18 @@ inline DLDataType String2DLDataType(std::string s);
 inline std::string DLDataType2String(DLDataType t);
 
 // implementation details
-inline const char* TypeCode2Str(int type_code) {
-  switch (type_code) {
+inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
+  switch (static_cast<int>(type_code)) {
     case kDLInt:
       return "int";
     case kDLUInt:
       return "uint";
     case kDLFloat:
       return "float";
-    case kTVMStr:
-      return "str";
-    case kTVMBytes:
-      return "bytes";
-    case kTVMOpaqueHandle:
+    case DataType::kHandle:
       return "handle";
-    case kTVMNullptr:
-      return "NULL";
-    case kTVMDLTensorHandle:
-      return "ArrayHandle";
-    case kTVMDataType:
-      return "DLDataType";
-    case kTVMContext:
-      return "TVMContext";
-    case kTVMPackedFuncHandle:
-      return "FunctionHandle";
-    case kTVMModuleHandle:
-      return "ModuleHandle";
-    case kTVMNDArrayHandle:
-      return "NDArrayContainer";
-    case kTVMObjectHandle:
-      return "Object";
-    case kTVMObjectRValueRefArg:
-      return "ObjectRValueRefArg";
+    case kDLBfloat:
+      return "bfloat";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
       return "";
@@ -311,8 +305,8 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (DataType(t).is_void()) {
     return os << "void";
   }
-  if (t.code < kTVMCustomBegin) {
-    os << TypeCode2Str(t.code);
+  if (t.code < DataType::kCustomBegin) {
+    os << DLDataTypeCode2Str(static_cast<DLDataTypeCode>(t.code));
   } else {
     os << "custom[" << GetCustomTypeName(t.code) << "]";
   }
@@ -363,6 +357,9 @@ inline DLDataType String2DLDataType(std::string s) {
     t.bits = 1;
     t.lanes = 1;
     return t;
+  } else if (s.substr(0, 6) == "bfloat") {
+    t.code = DataType::kBFloat;
+    scan = s.c_str() + 6;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);
   } else {
@@ -376,7 +373,7 @@ inline DLDataType String2DLDataType(std::string s) {
   if (*xdelim == 'x') {
     t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
   }
-  CHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
+  ICHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
   return t;
 }
 

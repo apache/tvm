@@ -14,26 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument,inconsistent-return-statements
+# pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
 import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
-from ..op import op as _reg
 from . import _quantize
 from .quantize import _forward_op
 
+
 def register_partition_function(op_name, frewrite=None, level=10):
-    def _register(func):
-        return _reg._Register(op_name, "FQPartitionRewrite", func, level)
-    return _register(frewrite) if frewrite is not None else _register
+    return tvm.ir.register_op_attr(op_name, "FQPartitionRewrite", frewrite, level)
 
 
 @tvm._ffi.register_object("relay.QPartitionExpr")
 class QPartitionExpr(_expr.TempExpr):
     def __init__(self, expr):
-        self.__init_handle_by_constructor__(
-            _quantize.make_partition_expr, expr)
+        self.__init_handle_by_constructor__(_quantize.make_partition_expr, expr)
 
 
 def partition_expr_check(expr):
@@ -61,6 +58,7 @@ def identity_partition_function(ref_call, new_args, ctx):
         return QPartitionExpr(_forward_op(ref_call, [expr]))
     return None
 
+
 register_partition_function("clip", identity_partition_function)
 register_partition_function("nn.relu", identity_partition_function)
 register_partition_function("nn.max_pool2d", identity_partition_function)
@@ -84,7 +82,7 @@ def add_partition_generic(ref_call, new_args, ctx):
         #     ...
         lhs = new_args[0].realize()
         rhs = new_args[1].realize()
-        return _forward_op(ref_call, [lhs, rhs])
+        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
     if not lhs_cond and rhs_cond:
         # - introduced by residual connection in ResNet
         #     ...
@@ -125,25 +123,48 @@ def add_partition_generic(ref_call, new_args, ctx):
     raise ValueError
 
 
+def mul_partition_generic(ref_call, new_args, ctx):
+    """Rewrite function for ewise mul for partition for generic devices"""
+    lhs_cond, lhs = partition_expr_check(new_args[0])
+    rhs_cond, rhs = partition_expr_check(new_args[1])
+
+    if lhs_cond:
+        # introduced by bn: multiply(out, scale)
+        lhs = new_args[0].realize()
+        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
+
+    if not lhs_cond and not rhs_cond:
+        # trivial case
+        return None
+
+    raise ValueError
+
+
 # TODO(ziheng) enhance `register_partition_function` to dispatch
 # for target automatically
 @register_partition_function("add")
 def add_partition_function(ref_call, new_args, ctx):
     """Rewrite function for ewise add for partition"""
     target = tvm.target.Target.current()
-    if target and 'cuda' in target.keys:
-        #TODO(wuwei/ziheng) cuda specific rules
+    if target and "cuda" in target.keys:
+        # TODO(wuwei/ziheng) cuda specific rules
         return add_partition_generic(ref_call, new_args, ctx)
     return add_partition_generic(ref_call, new_args, ctx)
 
 
 @register_partition_function("multiply")
 def multiply_partition_function(ref_call, new_args, ctx):
-    """Rewrite function for ewise add for partition"""
-    lhs_cond, lhs = partition_expr_check(new_args[0])
-    rhs_cond, rhs = partition_expr_check(new_args[1])
-    if lhs_cond:
-        # introduced by bn: multiply(out, scale)
-        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
-    assert (not lhs_cond) and (not rhs_cond)
-    return None
+    """Rewrite function for ewise multiply for partition"""
+    return mul_partition_generic(ref_call, new_args, ctx)
+
+
+# add cast after the relu op to make it run on vta
+@register_partition_function("nn.global_avg_pool2d")
+def global_avg_pool2d_partition_function(ref_call, new_args, ctx):
+    cond, expr = partition_expr_check(new_args[0])
+    if cond:
+        expr = new_args[0].realize()
+    else:
+        expr = QPartitionExpr(new_args[0]).realize()
+
+    return _forward_op(ref_call, [expr])

@@ -34,7 +34,7 @@
 
 #include "src/runtime/c_runtime_api.cc"
 #include "src/runtime/cpu_device_api.cc"
-#include "src/runtime/file_util.cc"
+#include "src/runtime/file_utils.cc"
 #include "src/runtime/graph/graph_runtime.cc"
 #include "src/runtime/library_module.cc"
 #include "src/runtime/module.cc"
@@ -74,6 +74,14 @@ TVM_REGISTER_GLOBAL("testing.add_one").set_body_typed([](int x) { return x + 1; 
 TVM_REGISTER_GLOBAL("testing.wrap_callback").set_body([](TVMArgs args, TVMRetValue* ret) {
   PackedFunc pf = args[0];
   *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
+});
+
+// internal function used for debug and testing purposes
+TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRetValue* ret) {
+  runtime::ObjectRef obj = args[0];
+  // substract the current one because we always copy
+  // and get another value.
+  *ret = (obj.use_count() - 1);
 });
 }  // namespace runtime
 }  // namespace tvm

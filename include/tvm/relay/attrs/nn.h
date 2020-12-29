@@ -29,6 +29,8 @@
 
 #include <string>
 
+#include "tvm/runtime/container.h"
+
 namespace tvm {
 namespace relay {
 
@@ -85,7 +87,7 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(data_layout)
         .set_default("NCW")
         .describe(
@@ -115,9 +117,10 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -148,7 +151,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(data_layout)
         .set_default("NCHW")
         .describe(
@@ -187,6 +190,17 @@ struct ConvWinogradWeightTransformAttrs : public tvm::AttrsNode<ConvWinogradWeig
   }
 };
 
+/*! \brief Attributes used in gemm weight transformation operators */
+struct ConvGemmWeightTransformAttrs : public tvm::AttrsNode<ConvGemmWeightTransformAttrs> {
+  int tile_rows;
+  int tile_cols;
+
+  TVM_DECLARE_ATTRS(ConvGemmWeightTransformAttrs, "relay.attrs.ConvGemmWeightTransformAttrs") {
+    TVM_ATTR_FIELD(tile_rows).describe("Tile rows of the weight transformation for ConvGemm.");
+    TVM_ATTR_FIELD(tile_cols).describe("Tile columns of the weight transformation for ConvGemm.");
+  }
+};
+
 /*! \brief Attributes used in convolution operators with winograd algorithm */
 struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
   int tile_size;
@@ -196,9 +210,10 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DWinogradAttrs, "relay.attrs.Conv2DWinogradAttrs") {
@@ -231,7 +246,7 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(data_layout)
         .set_default("NCHW")
         .describe(
@@ -286,9 +301,10 @@ struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv3DAttrs, "relay.attrs.Conv3DAttrs") {
@@ -320,7 +336,7 @@ struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(data_layout)
         .set_default("NCDHW")
         .describe(
@@ -342,6 +358,82 @@ struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
             "dimensions respectively. Default to be same as input layout.");
 
     // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
+
+/*! \brief Attributes used in transposed convolution operator */
+struct Conv3DTransposeAttrs : public tvm::AttrsNode<Conv3DTransposeAttrs> {
+  IndexExpr channels;
+  Array<IndexExpr> kernel_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  Array<IndexExpr> output_padding;
+  Array<IndexExpr> dilation;
+  int groups;
+  std::string data_layout;
+  std::string kernel_layout;
+  std::string out_layout;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Conv3DTransposeAttrs, "relay.attrs.Conv3DTransposeAttrs") {
+    TVM_ATTR_FIELD(channels)
+        .set_default(NullValue<IndexExpr>())
+        .describe(
+            "The dimensionality of the output space"
+            "i.e. the number of output channels in the convolution.");
+    TVM_ATTR_FIELD(kernel_size)
+        .describe("The dimensions of the convolution window.")
+        .set_default(NullValue<Array<IndexExpr>>());
+    TVM_ATTR_FIELD(strides)
+        .set_default(Array<IndexExpr>({1, 1, 1}))
+        .describe("The strides of the convolution.");
+    TVM_ATTR_FIELD(output_padding)
+        .set_default(Array<IndexExpr>({0, 0, 0}))
+        .describe(
+            "Zero-padding added to one side of the output."
+            "Padding support both symmetric and asymmetric as"
+            "one int : same padding used on all sides"
+            "three int : front, bottom, right will use same padding as back, top, left"
+            "six int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(padding)
+        .set_default(Array<IndexExpr>({0, 0, 0}))
+        .describe(
+            "If padding is non-zero, then the input is implicitly zero-padded"
+            "Padding support both symmetric and asymmetric as"
+            "one int : same padding used on all sides"
+            "three int : front, bottom, right will use same padding as back, top, left"
+            "six int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(dilation)
+        .set_default(Array<IndexExpr>({1, 1, 1}))
+        .describe("Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).set_default(1).describe(
+        "Controls the connections between inputs and outputs."
+        "At groups=1, all inputs are convolved to all outputs."
+        "At groups=2, the operation becomes equivalent to having two convolution"
+        "layers side by side, each seeing half the input channels, and producing"
+        "half the output channels, and both subsequently concatenated.");
+    TVM_ATTR_FIELD(data_layout)
+        .set_default("NCDHW")
+        .describe(
+            "Dimension ordering of data. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Convolution is applied on the 'D', 'H' and"
+            "'W' dimensions.");
+    TVM_ATTR_FIELD(kernel_layout)
+        .set_default("OIDHW")
+        .describe(
+            "Dimension ordering of data and weight. Can be 'OIDHW', 'OIDHW16o16i', etc."
+            "'O', 'I', 'D', 'H', 'W' stands for num_filter, input_channel, depth, height, and width"
+            "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout)
+        .set_default("")
+        .describe(
+            "Dimension ordering of output. Can be 'NCDHW', 'NDHWC', etc."
+            "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+            "dimensions respectively. Default to be same as input layout.");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
@@ -393,7 +485,7 @@ struct Conv3DWinogradAttrs : public tvm::AttrsNode<Conv3DWinogradAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(data_layout)
         .set_default("NCDHW")
         .describe(
@@ -452,7 +544,7 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
             "i.e. the number of output channels in the convolution.");
     TVM_ATTR_FIELD(kernel_size)
         .describe("The dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("The strides of the convolution.");
@@ -509,11 +601,13 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
 /*! \brief Attributes used in dilate operator */
 struct DilateAttrs : public tvm::AttrsNode<DilateAttrs> {
   Array<IndexExpr> strides;
+  double dilation_value;
 
   TVM_DECLARE_ATTRS(DilateAttrs, "relay.attrs.DilateAttrs") {
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1, 1}))
         .describe("Dilation stride on each dimension, 1 means no dilation.");
+    TVM_ATTR_FIELD(dilation_value).set_default(0.0).describe("Value used to dilate the input.");
   }
 };
 
@@ -539,7 +633,7 @@ struct Conv1DTransposeAttrs : public tvm::AttrsNode<Conv1DTransposeAttrs> {
             "i.e. the number of output channels in the convolution.");
     TVM_ATTR_FIELD(kernel_size)
         .describe("The dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(strides)
         .set_default(Array<IndexExpr>({1}))
         .describe("The strides of the convolution.");
@@ -592,7 +686,7 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  std::string layout;
+  tvm::String layout;
   bool ceil_mode;
 
   TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relay.attrs.MaxPool2DAttrs") {
@@ -623,7 +717,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  std::string layout;
+  tvm::String layout;
   bool ceil_mode;
   bool count_include_pad;
 
@@ -655,7 +749,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
 
 /*! \brief Attributes for global pool operator */
 struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
-  std::string layout;
+  tvm::String layout;
 
   TVM_DECLARE_ATTRS(GlobalPool2DAttrs, "relay.attrs.GlobalPool2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
@@ -832,6 +926,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
@@ -844,9 +939,24 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   }
 };
 
+/*! \brief Attributes for batch matmul operator */
+struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+
+  TVM_DECLARE_ATTRS(BatchMatmulAttrs, "relay.attrs.BatchMatmulAttrs") {}
+};
+
 /*! \brief Attributes for sparse_dense operator */
 struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
-  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {}
+  bool sparse_lhs;
+
+  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
+    TVM_ATTR_FIELD(sparse_lhs)
+        .set_default(false)
+        .describe(
+            "Indicate whether sparse matrix is multiplied on the right or the left. If true, then "
+            "the operation is S * D^T (D dense, S sparse). If false, the operation is D * S^T");
+  }
 };
 
 /*! \brief Attributes for sparse_transpose operator */
@@ -867,8 +977,8 @@ struct FIFOBufferAttrs : public tvm::AttrsNode<FIFOBufferAttrs> {
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   double scale_h;
   double scale_w;
-  std::string layout;
-  std::string method;
+  tvm::String layout;
+  tvm::String method;
   bool align_corners;
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
@@ -929,7 +1039,7 @@ struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   double pad_value;
-  Array<Array<IndexExpr> > pad_width;
+  Array<Array<Integer>> pad_width;
   std::string pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
@@ -950,7 +1060,7 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
 /*! \brief Attributes used for the MirrorPadding operator */
 struct MirrorPadAttrs : public tvm::AttrsNode<MirrorPadAttrs> {
   std::string mode;
-  Array<Array<IndexExpr> > pad_width;
+  Array<Array<IndexExpr>> pad_width;
 
   TVM_DECLARE_ATTRS(MirrorPadAttrs, "relay.attrs.MirrorPadAttrs") {
     TVM_ATTR_FIELD(mode)
@@ -1155,7 +1265,7 @@ struct DeformableConv2DAttrs : public tvm::AttrsNode<DeformableConv2DAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<Array<IndexExpr> >());
+        .set_default(NullValue<Array<IndexExpr>>());
     TVM_ATTR_FIELD(data_layout)
         .set_default("NCHW")
         .describe(
@@ -1202,6 +1312,64 @@ struct SubPixelAttrs : public tvm::AttrsNode<SubPixelAttrs> {
         "DCR or CDR.");
   }
 };  // struct SubPixelAttrs
+
+/*! \brief Attributes used in correlation operators */
+struct CorrelationAttrs : public tvm::AttrsNode<CorrelationAttrs> {
+  int kernel_size;
+  int max_displacement;
+  int stride1;
+  int stride2;
+  Array<IndexExpr> padding;
+  bool is_multiply;
+  String layout;
+
+  TVM_DECLARE_ATTRS(CorrelationAttrs, "relay.attrs.CorrelationAttrs") {
+    TVM_ATTR_FIELD(kernel_size)
+        .describe("Kernel size for correlation, must be an odd number.")
+        .set_default(1);
+    TVM_ATTR_FIELD(max_displacement).describe("Max displacement of Correlation.").set_default(1);
+    TVM_ATTR_FIELD(stride1).describe("Stride for data1.").set_default(1);
+    TVM_ATTR_FIELD(stride2).describe("Stride for data2.").set_default(1);
+    TVM_ATTR_FIELD(padding)
+        .describe("Padding for data1 and data2.")
+        .set_default(Array<IndexExpr>{0, 0});
+    TVM_ATTR_FIELD(is_multiply)
+        .describe("Operation type is either multiplication or substraction.")
+        .set_default(true);
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively.");
+  }
+};  // struct CorrelationAttrs
+
+/*! \brief Attributes used in SpaceToBatchND operator */
+struct SpaceToBatchNDAttrs : public tvm::AttrsNode<SpaceToBatchNDAttrs> {
+  Array<Integer> block_shape;
+  Array<Array<IndexExpr>> paddings;
+  double pad_value;
+
+  TVM_DECLARE_ATTRS(SpaceToBatchNDAttrs, "relay.attrs.SpaceToBatchNDAttrs") {
+    TVM_ATTR_FIELD(block_shape)
+        .set_default(Array<Integer>({1, 1}))
+        .describe("1-D containing block size for each spatial dimension.");
+    TVM_ATTR_FIELD(paddings).describe("2-D containing paddings for each spatial dimension.");
+    TVM_ATTR_FIELD(pad_value).set_default(0.0).describe("The value used for padding.");
+  }
+};  // struct SpaceToBatchNDAttrs
+
+/*! \brief Attributes used in BatchToSpaceND operator */
+struct BatchToSpaceNDAttrs : public tvm::AttrsNode<BatchToSpaceNDAttrs> {
+  Array<Integer> block_shape;
+  Array<Array<IndexExpr>> crops;
+
+  TVM_DECLARE_ATTRS(BatchToSpaceNDAttrs, "relay.attrs.BatchToSpaceNDAttrs") {
+    TVM_ATTR_FIELD(block_shape)
+        .set_default(Array<Integer>({1, 1}))
+        .describe("1-D containing block size for each spatial dimension.");
+    TVM_ATTR_FIELD(crops).describe("2-D containing amount to crop from spatial dimension.");
+  }
+};  // struct BatchToSpaceNDAttrs
 
 }  // namespace relay
 }  // namespace tvm

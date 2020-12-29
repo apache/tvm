@@ -24,6 +24,7 @@ from . import _ffi_api
 
 class CallingConv(IntEnum):
     """Possible kinds of calling conventions."""
+
     DEFAULT = 0
     C_PACKED_FUNC = 1
     DEVICE_KERNEL_LAUNCH = 2
@@ -31,10 +32,10 @@ class CallingConv(IntEnum):
 
 class BaseFunc(RelayExpr):
     """Base class of all functions."""
+
     @property
     def attrs(self):
-        """Return the attrs member of the function.
-        """
+        """Return the attrs member of the function."""
         return _ffi_api.BaseFunc_Attrs(self)
 
     def with_attr(self, attr_key_or_dict, attr_value=None):
@@ -59,9 +60,9 @@ class BaseFunc(RelayExpr):
 
         if isinstance(attr_key_or_dict, dict):
             for key, val in attr_key_or_dict.items():
-                res = _ffi_api.BaseFuncWithAttr(
-                    res._move(), key, tvm.runtime.convert(val))
+                res = _ffi_api.BaseFuncWithAttr(res._move(), key, tvm.runtime.convert(val))
             return res
 
         return _ffi_api.BaseFuncWithAttr(
-            res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value))
+            res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
+        )

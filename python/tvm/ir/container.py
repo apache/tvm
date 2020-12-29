@@ -22,7 +22,7 @@ from tvm.runtime.container import getitem_helper
 from tvm.runtime import _ffi_node_api
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("Array")
 class Array(Object):
     """Array container of TVM.
 
@@ -31,9 +31,9 @@ class Array(Object):
     to Array during tvm function call.
     You may get Array in return values of TVM function call.
     """
+
     def __getitem__(self, idx):
-        return getitem_helper(
-            self, _ffi_node_api.ArrayGetItem, len(self), idx)
+        return getitem_helper(self, _ffi_node_api.ArrayGetItem, len(self), idx)
 
     def __len__(self):
         return _ffi_node_api.ArraySize(self)
@@ -47,6 +47,7 @@ class Map(Object):
     Normally python dict will be converted automaticall to Map during tvm function call.
     You can use convert to create a dict[Object-> Object] into a Map
     """
+
     def __getitem__(self, k):
         return _ffi_node_api.MapGetItem(self, k)
 
@@ -56,19 +57,25 @@ class Map(Object):
     def items(self):
         """Get the items from the map"""
         akvs = _ffi_node_api.MapItems(self)
-        return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
+        return [(akvs[i], akvs[i + 1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
         return _ffi_node_api.MapSize(self)
 
+    def get(self, key, default=None):
+        """Get an element with a default value.
 
-@tvm._ffi.register_object
-class StrMap(Map):
-    """A special map container that has str as key.
+        Parameters
+        ----------
+        key : object
+            The attribute key.
 
-    You can use convert to create a dict[str->Object] into a Map.
-    """
-    def items(self):
-        """Get the items from the map"""
-        akvs = _ffi_node_api.MapItems(self)
-        return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
+        default : object
+            The default object.
+
+        Returns
+        -------
+        value: object
+            The result value.
+        """
+        return self[key] if key in self else default

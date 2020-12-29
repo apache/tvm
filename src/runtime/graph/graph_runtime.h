@@ -41,10 +41,10 @@ namespace tvm {
 namespace runtime {
 
 /*! \brief macro to do C API call */
-#define TVM_CCALL(func)                    \
-  {                                        \
-    int ret = (func);                      \
-    CHECK_EQ(ret, 0) << TVMGetLastError(); \
+#define TVM_CCALL(func)                     \
+  {                                         \
+    int ret = (func);                       \
+    ICHECK_EQ(ret, 0) << TVMGetLastError(); \
   }
 
 /*! \brief Magic number for NDArray list file  */
@@ -94,10 +94,13 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    *  processor.
    * \param ctxs The context of the host and devices where graph nodes will be
    *  executed on.
+   * \param lookup_linked_param_func If given, a PackedFunc invoked to lookup linked parameters
+   *  by storage_id. If not given, linked parameters are looked-up using an internal implementation,
+   *  which is not compatible with RPCModules.
    */
 
   void Init(const std::string& graph_json, tvm::runtime::Module module,
-            const std::vector<TVMContext>& ctxs);
+            const std::vector<TVMContext>& ctxs, const PackedFunc lookup_linked_param_func);
 
   /*!
    * \brief Get the input index given the name of input.
@@ -124,6 +127,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    * \return The number of outputs from graph.
    */
   int NumOutputs() const;
+  /*!
+   * \brief Get the number of inputs
+   *
+   * \return The number of inputs to the graph.
+   */
+  int NumInputs() const;
   /*!
    * \brief Return NDArray for given input index.
    * \param index The input index.
@@ -176,7 +185,10 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   struct PoolEntry {
     size_t size;
     int device_type;
-    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
+    int param_data_entry;
+    NDArray linked_param;
+    //    PoolEntry(int s, int dev_type, void* pre_linked_param) :
+    //        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
   // Node entry
   struct NodeEntry {
@@ -186,13 +198,13 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     // JSON Loader
     void Load(dmlc::JSONReader* reader) {
       reader->BeginArray();
-      CHECK(reader->NextArrayItem()) << "invalid json format";
+      ICHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&node_id);
-      CHECK(reader->NextArrayItem()) << "invalid json format";
+      ICHECK(reader->NextArrayItem()) << "invalid json format";
       reader->Read(&index);
       if (reader->NextArrayItem()) {
         reader->Read(&version);
-        CHECK(!reader->NextArrayItem()) << "invalid json format";
+        ICHECK(!reader->NextArrayItem()) << "invalid json format";
       } else {
         version = 0;
       }
@@ -210,6 +222,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
     std::vector<NodeEntry> inputs;
     // control deps
     std::vector<uint32_t> control_deps;
+
     // JSON Loader
     void LoadAttrs(dmlc::JSONReader* reader, TVMOpParam* param) {
       int bitmask = 0;
@@ -231,7 +244,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           bitmask |= 8;
         }
       }
-      CHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "invalid format";
+      ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "invalid format";
     }
     // JSON Loader
     void Load(dmlc::JSONReader* reader) {
@@ -256,7 +269,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      CHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
+      ICHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
     }
   };
   struct GraphAttr {
@@ -273,58 +286,58 @@ class TVM_DLL GraphRuntime : public ModuleNode {
       while (reader->NextObjectItem(&key)) {
         if (key == "dltype") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_str");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_str");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&dltype);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
           bitmask |= 1;
         } else if (key == "storage_id") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_int");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_int");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&storage_id);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
           bitmask |= 2;
         } else if (key == "shape") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_shape");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_shape");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&shape);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
           bitmask |= 4;
         } else if (key == "device_index") {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_int");
-          CHECK(reader->NextArrayItem());
+          ICHECK_EQ(type, "list_int");
+          ICHECK(reader->NextArrayItem());
           reader->Read(&device_index);
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
         } else {
           reader->BeginArray();
-          CHECK(reader->NextArrayItem());
+          ICHECK(reader->NextArrayItem());
           reader->Read(&type);
           if (type == "list_int") {
-            CHECK(reader->NextArrayItem());
+            ICHECK(reader->NextArrayItem());
             std::vector<int> temp;
             reader->Read(&temp);
           } else if (type == "size_t") {
-            CHECK(reader->NextArrayItem());
+            ICHECK(reader->NextArrayItem());
             size_t temp;
             reader->Read(&temp);
           } else {
             LOG(FATAL) << "cannot skip graph attr " << key;
           }
-          CHECK(!reader->NextArrayItem());
+          ICHECK(!reader->NextArrayItem());
         }
       }
-      CHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
+      ICHECK_EQ(bitmask, 1 | 2 | 4) << "invalid format";
     }
   };
   // The graph attribute fields.
@@ -354,8 +367,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
         LOG(FATAL) << "key " << key << " is not supported";
       }
     }
-    CHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
+    ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
+  /*! \brief PackedFunc to lookup a linked paramter from a local Module. */
+  void DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv);
+  /*! \brief Delete NDArray::Container with linked (i.e. static) data. */
+  static void LinkedNDArrayDeleter(Object* container);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors. */
@@ -401,9 +418,18 @@ class TVM_DLL GraphRuntime : public ModuleNode {
   std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()>> op_execs_;
+  /*! \brief Linked parameter lookup function. */
+  PackedFunc lookup_linked_param_;
+  /*! \brief Module's _lookup_linked_param function, used by DefaultLookupLinkedParam. */
+  PackedFunc module_lookup_linked_param_;
+  /*!
+   * \brief True when module_lookup_linked_param_ is valid.
+   * When the module does not include linked parmeters, module_lookup_linked_param_ will be nullptr.
+   */
+  bool module_lookup_linked_param_valid_;
 };
 
-std::vector<TVMContext> GetAllContext(const TVMArgs& args);
+std::vector<TVMContext> GetAllContext(const TVMArgs& args, int ctx_start_arg);
 }  // namespace runtime
 }  // namespace tvm
 

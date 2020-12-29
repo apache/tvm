@@ -387,7 +387,7 @@ The following left fold flattens a list of lists (using concatenation):
 Note that these iteration constructs can be implemented directly in Relay's
 source language and more can easily be defined (and for more data types, like trees),
 rather than being constructs built into the language (e.g.,
-`"foreach" in MXNet <https://mxnet.incubator.apache.org/versions/master/tutorials/control_flow/ControlFlowTutorial.html>`__).
+`"foreach" in MXNet <https://mxnet.apache.org/versions/master/tutorials/control_flow/ControlFlowTutorial.html>`__).
 ADTs and their extensibility allow for a broad range of iterations and data structures to be expressed
 in Relay and supported by the type system without having to modify the language implementation.
 

@@ -17,6 +17,7 @@
 import tvm
 from tvm import te
 
+
 def test_dtype_bound():
     analyzer = tvm.arith.Analyzer()
 
@@ -44,8 +45,7 @@ def test_cast_bound():
     assert bd.min_value == 0
     assert bd.max_value == 2
 
-    bd = analyzer.const_int_bound(
-        tmod(x, 3).astype("float32").astype("int32"))
+    bd = analyzer.const_int_bound(tmod(x, 3).astype("float32").astype("int32"))
     assert bd.min_value == -2
     assert bd.max_value == 2
 
@@ -75,6 +75,20 @@ def test_add_sub_bound():
     bd = analyzer.const_int_bound(1 - x)
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == 1
+
+    ## constants with negative or positive max(int64) occassionally show up
+    ## in models, this is to ensure we can handle those cases
+    analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.NEG_INF), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
+    bd = analyzer.const_int_bound(x + y)
+    assert bd.min_value == bd.NEG_INF
+    assert bd.max_value == bd.POS_INF
+
+    analyzer.update(x, tvm.arith.ConstIntBound(bd.POS_INF, bd.POS_INF), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
+    bd = analyzer.const_int_bound(x + y)
+    assert bd.min_value == bd.NEG_INF
+    assert bd.max_value == bd.POS_INF
 
 
 def test_mul_bound():
@@ -122,6 +136,12 @@ def test_truncdiv_bound():
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
 
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(-4, 12), override=True)
+    bd = analyzer.const_int_bound(tdiv(x, y))
+    assert bd.min_value == -9
+    assert bd.max_value == 9
+
 
 def test_truncmod_bound():
     analyzer = tvm.arith.Analyzer()
@@ -168,6 +188,12 @@ def test_floordiv_bound():
     bd = analyzer.const_int_bound(fld(x, y))
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
+
+    analyzer.update(x, tvm.arith.ConstIntBound(-9, 4), override=True)
+    analyzer.update(y, tvm.arith.ConstIntBound(-4, 12), override=True)
+    bd = analyzer.const_int_bound(fld(x, y))
+    assert bd.min_value == -9
+    assert bd.max_value == 9
 
 
 def test_floormod_bound():
@@ -228,8 +254,7 @@ def test_select_bound():
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
 
-    bd = analyzer.const_int_bound(
-        tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1))
+    bd = analyzer.const_int_bound(tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1))
     assert bd.min_value == 0
     assert bd.max_value == 11
 
@@ -284,7 +309,27 @@ def test_size_var_bound():
     assert bd.max_value == bd.POS_INF
 
 
+def test_let_bound():
+    analyzer = tvm.arith.Analyzer()
+    x = te.var("x")
+    bd = analyzer.const_int_bound(tvm.tir.Let(x, 1, x + 1))
+    assert bd.min_value == 2
+    assert bd.max_value == 2
+
+
+def test_floormod_negative_divisor():
+    analyzer = tvm.arith.Analyzer()
+    flm, fld = tvm.te.floormod, tvm.te.floordiv
+    a, b = te.var("a"), te.var("b")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 6))
+    analyzer.update(b, tvm.arith.ConstIntBound(-5, 7))
+    bd = analyzer.const_int_bound(flm(a, b))
+    assert bd.min_value == -4
+    assert bd.max_value == 6
+
+
 if __name__ == "__main__":
+    test_let_bound()
     test_dtype_bound()
     test_cast_bound()
     test_add_sub_bound()
@@ -298,3 +343,4 @@ if __name__ == "__main__":
     test_shift_and_bound()
     test_mix_index_bound()
     test_size_var_bound()
+    test_floormod_negative_divisor()

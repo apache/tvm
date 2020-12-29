@@ -137,7 +137,7 @@ void CodeGenVivadoHLS::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOL
   PrintBinaryExpr(op, opstr, os, this);
 }
 
-runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
+runtime::Module BuildSDAccel(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenVivadoHLS cg;
@@ -146,10 +146,10 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
   cg.Init(output_ssa);
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenVHLS: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenVHLS: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenVLHS: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
@@ -160,7 +160,7 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
   Array<Array<runtime::String> > kernel_info;
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
@@ -171,15 +171,15 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
     }
 
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    CHECK(global_symbol.defined())
+    ICHECK(global_symbol.defined())
         << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
     kernel_info.push_back({global_symbol.value(), code});
   }
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    Target target = Target::Create(target_str);
-    xclbin = (*f)(kernel_info, target->device_name).operator std::string();
+    String device = target->GetAttr<String>("device", "").value();
+    xclbin = (*f)(kernel_info, device).operator std::string();
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }

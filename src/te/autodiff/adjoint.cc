@@ -30,14 +30,16 @@
  *        (3) and sum them together to get the adjoint of the input itself.
  *        The three steps are computed recursively.
  */
-#include <topi/elemwise.h>
-#include <topi/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/autodiff.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/topi/elemwise.h>
+#include <tvm/topi/transform.h>
 
 #include <memory>
 #include <vector>
+
+#include "ad_utils.h"
 
 namespace tvm {
 namespace te {
@@ -54,7 +56,7 @@ Tensor Identity(const Tensor& output) {
       res =
           res && (PrimExpr(input_indices[i]) == PrimExpr(input_indices[output->shape.size() + i]));
     }
-    return CastNode::make(output->dtype, res);
+    return Cast(output->dtype, res);
   };
   return te::compute(shape, func, "identity");
 }
@@ -63,6 +65,10 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
   Tensor jac = Jacobian(output, input);
   Tensor result = topi::tensordot(head, jac, /*axes=*/output->shape.size(),
                                   output->op->name + "." + input->op->name + ".grad");
+  result = InlineTensorAccess(result, {jac}, false);
+  result = RemoveJacobianAndLiftNonzeroCond(result);
+  // inline tail call
+  result = InlineTailTensorAccess(result);
   return result;
 }
 
@@ -104,8 +110,7 @@ Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
         // No reverse dependencies means that the output does not depend on this tensor,
         // return a zero tensor of the appropriate shape
         // (i.e., output shape + tensor shape, aka shape of Jacobian)
-        Array<PrimExpr> result_shape(head->shape.begin(),
-                                     head->shape.end() + (-output->shape.size()));
+        Array<PrimExpr> result_shape(head->shape.begin(), head->shape.end() - output->shape.size());
         for (auto e : tensor->shape) {
           result_shape.push_back(e);
         }

@@ -35,28 +35,60 @@ auto getFunc(void* bundle, const char* name) {
   return f;
 }
 
+char* read_all_or_die(const char* name, const char* file_path, size_t* out_size) {
+  struct stat st;
+  if (stat(file_path, &st)) {
+    char err[1024];
+    snprintf(err, sizeof(err), "%s: statting file", name);
+    perror(err);
+    abort();
+  }
+  if (st.st_size > 1024 * 1024) {
+    std::cerr << name << ": file is over 1MB limit: " << st.st_size << " bytes" << std::endl;
+    abort();
+  }
+
+  if (out_size != nullptr) {
+    *out_size = st.st_size;
+  }
+
+  char* data = (char*)malloc(st.st_size);
+  FILE* fp = fopen(file_path, "rb");
+  size_t bytes_to_read = st.st_size;
+  size_t bytes_read = 0;
+  while (bytes_read < bytes_to_read) {
+    size_t this_round = fread(data, 1, st.st_size, fp);
+    if (this_round == 0) {
+      if (ferror(fp)) {
+        char err[1024];
+        snprintf(err, sizeof(err), "%s: error during read", name);
+        perror(err);
+      } else if (feof(fp)) {
+        std::cerr << name << ": file is shorter than its stat size (" << bytes_read << " v "
+                  << st.st_size << ")" << std::endl;
+      } else {
+        std::cerr << name << ": fread stopped returning data" << std::endl;
+      }
+      abort();
+    }
+    bytes_read += this_round;
+  }
+
+  fclose(fp);
+  return data;
+}
+
 int main(int argc, char** argv) {
   assert(argc == 6 && "Usage: test <bundle.so> <data.bin> <output.bin> <graph.json> <params.bin>");
   auto* bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
   assert(bundle);
 
-  struct stat st;
   char* json_data;
   char* params_data;
-  uint64_t params_size;
+  size_t params_size;
 
-  FILE* fp = fopen(argv[4], "rb");
-  stat(argv[4], &st);
-  json_data = (char*)malloc(st.st_size);
-  fread(json_data, st.st_size, 1, fp);
-  fclose(fp);
-
-  fp = fopen(argv[5], "rb");
-  stat(argv[5], &st);
-  params_data = (char*)malloc(st.st_size);
-  fread(params_data, st.st_size, 1, fp);
-  params_size = st.st_size;
-  fclose(fp);
+  json_data = read_all_or_die("json_data", argv[4], nullptr);
+  params_data = read_all_or_die("params_data", argv[5], &params_size);
 
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
@@ -65,15 +97,19 @@ int main(int argc, char** argv) {
       json_data, params_data, params_size);
   gettimeofday(&t1, 0);
 
-  float input_storage[10 * 5];
-  fp = fopen(argv[2], "rb");
-  fread(input_storage, 10 * 5, 4, fp);
-  fclose(fp);
+  size_t input_storage_size;
+  float* input_storage =
+      reinterpret_cast<float*>(read_all_or_die("input_storage", argv[2], &input_storage_size));
+  size_t result_storage_size;
+  float* result_storage =
+      reinterpret_cast<float*>(read_all_or_die("result_storage", argv[3], &result_storage_size));
 
-  float result_storage[10 * 5];
-  fp = fopen(argv[3], "rb");
-  fread(result_storage, 10 * 5, 4, fp);
-  fclose(fp);
+  size_t expected_size = 10 * 5 * sizeof(float);
+  if (input_storage_size != expected_size || result_storage_size != expected_size) {
+    std::cerr << "wrong input or result storage size (want " << expected_size
+              << "input_storage_size=" << input_storage_size
+              << "; result_storage_size=" << result_storage_size << std::endl;
+  }
 
   std::vector<int64_t> input_shape = {10, 5};
   DLTensor input;

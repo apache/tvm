@@ -21,9 +21,26 @@ This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 from tvm.ir import IRModule
+from tvm.relay import transform, build_module
+from tvm.runtime.ndarray import cpu
 
 from . import _ffi_api
 from .feature import Feature
+
+
+def context_analysis(mod, default_context):
+    """Analyze the device context information of each IR node in a Relay
+    program.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module.
+
+    default_context : tvm.runtime.TVMContext
+        The default context allocated to an IR node.
+    """
+    return _ffi_api.ContextAnalysis(mod, default_context)
 
 
 def post_order_visit(expr, fvisit):
@@ -103,6 +120,22 @@ def check_constant(expr):
         Whether the expression is constant.
     """
     return _ffi_api.check_constant(expr)
+
+
+def check_basic_block_normal_form(expr):
+    """Check whether an expression is in the basic block form
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    result : bool
+        Whether the expression is in the basic block form.
+    """
+    return _ffi_api.check_basic_block_normal_form(expr)
 
 
 def free_vars(expr):
@@ -217,6 +250,22 @@ def all_type_vars(expr, mod=None):
     """
     use_mod = mod if mod is not None else IRModule()
     return _ffi_api.all_type_vars(expr, use_mod)
+
+
+def all_dtypes(expr):
+    """Collect set of all data types used in `expr`.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    ret : Set[String]
+        Set of data types used in the expression (e.g., `{'int8', 'int32'}`)
+    """
+    return set(_ffi_api.all_dtypes(expr))
 
 
 def collect_device_info(expr):
@@ -351,3 +400,51 @@ def search_fc_transpose(expr):
     """
     ret = _ffi_api.search_fc_transpose(expr)
     return ret
+
+
+def get_calibration_data(mod, data):
+    """Get the calibration data of a given relay graph
+
+    This pass uses the graph runtime to get the calibration data of a module, which
+    includes the input and output values of each function. The returned data uses
+    the GlobalVar of each function as a key. Users can further access the inputs and
+    outputs by using `inputs` or  `outputs` as the key.
+
+    Following are some limitations:
+    1. The input module (graph) cannot have control flows.
+    2. The input arguments of each function cannot be tuples (outputs can be tuples).
+    3. We only handle top-level functions (i.e., nested function is not handled).
+    4. We only handle functions with `Compiler` attribute being set.
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The input module for collecting the calibration data
+
+    data : Dict[str, NDArray]
+        The input data for running the module
+
+    Returns
+    -------
+    data : Dict[tvm.relay.GlobalVar, Dict[str, NDArray]]
+    """
+    output_map = _ffi_api.get_calibrate_output_map(mod)
+
+    mod = _ffi_api.get_calibrate_module(mod)
+    mod = transform.Inline()(mod)
+
+    ref_ex = build_module.create_executor("graph", mod=mod, ctx=cpu(0))
+    ref_res = ref_ex.evaluate()(**data)
+
+    calib_data = {}
+    for gvar, indices in output_map.items():
+        offset = int(indices[0])
+        in_len = int(indices[1])
+        out_len = int(indices[2])
+        value = {
+            "inputs": ref_res[offset : offset + in_len],
+            "outputs": ref_res[offset + in_len : offset + in_len + out_len],
+        }
+        calib_data[gvar] = value
+
+    return calib_data

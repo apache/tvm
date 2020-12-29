@@ -56,6 +56,7 @@
 #ifndef TVM_IR_TRANSFORM_H_
 #define TVM_IR_TRANSFORM_H_
 
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/container.h>
@@ -71,8 +72,8 @@ namespace transform {
 // Forward declare for TraceFunc.
 class PassInfo;
 
-/*! \brief A callback for tracing passes, useful for debugging and logging.
- *
+/*!
+ * \brief A callback for tracing passes, useful for debugging and logging.
  */
 using TraceFunc =
     runtime::TypedPackedFunc<void(const IRModule& ir_module, const PassInfo& ctx, bool is_before)>;
@@ -84,31 +85,58 @@ using TraceFunc =
  */
 class PassContextNode : public Object {
  public:
-  /*!
-   * \brief The error reporter used to notify users why an optimization fails.
-   */
-  ErrorReporter err_reporter;
-
   /*! \brief The default optimization level. */
   int opt_level{2};
 
-  /*! \brief CPU is the default fallback device for heterogeneous execution. */
-  int fallback_device{static_cast<int>(kDLCPU)};
-
   /*! \brief The list of required passes. */
-  Array<runtime::String> required_pass;
+  Array<String> required_pass;
   /*! \brief The list of disabled passes. */
-  Array<runtime::String> disabled_pass;
-
+  Array<String> disabled_pass;
+  /*! \brief The diagnostic context. */
+  mutable Optional<DiagnosticContext> diag_ctx;
+  /*! \brief Pass specific configurations. */
+  Map<String, ObjectRef> config;
+  /*! \brief Trace function to be invoked before and after each pass. */
   TraceFunc trace_func;
 
   PassContextNode() = default;
 
+  /*!
+   * \brief Get a config value from the pass context.
+   *
+   * \param key The config key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef.
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetConfig(const std::string& key, Optional<TObjectRef> default_value =
+                                                             Optional<TObjectRef>(nullptr)) const {
+    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
+                  "Can only call GetAttr with ObjectRef types.");
+    if (!config.defined()) return default_value;
+    auto it = config.find(key);
+    if (it != config.end()) {
+      return Downcast<Optional<TObjectRef>>((*it).second);
+    } else {
+      return default_value;
+    }
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetConfig(const std::string& key, TObjectRef default_value) const {
+    return GetConfig<TObjectRef>(key, Optional<TObjectRef>(default_value));
+  }
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
-    v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
     v->Visit("disabled_pass", &disabled_pass);
+    v->Visit("config", &config);
+    v->Visit("diag_ctx", &diag_ctx);
   }
 
   static constexpr const char* _type_key = "transform.PassContext";
@@ -123,7 +151,6 @@ class PassContextNode : public Object {
  *
  *  auto new_ctx = PassContext::Create();
  *  ctx->opt_level = 2;
- *  ctx->fallback_device = kDLCPU;
  *  With<PassContext> scope(ctx);
  *  // pass context in effect.
  *
@@ -139,7 +166,7 @@ class PassContext : public ObjectRef {
    * \return const access pointer.
    */
   const PassContextNode* operator->() const {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<const PassContextNode*>(get());
   }
   /*!
@@ -147,9 +174,10 @@ class PassContext : public ObjectRef {
    * \return mutable access pointer.
    */
   PassContextNode* operator->() {
-    CHECK(get() != nullptr);
+    ICHECK(get() != nullptr);
     return static_cast<PassContextNode*>(get_mutable());
   }
+
   /*!
    * \brief Construct a PassContext containing the default configurations.
    * \return The new PassContext.
@@ -169,6 +197,28 @@ class PassContext : public ObjectRef {
    */
   TVM_DLL void Trace(const IRModule& module, const PassInfo& info, bool is_before) const;
 
+  /*!
+   * \brief Check whether a pass is enabled.
+   * \param info The pass information.
+   * \return true if the pass is enabled. Otherwise, false.
+   */
+  TVM_DLL bool PassEnabled(const PassInfo& info) const;
+
+  /*!
+   * \brief Register a valid configuration option and its ValueType for validation.
+   *
+   * \param key The configuration key.
+   * \tparam ValueType The value type to be registered
+   */
+  template <typename ValueType>
+  static uint32_t RegisterConfigOption(const char* key) {
+    using ValueNodeType = typename ValueType::ContainerType;
+    // NOTE: we could further update the function later.
+    uint32_t tindex = ValueNodeType::_GetOrAllocRuntimeTypeIndex();
+    RegisterConfigOption(key, tindex);
+    return tindex;
+  }
+
   // accessor.
   using ContainerType = PassContextNode;
   class Internal;
@@ -178,11 +228,25 @@ class PassContext : public ObjectRef {
   TVM_DLL void EnterWithScope();
   // The exit of a pass context scope.
   TVM_DLL void ExitWithScope();
+  // Register configuration key value type.
+  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
   friend class With<PassContext>;
 };
+
+#define TVM_PASS_CTX_CONFIG_VAR_DEF static TVM_ATTRIBUTE_UNUSED uint32_t __make_PassContext_tid
+
+/*!
+ * \brief Helper macro to register the object type to runtime.
+ *  Makes sure that the runtime type table is correctly populated.
+ *
+ *  Use this macro in the cc file for each terminal class.
+ */
+#define TVM_REGISTER_PASS_CONFIG_OPTION(Key, ValueType)      \
+  TVM_STR_CONCAT(TVM_PASS_CTX_CONFIG_VAR_DEF, __COUNTER__) = \
+      ::tvm::transform::PassContext::RegisterConfigOption<ValueType>(Key)
 
 /*!
  * \brief Meta data that will be used to help optimization and analysis.
@@ -194,10 +258,10 @@ class PassInfoNode : public Object {
   int opt_level;
 
   /*! \brief The name of an optimization/analysis pass. */
-  std::string name;
+  String name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  Array<runtime::String> required;
+  Array<String> required;
 
   PassInfoNode() = default;
 
@@ -287,7 +351,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod) const {
     const PassNode* node = operator->();
-    CHECK(node != nullptr);
+    ICHECK(node != nullptr);
     return node->operator()(std::move(mod));
   }
   /*!
@@ -300,7 +364,7 @@ class Pass : public ObjectRef {
    */
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const {
     const PassNode* node = operator->();
-    CHECK(node != nullptr);
+    ICHECK(node != nullptr);
     return node->operator()(std::move(mod), pass_ctx);
   }
 
@@ -348,7 +412,7 @@ class Sequential : public Pass {
  */
 TVM_DLL Pass
 CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, const String& name, const Array<runtime::String>& required);
+                 int opt_level, String name, Array<runtime::String> required);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

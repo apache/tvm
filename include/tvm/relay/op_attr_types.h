@@ -152,12 +152,14 @@ using FTVMAlterOpLayout =
  * \param inputs The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
- * \param desired_layout The desired layout.
+ * \param desired_layouts Specify an array of desired layouts for each input.
+ *                        For example a conv2d op: Array("NHWC", "OHWI"), this
+ *                        specifies the desired layout for data then kernel.
  * \return new_expr The modified expression.
  */
 using FTVMConvertOpLayout = runtime::TypedPackedFunc<Expr(
     const Attrs& attrs, const Array<Expr>& args, const Array<te::Tensor>& tinfos,
-    const std::string& desired_layout)>;
+    const Array<String>& desired_layouts)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
@@ -173,15 +175,11 @@ using FTVMLegalize = runtime::TypedPackedFunc<Expr(const Attrs& attrs, const Arr
 /*!
  * \brief Annotates an expression to indicate if an op should be compiled using
  * the given compiler/target.
- *
- * \param attrs The attribute of the original expr.
- * \param args The arguments of the original expr.
- *
+ * \param expr The original expr.
  * \return true if this op should be registered to invoke a specific compiler
  * for codegen, otherwise, false.
  */
-using FTVMAnnotateTarget = runtime::TypedPackedFunc<bool(const Attrs& attrs,  // NOLINT(*)
-                                                         const Array<Expr>& args)>;
+using FTVMAnnotateTarget = runtime::TypedPackedFunc<bool(const Expr& expr)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.

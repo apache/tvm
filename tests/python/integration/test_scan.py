@@ -17,14 +17,17 @@
 import tvm
 from tvm import te
 import numpy as np
+import tvm.testing
 
+
+@tvm.testing.requires_gpu
 def test_scan():
     m = te.size_var("m")
     n = te.size_var("n")
     X = te.placeholder((m, n), name="X")
     s_state = te.placeholder((m, n))
     s_init = te.compute((1, n), lambda _, i: X[0, i])
-    s_update = te.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+    s_update = te.compute((m, n), lambda t, i: s_state[t - 1, i] + X[t, i])
     scan = tvm.te.scan(s_init, s_update, s_state)
     # test scan + compute case
     res = te.compute((m, n), lambda i, j: scan[i, j])
@@ -47,12 +50,10 @@ def test_scan():
     # one line to build the function.
     def check_device(device):
         ctx = tvm.context(device, 0)
-        if not ctx.exist:
+        if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled.." % device)
             return
-        fscan = tvm.build(s, [X, res],
-                          device,
-                          name="myscan")
+        fscan = tvm.build(s, [X, res], device, name="myscan")
         # launch the kernel.
         n = 1024
         m = 10
@@ -60,8 +61,7 @@ def test_scan():
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros((m, n), dtype=res.dtype), ctx)
         fscan(a, b)
-        tvm.testing.assert_allclose(
-            b.asnumpy(), np.cumsum(a_np, axis=0))
+        tvm.testing.assert_allclose(b.asnumpy(), np.cumsum(a_np, axis=0))
 
     check_device("vulkan")
     check_device("cuda")

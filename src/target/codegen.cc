@@ -41,16 +41,22 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module Build(IRModule mod, const Target& target) {
-  if (BuildConfig::Current()->disable_assert) {
+runtime::Module Build(IRModule mod, Target target) {
+  if (transform::PassContext::Current()
+          ->GetConfig<Bool>("tir.disable_assert", Bool(false))
+          .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
-
-  std::string build_f_name = "target.build." + target->target_name;
+  std::string build_f_name;
+  if (target->kind->name == "micro_dev") {
+    build_f_name = "target.build.c";
+  } else {
+    build_f_name = "target.build." + target->kind->name;
+  }
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  CHECK(bf != nullptr) << "target.build." << target << " is not enabled";
-  return (*bf)(mod, target->str());
+  ICHECK(bf != nullptr) << build_f_name << " is not enabled";
+  return (*bf)(mod, target);
 }
 
 /*! \brief Helper class to serialize module */
@@ -227,7 +233,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  CHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
+  ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 

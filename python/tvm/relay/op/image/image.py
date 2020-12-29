@@ -16,13 +16,18 @@
 # under the License.
 """Image operations."""
 from . import _make
+from ..dyn.image import _make as _dyn_make
+from ...expr import Expr
 
-def resize(data,
-           size,
-           layout="NCHW",
-           method="bilinear",
-           coordinate_transformation_mode="half_pixel",
-           out_dtype=None):
+
+def resize(
+    data,
+    size,
+    layout="NCHW",
+    method="bilinear",
+    coordinate_transformation_mode="half_pixel",
+    out_dtype=None,
+):
     """Image resize operator.
 
     This operator takes data as input and does 2D scaling to the given scale factor.
@@ -38,7 +43,7 @@ def resize(data,
     data : relay.Expr
         The input data to the operator.
 
-    size: Tuple of Expr
+    size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
     layout : str, optional
@@ -61,17 +66,71 @@ def resize(data,
     result: relay.Expr
         The resized result.
     """
+    if isinstance(size, Expr):
+        return _dyn_make.resize(
+            data, size, layout, method, coordinate_transformation_mode, out_dtype
+        )
     return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
 
 
-def crop_and_resize(data,
-                    boxes,
-                    box_indices,
-                    crop_size,
-                    layout,
-                    method="bilinear",
-                    extrapolation_value=0,
-                    out_dtype=None):
+def resize3d(
+    data,
+    size,
+    layout="NCDHW",
+    method="trilinear",
+    coordinate_transformation_mode="half_pixel",
+    out_dtype=None,
+):
+    """Image resize 3D operator.
+
+    This operator takes data as input and does 3D scaling to the given scale factor.
+    In the default case, where the data_layout is `NCDHW`
+    with data of shape `(n, c, d, h, w)`
+    out will have a shape `(n, c, size[0], size[1], size[2])`
+
+    method indicates the algorithm to be used while calculating the out value
+    and method can be one of ("trilinear", "nearest_neighbor")
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    size: Tuple of Expr
+        The out size to which the image will be resized.
+
+    layout : str, optional
+        Layout of the input.
+
+    method : str, optional
+        Scale method to used [nearest_neighbor, trilinear].
+
+    coordinate_transformation_mode : string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        [half_pixel, align_corners, asymmetric]
+
+    out_dtype : str, optional
+        Type to return. If left None returns the same type as input.
+
+    Returns
+    -------
+    result: relay.Expr
+        The resized result.
+    """
+    return _make.resize3d(data, size, layout, method, coordinate_transformation_mode, out_dtype)
+
+
+def crop_and_resize(
+    data,
+    boxes,
+    box_indices,
+    crop_size,
+    layout,
+    method="bilinear",
+    extrapolation_value=0,
+    out_dtype=None,
+):
     """Crop input images and resize them.
 
     method indicates the algorithm to be used while calculating the out value
@@ -110,18 +169,21 @@ def crop_and_resize(data,
     result: relay.Expr
         The computed result.
     """
-    return _make.crop_and_resize(data, boxes, box_indices, crop_size,
-                                 layout, method, extrapolation_value, out_dtype)
+    return _make.crop_and_resize(
+        data, boxes, box_indices, crop_size, layout, method, extrapolation_value, out_dtype
+    )
 
 
-def dilation2d(data,
-               weight,
-               strides=(1, 1),
-               padding=(0, 0),
-               dilations=(1, 1),
-               data_layout="NCHW",
-               kernel_layout="IHW",
-               out_dtype=""):
+def dilation2d(
+    data,
+    weight,
+    strides=(1, 1),
+    padding=(0, 0),
+    dilations=(1, 1),
+    data_layout="NCHW",
+    kernel_layout="IHW",
+    out_dtype="",
+):
     r"""Morphological Dilation 2D.
     This operator takes the weight as the dilation kernel and dilates it with
     data to produce an output. In the default case, where the data_layout is `NCHW`
@@ -167,5 +229,71 @@ def dilation2d(data,
         The computed result.
     """
 
-    return _make.dilation2d(data, weight, strides, padding, dilations, data_layout,
-                            kernel_layout, out_dtype)
+    return _make.dilation2d(
+        data, weight, strides, padding, dilations, data_layout, kernel_layout, out_dtype
+    )
+
+
+def affine_grid(data, target_shape=None):
+    """affine_grid operator that generates 2D sampling grid.
+
+    This operation is described in https://arxiv.org/pdf/1506.02025.pdf. It generates a uniform
+    sampling grid within the target shape and normalizes it to [-1, 1]. The provided affine
+    transformation is then applied on the sampling grid.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        3-D with shape [batch, 2, 3]. The affine matrix.
+
+    target_shape: list/tuple of two int
+        Specifies the output shape (H, W).
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, 2, target_height, target_width]
+    """
+    return _make.affine_grid(data, target_shape)
+
+
+def grid_sample(data, grid, method="bilinear", layout="NCHW"):
+    """Applies bilinear sampling to input feature map.
+
+    Given :math:`data` and :math:`grid`, then the output is computed by
+
+    .. math::
+
+        x_{src} = grid[batch, 0, y_{dst}, x_{dst}] \\
+        y_{src} = grid[batch, 1, y_{dst}, x_{dst}] \\
+        output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, y_{src}, x_{src})
+
+    :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
+    :math:`G()` denotes the interpolation function.
+    The out-boundary points will be padded with zeros. The shape of the output will be
+    (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
+
+    The operator assumes that :math:`grid` has been normalized to [-1, 1].
+
+    grid_sample often cooperates with affine_grid which generates sampling grids for grid_sample.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    grid : tvm.Tensor
+        4-D with shape [batch, 2, out_height, out_width]
+
+    method : str
+        The interpolation method. Only 'bilinear' is supported.
+
+    layout : str
+        The layout of input data and the output.
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, 2, out_height, out_width]
+    """
+    return _make.grid_sample(data, grid, method, layout)

@@ -30,9 +30,10 @@ namespace relay {
 using tvm::ReprPrinter;
 using namespace tvm::runtime;
 
-Constant::Constant(runtime::NDArray data) {
+Constant::Constant(runtime::NDArray data, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -46,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ConstantNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const ConstantNode*>(ref.get());
       const PackedFunc* fprint = Registry::Get("relay._constant_repr");
-      CHECK(fprint) << "unable to find printing function for constants";
+      ICHECK(fprint) << "unable to find printing function for constants";
       std::string data = (*fprint)(GetRef<Constant>(node));
       p->stream << "Constant(" << data << ")";
     });
@@ -55,24 +56,25 @@ TensorType ConstantNode::tensor_type() const {
   auto dtype = DataType(data->dtype);
   Array<tvm::PrimExpr> shape;
   for (int i = 0; i < data->ndim; i++) {
-    CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
-    CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
+    ICHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
+    ICHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
     shape.push_back(tvm::IntImm(DataType::Int(32), data->shape[i]));
   }
 
   return TensorType(shape, dtype);
 }
 
-Tuple::Tuple(tvm::Array<relay::Expr> fields) {
+Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TupleNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields) {
-  return Tuple(fields);
+TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
+  return Tuple(fields, span);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -81,16 +83,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Tuple(" << node->fields << ")";
     });
 
-Var::Var(Id vid, Type type_annotation) {
+Var::Var(Id vid, Type type_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](std::string str, Type type_annotation) {
+TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation) {
   return Var(str, type_annotation);
 });
 
@@ -105,20 +108,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ")";
     });
 
-Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args) {
+Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
   ObjectPtr<CallNode> n = make_object<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(CallNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Call")
-    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args) {
-      return Call(op, args, attrs, type_args);
+    .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
+      return Call(op, args, attrs, type_args, span);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -128,11 +132,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->type_args << ")";
     });
 
-Let::Let(Var var, Expr value, Expr body) {
+Let::Let(Var var, Expr value, Expr body, Span span) {
   ObjectPtr<LetNode> n = make_object<LetNode>();
   n->var = std::move(var);
   n->value = std::move(value);
   n->body = std::move(body);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -148,11 +153,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "LetNode(" << node->var << ", " << node->value << ", " << node->body << ")";
     });
 
-If::If(Expr cond, Expr true_branch, Expr false_branch) {
+If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   ObjectPtr<IfNode> n = make_object<IfNode>();
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -170,10 +176,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << node->false_branch << ")";
     });
 
-TupleGetItem::TupleGetItem(Expr tuple, int index) {
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
   n->tuple = std::move(tuple);
   n->index = index;
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -189,9 +196,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
     });
 
-RefCreate::RefCreate(Expr value) {
+RefCreate::RefCreate(Expr value, Span span) {
   ObjectPtr<RefCreateNode> n = make_object<RefCreateNode>();
   n->value = std::move(value);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -207,9 +215,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "RefCreateNode(" << node->value << ")";
     });
 
-RefRead::RefRead(Expr ref) {
+RefRead::RefRead(Expr ref, Span span) {
   ObjectPtr<RefReadNode> n = make_object<RefReadNode>();
   n->ref = std::move(ref);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -223,10 +232,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "RefReadNode(" << node->ref << ")";
     });
 
-RefWrite::RefWrite(Expr ref, Expr value) {
+RefWrite::RefWrite(Expr ref, Expr value, Span span) {
   ObjectPtr<RefWriteNode> n = make_object<RefWriteNode>();
   n->ref = std::move(ref);
   n->value = std::move(value);
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -246,7 +256,7 @@ TVM_REGISTER_GLOBAL("relay.ir.TempExprRealize").set_body_typed([](TempExpr temp)
   return temp->Realize();
 });
 
-TVM_REGISTER_GLOBAL("relay.ir.Any").set_body_typed([]() { return Any::make(); });
+TVM_REGISTER_GLOBAL("relay.ir.Any").set_body_typed([]() { return Any(); });
 
 }  // namespace relay
 }  // namespace tvm

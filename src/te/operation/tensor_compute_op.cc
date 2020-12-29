@@ -24,14 +24,14 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
 #include "./compute_op.h"
-#include "./op_util.h"
+#include "./op_utils.h"
 
 namespace tvm {
 namespace te {
@@ -53,10 +53,10 @@ DataType TensorComputeOpNode::output_dtype(size_t i) const {
   return this->intrin->buffers[this->inputs.size() + i]->dtype;
 }
 
-Operation TensorComputeOpNode::make(std::string name, std::string tag, Array<IterVar> axis,
-                                    Array<IterVar> reduce_axis, int schedulable_ndim,
-                                    TensorIntrin intrin, Array<Tensor> tensors,
-                                    Array<Region> regions, Array<PrimExpr> scalar_inputs) {
+TensorComputeOp::TensorComputeOp(std::string name, std::string tag, Array<IterVar> axis,
+                                 Array<IterVar> reduce_axis, int schedulable_ndim,
+                                 TensorIntrin intrin, Array<Tensor> tensors, Array<Region> regions,
+                                 Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
@@ -67,16 +67,23 @@ Operation TensorComputeOpNode::make(std::string name, std::string tag, Array<Ite
   n->inputs = std::move(tensors);
   n->input_regions = std::move(regions);
   n->scalar_inputs = std::move(scalar_inputs);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.TensorComputeOp").set_body_typed(TensorComputeOpNode::make);
+TVM_REGISTER_GLOBAL("te.TensorComputeOp")
+    .set_body_typed([](std::string name, std::string tag, Array<IterVar> axis,
+                       Array<IterVar> reduce_axis, int schedulable_ndim, TensorIntrin intrin,
+                       Array<Tensor> tensors, Array<Region> regions,
+                       Array<PrimExpr> scalar_inputs) {
+      return TensorComputeOp(name, tag, axis, reduce_axis, schedulable_ndim, intrin, tensors,
+                             regions, scalar_inputs);
+    });
 
 Array<Tensor> TensorComputeOpNode::InputTensors() const { return inputs; }
 
 Operation TensorComputeOpNode::ReplaceInputs(const Operation& self,
                                              const std::unordered_map<Tensor, Tensor>& rmap) const {
-  CHECK_EQ(self.operator->(), this);
+  ICHECK_EQ(self.operator->(), this);
   auto n = make_object<TensorComputeOpNode>(*this);
   auto intrin = make_object<TensorIntrinNode>(*(this->intrin.operator->()));
   intrin->body = ReplaceTensor(this->intrin->body, rmap);
@@ -125,10 +132,10 @@ size_t TensorComputeOpNode::num_schedulable_dims() const { return schedulable_nd
 Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
                                        const std::unordered_map<IterVar, Range>& dom_map,
                                        bool debug_keep_trivial_loop) const {
-  CHECK_EQ(stage->op.operator->(), this);
+  ICHECK_EQ(stage->op.operator->(), this);
 
   // Start bind data.
-  Stmt nop = EvaluateNode::make(0);
+  Stmt nop = Evaluate(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = this->InputTensors();
 
@@ -145,10 +152,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmtNode::make(
-        bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+    input_bind_nest.emplace_back(
+        AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                 Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), nop));
   }
 
   // output binding
@@ -170,10 +176,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmtNode::make(
-        bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), tir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
-        nop));
+    output_bind_nest.emplace_back(
+        AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                 Call(DataType::Handle(), tir::builtin::tvm_tuple(), tuple), nop));
   }
 
   // Check variable remap
@@ -189,18 +194,18 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
     PrimExpr esp = sp;
     sp_expr.push_back(esp);
   }
-  CHECK_EQ(sp_expr.size(), user_expr.size());
+  ICHECK_EQ(sp_expr.size(), user_expr.size());
   // TODO(jdavies-huawei): what name should be used here?
   binder.BindArray(sp_expr, user_expr, this->name);
 
   size_t tloc = stage->leaf_iter_vars.size();
-  ComputeLoopNest n = ComputeLoopNest::make(this, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::Create(this, stage, dom_map, debug_keep_trivial_loop);
 
   if (this->reduce_axis.size() == 0) {
     std::vector<std::vector<Stmt> > nest(n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
     nest.emplace_back(MakeIfNest(n.main_predicates));
-    CHECK_EQ(n.init_predicates.size(), 0U);
-    CHECK(this->intrin->body.defined())
+    ICHECK_EQ(n.init_predicates.size(), 0U);
+    ICHECK(this->intrin->body.defined())
         << "Normal store op for intrin " << this << " is not defined";
     Stmt body = MergeNest(output_bind_nest, this->intrin->body);
     body = MergeNest(input_bind_nest, body);
@@ -211,9 +216,9 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
     return ret;
   } else {
     // Need to split reduction
-    CHECK(this->intrin->reduce_update.defined()) << "Reduction update op is not defined";
+    ICHECK(this->intrin->reduce_update.defined()) << "Reduction update op is not defined";
     // Need init and update steps
-    CHECK_NE(this->reduce_axis.size(), 0U);
+    ICHECK_NE(this->reduce_axis.size(), 0U);
     std::vector<std::vector<Stmt> > common(n.main_nest.begin(),
                                            n.main_nest.begin() + n.num_common_loop + 1);
     std::vector<std::vector<Stmt> > update_nest(n.main_nest.begin() + n.num_common_loop + 1,
@@ -238,7 +243,7 @@ Stmt TensorComputeOpNode::BuildProvide(const Stage& stage,
       return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
       // When init op is not available, use body op for reset in the first iter.
-      CHECK(this->intrin->body.defined()) << "Normal body op is not defined";
+      ICHECK(this->intrin->body.defined()) << "Normal body op is not defined";
       Stmt update =
           TransformUpdate(stage, dom_map, n, this->intrin->body, this->intrin->reduce_update);
       update = MergeNest(output_bind_nest, update);

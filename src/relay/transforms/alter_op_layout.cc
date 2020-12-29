@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 #include "transform_layout.h"
 
 namespace tvm {
@@ -72,7 +72,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
    * \return The new Call after calling the packed func.
    */
   Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) override {
-    static auto falter_layout = Op::GetAttr<FTVMAlterOpLayout>("FTVMAlterOpLayout");
+    static auto falter_layout = Op::GetAttrMap<FTVMAlterOpLayout>("FTVMAlterOpLayout");
     Op op = Downcast<Op>(ref_call->op);
 
     Expr new_e;
@@ -97,7 +97,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
     }
 
     const CallNode* new_call = new_e.as<CallNode>();
-    CHECK(new_call) << "Can only replace the original operator with another call node";
+    ICHECK(new_call) << "Can only replace the original operator with another call node";
     return GetRef<Call>(new_call);
   }
 

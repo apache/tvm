@@ -31,6 +31,7 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <thread>
 
 #include "../../src/runtime/rpc/rpc_endpoint.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
@@ -86,7 +87,7 @@ static std::string getNextString(std::stringstream* iss) {
  * \brief RPCServer RPC Server class.
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
- * \param port_end The end search port of the RPC, Default=9199
+ * \param port_end The end search port of the RPC, Default=9099
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
@@ -245,7 +246,7 @@ class RPCServer {
       support::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
-      CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
+      ICHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
       if (code != kRPCMagic) {
         conn.Close();
         LOG(FATAL) << "Client connected is not TVM RPC server";
@@ -253,7 +254,7 @@ class RPCServer {
       }
 
       int keylen = 0;
-      CHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+      ICHECK_EQ(conn.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
 
       const char* CLIENT_HEADER = "client:";
       const char* SERVER_HEADER = "server:";
@@ -265,10 +266,10 @@ class RPCServer {
         continue;
       }
 
-      CHECK_NE(keylen, 0);
+      ICHECK_NE(keylen, 0);
       std::string remote_key;
       remote_key.resize(keylen);
-      CHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
+      ICHECK_EQ(conn.RecvAll(&remote_key[0], keylen), keylen);
 
       std::stringstream ssin(remote_key);
       std::string arg0;
@@ -280,16 +281,16 @@ class RPCServer {
 
       if (arg0 != expect_header) {
         code = kRPCMismatch;
-        CHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
+        ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
         conn.Close();
         LOG(WARNING) << "Mismatch key from" << addr->AsString();
         continue;
       } else {
         code = kRPCSuccess;
-        CHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
+        ICHECK_EQ(conn.SendAll(&code, sizeof(code)), sizeof(code));
         keylen = int(server_key.length());
-        CHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
-        CHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
+        ICHECK_EQ(conn.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
+        ICHECK_EQ(conn.SendAll(server_key.c_str(), keylen), keylen);
         LOG(INFO) << "Connection success " << addr->AsString();
 #ifndef __ANDROID__
         ssin >> *opts;
@@ -325,7 +326,7 @@ class RPCServer {
     size_t pos = opts.rfind(option);
     if (pos != std::string::npos) {
       const std::string cmd = opts.substr(pos + option.size());
-      CHECK(support::IsNumber(cmd)) << "Timeout is not valid";
+      ICHECK(support::IsNumber(cmd)) << "Timeout is not valid";
       return std::stoi(cmd);
     }
     return 0;
@@ -362,7 +363,7 @@ void ServerLoopFromChild(SOCKET socket) {
  * \brief RPCServerCreate Creates the RPC Server.
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
- * \param port_end The end search port of the RPC, Default=9199
+ * \param port_end The end search port of the RPC, Default=9099
  * \param tracker_addr The address of RPC tracker in host:port format e.g. 10.77.1.234:9190
  * Default="" \param key The key used to identify the device type in tracker. Default="" \param
  * custom_addr Custom IP Address to Report to RPC Tracker. Default="" \param silent Whether run in

@@ -52,11 +52,12 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/feature.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
 
 #include "let_list.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -88,10 +89,10 @@ Type CPSType(const Type& t, const TypeVar& answer) {
 }
 
 // transform global functions into cps form.
-using CPSMap = std::unordered_map<GlobalVar, GlobalVar, ObjectHash, ObjectEqual>;
+using CPSMap = std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual>;
 
 // transform vars from the original program into new vars, so their type will be correct.
-using VarMap = std::unordered_map<Var, Var, ObjectHash, ObjectEqual>;
+using VarMap = std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>;
 
 /*
  * The meta continuation.
@@ -133,7 +134,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
     }
 
     Expr VisitExpr_(const FunctionNode* op, const MCont& k) final {
-      CHECK(!op->HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
+      ICHECK(!op->HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
       return k(ToCPS(GetRef<Function>(op), m, cm, vm, answer));
     }
 
@@ -151,7 +152,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
         // only look unfold non-external calls.
         BaseFunc base_func = m->Lookup(gv);
         if (auto* n = base_func.as<FunctionNode>()) {
-          auto cps_gv = GlobalVar(gv->name_hint + "_cps");
+          auto cps_gv = GlobalVar(std::string(gv->name_hint) + "_cps");
           cm->insert({gv, cps_gv});
           m->Add(cps_gv, ToCPS(GetRef<Function>(n), m, cm));
         } else {
@@ -301,19 +302,21 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
 }
 
 Function ToCPS(const Function& f, const IRModule& m) {
+  CheckFeature(f, m, FeatureSet::All() - fGraph);
   CPSMap cps;
   return ToCPS(f, m, &cps);
 }
 
 Function UnCPS(const Function& f) {
-  CHECK_GT(f->params.size(), 0);
+  CheckFeature(f, FeatureSet::All() - fGraph);
+  ICHECK_GT(f->params.size(), 0);
   std::vector<Var> new_params;
   for (const auto& p : f->params) {
     new_params.push_back(Var(p->name_hint(), p->checked_type()));
   }
   auto cont_type = Downcast<FuncType>(new_params.back()->type_annotation);
   new_params.pop_back();
-  CHECK_EQ(cont_type->arg_types.size(), 1);
+  ICHECK_EQ(cont_type->arg_types.size(), 1);
   auto new_ret_type = Type(cont_type->arg_types[0]);
   std::vector<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
@@ -322,7 +325,7 @@ Function UnCPS(const Function& f) {
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();
   // TODO(@M.K.): make alphaequal work on free term
-  // CHECK(tvm::StructuralEqual()(cont_type, Arrow(new_ret_type, answer_type)));
+  // ICHECK(tvm::StructuralEqual()(cont_type, Arrow(new_ret_type, answer_type)));
   auto x = Var("x", new_ret_type);
   auto cont = Function({x}, x, new_ret_type, {}, {});
   tvm::Array<Expr> args;

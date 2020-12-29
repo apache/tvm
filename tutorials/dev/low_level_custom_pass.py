@@ -50,12 +50,12 @@ import numpy as np
 #
 
 n = tvm.tir.const(128, "int32")
-a = te.placeholder((n, ), name="a")
-b = te.placeholder((n, ), name="b")
-c = te.compute((n, ), lambda i: a[i] + b[i], name='c')
+a = te.placeholder((n,), name="a")
+b = te.placeholder((n,), name="b")
+c = te.compute((n,), lambda i: a[i] + b[i], name="c")
 
 sch = te.create_schedule(c.op)
-ir  = tvm.lower(sch, [a, b, c])
+ir = tvm.lower(sch, [a, b, c])
 print(ir)
 
 ######################################################################
@@ -83,12 +83,15 @@ print(ir)
 #
 
 loops = []
+
+
 def find_width8(op):
-    """ Find all the 'For' nodes whose extent can be divided by 8. """
+    """ Find all the 'tir.For' nodes whose extent can be divided by 8. """
     if isinstance(op, tvm.tir.For):
         if isinstance(op.extent, tvm.tir.IntImm):
             if op.extent.value % 8 == 0:
                 loops.append(op)
+
 
 #####################################################################
 # IR Transformation
@@ -105,17 +108,19 @@ def find_width8(op):
 #     function will be skipped.
 #
 
+
 def vectorize8(op):
     """ Split can vectorize the loops found in `find_width8`. """
     if op in loops:
         extent = op.extent.value
         name = op.loop_var.name
-        lo, li = te.var(name + '.outer'), te.var(name + '.inner')
+        lo, li = te.var(name + ".outer"), te.var(name + ".inner")
         body = tvm.tir.stmt_functor.substitute(op.body, {op.loop_var: lo * 8 + li})
         body = tvm.tir.For(li, 0, 8, tvm.tir.For.Vectorized, 0, body)
         body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.For.Serial, 0, body)
         return body
     return None
+
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)
 def vectorize(f, mod, ctx):
@@ -128,8 +133,7 @@ def vectorize(f, mod, ctx):
 
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`
-    return f.with_body(
-        tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ['For']))
+    return f.with_body(tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ["tir.For"]))
 
 
 #####################################################################
@@ -138,9 +142,8 @@ def vectorize(f, mod, ctx):
 # So far, we are done with writing this IR transformation pass. What we need to do next is to glue
 # this pass to TVM's lower pass.
 #
-# In TVM, there is a property called ``BuildConfig``. You can use this property to customize your
-# own lowering options. In this case, we inject the pass written above into the TVM standard lowering
-# pass by feeding **a list of tuple** as argument to ``add_lower_pass``. "Tuple" indicates different
+# In this case, we inject the pass written above into the TVM standard lowering
+# pass by feeding **a list of tuple** as argument to ``tir.add_lower_pass``. "Tuple" indicates different
 # phases of lowering. In TVM, there are four phases of lowering and user-customized ones will be
 # called after each phase is done.
 #
@@ -154,7 +157,7 @@ def vectorize(f, mod, ctx):
 # Thus, a good place to put this transformation pass is just after Phase 1.
 #
 
-with tvm.target.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
+with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, vectorize)]}):
     print(tvm.lower(sch, [a, b, c]))
 
 #####################################################################
@@ -164,5 +167,5 @@ with tvm.target.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
 # - Use ``tvm.tir.stmt_functor.post_order_visit`` to gather information on each IR nodes.
 # - Use ``tvm.tir.stmt_functor.ir_transform`` to transform IR nodes.
 # - Wrap up two above to write an IR-transformation function.
-# - Use ``tvm.target.build_config`` to put this function to TVM lowering pass
+# - Use ``tvm.transform.PassContext`` to put this function to TVM lowering pass
 #

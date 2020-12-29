@@ -23,6 +23,7 @@ license = "Apache-2.0"
 edition = "2018"
 
 [features]
+default = []
 bindings = []
 
 [dependencies]
@@ -32,4 +33,5 @@ ndarray = "0.12"
 enumn = "^0.1"
 
 [build-dependencies]
-bindgen = "0.51"
+bindgen = { version="0.51", default-features=false }
+anyhow = "^1.0"

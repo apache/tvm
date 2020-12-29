@@ -81,7 +81,7 @@ class FCTransposeMutator : public ExprRewriter {
   explicit FCTransposeMutator(const Array<ObjectRef>& target_weights)
       : dense_op_(Op::Get("nn.dense")), transpose_op_(Op::Get("transpose")) {
     for (size_t i = 0; i < target_weights.size(); ++i) {
-      CHECK(target_weights[i]->IsInstance<runtime::StringObj>());
+      ICHECK(target_weights[i]->IsInstance<runtime::StringObj>());
       std::string k = target_weights[i].as<runtime::StringObj>()->data;
       target_weights_.emplace(k);
     }
@@ -96,7 +96,7 @@ class FCTransposeMutator : public ExprRewriter {
           const auto arg = weight->args[0];
           if (arg.as<VarNode>()) {
             const auto& arg_node = arg.as<VarNode>();
-            CHECK_GT(target_weights_.count(arg_node->name_hint()), 0);
+            ICHECK_GT(target_weights_.count(arg_node->name_hint()), 0);
             const auto& tt = arg_node->type_annotation.as<TensorTypeNode>();
             auto wt_type = TensorType({tt->shape[1], tt->shape[0]}, tt->dtype);
             Var wt(arg_node->name_hint() + ".T", wt_type);

@@ -21,14 +21,14 @@
  * \file inject_virtual_thread.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
 #include <unordered_set>
 
-#include "../../arith/compute_expr.h"
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
@@ -55,11 +55,11 @@ class ExprTouched final : public StmtExprVisitor {
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       const VarNode* buffer_var = op->args[1].as<VarNode>();
-      CHECK(buffer_var);
-      CHECK(rw_mask);
+      ICHECK(buffer_var);
+      ICHECK(rw_mask);
       // read
       if (rw_mask->value & 1) {
         HandleUseVar(buffer_var);
@@ -182,7 +182,7 @@ class VTInjector : public StmtExprMutator {
         allow_share_(allow_share) {}
   // Inject VTLoop when needed.
   Stmt VisitStmt(const Stmt& s) final {
-    CHECK(!visit_touched_var_);
+    ICHECK(!visit_touched_var_);
     auto stmt = StmtExprMutator::VisitStmt(s);
     if (visit_touched_var_ || trigger_base_inject_) {
       if (!vt_loop_injected_) {
@@ -195,7 +195,7 @@ class VTInjector : public StmtExprMutator {
   }
   // Variable
   PrimExpr VisitExpr_(const VarNode* op) final {
-    CHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
+    ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
@@ -213,16 +213,15 @@ class VTInjector : public StmtExprMutator {
     }
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return LoadNode::make(op->dtype, op->buffer_var, RewriteIndex(op->index, it->second),
-                            op->predicate);
+      return Load(op->dtype, op->buffer_var, RewriteIndex(op->index, it->second), op->predicate);
     } else {
       return expr;
     }
   }
   // Expression.
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      CHECK_EQ(op->args.size(), 5U);
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
+      ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
       auto it = alloc_remap_.find(buffer);
@@ -232,9 +231,8 @@ class VTInjector : public StmtExprMutator {
       PrimExpr extent = this->VisitExpr(op->args[3]);
       PrimExpr stride = it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
-      return CallNode::make(op->dtype, op->name,
-                            {op->args[0], op->args[1], offset, extent, op->args[4]}, op->call_type);
-    } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
+      return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
+    } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? GetRef<PrimExpr>(op) : var_;
     } else {
       return StmtExprMutator::VisitExpr_(op);
@@ -254,8 +252,7 @@ class VTInjector : public StmtExprMutator {
     trigger_base_inject_ = !allow_share_;
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return StoreNode::make(op->buffer_var, op->value, RewriteIndex(op->index, it->second),
-                             op->predicate);
+      return Store(op->buffer_var, op->value, RewriteIndex(op->index, it->second), op->predicate);
     } else {
       return stmt;
     }
@@ -273,7 +270,7 @@ class VTInjector : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       } else {
-        return AttrStmtNode::make(op->node, op->attr_key, value, body);
+        return AttrStmt(op->node, op->attr_key, value, body);
       }
     }
   }
@@ -288,12 +285,12 @@ class VTInjector : public StmtExprMutator {
     if (value.same_as(op->value) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return LetStmtNode::make(op->var, value, body);
+      return LetStmt(op->var, value, body);
     }
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {
-    CHECK(is_zero(op->min));
+    ICHECK(is_zero(op->min));
     PrimExpr extent = this->VisitExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(GetRef<Stmt>(op), true);
@@ -306,7 +303,7 @@ class VTInjector : public StmtExprMutator {
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return ForNode::make(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
+      return For(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
     }
   }
   // IfThenElse
@@ -316,7 +313,7 @@ class VTInjector : public StmtExprMutator {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
-    CHECK_EQ(max_loop_depth_, 0);
+    ICHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->VisitStmt(op->then_case);
     Stmt else_case;
     if (op->else_case.defined()) {
@@ -329,13 +326,13 @@ class VTInjector : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return GetRef<Stmt>(op);
     } else {
-      return IfThenElseNode::make(condition, then_case, else_case);
+      return IfThenElse(condition, then_case, else_case);
     }
   }
 
   // Seq
   Stmt VisitStmt_(const SeqStmtNode* op) final {
-    CHECK_EQ(max_loop_depth_, 0);
+    ICHECK_EQ(max_loop_depth_, 0);
     auto fmutate = [this](const Stmt& s) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
@@ -368,7 +365,9 @@ class VTInjector : public StmtExprMutator {
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      PrimExpr stride = arith::ComputeReduce<MulNode>(op->extents, PrimExpr()) * op->dtype.lanes();
+      PrimExpr stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                              make_const(DataType::Int(32), 1), op->extents) *
+                        op->dtype.lanes();
       Array<PrimExpr> other;
       other.push_back(make_const(op->extents[0].dtype(), num_threads_));
       for (PrimExpr e : extents) {
@@ -387,13 +386,13 @@ class VTInjector : public StmtExprMutator {
     if (!changed && body.same_as(op->body) && condition.same_as(op->condition)) {
       return GetRef<Stmt>(op);
     } else {
-      return AllocateNode::make(op->buffer_var, op->dtype, extents, condition, body);
+      return Allocate(op->buffer_var, op->dtype, extents, condition, body);
     }
   }
 
   // inject vthread loop
   Stmt InjectVTLoop(Stmt stmt, bool before_mutation) {
-    CHECK(!vt_loop_injected_);
+    ICHECK(!vt_loop_injected_);
     // reset the flags
     visit_touched_var_ = false;
     trigger_base_inject_ = false;
@@ -417,8 +416,8 @@ class VTInjector : public StmtExprMutator {
       Var idx(var_->name_hint + ".s", var_->dtype);
       Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
-      return ForNode::make(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
-                           ForType::Serial, DeviceAPI::None, stmt);
+      return For(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
+                 ForType::Serial, DeviceAPI::None, stmt);
     }
   }
 
@@ -461,7 +460,7 @@ class VirtualThreadInjector : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Need to call StorageFlatten first";
     return GetRef<Stmt>(op);
   }

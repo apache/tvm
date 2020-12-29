@@ -20,6 +20,10 @@ set -e
 set -u
 
 source tests/scripts/setup-pytest-env.sh
+# to avoid CI thread throttling.
+export TVM_BIND_THREADS=0
+export OMP_NUM_THREADS=1
+
 export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/vta/python
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 

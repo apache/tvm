@@ -29,6 +29,7 @@
 #include <tvm/relay/expr.h>
 
 #include <bitset>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -124,6 +125,11 @@ class FeatureSet {
    */
   bool is_subset_of(const FeatureSet& rhs) const { return ((*this) - rhs).bs_.none(); }
 
+  /*!
+   * \brief return a string representation.
+   */
+  std::string ToString() const;
+
  private:
   std::bitset<feature_count> bs_;
   FeatureSet() = default;
@@ -158,6 +164,34 @@ FeatureSet DetectFeature(const IRModule& mod);
  */
 inline FeatureSet DetectFeature(const Expr& expr, const IRModule& mod) {
   return DetectFeature(expr) + DetectFeature(mod);
+}
+
+/*!
+ * \brief Check the feature of the program.
+ *
+ * \param expr The expression.
+ * \param fs The feature set of the program.
+ */
+void CheckFeature(const RelayExpr& expr, const FeatureSet& fs);
+
+/*!
+ * \brief Check the feature of the program.
+ *
+ * \param mod The module.
+ * \param fs The feature set of the program.
+ */
+void CheckFeature(const IRModule& mod, const FeatureSet& fs);
+
+/*!
+ * \brief Check the feature of the program.
+ *
+ * \param expr The expression.
+ * \param mod The module.
+ * \param fs The feature set of the program.
+ */
+inline void CheckFeature(const RelayExpr& expr, const IRModule& mod, const FeatureSet& fs) {
+  CheckFeature(expr, fs);
+  CheckFeature(mod, fs);
 }
 
 }  // namespace relay

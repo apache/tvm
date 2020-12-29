@@ -29,7 +29,7 @@ namespace tvm {
 namespace tir {
 
 Stmt DecorateDeviceScope(Stmt&& stmt) {
-  Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::device_scope, 0, stmt);
+  Stmt body = AttrStmt(make_zero(DataType::Int(32)), tir::attr::device_scope, 0, stmt);
   return body;
 }
 

@@ -27,7 +27,7 @@
  *   struct MyAttrs : public tvm::AttrsNode<MyAttrs> {
  *     float learning_rate;
  *     int num_hidden;
- *     std::string name;
+ *     String name;
  *     // declare attribute fields in header file
  *     TVM_DECLARE_ATTRS(MyAttrs, "attrs.MyAttrs") {
  *       TVM_ATTR_FIELD(num_hidden).set_lower_bound(1);
@@ -97,7 +97,7 @@ struct AttrError : public dmlc::Error {
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(const std::string& msg) : dmlc::Error(msg) {}
+  explicit AttrError(std::string msg) : dmlc::Error("AttributeError:" + msg) {}
 };
 
 /*!
@@ -106,11 +106,11 @@ struct AttrError : public dmlc::Error {
 class AttrFieldInfoNode : public Object {
  public:
   /*! \brief name of the field */
-  std::string name;
+  String name;
   /*! \brief type docstring information in str. */
-  std::string type_info;
+  String type_info;
   /*! \brief detailed description of the type */
-  std::string description;
+  String description;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -201,7 +201,7 @@ class Attrs : public ObjectRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<std::string, ObjectRef> dict;
+  Map<String, ObjectRef> dict;
 
   bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
     return equal(dict, other->dict);
@@ -230,11 +230,24 @@ class DictAttrs : public Attrs {
    * \param dict The attributes.
    * \return The dict attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<std::string, ObjectRef> dict);
+  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
 
   TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
+
+/*!
+ * \brief Create an Attr object with all default values.
+ * \tparam TAttrNode the type to be created.
+ * \return A instance that will represent None.
+ */
+template <typename TAttrs>
+inline TAttrs AttrsWithDefaultValues() {
+  static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
+  auto n = make_object<typename TAttrs::ContainerType>();
+  n->InitByPackedArgs(runtime::TVMArgs(nullptr, nullptr, 0), false);
+  return TAttrs(n);
+}
 
 // Namespace containing detail implementations
 namespace detail {
@@ -323,18 +336,34 @@ struct AttrInitEntry {
   // internal value.
   T* value_;
   // whether the value is missing.
-  bool value_missing_{true};
+  // NOTE: initialize to false so that the destructor does not throw unless
+  // AttrInitVisitor::operator() is committed to returning an instance of this class.
+  // It is expected not to set this to true until that is true.
+  bool value_missing_{false};
+
+  AttrInitEntry() = default;
+
+  AttrInitEntry(AttrInitEntry&& other) {
+    type_key_ = other.type_key_;
+    key_ = other.key_;
+    value_ = other.value_;
+    value_missing_ = other.value_missing_;
+    // avoid unexpected throw
+    other.value_missing_ = false;
+  }
+
   // If the value is still missing in destruction time throw an error.
   ~AttrInitEntry() DMLC_THROW_EXCEPTION {
     if (value_missing_) {
       std::ostringstream os;
-      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization";
+      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization."
+         << "If the key is defined check that its type matches the declared type.";
       throw AttrError(os.str());
     }
   }
   // override fields.
   // This function sets the lower bound of the attribute
-  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
+  TSelf& set_lower_bound(const T& begin) {
     if (this->value_missing_) return *this;
     const T& val = *value_;
     if (begin > val) {
@@ -346,7 +375,7 @@ struct AttrInitEntry {
     return *this;
   }
   // This function sets the upper bound of the attribute
-  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
+  TSelf& set_upper_bound(const T& end) {
     if (this->value_missing_) return *this;
     const T& val = *value_;
     if (val > end) {
@@ -358,7 +387,7 @@ struct AttrInitEntry {
     return *this;
   }
   // set default when
-  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
+  TSelf& set_default(const T& value) {
     if (!value_missing_) return *this;
     *value_ = value;
     value_missing_ = false;
@@ -384,9 +413,15 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   }
 }
 
+// Workaround for GCC8.1 / GCC8.2
+template <>
+inline void SetValue<DataType>(DataType* ptr, const TVMArgValue& val) {
+  *ptr = val.operator DataType();
+}
+
 template <>
 inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kTVMStr) {
+  if (String::CanConvertFrom(val)) {
     *ptr = val.operator std::string();
   } else {
     LOG(FATAL) << "Expect str";
@@ -399,7 +434,7 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
     *ptr = val.operator double();
   } else {
     ObjectRef expr = val;
-    CHECK(expr.defined());
+    ICHECK(expr.defined());
     if (const IntImmNode* op = expr.as<IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
     } else if (const FloatImmNode* op = expr.as<FloatImmNode>()) {
@@ -450,7 +485,11 @@ class AttrInitVisitor {
     } else {
       opt.value_missing_ = true;
     }
-    return opt;
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wpessimizing-move"
+#endif
+    return std::move(opt);
   }
 
  private:
@@ -518,12 +557,12 @@ class AttrDocEntry {
   using TSelf = AttrDocEntry;
 
   explicit AttrDocEntry(ObjectPtr<AttrFieldInfoNode> info) : info_(info) {}
-  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
+  TSelf& describe(const char* str) {
     info_->description = str;
     return *this;
   }
   template <typename T>
-  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
+  TSelf& set_default(const T& value) {
     std::ostringstream os;
     os << info_->type_info << ", default=" << value;
     info_->type_info = os.str();
@@ -631,7 +670,7 @@ class AttrsNode : public BaseAttrsNode {
   }
 
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final {
-    CHECK_EQ(args.size() % 2, 0);
+    ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
     // applies two stratgies to lookup
@@ -639,7 +678,7 @@ class AttrsNode : public BaseAttrsNode {
       // linear search.
       auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {
         for (int i = 0; i < args.size(); i += 2) {
-          CHECK_EQ(args.type_codes[i], kTVMStr);
+          ICHECK_EQ(args.type_codes[i], kTVMStr);
           if (!std::strcmp(key, args.values[i].v_str)) {
             *val = args[i + 1];
             return true;
@@ -654,7 +693,7 @@ class AttrsNode : public BaseAttrsNode {
       // construct a map then do lookup.
       std::unordered_map<std::string, runtime::TVMArgValue> kwargs;
       for (int i = 0; i < args.size(); i += 2) {
-        CHECK_EQ(args.type_codes[i], kTVMStr);
+        ICHECK_EQ(args.type_codes[i], kTVMStr);
         kwargs[args[i].operator std::string()] = args[i + 1];
       }
       auto ffind = [&kwargs](const char* key, runtime::TVMArgValue* val) {

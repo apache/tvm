@@ -66,8 +66,8 @@ class VTADeviceAPI final : public DeviceAPI {
 
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
-  static const std::shared_ptr<VTADeviceAPI>& Global() {
-    static std::shared_ptr<VTADeviceAPI> inst = std::make_shared<VTADeviceAPI>();
+  static VTADeviceAPI* Global() {
+    static VTADeviceAPI* inst = new VTADeviceAPI();
     return inst;
   }
 };
@@ -88,7 +88,7 @@ void VTADeviceAPI::FreeWorkspace(TVMContext ctx, void* data) {
 static TVM_ATTRIBUTE_UNUSED auto& __register_dev__ =
     ::tvm::runtime::Registry::Register("device_api.ext_dev", true)
         .set_body([](TVMArgs args, TVMRetValue* rv) {
-          DeviceAPI* ptr = VTADeviceAPI::Global().get();
+          DeviceAPI* ptr = VTADeviceAPI::Global();
           *rv = static_cast<void*>(ptr);
         });
 }  // namespace runtime

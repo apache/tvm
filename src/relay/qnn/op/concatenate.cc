@@ -28,9 +28,9 @@
 #include <tvm/tir/expr.h>
 
 #include "../../op/tensor/transform.h"
-#include "../../transforms/infer_layout_util.h"
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/infer_layout_utils.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {
@@ -38,31 +38,55 @@ namespace qnn {
 
 bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                        const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 6);
+  // Expected Types: data, input_scales, input_zero_points, output_scale, output_zero_point,
+  // out_type
+  ICHECK_EQ(types.size(), 6);
 
+  if (types[0].as<IncompleteTypeNode>()) {
+    return false;
+  }
   // Check the scale and zero point types
   const auto* input_scales_tuple = types[1].as<TupleTypeNode>();
   if (input_scales_tuple == nullptr) {
-    throw Error(ErrorBuilder()
-                << "qnn concatenate requires a tuple of scales as the second argument, found "
-                << PrettyPrint(types[1]));
+    if (types[1].as<IncompleteTypeNode>()) {
+      return false;
+    } else {
+      throw Error(ErrorBuilder()
+                  << "qnn concatenate requires a tuple of scales as the second argument, found "
+                  << PrettyPrint(types[1]));
+    }
   }
   for (const auto& input_scale : input_scales_tuple->fields) {
-    CHECK(IsScalarType(input_scale, DataType::Float(32)));  // input_scales[idx]
+    if (input_scale.as<IncompleteTypeNode>()) {
+      return false;
+    }
+    ICHECK(IsScalarType(input_scale, DataType::Float(32)));  // input_scales[idx]
   }
 
   const auto* input_zero_points_tuple = types[2].as<TupleTypeNode>();
   if (input_zero_points_tuple == nullptr) {
-    throw Error(ErrorBuilder()
-                << "qnn concatenate requires a tuple of zero_points as the third argument, found "
-                << PrettyPrint(types[2]));
+    if (types[2].as<IncompleteTypeNode>()) {
+      return false;
+    } else {
+      throw Error(ErrorBuilder()
+                  << "qnn concatenate requires a tuple of zero_points as the third argument, found "
+                  << PrettyPrint(types[2]));
+    }
   }
   for (const auto& input_zero_point : input_zero_points_tuple->fields) {
-    CHECK(IsScalarType(input_zero_point, DataType::Int(32)));  // input_zero_points[idx]
+    if (input_zero_point.as<IncompleteTypeNode>()) {
+      return false;
+    }
+    ICHECK(IsScalarType(input_zero_point, DataType::Int(32)));  // input_zero_points[idx]
   }
 
-  CHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
-  CHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
+  for (size_t i = 3; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
+  ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
+  ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Concatenate infer type function.
@@ -74,9 +98,9 @@ Array<Array<Layout>> QnnConcatenateLayout(const Attrs& attrs, const Array<Layout
                                           const Array<Layout>& old_in_layouts,
                                           const Array<tvm::relay::Type>& old_in_types) {
   // Collect the layouts and types to reuse Relay Concatenate Infer Correct Layout.
-  CHECK_EQ(old_in_types.size(), 5);
+  ICHECK_EQ(old_in_types.size(), 5);
   auto input_tuple_type = old_in_types[0].as<TupleTypeNode>();
-  CHECK(input_tuple_type);
+  ICHECK(input_tuple_type);
   auto num_input_tensors = input_tuple_type->fields.size();
 
   Array<Layout> relay_new_in_layouts(nullptr);
@@ -126,19 +150,19 @@ Expr MakeQnnConcatenate(Expr data, Expr input_scales, Expr input_zero_points, Ex
 Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                                 const Array<tvm::relay::Type>& arg_types) {
   // Get the attrs.
-  CHECK_EQ(new_args.size(), 5);
+  ICHECK_EQ(new_args.size(), 5);
   auto& data = new_args[0];
   auto& input_scales = new_args[1];
   auto& input_zero_points = new_args[2];
   auto& output_scale = new_args[3];
   auto& output_zero_point = new_args[4];
   const auto* concatenate_attrs = attrs.as<ConcatenateAttrs>();
-  CHECK(concatenate_attrs != nullptr);
+  ICHECK(concatenate_attrs != nullptr);
 
   // Get the input dtype and shape.
-  CHECK_GE(arg_types.size(), 1);
+  ICHECK_GE(arg_types.size(), 1);
   auto tuple_type = arg_types[0].as<TupleTypeNode>();
-  CHECK(tuple_type != nullptr);
+  ICHECK(tuple_type != nullptr);
 
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if and only if all the input tensors have same
@@ -156,13 +180,13 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
       tuple_exprs.push_back(TupleGetItem(call, i));
     }
   }
-  CHECK(!tuple_exprs.empty());
+  ICHECK(!tuple_exprs.empty());
 
   auto tuple_input_scales = input_scales.as<TupleNode>();
-  CHECK(tuple_input_scales != nullptr);
+  ICHECK(tuple_input_scales != nullptr);
 
   auto tuple_input_zero_points = input_zero_points.as<TupleNode>();
-  CHECK(tuple_input_zero_points != nullptr);
+  ICHECK(tuple_input_zero_points != nullptr);
 
   int idx = 0;
   Array<Expr> requantized_exprs;
@@ -207,6 +231,7 @@ RELAY_REGISTER_OP("qnn.concatenate")
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("QnnConcatenate", QnnConcatenateRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConcatenateLayout);
 

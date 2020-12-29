@@ -47,28 +47,31 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
     return GetRef<te::Tensor>(ptr)();
   }
   if (auto* ptr = ref.as<runtime::StringObj>()) {
-    return tir::StringImmNode::make(GetRef<runtime::String>(ptr));
+    return tir::StringImm(GetRef<runtime::String>(ptr));
   }
-  CHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
+  ICHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName() << " but get "
       << ref->GetTypeKey();
   return Downcast<PrimExpr>(ref);
 }
 
-IntImm::IntImm(DataType dtype, int64_t value) {
-  CHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar.";
-  CHECK(dtype.is_int() || dtype.is_uint()) << "ValueError: IntImm can only take scalar.";
+IntImm::IntImm(DataType dtype, int64_t value, Span span) {
+  ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype
+                            << " was supplied.";
+  ICHECK(dtype.is_int() || dtype.is_uint())
+      << "ValueError: IntImm supports only int or uint type, but " << dtype << " was supplied.";
   if (dtype.is_uint()) {
-    CHECK_GE(value, 0U);
+    ICHECK_GE(value, 0U);
   }
   ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
   node->dtype = dtype;
   node->value = value;
+  node->span = span;
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value) {
-  return IntImm(dtype, value);
+TVM_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value, Span span) {
+  return IntImm(dtype, value, span);
 });
 
 TVM_REGISTER_NODE_TYPE(IntImmNode);
@@ -83,16 +86,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
-FloatImm::FloatImm(DataType dtype, double value) {
-  CHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
+FloatImm::FloatImm(DataType dtype, double value, Span span) {
+  ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = dtype;
   node->value = value;
+  node->span = span;
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double value) {
-  return FloatImm(dtype, value);
+TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double value, Span span) {
+  return FloatImm(dtype, value, span);
 });
 
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
@@ -116,17 +120,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
-Range::Range(PrimExpr begin, PrimExpr end)
-    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin))) {}
+Range::Range(PrimExpr begin, PrimExpr end, Span span)
+    : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
-Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
-  return Range(make_object<RangeNode>(min, extent));
+Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
+  return Range(make_object<RangeNode>(min, extent, span));
 }
 
-TVM_REGISTER_GLOBAL("ir.range_by_min_extent").set_body_typed(Range::make_by_min_extent);
+TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
 TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Range(args[0], args[1]);
+  *ret = Range(args[0], args[1], args[2]);
 });
 
 TVM_REGISTER_NODE_TYPE(RangeNode);
@@ -158,11 +162,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ArrayNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ArrayNode*>(node.get());
       p->stream << '[';
-      for (size_t i = 0; i < op->data.size(); ++i) {
+      for (size_t i = 0; i < op->size(); ++i) {
         if (i != 0) {
           p->stream << ", ";
         }
-        p->Print(op->data[i]);
+        p->Print(op->at(i));
       }
       p->stream << ']';
     });
@@ -171,28 +175,25 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MapNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const MapNode*>(node.get());
       p->stream << '{';
-      for (auto it = op->data.begin(); it != op->data.end(); ++it) {
-        if (it != op->data.begin()) {
+      for (auto it = op->begin(); it != op->end(); ++it) {
+        if (it != op->begin()) {
           p->stream << ", ";
         }
-        p->Print(it->first);
-        p->stream << ": ";
+        if (it->first->IsInstance<StringObj>()) {
+          p->stream << '\"' << Downcast<String>(it->first) << "\": ";
+        } else {
+          p->Print(it->first);
+          p->stream << ": ";
+        }
         p->Print(it->second);
       }
       p->stream << '}';
     });
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<StrMapNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const StrMapNode*>(node.get());
-      p->stream << '{';
-      for (auto it = op->data.begin(); it != op->data.end(); ++it) {
-        if (it != op->data.begin()) {
-          p->stream << ", ";
-        }
-        p->stream << '\"' << it->first << "\": ";
-        p->Print(it->second);
-      }
-      p->stream << '}';
-    });
+TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
+  std::stringstream ss;
+  ss << ref;
+  return ss.str();
+});
+
 }  // namespace tvm

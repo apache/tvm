@@ -24,10 +24,9 @@
 #define TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/vm/memory_manager.h>
 
 #include <atomic>
-
-#include "memory_manager.h"
 
 namespace tvm {
 namespace runtime {
@@ -35,7 +34,7 @@ namespace vm {
 
 class NaiveAllocator final : public Allocator {
  public:
-  explicit NaiveAllocator(TVMContext ctx) : Allocator(), used_memory_(0), ctx_(ctx) {}
+  explicit NaiveAllocator(TVMContext ctx) : Allocator(kNaive), used_memory_(0), ctx_(ctx) {}
 
   Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
     Buffer buf;

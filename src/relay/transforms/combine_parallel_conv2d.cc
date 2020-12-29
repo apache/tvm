@@ -44,7 +44,7 @@
 
 #include "./combine_parallel_op.h"
 #include "./expr_subst.h"
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -62,8 +62,8 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
     const auto* attrs_b = b->attrs.as<Conv2DAttrs>();
-    CHECK(attrs_a);
-    CHECK(attrs_b);
+    ICHECK(attrs_a);
+    ICHECK(attrs_b);
     const auto* tweight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* tweight_b = b->args[1]->type_as<TensorTypeNode>();
     const auto shape_a =
@@ -89,7 +89,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
 
     const CallNode* group_root = branches[0][0];
     const auto* attrs = group_root->attrs.as<Conv2DAttrs>();
-    CHECK(attrs);
+    ICHECK(attrs);
     const auto new_attrs = make_object<Conv2DAttrs>();
     new_attrs->strides = attrs->strides;
     new_attrs->padding = attrs->padding;
@@ -105,7 +105,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     const std::string& layout =
         new_attrs->out_layout == "" ? new_attrs->data_layout : new_attrs->out_layout;
     channel_pos_ = layout.find('C');
-    CHECK_NE(channel_pos_, std::string::npos);
+    ICHECK_NE(channel_pos_, std::string::npos);
 
     return Call(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
   }
@@ -164,6 +164,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth,
                          ExprSubstMap* subst_map) {
     int64_t index = 0;
+
     for (const auto& branch : branches) {
       const CallNode* conv2d = branch[0];
       int64_t channels = GetConv2DSuperChannelsDim(conv2d);
@@ -171,12 +172,13 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       Array<Integer> end;
       for (size_t i = 0; i < channel_pos_; i++) {
         begin.push_back(0);
-        end.push_back(NullValue<Integer>());
+        end.push_back(-1);
       }
       begin.push_back(index);
       index += channels;
-      end.push_back(index);
-      auto slice = MakeStridedSlice(data, std::move(begin), std::move(end), Array<Integer>{});
+      end.push_back(channels);
+      Array<Integer> strides(begin.size(), 1);
+      auto slice = MakeStridedSlice(data, begin, end, strides, "size");
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }
@@ -194,8 +196,9 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       auto channels = GetConv2DSuperChannelsDim(conv2d);
       num_filters += channels;
     }
-    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
-    CHECK_NE(index, std::string::npos);
+    auto index =
+        branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.operator std::string().find('O');
+    ICHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(Tuple(weights), index),
                            tir::make_const(DataType::Int(32), num_filters));
   }

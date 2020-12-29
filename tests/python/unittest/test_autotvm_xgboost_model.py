@@ -16,6 +16,7 @@
 # under the License.
 import time
 
+import multiprocessing
 import numpy as np
 
 import tvm
@@ -31,16 +32,29 @@ def test_fit():
     task, target = get_sample_task()
     records = get_sample_records(n=500)
 
-    base_model = XGBoostCostModel(task, feature_type='itervar', loss_type='rank')
+    base_model = XGBoostCostModel(task, feature_type="itervar", loss_type="rank")
     base_model.fit_log(records, plan_size=32)
 
-    upper_model = XGBoostCostModel(task, feature_type='itervar', loss_type='rank')
+    upper_model = XGBoostCostModel(task, feature_type="itervar", loss_type="rank")
     upper_model.load_basemodel(base_model)
 
     xs = np.arange(10)
     ys = np.arange(10)
 
     upper_model.fit(xs, ys, plan_size=32)
+
+
+def fit_spawn():
+    assert multiprocessing.get_start_method(False) == "spawn"
+    test_fit()
+
+
+def test_fit_spawn():
+    # Subprocesses inherit the spawn method of their parents
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=test_fit)
+    p.start()
+    p.join()
 
 
 def test_tuner():
@@ -53,5 +67,5 @@ def test_tuner():
 
 if __name__ == "__main__":
     test_fit()
+    test_fit_spawn()
     test_tuner()
-

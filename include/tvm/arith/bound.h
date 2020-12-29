@@ -32,13 +32,9 @@
 #include <unordered_map>
 
 namespace tvm {
-// forward delcare Tensor
-namespace te {
-class Tensor;
-}
 namespace arith {
 
-using tir::Domain;
+using tir::Region;
 using tir::Stmt;
 using tir::Var;
 using tir::VarNode;
@@ -82,7 +78,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \param consider_stores If stores are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Domain DomainTouched(const Stmt& body, const tir::Buffer& buffer, bool consider_loads,
+Region DomainTouched(const Stmt& body, const tir::Buffer& buffer, bool consider_loads,
                      bool consider_stores);
 
 }  // namespace arith

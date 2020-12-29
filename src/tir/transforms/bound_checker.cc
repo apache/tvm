@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -66,7 +67,7 @@ class BoundChecker : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
-    if (process_store_ && op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    if (process_store_ && op->op.same_as(builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
     return StmtExprMutator::VisitExpr_(op);
@@ -85,10 +86,10 @@ class BoundChecker : public StmtExprMutator {
     if (store_scope_bound_collector_.size()) {
       PrimExpr condition = MakeCondition();
       if (!condition.as<StringImmNode>()) {
-        Stmt nop = EvaluateNode::make(1);
-        Stmt then_case = StoreNode::make(op->buffer_var, op->value, op->index, op->predicate);
-        Stmt else_case = AssertStmtNode::make(condition, StringImmNode::make(error_message_), nop);
-        Stmt body = IfThenElseNode::make(condition, then_case, else_case);
+        Stmt nop = Evaluate(1);
+        Stmt then_case = Store(op->buffer_var, op->value, op->index, op->predicate);
+        Stmt else_case = AssertStmt(condition, StringImm(error_message_), nop);
+        Stmt body = IfThenElse(condition, then_case, else_case);
         return body;
       }
     }
@@ -121,12 +122,12 @@ class BoundChecker : public StmtExprMutator {
     }
 
     // Scalarize the shape.
-    PrimExpr shape = MulNode::make(make_const(DataType::UInt(64), type.lanes()),
-                                   CastNode::make(DataType::UInt(64), new_shape[0]));
+    PrimExpr shape =
+        Mul(make_const(DataType::UInt(64), type.lanes()), Cast(DataType::UInt(64), new_shape[0]));
     for (size_t i = 1; i < new_shape.size(); ++i) {
       // Cast to unsigned to avoid integer overlow at frist.
-      shape = MulNode::make(shape, MulNode::make(make_const(DataType::UInt(64), type.lanes()),
-                                                 CastNode::make(DataType::UInt(64), new_shape[i])));
+      shape = Mul(shape, Mul(make_const(DataType::UInt(64), type.lanes()),
+                             Cast(DataType::UInt(64), new_shape[i])));
     }
     mem_to_shape_[buffer_var.get()] = shape;
   }
@@ -163,8 +164,7 @@ class BoundChecker : public StmtExprMutator {
       if (const RampNode* ramp_index = index.as<RampNode>()) {
         // In case index is base + stride * i.
         // Non inclusive range.
-        index = AddNode::make(ramp_index->base, MulNode::make(ramp_index->stride,
-                                                              make_const(ramp_index->stride.dtype(),
+        index = Add(ramp_index->base, Mul(ramp_index->stride, make_const(ramp_index->stride.dtype(),
                                                                          ramp_index->lanes - 1)));
       }
 
@@ -173,15 +173,14 @@ class BoundChecker : public StmtExprMutator {
       upper_bound = analyzer_.Simplify(upper_bound);
 
       // Cast to the same type - signed, to be able to check lower bound.
-      index = CastNode::make(DataType::Int(64), index);
-      upper_bound = CastNode::make(DataType::Int(64), upper_bound);
+      index = Cast(DataType::Int(64), index);
+      upper_bound = Cast(DataType::Int(64), upper_bound);
 
       // Looks like a lower bound should always be zero after normalization.
       PrimExpr lower_bound = make_zero(DataType::Int(64));
 
-      PrimExpr current_condition =
-          AndNode::make(GENode::make(index, lower_bound), LTNode::make(index, upper_bound));
-      condition = !i ? current_condition : AndNode::make(condition, current_condition);
+      PrimExpr current_condition = And(GE(index, lower_bound), LT(index, upper_bound));
+      condition = !i ? current_condition : And(condition, current_condition);
     }
     return condition;
   }

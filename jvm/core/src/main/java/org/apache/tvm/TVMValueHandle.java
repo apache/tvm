@@ -18,13 +18,13 @@
 package org.apache.tvm;
 
 /**
- * Java class related to TVM handles (TypeCode.HANDLE)
+ * Java class related to TVM handles (ArgTypeCode.HANDLE)
  */
 public class TVMValueHandle extends TVMValue {
   public final long value;
 
   public TVMValueHandle(long value) {
-    super(TypeCode.HANDLE);
+    super(ArgTypeCode.HANDLE);
     this.value = value;
   }
 

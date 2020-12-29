@@ -31,7 +31,7 @@
 #include <memory>
 #include <string>
 
-#include "rpc_protocol.h"
+#include "../minrpc/rpc_reference.h"
 
 namespace tvm {
 namespace runtime {
@@ -324,10 +324,11 @@ struct RemoteSpace {
  *        minimum duration requirement of one `repeat`.
  *        i.e., When the run time of one `repeat` falls below this time,
  *        the `number` parameter will be automatically increased.
+ * \param f_preproc The function to be executed before we excetute time evaluator.
  * \return f_timer A timer function.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat,
-                             int min_repeat_ms);
+                             int min_repeat_ms, PackedFunc f_preproc = nullptr);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.

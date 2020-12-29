@@ -49,20 +49,20 @@ Registry* Registry::Global() {
 }
 
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
-  CHECK(type_code >= kTVMCustomBegin)
-      << "Please choose a type code >= kTVMCustomBegin for custom types";
+  ICHECK(type_code >= DataType::kCustomBegin)
+      << "Please choose a type code >= DataType::kCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
   name_to_code_[type_name] = type_code;
 }
 
 uint8_t Registry::GetTypeCode(const std::string& type_name) {
-  CHECK(name_to_code_.find(type_name) != name_to_code_.end())
+  ICHECK(name_to_code_.find(type_name) != name_to_code_.end())
       << "Type name " << type_name << " not registered";
   return name_to_code_[type_name];
 }
 
 std::string Registry::GetTypeName(uint8_t type_code) {
-  CHECK(code_to_name_.find(type_code) != code_to_name_.end())
+  ICHECK(code_to_name_.find(type_code) != code_to_name_.end())
       << "Type code " << static_cast<unsigned>(type_code) << " not registered";
   return code_to_name_[type_code];
 }
@@ -78,7 +78,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(type_code);
   } else {
-    ss << runtime::TypeCode2Str(type_code);
+    ss << runtime::DLDataTypeCode2Str(static_cast<DLDataTypeCode>(type_code));
   }
 
   ss << ".";
@@ -86,8 +86,15 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(src_type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(src_type_code);
   } else {
-    ss << runtime::TypeCode2Str(src_type_code);
+    ss << runtime::DLDataTypeCode2Str(static_cast<DLDataTypeCode>(src_type_code));
   }
+  return runtime::Registry::Get(ss.str());
+}
+
+const runtime::PackedFunc* GetMinFunc(uint8_t type_code) {
+  std::ostringstream ss;
+  ss << "tvm.datatype.min.";
+  ss << datatype::Registry::Global()->GetTypeName(type_code);
   return runtime::Registry::Get(ss.str());
 }
 
@@ -96,6 +103,18 @@ const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8
   ss << "tvm.datatype.lower.";
   ss << target;
   ss << ".FloatImm.";
+  ss << datatype::Registry::Global()->GetTypeName(type_code);
+  return runtime::Registry::Get(ss.str());
+}
+
+const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const std::string& name,
+                                              uint8_t type_code) {
+  std::ostringstream ss;
+  ss << "tvm.datatype.lower.";
+  ss << target;
+  ss << ".Call.intrin.";
+  ss << name;
+  ss << ".";
   ss << datatype::Registry::Global()->GetTypeName(type_code);
   return runtime::Registry::Get(ss.str());
 }

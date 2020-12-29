@@ -16,13 +16,14 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression functor of Relay."""
+from tvm.ir import Op
 
 from .function import Function
 from .expr import Call, Let, Var, GlobalVar
 from .expr import If, Tuple, TupleGetItem, Constant
 from .expr import RefCreate, RefRead, RefWrite
 from .adt import Constructor, Match, Clause
-from .op import Op
+
 
 class ExprFunctor:
     """
@@ -31,6 +32,7 @@ class ExprFunctor:
     Defines the default dispatch over expressions, and
     implements memoization.
     """
+
     def __init__(self):
         self.memo_map = {}
 
@@ -132,6 +134,7 @@ class ExprVisitor(ExprFunctor):
 
     The default behavior recursively traverses the AST.
     """
+
     def visit_tuple(self, tup):
         for x in tup.fields:
             self.visit(x)
@@ -195,15 +198,11 @@ class ExprMutator(ExprFunctor):
     The default behavior recursively traverses the AST
     and reconstructs the AST.
     """
+
     def visit_function(self, fn):
         new_params = [self.visit(x) for x in fn.params]
         new_body = self.visit(fn.body)
-        return Function(
-            list(new_params),
-            new_body,
-            fn.ret_type,
-            fn.type_params,
-            fn.attrs)
+        return Function(list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs)
 
     def visit_let(self, let):
         new_var = self.visit(let.var)
@@ -214,7 +213,7 @@ class ExprMutator(ExprFunctor):
     def visit_call(self, call):
         new_fn = self.visit(call.op)
         new_args = [self.visit(arg) for arg in call.args]
-        return Call(new_fn, new_args, call.attrs)
+        return Call(new_fn, new_args, call.attrs, call.type_args, call.span)
 
     def visit_var(self, var):
         return var
@@ -223,13 +222,10 @@ class ExprMutator(ExprFunctor):
         return global_var
 
     def visit_if(self, ite):
-        return If(
-            self.visit(ite.cond),
-            self.visit(ite.true_branch),
-            self.visit(ite.false_branch))
+        return If(self.visit(ite.cond), self.visit(ite.true_branch), self.visit(ite.false_branch))
 
     def visit_tuple(self, tup):
-        return Tuple([self.visit(field) for field in tup.fields])
+        return Tuple([self.visit(field) for field in tup.fields], tup.span)
 
     def visit_tuple_getitem(self, op):
         tuple_value = self.visit(op.tuple_value)
@@ -253,7 +249,8 @@ class ExprMutator(ExprFunctor):
         return Match(
             self.visit(m.data),
             [Clause(c.lhs, self.visit(c.rhs)) for c in m.clauses],
-            complete=m.complete)
+            complete=m.complete,
+        )
 
     def visit_ref_create(self, r):
         return RefCreate(self.visit(r.value))

@@ -35,30 +35,38 @@
 #include <utility>
 #include <vector>
 
+#include "../make_op.h"
+
 namespace tvm {
 namespace relay {
-
-extern Expr MakeReshape(Expr data, Array<Integer> newshape);
 
 template <typename AttrType>
 bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
   // types: [data, result]
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2) << "the arity of concatenate is 2, not " << types.size();
   /* If we receive a tuple we can continue, if we receive
    * anything but an incomplete type we should signal an
    * error.
    */
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
-    throw Error(
-        ErrorBuilder() << "concatenate requires a tuple of tensors as the first argument, found "
-                       << PrettyPrint(types[0]));
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "concatenate requires a tuple of tensors as the first argument, found "
+        << PrettyPrint(types[0]));
+    return false;
   } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
     return false;
   }
 
   const auto* param = attrs.as<AttrType>();
+  if (param == nullptr) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "the call attributes are not defined");
+    return false;
+  }
+
   if (tensor_tuple->fields[0].as<IncompleteTypeNode>()) {
     return false;
   }
@@ -90,34 +98,33 @@ bool ConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     if (e_dtype != dtype) {
       throw Error("relay.concatenate requires all tensors have the same dtype");
     }
-    for (size_t j = 0; j < first->shape.size(); ++j) {
-      if (j == static_cast<size_t>(axis)) continue;
-      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
-      throw Error(
-          "relay.concatenate requires all tensors have the same shape "
-          "on non-concatenating axes");
-    }
   }
 
   // Calculate shape
   std::vector<IndexExpr> oshape(first->shape.begin(), first->shape.end());
-  IndexExpr& concat_dim = oshape[axis];
-  bool has_any = false;
-  if (concat_dim.as<Any>()) {
-    has_any = true;
-  } else {
-    for (int i = 1; i < static_cast<int>(tensor_tuple->fields.size()); ++i) {
-      const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);
-      if (e->shape[axis].as<Any>()) {
-        has_any = true;
-        break;
+  int data_length = static_cast<int>(tensor_tuple->fields.size());
+  for (int i = 0; i < ndim; ++i) {
+    std::vector<IndexExpr> non_any;
+    for (int j = 0; j < data_length; ++j) {
+      const auto& e = Downcast<TensorType>(tensor_tuple->fields[j]);
+      if (!e->shape[i].as<AnyNode>()) {
+        non_any.push_back(e->shape[i]);
+        // accumulate axis dimension
+        if (j > 0 && i == axis && !oshape[i].as<AnyNode>()) {
+          oshape[i] += e->shape[i];
+        }
       }
-      concat_dim += e->shape[axis];
     }
-  }
-
-  if (has_any) {
-    concat_dim = Any::make();
+    int non_any_size = static_cast<int>(non_any.size());
+    if (non_any_size != data_length) oshape[i] = Any();
+    if (i != axis) {
+      for (int k = 1; k < non_any_size; k++) {
+        if (reporter->AssertEQ(non_any[0], non_any[k])) continue;
+        throw Error(
+            "relay.concatenate requires all tensors have the same shape "
+            "on non-concatenating axes");
+      }
+    }
   }
 
   auto rtype = TensorType(oshape, dtype);
@@ -132,9 +139,9 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
   ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
 
   Array<Array<IndexExpr>> old_in_shapes;
-  CHECK_EQ(old_in_types.size(), 1);
+  ICHECK_EQ(old_in_types.size(), 1);
   for (auto old_in_tuple_t : old_in_types) {
-    CHECK(old_in_tuple_t.as<TupleTypeNode>());
+    ICHECK(old_in_tuple_t.as<TupleTypeNode>());
     for (auto old_in_t : old_in_tuple_t.as<TupleTypeNode>()->fields) {
       old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
     }
@@ -180,6 +187,15 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
 
   return Array<Array<Layout>>{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
+
+/*!
+ * \brief Infer output shape for reshape.
+ *
+ * \param data_shape The input data shape.
+ * \param attrs The attributes.
+ * \return Output shape.
+ */
+Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs);
 
 }  // namespace relay
 }  // namespace tvm

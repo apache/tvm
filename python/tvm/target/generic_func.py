@@ -26,7 +26,7 @@ except ImportError:
         raise
 
 from tvm.runtime import Object
-from . target import Target
+from .target import Target
 from . import _ffi_api
 
 
@@ -41,6 +41,7 @@ class GenericFunc(Object):
     Do not construct an instance of this object, it should only ever be
     used as a return value from calling into C++.
     """
+
     def __call__(self, *args):
         return _ffi_api.GenericFuncCallFunc(self, *args)
 
@@ -167,26 +168,32 @@ def override_native_generic_func(func_name):
             -------
             The register function is necessary.
             """
+
             def _do_reg(myf):
                 generic_func_node.register(myf, key, override)
                 return myf
+
             if func:
                 return _do_reg(func)
             return _do_reg
 
         def dispatch_func(func, *args, **kwargs):
-            #pylint: disable=unused-argument
+            # pylint: disable=unused-argument
             """The wrapped dispath function"""
             if kwargs:
                 raise RuntimeError(
-                    "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
+                    "Keyword arguments cannot be used when invoking generic_func %s" % func_name
+                )
             return generic_func_node(*args)
+
         fresult = decorate(fdefault, dispatch_func)
         fresult.fdefault = fdefault
         fresult.register = register
         fresult.generic_func_node = generic_func_node
         return fresult
+
     return fdecorate
+
 
 def generic_func(fdefault):
     """Wrap a target generic function.
@@ -245,14 +252,15 @@ def generic_func(fdefault):
         -------
         The register function is necessary.
         """
+
         def _do_reg(myf):
             key_list = [key] if isinstance(key, str) else key
             for k in key_list:
                 if k in dispatch_dict and not override:
-                    raise ValueError(
-                        "Key is already registered for %s" % func_name)
+                    raise ValueError("Key is already registered for %s" % func_name)
                 dispatch_dict[k] = myf
             return myf
+
         if func:
             return _do_reg(func)
         return _do_reg
@@ -266,6 +274,7 @@ def generic_func(fdefault):
             if k in dispatch_dict:
                 return dispatch_dict[k](*args, **kwargs)
         return func(*args, **kwargs)
+
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
     fdecorate.fdefault = fdefault

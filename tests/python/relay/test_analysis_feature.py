@@ -23,29 +23,31 @@ from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import run_infer_type
 
+
 def test_prelude():
     p = Prelude()
     feats = detect_feature(p.mod)
-    assert feats == set([
-        Feature.fVar,
-        Feature.fGlobalVar,
-        Feature.fConstant,
-        Feature.fTuple,
-        Feature.fTupleGetItem,
-        Feature.fFunction,
-        Feature.fOp,
-        Feature.fCall,
-        Feature.fLet,
-        Feature.fIf,
-        Feature.fConstructor,
-        Feature.fMatch,
-        Feature.fGraph
-    ])
+    assert feats == set(
+        [
+            Feature.fVar,
+            Feature.fGlobalVar,
+            Feature.fConstant,
+            Feature.fTuple,
+            Feature.fTupleGetItem,
+            Feature.fFunction,
+            Feature.fOp,
+            Feature.fCall,
+            Feature.fLet,
+            Feature.fIf,
+            Feature.fConstructor,
+            Feature.fMatch,
+        ]
+    )
 
 
 def test_ad():
     shape = (10, 10)
-    dtype = 'float32'
+    dtype = "float32"
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x + x)
@@ -54,21 +56,22 @@ def test_ad():
     mod = relay.transform.InferType()(mod)
     back_func = mod["main"]
     feats = detect_feature(back_func)
-    assert feats == set([
-        Feature.fVar,
-        Feature.fTuple,
-        Feature.fTupleGetItem,
-        Feature.fFunction,
-        Feature.fOp,
-        Feature.fCall,
-        Feature.fLet,
-        Feature.fRefCreate,
-        Feature.fRefRead,
-        Feature.fRefWrite,
-        Feature.fGraph
-    ])
+    assert feats == set(
+        [
+            Feature.fVar,
+            Feature.fTuple,
+            Feature.fTupleGetItem,
+            Feature.fFunction,
+            Feature.fOp,
+            Feature.fCall,
+            Feature.fLet,
+            Feature.fRefCreate,
+            Feature.fRefRead,
+            Feature.fRefWrite,
+        ]
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_prelude()
     test_ad()

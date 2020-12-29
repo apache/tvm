@@ -31,7 +31,7 @@ namespace tvm {
 namespace relay {
 
 Expr DeDup(const Expr& e) {
-  class DeDupMutator : public TypeMutator, public ExprMutator, public PatternMutator {
+  class DeDupMutator : public TypeMutator, public MixedModeMutator, public PatternMutator {
    public:
     TypeVar Fresh(const TypeVar& tv) {
       TypeVar ret = TypeVar(tv->name_hint, tv->kind);
@@ -40,18 +40,20 @@ Expr DeDup(const Expr& e) {
     }
 
     Var Fresh(const Var& v) {
-      CHECK_EQ(rename_.count(v), 0);
-      CHECK_EQ(memo_.count(v), 0) << v.as<VarNode>();
+      ICHECK_EQ(rename_.count(v), 0);
+      ICHECK_EQ(memo_.count(v), 0) << v.as<VarNode>();
       Var ret = Var(v->name_hint(), VisitType(v->type_annotation));
       rename_[v] = ret;
       return ret;
     }
 
-    Expr VisitExpr(const Expr& e) final {
+    Expr DispatchVisitExpr(const Expr& e) final {
       auto ret = ExprMutator::VisitExpr(e);
       ret->checked_type_ = e->checked_type_;
       return ret;
     }
+
+    using MixedModeMutator::VisitExpr_;
 
     Expr VisitExpr_(const VarNode* op) final {
       Var v = GetRef<Var>(op);
@@ -89,13 +91,13 @@ Expr DeDup(const Expr& e) {
     Var VisitVar(const Var& v) final { return Fresh(v); }
 
    private:
-    std::unordered_map<Var, Var, ObjectHash, ObjectEqual> rename_;
-    std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> type_rename_;
+    std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> rename_;
+    std::unordered_map<TypeVar, TypeVar, ObjectPtrHash, ObjectPtrEqual> type_rename_;
   };
-  CHECK(WellFormed(e)) << AsText(e, false);
+  ICHECK(WellFormed(e)) << AsText(e, false);
   Expr ret = DeDupMutator().VisitExpr(e);
-  CHECK(WellFormed(ret));
-  CHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
+  ICHECK(WellFormed(ret));
+  ICHECK_EQ(FreeVars(e).size(), FreeVars(ret).size());
   return ret;
 }
 

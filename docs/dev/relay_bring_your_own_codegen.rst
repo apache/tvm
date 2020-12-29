@@ -137,7 +137,7 @@ Here we highlight the notes marked in the above code:
 
 * **Note 3** is a TVM runtime compatible wrapper function. It accepts a list of input tensors and one output tensor (the last argument), casts them to the right data type, and invokes the subgraph function described in Note 2. In addition, ``TVM_DLL_EXPORT_TYPED_FUNC`` is a TVM macro that generates another function ``gcc_0`` with unified the function arguments by packing all tensors to ``TVMArgs``. As a result, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
 
-In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `/src/relay/backend/contrib/codegen_c/ <https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
+In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `/src/relay/backend/contrib/codegen_c/ <https://github.com/apache/tvm/blob/main/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
 
 Specifically, we are going to implement two classes in this file and here is their relationship:
 
@@ -296,7 +296,7 @@ As mentioned in the previous step, in addition to the subgraph input and output 
 
     // This example only supports single output.
     auto type_node = call->checked_type().as<TensorTypeNode>();
-    CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
+    ICHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
           << "Only support single output tensor with float type";
 
     // Generate a unique buffer name.
@@ -410,7 +410,7 @@ Implement GenCFunc
 .. code-block:: c++
 
   void GenCFunc(const Function& func) {
-    CHECK(func.defined()) << "Input error: expect a Relay function.";
+    ICHECK(func.defined()) << "Input error: expect a Relay function.";
 
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
@@ -474,7 +474,7 @@ This function creates a runtime module for the external library. In this example
 
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("module.csource_module_create");
-    CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
+    ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code_stream_.str(), "cc");
   }
 
@@ -556,7 +556,7 @@ In this section, our goal is to implement the following customized TVM runtime m
       ExampleJsonCodeGen codegen(ref);
       std::string code = codegen.gen(); // Note 1
       const auto* pf = runtime::Registry::Get("module.examplejson_module_create"); // Note 2
-      CHECK(pf != nullptr) << "Cannot find ExampleJson module to create the external runtime module";
+      ICHECK(pf != nullptr) << "Cannot find ExampleJson module to create the external runtime module";
       return (*pf)(code);
   }
   TVM_REGISTER_GLOBAL("relay.ext.examplejsoncompiler").set_body_typed(ExampleJsonCompiler);
@@ -625,7 +625,7 @@ The next step is to implement a customized runtime to make use of the output of 
 Implement a Customized Runtime
 ==============================
 
-In this section, we will implement a customized TVM runtime step-by-step and register it to TVM runtime modules. The customized runtime should be located at ``src/runtime/contrib/<your-runtime-name>/``. In our example, we name our runtime "example_ext_runtime" and put it under `/src/runtime/contrib/example_ext_runtime/ <https://github.com/apache/incubator-tvm/blob/master/src/runtime/contrib/example_ext_runtime/example_ext_runtime.cc>`_. Feel free to check this file for a complete implementation.
+In this section, we will implement a customized TVM runtime step-by-step and register it to TVM runtime modules. The customized runtime should be located at ``src/runtime/contrib/<your-runtime-name>/``. In our example, we name our runtime "example_ext_runtime".
 
 Again, we first define a customized runtime class as follows. The class has to be derived from TVM ``ModuleNode`` in order to be compatible with other TVM runtime modules.
 
@@ -785,7 +785,7 @@ After the construction, we should have the above class variables ready. We then 
 
         // Copy input tensors to corresponding data entries.
         for (auto i = 0; i < args.size(); ++i) {
-          CHECK(args[i].type_code() == kNDArrayContainer || args[i].type_code() == kArrayHandle)
+          ICHECK(args[i].type_code() == kNDArrayContainer || args[i].type_code() == kArrayHandle)
               << "Expect NDArray or DLTensor as inputs\n";
           if (args[i].type_code() == kArrayHandle) {
             DLTensor* arg = args[i];
@@ -800,7 +800,7 @@ After the construction, we should have the above class variables ready. We then 
         for (const auto& it : this->graph_[this->curr_subgraph_]) {
           this->Run(it.id, it.inputs, it.output);
         }
-        CHECK_GT(graph_.count(this->curr_subgraph_), 0U);
+        ICHECK_GT(graph_.count(this->curr_subgraph_), 0U);
 
         // Copy the output from a data entry back to TVM runtime argument.
         auto out_idx = graph_[this->curr_subgraph_].back().output;
@@ -905,7 +905,7 @@ We also need to register this function to enable the corresponding Python API:
   TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
   .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
-The above registration means when users call ``tvm.runtime.load(lib_path)`` API and the exported library has an ExampleJSON stream, our ``LoadFromBinary`` will be invoked to create the same customized runtime module.
+The above registration means when users call ``tvm.runtime.load_module(lib_path)`` API and the exported library has an ExampleJSON stream, our ``LoadFromBinary`` will be invoked to create the same customized runtime module.
 
 In addition, if you want to support module creation directly from an ExampleJSON file, you can also implement a simple function and register a Python API as follows:
 
@@ -930,7 +930,7 @@ In addition, if you want to support module creation directly from an ExampleJSON
       *rv = ExampleJsonModule::Create(args[0]);
   });
 
-It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.runtime.load("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
+It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.runtime.load_module("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
 
 *******
 Summary
@@ -954,7 +954,7 @@ In summary, here is a checklist for you to refer:
   * ``Run`` to execute a subgraph.
   * Register a runtime creation API.
   * ``SaveToBinary`` and ``LoadFromBinary`` to serialize/deserialize customized runtime module.
-  * Register ``LoadFromBinary`` API to support ``tvm.runtime.load(your_module_lib_path)``.
+  * Register ``LoadFromBinary`` API to support ``tvm.runtime.load_module(your_module_lib_path)``.
   * (optional) ``Create`` to support customized runtime module construction from subgraph file in your representation.
 
 * An annotator to annotate a user Relay program to make use of your compiler and runtime (TBA).

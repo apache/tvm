@@ -24,12 +24,13 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/arith/util.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
+
+#include "int_operator.h"
 
 namespace tvm {
 namespace arith {
@@ -41,8 +42,8 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
   if (S->empty() || V->empty()) return;
   size_t m = S->size();
   size_t n = (*S)[0].size();  // n is # of variables
-  CHECK_EQ(V->size(), n);
-  CHECK_EQ((*V)[0].size(), n);
+  ICHECK_EQ(V->size(), n);
+  ICHECK_EQ((*V)[0].size(), n);
 
   for (size_t index = 0; index < std::min(m, n); ++index) {
     // Here A is partially diagonalized, that is A[i, j] is zero for all i, j
@@ -96,7 +97,7 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
         int64_t g, a, b;
         // g = a*matrix[index][index] + b*matrix[i][index]
         if ((*S)[i][index] % (*S)[index][index] != 0) {
-          std::tie(g, a, b) = xgcd((*S)[index][index], (*S)[i][index]);
+          g = ExtendedEuclidean((*S)[index][index], (*S)[i][index], &a, &b);
         } else {
           // Explicitly avoid changing the index-th row. This is important to avoid infinite loop.
           g = (*S)[index][index];
@@ -149,7 +150,7 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
         int64_t g, a, b;
         // g = a*matrix[index][index] + b*matrix[index][j]
         if ((*S)[index][j] % (*S)[index][index] != 0) {
-          std::tie(g, a, b) = xgcd((*S)[index][index], (*S)[index][j]);
+          g = ExtendedEuclidean((*S)[index][index], (*S)[index][j], &a, &b);
           // During this phase we may disrupt the zeroness of the index-th column, so we will
           // have to take some action if this might have happened.
           changed = true;
@@ -224,14 +225,14 @@ Map<Var, Range> InferRange(const Map<Var, PrimExpr>& vars_to_infer, const Array<
       new_ranges.Set(p.first, p.second);
     }
     // Convert original ranges to IntSets
-    var_intsets[p.first.get()] = IntSet::range(p.second);
+    var_intsets[p.first.get()] = IntSet::FromRange(p.second);
   }
 
   // Infer ranges for the new variables and add them to the resulting ranges
   for (const auto& p : vars_to_infer) {
     const auto& var = p.first;
     const auto& expr = p.second;
-    Range range = EvalSet(expr, var_intsets).cover_range(Range());
+    Range range = EvalSet(expr, var_intsets).CoverRange(Range());
     if (range.defined()) {
       new_ranges.Set(var, range);
     }

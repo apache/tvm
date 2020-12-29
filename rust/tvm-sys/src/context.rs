@@ -51,7 +51,7 @@ use enumn::N;
 use thiserror::Error;
 
 /// Device type represents the set of devices supported by
-/// [TVM](https://github.com/apache/incubator-tvm).
+/// [TVM](https://github.com/apache/tvm).
 ///
 /// ## Example
 ///
@@ -245,6 +245,18 @@ impl From<Context> for ffi::DLContext {
 impl Display for Context {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}({})", self.device_type, self.device_id)
+    }
+}
+
+impl<'a> From<&'a Context> for ArgValue<'a> {
+    fn from(ctx: &'a Context) -> Self {
+        DLContext::from(ctx).into()
+    }
+}
+
+impl<'a> From<Context> for ArgValue<'a> {
+    fn from(ctx: Context) -> Self {
+        DLContext::from(ctx).into()
     }
 }
 

@@ -34,6 +34,7 @@
 		C02637661F1C2690007247A9 /* TVMRuntime.mm in Sources */ = {isa = PBXBuildFile; fileRef = C02637651F1C2690007247A9 /* TVMRuntime.mm */; };
 		C02637691F1C26AF007247A9 /* ViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = C02637681F1C26AF007247A9 /* ViewController.mm */; };
 		C05A2C891F1DCE0900D4798B /* tvmrpcLauncher.mm in Sources */ = {isa = PBXBuildFile; fileRef = C05A2C881F1DCE0900D4798B /* tvmrpcLauncher.mm */; };
+		D7685AD324390EAE00D1469C /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7685AD224390EAD00D1469C /* CoreML.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 		C05A2C861F1DCE0900D4798B /* tvmrpcLauncher.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = tvmrpcLauncher.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C05A2C881F1DCE0900D4798B /* tvmrpcLauncher.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = tvmrpcLauncher.mm; sourceTree = "<group>"; };
 		C05A2C8A1F1DCE0900D4798B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D7685AD224390EAD00D1469C /* CoreML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreML.framework; path = System/Library/Frameworks/CoreML.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -69,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7685AD324390EAE00D1469C /* CoreML.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,6 +91,7 @@
 				C026374D1F1C25E8007247A9 /* tvmrpc */,
 				C05A2C871F1DCE0900D4798B /* tvmrpcLauncher */,
 				C026374C1F1C25E8007247A9 /* Products */,
+				D7685AD124390EAD00D1469C /* Frameworks */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -135,6 +139,14 @@
 				C05A2C8A1F1DCE0900D4798B /* Info.plist */,
 			);
 			path = tvmrpcLauncher;
+			sourceTree = "<group>";
+		};
+		D7685AD124390EAD00D1469C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D7685AD224390EAD00D1469C /* CoreML.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -309,7 +321,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -358,7 +370,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;

@@ -39,6 +39,7 @@
 #include <tvm/tir/function.h>
 
 #include "../ir/attr_functor.h"
+#include "../parser/meta_ref.h"
 #include "../relay/analysis/dependency_graph.h"
 #include "doc.h"
 #include "meta_data.h"
@@ -91,7 +92,8 @@ Doc RelayTextPrinter::PrintScope(const ObjectRef& node) {
 }
 
 Doc RelayTextPrinter::PrintFinal(const ObjectRef& node) {
-  if (node->IsInstance<BaseFuncNode>() && !node->IsInstance<relay::FunctionNode>()) {
+  if (node.defined() && node->IsInstance<BaseFuncNode>() &&
+      !node->IsInstance<relay::FunctionNode>()) {
     // Temporarily skip non-relay functions.
     // TODO(tvm-team) enhance the code to work for all functions
   } else if (node.as<ExprNode>()) {
@@ -105,8 +107,8 @@ Doc RelayTextPrinter::PrintFinal(const ObjectRef& node) {
 }
 
 Doc RelayTextPrinter::Print(const ObjectRef& node, bool meta, bool try_inline) {
-  bool is_non_relay_func =
-      node->IsInstance<BaseFuncNode>() && !node->IsInstance<relay::FunctionNode>();
+  bool is_non_relay_func = node.defined() && node->IsInstance<BaseFuncNode>() &&
+                           !node->IsInstance<relay::FunctionNode>();
   if (node.as<ExprNode>() && !is_non_relay_func) {
     return PrintExpr(Downcast<Expr>(node), meta, try_inline);
   } else if (node.as<TypeNode>()) {
@@ -237,7 +239,7 @@ bool RelayTextPrinter::AlwaysInline(const Expr& expr) {
 //------------------------------------
 // Overload of Expr printing functions
 //------------------------------------
-Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
+Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info) {
   // Exploit memoization to print GNF.
   // The first time we visit an expression, we need to allocate a temp var
   // for it. Every subsequent time we can just use its assigned variable.
@@ -245,6 +247,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
 
   // determine whether to inline
   bool inline_expr = AlwaysInline(expr);
+
   if (try_inline) {
     inline_expr |= IsUnique(expr);
   }
@@ -253,6 +256,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
   if (it != memo_.end()) return it->second;
 
   Doc printed_expr;
+
   if (meta) {
     printed_expr = meta_->GetMetaNode(GetRef<ObjectRef>(expr.get()));
   } else if (!inline_expr && expr.as<LetNode>()) {
@@ -265,13 +269,15 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline) {
     printed_expr = VisitExpr(expr);
   }
 
-  printed_expr << PrintOptionalInfo(expr);
+  if (optional_info) {
+    printed_expr << PrintOptionalInfo(expr);
+  }
 
   // add expr to doc
   if (expr.as<VarNode>()) {
     // This is our first time visiting the var and we hit the VarNode case
     // in the visitor. Thus the variable is free.
-    doc_stack_.back() << "free_var " << printed_expr << Doc::NewLine();
+    doc_stack_.back() << "free_var " << printed_expr << ";" << Doc::NewLine();
     // Memoization is done in AllocVar.
     return memo_[expr];
   } else if (inline_expr) {
@@ -302,7 +308,7 @@ Doc RelayTextPrinter::ScalarLiteral(DataType dtype, const T& value) {
   } else if (dtype == DataType::Float(32)) {
     os << value << 'f';
   } else if (dtype == DataType::Float(64)) {
-    os << value;
+    os << value << "f64";
   } else if (dtype == DataType::Bool()) {
     return Doc::PyBoolLiteral(value != 0);
   } else {
@@ -316,7 +322,7 @@ Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
   if (op->is_scalar()) {
     std::ostringstream os;
     DataType dtype = DataType(op->data->dtype);
-    CHECK_EQ(op->data->ctx.device_type, kDLCPU);
+    ICHECK_EQ(op->data->ctx.device_type, kDLCPU);
     if (dtype == DataType::Int(32)) {
       return ScalarLiteral(dtype, static_cast<const int32_t*>(op->data->data)[0]);
     } else if (dtype == DataType::Int(64)) {
@@ -331,7 +337,9 @@ Doc RelayTextPrinter::VisitExpr_(const ConstantNode* op) {
   }
   // default fall-back, record it as meta node.
   Doc doc;
-  return doc << Print(GetRef<ObjectRef>(op), true);
+  // Don't append optional_info. Because the entry function is Print,
+  // and it will append the optional_info afterwards.
+  return doc << PrintExpr(GetRef<Expr>(op), true, false, false);
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
@@ -363,12 +371,21 @@ Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
 }
 
 Doc RelayTextPrinter::VisitExpr_(const LetNode* op) {
-  Doc doc;
-  doc << "let " << AllocVar(op->var) << " = " << Print(op->value, false, true) << ";"
-      << Doc::NewLine();
-  // we use a scope here so GNF hoisting doesn't escape too far
-  // and nested, unique lets are not hoisted
-  doc << PrintScope(op->body);
+  int n = 0;
+  Expr let = GetRef<Let>(op);
+  while (auto let_node = let.as<LetNode>()) {
+    Doc doc;
+    doc << "let " << AllocVar(let_node->var) << " = " << Print(let_node->value, false, true) << ";"
+        << Doc::NewLine();
+    doc_stack_.push_back(doc);
+    let = let_node->body;
+    ++n;
+  }
+  Doc doc = PrintScope(let);
+  for (int i = 0; i < n; ++i) {
+    doc = doc_stack_.back() << doc;
+    doc_stack_.pop_back();
+  }
   return doc;
 }
 
@@ -446,9 +463,7 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
-  return Doc::Text('@' + op->name_hint.operator std::string());
-}
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text("@" + op->name_hint); }
 
 Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 
@@ -474,7 +489,11 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
     // don't print as a call if it's a 0-arity cons
     return doc;
   } else {
-    return doc << "(" << Doc::Concat(args) << ")";
+    doc << "(" << Doc::Concat(args) << ")";
+    if (op->span.defined()) {
+      doc << " /* " << PrintSpan(op->span) << " */";
+    }
+    return doc;
   }
 }
 
@@ -485,12 +504,12 @@ Doc RelayTextPrinter::VisitExpr_(const RefCreateNode* op) {
 
 Doc RelayTextPrinter::VisitExpr_(const RefReadNode* op) {
   Doc doc;
-  return doc << Print(op->ref) << "^";
+  return doc << "ref_read(" << Print(op->ref) << ")";
 }
 
 Doc RelayTextPrinter::VisitExpr_(const RefWriteNode* op) {
   Doc doc;
-  return doc << "(" << Print(op->ref) << " := " << Print(op->value) << ")";
+  return doc << "ref_write(" << Print(op->ref) << ", " << Print(op->value) << ")";
 }
 
 Doc RelayTextPrinter::VisitExpr_(const MatchNode* op) {
@@ -507,10 +526,11 @@ Doc RelayTextPrinter::VisitExpr_(const MatchNode* op) {
     Doc clause_doc;
     clause_doc << PrintPattern(clause->lhs, false) << " => ";
     Doc rhs_doc = PrintScope(clause->rhs);
-    if (clause->rhs.as<LetNode>()) {
-      // only add braces if there are multiple lines on the rhs
-      rhs_doc = Doc::Brace("{", rhs_doc, "}");
-    }
+    // TODO(@jroesch): This is unsound right now, and we need to revist it.
+    // if (clause->rhs.as<LetNode>()) {
+    // only add braces if there are multiple lines on the rhs
+    rhs_doc = Doc::Brace("{", rhs_doc, "}");
+    // }
     clause_doc << rhs_doc << ",";
     clause_docs.push_back(clause_doc);
   }
@@ -713,6 +733,8 @@ Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
     Doc printed_attr;
     if (value.as<tvm::tir::AnyNode>()) {
       printed_attr << "?";
+    } else if (auto str_obj = value.as<tvm::StringObj>()) {
+      printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
     } else if (meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
     } else {
@@ -732,7 +754,7 @@ Doc RelayTextPrinter::VisitAttr_(const ArrayNode* op) {
   Doc doc;
   doc << "[";
   std::vector<Doc> arr_vals;
-  for (auto val : op->data) {
+  for (auto val : *op) {
     arr_vals.push_back(PrintAttr(val));
   }
   doc << Doc::Concat(arr_vals);
@@ -813,7 +835,7 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* dict_attrs = attrs.as<DictAttrsNode>();
-  CHECK(dict_attrs);
+  ICHECK(dict_attrs);
   for (const auto& k : dict_attrs->dict) {
     Doc doc;
     doc << k.first << "=" << Print(k.second);
@@ -821,6 +843,19 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
   }
   return docs;
 }
+
+Doc RelayTextPrinter::PrintSpan(const Span& span) {
+  Doc doc;
+  const auto* span_node = span.as<SpanNode>();
+  ICHECK(span_node);
+  doc << span_node->source_name->name;
+  return doc;
+}
+
+TVM_REGISTER_GLOBAL("ir.TextPrinter").set_body_typed([](ObjectRef node) {
+  auto text = AsText(node, false, nullptr);
+  return text;
+});
 
 }  // namespace relay
 }  // namespace tvm

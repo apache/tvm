@@ -25,7 +25,6 @@
 #include <cctype>
 #include <iomanip>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
@@ -79,7 +78,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   ReserveKeywordsAsUnique();
 
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined()) << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  ICHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
@@ -139,10 +139,12 @@ void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
   }
 }
 
+static bool CheckOutermostBracketMatch(const std::string& s);
+
 void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src, DataType t) {
   PrintType(t, stream);
   stream << ' ' << target << " = ";
-  if (src.length() > 3 && src[0] == '(' && src[src.length() - 1] == ')') {
+  if (CheckOutermostBracketMatch(src)) {
     stream << src.substr(1, src.length() - 2);
   } else {
     stream << src;
@@ -188,7 +190,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr i
       // optimize for constant access
       if (auto* ptr = index.as<tir::IntImmNode>()) {
         int64_t offset = ptr->value;
-        CHECK_EQ(offset % t.lanes(), 0) << "Find unaligned vector load to a vector type";
+        ICHECK_EQ(offset % t.lanes(), 0) << "Find unaligned vector load to a vector type";
         os << vid << '[' << (offset / t.lanes()) << ']';
         return os.str();
       }
@@ -224,12 +226,12 @@ std::string CodeGenC::GetBufferRef(DataType t, const VarNode* buffer, PrimExpr i
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < intrinsic::kArrKindBound_) {
+  if (kind < builtin::kArrKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == intrinsic::kArrAddr) {
+    if (kind == builtin::kArrAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -240,34 +242,34 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case intrinsic::kArrData:
+      case builtin::kArrData:
         os << "data";
         break;
-      case intrinsic::kArrShape:
+      case builtin::kArrShape:
         os << "shape";
         break;
-      case intrinsic::kArrStrides:
+      case builtin::kArrStrides:
         os << "strides";
         break;
-      case intrinsic::kArrNDim:
+      case builtin::kArrNDim:
         os << "ndim";
         break;
-      case intrinsic::kArrTypeCode:
+      case builtin::kArrTypeCode:
         os << "dtype.code";
         break;
-      case intrinsic::kArrTypeBits:
+      case builtin::kArrTypeBits:
         os << "dtype.bits";
         break;
-      case intrinsic::kArrByteOffset:
+      case builtin::kArrByteOffset:
         os << "byte_offset";
         break;
-      case intrinsic::kArrTypeLanes:
+      case builtin::kArrTypeLanes:
         os << "dtype.lanes";
         break;
-      case intrinsic::kArrDeviceId:
+      case builtin::kArrDeviceId:
         os << "ctx.device_id";
         break;
-      case intrinsic::kArrDeviceType:
+      case builtin::kArrDeviceType:
         os << "ctx.device_type";
         break;
       default:
@@ -276,7 +278,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << ')';
     return os.str();
   } else {
-    CHECK_LT(kind, intrinsic::kTVMValueKindBound_);
+    ICHECK_LT(kind, builtin::kTVMValueKindBound_);
     std::ostringstream os;
     os << "(((TVMValue*)";
     this->PrintExpr(buffer, os);
@@ -306,7 +308,7 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, DataType t) {
   if (it == handle_data_type_.end()) {
     handle_data_type_[buf_var] = t;
   } else {
-    CHECK(it->second == t) << "conflicting buf var type";
+    ICHECK(it->second == t) << "conflicting buf var type";
   }
 }
 
@@ -347,11 +349,11 @@ void CodeGenC::PrintStorageSync(const CallNode* op) {  // NOLINT(*)
 }
 
 void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  CHECK_EQ(scope, "global");
+  ICHECK_EQ(scope, "global");
 }
 
 void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  CHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
+  ICHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
   if (t.is_handle()) {
     os << "void*";
     return;
@@ -492,7 +494,7 @@ inline void PrintBinaryIntrinsic(const CallNode* op, const char* opstr,
                                  std::ostream& os,  // NOLINT(*)
                                  CodeGenC* p) {
   if (op->dtype.lanes() == 1) {
-    CHECK_EQ(op->args.size(), 2U);
+    ICHECK_EQ(op->args.size(), 2U);
     os << '(';
     p->PrintExpr(op->args[0], os);
     os << opstr;
@@ -560,80 +562,98 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   PrintExpr(op->a, os);
 }
 
+void CodeGenC::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                               bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
+  os << global_symbol << "(";
+  for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
+    this->PrintExpr(args[i], os);
+    if (i < args.size() - 1) {
+      os << ", ";
+    }
+  }
+  os << ")";
+}
+
 void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == CallNode::Extern || op->call_type == CallNode::PureExtern) {
-    os << op->name << "(";
-    for (size_t i = 0; i < op->args.size(); i++) {
-      this->PrintExpr(op->args[i], os);
-      if (i < op->args.size() - 1) {
-        os << ", ";
+  if (auto* ptr_op = op->op.as<OpNode>()) {
+    auto call_op = GetRef<Op>(ptr_op);
+
+    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+      ICHECK_GE(op->args.size(), 1U);
+      auto func = Downcast<StringImm>(op->args[0]);
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
+    } else if (op_attr_global_symbol_.count(call_op)) {
+      // call extern if the op itself have a global symbol.
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
+                            op->args, false, os);
+    } else if (op->op.same_as(builtin::bitwise_and())) {
+      PrintBinaryIntrinsic(op, " & ", os, this);
+    } else if (op->op.same_as(builtin::large_uint_imm())) {
+      ICHECK_EQ(op->args.size(), 2U);
+      uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+      uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+      uint64_t val = (high << 32U) | low;
+      PrintUIntConst(op->dtype, val, os, this);
+    } else if (op->op.same_as(builtin::bitwise_xor())) {
+      PrintBinaryIntrinsic(op, " ^ ", os, this);
+    } else if (op->op.same_as(builtin::bitwise_or())) {
+      PrintBinaryIntrinsic(op, " | ", os, this);
+    } else if (op->op.same_as(builtin::bitwise_not())) {
+      ICHECK_EQ(op->args.size(), 1U);
+      os << "(~";
+      this->PrintExpr(op->args[0], os);
+      os << ')';
+    } else if (op->op.same_as(builtin::shift_left())) {
+      PrintBinaryIntrinsic(op, " << ", os, this);
+    } else if (op->op.same_as(builtin::shift_right())) {
+      PrintBinaryIntrinsic(op, " >> ", os, this);
+    } else if (op->op.same_as(builtin::if_then_else())) {
+      os << "(";
+      PrintExpr(op->args[0], os);
+      os << " ? ";
+      PrintExpr(op->args[1], os);
+      os << " : ";
+      PrintExpr(op->args[2], os);
+      os << ")";
+    } else if (op->op.same_as(builtin::address_of())) {
+      const LoadNode* l = op->args[0].as<LoadNode>();
+      ICHECK(op->args.size() == 1 && l);
+      os << "((";
+      this->PrintType(l->dtype.element_of(), os);
+      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
+         << "(";
+      this->PrintExpr(l->index, os);
+      if (l->dtype.bits() == 4 || (l->dtype.bits() == 1 && l->dtype.is_int())) {
+        os << " / " << (32 / l->dtype.bits());
       }
-    }
-    os << ")";
-  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
-    PrintBinaryIntrinsic(op, " & ", os, this);
-  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
-    CHECK_EQ(op->args.size(), 2U);
-    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
-    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
-    uint64_t val = (high << 32U) | low;
-    PrintUIntConst(op->dtype, val, os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
-    PrintBinaryIntrinsic(op, " ^ ", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
-    PrintBinaryIntrinsic(op, " | ", os, this);
-  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
-    CHECK_EQ(op->args.size(), 1U);
-    os << "(~";
-    this->PrintExpr(op->args[0], os);
-    os << ')';
-  } else if (op->is_intrinsic(CallNode::shift_left)) {
-    PrintBinaryIntrinsic(op, " << ", os, this);
-  } else if (op->is_intrinsic(CallNode::shift_right)) {
-    PrintBinaryIntrinsic(op, " >> ", os, this);
-  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
-    os << "(";
-    PrintExpr(op->args[0], os);
-    os << " ? ";
-    PrintExpr(op->args[1], os);
-    os << " : ";
-    PrintExpr(op->args[2], os);
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const LoadNode* l = op->args[0].as<LoadNode>();
-    CHECK(op->args.size() == 1 && l);
-    os << "((";
-    this->PrintType(l->dtype.element_of(), os);
-    os << " *)" << this->GetVarID(l->buffer_var.get()) << " + ";
-    this->PrintExpr(l->index, os);
-    os << ')';
-  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
-    CHECK_EQ(op->args.size(), 3U);
-    os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
-  } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
-    CHECK_EQ(op->args.size(), 1U);
-    os << "(";
-    this->PrintExpr(op->args[0], os);
-    os << " == NULL)";
-  } else if (op->is_intrinsic(CallNode::reinterpret)) {
-    // generate (*( TYPE *)(&(ARG)))
-    os << "(*(";
-    this->PrintType(op->dtype, os);
-    os << " *)(&(";
-    this->PrintExpr(op->args[0], os);
-    os << ")))";
-  } else if (op->is_intrinsic(CallNode::isnan)) {
-    os << "(";
-    this->PrintExpr(op->args[0], os);
-    os << " != ";
-    this->PrintExpr(op->args[0], os);
-    os << ")";
-  } else {
-    if (op->call_type == CallNode::Intrinsic || op->call_type == CallNode::PureIntrinsic) {
-      LOG(FATAL) << "Unresolved intrinsic " << op->name << " with return type " << op->dtype;
+      os << "))";
+    } else if (op->op.same_as(builtin::tvm_struct_get())) {
+      ICHECK_EQ(op->args.size(), 3U);
+      os << GetStructRef(op->dtype, op->args[0], op->args[1], op->args[2].as<IntImmNode>()->value);
+    } else if (op->op.same_as(builtin::isnullptr())) {
+      ICHECK_EQ(op->args.size(), 1U);
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << " == NULL)";
+    } else if (op->op.same_as(builtin::reinterpret())) {
+      int ssa_scope = BeginScope();
+      std::string rhs = SSAGetID(PrintExpr(op->args[0]), op->args[0]->dtype);
+      os << "(*(";
+      this->PrintType(op->dtype, os);
+      os << " *)(&(" << rhs << ")))";
+      EndScope(ssa_scope);
+    } else if (op->op.same_as(builtin::isnan())) {
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << " != ";
+      this->PrintExpr(op->args[0], os);
+      os << ")";
     } else {
-      LOG(FATAL) << "Unresolved call type " << op->call_type;
+      LOG(FATAL) << "Unresolved call " << op->op;
     }
+  } else {
+    ICHECK(op->op.as<GlobalVarNode>());
+    LOG(FATAL) << "Do not yet support cross function call";
   }
 }
 
@@ -661,7 +681,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
     std::string ref = GetBufferRef(op->dtype, op->buffer_var.get(), op->index);
     HandleVolatileLoads(ref, op, os);
   } else {
-    CHECK(is_one(op->predicate)) << "predicated load is not supported";
+    ICHECK(is_one(op->predicate)) << "predicated load is not supported";
 
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
@@ -705,8 +725,10 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
-    CHECK(is_one(op->predicate)) << "Predicated store is not supported";
+    ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
+
+
     if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
@@ -747,15 +769,21 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
 }
 
 void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
+  auto it = let_binding_.find(op->var);
+  if (it != let_binding_.end()) {
+    ICHECK(deep_equal_(it->second->value, op->value))
+        << "Let cannot bind the same var to two different values";
+  } else {
+    let_binding_[op->var] = op;
+  }
   std::string value = PrintExpr(op->value);
-  CHECK(!var_idmap_.count(op->var.get()));
   var_idmap_[op->var.get()] = value;
   os << PrintExpr(op->body);
 }
 
 void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // constraint of current logic
-  CHECK_EQ(op->base.dtype(), DataType::Int(32));
+  ICHECK_EQ(op->base.dtype(), DataType::Int(32));
   os << "((int" << op->lanes << ")(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
@@ -786,7 +814,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
 void CodeGenC::VisitStmt_(const LetStmtNode* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
-    CHECK(!var_idmap_.count(op->var.get()));
+    ICHECK(!var_idmap_.count(op->var.get()));
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
@@ -804,12 +832,12 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const AllocateNode* op) {
-  CHECK(!is_zero(op->condition));
+  ICHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
   int32_t constant_size = op->constant_allocation_size();
-  CHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
   std::string scope = alloc_storage_scope_.at(buffer);
   PrintStorageScope(scope, stream);
@@ -830,15 +858,15 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
     }
   } else if (op->attr_key == tir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
-    CHECK(v);
+    ICHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
-    CHECK(v);
+    ICHECK(v);
     volatile_buf_.insert(v);
   } else if (op->attr_key == tir::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
-    CHECK(value != nullptr);
+    ICHECK(value != nullptr);
     decl_stream << value->value;
   }
   this->PrintStmt(op->body);
@@ -849,7 +877,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   PrintIndent();
   if (const auto* str = op->message.as<StringImmNode>()) {
     // GLOG style check
-    stream << "CHECK(" << cond << ") << \"" << str->value << "\";\n";
+    stream << "ICHECK(" << cond << ") << \"" << str->value << "\";\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }
@@ -860,7 +888,7 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
-  CHECK(is_zero(op->min));
+  ICHECK(is_zero(op->min));
   stream << "for (";
   PrintType(op->loop_var.dtype(), stream);
   stream << ' ' << vid << " = 0; " << vid << " < " << extent << "; ++" << vid << ") {\n";
@@ -901,14 +929,14 @@ void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const EvaluateNode* op) {
-  if (is_const(op->value)) return;
+  if (is_const_int(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
-    if (call->is_intrinsic(intrinsic::tvm_storage_sync)) {
+    if (call->op.same_as(builtin::tvm_storage_sync())) {
       this->PrintStorageSync(call);
       return;
-    } else if (call->is_intrinsic(intrinsic::tvm_struct_set)) {
-      CHECK_EQ(call->args.size(), 4);
+    } else if (call->op.same_as(builtin::tvm_struct_set())) {
+      ICHECK_EQ(call->args.size(), 4);
       std::string value = PrintExpr(call->args[3]);
       std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1],
                                      call->args[2].as<IntImmNode>()->value);
@@ -925,7 +953,7 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) {
-  CHECK_GT(t.lanes(), 1);
+  ICHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (i != 0) {
       os << "|";
@@ -937,7 +965,7 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
   if (i == 0) {
     os << "((";
     PrintType(t, os);
-    os << t.lanes() << ")(";
+    os << ")(";
   }
   os << value;
   if (i != t.lanes() - 1) {
@@ -946,6 +974,24 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
     os << "))";
   }
   return;
+}
+
+static bool CheckOutermostBracketMatch(const std::string& s) {
+  if (!s.empty() && s.front() == '(' && s.back() == ')') {
+    size_t len = s.size();
+    int n_unmatched = 0;
+    for (size_t i = 0; i < len; ++i) {
+      if (s[i] == '(') {
+        n_unmatched++;
+      } else if (s[i] == ')') {
+        n_unmatched--;
+      }
+      if (n_unmatched == 0) {
+        return i == len - 1;
+      }
+    }
+  }
+  return false;
 }
 
 }  // namespace codegen

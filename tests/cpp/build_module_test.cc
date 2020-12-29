@@ -19,10 +19,10 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <topi/cuda/injective.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
+#include <tvm/topi/cuda/injective.h>
 
 #include <cmath>
 #include <string>
@@ -50,14 +50,20 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({A, B, C});
   std::unordered_map<Tensor, Buffer> binds;
 
-  auto config = BuildConfig::Create();
-  auto target = target::llvm();
+  auto target = Target("llvm");
 
-  auto lowered = lower(s, args, "func", binds, config);
-  auto module = build(lowered, target, Target(), config);
+  auto lowered = lower(s, args, "func", binds);
+  auto module = build(lowered, target, Target());
 
-  auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
-  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  auto mali_target = Target("opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  ICHECK_EQ(mali_target->kind->name, "opencl");
+  ICHECK_EQ(mali_target->keys.size(), 3);
+  ICHECK_EQ(mali_target->keys[0], "mali");
+  ICHECK_EQ(mali_target->keys[1], "opencl");
+  ICHECK_EQ(mali_target->keys[2], "gpu");
+  ICHECK_EQ(mali_target->GetAttr<String>("device").value(), "mali");
+  ICHECK_EQ(mali_target->GetAttr<String>("model").value(), "Mali-T860MP4@800Mhz");
+  ICHECK_EQ(mali_target->GetAttr<Integer>("max_num_threads").value(), 256);
 }
 
 TEST(BuildModule, Heterogeneous) {
@@ -82,8 +88,8 @@ TEST(BuildModule, Heterogeneous) {
     return;
   }
 
-  auto target_llvm = target::llvm();
-  auto target_cuda = target::cuda();
+  auto target_llvm = Target("llvm");
+  auto target_cuda = Target("cuda");
 
   // The shape of input tensors.
   const int n = 4;
@@ -106,18 +112,17 @@ TEST(BuildModule, Heterogeneous) {
   With<Target> llvm_scope(target_llvm);
   auto s2 = create_schedule({elemwise_sub->op});
 
-  auto config = BuildConfig::Create();
   auto args1 = Array<Tensor>({A, B, elemwise_add});
   auto args2 = Array<Tensor>({copy, C, elemwise_sub});
 
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = lower(s1, args1, "elemwise_add", binds, config);
-  auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds, config);
+  auto lowered_s1 = lower(s1, args1, "elemwise_add", binds);
+  auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds);
   Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1}, {target_llvm, lowered_s2}};
-  auto module = build(inputs, Target(), config);
+  auto module = build(inputs, Target());
 
   // Assertion for build.
-  CHECK_EQ(module->imports().size(), 1);
+  ICHECK_EQ(module->imports().size(), 1);
 
   // Execute the graph and check the correctness.
   // Setup graph json.
@@ -172,7 +177,7 @@ TEST(BuildModule, Heterogeneous) {
   // test FFI for module.
   auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
     int tcode = args[1];
-    CHECK_EQ(args[0].type_code(), tcode);
+    ICHECK_EQ(args[0].type_code(), tcode);
   });
 
   test_ffi(runtime::Module(mod), static_cast<int>(kTVMModuleHandle));
@@ -191,7 +196,7 @@ TEST(BuildModule, Heterogeneous) {
 
   // Check correctness.
   for (int i = 0; i < n; ++i) {
-    CHECK_LT(std::fabs(p_out[i] - (i + (i + 1.0) - (i - 1.0))), 1e-5);
+    ICHECK_LT(std::fabs(p_out[i] - (i + (i + 1.0) - (i - 1.0))), 1e-5);
   }
 }
 

@@ -27,6 +27,7 @@ def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, tvm.transform.Pass)
 
     mod = tvm.IRModule.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -54,6 +55,7 @@ def test_concatenate_const():
 def test_fold_const():
     c_data = np.array([1, 2, 3]).astype("float32")
     t = relay.TensorType([1, 2, 3], "float32")
+
     def before():
         c = relay.const(c_data)
         x = relay.var("x", t)
@@ -70,15 +72,9 @@ def test_fold_const():
         z = relay.add(y, relay.const(c_data))
         return relay.Function([x], z)
 
-    def FailPass():
-        def _transform(m, *args):
-            raise RuntimeError()
-        return tvm.transform.module_pass(_transform, opt_level=0)
-
     # the fold constant should work on any context.
-    with tvm.target.build_config(add_lower_pass=[(0, FailPass())]):
-        with tvm.target.create("cuda"):
-            zz = run_opt_pass(before(), transform.FoldConstant())
+    with tvm.target.Target("cuda"):
+        zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
     assert tvm.ir.structural_equal(zz, zexpected)
 
@@ -86,6 +82,7 @@ def test_fold_const():
 def test_fold_let():
     c_data = np.array(1).astype("float32")
     t = relay.TensorType([1], "float32")
+
     def before():
         sb = relay.ScopeBuilder()
         x = relay.var("x", t)
@@ -98,7 +95,7 @@ def test_fold_let():
     def expected():
         sb = relay.ScopeBuilder()
         x = relay.var("x", t)
-        c_folded = (c_data + c_data)
+        c_folded = c_data + c_data
         t3 = sb.let("t3", relay.add(relay.const(c_folded), x))
         sb.ret(t3)
         return relay.Function([x], sb.get())
@@ -111,6 +108,7 @@ def test_fold_let():
 def test_fold_tuple():
     c_data = np.array(1).astype("float32")
     t = relay.TensorType([1], "float32")
+
     def before():
         c = relay.const(c_data)
         x = relay.var("x", t)
@@ -151,6 +149,7 @@ def test_fold_concat():
 
 def test_fold_shape_of():
     c_shape = (8, 9, 10)
+
     def before(dtype):
         x = relay.var("x", shape=c_shape, dtype="float32")
         y = relay.var("y", shape=c_shape, dtype="float32")
@@ -170,10 +169,34 @@ def test_fold_shape_of():
         assert tvm.ir.structural_equal(zz, zexpected)
 
 
+def test_fold_ndarray_size():
+    c_shape = (8, 9, 10)
+
+    def before(dtype):
+        x = relay.var("x", shape=c_shape, dtype="float32")
+        y = relay.var("y", shape=c_shape, dtype="float32")
+        z = relay.ndarray_size(x + y, dtype)
+        return relay.Function([x, y], z)
+
+    def expected(dtype):
+        x = relay.var("x", shape=c_shape, dtype="float32")
+        y = relay.var("y", shape=c_shape, dtype="float32")
+        z = relay.const(np.size(np.zeros(c_shape)), dtype=dtype)
+        func = relay.Function([x, y], z)
+        mod = tvm.IRModule.from_expr(func)
+        return mod["main"]
+
+    for dtype in ["int32", "float32"]:
+        zz = run_opt_pass(before(dtype), transform.FoldConstant())
+        zexpected = run_opt_pass(expected(dtype), transform.InferType())
+        assert tvm.ir.structural_equal(zz, zexpected)
+
+
 def test_fold_full():
     c_shape = (8, 9, 10)
+
     def before():
-        dtype = 'float32'
+        dtype = "float32"
         return relay.full(relay.const(1.0, dtype), c_shape, dtype=dtype)
 
     def expected():
@@ -190,17 +213,20 @@ def test_fold_batch_norm():
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
         weight = relay.const(np.zeros((16, 3, 3, 3)))
         bias = relay.const(np.zeros((16, 1, 1)))
-        conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
-                               channels=16, padding=(1, 1))
+        conv = relay.nn.conv2d(
+            data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
+        )
         add = relay.add(conv, bias)
         return relay.Function(relay.analysis.free_vars(add), add)
 
-    remove_bn_pass = tvm.transform.Sequential([
-        relay.transform.InferType(),
-        relay.transform.SimplifyInference(),
-        relay.transform.FoldConstant(),
-        relay.transform.FoldScaleAxis(),
-    ])
+    remove_bn_pass = tvm.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            relay.transform.SimplifyInference(),
+            relay.transform.FoldConstant(),
+            relay.transform.FoldScaleAxis(),
+        ]
+    )
 
     data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
     weight = relay.var("weight")
@@ -209,17 +235,18 @@ def test_fold_batch_norm():
     bn_mmean = relay.var("bn_mean")
     bn_mvar = relay.var("bn_var")
 
-    conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
-                           channels=16, padding=(1, 1))
-    bn_output = relay.nn.batch_norm(conv, bn_gamma, bn_beta,
-                                    bn_mmean, bn_mvar)
+    conv = relay.nn.conv2d(
+        data=data, weight=weight, kernel_size=(3, 3), channels=16, padding=(1, 1)
+    )
+    bn_output = relay.nn.batch_norm(conv, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+
     def initializer(_, param):
         param = np.zeros(param.shape)
 
     mod, params = create_workload(bn_output[0], initializer)
     mod["main"] = bind_params_by_name(mod["main"], params)
 
-    with relay.build_config(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())
@@ -234,3 +261,4 @@ if __name__ == "__main__":
     test_fold_shape_of()
     test_fold_full()
     test_fold_batch_norm()
+    test_fold_ndarray_size()

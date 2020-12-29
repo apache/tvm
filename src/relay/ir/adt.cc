@@ -116,11 +116,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "ClauseNode(" << node->lhs << ", " << node->rhs << ")";
     });
 
-Match::Match(Expr data, tvm::Array<Clause> clauses, bool complete) {
+Match::Match(Expr data, tvm::Array<Clause> clauses, bool complete, Span span) {
   ObjectPtr<MatchNode> n = make_object<MatchNode>();
   n->data = std::move(data);
   n->clauses = std::move(clauses);
   n->complete = complete;
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 

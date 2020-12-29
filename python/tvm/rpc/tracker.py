@@ -55,7 +55,8 @@ try:
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
-        "RPCTracker module requires tornado package %s. Try 'pip install tornado'." % error_msg)
+        "RPCTracker module requires tornado package %s. Try 'pip install tornado'." % error_msg
+    )
 
 from .._ffi.base import py_str
 from . import base
@@ -63,8 +64,10 @@ from .base import RPC_TRACKER_MAGIC, TrackerCode
 
 logger = logging.getLogger("RPCTracker")
 
+
 class Scheduler(object):
     """Abstratc interface of scheduler."""
+
     def put(self, value):
         """Push a resource into the scheduler.
 
@@ -103,7 +106,6 @@ class Scheduler(object):
             The resource to remove
         """
 
-
     def summary(self):
         """Get summary information of the scheduler."""
         raise NotImplementedError()
@@ -111,6 +113,7 @@ class Scheduler(object):
 
 class PriorityScheduler(Scheduler):
     """Priority based scheduler, FIFO based on time"""
+
     def __init__(self, key):
         self._key = key
         self._values = []
@@ -141,8 +144,7 @@ class PriorityScheduler(Scheduler):
 
     def summary(self):
         """Get summary information of the scheduler."""
-        return {"free": len(self._values),
-                "pending": len(self._requests)}
+        return {"free": len(self._values), "pending": len(self._requests)}
 
 
 class TCPEventHandler(tornado_util.TCPHandler):
@@ -152,6 +154,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
     The message is in form [nbytes(int32)] [json-str].
     All the information is packed in json-str
     """
+
     def __init__(self, tracker, sock, addr):
         super(TCPEventHandler, self).__init__(sock)
         self._data = bytearray()
@@ -178,11 +181,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
         if len(message) != 4:
             logger.warning("Invalid connection from %s", self.name())
             self.close()
-        magic = struct.unpack('<i', message)[0]
+        magic = struct.unpack("<i", message)[0]
         if magic != RPC_TRACKER_MAGIC:
             logger.warning("Invalid magic from %s", self.name())
             self.close()
-        self.write_message(struct.pack('<i', RPC_TRACKER_MAGIC), binary=True)
+        self.write_message(struct.pack("<i", RPC_TRACKER_MAGIC), binary=True)
         self._init_req_nbytes = 0
 
     def on_message(self, message):
@@ -203,12 +206,12 @@ class TCPEventHandler(tornado_util.TCPHandler):
         while True:
             if self._msg_size == 0:
                 if len(self._data) >= 4:
-                    self._msg_size = struct.unpack('<i', self._data[:4])[0]
+                    self._msg_size = struct.unpack("<i", self._data[:4])[0]
                 else:
                     return
             if self._msg_size != 0 and len(self._data) >= self._msg_size + 4:
-                msg = py_str(bytes(self._data[4:4 + self._msg_size]))
-                del self._data[:4 + self._msg_size]
+                msg = py_str(bytes(self._data[4 : 4 + self._msg_size]))
+                del self._data[: 4 + self._msg_size]
                 self._msg_size = 0
                 # pylint: disable=broad-except
                 self.call_handler(json.loads(msg))
@@ -218,8 +221,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
     def ret_value(self, data):
         """return value to the output"""
         data = json.dumps(data)
-        self.write_message(
-            struct.pack('<i', len(data)), binary=True)
+        self.write_message(struct.pack("<i", len(data)), binary=True)
         self.write_message(data.encode("utf-8"), binary=True)
 
     def call_handler(self, args):
@@ -241,6 +243,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
             key = args[1]
             user = args[2]
             priority = args[3]
+
             def _cb(value):
                 # if the connection is already closed
                 if not self._sock:
@@ -250,6 +253,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                 except (socket.error, IOError):
                     return False
                 return True
+
             self._tracker.request(key, user, priority, _cb)
         elif code == TrackerCode.PING:
             self.ret_value(TrackerCode.SUCCESS)
@@ -282,6 +286,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
 
 class TrackerServerHandler(object):
     """Tracker that tracks the resources."""
+
     def __init__(self, sock, stop_key):
         self._scheduler_map = {}
         self._sock = sock
@@ -289,10 +294,11 @@ class TrackerServerHandler(object):
         self._ioloop = ioloop.IOLoop.current()
         self._stop_key = stop_key
         self._connections = set()
+
         def _event_handler(_, events):
             self._on_event(events)
-        self._ioloop.add_handler(
-            self._sock.fileno(), _event_handler, self._ioloop.READ)
+
+        self._ioloop.add_handler(self._sock.fileno(), _event_handler, self._ioloop.READ)
 
     def _on_event(self, _):
         while True:
@@ -321,8 +327,8 @@ class TrackerServerHandler(object):
 
     def close(self, conn):
         self._connections.remove(conn)
-        if 'key' in conn._info:
-            key = conn._info['key'].split(':')[1]  # 'server:rasp3b' -> 'rasp3b'
+        if "key" in conn._info:
+            key = conn._info["key"].split(":")[1]  # 'server:rasp3b' -> 'rasp3b'
             for value in conn.put_values:
                 self._scheduler_map[key].remove(value)
 
@@ -350,6 +356,7 @@ class TrackerServerHandler(object):
         """Run the tracker server"""
         self._ioloop.start()
 
+
 def _tracker_server(listen_sock, stop_key):
     handler = TrackerServerHandler(listen_sock, stop_key)
     handler.run()
@@ -374,11 +381,8 @@ class Tracker(object):
     silent: bool, optional
         Whether run in silent mode
     """
-    def __init__(self,
-                 host,
-                 port=9190,
-                 port_end=9199,
-                 silent=False):
+
+    def __init__(self, host, port=9190, port_end=9199, silent=False):
         if silent:
             logger.setLevel(logging.WARN)
 
@@ -398,8 +402,7 @@ class Tracker(object):
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
         logger.info("bind to %s:%d", host, self.port)
         sock.listen(1)
-        self.proc = multiprocessing.Process(
-            target=_tracker_server, args=(sock, self.stop_key))
+        self.proc = multiprocessing.Process(target=_tracker_server, args=(sock, self.stop_key))
         self.proc.start()
         self.host = host
         # close the socket on this process

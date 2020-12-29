@@ -18,7 +18,7 @@
 import tvm
 from tvm import te
 import numpy as np
-from topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int16
+from tvm.topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int16
 
 
 def benchmark_fc_int8_acc16():
@@ -26,11 +26,11 @@ def benchmark_fc_int8_acc16():
     n = 128
     k = 128
 
-    X = te.placeholder((m, k), name='X', dtype="uint8")
-    W = te.placeholder((n, k), name='W', dtype="int8")
+    X = te.placeholder((m, k), name="X", dtype="uint8")
+    W = te.placeholder((n, k), name="W", dtype="int8")
 
-    peak = 512/16*2*2*2
-    gops_per_mm = 2*n*m*k
+    peak = 512 / 16 * 2 * 2 * 2
+    gops_per_mm = 2 * n * m * k
     print("Peak {} Gops/s \n".format(peak))
 
     def verify(target="llvm -mcpu=skylake-avx512"):
@@ -39,17 +39,25 @@ def benchmark_fc_int8_acc16():
             return
 
         ctx = tvm.context(target, 0)
-        X = te.placeholder((m, k), name='X', dtype="uint8")
-        W = te.placeholder((n, k), name='W', dtype="int8")
+        X = te.placeholder((m, k), name="X", dtype="uint8")
+        W = te.placeholder((n, k), name="W", dtype="int8")
         pc = dot_16x1x16_uint8_int8_int16()
-        ak = te.reduce_axis((0, k), name='k')
+        ak = te.reduce_axis((0, k), name="k")
 
-        packedW = te.placeholder((n//128, 128*(k//2), 2), name='packedW', dtype="int8")
-        t_fc = te.compute((m, n), lambda i, j: te.sum(X[i, ak].astype("int16") * packedW[j//128, (ak//2)*128+j%128, ak%2].astype("int16"), axis=ak), name="F")
+        packedW = te.placeholder((n // 128, 128 * (k // 2), 2), name="packedW", dtype="int8")
+        t_fc = te.compute(
+            (m, n),
+            lambda i, j: te.sum(
+                X[i, ak].astype("int16")
+                * packedW[j // 128, (ak // 2) * 128 + j % 128, ak % 2].astype("int16"),
+                axis=ak,
+            ),
+            name="F",
+        )
 
         t_sch = te.create_schedule(t_fc.op)
         a_x, a_y = t_fc.op.axis
-        a_k, = t_fc.op.reduce_axis
+        (a_k,) = t_fc.op.reduce_axis
 
         a_yo, a_yi = t_sch[t_fc].split(a_y, factor=128)
         a_ko, a_ki = t_sch[t_fc].split(a_k, factor=2)
@@ -58,34 +66,40 @@ def benchmark_fc_int8_acc16():
         a_koo, a_koi = t_sch[t_fc].split(a_ko, factor=32)
         t_sch[t_fc].reorder(a_yo, a_xo, a_koo, a_xi, a_koi, a_yi, a_ki)
 
-       	t_sch[t_fc].tensorize(a_yi, pc)
+        t_sch[t_fc].tensorize(a_yi, pc)
         # print(tvm.lower(t_sch, [X, packedW, t_fc], simple_mode=True))
         t_func = tvm.build(t_sch, [X, packedW, t_fc], target, name="intrinsic")
         t_evaluator = t_func.time_evaluator(t_func.entry_name, ctx, number=10)
 
-	    # generate the plain data
+        # generate the plain data
         a_ = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
-        b_ = np.random.uniform(1, 10,  size=(n, k)).astype("int8")
+        b_ = np.random.uniform(1, 10, size=(n, k)).astype("int8")
 
-        packW = np.random.uniform(1, 10,  size=(n//128, 128*(k//2), 2)).astype("int8")
+        packW = np.random.uniform(1, 10, size=(n // 128, 128 * (k // 2), 2)).astype("int8")
         # This occurs in pre_compute stage
-        for r_idx in range(n//128):
-            for s_idx in range(128*(k//2)):
+        for r_idx in range(n // 128):
+            for s_idx in range(128 * (k // 2)):
                 for t_idx in range(2):
-                    packW[r_idx][s_idx][t_idx] = b_[r_idx*128+s_idx%128][s_idx//128*2+t_idx]
+                    packW[r_idx][s_idx][t_idx] = b_[r_idx * 128 + s_idx % 128][
+                        s_idx // 128 * 2 + t_idx
+                    ]
 
         x = tvm.nd.array(a_, ctx)
         w = tvm.nd.array(packW, ctx)
         y = tvm.nd.array(np.zeros((m, n), dtype="int16"), ctx)
 
         result = t_evaluator(x, w, y)
-        gops_per_sec = gops_per_mm/result.mean/1e9
-        tvm.testing.assert_allclose(
-           y.asnumpy(), np.dot(a_, b_.T), rtol=1e-5)
-        print('Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}.'.format(result.mean*1000, gops_per_sec, gops_per_sec/peak))
-        #t_func.export_library("gemm_tensorize.o")
+        gops_per_sec = gops_per_mm / result.mean / 1e9
+        tvm.testing.assert_allclose(y.asnumpy(), np.dot(a_, b_.T), rtol=1e-5)
+        print(
+            "Tensorization: running time: {:.3f} ms, {:.2f} Gops/s, effiency: {:.2f}.".format(
+                result.mean * 1000, gops_per_sec, gops_per_sec / peak
+            )
+        )
+        # t_func.export_library("gemm_tensorize.o")
 
     verify()
+
 
 if __name__ == "__main__":
     benchmark_fc_int8_acc16()

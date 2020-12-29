@@ -21,11 +21,15 @@
  * \file upsampling.cc
  * \brief upsampling operator
  */
+
+#include "upsampling.h"
+
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/data_layout.h>
 
+#include <utility>
 #include <vector>
 
 #include "../op_common.h"
@@ -36,53 +40,26 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(UpSamplingAttrs);
 TVM_REGISTER_NODE_TYPE(UpSampling3DAttrs);
 
-template <typename T>
-Array<Array<Layout> > UpsamplingInferCorrectLayout(const Attrs& attrs,
-                                                   const Array<Layout>& new_in_layouts,
-                                                   const Array<Layout>& old_in_layouts,
-                                                   const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  T* params = const_cast<T*>(attrs.as<T>());
-
-  if (new_in_layouts.defined()) {
-    CHECK_EQ(new_in_layouts.size(), 1);
-
-    Layout raw_layout(params->layout);
-    Layout input = new_in_layouts[0];
-    if (input.IndexOf(LayoutAxis::Get('W')) == raw_layout.IndexOf(LayoutAxis::Get('W')) &&
-        input.IndexOf(LayoutAxis::Get('H')) == raw_layout.IndexOf(LayoutAxis::Get('H')) &&
-        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h')) &&
-        (input.IndexOf(LayoutAxis::Get('D')) == -1 ||
-         (input.IndexOf(LayoutAxis::Get('D')) == raw_layout.IndexOf(LayoutAxis::Get('D')) &&
-          !input.Contains(LayoutAxis::Get('d'))))) {
-      params->layout = input.name();  // modify self to follow the input layout
-    }
-  }
-
-  Layout inferred_layout(params->layout);
-  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
-}
-
 bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCHW("NCHW");
 
   const UpSamplingAttrs* param = attrs.as<UpSamplingAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "UpSampling only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, tir::CastNode::make(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_h)));
-  oshape.Set(3, tir::CastNode::make(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_w)));
+  oshape.Set(2, tir::Cast(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_h)));
+  oshape.Set(3, tir::Cast(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_w)));
 
   // assign output type
   reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
@@ -91,8 +68,8 @@ bool UpSamplingRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 // Positional relay function to create upsampling operator
 // used by frontend FFI.
-Expr MakeUpSampling(Expr data, double scale_h, double scale_w, std::string layout,
-                    std::string method, bool align_corners) {
+Expr MakeUpSampling(Expr data, double scale_h, double scale_w, String layout, String method,
+                    bool align_corners) {
   auto attrs = make_object<UpSamplingAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
@@ -133,25 +110,25 @@ RELAY_REGISTER_OP("nn.upsampling")
 // UpSampling3D
 bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                      const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   static const Layout kNCDHW("NCDHW");
 
   const UpSampling3DAttrs* param = attrs.as<UpSampling3DAttrs>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
   auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
-  CHECK(layout_converter.defined())
+  ICHECK(layout_converter.defined())
       << "UpSampling3D only support input layouts that are convertible from NCDHW."
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, tir::CastNode::make(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_d)));
-  oshape.Set(3, tir::CastNode::make(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_h)));
-  oshape.Set(4, tir::CastNode::make(oshape[4].dtype(), tvm::round(oshape[4] * param->scale_w)));
+  oshape.Set(2, tir::Cast(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_d)));
+  oshape.Set(3, tir::Cast(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_h)));
+  oshape.Set(4, tir::Cast(oshape[4].dtype(), tvm::round(oshape[4] * param->scale_w)));
 
   // assign output type
   reporter->Assign(types[1], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
@@ -160,8 +137,8 @@ bool UpSampling3DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 
 // Positional relay function to create upsampling3d operator
 // used by frontend FFI.
-Expr MakeUpSampling3D(Expr data, double scale_d, double scale_h, double scale_w, std::string layout,
-                      std::string method, std::string coordinate_transformation_mode) {
+Expr MakeUpSampling3D(Expr data, double scale_d, double scale_h, double scale_w, String layout,
+                      String method, String coordinate_transformation_mode) {
   auto attrs = make_object<UpSampling3DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);

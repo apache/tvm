@@ -110,9 +110,10 @@ class Function : public BaseFunc {
    * \param ret_type The return type of the function.
    * \param ty_params The type parameters.
    * \param attrs Additional function attributes.
+   * \param span The span of the function.
    */
   TVM_DLL Function(tvm::Array<Var> params, Expr body, Type ret_type, tvm::Array<TypeVar> ty_params,
-                   tvm::DictAttrs attrs = NullValue<DictAttrs>());
+                   tvm::DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
@@ -141,6 +142,8 @@ constexpr const char* kSkipOptimization = "SkipOptimization";
 constexpr const char* kComposite = "Composite";
 /*! \brief Mark the function to be inlined. */
 constexpr const char* kInline = "Inline";
+/*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
+constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 }  // namespace attr
 
 }  // namespace relay

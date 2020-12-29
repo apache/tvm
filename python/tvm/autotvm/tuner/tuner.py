@@ -17,15 +17,17 @@
 # pylint: disable=unused-argument, no-self-use, invalid-name
 """Base class of tuner"""
 import logging
+import tempfile
 
 import numpy as np
 
 from ..measure import MeasureInput, create_measure_batch
-from ..util import format_si_prefix
+from ..utils import format_si_prefix
 
 from ..env import GLOBAL_SCOPE
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
+
 
 class Tuner(object):
     """Base class for tuners
@@ -87,8 +89,7 @@ class Tuner(object):
             result for measurement
         """
 
-
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix='G'):
+    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix="G"):
         """Begin tuning
 
         Parameters
@@ -106,10 +107,10 @@ class Tuner(object):
             with no return value. These callback functions will be called on
             every measurement pair. See autotvm/tuner/callback.py for some examples.
         si_prefix: str
-            One of tvm.autotvm.util.SI_PREFIXES. The SI prefix to use when reporting FLOPS.
+            One of tvm.autotvm.utils.SI_PREFIXES. The SI prefix to use when reporting FLOPS.
         """
         measure_batch = create_measure_batch(self.task, measure_option)
-        n_parallel = getattr(measure_batch, 'n_parallel', 1)
+        n_parallel = getattr(measure_batch, "n_parallel", 1)
         early_stopping = early_stopping or 1e9
         self.n_trial = n_trial
         self.early_stopping = early_stopping
@@ -121,6 +122,7 @@ class Tuner(object):
 
         GLOBAL_SCOPE.in_tuning = True
         i = error_ct = 0
+        errors = []
         while i < n_trial:
             if not self.has_next():
                 break
@@ -139,6 +141,11 @@ class Tuner(object):
                 else:
                     flops = 0
                     error_ct += 1
+                    error = res.costs[0]
+                    if isinstance(error, str):
+                        errors.append(error)
+                    else:
+                        errors.append(str(error))
 
                 if flops > self.best_flops:
                     self.best_flops = flops
@@ -146,9 +153,15 @@ class Tuner(object):
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
-                logger.debug("No: %d\t%sFLOPS: %.2f/%.2f\tresult: %s\t%s",
-                             i + k + 1, si_prefix, format_si_prefix(flops, si_prefix),
-                             format_si_prefix(self.best_flops, si_prefix), res, config)
+                logger.debug(
+                    "No: %d\t%sFLOPS: %.2f/%.2f\tresult: %s\t%s",
+                    i + k + 1,
+                    si_prefix,
+                    format_si_prefix(flops, si_prefix),
+                    format_si_prefix(self.best_flops, si_prefix),
+                    res,
+                    config,
+                )
 
             i += len(results)
             self.ttl = min(early_stopping + self.best_iter, n_trial) - i
@@ -163,11 +176,21 @@ class Tuner(object):
 
             if error_ct > 150:
                 logging.basicConfig()
-                logger.warning("Too many errors happen in the tuning. Now is in debug mode")
+                logger.warning("Too many errors happen in the tuning. Switching to debug mode.")
                 logger.setLevel(logging.DEBUG)
             else:
                 logger.setLevel(old_level)
 
+        if error_ct == i:
+            _, f = tempfile.mkstemp(prefix="tvm_tuning_errors_", suffix=".log", text=True)
+            with open(f, "w") as file:
+                file.write("\n".join(errors))
+            logging.warning(
+                "Could not find any valid schedule for task %s. "
+                "A file containing the errors has been written to %s.",
+                self.task,
+                f,
+            )
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
@@ -182,7 +205,7 @@ class Tuner(object):
 
         Parameters
         ----------
-        data_set: Array of (MeasureInput, MeasureResult) pair
+        data_set: Array of (autotvm.measure.MeasureInput, autotvm.measure.MeasureResult) pair
             Previous tuning records
         """
         raise NotImplementedError()

@@ -35,10 +35,10 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
 
     Parameters
     ----------
-    graph_json_str : str or graph class
+    graph_json_str : str
         The graph to be deployed in json format output by graph compiler.
-        The graph can only contain one operator(tvm_op) that
-        points to the name of PackedFunc in the libmod.
+        The graph can contain operator(tvm_op) that points to the name
+        of PackedFunc in the libmod.
 
     libmod : tvm.Module
         The module of the corresponding function.
@@ -54,16 +54,12 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
     graph_module : GraphModuleDebug
         Debug Runtime graph module that can be used to execute the graph.
     """
-    if not isinstance(graph_json_str, string_types):
-        try:
-            graph_json_str = graph_json_str._tvm_graph_json()
-        except AttributeError:
-            raise ValueError("Type %s is not supported" % type(graph_json_str))
+    assert isinstance(graph_json_str, string_types)
+
     try:
         ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
         if num_rpc_ctx == len(ctx):
-            fcreate = ctx[0]._rpc_sess.get_function(
-                "tvm.graph_runtime_debug.create")
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_debug.create")
         else:
             fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
@@ -179,9 +175,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         Time consumed for each execution will be set as debug output.
 
         """
-        self.debug_datum._time_list = [
-            [float(t) * 1e-6] for t in self.run_individual(10, 1, 1)
-        ]
+        self.debug_datum._time_list = [[float(t) * 1e-6] for t in self.run_individual(10, 1, 1)]
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
@@ -207,11 +201,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             except KeyError:
                 node_list = output_tensors.keys()
                 raise RuntimeError(
-                    "Node "
-                    + node
-                    + " not found, available nodes are: "
-                    + str(node_list)
-                    + "."
+                    "Node " + node + " not found, available nodes are: " + str(node_list) + "."
                 )
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list

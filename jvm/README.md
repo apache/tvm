@@ -97,7 +97,7 @@ There's nothing special for this part. The following Python snippet generate add
 import os
 import tvm
 from tvm import te
-from tvm.contrib import cc, util
+from tvm.contrib import cc, utils
 
 def test_add(target_dir):
     n = te.var("n")
@@ -176,4 +176,4 @@ Server server = new Server(proxyHost, proxyPort, "key");
 server.start();
 ```
 
-You can also use `StandaloneServerProcessor` and `ConnectProxyServerProcessor` to build your own RPC server. Refer to [Android RPC Server](https://github.com/apache/incubator-tvm/blob/master/apps/android_rpc/app/src/main/java/org/apache/tvm/tvmrpc/RPCProcessor.java) for more details.
+You can also use `StandaloneServerProcessor` and `ConnectProxyServerProcessor` to build your own RPC server. Refer to [Android RPC Server](https://github.com/apache/tvm/blob/main/apps/android_rpc/app/src/main/java/org/apache/tvm/tvmrpc/RPCProcessor.java) for more details.

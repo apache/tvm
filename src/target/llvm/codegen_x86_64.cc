@@ -79,7 +79,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   const auto from = op->value.dtype();
   const auto to = op->dtype;
   if (from.is_float() && to.is_float() && from.bits() == 16 && to.bits() == 32) {
-    CHECK_EQ(from.lanes(), to.lanes());
+    ICHECK_EQ(from.lanes(), to.lanes());
     CHECK_NOTNULL(target_machine_);
 
     const auto has_avx512 = TargetHasFeature(*target_machine_, "avx512f");
@@ -89,10 +89,9 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
-              MakeValue(tir::CallNode::make(DataType::Int(16, from.lanes()),
-                                            tir::CallNode::reinterpret, {op->value},
-                                            tir::CallNode::PureIntrinsic)),
-              MakeValue(tir::BroadcastNode::make(FloatImm(DataType::Float(32), 0), from.lanes())),
+              MakeValue(tir::Call(DataType::Int(16, from.lanes()), tir::builtin::reinterpret(),
+                                  {op->value})),
+              MakeValue(tir::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
           });
@@ -105,9 +104,8 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
     if (from.lanes() >= 8 && has_f16c) {
       return CallVectorIntrin(::llvm::Intrinsic::x86_vcvtph2ps_256, 8,
                               DTypeToLLVMType(DataType::Float(32, from.lanes())),
-                              {MakeValue(tir::CallNode::make(
-                                  DataType::Int(16, from.lanes()), tir::CallNode::reinterpret,
-                                  {op->value}, tir::CallNode::PureIntrinsic))});
+                              {MakeValue(tir::Call(DataType::Int(16, from.lanes()),
+                                                   tir::builtin::reinterpret(), {op->value}))});
     }
 #endif
   }
@@ -117,31 +115,37 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
 
 llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intrin_lanes,
                                              llvm::Type* result_ty,
-
                                              const std::vector<llvm::Value*>& args) {
   llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id, {});
+#if TVM_LLVM_VERSION >= 120
+  size_t num_elems = llvm::cast<llvm::FixedVectorType>(result_ty)->getNumElements();
+#else
   size_t num_elems = llvm::cast<llvm::VectorType>(result_ty)->getNumElements();
+#endif
   if (intrin_lanes == num_elems) {
     return builder_->CreateCall(f, args);
   }
 
   // Otherwise, we split the vector into intrin_lanes sized elements (widening where necessary),
   // compute each result, and then concatenate the vectors (slicing the result if necessary).
-  CHECK_LT(intrin_lanes, num_elems);
+  ICHECK_LT(intrin_lanes, num_elems);
   std::vector<llvm::Value*> split_results;
   for (size_t i = 0; i < num_elems; i += intrin_lanes) {
     std::vector<llvm::Value*> split_args;
     for (const auto& v : args) {
       if (v->getType()->isVectorTy()) {
-        CHECK_EQ(llvm::cast<llvm::VectorType>(v->getType())->getNumElements(), num_elems);
+        ICHECK_EQ(GetVectorNumElements(v), num_elems);
         split_args.push_back(CreateVecSlice(v, i, intrin_lanes));
       } else {
         split_args.push_back(v);
       }
     }
-    split_results.push_back(CallVectorIntrin(
-        id, intrin_lanes, llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes),
-        split_args));
+#if TVM_LLVM_VERSION >= 110
+    llvm::Type* type = llvm::FixedVectorType::get(result_ty->getScalarType(), intrin_lanes);
+#else
+    llvm::Type* type = llvm::VectorType::get(result_ty->getScalarType(), intrin_lanes);
+#endif
+    split_results.push_back(CallVectorIntrin(id, intrin_lanes, type, split_args));
   }
   return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
 }

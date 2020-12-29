@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
+#include <tensorflow/lite/interpreter.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -36,7 +37,7 @@
 namespace tvm {
 namespace runtime {
 
-#define CHECK_TFLITE_STATUS(ret) CHECK_EQ(ret, kTfLiteOk)
+#define CHECK_TFLITE_STATUS(ret) ICHECK_EQ(ret, kTfLiteOk)
 
 /*!
  * \brief Tflite runtime.
@@ -92,7 +93,14 @@ class TFLiteRuntime : public ModuleNode {
    * \return NDArray corresponding to given output node index.
    */
   NDArray GetOutput(int index) const;
+  /*!
+   * \brief Set the number of threads available to the interpreter.
+   * \param num_threads The number of threads to be set.
+   */
+  void SetNumThreads(int num_threads);
 
+  // Buffer backing the interpreter's model
+  std::unique_ptr<char[]> flatBuffersBuffer_;
   // TFLite interpreter
   std::unique_ptr<tflite::Interpreter> interpreter_;
   // TVM context

@@ -31,8 +31,8 @@ namespace cl {
 
 OpenCLThreadEntry* SDAccelWorkspace::GetThreadEntry() { return SDAccelThreadEntry::ThreadLocal(); }
 
-const std::shared_ptr<OpenCLWorkspace>& SDAccelWorkspace::Global() {
-  static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<SDAccelWorkspace>();
+OpenCLWorkspace* SDAccelWorkspace::Global() {
+  static OpenCLWorkspace* inst = new SDAccelWorkspace();
   return inst;
 }
 
@@ -47,7 +47,7 @@ typedef dmlc::ThreadLocalStore<SDAccelThreadEntry> SDAccelThreadStore;
 SDAccelThreadEntry* SDAccelThreadEntry::ThreadLocal() { return SDAccelThreadStore::Get(); }
 
 TVM_REGISTER_GLOBAL("device_api.sdaccel").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = SDAccelWorkspace::Global().get();
+  DeviceAPI* ptr = SDAccelWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
 

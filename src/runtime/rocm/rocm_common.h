@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_ROCM_ROCM_COMMON_H_
 
 #include <hip/hip_runtime_api.h>
+#include <hip/hip_version.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
@@ -42,10 +43,10 @@ namespace runtime {
     }                                                                                          \
   }
 
-#define ROCM_CALL(func)                                             \
-  {                                                                 \
-    hipError_t e = (func);                                          \
-    CHECK(e == hipSuccess) << "ROCM HIP: " << hipGetErrorString(e); \
+#define ROCM_CALL(func)                                              \
+  {                                                                  \
+    hipError_t e = (func);                                           \
+    ICHECK(e == hipSuccess) << "ROCM HIP: " << hipGetErrorString(e); \
   }
 
 /*! \brief Thread local workspace */

@@ -21,12 +21,12 @@
  * \file rocm_device_api.cc
  * \brief GPU specific API
  */
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include "rocm_common.h"
 
@@ -102,10 +102,18 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = ss.str();
         return;
       }
+      case kMaxRegistersPerBlock:
+        ROCM_CALL(
+            hipDeviceGetAttribute(&value, hipDeviceAttributeMaxRegistersPerBlock, ctx.device_id));
+        break;
       case kGcnArch: {
         hipDeviceProp_t prop;
         ROCM_CALL(hipGetDeviceProperties(&prop, ctx.device_id));
         *rv = prop.gcnArch;
+        return;
+      }
+      case kApiVersion: {
+        *rv = HIP_VERSION;
         return;
       }
     }
@@ -114,7 +122,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
                        DLDataType type_hint) final {
     ROCM_CALL(hipSetDevice(ctx.device_id));
-    CHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
+    ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;
     ROCM_CALL(hipMalloc(&ret, nbytes));
     return ret;
@@ -166,8 +174,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCMThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
   }
 
-  static const std::shared_ptr<ROCMDeviceAPI>& Global() {
-    static std::shared_ptr<ROCMDeviceAPI> inst = std::make_shared<ROCMDeviceAPI>();
+  static ROCMDeviceAPI* Global() {
+    static ROCMDeviceAPI* inst = new ROCMDeviceAPI();
     return inst;
   }
 
@@ -189,7 +197,7 @@ ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
 TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = ROCMDeviceAPI::Global().get();
+  DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 }  // namespace runtime

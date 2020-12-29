@@ -42,18 +42,18 @@ namespace tvm {
  */
 namespace relay {
 
-#define RELAY_DEBUG(...)                                               \
-  {                                                                    \
-    auto fdebug = runtime::Registry::Get("relay.debug");               \
-    CHECK(fdebug) << "Could not find Relay Python debugger function."; \
-    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);         \
+#define RELAY_DEBUG(...)                                                \
+  {                                                                     \
+    auto fdebug = runtime::Registry::Get("relay.debug");                \
+    ICHECK(fdebug) << "Could not find Relay Python debugger function."; \
+    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);          \
   }
 
-#define RELAY_DEBUG_INTERP(...)                                        \
-  {                                                                    \
-    auto fdebug = runtime::Registry::Get("relay.debug_interp");        \
-    CHECK(fdebug) << "Could not find Relay Python debugger function."; \
-    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);         \
+#define RELAY_DEBUG_INTERP(...)                                         \
+  {                                                                     \
+    auto fdebug = runtime::Registry::Get("relay.debug_interp");         \
+    ICHECK(fdebug) << "Could not find Relay Python debugger function."; \
+    (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__);          \
   }
 
 /*!
@@ -93,11 +93,19 @@ class IdNode : public Object {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name_hint", &name_hint); }
 
+  bool SEqualReduce(const IdNode* other, SEqualReducer equal) const {
+    return equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.FreeVarHashImpl(this); }
+
   static constexpr const char* _type_key = "relay.Id";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
 };
 
@@ -107,7 +115,7 @@ class Id : public ObjectRef {
    * \brief The constructor
    * \param name_hint The name of the variable.
    */
-  TVM_DLL explicit Id(std::string name_hint);
+  TVM_DLL explicit Id(String name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };

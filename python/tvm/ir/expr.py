@@ -35,6 +35,7 @@ class PrimExpr(BaseExpr):
 
 class RelayExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
+
     @property
     def checked_type(self):
         """Get the checked type of tvm.relay.Expr.
@@ -46,8 +47,7 @@ class RelayExpr(BaseExpr):
         """
         ret = self._checked_type_
         if ret is None:
-            raise ValueError("The type checker has not populated"
-                             " the checked_type for this node")
+            raise ValueError("The type checker has not populated" " the checked_type for this node")
         return ret
 
 
@@ -63,6 +63,7 @@ class GlobalVar(RelayExpr):
     name_hint: str
         The name of the variable.
     """
+
     def __init__(self, name_hint):
         self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint)
 
@@ -82,10 +83,12 @@ class GlobalVar(RelayExpr):
         # pylint: disable=import-outside-toplevel
         if all(isinstance(x, RelayExpr) for x in args):
             from tvm import relay
+
             return relay.Call(self, args)
         arg_types = [type(x) for x in args]
         raise RuntimeError(
-            "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types))
+            "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)
+        )
 
 
 @tvm._ffi.register_object
@@ -104,21 +107,23 @@ class Range(Node):
     end : Optional[PrimExpr]
         The end value of the range.
 
+    span : Optional[Span]
+        The location of this itervar in the source code.
+
     Note
     ----
     The constructor creates the range `[begin, end)`
     if the end argument is not None. Otherwise, it creates `[0, begin)`.
     """
-    def __init__(self, begin, end=None):
+
+    def __init__(self, begin, end=None, span=None):
         if end is None:
-            self.__init_handle_by_constructor__(
-                _ffi_api.Range, 0, begin)
+            self.__init_handle_by_constructor__(_ffi_api.Range, 0, begin, span)
         else:
-            self.__init_handle_by_constructor__(
-                _ffi_api.Range, begin, end)
+            self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
-    def make_by_min_extent(min_value, extent):
+    def from_min_extent(min_value, extent, span=None):
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)
@@ -131,9 +136,12 @@ class Range(Node):
         extent : PrimExpr
             The extent of the range.
 
+        span : Optional[Span]
+            The location of this itervar in the source code.
+
         Returns
         -------
         rng : Range
             The constructed range.
         """
-        return _ffi_api.range_by_min_extent(min_value, extent)
+        return _ffi_api.Range_from_min_extent(min_value, extent, span)

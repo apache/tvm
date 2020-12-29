@@ -25,8 +25,9 @@ from . import _ffi_api
 
 Any = _ffi_api.Any
 
-def type_has_any(tensor_type):
-    """Check whether type has any as a shape.
+
+def is_dynamic(tensor_type):
+    """Check whether type has any or symbolic variables as a shape.
 
     tensor_type : Type
         The type to be inspected

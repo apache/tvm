@@ -22,13 +22,18 @@ import numpy as np
 
 import tvm
 from tvm.ir import IRModule
-from topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 from .. import expr as _expr
 from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
+
+# pylint: disable=invalid-name
+logger = logging.getLogger("Common")
+# Uncomment below line to print all debug msgs
+# logger.setLevel(logging.DEBUG)
 
 
 class RequiredAttr(object):
@@ -43,6 +48,7 @@ class StrAttrsDict(object):
     attrs : Dict[str, str]
         The attributes to be used.
     """
+
     def __init__(self, attrs):
         self.attrs = attrs
 
@@ -143,8 +149,11 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x) if x.strip("- ").isdigit() else None
-                         for x in tshape.strip('()[]').split(',') if x)
+            return tuple(
+                int(x) if x.strip("- ").isdigit() else None
+                for x in tshape.strip("()[]").split(",")
+                if x
+            )
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -167,8 +176,7 @@ class StrAttrsDict(object):
 
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(float(x.strip()) for x in
-                         tshape.strip('()[]').split(','))
+            return tuple(float(x.strip()) for x in tshape.strip("()[]").split(","))
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -191,9 +199,9 @@ class StrAttrsDict(object):
         if key in self.attrs:
             value = self.attrs[key]
             seq = []
-            for tup in value.strip('()').split('),'):
-                tup = tup.strip('[]()')
-                els = [int(x.strip('( ')) for x in tup.split(',')]
+            for tup in value.strip("()").split("),"):
+                tup = tup.strip("[]()")
+                els = [int(x.strip("( ")) for x in tup.split(",")]
                 seq.append(tuple(els))
 
             return tuple(seq)
@@ -219,7 +227,7 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x.strip()) for x in tshape.strip('[]()').split(','))
+            return tuple(int(x.strip()) for x in tshape.strip("[]()").split(","))
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -241,7 +249,7 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             val = self.attrs[key]
-            return val.strip().lower() in ['true', '1', 't', 'y', 'yes']
+            return val.strip().lower() in ["true", "1", "t", "y", "yes"]
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -254,11 +262,11 @@ def get_relay_op(op_name):
     op_name : str
         The Relay operator name.
     """
-    if '.' in op_name:
+    if "." in op_name:
         # explicit hierachical modules
         op = _op
         try:
-            for opn in op_name.split('.'):
+            for opn in op_name.split("."):
                 op = getattr(op, opn)
         except AttributeError:
             op = None
@@ -275,6 +283,7 @@ def get_relay_op(op_name):
 
 class ExprTable(object):
     """Table storing Relay expressions by names."""
+
     def __init__(self):
         self.exprs = {}
         self.params = {}
@@ -353,9 +362,17 @@ class AttrCvt(object):
         A custom function takes attribute, and return True/False.
         Raise RuntimeError if not bool(True) returned.
     """
-    def __init__(self, op_name, transforms=None,
-                 excludes=None, disables=None, ignores=None,
-                 extras=None, custom_check=None):
+
+    def __init__(
+        self,
+        op_name,
+        transforms=None,
+        excludes=None,
+        disables=None,
+        ignores=None,
+        extras=None,
+        custom_check=None,
+    ):
         self._op_name = op_name
         self._transforms = transforms if transforms else {}
         self._excludes = excludes if excludes else []
@@ -365,13 +382,13 @@ class AttrCvt(object):
         self._custom_check = custom_check
 
     def __call__(self, inputs, attrs, *args):
-        self._ignores.append('_output_shapes')
-        self._ignores.append('_input_shapes')
-        self._ignores.append('T')
-        self._ignores.append('use_cudnn_on_gpu')
-        self._ignores.append('_node_name')
-        self._ignores.append('is_training')
-        self._ignores.append('_target_layout')
+        self._ignores.append("_output_shapes")
+        self._ignores.append("_input_shapes")
+        self._ignores.append("T")
+        self._ignores.append("use_cudnn_on_gpu")
+        self._ignores.append("_node_name")
+        self._ignores.append("is_training")
+        self._ignores.append("_target_layout")
 
         # apply custom check
         if self._custom_check:
@@ -386,19 +403,20 @@ class AttrCvt(object):
             op_name = self._op_name(attrs)
 
         # ignore 'tvm_custom' always
-        self._ignores.append('tvm_custom')
+        self._ignores.append("tvm_custom")
 
         # convert attributes
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise NotImplementedError('Attribute %s in operator %s is not' +
-                                          ' supported.', k, op_name)
+                raise NotImplementedError(
+                    "Attribute %s in operator %s is not" + " supported.", k, op_name
+                )
             if k in self._disables:
-                logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
+                logger.debug("Attribute %s is disabled in relay.sym.%s", k, op_name)
             elif k in self._ignores:
-                if k != 'tvm_custom':
-                    logging.warning("Attribute %s is ignored in relay.sym.%s", k, op_name)
+                if k != "tvm_custom":
+                    logger.debug("Attribute %s is ignored in relay.sym.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
@@ -436,7 +454,7 @@ class AttrCvt(object):
     def _parse_bool(self, value):
         """Helper function to parse default boolean values."""
         if isinstance(value, str):
-            return value.strip().lower() in ['true', '1', 't', 'y', 'yes']
+            return value.strip().lower() in ["true", "1", "t", "y", "yes"]
         return bool(value)
 
     def _required_attr(self, attr, key):
@@ -448,7 +466,7 @@ class AttrCvt(object):
 
 
 def get_name(node):
-    name = ''
+    name = ""
     if hasattr(node, "name_hint"):
         name = node.name_hint
     return name
@@ -457,7 +475,7 @@ def get_name(node):
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
     if isinstance(mod, IRModule):
-        mod["main"] = _function.Function([], node)
+        mod["main"] = _function.Function(tvm.relay.analysis.free_vars(node), node)
         mod = _transform.InferType()(mod)
         entry = mod["main"]
         ret = entry.body
@@ -465,11 +483,13 @@ def infer_type(node, mod=None):
         new_mod = IRModule.from_expr(node)
         if mod is not None:
             new_mod.update(mod)
-            new_mod = _transform.InferType()(new_mod)
+
+        new_mod = _transform.InferType()(new_mod)
         entry = new_mod["main"]
         ret = entry if isinstance(node, _function.Function) else entry.body
 
     return ret
+
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
@@ -485,7 +505,7 @@ def infer_shape(inputs, mod=None):
     """A method to get the output type of an intermediate node in the graph."""
     out_type = infer_type(inputs, mod=mod)
     checked_type = out_type.checked_type
-    if hasattr(checked_type, 'shape'):
+    if hasattr(checked_type, "shape"):
         # Regular operator that outputs tensors
         return get_const_tuple(checked_type.shape)
     # The return type is not a tensor, for example List
@@ -497,19 +517,20 @@ def infer_value(input_val, params, mod=None):
     portion of the relay graph. This is often needed for functions that
     whose output shape depends on the value of a tensor.
     """
+    # Check that all free variables have associated parameters.
+    assert all(
+        var.name_hint in params.keys() for var in analysis.free_vars(input_val)
+    ), "All inputs to infer must be available in params."
     try:
         # TODO(kevinthesun): Use VM for all cases.
         # pylint: disable=import-outside-toplevel
         from tvm.contrib import graph_runtime
-        # Check that all free variables have associated parameters.
-        assert all(var.name_hint in params.keys() for var in analysis.free_vars(
-            input_val)), "All inputs to infer must be available in params."
+
         func = _function.Function(analysis.free_vars(input_val), input_val)
-        with tvm.relay.build_config(opt_level=0):
-            graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+        with tvm.transform.PassContext(opt_level=0):
+            lib = tvm.relay.build(func, target="llvm", params=params)
         ctx = tvm.cpu(0)
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input(**params)
+        m = graph_runtime.GraphModule(lib["default"](ctx))
         m.run()
         return m.get_output(0)
     except Exception:
@@ -519,8 +540,8 @@ def infer_value(input_val, params, mod=None):
             mod = IRModule.from_expr(input_val)
         exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
-        for param in mod['main'].params:
-            inputs.append(tvm.nd.array(params[param.name_hint]))
+        for param in mod["main"].params:
+            inputs.append(params[param.name_hint])
         result = exc.evaluate()(*inputs)
         return result
 
@@ -539,9 +560,7 @@ def infer_value_simulated(input_val, params):
             fp_dtype = free_param.type_annotation.dtype
             fp_shape = [s.value for s in free_param.type_annotation.shape]
             fake_params.append(free_param)
-            params[free_param.name_hint] = tvm.nd.array(
-                np.random.rand(*fp_shape).astype(fp_dtype)
-            )
+            params[free_param.name_hint] = tvm.nd.array(np.random.rand(*fp_shape).astype(fp_dtype))
     # Now infer the value.
     output_value = infer_value(input_val, params)
     # Clean fake params out of param dictionary.
@@ -550,10 +569,24 @@ def infer_value_simulated(input_val, params):
     return output_value
 
 
-def new_var(name_hint,
-            type_annotation=None,
-            shape=None,
-            dtype="float32"):
+def try_infer_value(val, on_success=None, on_failure=None):
+    """Try running infer_value on the input val, and if successful, return the inferred value or
+    pass it to on_success callback if provided. Otherwise, run on_failure callback if it is
+    provided, or return the input val as output. In each case, the second return value
+    indicates whether infer_value has succeeded or not.
+    """
+    try:
+        ret = infer_value(val, {}).asnumpy()
+        if on_success:
+            return on_success(ret), True
+        return ret, True
+    except Exception:
+        if on_failure:
+            return on_failure(), False
+        return val, False
+
+
+def new_var(name_hint, type_annotation=None, shape=None, dtype="float32"):
     return _expr.var(name_hint, type_annotation, shape, dtype)
 
 
@@ -565,10 +598,22 @@ class Renamer(object):
     new_name : str
         The new name for the operator
     """
+
     def __init__(self, new_name):
         self._new_name = new_name
 
     def __call__(self, inputs, attrs, *args):
-        if 'tvm_custom' in attrs:
-            attrs.pop('tvm_custom')
+        if "tvm_custom" in attrs:
+            attrs.pop("tvm_custom")
         return get_relay_op(self._new_name)(*inputs, **attrs)
+
+
+def to_int_list(np_array):
+    """Convert a np array to a python int list.
+
+    Note: This function converts np.int32 to python's int.
+    If we don't do this conversion, numpy's automatic upcast will make
+    the shape / parameters be converted to int64 IntImm in relay and
+    cause problems in relay/TOPI.
+    """
+    return [int(x) for x in np_array]

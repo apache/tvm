@@ -19,12 +19,9 @@ from tvm.relay import expr
 from . import _make
 
 
-def multibox_prior(data,
-                   sizes=(1.0,),
-                   ratios=(1.0,),
-                   steps=(-1.0, -1.0),
-                   offsets=(0.5, 0.5),
-                   clip=False):
+def multibox_prior(
+    data, sizes=(1.0,), ratios=(1.0,), steps=(-1.0, -1.0), offsets=(0.5, 0.5), clip=False
+):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
     Parameters
@@ -55,12 +52,9 @@ def multibox_prior(data,
     return _make.multibox_prior(data, sizes, ratios, steps, offsets, clip)
 
 
-def multibox_transform_loc(cls_prob,
-                           loc_pred,
-                           anchor,
-                           clip=True,
-                           threshold=0.01,
-                           variances=(0.1, 0.1, 0.2, 0.2)):
+def multibox_transform_loc(
+    cls_prob, loc_pred, anchor, clip=True, threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)
+):
     """Location transformation for multibox detection
 
     Parameters
@@ -88,6 +82,5 @@ def multibox_transform_loc(cls_prob,
     ret : tuple of tvm.relay.Expr
     """
     return expr.TupleWrapper(
-        _make.multibox_transform_loc(cls_prob, loc_pred,
-                                     anchor, clip, threshold,
-                                     variances), 2)
+        _make.multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, variances), 2
+    )

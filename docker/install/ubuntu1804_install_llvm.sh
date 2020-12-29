@@ -31,6 +31,11 @@ echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
 echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
      >> /etc/apt/sources.list.d/llvm.list
 
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
 echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\
      >> /etc/apt/sources.list.d/llvm.list
 echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic main\

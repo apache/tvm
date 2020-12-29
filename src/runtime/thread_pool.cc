@@ -21,13 +21,13 @@
  * \file thread_pool.cc
  * \brief Threadpool for multi-threading runtime.
  */
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
+#include <tvm/support/logging.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
@@ -64,7 +64,7 @@ uint32_t GetSpinCount() {
 constexpr int kSyncStride = 64 / sizeof(std::atomic<int>);
 
 /*!
- * \brief Thread local master environment.
+ * \brief Thread local main environment.
  */
 class ParallelLauncher {
  public:
@@ -189,7 +189,7 @@ class SpscTaskQueue {
     }
     const uint32_t head = head_.load(std::memory_order_relaxed);
     // sanity check if the queue is empty
-    CHECK(tail_.load(std::memory_order_acquire) != head);
+    ICHECK(tail_.load(std::memory_order_acquire) != head);
     *output = buffer_[head];
     head_.store((head + 1) % kRingSize, std::memory_order_release);
     return true;
@@ -280,25 +280,25 @@ class ThreadPool {
   }
   int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
-    CHECK(!launcher->is_worker)
+    ICHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
     if (num_task == 0) {
       num_task = num_workers_used_;
     }
     if (need_sync != 0) {
-      CHECK_LE(num_task, num_workers_used_)
+      ICHECK_LE(num_task, num_workers_used_)
           << "Request parallel sync task larger than number of threads used "
           << " workers=" << num_workers_used_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
     tsk.launcher = launcher;
-    // if worker0 is taken by the master, queues_[0] is abandoned
+    // if worker0 is taken by the main, queues_[0] is abandoned
     for (int i = exclude_worker0_; i < num_task; ++i) {
       tsk.task_id = i;
       queues_[i]->Push(tsk);
     }
-    // use the master thread to run task 0
+    // use the main thread to run task 0
     if (exclude_worker0_) {
       TVMParallelGroupEnv* penv = &(tsk.launcher->env);
       if ((*tsk.launcher->flambda)(0, penv, cdata) == 0) {
@@ -333,7 +333,7 @@ class ThreadPool {
     // TODO(tulloch): should we make this configurable via standard APIs?
     static size_t spin_count = GetSpinCount();
     while (queue->Pop(&task, spin_count)) {
-      CHECK(task.launcher != nullptr);
+      ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
       if ((*task.launcher->flambda)(task.task_id, penv, cdata) == 0) {
@@ -346,7 +346,7 @@ class ThreadPool {
   int num_workers_;
   // number of workers used (can be restricted with affinity pref)
   int num_workers_used_;
-  // if or not to exclude worker 0 and use master to run task 0
+  // if or not to exclude worker 0 and use main to run task 0
   bool exclude_worker0_{true};
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
@@ -369,8 +369,8 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 #else
   int num_workers = tvm::runtime::threading::MaxConcurrency();
   if (num_task == 0) num_task = num_workers;
-  omp_set_num_threads(num_workers);
-#pragma omp parallel num_threads(num_workers)
+  omp_set_num_threads(num_task);
+#pragma omp parallel num_threads(num_task)
   {
     TVMParallelGroupEnv env;
     env.num_task = num_task;

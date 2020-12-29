@@ -28,11 +28,10 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 
-// TODO(tqchen): Update to use String container after it is merged.
-#include <tvm/tir/expr.h>
-
 #include <stack>
 #include <unordered_set>
+
+#include "../runtime/object_internal.h"
 
 namespace tvm {
 namespace transform {
@@ -61,8 +60,8 @@ void PassContext::EnterWithScope() {
 
 void PassContext::ExitWithScope() {
   PassContextThreadLocalEntry* entry = RelayPassContextThreadLocalStore::Get();
-  CHECK(!entry->context_stack.empty());
-  CHECK(entry->context_stack.top().same_as(*this));
+  ICHECK(!entry->context_stack.empty());
+  ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -73,6 +72,90 @@ PassContext PassContext::Current() {
   } else {
     return entry->default_context;
   }
+}
+
+// linearly scan the pass array to match pass_name
+bool PassArrayContains(const Array<runtime::String>& pass_array, const std::string& pass_name) {
+  for (auto x : pass_array) {
+    if (x == pass_name) return true;
+  }
+  return false;
+}
+
+bool PassContext::PassEnabled(const PassInfo& info) const {
+  if (PassArrayContains(operator->()->disabled_pass, info->name)) {
+    return false;
+  }
+
+  if (PassArrayContains(operator->()->required_pass, info->name)) {
+    return true;
+  }
+
+  return operator->()->opt_level >= info->opt_level;
+}
+
+class PassConfigManager {
+ public:
+  void Register(std::string key, uint32_t value_type_index) {
+    ICHECK_EQ(key2vtype_.count(key), 0U);
+    ValueTypeInfo info;
+    info.type_index = value_type_index;
+    info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
+    key2vtype_[key] = info;
+  }
+
+  // Trying to validate and legalize a config.
+  void Legalize(Map<String, ObjectRef>* config) {
+    std::vector<std::pair<std::string, ObjectRef>> update;
+    auto* reflection = ReflectionVTable::Global();
+
+    for (auto kv : *config) {
+      auto it = key2vtype_.find(kv.first);
+      if (it == key2vtype_.end()) {
+        std::ostringstream os;
+        os << "AttributeError: Invalid config option \'" << kv.first << "\' candidates are:";
+        int counter = 0;
+        for (const auto& kv : key2vtype_) {
+          os << ' ';
+          if (counter++ != 0) os << ',';
+          os << kv.first;
+        }
+        LOG(FATAL) << os.str();
+      }
+      const auto& info = it->second;
+      ICHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
+      if (kv.second->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
+        ObjectRef converted =
+            reflection->CreateObject(info.type_key, Downcast<Map<String, ObjectRef>>(kv.second));
+        update.emplace_back(kv.first, converted);
+      } else {
+        if (!runtime::ObjectInternal::DerivedFrom(kv.second.get(), info.type_index)) {
+          LOG(FATAL) << "AttributeError: expect config " << kv.first << " to have type "
+                     << info.type_key << " but get " << kv.second->GetTypeKey();
+        }
+      }
+    }
+    for (auto&& kv : update) {
+      config->Set(kv.first, kv.second);
+    }
+  }
+
+  static PassConfigManager* Global() {
+    static auto* inst = new PassConfigManager();
+    return inst;
+  }
+
+ private:
+  struct ValueTypeInfo {
+    std::string type_key;
+    uint32_t type_index;
+  };
+
+  std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
+};
+
+void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index) {
+  PassConfigManager::Global()->Register(key, value_type_index);
 }
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
@@ -162,15 +245,6 @@ class SequentialNode : public PassNode {
   PassInfo Info() const override { return pass_info; }
 
   /*!
-   * \brief Check if a pass is enabled.
-   *
-   * \param info The pass information.
-   *
-   * \return true if the pass is enabled. Otherwise, false.
-   */
-  bool PassEnabled(const PassInfo& info) const;
-
-  /*!
    * \brief Resolve the pass dependency. It globs all required passes by
    *        a given pass and executes them.
    *
@@ -219,14 +293,36 @@ ModulePass::ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>
 
 // Module -> Module optimizations.
 IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
+  DiagnosticContext previous = DiagnosticContext::Default(mod);
+
+  if (pass_ctx->diag_ctx) {
+    DiagnosticContext tmp = pass_ctx->diag_ctx.value();
+    pass_ctx->diag_ctx = previous;
+    previous = tmp;
+  } else {
+    pass_ctx->diag_ctx = previous;
+  }
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
   const PassInfo& pass_info = Info();
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level;
 
-  CHECK(mod.defined());
+  ICHECK(mod.defined()) << "The input module must be set.";
+
   pass_ctx.Trace(mod, pass_info, true);
   mod = pass_func(std::move(mod), pass_ctx);
-  CHECK(mod.defined());
+
+  ICHECK(mod.defined()) << "The return value of a module pass must be set.";
+
+  ICHECK(pass_ctx->diag_ctx)
+      << "The diagnostic context was set at the top of this block this is a bug.";
+
+  pass_ctx->diag_ctx.value().Render();
+  pass_ctx->diag_ctx = previous;
+
   pass_ctx.Trace(mod, pass_info, false);
   return mod;
 }
@@ -259,29 +355,6 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
              << "\n";
 }
 
-// linearly scan the pass array to match pass_name
-inline bool PassArrayContains(const Array<runtime::String>& pass_array,
-                              const std::string& pass_name) {
-  for (auto x : pass_array) {
-    if (x == pass_name) return true;
-  }
-  return false;
-}
-
-bool SequentialNode::PassEnabled(const PassInfo& info) const {
-  PassContext ctx = PassContext::Current();
-
-  if (PassArrayContains(ctx->disabled_pass, info->name)) {
-    return false;
-  }
-
-  if (PassArrayContains(ctx->required_pass, info->name)) {
-    return true;
-  }
-
-  return ctx->opt_level >= info->opt_level;
-}
-
 Pass GetPass(const String& pass_name) {
   using tvm::runtime::Registry;
   const runtime::PackedFunc* f = nullptr;
@@ -291,7 +364,7 @@ Pass GetPass(const String& pass_name) {
     // pass
   } else if ((f = Registry::Get("relay._transform." + pass_name))) {
   }
-  CHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
+  ICHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
   return (*f)();
 }
 
@@ -300,9 +373,9 @@ Pass GetPass(const String& pass_name) {
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
-    CHECK(pass.defined()) << "Found undefined pass for optimization.";
+    ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
-    if (!PassEnabled(pass_info)) continue;
+    if (!pass_ctx.PassEnabled(pass_info)) continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
       mod = GetPass(it)(std::move(mod), pass_ctx);
@@ -313,8 +386,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                      int opt_level, const String& name,
-                      const tvm::Array<runtime::String>& required) {
+                      int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return ModulePass(pass_func, pass_info);
 }
@@ -322,7 +394,7 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-    .set_body_typed([](int opt_level, String name, tvm::Array<runtime::String> required) {
+    .set_body_typed([](int opt_level, String name, tvm::Array<String> required) {
       return PassInfo(opt_level, name, required);
     });
 
@@ -390,20 +462,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_GLOBAL("transform.PassContext").set_body([](TVMArgs args, TVMRetValue* ret) {
-  auto pctx = PassContext::Create();
-  int opt_level = args[0];
-  int fallback_device = args[1];
-  tvm::Array<runtime::String> required = args[2];
-  tvm::Array<runtime::String> disabled = args[3];
-  TraceFunc trace_func = args[4];
-  pctx->opt_level = opt_level;
-  pctx->fallback_device = fallback_device;
-  pctx->required_pass = std::move(required);
-  pctx->disabled_pass = std::move(disabled);
-  pctx->trace_func = std::move(trace_func);
-  *ret = pctx;
-});
+TVM_REGISTER_GLOBAL("transform.PassContext")
+    .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
+                       TraceFunc trace_func, Optional<Map<String, ObjectRef>> config) {
+      auto pctx = PassContext::Create();
+      pctx->opt_level = opt_level;
+
+      pctx->required_pass = std::move(required);
+      pctx->disabled_pass = std::move(disabled);
+      pctx->trace_func = std::move(trace_func);
+      if (config.defined()) {
+        pctx->config = config.value();
+      }
+      PassConfigManager::Global()->Legalize(&(pctx->config));
+      return pctx;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -411,19 +484,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Pass context information: "
                 << "\n";
       p->stream << "\topt_level: " << node->opt_level << "\n";
-      p->stream << "\tfallback device: " << runtime::DeviceName(node->fallback_device) << "\n";
 
-      p->stream << "\trequired passes: [" << node->opt_level;
+      p->stream << "\trequired passes: [";
       for (const auto& it : node->required_pass) {
         p->stream << it << " ";
       }
       p->stream << "]\n";
 
-      p->stream << "\tdisabled passes: [" << node->opt_level;
+      p->stream << "\tdisabled passes: [";
       for (const auto& it : node->disabled_pass) {
         p->stream << it << " ";
       }
-      p->stream << "]";
+      p->stream << "]\n";
+      p->stream << "\tconfig: " << node->config;
     });
 
 class PassContext::Internal {

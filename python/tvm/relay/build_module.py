@@ -23,33 +23,40 @@ import numpy as np
 
 from tvm.ir import IRModule
 
+from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
-from .. import nd as _nd, target as _target, autotvm
+from .. import nd as _nd, autotvm
+from ..target import Target
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
+from .transform import InferType
+from .backend import graph_runtime_factory as _graph_runtime_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
+
 def _update_target(target):
-    target = target if target else _target.Target.current()
+    target = target if target else Target.current()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
 
     tgts = {}
-    if isinstance(target, (str, _target.Target)):
+    if isinstance(target, (str, Target)):
         dev_type = tvm_expr.IntImm("int32", _nd.context(str(target)).device_type)
-        tgts[dev_type] = _target.create(target)
+        tgts[dev_type] = Target(target)
     elif isinstance(target, dict):
         for dev, tgt in target.items():
             dev_type = tvm_expr.IntImm("int32", _nd.context(dev).device_type)
-            tgts[dev_type] = _target.create(tgt)
+            tgts[dev_type] = Target(tgt)
     else:
-        raise TypeError("target is expected to be str or " +
-                        "tvm.target.Target, but received " +
-                        "{}".format(type(target)))
+        raise TypeError(
+            "target is expected to be str or "
+            + "tvm.target.Target, but received "
+            + "{}".format(type(target))
+        )
     return tgts
 
 
@@ -66,6 +73,7 @@ class BuildModule(object):
     """Build an IR module to run on TVM graph runtime. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
     """
+
     def __init__(self):
         self.mod = _build_module._BuildModule()
         self._get_graph_json = self.mod["get_graph_json"]
@@ -116,8 +124,20 @@ class BuildModule(object):
         # Setup the params.
         if params:
             self._set_params(params)
-        # Build the IR module
+
+        # Build the IR module. If auto_scheduler is not enabled,
+        # then use the TOPI-defined schedule.
+        use_auto_scheduler = PassContext.current().config.get(
+            "relay.backend.use_auto_scheduler", False
+        )
+
+        # Turn off AutoTVM config not found warnings if auto_scheduler is enabled.
+        old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
+        autotvm.GLOBAL_SCOPE.silent = use_auto_scheduler
+
         self._build(mod, target, target_host)
+        autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+
         # Get artifacts
         graph_json = self.get_json()
         mod = self.get_module()
@@ -160,7 +180,6 @@ class BuildModule(object):
 
         return mod, params
 
-
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))
 
@@ -181,17 +200,17 @@ class BuildModule(object):
         return ret
 
 
-def build(mod, target=None, target_host=None, params=None):
-    """Helper function that builds a Relay function to run on TVM graph
-    runtime.
+def build(mod, target=None, target_host=None, params=None, mod_name="default"):
+    # fmt: off
+    # pylint: disable=line-too-long
+    """Helper function that builds a Relay function to run on TVM graph runtime.
 
     Parameters
     ----------
     mod : :py:class:`~tvm.IRModule`
         The IR module to build. Using relay.Function is deprecated.
 
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
-    name) to str/tvm.target.Target, optional
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context name) to str/tvm.target.Target, optional
         For heterogeneous compilation, it is a dictionary indicating context to
         target mapping. For homogeneous compilation, it is a build target.
 
@@ -208,6 +227,9 @@ def build(mod, target=None, target_host=None, params=None):
         Input parameters to the graph that do not change
         during inference time. Used for constant folding.
 
+    mod_name: Optional[str]
+        The module name we will build
+
     Returns
     -------
     graph_json : str
@@ -219,6 +241,8 @@ def build(mod, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
+    # pylint: enable=line-too-long
+    # fmt: on
     if not isinstance(mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
@@ -229,27 +253,28 @@ def build(mod, target=None, target_host=None, params=None):
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter mod (tvm.relay.function.Function)",
-            DeprecationWarning)
+            DeprecationWarning,
+        )
 
     target = _update_target(target)
 
-    if isinstance(target_host, (str, _target.Target)):
-        target_host = _target.create(target_host)
+    if isinstance(target_host, (str, Target)):
+        target_host = Target(target_host)
     elif target_host:
-        raise ValueError("target host must be the type of str, " +
-                         "tvm.target.Target, or None")
+        raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(list(target.values()))
     else:
-        tophub_context = autotvm.util.EmptyContext()
+        tophub_context = autotvm.utils.EmptyContext()
 
     with tophub_context:
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
-    return graph_json, mod, params
+        mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
+        return mod
 
 
 def optimize(mod, target=None, params=None):
@@ -287,7 +312,8 @@ def optimize(mod, target=None, params=None):
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter func (tvm.relay.function.Function)",
-            DeprecationWarning)
+            DeprecationWarning,
+        )
 
     target = _update_target(target)
 
@@ -296,7 +322,7 @@ def optimize(mod, target=None, params=None):
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(list(target.values()))
     else:
-        tophub_context = autotvm.util.EmptyContext()
+        tophub_context = autotvm.utils.EmptyContext()
 
     with tophub_context:
         bld_mod = BuildModule()
@@ -353,12 +379,13 @@ class GraphExecutor(_interpreter.Executor):
     def _make_executor(self, expr=None):
         if expr:
             self.mod["main"] = expr
+        self.mod = InferType()(self.mod)
         ret_type = self.mod["main"].checked_type.ret_type
+        if _ty.is_dynamic(ret_type):
+            raise ValueError("Graph Runtime only supports static graphs, got output type", ret_type)
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
-        graph_json, mod, params = build(self.mod, target=self.target)
-        gmodule = _graph_rt.create(graph_json, mod, self.ctx)
-        if params:
-            gmodule.set_input(**params)
+        mod = build(self.mod, target=self.target)
+        gmodule = _graph_rt.GraphModule(mod["default"](self.ctx))
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(self.mod["main"], args, kwargs)
@@ -378,16 +405,29 @@ class GraphExecutor(_interpreter.Executor):
         return _graph_wrapper
 
 
-def create_executor(kind="debug",
-                    mod=None,
-                    ctx=None,
-                    target="llvm"):
+def create_executor(kind="debug", mod=None, ctx=None, target="llvm"):
     """Factory function to create an executor.
+
+    Example
+    -------
+    .. code-block:: python
+
+        import tvm.relay
+        import numpy as np
+
+        x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
+        expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
+        tvm.relay.create_executor(
+            kind="vm", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr))
+        ).evaluate()(np.array([2], dtype="float32"))
+        # returns `array([3.], dtype=float32)`
 
     Parameters
     ----------
     kind : str
-        The type of executor
+        The type of executor. Avaliable options are `debug` for the
+        interpreter, `graph` for the graph runtime, and `vm` for the virtual
+        machine.
 
     mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
@@ -397,6 +437,10 @@ def create_executor(kind="debug",
 
     target : :py:class:`tvm.Target`
         The corresponding context
+
+    Returns
+    -------
+    executor : :py:class:`~tvm.relay.backend.interpreter.Executor`
     """
     if mod is None:
         mod = IRModule()
@@ -406,7 +450,7 @@ def create_executor(kind="debug",
         ctx = _nd.context(str(target), 0)
 
     if isinstance(target, str):
-        target = _target.create(target)
+        target = Target(target)
     if kind == "debug":
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":

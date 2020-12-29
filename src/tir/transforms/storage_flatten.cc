@@ -29,6 +29,7 @@
 #include <tvm/target/target_info.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -37,16 +38,14 @@
 
 #include <unordered_map>
 
-#include "../../arith/compute_expr.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "arg_binder.h"
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-using intrinsic::tvm_address_of;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -70,9 +69,9 @@ class StorageFlattener : public StmtExprMutator {
     op = stmt.as<StoreNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      CHECK(it->second.as<VarNode>());
+      ICHECK(it->second.as<VarNode>());
       Var buf_var = Downcast<Var>(it->second);
-      return StoreNode::make(buf_var, op->value, op->index, op->predicate);
+      return Store(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
     }
@@ -87,12 +86,12 @@ class StorageFlattener : public StmtExprMutator {
       auto buffer = Downcast<tir::Buffer>(op->node);
       Stmt body = this->VisitStmt(op->body);
       auto it = buf_map_.find(buffer);
-      CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
-      body = AttrStmtNode::make(it->second.buffer->data, op->attr_key, op->value, std::move(body));
+      ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << buffer;
+      body = AttrStmt(it->second.buffer->data, op->attr_key, op->value, std::move(body));
       return body;
     } else if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      ThreadScope ts = ThreadScope::make(iv->thread_tag);
+      ThreadScope ts = ThreadScope::Create(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       curr_thread_scope_.pop_back();
@@ -102,7 +101,7 @@ class StorageFlattener : public StmtExprMutator {
     } else if (op->attr_key == attr::buffer_dim_align) {
       auto buffer = Downcast<tir::Buffer>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
-      CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
+      ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
       auto& vinfo = dim_align_[buffer];
       int dim = tuple->args[0].as<IntImmNode>()->value;
       if (static_cast<size_t>(dim) >= vinfo.size()) {
@@ -123,10 +122,10 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
 
     const BufferEntry& e = it->second;
-    CHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(!e.released) << "Read a buffer that is already out of scope";
 
     Stmt body = e.buffer.vstore(e.RelIndex(op->indices), op->value);
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
@@ -135,8 +134,8 @@ class StorageFlattener : public StmtExprMutator {
     // To create bound attribute collector should has at least one item.
     if (create_bound_attributes_ && shape_collector_.size()) {
       for (size_t i = 0; i < shape_collector_.size(); ++i) {
-        body = AttrStmtNode::make(shape_collector_[i].first, tir::attr::buffer_bound,
-                                  MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
+        body = AttrStmt(shape_collector_[i].first, tir::attr::buffer_bound,
+                        MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
       }
     }
     return body;
@@ -146,7 +145,7 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     if (buf_map_.count(key)) {
-      CHECK(buf_map_.at(key).external);
+      ICHECK(buf_map_.at(key).external);
       return this->VisitStmt(op->body);
     } else {
       // create a buffer entry
@@ -158,7 +157,7 @@ class StorageFlattener : public StmtExprMutator {
       }
       // deduce current storage scope.
       auto it = storage_scope_.find(op->buffer.get());
-      CHECK(it != storage_scope_.end()) << "Cannot find storage scope of " << op->buffer;
+      ICHECK(it != storage_scope_.end()) << "Cannot find storage scope of " << op->buffer;
       StorageScope skey;
       const std::string& strkey = it->second;
       if (strkey.length() == 0) {
@@ -166,7 +165,7 @@ class StorageFlattener : public StmtExprMutator {
           skey.rank = runtime::DefaultStorageRank(curr_thread_scope_.back().rank);
         }
       } else {
-        skey = StorageScope::make(strkey);
+        skey = StorageScope::Create(strkey);
       }
 
       // use small alignment for small arrays
@@ -177,7 +176,7 @@ class StorageFlattener : public StmtExprMutator {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
         if (info.defined()) {
           align = (info->max_simd_bits + dtype.bits() - 1) / dtype.bits();
-          CHECK_LE(const_size * dtype.bits(), info->max_num_bits)
+          ICHECK_LE(const_size * dtype.bits(), info->max_num_bits)
               << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
@@ -201,9 +200,9 @@ class StorageFlattener : public StmtExprMutator {
         strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
-      e.buffer = BufferNode::make(Var(op->buffer->data->name_hint, DataType::Handle()),
-                                  op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
-                                  skey.to_string(), align, 0, kDefault);
+      e.buffer = Buffer(Var(op->buffer->data->name_hint, op->buffer->data->type_annotation),
+                        op->buffer->dtype, shape, strides, PrimExpr(), op->buffer->name,
+                        skey.to_string(), align, 0, kDefault);
 
       buf_map_[key] = e;
       Stmt body = this->VisitStmt(op->body);
@@ -218,23 +217,22 @@ class StorageFlattener : public StmtExprMutator {
       }
       if (strides.size() != 0) {
         int first_dim = 0;
-        ret = AllocateNode::make(e.buffer->data, storage_type,
-                                 {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
-                                 make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
+        ret = Allocate(e.buffer->data, storage_type,
+                       {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
+                       make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       } else {
         shape = e.buffer->shape;
         if (shape.size() == 0) {
           shape.push_back(make_const(DataType::Int(32), 1));
         }
-        ret = AllocateNode::make(e.buffer->data, storage_type, shape,
-                                 make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
+        ret = Allocate(e.buffer->data, storage_type, shape,
+                       make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      ret = AttrStmtNode::make(e.buffer->data, attr::storage_scope,
-                               StringImmNode::make(e.buffer->scope), ret);
+      ret = AttrStmt(e.buffer->data, attr::storage_scope, StringImm(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
-        ret = AttrStmtNode::make(e.buffer->data, tir::attr::buffer_bound,
-                                 MakeBound(e.buffer->dtype, e.buffer->shape), ret);
+        ret = AttrStmt(e.buffer->data, tir::attr::buffer_bound,
+                       MakeBound(e.buffer->dtype, e.buffer->shape), ret);
       }
       return ret;
     }
@@ -245,9 +243,9 @@ class StorageFlattener : public StmtExprMutator {
     op = expr.as<LoadNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() && !it->second.same_as(op->buffer_var)) {
-      CHECK(it->second.as<VarNode>());
+      ICHECK(it->second.as<VarNode>());
       Var buf_var = Downcast<Var>(it->second);
-      return LoadNode::make(op->dtype, buf_var, op->index, op->predicate);
+      return Load(op->dtype, buf_var, op->index, op->predicate);
     } else {
       return expr;
     }
@@ -269,9 +267,9 @@ class StorageFlattener : public StmtExprMutator {
     const auto& key = op->buffer;
 
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
     const BufferEntry& e = it->second;
-    CHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK(!e.released) << "Read a buffer that is already out of scope";
 
     if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
       shape_collector_.push_back(std::make_pair(e.buffer->data, e.buffer->shape));
@@ -282,15 +280,15 @@ class StorageFlattener : public StmtExprMutator {
   Stmt VisitStmt_(const PrefetchNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<PrefetchNode>();
-    CHECK(op != nullptr);
+    ICHECK(op != nullptr);
 
     const auto& key = op->buffer;
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find allocated buffer for " << key;
     const BufferEntry& e = it->second;
 
-    CHECK(!e.released) << "Read a buffer that is already out of scope";
-    CHECK_EQ(e.buffer->shape.size(), op->bounds.size())
+    ICHECK(!e.released) << "Read a buffer that is already out of scope";
+    ICHECK_EQ(e.buffer->shape.size(), op->bounds.size())
         << "Prefetch dim should be the same as buffer dim";
 
     int block_size = 1, elem_cnt = cache_line_size_ / e.buffer->dtype.bytes();
@@ -320,35 +318,31 @@ class StorageFlattener : public StmtExprMutator {
     }
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
-        stmt = ForNode::make(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None,
-                             stmt);
+        stmt = For(vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
-        PrimExpr address =
-            CallNode::make(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
-        PrimExpr prefetch = CallNode::make(op->buffer->dtype, CallNode::prefetch,
-                                           {address, 0, 3, 1}, CallNode::Intrinsic);
-        stmt = EvaluateNode::make(prefetch);
+        PrimExpr address = Call(DataType::Handle(), builtin::address_of(), {load});
+        PrimExpr prefetch = Call(op->buffer->dtype, builtin::prefetch(), {address, 0, 3, 1});
+        stmt = Evaluate(prefetch);
         PrimExpr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = ForNode::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
+        stmt = For(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    CHECK(op->call_type != CallNode::Halide) << "Cannot handle Halide calls "
-                                             << " please run SchedulePostProcToPrimFunc first";
-    return StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+    LOG(FATAL) << "ProducerLoad cannot appear in a valid TIR PrimFunc.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const ProvideNode* op) final {
+  Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "Cannot handle Provide "
                << " please run SchedulePostProcToPrimFunc first";
     return Stmt();
   }
 
-  Stmt VisitStmt_(const RealizeNode* op) final {
+  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
     LOG(FATAL) << "Cannot handle Realize "
                << " please run SchedulePostProcToPrimFunc first";
     return Stmt();
@@ -391,22 +385,22 @@ class StorageFlattener : public StmtExprMutator {
   // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef>>(op->node);
-    CHECK_EQ(arr.size(), 2U);
+    ICHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
     const BufferNode* target = arr[1].as<BufferNode>();
     const CallNode* tuple = op->value.as<CallNode>();
-    CHECK(buffer && target);
-    CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
+    ICHECK(buffer && target);
+    ICHECK(tuple && tuple->op.same_as(builtin::tvm_tuple()));
     auto key = GetRef<Buffer>(target);
 
     auto it = buf_map_.find(key);
-    CHECK(it != buf_map_.end()) << "Cannot find buffer of " << key;
+    ICHECK(it != buf_map_.end()) << "Cannot find buffer of " << key;
     const BufferEntry& be = it->second;
-    CHECK(!be.released);
-    CHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
+    ICHECK(!be.released);
+    ICHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
     Array<PrimExpr> begins, extents;
     if (be.bounds.size() != 0) {
-      CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
+      ICHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
       for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
         begins.push_back(tuple->args[2 * i] - be.bounds[i]->min);
         extents.push_back(tuple->args[2 * i + 1]);
@@ -420,7 +414,7 @@ class StorageFlattener : public StmtExprMutator {
     }
     Buffer slice = be.buffer.MakeSlice(begins, extents);
     if (buffer->strides.size() == 0) {
-      CHECK_EQ(slice->strides.size(), 0U)
+      ICHECK_EQ(slice->strides.size(), 0U)
           << "Trying to bind compact buffer to strided one strides=" << slice->strides;
     } else {
       slice = slice.MakeStrideView();
@@ -458,7 +452,7 @@ class StorageFlattener : public StmtExprMutator {
     inline Array<PrimExpr> RelIndex(Array<PrimExpr> args) const {
       if (bounds.size() != 0) {
         Array<PrimExpr> index;
-        CHECK_EQ(bounds.size(), args.size());
+        ICHECK_EQ(bounds.size(), args.size());
         for (size_t i = 0; i < bounds.size(); ++i) {
           index.push_back(args[i] - bounds[i]->min);
         }
@@ -483,10 +477,9 @@ class StorageFlattener : public StmtExprMutator {
 
   PrimExpr MakeBound(const DataType& type, const Array<PrimExpr>& shape) {
     // We have already checked the shape size to be greater then 0.
-    PrimExpr bound = MulNode::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
+    PrimExpr bound = Mul(make_const(shape[0].dtype(), type.lanes()), shape[0]);
     for (size_t i = 1; i < shape.size(); ++i) {
-      bound =
-          MulNode::make(bound, MulNode::make(make_const(bound.dtype(), type.lanes()), shape[i]));
+      bound = Mul(bound, Mul(make_const(bound.dtype(), type.lanes()), shape[i]));
     }
     return bound;
   }
@@ -495,9 +488,9 @@ class StorageFlattener : public StmtExprMutator {
   // Variable remap
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Buffer map
-  std::unordered_map<Buffer, BufferEntry, ObjectHash, ObjectEqual> buf_map_;
+  std::unordered_map<Buffer, BufferEntry, ObjectPtrHash, ObjectPtrEqual> buf_map_;
   // Dimension alignment
-  std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectHash, ObjectEqual> dim_align_;
+  std::unordered_map<Buffer, std::vector<DimAlignInfo>, ObjectPtrHash, ObjectPtrEqual> dim_align_;
   // Storage scope
   std::unordered_map<const Object*, std::string> storage_scope_;
   // The current thread scope.

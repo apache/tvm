@@ -20,13 +20,14 @@ to the parameters of workload"""
 
 from tvm import autotvm
 
+
+@autotvm.template("testing/dispatch_fallback")
+def simple_template(a, b):
+    cfg = autotvm.get_config()
+    assert cfg.is_fallback
+
+
 def test_fallback():
-
-    @autotvm.template("testing/dispatch_fallback")
-    def simple_template(a, b):
-        cfg = autotvm.get_config()
-        assert cfg.is_fallback
-
     simple_template(2, 3)
 
 

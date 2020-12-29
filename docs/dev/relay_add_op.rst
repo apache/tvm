@@ -99,7 +99,7 @@ the arguments to the call node, as below.
     TVM_REGISTER_GLOBAL("relay.op._make.add")
         .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
             static const Op& op = Op::Get("add");
-          return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+          return Call(op, {lhs, rhs}, Attrs(), {});
         });
 
 Including a Python API Hook
@@ -231,7 +231,7 @@ Adding a Gradient in C++
 Adding a gradient in C++ is similar to adding one in Python, but the
 interface for registering is slightly different.
 
-First, make sure ``src/relay/pass/pattern_util.h`` is included. It provides
+First, make sure ``src/relay/pass/pattern_utils.h`` is included. It provides
 helper functions for creating nodes in the Relay AST. Then, define the
 gradient in a similar fashion as in the Python example:
 

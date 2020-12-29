@@ -20,10 +20,10 @@
 /*!
  * \file External random functions for tensor.
  */
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 
@@ -73,8 +73,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.randint").set_body([](TVMArgs args, TVMR
   int64_t low = args[0];
   int64_t high = args[1];
   DLTensor* out = args[2];
-  CHECK_GT(high, low) << "high must be bigger than low";
-  CHECK(out->strides == nullptr);
+  ICHECK_GT(high, low) << "high must be bigger than low";
+  ICHECK(out->strides == nullptr);
 
   DLDataType dtype = out->dtype;
   int64_t size = 1;
@@ -115,6 +115,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.normal").set_body([](TVMArgs args, TVMRe
   double scale = args[1];
   DLTensor* out = args[2];
   entry->random_engine.SampleNormal(out, loc, scale);
+});
+
+TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill").set_body([](TVMArgs args, TVMRetValue* ret) {
+  RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
+  DLTensor* out = args[0];
+  entry->random_engine.RandomFill(out);
 });
 
 }  // namespace contrib

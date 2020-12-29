@@ -54,7 +54,7 @@ using tvm::transform::Sequential;
  */
 TVM_DLL Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, const std::string& name, const tvm::Array<runtime::String>& required);
+    int opt_level, String name, tvm::Array<String> required);
 
 /*!
  * \brief Inject prefetch instructions into stmt.
@@ -88,7 +88,7 @@ TVM_DLL Pass StorageFlatten(int cache_line_size, bool create_bound_attribute = f
  *                Expr pad_value)
  * \return The pass.
  */
-TVM_DLL Pass InjectCopyIntrin(std::string pragma_key, runtime::PackedFunc fintrin);
+TVM_DLL Pass InjectCopyIntrin(String pragma_key, runtime::PackedFunc fintrin);
 
 /*!
  * \brief Detect and insert sync points to co-processor.
@@ -103,16 +103,14 @@ TVM_DLL Pass CoProcSync();
  * \param attr_key The attribute key to be checked.
  * \return The pass.
  */
-TVM_DLL Pass LiftAttrScope(std::string attr_key);
+TVM_DLL Pass LiftAttrScope(String attr_key);
 
 /*!
  * \brief partition loops in the stmt.
  *
- * \param split_const_loop flag to enable partition for const loop
- *
  * \return The pass.
  */
-TVM_DLL Pass LoopPartition(bool split_const_loop);
+TVM_DLL Pass LoopPartition();
 
 /*!
  * \brief Lower vectorization loops.
@@ -133,10 +131,9 @@ TVM_DLL Pass InjectVirtualThread();
 /*!
  * \brief Inject double buffer statements.
  *
- * \param split_loop_factor Loop splitting factor.
  * \return The pass.
  */
-TVM_DLL Pass InjectDoubleBuffer(int split_loop_factor);
+TVM_DLL Pass InjectDoubleBuffer();
 
 /*!
  * \brief Rewrite storage allocation pattern.
@@ -152,15 +149,9 @@ TVM_DLL Pass StorageRewrite();
  * \brief unroll the constant loop marked by unroll.
  * This pass also automatically attach pragma unroll tag to loops which meets the standard.
  *
- * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_max_depth The maximum depth before stop attach automatic unroll
- * \param auto_max_extent The maximum extent of the loop we can unroll,
- *        this is an legacy option that do not take the loop total steps into account.
- * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
  * \return The pass.
  */
-TVM_DLL Pass UnrollLoop(int auto_max_step, int auto_max_depth, int auto_max_extent,
-                        bool explicit_unroll);
+TVM_DLL Pass UnrollLoop();
 
 /*!
  * \brief Remove No Op from the Stmt.
@@ -231,7 +222,7 @@ TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<runtime::String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(Map<String, IterVar> axis_map);
 
 /*!
  * \brief Lower custom datatypes.
@@ -269,7 +260,7 @@ TVM_DLL Pass SkipAssert();
  * \param storage_scope The storage scope considered.
  * \return The pass.
  */
-TVM_DLL Pass ThreadSync(std::string storage_scope);
+TVM_DLL Pass ThreadSync(String storage_scope);
 
 /*!
  * \brief Lower cross thread alleduce.
@@ -331,6 +322,13 @@ TVM_DLL Pass CombineContextCall();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
+ * \brief Legalize bf16 typed Ops. Add a cast to fp32
+ *   before Ops, then add a cast back to bf16.
+ * \return The pass.
+ */
+TVM_DLL Pass BF16Legalize();
+
+/*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
  *  the most frequently accessed type for load/store
@@ -339,6 +337,14 @@ TVM_DLL Pass NarrowDataType(int target_bits);
  * \return The pass.
  */
 TVM_DLL Pass PointerValueTypeRewrite();
+
+/*!
+ * \brief Hoist loop-invariant IfThenElse nodes to
+ * outside the elligible loops.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistIfThenElse();
 
 }  // namespace transform
 }  // namespace tir

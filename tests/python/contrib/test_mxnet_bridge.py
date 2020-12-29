@@ -22,7 +22,7 @@ def mxnet_check():
     User can directly run this script to verify correctness.
     """
     import mxnet as mx
-    import topi
+    from tvm import topi
     import tvm
     from tvm import te
     import numpy as np
@@ -56,9 +56,7 @@ def mxnet_check():
     mxf(xx, yy, zz, 10.0)
     mxf(xx, yy, zz, 10.0)
 
-
-    tvm.testing.assert_allclose(
-        zz.asnumpy(), (xx.asnumpy() + yy.asnumpy()) * 10)
+    tvm.testing.assert_allclose(zz.asnumpy(), (xx.asnumpy() + yy.asnumpy()) * 10)
 
 
 if __name__ == "__main__":

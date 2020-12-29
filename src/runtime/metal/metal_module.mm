@@ -27,7 +27,7 @@
 #include <array>
 #include <mutex>
 #include <string>
-#include "../file_util.h"
+#include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
@@ -50,7 +50,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
@@ -73,8 +73,8 @@ class MetalModuleNode final : public runtime::ModuleNode {
   }
   // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
-    metal::MetalWorkspace* w = metal::MetalWorkspace::Global().get();
-    CHECK_LT(device_id, w->devices.size());
+    metal::MetalWorkspace* w = metal::MetalWorkspace::Global();
+    ICHECK_LT(device_id, w->devices.size());
     // start lock scope.
     std::lock_guard<std::mutex> lock(mutex_);
     if (finfo_.size() <= device_id) {
@@ -88,8 +88,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
     if (e.lib == nil) {
       if (fmt_ == "metal") {
         MTLCompileOptions* opts = [MTLCompileOptions alloc];
-        // Use the Metal 1.2 for now.
-        opts.languageVersion = MTLLanguageVersion1_2;
+        opts.languageVersion = MTLLanguageVersion2_3;
         opts.fastMathEnabled = YES;
         // opts = nil;
         e.lib = [w->devices[device_id]
@@ -118,16 +117,16 @@ class MetalModuleNode final : public runtime::ModuleNode {
     }
     id<MTLFunction> f =
         [e.lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
-    CHECK(f != nil) << "cannot find function " << func_name;
+    ICHECK(f != nil) << "cannot find function " << func_name;
     id<MTLComputePipelineState> state =
         [w->devices[device_id] newComputePipelineStateWithFunction:f error:&err_msg];
-    CHECK(state != nil) << "cannot get state:"
-                        << " for function " << func_name
-                        << [[err_msg localizedDescription] UTF8String];
+    ICHECK(state != nil) << "cannot get state:"
+                         << " for function " << func_name
+                         << [[err_msg localizedDescription] UTF8String];
     // The state.threadExecutionWidth can change dynamically according
     // to the resource constraint in kernel, so it is not strictly hold
     // Turn of warp aware optimziation for now.
-    // CHECK_EQ(state.threadExecutionWidth, w->warp_size[device_id]);
+    // ICHECK_EQ(state.threadExecutionWidth, w->warp_size[device_id]);
     e.smap[func_name] = [state retain];
     return state;
   }
@@ -168,7 +167,7 @@ class MetalWrappedFunc {
   void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& thread_axis_tags) {
-    w_ = metal::MetalWorkspace::Global().get();
+    w_ = metal::MetalWorkspace::Global();
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
@@ -231,8 +230,8 @@ class MetalWrappedFunc {
 
 PackedFunc MetalModuleNode::GetFunction(const std::string& name,
                                         const ObjectPtr<Object>& sptr_to_self) {
-  CHECK_EQ(sptr_to_self.get(), this);
-  CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
+  ICHECK_EQ(sptr_to_self.get(), this);
+  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;

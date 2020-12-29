@@ -28,7 +28,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/transform.h>
 
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -41,7 +41,7 @@ class BiasAddSimplifier : public ExprRewriter {
     auto new_n = post;
     if (n->op == bias_add_op_) {
       Call call = Downcast<Call>(new_n);
-      CHECK_EQ(call->args.size(), 2);
+      ICHECK_EQ(call->args.size(), 2);
       const BiasAddAttrs* param = call->attrs.as<BiasAddAttrs>();
 
       auto ttype = n->args[0]->type_as<TensorTypeNode>();

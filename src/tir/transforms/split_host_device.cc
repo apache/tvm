@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -42,7 +43,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      CHECK_NE(iv->thread_tag.length(), 0U);
+      ICHECK_NE(iv->thread_tag.length(), 0U);
       // thread_extent can appear multiple times
       // use the first appearance as def.
       if (!use_count_.count(iv->var.get())) {
@@ -59,7 +60,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       }
-      return AttrStmtNode::make(op->node, op->attr_key, value, body);
+      return AttrStmt(op->node, op->attr_key, value, body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -69,14 +70,15 @@ class VarUseDefAnalysis : public StmtExprMutator {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
       PrimExpr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<Stmt>(op);
       } else {
-        return LetStmtNode::make(op->var, value, body);
+        return LetStmt(op->var, value, body);
       }
     }
   }
@@ -97,17 +99,32 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LetNode* op) final {
-    this->HandleDef(op->var.get());
+    // Weaker SSA condition
+    // A single var can be binded in multiple lets
+    // but they have to bind to the same value.
+    // This is used to allow cases when we reuse a single let
+    // expression to construct a nested expr.
+    // (let x = 1 in x + 1) * (let x = 1 in x + 1)
+    auto it = let_binding_.find(op->var);
+    PrimExpr value = this->VisitExpr(op->value);
+    if (it != let_binding_.end()) {
+      ICHECK(deep_equal_(it->second->value, value))
+          << "Let cannot bind the same var to two different values";
+      return GetRef<PrimExpr>(it->second);
+    } else {
+      this->HandleDef(op->var.get());
+      let_binding_[op->var] = op;
+    }
     PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
-    if (use_count_.at(op->var.get()) == 0 && !HasSideEffect(op->value)) {
+    if (use_count_.at(op->var.get()) == 0 && SideEffect(op->value) <= CallEffectKind::kReadState &&
+        simplify_let_) {
       return body;
     } else {
-      PrimExpr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) && value.same_as(op->value)) {
         return GetRef<PrimExpr>(op);
       } else {
-        return LetNode::make(op->var, value, body);
+        return Let(op->var, value, body);
       }
     }
   }
@@ -117,22 +134,29 @@ class VarUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
+  PrimExpr VisitExpr_(const ReduceNode* op) final {
+    for (const auto& iv : op->axis) {
+      this->HandleDef(iv->var.get());
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   PrimExpr VisitExpr_(const LoadNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitExpr_(op);
   }
 
   void HandleDef(const VarNode* v) {
-    CHECK(!def_count_.count(v)) << "variable " << v->name_hint
-                                << " has already been defined, the Stmt is not SSA";
-    CHECK(!use_count_.count(v)) << "variable " << v->name_hint
-                                << " has been used before definition!";
+    ICHECK(!def_count_.count(v)) << "variable " << v->name_hint
+                                 << " has already been defined, the Stmt is not SSA";
+    ICHECK(!use_count_.count(v)) << "variable " << v->name_hint
+                                 << " has been used before definition!";
     use_count_[v] = 0;
     def_count_[v] = 1;
   }
 
   void HandleUse(const PrimExpr& v) {
-    CHECK(v.as<VarNode>());
+    ICHECK(v.as<VarNode>());
     Var var = Downcast<Var>(v);
     auto it = use_count_.find(var.get());
     if (it != use_count_.end()) {
@@ -148,19 +172,32 @@ class VarUseDefAnalysis : public StmtExprMutator {
   // The fields are publically readible to
   // be accessible to the users.
   bool visit_thread_extent_{true};
+  bool simplify_let_{true};
   Array<Var> undefined_;
   Array<IterVar> thread_axis_;
   Array<PrimExpr> thread_extent_;
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
+
+ private:
+  ExprDeepEqual deep_equal_;
+  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
 };
 
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   VarUseDefAnalysis m;
+  m.simplify_let_ = false;
   for (Var arg : args) {
     m.use_count_[arg.get()] = 0;
   }
   m(stmt);
+  return m.undefined_;
+}
+
+Array<Var> UndefinedVars(const PrimExpr& expr) {
+  VarUseDefAnalysis m;
+  m.simplify_let_ = false;
+  m(expr);
   return m.undefined_;
 }
 
@@ -230,15 +267,14 @@ class HostDeviceSplitter : public StmtMutator {
 
     // generate calls to the device function
     Array<PrimExpr> call_args;
-    call_args.push_back(StringImmNode::make(kernel_symbol));
+    call_args.push_back(StringImm(kernel_symbol));
     for (PrimExpr arg : arguments) {
       call_args.push_back(arg);
     }
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    return EvaluateNode::make(CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed,
-                                             call_args, CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), call_args));
   }
 
   // target ir module
@@ -254,9 +290,9 @@ class HostDeviceSplitter : public StmtMutator {
 
 PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  CHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
+  ICHECK(target.defined()) << "SplitHostDevice: Require the target attribute";
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
+  ICHECK(global_symbol.defined())
       << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
 
   HostDeviceSplitter splitter(device_mod, target.value(),
@@ -275,11 +311,12 @@ Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     IRModuleNode* mod_ptr = mod.CopyOnWrite();
     auto* func_dict = mod_ptr->functions.CopyOnWrite();
-    IRModule device_mod = IRModule::Empty();
+    IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
 
-    for (auto& kv : func_dict->data) {
+    for (auto& kv : *func_dict) {
       if (kv.second->IsInstance<PrimFuncNode>()) {
         PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
+        ICHECK(device_mod.defined()) << "The device module must be defined.";
         kv.second = SplitHostDevice(std::move(func), &device_mod);
       }
     }

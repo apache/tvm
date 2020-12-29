@@ -26,8 +26,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
-#include "pass_util.h"
-#include "pattern_util.h"
+#include "pass_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -66,7 +66,7 @@ class CastCanonicalizer : public ExprMutator {
   CastCanonicalizer() : cast_op_(Op::Get("cast")) {}
 
   Expr VisitExpr_(const CallNode* call) {
-    static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
 
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       auto pattern = fpattern[GetRef<Op>(opnode)];
@@ -106,13 +106,13 @@ class CastCanonicalizer : public ExprMutator {
       if (call->op == cast_op_) {
         auto attrs = call->attrs.as<CastAttrs>();
         const auto* from_type = call->args[0]->type_as<TensorTypeNode>();
-        CHECK(from_type);
+        ICHECK(from_type);
 
         if (from_type->dtype.bits() < attrs->dtype.bits()) {
           if (++ref_counter_[call] > 1) {
             const CallNode* new_call = new_expr.as<CallNode>();
-            CHECK(new_call);
-            CHECK(new_call->op == cast_op_);
+            ICHECK(new_call);
+            ICHECK(new_call->op == cast_op_);
             return Call(new_call->op, new_call->args, new_call->attrs, new_call->type_args);
           }
         }

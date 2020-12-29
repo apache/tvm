@@ -25,7 +25,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/vm.h>
 #include <tvm/support/logging.h>
 
 #include <iostream>
@@ -54,7 +53,7 @@ namespace vm {
  */
 struct PrimitiveInliner : ExprMutator {
   IRModule module_;
-  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
+  std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> var_map;
 
   explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 

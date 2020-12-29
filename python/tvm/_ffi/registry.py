@@ -29,8 +29,10 @@ try:
     from ._cy3.core import _register_object
     from ._cy3.core import _reg_extension
     from ._cy3.core import convert_to_tvm_func, _get_global_func, PackedFuncBase
-except (RuntimeError, ImportError):
+except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position,unused-import
+    if _FFI_MODE == "cython":
+        raise error
     from ._ctypes.object import _register_object
     from ._ctypes.ndarray import _reg_extension
     from ._ctypes.packed_func import convert_to_tvm_func, _get_global_func, PackedFuncBase
@@ -64,12 +66,10 @@ def register_object(type_key=None):
         else:
             tidx = ctypes.c_uint()
             if not _RUNTIME_ONLY:
-                check_call(_LIB.TVMObjectTypeKey2Index(
-                    c_str(object_name), ctypes.byref(tidx)))
+                check_call(_LIB.TVMObjectTypeKey2Index(c_str(object_name), ctypes.byref(tidx)))
             else:
                 # directly skip unknown objects during runtime.
-                ret = _LIB.TVMObjectTypeKey2Index(
-                    c_str(object_name), ctypes.byref(tidx))
+                ret = _LIB.TVMObjectTypeKey2Index(c_str(object_name), ctypes.byref(tidx))
                 if ret != 0:
                     return cls
             tindex = tidx.value
@@ -122,7 +122,7 @@ def register_extension(cls, fcreate=None):
 
        @tvm.register_extension
        class MyTensor(object):
-           _tvm_tcode = tvm.TypeCode.ARRAY_HANDLE
+           _tvm_tcode = tvm.ArgTypeCode.ARRAY_HANDLE
 
            def __init__(self):
                self.handle = _LIB.NewDLTensor()
@@ -132,8 +132,8 @@ def register_extension(cls, fcreate=None):
                return self.handle.value
     """
     assert hasattr(cls, "_tvm_tcode")
-    if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
-        raise ValueError("Cannot register create when extension tcode is same as buildin")
+    if fcreate:
+        raise ValueError("Extension with fcreate is no longer supported")
     _reg_extension(cls, fcreate)
     return cls
 
@@ -185,13 +185,14 @@ def register_func(func_name, f=None, override=False):
         raise ValueError("expect string function name")
 
     ioverride = ctypes.c_int(override)
+
     def register(myf):
         """internal register function"""
         if not isinstance(myf, PackedFuncBase):
             myf = convert_to_tvm_func(myf)
-        check_call(_LIB.TVMFuncRegisterGlobal(
-            c_str(func_name), myf.handle, ioverride))
+        check_call(_LIB.TVMFuncRegisterGlobal(c_str(func_name), myf.handle, ioverride))
         return myf
+
     if f:
         return register(f)
     return register
@@ -227,8 +228,7 @@ def list_global_func_names():
     plist = ctypes.POINTER(ctypes.c_char_p)()
     size = ctypes.c_uint()
 
-    check_call(_LIB.TVMFuncListGlobalNames(ctypes.byref(size),
-                                           ctypes.byref(plist)))
+    check_call(_LIB.TVMFuncListGlobalNames(ctypes.byref(size), ctypes.byref(plist)))
     fnames = []
     for i in range(size.value):
         fnames.append(py_str(plist[i]))
@@ -250,14 +250,27 @@ def extract_ext_funcs(finit):
         The extracted functions
     """
     fdict = {}
+
     def _list(name, func):
         fdict[name] = func
+
     myf = convert_to_tvm_func(_list)
     ret = finit(myf.handle)
     _ = myf
     if ret != 0:
         raise RuntimeError("cannot initialize with %s" % finit)
     return fdict
+
+
+def remove_global_func(name):
+    """Remove a global function by name
+
+    Parameters
+    ----------
+    name : str
+        The name of the global function
+    """
+    check_call(_LIB.TVMFuncRemoveGlobal(c_str(name)))
 
 
 def _get_api(f):
@@ -275,8 +288,7 @@ def _init_api(namespace, target_module_name=None):
     target_module_name : str
        The target module name if different from namespace
     """
-    target_module_name = (
-        target_module_name if target_module_name else namespace)
+    target_module_name = target_module_name if target_module_name else namespace
     if namespace.startswith("tvm."):
         _init_api_prefix(target_module_name, namespace[4:])
     else:
@@ -290,7 +302,7 @@ def _init_api_prefix(module_name, prefix):
         if not name.startswith(prefix):
             continue
 
-        fname = name[len(prefix)+1:]
+        fname = name[len(prefix) + 1 :]
         target_module = module
 
         if fname.find(".") != -1:
@@ -298,5 +310,5 @@ def _init_api_prefix(module_name, prefix):
         f = get_global_func(name)
         ff = _get_api(f)
         ff.__name__ = fname
-        ff.__doc__ = ("TVM PackedFunc %s. " % fname)
+        ff.__doc__ = "TVM PackedFunc %s. " % fname
         setattr(target_module, ff.__name__, ff)

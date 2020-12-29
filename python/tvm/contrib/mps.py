@@ -21,6 +21,7 @@ from tvm import te
 
 # pylint: disable=C0103,W0612
 
+
 def matmul(lhs, rhs, transa=False, transb=False):
     """Create an extern op that compute matrix mult of A and rhs with CrhsLAS
 
@@ -49,12 +50,16 @@ def matmul(lhs, rhs, transa=False, transb=False):
     if transb:
         n = c
     return te.extern(
-        (m, n), [lhs, rhs],
+        (m, n),
+        [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.mps.matmul", ins[0], ins[1], outs[0], transa, transb),
-        name="C")
+            "tvm.contrib.mps.matmul", ins[0], ins[1], outs[0], transa, transb
+        ),
+        name="C",
+    )
 
-def conv2d(data, weight, pad='SAME', stride=1):
+
+def conv2d(data, weight, pad="SAME", stride=1):
     """
     Create an extern op that compute data * weight and return result in output
 
@@ -76,12 +81,15 @@ def conv2d(data, weight, pad='SAME', stride=1):
     """
     n, hi, wi, ci = data.shape
     co, kh, kw, ciw = weight.shape
-    padding = 0 if pad == 'SAME' else 1
+    padding = 0 if pad == "SAME" else 1
     ho = hi // stride
     wo = wi // stride
 
     return te.extern(
-        (n, ho, wo, co), [data, weight],
+        (n, ho, wo, co),
+        [data, weight],
         lambda ins, outs: tvm.tir.call_packed(
-            "tvm.contrib.mps.conv2d", ins[0], ins[1], outs[0], padding, stride),
-        name="C")
+            "tvm.contrib.mps.conv2d", ins[0], ins[1], outs[0], padding, stride
+        ),
+        name="C",
+    )

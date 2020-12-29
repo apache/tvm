@@ -27,54 +27,56 @@ import os
 import sys
 
 from .task import ApplyHistoryBest
-from .. import target as _target
+from ..target import Target
 from ..contrib.download import download
 from .record import load_from_file
-from .util import EmptyContext
+from .utils import EmptyContext
 
 # environment variable to read TopHub location
 AUTOTVM_TOPHUB_LOC_VAR = "TOPHUB_LOCATION"
 
 # default location of TopHub
-AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub"
+AUTOTVM_TOPHUB_DEFAULT_LOC = "https://raw.githubusercontent.com/tlc-pack/tophub/main/tophub"
 
 # value of AUTOTVM_TOPHUB_LOC_VAR to specify to not read from TopHub
 AUTOTVM_TOPHUB_NONE_LOC = "NONE"
 
 # root path to store TopHub files
-AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
+AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser("~"), ".tvm", "tophub")
 
 # the version of each package
 PACKAGE_VERSION = {
-    'arm_cpu':          "v0.06",
-    'llvm':             "v0.04",
-
-    'cuda':             "v0.08",
-    'rocm':             "v0.05",
-    'opencl':           "v0.04",
-    'mali':             "v0.06",
-    'intel_graphics':   "v0.02",
-
-    'vta':              "v0.08",
+    "arm_cpu": "v0.08",
+    "llvm": "v0.04",
+    "cuda": "v0.10",
+    "rocm": "v0.05",
+    "opencl": "v0.04",
+    "mali": "v0.06",
+    "intel_graphics": "v0.02",
+    "vta": "v0.10",
+    "amd_apu": "v0.01",
 }
 
-logger = logging.getLogger('autotvm')
+logger = logging.getLogger("autotvm")
+
 
 def _alias(name):
     """convert alias for some packages"""
     table = {
-        'vtacpu': 'vta',
-
-        'metal': 'opencl',
-        'webgpu': 'opencl',
-        'vulkan': 'opencl',
-        'nvptx': 'cuda',
+        "vtacpu": "vta",
+        "metal": "opencl",
+        "webgpu": "opencl",
+        "vulkan": "opencl",
+        "nvptx": "cuda",
+        "amd_apu": "amd_apu",
     }
     return table.get(name, name)
+
 
 def _get_tophub_location():
     location = os.getenv(AUTOTVM_TOPHUB_LOC_VAR, None)
     return AUTOTVM_TOPHUB_DEFAULT_LOC if location is None else location
+
 
 def context(target, extra_files=None):
     """Return the dispatch context with pre-tuned parameters.
@@ -99,14 +101,13 @@ def context(target, extra_files=None):
 
     for tgt in targets:
         if isinstance(tgt, str):
-            tgt = _target.create(tgt)
+            tgt = Target(tgt)
 
         possible_names = []
-        for opt in tgt.options:
-            if opt.startswith("-device"):
-                device = _alias(opt[8:])
-                possible_names.append(device)
-        possible_names.append(tgt.target_name)
+        device = tgt.attrs.get("device", "")
+        if device != "":
+            possible_names.append(_alias(device))
+        possible_names.append(tgt.kind.name)
 
         all_packages = list(PACKAGE_VERSION.keys())
         for name in possible_names:
@@ -117,7 +118,7 @@ def context(target, extra_files=None):
 
                 filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
                 best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
-                break   # only load one file to avoid some fallback template mismatch problem
+                break  # only load one file to avoid some fallback template mismatch problem
 
     if extra_files:
         for filename in extra_files:
@@ -177,7 +178,7 @@ def download_package(tophub_location, package_name):
     if not os.path.isdir(rootpath):
         # make directory
         splits = os.path.split(rootpath)
-        for j in range(1, len(splits)+1):
+        for j in range(1, len(splits) + 1):
             path = os.path.join(*splits[:j])
             if not os.path.isdir(path):
                 os.mkdir(path)
@@ -190,8 +191,9 @@ def download_package(tophub_location, package_name):
 # global cache for load_reference_log
 REFERENCE_LOG_CACHE = {}
 
+
 def load_reference_log(backend, model, workload_name):
-    """ Load reference log from TopHub to support fallback in template.
+    """Load reference log from TopHub to support fallback in template.
     Template will use these reference logs to choose fallback config.
 
     Parameters
@@ -214,11 +216,13 @@ def load_reference_log(backend, model, workload_name):
 
     if key not in REFERENCE_LOG_CACHE:
         tmp = []
+        # If TOPHUB_LOCATION is not AUTOTVM_TOPHUB_NONE_LOC,
         # Download the config file from tophub if not exists.
         if not os.path.exists(filename):
             tophub_location = _get_tophub_location()
-            download_package(tophub_location, package_name)
-        if os.path.isfile(filename): # in case download failed
+            if tophub_location != AUTOTVM_TOPHUB_NONE_LOC:
+                download_package(tophub_location, package_name)
+        if os.path.isfile(filename):  # in case download failed
             find = False
             inp = None
             counts = {}

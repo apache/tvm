@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file relay/backend/graph_mem_alloca.cc
+ * \file relay/backend/graph_plan_memory.cc
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
  */
@@ -68,7 +68,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode* op) final {
-    // do not recursive into sub function.
+    // do not recurse into sub function.
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
@@ -82,16 +82,15 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     std::vector<StorageToken*> fields;
     for (Expr field : op->fields) {
-      auto tok = GetToken(field);
-      CHECK_EQ(tok.size(), 1U);
-      fields.push_back(tok[0]);
+      auto tokens = GetToken(field);
+      fields.insert(fields.end(), tokens.begin(), tokens.end());
     }
     token_map_[op] = fields;
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
     const auto& tok = GetToken(op->tuple);
-    CHECK_LT(static_cast<size_t>(op->index), tok.size());
+    ICHECK_LT(static_cast<size_t>(op->index), tok.size());
     token_map_[op] = {tok[op->index]};
   }
 
@@ -115,7 +114,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   const std::vector<StorageToken*>& GetToken(const Expr& expr) {
     this->VisitExpr(expr);
     auto it = token_map_.find(expr.operator->());
-    CHECK(it != token_map_.end());
+    ICHECK(it != token_map_.end());
     return it->second;
   }
   /*!
@@ -142,14 +141,14 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
   using StorageAllocaBaseVisitor::VisitExpr_;
 
   void CreateToken(const ExprNode* op, bool can_realloc) final {
-    CHECK(!token_map_.count(op));
+    ICHECK(!token_map_.count(op));
     std::vector<StorageToken*> tokens;
     int device_type =
         node_device_map_.count(GetRef<Expr>(op)) ? node_device_map_[GetRef<Expr>(op)]->value : 0;
     if (const auto* tuple_type = op->checked_type().as<TupleTypeNode>()) {
       for (Type t : tuple_type->fields) {
         const auto* ttype = t.as<TensorTypeNode>();
-        CHECK(ttype);
+        ICHECK(ttype);
         StorageToken* token = arena_->make<StorageToken>();
         token->ttype = ttype;
         token->device_type = device_type;
@@ -157,7 +156,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
       }
     } else {
       const auto* ttype = op->checked_type().as<TensorTypeNode>();
-      CHECK(ttype);
+      ICHECK(ttype);
       StorageToken* token = arena_->make<StorageToken>();
       token->ttype = ttype;
       token->device_type = device_type;
@@ -233,9 +232,9 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   using StorageAllocaBaseVisitor::VisitExpr_;
   // override create token by getting token as prototype requirements.
   void CreateToken(const ExprNode* op, bool can_realloc) final {
-    CHECK(!token_map_.count(op));
+    ICHECK(!token_map_.count(op));
     auto it = prototype_.find(op);
-    CHECK(it != prototype_.end());
+    ICHECK(it != prototype_.end());
     std::vector<StorageToken*> tokens;
     for (StorageToken* tok : it->second) {
       if (can_realloc) {
@@ -286,12 +285,12 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
    */
   size_t GetMemorySize(StorageToken* prototype) {
     const TensorTypeNode* ttype = prototype->ttype;
-    CHECK(ttype != nullptr);
+    ICHECK(ttype != nullptr);
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
       const int64_t* pval = tir::as_const_int(dim);
-      CHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
-      CHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
+      ICHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
+      ICHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
       size *= static_cast<size_t>(pval[0]);
     }
     size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
@@ -316,7 +315,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     for (auto it = mid; it != end; ++it) {
       StorageToken* tok = it->second;
       if (tok->device_type != prototype->device_type) continue;
-      CHECK_EQ(tok->ref_counter, 0);
+      ICHECK_EQ(tok->ref_counter, 0);
       // Use exect matching strategy
       tok->max_bytes = std::max(size, tok->max_bytes);
       tok->ref_counter = prototype->ref_counter;
@@ -329,7 +328,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
       --it;
       StorageToken* tok = it->second;
       if (tok->device_type != prototype->device_type) continue;
-      CHECK_EQ(tok->ref_counter, 0);
+      ICHECK_EQ(tok->ref_counter, 0);
       // Use exect matching strategy
       tok->max_bytes = std::max(size, tok->max_bytes);
       tok->ref_counter = prototype->ref_counter;
@@ -353,11 +352,11 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   }
   /*!
    * \brief Check if we can release token.
-   * \tok The token to be released.
+   * \param tok The token to be released.
    */
   void CheckForRelease(StorageToken* tok) {
-    CHECK_GE(tok->storage_id, 0);
-    CHECK_GE(tok->ref_counter, 0);
+    ICHECK_GE(tok->storage_id, 0);
+    ICHECK_GE(tok->ref_counter, 0);
     if (tok->ref_counter == 0) {
       free_.insert({tok->max_bytes, tok});
     }

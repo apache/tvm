@@ -51,7 +51,7 @@ public class RPCActivity extends AppCompatActivity {
     int port = intent.getIntExtra("port", 9090);
     String key = intent.getStringExtra("key");
 
-    tvmServerWorker = new RPCProcessor();
+    tvmServerWorker = new RPCProcessor(this);
     tvmServerWorker.setDaemon(true);
     tvmServerWorker.start();
     tvmServerWorker.connect(host, port, key);
@@ -62,5 +62,6 @@ public class RPCActivity extends AppCompatActivity {
     System.err.println("rpc activity onDestroy");
     tvmServerWorker.disconnect();
     super.onDestroy();
+    android.os.Process.killProcess(android.os.Process.myPid());
   }
 }

@@ -27,7 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/feature.h>
 
-#include "../transforms/pass_util.h"
+#include "../transforms/pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -37,7 +37,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     return FeatureSet::No();
   }
   struct FeatureDetector : ExprVisitor {
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> visited_;
+    std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visited_;
     FeatureSet fs = FeatureSet::No();
 
     void VisitExpr(const Expr& expr) final {
@@ -86,22 +86,68 @@ FeatureSet DetectFeature(const Expr& expr) {
   return fd.fs;
 }
 
+std::string FeatureSet::ToString() const {
+  std::string ret;
+  ret += "[";
+  size_t detected = 0;
+#define DETECT_FEATURE(FEATURE_NAME) \
+  ++detected;                        \
+  if (bs_[FEATURE_NAME]) {           \
+    ret += #FEATURE_NAME;            \
+    ret += ", ";                     \
+  }
+  DETECT_FEATURE(fVar);
+  DETECT_FEATURE(fGlobalVar);
+  DETECT_FEATURE(fConstant);
+  DETECT_FEATURE(fTuple);
+  DETECT_FEATURE(fTupleGetItem);
+  DETECT_FEATURE(fFunction);
+  DETECT_FEATURE(fOp);
+  DETECT_FEATURE(fCall);
+  DETECT_FEATURE(fLet);
+  DETECT_FEATURE(fIf);
+  DETECT_FEATURE(fRefCreate);
+  DETECT_FEATURE(fRefRead);
+  DETECT_FEATURE(fRefWrite);
+  DETECT_FEATURE(fConstructor);
+  DETECT_FEATURE(fMatch);
+  DETECT_FEATURE(fGraph);
+  DETECT_FEATURE(fLetRec);
+#undef DETECT_FEATURE
+  ICHECK(detected == feature_count) << "some feature not printed";
+  ret += "]";
+  return ret;
+}
+
 FeatureSet DetectFeature(const IRModule& mod) {
   FeatureSet fs = FeatureSet::No();
-  if (mod.defined()) {
-    for (const auto& f : mod->functions) {
-      fs += DetectFeature(f.second);
-    }
+  for (const auto& f : mod->functions) {
+    fs += DetectFeature(f.second);
   }
   return fs;
 }
 
-Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
-  FeatureSet fs = DetectFeature(expr) + DetectFeature(mod);
+Array<Integer> PyDetectFeature(const Expr& expr, const Optional<IRModule>& mod) {
+  FeatureSet fs = DetectFeature(expr);
+  if (mod.defined()) {
+    fs = fs + DetectFeature(mod.value());
+  }
   return static_cast<Array<Integer>>(fs);
 }
 
 TVM_REGISTER_GLOBAL("relay.analysis.detect_feature").set_body_typed(PyDetectFeature);
+
+void CheckFeature(const Expr& expr, const FeatureSet& fs) {
+  auto dfs = DetectFeature(expr);
+  ICHECK(dfs.is_subset_of(fs)) << AsText(expr, false)
+                               << "\nhas unsupported feature: " << (dfs - fs).ToString();
+}
+
+void CheckFeature(const IRModule& mod, const FeatureSet& fs) {
+  for (const auto& f : mod->functions) {
+    CheckFeature(f.second, fs);
+  }
+}
 
 }  // namespace relay
 }  // namespace tvm

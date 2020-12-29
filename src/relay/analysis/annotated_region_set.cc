@@ -119,7 +119,7 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       }
 
       auto arg_region = region_set_->GetRegion(arg);
-      CHECK_EQ(region.defined(), arg_region.defined())
+      ICHECK_EQ(region.defined(), arg_region.defined())
           << "Arg regions are inconsistent: " << AsText(expr);
       if (region.defined() && region != arg_region) {
         region_set_->MergeRegions(arg_region, region);
@@ -137,21 +137,21 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       AddToArgRegion(GetRef<Call>(call), call->args);
     } else if (call->op == begin_op_) {
       // The annotation node is inserted on edge so it must have only one argument.
-      CHECK_EQ(call->args.size(), 1U);
+      ICHECK_EQ(call->args.size(), 1U);
       std::string target = call->attrs.as<CompilerAttrs>()->compiler;
 
       // Check if the argument already belongs to a region
       auto region = region_set_->GetRegion(GetRef<Call>(call));
-      CHECK(!region.defined());
+      ICHECK(!region.defined());
 
       // Create a new region.
       region = region_set_->MakeRegion(target);
       region->nodes_.insert(GetRef<Call>(call));
       region->ins_.push_back(GetRef<Call>(call));
     } else {
-      CHECK_EQ(call->op, end_op_);
+      ICHECK_EQ(call->op, end_op_);
       // The annotation node is inserted on edge so it must have only one argument.
-      CHECK_EQ(call->args.size(), 1U);
+      ICHECK_EQ(call->args.size(), 1U);
       std::string target = call->attrs.as<CompilerAttrs>()->compiler;
 
       // Check if the argument already belongs to a region
@@ -162,7 +162,7 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       } else {
         // If the argument is belonged to a region, it must have the same target.
         // Otherwise we should see a region_begin op.
-        CHECK_EQ(region->GetTarget(), target);
+        ICHECK_EQ(region->GetTarget(), target);
       }
       region->nodes_.insert(GetRef<Call>(call));
       region->outs_.push_back(GetRef<Call>(call));

@@ -14,63 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument,invalid-name
+# pylint: disable=unused-argument,invalid-name
 """The base node types for the Relay language."""
 import tvm._ffi
+import tvm.ir
 from tvm.driver import lower, build
-
-from ..expr import RelayExpr
-from ...target import get_native_generic_func, GenericFunc
-from ...runtime import Object
+from tvm.target import get_native_generic_func, GenericFunc
+from tvm.runtime import Object
 from . import _make
-
-@tvm._ffi.register_object("relay.Op")
-class Op(RelayExpr):
-    """A Relay operator definition."""
-
-    def __init__(self):
-        raise RuntimeError("Cannot create op, use get instead")
-
-    def get_attr(self, attr_name):
-        """Get additional attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name.
-
-        Returns
-        -------
-        value : object
-            The attribute value
-        """
-        return _OpGetAttr(self, attr_name)
-
-    def set_attr(self, attr_name, value, plevel=10):
-        """Set attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name
-
-        value : object
-            The attribute value
-
-        plevel : int
-            The priority level
-        """
-        _OpSetAttr(self, attr_name, value, plevel)
-
-    def reset_attr(self, attr_name):
-        """Reset attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name
-        """
-        _OpResetAttr(self, attr_name)
 
 
 def get(op_name):
@@ -86,37 +37,7 @@ def get(op_name):
     op : Op
         The op of the corresponding name
     """
-    return _GetOp(op_name)
-
-
-def register(op_name, attr_key, value=None, level=10):
-    """Register an operator property of an operator.
-
-
-    Parameters
-    ----------
-    op_name : str
-        The name of operator
-
-    attr_key : str
-        The attribute name.
-
-    value : object, optional
-        The value to set
-
-    level : int, optional
-        The priority level
-
-    Returns
-    -------
-    fregister : function
-        Register function if value is not specified.
-    """
-    def _register(v):
-        """internal register function"""
-        _Register(op_name, attr_key, v, level)
-        return v
-    return _register(value) if value is not None else _register
+    return tvm.ir.Op.get(op_name)
 
 
 class OpPattern(object):
@@ -126,6 +47,7 @@ class OpPattern(object):
     --------
     top.tag : Contains explanation of the tag type.
     """
+
     # Elementwise operator
     ELEMWISE = 0
     # Broadcast operator
@@ -145,6 +67,7 @@ class OpPattern(object):
 @tvm._ffi.register_object("relay.OpImplementation")
 class OpImplementation(Object):
     """Operator implementation"""
+
     def compute(self, attrs, inputs, out_type):
         """Call compute function.
 
@@ -196,6 +119,7 @@ class OpSpecialization(Object):
 @tvm._ffi.register_object("relay.OpStrategy")
 class OpStrategy(Object):
     """Operator strategy"""
+
     def __init__(self):
         self.__init_handle_by_constructor__(_make.OpStrategy)
 
@@ -225,6 +149,7 @@ def _wrap_default_fstrategy(compute, schedule, name):
         strategy = OpStrategy()
         strategy.add_implementation(compute, schedule, name=name)
         return strategy
+
     return _fstrategy
 
 
@@ -234,12 +159,12 @@ def _create_fstrategy_from_schedule(op_name, schedule):
     assert compute is not None, "FTVMCompute is not registered for op %s" % op_name
     fstrategy = get_native_generic_func("{}_strategy".format(op_name))
     name_pfx = schedule.__name__
-    name_pfx = name_pfx[name_pfx.index('_')+1:]
+    name_pfx = name_pfx[name_pfx.index("_") + 1 :]
     fstrategy.set_default(
-        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx))
+        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx)
+    )
     for key, sch in schedule.dispatch_dict.items():
-        fstrategy.register(
-            _wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
+        fstrategy.register(_wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
     return fstrategy
 
 
@@ -258,7 +183,7 @@ def register_compute(op_name, compute=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMCompute", compute, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMCompute", compute, level)
 
 
 def register_strategy(op_name, fstrategy=None, level=10):
@@ -279,7 +204,7 @@ def register_strategy(op_name, fstrategy=None, level=10):
     if not isinstance(fstrategy, GenericFunc):
         assert hasattr(fstrategy, "generic_func_node")
         fstrategy = fstrategy.generic_func_node
-    return register(op_name, "FTVMStrategy", fstrategy, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMStrategy", fstrategy, level)
 
 
 def register_schedule(op_name, schedule, level=10):
@@ -360,7 +285,7 @@ def register_alter_op_layout(op_name, alter_layout=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMAlterOpLayout", alter_layout, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMAlterOpLayout", alter_layout, level)
 
 
 def register_convert_op_layout(op_name, convert_layout=None, level=10):
@@ -377,7 +302,7 @@ def register_convert_op_layout(op_name, convert_layout=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMConvertOpLayout", convert_layout, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMConvertOpLayout", convert_layout, level)
 
 
 def register_legalize(op_name, legal_op=None, level=10):
@@ -394,7 +319,7 @@ def register_legalize(op_name, legal_op=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMLegalize", legal_op, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMLegalize", legal_op, level)
 
 
 def register_pattern(op_name, pattern, level=10):
@@ -411,7 +336,7 @@ def register_pattern(op_name, pattern, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "TOpPattern", pattern, level)
+    return tvm.ir.register_op_attr(op_name, "TOpPattern", pattern, level)
 
 
 def register_gradient(op_name, fgradient=None, level=10):
@@ -428,7 +353,7 @@ def register_gradient(op_name, fgradient=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FPrimalGradient", fgradient, level)
+    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, level)
 
 
 def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
@@ -450,7 +375,7 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
         The priority level
     """
     get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
-    return register(op_name, "FShapeFunc", shape_func, level)
+    return tvm.ir.register_op_attr(op_name, "FShapeFunc", shape_func, level)
 
 
 def register_external_compiler(op_name, fexternal=None, level=10):
@@ -469,7 +394,7 @@ def register_external_compiler(op_name, fexternal=None, level=10):
     level : int
         The priority level
     """
-    return register(op_name, "FTVMExternalCompiler", fexternal, level)
+    return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
 
 
 @tvm._ffi.register_func("relay.op.compiler._lower")
@@ -487,6 +412,7 @@ _schedule_reduce = None
 
 __DEBUG_COUNTER__ = 0
 
+
 def debug(expr, debug_func=None):
     """The main entry point to the debugger."""
     global __DEBUG_COUNTER__
@@ -496,8 +422,9 @@ def debug(expr, debug_func=None):
         tvm._ffi.register_func(name, debug_func)
         __DEBUG_COUNTER__ += 1
     else:
-        name = ''
+        name = ""
 
     return _make.debug(expr, name)
+
 
 tvm._ffi._init_api("relay.op", __name__)

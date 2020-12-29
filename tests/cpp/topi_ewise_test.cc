@@ -18,9 +18,10 @@
  */
 
 #include <gtest/gtest.h>
-#include <topi/elemwise.h>
 #include <tvm/te/operation.h>
+#include <tvm/topi/elemwise.h>
 
+namespace tvm {
 namespace topi {
 TEST(Tensor, Basic) {
   using namespace tvm;
@@ -29,6 +30,7 @@ TEST(Tensor, Basic) {
   auto C = topi::exp(A);
 }
 }  // namespace topi
+}  // namespace tvm
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);

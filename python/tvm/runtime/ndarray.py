@@ -22,7 +22,7 @@ import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
 from tvm._ffi.runtime_ctypes import DataType, TVMContext, TVMArray, TVMArrayHandle
-from tvm._ffi.runtime_ctypes import TypeCode, tvm_shape_index_t
+from tvm._ffi.runtime_ctypes import DataTypeCode, tvm_shape_index_t
 
 try:
     # pylint: disable=wrong-import-position
@@ -30,8 +30,10 @@ try:
         raise ImportError()
     from tvm._ffi._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
     from tvm._ffi._cy3.core import NDArrayBase
-except (RuntimeError, ImportError):
+except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position
+    if _FFI_MODE == "cython":
+        raise error
     from tvm._ffi._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
     from tvm._ffi._ctypes.ndarray import NDArrayBase
 
@@ -92,17 +94,19 @@ class NDArray(NDArrayBase):
 
     def __setitem__(self, in_slice, value):
         """Set ndarray value"""
-        if (not isinstance(in_slice, slice) or
-                in_slice.start is not None
-                or in_slice.stop is not None):
-            raise ValueError('Array only support set from numpy array')
+        if (
+            not isinstance(in_slice, slice)
+            or in_slice.start is not None
+            or in_slice.stop is not None
+        ):
+            raise ValueError("Array only support set from numpy array")
         if isinstance(value, NDArrayBase):
             if value.handle is not self.handle:
                 value.copyto(self)
         elif isinstance(value, (np.ndarray, np.generic)):
             self.copyfrom(value)
         else:
-            raise TypeError('type %s not supported' % str(type(value)))
+            raise TypeError("type %s not supported" % str(type(value)))
 
     def copyfrom(self, source_array):
         """Peform an synchronize copy from the array.
@@ -125,8 +129,10 @@ class NDArray(NDArrayBase):
             try:
                 source_array = np.array(source_array, dtype=self.dtype)
             except:
-                raise TypeError('array must be an array_like data,' +
-                                'type %s is not supported' % str(type(source_array)))
+                raise TypeError(
+                    "array must be an array_like data,"
+                    + "type %s is not supported" % str(type(source_array))
+                )
 
         t = DataType(self.dtype)
         shape, dtype = self.shape, self.dtype
@@ -136,10 +142,13 @@ class NDArray(NDArrayBase):
             dtype = str(t)
 
         if source_array.shape != shape:
-            raise ValueError("array shape do not match the shape of NDArray {0} vs {1}".format(
-                source_array.shape, shape))
+            raise ValueError(
+                "array shape do not match the shape of NDArray {0} vs {1}".format(
+                    source_array.shape, shape
+                )
+            )
         source_array = np.ascontiguousarray(source_array, dtype=dtype)
-        assert source_array.flags['C_CONTIGUOUS']
+        assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
@@ -168,7 +177,7 @@ class NDArray(NDArrayBase):
             t.lanes = 1
             dtype = str(t)
         np_arr = np.empty(shape, dtype=dtype)
-        assert np_arr.flags['C_CONTIGUOUS']
+        assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
@@ -218,8 +227,8 @@ def context(dev_type, dev_id=0):
       assert tvm.context("cuda", 0) == tvm.gpu(0)
     """
     if isinstance(dev_type, string_types):
-        if '-device=micro_dev' in dev_type:
-            dev_type = TVMContext.STR2MASK['micro_dev']
+        if "-device=micro_dev" in dev_type:
+            dev_type = TVMContext.STR2MASK["micro_dev"]
         else:
             dev_type = dev_type.split()[0]
             if dev_type not in TVMContext.STR2MASK:
@@ -229,10 +238,9 @@ def context(dev_type, dev_id=0):
 
 
 def numpyasarray(np_data):
-    """Return a TVMArray representation of a numpy array.
-    """
+    """Return a TVMArray representation of a numpy array."""
     data = np_data
-    assert data.flags['C_CONTIGUOUS']
+    assert data.flags["C_CONTIGUOUS"]
     arr = TVMArray()
     shape = c_array(tvm_shape_index_t, data.shape)
     arr.data = data.ctypes.data_as(ctypes.c_void_p)
@@ -268,14 +276,18 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
     ndim = ctypes.c_int(len(shape))
     handle = TVMArrayHandle()
     dtype = DataType(dtype)
-    check_call(_LIB.TVMArrayAlloc(
-        shape, ndim,
-        ctypes.c_int(dtype.type_code),
-        ctypes.c_int(dtype.bits),
-        ctypes.c_int(dtype.lanes),
-        ctx.device_type,
-        ctx.device_id,
-        ctypes.byref(handle)))
+    check_call(
+        _LIB.TVMArrayAlloc(
+            shape,
+            ndim,
+            ctypes.c_int(dtype.type_code),
+            ctypes.c_int(dtype.bits),
+            ctypes.c_int(dtype.lanes),
+            ctx.device_type,
+            ctx.device_id,
+            ctypes.byref(handle),
+        )
+    )
     return _make_array(handle, False, False)
 
 
@@ -328,6 +340,7 @@ def gpu(dev_id=0):
         The created context
     """
     return TVMContext(2, dev_id)
+
 
 def rocm(dev_id=0):
     """Construct a ROCM device
@@ -407,22 +420,6 @@ def vulkan(dev_id=0):
         The created context
     """
     return TVMContext(7, dev_id)
-
-
-def opengl(dev_id=0):
-    """Construct a OpenGL device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    ctx : TVMContext
-        The created context
-    """
-    return TVMContext(11, dev_id)
 
 
 def ext_dev(dev_id=0):
@@ -517,6 +514,7 @@ def array(arr, ctx=cpu(0)):
     if not isinstance(arr, (np.ndarray, NDArray)):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
+
 
 # Register back to FFI
 _set_class_ndarray(NDArray)

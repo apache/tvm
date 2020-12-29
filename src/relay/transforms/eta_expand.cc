@@ -49,7 +49,7 @@ class TypeVarReplacer : public TypeMutator {
 
  private:
   /*! \brief variable replacement map to remap old type vars to fresh ones */
-  std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> replace_map_;
+  std::unordered_map<TypeVar, TypeVar, ObjectPtrHash, ObjectPtrEqual> replace_map_;
 };
 
 /*!
@@ -62,7 +62,7 @@ class EtaExpander : public ExprMutator {
         type_var_replacer_(TypeVarReplacer()),
         expand_constructor_(expand_constructor),
         expand_global_var_(expand_global_var) {
-    CHECK(expand_constructor || expand_global_var) << "must expand at least one language feature";
+    ICHECK(expand_constructor || expand_global_var) << "must expand at least one language feature";
   }
 
   IRModule Expand() {

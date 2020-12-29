@@ -41,10 +41,13 @@ def _make_fire(net, squeeze_channels, expand1x1_channels, expand3x3_channels, pr
 
 
 def _make_fire_conv(net, channels, kernel_size, padding=0, prefix=""):
-    net = relay.nn.conv2d(net, relay.var("%s_weight" % prefix),
-                        channels=channels,
-                        kernel_size=(kernel_size, kernel_size),
-                        padding=(padding, padding))
+    net = relay.nn.conv2d(
+        net,
+        relay.var("%s_weight" % prefix),
+        channels=channels,
+        kernel_size=(kernel_size, kernel_size),
+        padding=(padding, padding),
+    )
     net = relay.nn.bias_add(net, relay.var("%s_bias" % prefix))
     net = relay.nn.relu(net)
     return net
@@ -71,15 +74,18 @@ def get_net(batch_size, image_shape, num_classes, dtype):
     """
     data_shape = (batch_size,) + image_shape
     net = relay.var("data", shape=data_shape, dtype=dtype)
-    net = relay.nn.conv2d(net, relay.var("conv1_weight"),
-                        channels=64,
-                        kernel_size=(3, 3),
-                        strides=(2, 2),
-                        padding=(0, 0))
+    net = relay.nn.conv2d(
+        net,
+        relay.var("conv1_weight"),
+        channels=64,
+        kernel_size=(3, 3),
+        strides=(2, 2),
+        padding=(0, 0),
+    )
     net = relay.nn.bias_add(net, relay.var("conv1_bias"))
     net = relay.nn.relu(net)
     net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-    net = _make_fire(net, 16, 64, 64, 'fire2')
+    net = _make_fire(net, 16, 64, 64, "fire2")
     net = _make_fire(net, 16, 64, 64, "fire3")
     net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
     net = _make_fire(net, 32, 128, 128, "fire4")
@@ -90,7 +96,7 @@ def get_net(batch_size, image_shape, num_classes, dtype):
     net = _make_fire(net, 64, 256, 256, "fire8")
     net = _make_fire(net, 64, 256, 256, "fire9")
     net = relay.nn.dropout(net, rate=0.5)
-    net = relay.nn.conv2d(net, relay.var('conv10_weight'), channels=num_classes, kernel_size=(1, 1))
+    net = relay.nn.conv2d(net, relay.var("conv10_weight"), channels=num_classes, kernel_size=(1, 1))
     net = relay.nn.bias_add(net, relay.var("conv10_bias"))
     net = relay.nn.relu(net)
     net = relay.nn.global_avg_pool2d(net)
@@ -99,10 +105,7 @@ def get_net(batch_size, image_shape, num_classes, dtype):
     return relay.Function(args, net)
 
 
-def get_workload(batch_size=1,
-                 image_shape=(3, 224, 224),
-                 num_classes=1000,
-                 dtype="float32"):
+def get_workload(batch_size=1, image_shape=(3, 224, 224), num_classes=1000, dtype="float32"):
     """Get benchmark workload for SqueezeNet
 
     Parameters

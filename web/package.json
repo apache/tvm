@@ -2,7 +2,7 @@
   "name": "tvmjs",
   "displayName": "TVM Wasm JS runtime",
   "license": "Apache-2.0",
-  "version": "0.7.0",
+  "version": "0.8.0-dev0",
   "scripts": {
     "prepwasm": "make && python3 tests/python/prepare_test_libs.py",
     "build": "tsc -b && make rmtypedep",
@@ -20,7 +20,7 @@
     "@types/node": "^12.12.37",
     "@typescript-eslint/eslint-plugin": "^2.29.0",
     "@typescript-eslint/parser": "^2.29.0",
-    "@webgpu/types": "^0.0.24",
+    "@webgpu/types": "^0.0.31",
     "eslint": "^6.8.0",
     "jest": "^26.0.1",
     "rollup": "^2.7.6",

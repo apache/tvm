@@ -22,4 +22,5 @@ from ..rpc import Server, RPCSession, LocalSession, TrackerSession, connect, con
 
 warnings.warn(
     "Please use tvm.rpc instead of tvm.conrtib.rpc. tvm.contrib.rpc is going to be removed in 0.5",
-    DeprecationWarning)
+    DeprecationWarning,
+)

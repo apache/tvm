@@ -39,10 +39,10 @@ class SDAccelModuleNode : public OpenCLModuleNode {
   explicit SDAccelModuleNode(std::string data, std::string fmt,
                              std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNode(data, fmt, fmap, source) {}
-  const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace() final;
+  cl::OpenCLWorkspace* GetGlobalWorkspace() final;
 };
 
-const std::shared_ptr<cl::OpenCLWorkspace>& SDAccelModuleNode::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* SDAccelModuleNode::GetGlobalWorkspace() {
   return cl::SDAccelWorkspace::Global();
 }
 

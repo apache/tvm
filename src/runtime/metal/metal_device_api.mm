@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -28,8 +29,10 @@ namespace tvm {
 namespace runtime {
 namespace metal {
 
-const std::shared_ptr<MetalWorkspace>& MetalWorkspace::Global() {
-  static std::shared_ptr<MetalWorkspace> inst = std::make_shared<MetalWorkspace>();
+MetalWorkspace* MetalWorkspace::Global() {
+  // NOTE: explicitly use new to avoid exit-time destruction of global state
+  // Global state will be recycled by OS as the process exits.
+  static MetalWorkspace* inst = new MetalWorkspace();
   return inst;
 }
 
@@ -40,7 +43,7 @@ void MetalWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* r
     *rv = int(index < devices.size());
     return;
   }
-  CHECK_LT(index, devices.size()) << "Invalid device id " << index;
+  ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
   switch (kind) {
     case kMaxThreadsPerBlock: {
       *rv = static_cast<int>([devices[ctx.device_id] maxThreadsPerThreadgroup].width);
@@ -64,8 +67,12 @@ void MetalWorkspace::GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* r
     case kMaxThreadDimensions:
       return;
     case kExist:
-      break;
+      return;
+    case kMaxRegistersPerBlock:
+      return;
     case kGcnArch:
+      return;
+    case kApiVersion:
       return;
   }
 }
@@ -94,11 +101,11 @@ int GetWarpSize(id<MTLDevice> dev) {
   id<MTLLibrary> lib = [dev newLibraryWithSource:[NSString stringWithUTF8String:kDummyKernel]
                                          options:nil
                                            error:&error_msg];
-  CHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
+  ICHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
   id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:"CopyKernel"]];
-  CHECK(f != nil);
+  ICHECK(f != nil);
   id<MTLComputePipelineState> state = [dev newComputePipelineStateWithFunction:f error:&error_msg];
-  CHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
+  ICHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
   return static_cast<int>(state.threadExecutionWidth);
 }
 
@@ -152,11 +159,14 @@ void* MetalWorkspace::AllocDataSpace(TVMContext ctx, size_t nbytes, size_t align
   #endif
   */
   id<MTLBuffer> buf = [dev newBufferWithLength:nbytes options:storage_mode];
-  CHECK(buf != nil);
-  return (__bridge void*)([buf retain]);
+  ICHECK(buf != nil);
+  return (void*)(CFBridgingRetain(buf));
 }
 
 void MetalWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
+  // MTLBuffer PurgeableState should be set to empty before manual
+  // release in order to prevent memory leak
+  [(id<MTLBuffer>)ptr setPurgeableState:MTLPurgeableStateEmpty];
   // release the ptr.
   CFRelease(ptr);
 }
@@ -166,7 +176,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
                                     TVMContext ctx_to, DLDataType type_hint,
                                     TVMStreamHandle stream) {
   this->Init();
-  CHECK(stream == nullptr);
+  ICHECK(stream == nullptr);
   TVMContext ctx = ctx_from;
   if (ctx_from.device_type == kDLCPU) ctx = ctx_to;
   id<MTLCommandQueue> queue = GetCommandQueue(ctx);
@@ -175,7 +185,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
   int to_dev_type = static_cast<int>(ctx_to.device_type);
 
   if (from_dev_type == kDLMetal && to_dev_type == kDLMetal) {
-    CHECK_EQ(ctx_from.device_id, ctx_to.device_id) << "Metal disallow cross device copy.";
+    ICHECK_EQ(ctx_from.device_id, ctx_to.device_id) << "Metal disallow cross device copy.";
     id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
     [encoder copyFromBuffer:(__bridge id<MTLBuffer>)(from)
                sourceOffset:from_offset
@@ -227,7 +237,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
 }
 
 void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
-  CHECK(stream == nullptr);
+  ICHECK(stream == nullptr);
   // commit an empty command buffer and wait until it completes.
   id<MTLCommandQueue> queue = GetCommandQueue(ctx);
   id<MTLCommandBuffer> cb = [queue commandBuffer];
@@ -245,7 +255,10 @@ void MetalWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
 
 MetalThreadEntry::~MetalThreadEntry() {
   for (auto x : temp_buffer_) {
-    if (x != nil) [x release];
+    if (x != nil) {
+      [(id<MTLBuffer>)x setPurgeableState:MTLPurgeableStateEmpty];
+      [x release];
+    }
   }
 }
 
@@ -269,7 +282,7 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
 TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = MetalWorkspace::Global().get();
+  DeviceAPI* ptr = MetalWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
 

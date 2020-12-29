@@ -41,7 +41,7 @@ def detect_linear_equation(expr, var_list):
 
 
 def detect_clip_bound(expr, var_list):
-    """ Detect if expression corresponds to clip bound of the vars
+    """Detect if expression corresponds to clip bound of the vars
 
     Parameters
     ----------

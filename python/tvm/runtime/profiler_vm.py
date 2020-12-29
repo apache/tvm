@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -23,21 +23,24 @@ Provides extra APIs for profiling vm execution.
 from tvm.runtime import _ffi_api
 from . import vm
 
+
 def enabled():
     """Whether vm profiler is enabled."""
     return hasattr(_ffi_api, "_VirtualMachineDebug")
 
+
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""
-    def __init__(self, mod):
-        super(VirtualMachineProfiler, self).__init__(mod)
-        m = mod.module if isinstance(mod, vm.Executable) else mod
-        self.mod = _ffi_api._VirtualMachineDebug(m)
-        self._init = self.mod["init"]
-        self._invoke = self.mod["invoke"]
-        self._get_stat = self.mod["get_stat"]
-        self._set_input = self.mod["set_input"]
-        self._reset = self.mod["reset"]
+
+    def __init__(self, exe, ctx, memory_cfg=None):
+        super(VirtualMachineProfiler, self).__init__(exe, ctx, memory_cfg)
+        self.module = _ffi_api._VirtualMachineDebug(exe.module)
+        self._init = self.module["init"]
+        self._invoke = self.module["invoke"]
+        self._get_stat = self.module["get_stat"]
+        self._set_input = self.module["set_input"]
+        self._reset = self.module["reset"]
+        self._setup_ctx(ctx, memory_cfg)
 
     def get_stat(self, sort_by_time=True):
         """Get the statistics of executed ops.

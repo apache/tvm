@@ -24,8 +24,10 @@ from tvm.runtime import Object
 from . import _ffi_api
 from . import json_compact
 
+
 class Node(Object):
     """Base class of all IR Nodes, implements astext function."""
+
     def astext(self, show_meta_data=True, annotate=None):
         """Get the text format of the expression.
 
@@ -65,6 +67,7 @@ class SourceName(Object):
     name : str
         The name of the source.
     """
+
     def __init__(self, name):
         self.__init_handle_by_constructor__(_ffi_api.SourceName, name)
 
@@ -84,9 +87,11 @@ class Span(Object):
     col_offset : int
         The column offset of the location.
     """
-    def __init__(self, source, lineno, col_offset):
+
+    def __init__(self, source_name, line, end_line, column, end_column):
         self.__init_handle_by_constructor__(
-            _ffi_api.Span, source, lineno, col_offset)
+            _ffi_api.Span, source_name, line, end_line, column, end_column
+        )
 
 
 @tvm._ffi.register_object
@@ -95,6 +100,7 @@ class EnvFunc(Object):
 
     This is a global function object that can be serialized by its name.
     """
+
     def __call__(self, *args):
         return _ffi_api.EnvFuncCall(self, *args)
 
@@ -200,8 +206,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return bool(tvm.runtime._ffi_node_api.StructuralEqual(
-        lhs, rhs, False, map_free_vars))
+    return bool(tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -229,8 +234,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    tvm.runtime._ffi_node_api.StructuralEqual(
-        lhs, rhs, True, map_free_vars)
+    tvm.runtime._ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)
 
 
 def structural_hash(node, map_free_vars=False):

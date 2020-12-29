@@ -63,7 +63,7 @@
  * so we have to deduplicate them.
  *
  * 4: In the generated code, as it call TypeSubst, multiple VarNode might have same Id.
- * While it is permitted, most pass use ObjectHash for Var,
+ * While it is permitted, most pass use ObjectPtrHash for Var,
  * and having multiple VarNode for same Id break them.
  * Thus we remap them to a single Id for now.
  *
@@ -92,12 +92,13 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/feature.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
 
 #include "let_list.h"
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -110,7 +111,7 @@ using namespace runtime;
  * Use VarHash to hash Var by id.
  */
 struct VarHash {
-  size_t operator()(const Var& v) const { return ObjectHash()(v->vid); }
+  size_t operator()(const Var& v) const { return ObjectPtrHash()(v->vid); }
 };
 
 /*! \brief Compare Var by it's id.
@@ -278,7 +279,7 @@ class FuelNode : public RelayNode {
   }
   /*! \brief return the new Fuel, and write (*progress | is progress made) to *progress. */
   virtual Fuel Meet(const Fuel& f, bool* progress) const {
-    CHECK(progress);
+    ICHECK(progress);
     auto ret = Meet(f);
     *progress |= std::get<1>(ret);
     return std::get<0>(ret);
@@ -294,8 +295,8 @@ struct FSeqNode : FuelNode {
   std::vector<Fuel> fuels;
   Fuel Meet(const Fuel& f, bool* progress) const final {
     auto x = f.as<FSeqNode>();
-    CHECK(x);
-    CHECK_EQ(fuels.size(), x->fuels.size());
+    ICHECK(x);
+    ICHECK_EQ(fuels.size(), x->fuels.size());
     std::vector<Fuel> new_fuels;
     for (size_t i = 0; i < fuels.size(); ++i) {
       new_fuels.push_back(fuels[i]->Meet(x->fuels[i], progress));
@@ -319,7 +320,7 @@ struct FTimeNode : FuelNode {
   Time time;
   std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     auto x = f.as<FTimeNode>();
-    CHECK(x);
+    ICHECK(x);
     Time new_time = std::min(time, x->time);
     return std::make_tuple(MkFTime(new_time), new_time < time);
   }
@@ -341,7 +342,7 @@ struct FTValueNode : FuelNode {
   size_t tvalue;
   std::tuple<Fuel, bool> Meet(const Fuel& f) const final {
     auto x = f.as<FTValueNode>();
-    CHECK(x);
+    ICHECK(x);
     size_t new_tvalue = std::min(tvalue, x->tvalue);
     return std::make_tuple(MkFTValue(new_tvalue), new_tvalue < tvalue);
   }
@@ -400,9 +401,9 @@ class Environment {
   }
 
   void Insert(const Var& v, const PStatic& ps) {
-    CHECK(ps.defined());
-    CHECK_GT(env_.size(), 0);
-    CHECK_EQ(env_.back().locals.count(v), 0);
+    ICHECK(ps.defined());
+    ICHECK_GT(env_.size(), 0);
+    ICHECK_EQ(env_.back().locals.count(v), 0);
     env_.back().locals[v] = ps;
   }
 
@@ -458,7 +459,7 @@ class Store {
   }
 
   void Insert(const SRefNode* r, const PStatic& ps) {
-    CHECK(r);
+    ICHECK(r);
     store_.back().store[r] = ps;
   }
 
@@ -502,7 +503,7 @@ class Store {
 };
 
 PStatic HasStatic(const Static& stat, const Expr& dynamic) {
-  CHECK(stat.defined());
+  ICHECK(stat.defined());
   return PStatic(make_object<PStaticNode>(stat, dynamic));
 }
 
@@ -511,7 +512,7 @@ PStatic NoStatic(const Expr& dynamic) { return PStatic(make_object<PStaticNode>(
 enum struct MatchStatus { Match, NoMatch, Unknown };
 
 bool StatefulOp(const Expr& e) {
-  static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+  static auto op_stateful = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
   struct StatefulOpVisitor : ExprVisitor {
     bool stateful = false;
     void VisitExpr_(const OpNode* op) {
@@ -533,10 +534,12 @@ DLContext CPUContext() {
 }
 
 FInterpreter CPUInterpreter() {
-  Target target = Target::Create("llvm");
+  using tvm::transform::PassContext;
+
+  Target target = Target("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
+  With<PassContext> fresh_build_ctx(PassContext::Create());
 
   return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
 }
@@ -576,8 +579,8 @@ Function AsFunc(const Expr& e) {
   if (e.as<FunctionNode>()) {
     return Downcast<Function>(e);
   } else if (const CallNode* c = e.as<CallNode>()) {
-    CHECK(c->op == with_funcid_op);
-    CHECK_EQ(c->args.size(), 1);
+    ICHECK(c->op == with_funcid_op);
+    ICHECK_EQ(c->args.size(), 1);
     return AsFunc(c->args[0]);
   } else {
     LOG(FATAL) << "Unknown case";
@@ -592,20 +595,20 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   PStatic VisitExpr(const Expr& e, LetList* ll) final {
     PStatic ret = ExprFunctor<PStatic(const Expr&, LetList*)>::VisitExpr(e, ll);
-    CHECK(IsAtomic(ret->dynamic)) << ret->dynamic;
+    ICHECK(IsAtomic(ret->dynamic)) << ret->dynamic;
     return ret;
   }
 
   PStatic VisitExpr(const Expr& e, LetList* ll, const Var& name) {
     if (const CallNode* c = e.as<CallNode>()) {
       if (c->op == with_funcid_op) {
-        CHECK_EQ(c->args.size(), 1);
+        ICHECK_EQ(c->args.size(), 1);
         return VisitExpr(c->args[0], ll, name);
       }
     }
     PStatic ret =
         e.as<FunctionNode>() ? VisitFunc(Downcast<Function>(e), ll, name) : VisitExpr(e, ll);
-    CHECK(IsAtomic(ret->dynamic)) << ret->dynamic;
+    ICHECK(IsAtomic(ret->dynamic)) << ret->dynamic;
     return ret;
   }
 
@@ -636,7 +639,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitExpr_(const VarNode* op, LetList* ll) final { return env_.Lookup(GetRef<Var>(op)); }
 
   PStatic VisitGlobalVar(const GlobalVar& gv) {
-    CHECK(mod_.defined());
+    ICHECK(mod_.defined());
     if (gv_map_.count(gv) == 0) {
       BaseFunc base_func = mod_->Lookup(gv);
       if (auto* n = base_func.as<FunctionNode>()) {
@@ -667,7 +670,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic c = VisitExpr(op->cond, ll);
     if (c->pstatic.defined()) {
       NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUContext());
-      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
+      ICHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return VisitExpr(op->true_branch, ll);
       } else {
@@ -716,7 +719,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   PStatic VisitExpr_(const CallNode* op, LetList* ll) final {
     if (op->op == with_funcid_op) {
-      CHECK_EQ(op->args.size(), 1);
+      ICHECK_EQ(op->args.size(), 1);
       return VisitExpr(op->args[0], ll);
     }
     PStatic f = VisitExpr(op->op, ll);
@@ -740,7 +743,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     FuncId fid_;
     Fuel old_fuel;
     FuelFrame(PartialEvaluator* pe, FuncId fid, const Fuel& new_fuel) : pe_(pe), fid_(fid) {
-      CHECK_GT(pe_->fuel_map_.count(fid_), 0);
+      ICHECK_GT(pe_->fuel_map_.count(fid_), 0);
       old_fuel = pe_->fuel_map_[fid_];
       pe_->fuel_map_[fid_] = new_fuel;
     }
@@ -772,7 +775,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   Func VisitFuncStatic(const Function& func, const Expr& var) {
-    CHECK(IsAtomic(var));
+    ICHECK(IsAtomic(var));
     if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return ConstEvaluateFunc(func);
     }
@@ -785,8 +788,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return [=](const PStatic& self, const std::vector<PStatic>& pv, const Attrs& attrs,
                const tvm::Array<Type>& type_args, LetList* ll) {
       return env_.Extend<PStatic>([&]() {
-        CHECK_EQ(pv.size(), func->params.size());
-        CHECK_GT(func_map_.count(func), 0);
+        ICHECK_EQ(pv.size(), func->params.size());
+        ICHECK_GT(func_map_.count(func), 0);
         FuncId fid = func_map_.at(func);
         if (fuel_map_.count(fid) == 0) {
           fuel_map_.insert({fid, MkFTop()});
@@ -899,7 +902,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  // Constant evaluate a expression.
+  // Constant evaluate an expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::InferType()};
     auto mod = IRModule::FromExpr(expr);
@@ -911,7 +914,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   Func ConstEvaluateFunc(const Expr& expr) {
-    CHECK_EQ(FreeVars(expr).size(), 0);
+    ICHECK_EQ(FreeVars(expr).size(), 0);
     return [=](const PStatic& self, const std::vector<PStatic>& pv, const Attrs& attrs,
                const tvm::Array<Type>& type_args, LetList* ll) {
       tvm::Array<Expr> ns_args;
@@ -999,10 +1002,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   MatchStatus VisitPattern_(const PatternConstructorNode* op, const PStatic& ps) final {
     if (ps->pstatic.defined()) {
       SConstructor scn = Downcast<SConstructor>(ps->pstatic);
-      CHECK_NE(op->constructor->tag, -1);
-      CHECK_NE(scn->constructor->tag, -1);
+      ICHECK_NE(op->constructor->tag, -1);
+      ICHECK_NE(scn->constructor->tag, -1);
       if (op->constructor->tag == scn->constructor->tag) {
-        CHECK_EQ(op->patterns.size(), scn->fields.size());
+        ICHECK_EQ(op->patterns.size(), scn->fields.size());
         MatchStatus current_match_status = MatchStatus::Match;
         for (size_t i = 0; i < op->patterns.size(); ++i) {
           MatchStatus ms = VisitPattern(op->patterns[i], scn->fields[i]);
@@ -1026,7 +1029,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   MatchStatus VisitPattern_(const PatternTupleNode* op, const PStatic& ps) final {
     if (ps->pstatic.defined()) {
       STuple stn = Downcast<STuple>(ps->pstatic);
-      CHECK_EQ(op->patterns.size(), stn->fields.size());
+      ICHECK_EQ(op->patterns.size(), stn->fields.size());
       MatchStatus current_match_status = MatchStatus::Match;
       for (size_t i = 0; i < op->patterns.size(); ++i) {
         MatchStatus ms = VisitPattern(op->patterns[i], stn->fields[i]);
@@ -1052,7 +1055,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
       void VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
-        CHECK_EQ(pe->func_map_.count(f), 0);
+        ICHECK_EQ(pe->func_map_.count(f), 0);
         pe->func_map_.insert({f, pe->func_map_.size()});
         VisitExpr(f->body);
       }
@@ -1069,13 +1072,13 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
       void VisitExpr_(const CallNode* op) final {
         if (op->op == with_funcid_op) {
-          CHECK_EQ(op->args.size(), 1);
-          CHECK(op->attrs.defined());
-          CHECK(op->attrs.as<WithFuncIdAttrs>());
+          ICHECK_EQ(op->args.size(), 1);
+          ICHECK(op->attrs.defined());
+          ICHECK(op->attrs.as<WithFuncIdAttrs>());
           Function f = AsFunc(op->args[0]);
           FuncId fid = op->attrs.as<WithFuncIdAttrs>()->fid;
           if (pe->func_map_.count(f) != 0) {
-            CHECK_EQ(pe->func_map_.at(f), fid);
+            ICHECK_EQ(pe->func_map_.at(f), fid);
           }
           pe->func_map_.insert({f, fid});
         }
@@ -1084,7 +1087,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
       void VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
-        CHECK_GT(pe->func_map_.count(f), 0);
+        ICHECK_GT(pe->func_map_.count(f), 0);
         ExprVisitor::VisitExpr_(op);
       }
 
@@ -1101,7 +1104,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
       Expr VisitExpr_(const FunctionNode* op) final {
         Function f = GetRef<Function>(op);
-        CHECK_GT(pe->func_map_.count(f), 0);
+        ICHECK_GT(pe->func_map_.count(f), 0);
         return MkWithFuncId(ExprMutator::VisitExpr_(op), pe->func_map_.at(f));
       }
 
@@ -1115,7 +1118,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
  private:
   Environment env_;
   IRModule mod_;
-  std::unordered_map<GlobalVar, PStatic, ObjectHash, ObjectEqual> gv_map_;
+  std::unordered_map<GlobalVar, PStatic, ObjectPtrHash, ObjectPtrEqual> gv_map_;
   /*! Termination checking is done as follows:
    *  We have finitely many FunctionIds.
    *  Each FunctionId maps to a class of semantically equivalent function (ignoring type),
@@ -1130,7 +1133,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
    *  Termination is guaranteed because Fuel is finitely descending - there can only be so many
    * meet.
    */
-  std::unordered_map<Function, FuncId, ObjectHash, ObjectEqual> func_map_;
+  std::unordered_map<Function, FuncId, ObjectPtrHash, ObjectPtrEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
   DLContext context_ = CPUContext();
@@ -1160,7 +1163,7 @@ Expr StripWithFuncId(const Expr& e) {
   struct StripWithFuncIdMutator : ExprMutator, PatternMutator {
     Expr VisitExpr_(const CallNode* op) final {
       if (op->op == with_funcid_op) {
-        CHECK_EQ(op->args.size(), 1);
+        ICHECK_EQ(op->args.size(), 1);
         return VisitExpr(op->args[0]);
       } else {
         return ExprMutator::VisitExpr_(op);
@@ -1179,6 +1182,7 @@ Expr PostProcess(const Expr& e) { return StripWithFuncId(DeDup(Remap(e))); }
 }  // namespace partial_eval
 
 IRModule PartialEval(const IRModule& m) {
+  CheckFeature(m, FeatureSet::All() - fGraph);
   relay::partial_eval::PartialEvaluator pe(m);
   std::vector<GlobalVar> gvs;
   for (const auto& p : m->functions) {
@@ -1187,6 +1191,7 @@ IRModule PartialEval(const IRModule& m) {
   for (const auto& gv : gvs) {
     pe.VisitGlobalVar(gv);
   }
+  CheckFeature(m, FeatureSet::All() - fGraph);
   return m;
 }
 
@@ -1195,7 +1200,7 @@ namespace transform {
 Pass PartialEval() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule m, PassContext pc) { return relay::PartialEval(m); };
-  return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
+  return CreateModulePass(pass_func, 1, "PartialEval", {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.PartialEvaluate").set_body_typed(PartialEval);

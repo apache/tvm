@@ -31,17 +31,7 @@
 
 namespace tvm {
 
-static const char* kSemVer = "v0.0.4";
-
-// TODO(tvm-team): split into files, related: arith/analyzer.h
-//
-// - text_printer.h (common header)
-// - text_printer.cc (prints modules dispatch into relay and tir files)
-//    - type_text_printer.cc(specific printing logics for types,
-//      can also consider put under type_text_printer)
-//    - Implements AsText
-// - relay_text_printer.cc (specific printing logics for relay)
-// - tir_text_printer.cc (specific printing logics for TIR)
+static const char* kSemVer = "0.0.5";
 
 Doc TextPrinter::PrintMod(const IRModule& mod) {
   Doc doc;
@@ -77,14 +67,14 @@ Doc TextPrinter::PrintMod(const IRModule& mod) {
 
 String PrettyPrint(const ObjectRef& node) {
   Doc doc;
-  doc << TextPrinter(false, nullptr).PrintFinal(node);
+  doc << TextPrinter(false, nullptr, false).PrintFinal(node);
   return doc.str();
 }
 
 String AsText(const ObjectRef& node, bool show_meta_data,
               runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
   Doc doc;
-  doc << kSemVer << Doc::NewLine();
+  doc << "#[version = \"" << kSemVer << "\"]" << Doc::NewLine();
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
   if (annotate != nullptr) {
     ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>(

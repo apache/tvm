@@ -75,6 +75,19 @@ struct QuantizeAttrs : public tvm::AttrsNode<QuantizeAttrs> {
   }
 };
 
+/*! \brief Attribute for dequantize operator */
+struct DequantizeAttrs : public tvm::AttrsNode<DequantizeAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(DequantizeAttrs, "relay.attrs.DequantizeAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .describe(
+            "The channel axis for channel wise dequantization. Default value is -1,"
+            "which corresponds to the last axis.")
+        .set_default(-1);
+  }
+};
+
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

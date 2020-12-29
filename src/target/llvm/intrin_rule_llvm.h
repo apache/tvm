@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
 #include <string>
@@ -40,7 +41,7 @@ template <unsigned id, int num_signature>
 inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
@@ -49,14 +50,14 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::CallNode::make(call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
+  *rv = tir::Call(call->dtype, tir::builtin::call_llvm_pure_intrin(), cargs);
 }
 
 template <unsigned id, int num_signature>
 inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
-  CHECK(call != nullptr);
+  ICHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
@@ -64,7 +65,7 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = tir::CallNode::make(call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
+  *rv = tir::Call(call->dtype, tir::builtin::call_llvm_intrin(), cargs);
 }
 
 }  // namespace codegen

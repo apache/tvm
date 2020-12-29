@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -72,6 +72,7 @@ def compile(mod, target=None, target_host=None, params=None):
 
 class VMCompiler(object):
     """Compiler that compiles Relay module to VM executable."""
+
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._lower = self.mod["lower"]
@@ -137,7 +138,7 @@ class VMCompiler(object):
         """Generate the kernel library."""
         self._codegen()
 
-    def optimize(self, mod, target=None, params=None):
+    def optimize(self, mod, target=None, target_host=None, params=None):
         """Helper method that optimizes a Relay module via VM.
 
         Parameters
@@ -146,6 +147,11 @@ class VMCompiler(object):
 
         target : str, :any:`tvm.target.Target`, or dict of str (i.e.
             device/context name) to str/tvm.target.Target, optional
+
+        target_host : str or :any:`tvm.target.Target`, optional
+            The compilation target for host.
+            By default, llvm is used if it is enabled,
+            otherwise a stackvm intepreter is used.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -160,9 +166,10 @@ class VMCompiler(object):
             The parameters of the final module.
         """
         target = self._update_target(target)
+        target_host = self._update_target_host(target, target_host)
         if params:
             self.set_params(params)
-        return self._optimize(mod, target), self.get_params()
+        return self._optimize(mod, target, target_host), self.get_params()
 
     def get_exec(self):
         """Get the VM executable.
@@ -182,15 +189,17 @@ class VMCompiler(object):
         tgts = {}
         if isinstance(target, (str, tvm.target.Target)):
             dev_type = tvm.tir.IntImm("int32", tvm.nd.context(str(target)).device_type)
-            tgts[dev_type] = tvm.target.create(target)
+            tgts[dev_type] = tvm.target.Target(target)
         elif isinstance(target, dict):
             for dev, tgt in target.items():
                 dev_type = tvm.tir.IntImm("int32", tvm.nd.context(dev).device_type)
-                tgts[dev_type] = tvm.target.create(tgt)
+                tgts[dev_type] = tvm.target.Target(tgt)
         else:
-            raise TypeError("target is expected to be str, tvm.target.Target, " +
-                            "or dict of str to str/tvm.target.Target, but received " +
-                            "{}".format(type(target)))
+            raise TypeError(
+                "target is expected to be str, tvm.target.Target, "
+                + "or dict of str to str/tvm.target.Target, but received "
+                + "{}".format(type(target))
+            )
         return tgts
 
     def _update_target_host(self, target, target_host):
@@ -204,7 +213,7 @@ class VMCompiler(object):
         if not target_host:
             target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
         if isinstance(target_host, str):
-            target_host = tvm.target.create(target_host)
+            target_host = tvm.target.Target(target_host)
         return target_host
 
     def _tophub_context(self, target):
@@ -214,7 +223,7 @@ class VMCompiler(object):
         if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
             tophub_context = autotvm.tophub.context(list(target.values()))
         else:
-            tophub_context = autotvm.util.EmptyContext()
+            tophub_context = autotvm.utils.EmptyContext()
         return tophub_context
 
 
@@ -238,6 +247,7 @@ class VMExecutor(Executor):
     target : :py:class:`Target`
         The target option to build the function.
     """
+
     def __init__(self, mod, ctx, target):
         if mod is None:
             raise RuntimeError("Must provide module to get VM executor.")
@@ -245,8 +255,7 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
         self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable)
-        self.vm.init(ctx)
+        self.vm = vm_rt.VirtualMachine(self.executable, ctx)
 
     def _make_executor(self, expr=None):
         main = self.mod["main"]

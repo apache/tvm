@@ -20,9 +20,11 @@ from __future__ import absolute_import
 
 from tvm.relay.op import op as reg
 
+from ...op.strategy.generic import is_depthwise_conv2d
+
 
 @reg.register_convert_op_layout("qnn.conv2d")
-def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layout):
+def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for QNN conv2d op.
 
     Parameters
@@ -33,8 +35,9 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layout):
         The args of the Relay expr to be legalized
     tinfos : list of types
         List of input and output types
-    desired_layout : str
-        The desired layout
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
 
     Returns
     -------
@@ -43,11 +46,35 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layout):
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    assert desired_layout == 'NCHW', \
-            "Currently only transformation to NCHW layout is supported."
-    if desired_layout == 'NCHW':
-        new_attrs = dict(attrs)
-        new_attrs['data_layout'] = desired_layout
-        new_attrs['kernel_layout'] = 'OIHW'
+
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of qnn.conv2d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+
+    new_attrs = dict(attrs)
+    new_attrs["data_layout"] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs["kernel_layout"] = desired_kernel_layout
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
-    return None
+
+    if desired_data_layout == "NCHW":
+        new_attrs["kernel_layout"] = "OIHW"
+        return relay.qnn.op.conv2d(*inputs, **new_attrs)
+    if desired_data_layout == "NHWC":
+        # Check for depthwise convolution.
+        data_info = tinfos[0]
+        weight_info = tinfos[1]
+        if is_depthwise_conv2d(
+            data_info.shape,
+            attrs["data_layout"],
+            weight_info.shape,
+            attrs["kernel_layout"],
+            attrs["groups"],
+        ):
+            new_attrs["kernel_layout"] = "HWOI"
+        else:
+            new_attrs["kernel_layout"] = "HWIO"
+        return relay.qnn.op.conv2d(*inputs, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported" % desired_data_layout)

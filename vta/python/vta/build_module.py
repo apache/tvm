@@ -23,13 +23,14 @@ from .environment import get_env
 
 def EarlyRewrite():
     """Try to do storage rewrite in early pass."""
+
     def _transform(mod, ctx):
         try:
             return tvm.tir.transform.StorageRewrite()(mod)
         except tvm.error.TVMError:
             return mod
-    return tvm.transform.module_pass(
-        _transform, opt_level=0, name="tir.vta.EarlyRewrite")
+
+    return tvm.transform.module_pass(_transform, opt_level=0, name="tir.vta.EarlyRewrite")
 
 
 def build_config(debug_flag=0, **kwargs):
@@ -45,7 +46,7 @@ def build_config(debug_flag=0, **kwargs):
 
     Returns
     -------
-    build_config: BuildConfig
+    build_config: tvm.transform.PassContext
         The build config that can be used in TVM.
 
     Example
@@ -60,30 +61,33 @@ def build_config(debug_flag=0, **kwargs):
 
     @tvm.tir.transform.prim_func_pass(opt_level=0)
     def add_debug(f, *_):
-        debug = tvm.tir.call_extern(
-            "int32", "VTASetDebugMode",
-            env.dev.command_handle,
-            debug_flag)
+        debug = tvm.tir.call_extern("int32", "VTASetDebugMode", env.dev.command_handle, debug_flag)
 
         return f.with_body(tvm.tir.stmt_seq(debug, f.body))
 
-
-    pass_list = [(0, transform.InjectConv2DTransposeSkip()),
-                 (1, transform.InjectDMAIntrin()),
-                 (1, transform.InjectSkipCopy()),
-                 (1, transform.AnnotateALUCoProcScope()),
-                 (1, tvm.tir.transform.LiftAttrScope("coproc_uop_scope")),
-                 (1, transform.LiftAllocToScopeBegin()),
-                 (1, tvm.tir.transform.LiftAttrScope("coproc_scope")),
-                 (1, transform.InjectCoProcSync()),
-                 (1, EarlyRewrite())]
+    pass_list = [
+        (0, transform.InjectConv2DTransposeSkip()),
+        (1, transform.InjectDMAIntrin()),
+        (1, transform.InjectSkipCopy()),
+        (1, transform.AnnotateALUCoProcScope()),
+        (1, tvm.tir.transform.LiftAttrScope("coproc_uop_scope")),
+        (1, transform.LiftAllocToScopeBegin()),
+        (1, tvm.tir.transform.LiftAttrScope("coproc_scope")),
+        (1, transform.InjectCoProcSync()),
+        (1, EarlyRewrite()),
+    ]
     if debug_flag:
         pass_list.append((1, add_debug))
     pass_list.append((2, transform.InjectALUIntrin()))
     pass_list.append((3, tvm.tir.transform.LowerDeviceStorageAccessInfo()))
     pass_list.append((3, transform.FoldUopLoop()))
     pass_list.append((3, transform.CPUAccessRewrite()))
-    return tvm.target.build_config(add_lower_pass=pass_list, **kwargs)
+    config = {"tir.add_lower_pass": pass_list}
+    if kwargs.get("config"):
+        config.update(kwargs[config])
+        del kwargs["config"]
+
+    return tvm.transform.PassContext(config=config, **kwargs)
 
 
 def lower(*args, **kwargs):
@@ -96,8 +100,8 @@ def lower(*args, **kwargs):
     --------
     tvm.lower : The original TVM's lower function
     """
-    cfg = tvm.target.BuildConfig.current()
-    if not cfg.add_lower_pass:
+    pass_ctx = tvm.transform.PassContext.current()
+    if not pass_ctx.config.get("add_lower_pass"):
         with build_config():
             return tvm.lower(*args, **kwargs)
     return tvm.lower(*args, **kwargs)
@@ -113,8 +117,20 @@ def build(*args, **kwargs):
     --------
     tvm.build : The original TVM's build function
     """
-    cfg = tvm.target.BuildConfig.current()
-    if not cfg.add_lower_pass:
+    pass_ctx = tvm.transform.PassContext.current()
+    if not pass_ctx.config.get("tir.add_lower_pass"):
         with build_config():
             return tvm.build(*args, **kwargs)
     return tvm.build(*args, **kwargs)
+
+
+# Register key ops
+tvm.ir.register_op_attr("tir.vta.coproc_sync", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+tvm.ir.register_op_attr("tir.vta.coproc_dep_push", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+tvm.ir.register_op_attr("tir.vta.coproc_dep_pop", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+
+tvm.ir.register_op_attr("tir.vta.uop_push", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)
+tvm.ir.register_op_attr("tir.vta.uop_push", "TGlobalSymbol", "VTAUopPush")
+
+tvm.ir.register_op_attr("tir.vta.command_handle", "TGlobalSymbol", "VTATLSCommandHandle")
+tvm.ir.register_op_attr("tir.vta.command_handle", "TCallEffectKind", tvm.tir.CallEffectKind.Opaque)

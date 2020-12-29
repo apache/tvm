@@ -16,7 +16,7 @@
 # under the License.
 """Definition of x86 operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-import topi
+from tvm import topi
 from .generic import *
 from .. import op as _op
 
@@ -39,29 +39,32 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.intel_graphics.conv2d_nchw),
                 wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_nchw),
-                name="conv2d_nchw.intel_graphics")
+                name="conv2d_nchw.intel_graphics",
+            )
             # conv2d_NCHWc won't work without alter op layout pass
             # TODO(@Laurawly): fix this
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
                 wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
                 name="conv2d_NCHWc.intel_graphics",
-                plevel=5)
+                plevel=5,
+            )
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for intel graphics".
-                               format(layout))
+            raise RuntimeError("Unsupported conv2d layout {} for intel graphics".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.intel_graphics.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.intel_graphics.schedule_depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.intel_graphics")
+                name="depthwise_conv2d_nchw.intel_graphics",
+            )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
-    else: # group_conv2d
+    else:  # group_conv2d
         raise RuntimeError("group_conv2d is not supported for intel graphics")
     return strategy
+
 
 @conv2d_NCHWc_strategy.register("intel_graphics")
 def conv2d_NCHWc_strategy_intel_graphics(attrs, inputs, out_type, target):
@@ -70,5 +73,6 @@ def conv2d_NCHWc_strategy_intel_graphics(attrs, inputs, out_type, target):
     strategy.add_implementation(
         wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
         wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
-        name="conv2d_NCHWc.intel_graphics")
+        name="conv2d_NCHWc.intel_graphics",
+    )
     return strategy

@@ -42,22 +42,26 @@ using namespace tvm::runtime;
 
 struct KindChecker : TypeFunctor<Kind(const Type&)> {
   const IRModule& mod;
-  ErrorReporter err_reporter;
+  Optional<DiagnosticContext> diag_ctx;
 
-  explicit KindChecker(const IRModule& mod) : mod(mod), err_reporter() {}
+  explicit KindChecker(const IRModule& mod, Optional<DiagnosticContext> diag_ctx)
+      : mod(mod), diag_ctx(diag_ctx) {}
 
-  void ReportFatalError(const Error& err) {
-    this->err_reporter.Report(err);
-    this->err_reporter.RenderErrors(mod);
+  void EmitFatal(Diagnostic diagnostic) {
+    if (this->diag_ctx) {
+      this->diag_ctx.value().EmitFatal(diagnostic);
+    } else {
+      LOG(FATAL) << diagnostic->message;
+    }
   }
 
   void CheckKindMatches(const Type& t, const Type& outer, Kind expected,
                         const std::string& description) {
     Kind k = this->VisitType(t);
     if (k != expected) {
-      ReportFatalError(ErrorBuilder()
-                       << "Incorrect kind for a " << description << ". Type " << t << " inside "
-                       << outer << " is of kind " << k << " but was expected to be " << expected);
+      EmitFatal(Diagnostic::Error(t->span)
+                << "Incorrect kind for a " << description << ". Type " << t << " inside " << outer
+                << " is of kind " << k << " but was expected to be " << expected);
     }
   }
 
@@ -115,8 +119,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     TypeCall tc = GetRef<TypeCall>(op);
     const auto* gtv = op->func.as<GlobalTypeVarNode>();
     if (gtv == nullptr) {
-      ReportFatalError(ErrorBuilder() << "The callee in " << tc
-                                      << " is not a global type var, but is " << op->func);
+      EmitFatal(Diagnostic::Error(op->span)
+                << "The callee in " << tc << " is not a global type var, but is " << op->func);
     }
 
     CheckKindMatches(op->func, tc, Kind::kAdtHandle, "type call function");
@@ -127,11 +131,20 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     // finally we need to check the module to check the number of type params
     auto var = GetRef<GlobalTypeVar>(gtv);
-    auto data = mod->LookupTypeDef(var);
-    if (data->type_vars.size() != op->args.size()) {
-      ReportFatalError(ErrorBuilder() << "Expected " << data->type_vars.size() << "arguments for "
-                                      << tc << "; got " << op->args.size());
+    try {
+      auto data = mod->LookupTypeDef(var);
+
+      if (data->type_vars.size() != op->args.size()) {
+        EmitFatal(Diagnostic::Error(op->span)
+                  << "Expected " << data->type_vars.size() << "arguments for " << tc << "; got "
+                  << op->args.size());
+      }
+    } catch (const dmlc::Error& err) {
+      // TODO(@jroesch): can probably relax to just emit
+      EmitFatal(Diagnostic::Error(op->span)
+                << "the type variable : `" << var->name_hint << "` is undefined");
     }
+
     return Kind::kType;
   }
 
@@ -149,8 +162,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     for (const auto& con : op->constructors) {
       if (!con->belong_to.same_as(op->header)) {
-        ReportFatalError(ErrorBuilder() << con << " has header " << con->belong_to << " but " << op
-                                        << " has header " << op->header);
+        EmitFatal(Diagnostic::Error(op->span) << con << " has header " << con->belong_to << " but "
+                                              << op << " has header " << op->header);
       }
 
       for (const Type& t : con->inputs) {
@@ -163,16 +176,18 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
   Kind Check(const Type& t) { return this->VisitType(t); }
 };
 
-Kind KindCheck(const Type& t, const IRModule& mod) {
-  KindChecker kc(mod);
+Kind KindCheck(const Type& t, const IRModule& mod, Optional<DiagnosticContext> diag_ctx) {
+  KindChecker kc(mod, diag_ctx);
   return kc.Check(t);
 }
 
 TVM_REGISTER_GLOBAL("relay.analysis.check_kind").set_body([](TVMArgs args, TVMRetValue* ret) {
   if (args.size() == 1) {
     *ret = KindCheck(args[0], IRModule({}, {}));
+  } else if (args.size() == 2) {
+    *ret = KindCheck(args[0], args[1], Optional<DiagnosticContext>());
   } else {
-    *ret = KindCheck(args[0], args[1]);
+    *ret = KindCheck(args[0], args[1], args[2]);
   }
 });
 

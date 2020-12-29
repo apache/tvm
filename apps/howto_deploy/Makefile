@@ -22,7 +22,7 @@ DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 PKG_CFLAGS = -std=c++14 -O2 -fPIC\
 	-I${TVM_ROOT}/include\
 	-I${DMLC_CORE}/include\
-	-I${TVM_ROOT}/3rdparty/dlpack/include\
+	-I${TVM_ROOT}/3rdparty/dlpack/include
 
 PKG_LDFLAGS = -L${TVM_ROOT}/build -ldl -pthread
 

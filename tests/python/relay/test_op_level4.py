@@ -19,10 +19,12 @@ from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list, run_infer_type
-import topi.testing
+from tvm.relay.testing import run_infer_type
+import tvm.topi.testing
+import tvm.testing
 
 
+@tvm.testing.uses_gpu
 def test_binary_op():
     def check_binary_op(opfunc, ref):
         n = te.size_var("n")
@@ -47,7 +49,7 @@ def test_binary_op():
             ref_res = ref(x_data, y_data)
             func = relay.Function([x, y], z)
 
-            for target, ctx in ctx_list():
+            for target, ctx in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
@@ -56,13 +58,16 @@ def test_binary_op():
         check_binary_op(opfunc, ref)
 
 
+@tvm.testing.uses_gpu
 def test_cmp_type():
-    for op, ref in ((relay.greater, np.greater),
-               (relay.greater_equal, np.greater_equal),
-               (relay.less, np.less),
-               (relay.less_equal, np.less_equal),
-               (relay.equal, np.equal),
-               (relay.not_equal, np.not_equal)):
+    for op, ref in (
+        (relay.greater, np.greater),
+        (relay.greater_equal, np.greater_equal),
+        (relay.less, np.less),
+        (relay.less_equal, np.less_equal),
+        (relay.equal, np.equal),
+        (relay.not_equal, np.not_equal),
+    ):
         x = relay.var("x", relay.TensorType((10, 4), "float32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "float32"))
         z = op(x, y)
@@ -82,15 +87,15 @@ def test_cmp_type():
             ref_res = ref(x_data, y_data)
             func = relay.Function([x, y], z)
 
-            for target, ctx in ctx_list():
+            for target, ctx in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 
+@tvm.testing.uses_gpu
 def test_binary_int_broadcast_1():
-    for op, ref in [(relay.right_shift, np.right_shift),
-                    (relay.left_shift, np.left_shift)]:
+    for op, ref in [(relay.right_shift, np.right_shift), (relay.left_shift, np.left_shift)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
@@ -100,22 +105,22 @@ def test_binary_int_broadcast_1():
         if ref is not None:
             x_shape = (10, 4)
             y_shape = (5, 10, 1)
-            t1 = relay.TensorType(x_shape, 'int32')
-            t2 = relay.TensorType(y_shape, 'int32')
+            t1 = relay.TensorType(x_shape, "int32")
+            t2 = relay.TensorType(y_shape, "int32")
             x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
             y_data = np.random.randint(1, 31, size=(y_shape)).astype(t2.dtype)
             func = relay.Function([x, y], z)
             ref_res = ref(x_data, y_data)
 
-            for target, ctx in ctx_list():
+            for target, ctx in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
+
+@tvm.testing.uses_gpu
 def test_binary_int_broadcast_2():
-    for op, ref in [(relay.maximum, np.maximum),
-                    (relay.minimum, np.minimum),
-                    (relay.mod, np.mod)]:
+    for op, ref in [(relay.maximum, np.maximum), (relay.minimum, np.minimum), (relay.mod, np.mod)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
@@ -125,38 +130,92 @@ def test_binary_int_broadcast_2():
         if ref is not None:
             x_shape = (10, 4)
             y_shape = (5, 10, 1)
-            t1 = relay.TensorType(x_shape, 'int32')
-            t2 = relay.TensorType(y_shape, 'int32')
+            t1 = relay.TensorType(x_shape, "int32")
+            t2 = relay.TensorType(y_shape, "int32")
             x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
             y_data = np.random.randint(1, 10000, size=(y_shape)).astype(t2.dtype)
             func = relay.Function([x, y], z)
             ref_res = ref(x_data, y_data)
 
-            for target, ctx in ctx_list():
+            for target, ctx in tvm.testing.enabled_targets():
                 intrp = relay.create_executor("graph", ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-def test_where():
-    shape = (3, 4)
-    dtype = "float32"
-    cond = relay.var("cond", relay.TensorType(shape, dtype))
-    x = relay.var("x", relay.TensorType(shape, dtype))
-    y = relay.var("y", relay.TensorType(shape, dtype))
-    z = relay.where(cond, x, y)
-    zz = run_infer_type(z)
-    assert zz.checked_type == relay.TensorType(shape, dtype)
 
-    func = relay.Function([cond, x, y], z)
-    condition = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
-    x = np.random.uniform(size=shape).astype(dtype)
-    y = np.random.uniform(size=shape).astype(dtype)
-    ref_res = np.where(condition, x, y)
-    for target, ctx in ctx_list():
-        for kind in ["graph", "debug"]:
-            intrp = relay.create_executor(kind, ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(condition, x, y)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+@tvm.testing.uses_gpu
+def test_where():
+    def run(func, inputs, ref_res):
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*inputs)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    def verify(x_np, y_np, cond_np):
+        ref_res = np.where(cond_np, x_np, y_np)
+
+        args = []
+        args_np = []
+        vs = []
+
+        cond = relay.var("cond", relay.TensorType(cond_np.shape, "bool"))
+
+        args.append(cond)
+        args_np.append(cond_np)
+
+        for v_name, v_np in [("x", x_np), ("y", y_np)]:
+            if len(v_np.shape) == 0:
+                v = relay.const(v_np.item())
+            else:
+                v = relay.var(v_name, relay.TensorType(v_np.shape, dtype))
+                args.append(v)
+                args_np.append(v_np)
+            vs.append(v)
+
+        z = relay.where(cond, vs[0], vs[1])
+
+        func = relay.Function(args, z)
+
+        run(func, args_np, ref_res)
+
+    dtype = "float32"
+
+    x_np = np.random.uniform(size=(3, 4)).astype(dtype)
+    y_np = np.random.uniform(size=(3, 4)).astype(dtype)
+    cond_np = np.random.uniform(low=-1, high=1, size=(3, 4)) > 0
+
+    verify(x_np, y_np, cond_np)
+
+    x_np = np.array(1.0, dtype)
+    y_np = np.array(-1.0, dtype)
+    cond_np = np.array([1, 0, 1], dtype=np.bool)
+
+    verify(x_np, y_np, cond_np)
+
+    x_np = np.arange(10).astype(dtype)
+    y_np = 10 * x_np
+    cond_np = x_np < 5
+
+    verify(x_np, y_np, cond_np)
+
+    x_np = np.array([[1, 2], [3, 4]], dtype)
+    y_np = np.array([[5, 6], [7, 8]], dtype)
+    cond_np = np.array([[1], [0]], dtype=np.bool)
+
+    verify(x_np, y_np, cond_np)
+    verify(x_np, y_np, cond_np.T)
+
+    x_np = np.random.randn(1, 12, 8, 8).astype(dtype)
+    y_np = np.array(-1.0, dtype)
+    cond_np = np.random.randn(1, 1, 8, 8) > 0
+
+    verify(x_np, y_np, cond_np)
+
+    x_np, y_np = np.ogrid[:3, :4]
+    cond_np = np.where(x_np < y_np, x_np, 10 + y_np).astype(np.bool)
+
+    verify(x_np.astype(dtype), y_np.astype(dtype), cond_np)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
@@ -183,19 +242,22 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         return
 
     func = relay.Function([x], z)
-    x_data = np.random.choice([True, False], size=data) if ref_func in [np.all] \
+    x_data = (
+        np.random.choice([True, False], size=data)
+        if ref_func in [np.all]
         else np.random.uniform(size=data).astype(dtype)
+    )
 
     if ref_func in [np.sum]:
         ref_res = ref_func(x_data + 0, axis=axis, dtype=dtype, keepdims=keepdims)
     elif ref_func in [np.max, np.min, np.mean, np.prod]:
         ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
-    else: #argmin/argmax
-        if axis and not isinstance(axis, int) and len(axis) > 1 :
+    else:  # argmin/argmax
+        if axis and not isinstance(axis, int) and len(axis) > 1:
             return
         ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
@@ -203,6 +265,8 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         op_res2 = intrp2.evaluate(func)(x_data)
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
+
+@tvm.testing.uses_gpu
 def test_reduce_functions():
     def _with_keepdims(func):
         def _wrapper(data, axis=None, keepdims=False):
@@ -216,6 +280,7 @@ def test_reduce_functions():
                 else:
                     out_shape = [1 for _ in range(len(data.shape))]
                 return func(data, axis=axis).reshape(out_shape)
+
         return _wrapper
 
     def _np_log_sum_exp(x, axis, keepdims=False):
@@ -226,19 +291,35 @@ def test_reduce_functions():
             x = np.squeeze(x, axis=axis)
         return x
 
+    def _unbiased_relay_wrapper(f):
+        def _unbiased_func(x, axis=None, keepdims=False, exclude=False):
+            return f(x, axis=axis, keepdims=keepdims, exclude=exclude, unbiased=True)
+
+        return _unbiased_func
+
+    def _unbiased_np_wrapper(f):
+        def _unbiased_func(a, axis=None, dtype=None, keepdims=None):
+            return f(a, axis=axis, dtype=dtype, ddof=1, keepdims=keepdims)
+
+        return _unbiased_func
+
     d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
-    for func in [[relay.sum, np.sum],
-                 [relay.max, np.max],
-                 [relay.min, np.min],
-                 [relay.mean, np.mean],
-                 [relay.variance, np.var],
-                 [relay.std, np.std],
-                 [relay.prod, np.prod],
-                 [relay.all, np.all],
-                 [relay.any, np.any],
-                 [relay.logsumexp, _np_log_sum_exp],
-                 [relay.argmin, _with_keepdims(np.argmin)],
-                 [relay.argmax, _with_keepdims(np.argmax)]]:
+    for func in [
+        [relay.sum, np.sum],
+        [relay.max, np.max],
+        [relay.min, np.min],
+        [relay.mean, np.mean],
+        [relay.variance, np.var],
+        [_unbiased_relay_wrapper(relay.variance), _unbiased_np_wrapper(np.var)],
+        [relay.std, np.std],
+        [_unbiased_relay_wrapper(relay.std), _unbiased_np_wrapper(np.std)],
+        [relay.prod, np.prod],
+        [relay.all, np.all],
+        [relay.any, np.any],
+        [relay.logsumexp, _np_log_sum_exp],
+        [relay.argmin, _with_keepdims(np.argmin)],
+        [relay.argmax, _with_keepdims(np.argmax)],
+    ]:
         verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())
         verify_reduce(func, (d1, d2, d3, d4), 2, True, False, (d1, d2, 1, d4))
         verify_reduce(func, (d1, d2, d3, d4), 0, True, False, (1, d2, d3, d4))
@@ -270,7 +351,7 @@ def verify_mean_var_std(funcs, shape, axis, keepdims):
     ref_mean = np.mean(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
     ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
 
-    for target, ctx in ctx_list():
+    for target, ctx in tvm.testing.enabled_targets():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(x_data)
@@ -280,9 +361,10 @@ def verify_mean_var_std(funcs, shape, axis, keepdims):
         tvm.testing.assert_allclose(op_res2[0].asnumpy(), ref_mean, rtol=1e-5)
         tvm.testing.assert_allclose(op_res2[1].asnumpy(), ref_res, rtol=1e-5)
 
+
+@tvm.testing.uses_gpu
 def test_mean_var_std():
-    for func in [[relay.mean_variance, np.var],
-                 [relay.mean_std, np.std]]:
+    for func in [[relay.mean_variance, np.var], [relay.mean_std, np.std]]:
         verify_mean_var_std(func, (2, 3, 4), 1, True)
         verify_mean_var_std(func, (2, 3, 4), (1,), True)
         verify_mean_var_std(func, (2, 3, 4), -1, True)
@@ -295,40 +377,120 @@ def test_mean_var_std():
         verify_mean_var_std(func, (128, 24, 128), (0, 2), True)
 
 
+@tvm.testing.uses_gpu
 def test_strided_slice():
-    def verify(dshape, begin, end, strides, output, test_ref=True):
+    def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.strided_slice(x, begin=begin, end=end, strides=strides)
+        ndim = len(dshape)
+        begin = begin if begin else [0] * ndim
+        end = end if end else list(dshape)
+
+        # target numpy result
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = tvm.topi.testing.strided_slice_python(x_data, begin, end, strides, slice_mode)
+
+        if strides:
+            z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
+        else:
+            z = relay.strided_slice(x, begin=begin, end=end, slice_mode=slice_mode)
         func = relay.Function([x], z)
+
         func = run_infer_type(func)
         text = func.astext()
         assert "begin=" in text
         assert "end=" in text
+
         if output:
             assert func.body.checked_type == relay.ty.TensorType(output, "float32")
+
         if not test_ref:
             return
-        x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = topi.testing.strided_slice_python(
-            x_data, begin, end, strides)
-        for target, ctx in ctx_list():
+        for target, ctx in tvm.testing.enabled_targets():
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
-    verify((d1, d2, 3), [None, None, 1], [None, None, 2], None, (d1, d2, 1), False)
+    verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
+    verify(
+        (1, 224, 224, 3),
+        [0, 20, 20, 0],
+        [1, 140, 140, 3],
+        [1, 1, 1, 1],
+        (1, 120, 120, 3),
+        dtype="int64",
+    )
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
-    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
-    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
-    verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (1, 2, 2))
-    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    # Test backwards slicing.
+    verify((3, 4, 3), [-1, -1, -1], [-5, -5, -5], [-1, -1, -1], (3, 4, 3))
+    # Test slice mode.
+    verify(
+        (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
+    )
+    verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
 
 
+@tvm.testing.uses_gpu
+def test_dyn_strided_slice():
+    def verify(dshape, begin, end, strides, output, slice_mode="end", test_ref=True, dtype="int32"):
+        ndim = len(dshape)
+        begin = begin if begin else [0] * ndim
+        end = end if end else list(dshape)
+
+        # target numpy result
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = tvm.topi.testing.strided_slice_python(x_data, begin, end, strides, slice_mode)
+
+        x = relay.var("x", relay.TensorType((relay.Any(),) * ndim, "float32"))
+        if strides:
+            z = relay.strided_slice(x, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
+        else:
+            z = relay.strided_slice(x, begin=begin, end=end, slice_mode=slice_mode)
+        func = relay.Function([x], z)
+
+        func = run_infer_type(func)
+        text = func.astext()
+        assert "begin=" in text
+        assert "end=" in text
+
+        if not test_ref:
+            return
+        for target, ctx in tvm.testing.enabled_targets():
+            mod = tvm.ir.IRModule.from_expr(func)
+            intrp = relay.create_executor("vm", mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate()(x_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+    verify(
+        (1, 224, 224, 3),
+        [0, 20, 20, 0],
+        [1, 140, 140, 3],
+        [1, 1, 1, 1],
+        (1, 120, 120, 3),
+        dtype="int64",
+    )
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 4], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
+    # TODO(mbrookhart): fix static strided_slice with dynamic input and negative begin
+    # verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    # verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    verify(
+        (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
+    )
+    verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
+
+
+@tvm.testing.uses_gpu
 def test_strided_set():
     def verify(dshape, begin, end, strides, vshape, test_ref=True):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -350,9 +512,8 @@ def test_strided_set():
             return
         x_data = np.random.uniform(size=dshape).astype("float32")
         v_data = np.random.uniform(size=vshape).astype("float32")
-        ref_res = topi.testing.strided_set_python(
-            x_data, v_data, begin, end, strides)
-        for target, ctx in ctx_list():
+        ref_res = tvm.topi.testing.strided_set_python(x_data, v_data, begin, end, strides)
+        for target, ctx in tvm.testing.enabled_targets():
             intrp = relay.create_executor("graph", ctx=ctx, target=target)
             op_res = intrp.evaluate(func)(x_data, v_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)

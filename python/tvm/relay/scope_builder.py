@@ -22,6 +22,7 @@ from . import ty as _ty
 from . import expr as _expr
 from .._ffi import base as _base
 
+
 class WithScope(object):
     """A wrapper for builder methods which introduce scoping.
 
@@ -42,6 +43,7 @@ class WithScope(object):
         if value:
             raise value
         self._exit_cb()
+
 
 def _make_lets(bindings, ret_value):
     """Make a nested let expressions.
@@ -93,6 +95,7 @@ class ScopeBuilder(object):
 
         print(sb.get().astext())
     """
+
     def __init__(self):
         self._bindings = [[]]
         self._ret_values = [None]
@@ -115,7 +118,7 @@ class ScopeBuilder(object):
             The variable or name of variable.
 
         value: tvm.relay.Expr
-            The value to be binded
+            The value to be bound
         """
         if isinstance(var, (tuple, list)):
             if len(var) > 2:
@@ -144,12 +147,14 @@ class ScopeBuilder(object):
         The user must follows with an else scope.
         """
         self._enter_scope()
+
         def _on_exit():
             bindings, ret_value = self._exit_scope()
             if self._ret_values[-1] is not None:
                 raise RuntimeError("result already returned before if scope")
             true_branch = _make_lets(bindings, ret_value)
             self._ret_values[-1] = _expr.If(cond, true_branch, None)
+
         return WithScope(None, _on_exit)
 
     def else_scope(self):
@@ -165,17 +170,13 @@ class ScopeBuilder(object):
         def _on_exit():
             bindings, ret_value = self._exit_scope()
             partial_if = self._ret_values[-1]
-            no_else = (not isinstance(partial_if, _expr.If) or
-                       partial_if.false_branch is not None)
+            no_else = not isinstance(partial_if, _expr.If) or partial_if.false_branch is not None
             if no_else:
                 raise RuntimeError("else scope must follows")
             false_branch = _make_lets(bindings, ret_value)
-            self._ret_values[-1] = _expr.If(
-                partial_if.cond,
-                partial_if.true_branch,
-                false_branch)
-        return WithScope(None, _on_exit)
+            self._ret_values[-1] = _expr.If(partial_if.cond, partial_if.true_branch, false_branch)
 
+        return WithScope(None, _on_exit)
 
     def type_of(self, expr):
         """

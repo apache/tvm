@@ -80,7 +80,7 @@ public class Function extends TVMValue {
    * @param isResident Whether this is a resident function in jvm
    */
   Function(long handle, boolean isResident) {
-    super(TypeCode.FUNC_HANDLE);
+    super(ArgTypeCode.FUNC_HANDLE);
     this.handle = handle;
     this.isResident = isResident;
   }
@@ -187,7 +187,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(NDArrayBase arg) {
-    int id = arg.isView ? TypeCode.ARRAY_HANDLE.id : TypeCode.NDARRAY_CONTAINER.id;
+    int id = arg.isView ? ArgTypeCode.ARRAY_HANDLE.id : ArgTypeCode.NDARRAY_CONTAINER.id;
     Base._LIB.tvmFuncPushArgHandle(arg.handle, id);
     return this;
   }
@@ -198,7 +198,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(Module arg) {
-    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.MODULE_HANDLE.id);
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, ArgTypeCode.MODULE_HANDLE.id);
     return this;
   }
 
@@ -208,7 +208,7 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(Function arg) {
-    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.FUNC_HANDLE.id);
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, ArgTypeCode.FUNC_HANDLE.id);
     return this;
   }
 
@@ -249,12 +249,12 @@ public class Function extends TVMValue {
       Base._LIB.tvmFuncPushArgBytes((byte[]) arg);
     } else if (arg instanceof NDArrayBase) {
       NDArrayBase nd = (NDArrayBase) arg;
-      int id = nd.isView ? TypeCode.ARRAY_HANDLE.id : TypeCode.NDARRAY_CONTAINER.id;
+      int id = nd.isView ? ArgTypeCode.ARRAY_HANDLE.id : ArgTypeCode.NDARRAY_CONTAINER.id;
       Base._LIB.tvmFuncPushArgHandle(nd.handle, id);
     } else if (arg instanceof Module) {
-      Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, TypeCode.MODULE_HANDLE.id);
+      Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, ArgTypeCode.MODULE_HANDLE.id);
     } else if (arg instanceof Function) {
-      Base._LIB.tvmFuncPushArgHandle(((Function) arg).handle, TypeCode.FUNC_HANDLE.id);
+      Base._LIB.tvmFuncPushArgHandle(((Function) arg).handle, ArgTypeCode.FUNC_HANDLE.id);
     } else if (arg instanceof TVMValue) {
       TVMValue tvmArg = (TVMValue) arg;
       switch (tvmArg.typeCode) {

@@ -85,7 +85,7 @@ class DocLine : public DocAtom {
 
 // DSL function implementations
 Doc& Doc::operator<<(const Doc& right) {
-  CHECK(this != &right);
+  ICHECK(this != &right);
   this->stream_.insert(this->stream_.end(), right.stream_.begin(), right.stream_.end());
   return *this;
 }
@@ -129,7 +129,7 @@ Doc Doc::Indent(int indent, Doc doc) {
 }
 
 Doc Doc::StrLiteral(const std::string& value, std::string quote) {
-  // TODO(M.K.): add escape.
+  // TODO(@M.K.): add escape.
   Doc doc;
   return doc << quote << value << quote;
 }

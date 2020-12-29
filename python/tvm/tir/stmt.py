@@ -36,7 +36,7 @@ class Stmt(Object):
     """Base class of all the statements."""
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.LetStmt")
 class LetStmt(Stmt):
     """LetStmt node.
 
@@ -50,13 +50,16 @@ class LetStmt(Stmt):
 
     body : Stmt
         The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, var, value, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.LetStmt, var, value, body)
+
+    def __init__(self, var, value, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.LetStmt, var, value, body, span)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.AssertStmt")
 class AssertStmt(Stmt):
     """AssertStmt node.
 
@@ -70,13 +73,16 @@ class AssertStmt(Stmt):
 
     body : Stmt
         The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, condition, message, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.AssertStmt, condition, message, body)
+
+    def __init__(self, condition, message, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.AssertStmt, condition, message, body, span)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.For")
 class For(Stmt):
     """For node.
 
@@ -99,24 +105,23 @@ class For(Stmt):
 
     body : Stmt
         The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
+
     Serial = 0
     Parallel = 1
     Vectorized = 2
     Unrolled = 3
-    def __init__(self,
-                 loop_var,
-                 min_val,
-                 extent,
-                 for_type,
-                 device_api,
-                 body):
+
+    def __init__(self, loop_var, min_val, extent, for_type, device_api, body, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.For, loop_var, min_val, extent,
-            for_type, device_api, body)
+            _ffi_api.For, loop_var, min_val, extent, for_type, device_api, body, span
+        )
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Store")
 class Store(Stmt):
     """Store node.
 
@@ -133,14 +138,20 @@ class Store(Stmt):
 
     predicate : PrimExpr
         The store predicate.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, buffer_var, value, index, predicate=None):
-        args = [] if predicate is None else [predicate]
+
+    def __init__(self, buffer_var, value, index, predicate=None, span=None):
+        if predicate is None:
+            predicate = _ffi_api.const_true(value.dtype, span)
         self.__init_handle_by_constructor__(
-            _ffi_api.Store, buffer_var, value, index, *args)
+            _ffi_api.Store, buffer_var, value, index, predicate, span
+        )
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.BufferStore")
 class BufferStore(Stmt):
     """Buffer store node.
 
@@ -154,13 +165,16 @@ class BufferStore(Stmt):
 
     indices : List[PrimExpr]
         The indices location to be stored.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, buffer, value, indices):
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferStore, buffer, value, indices)
+
+    def __init__(self, buffer, value, indices, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.BufferStore, buffer, value, indices, span)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.BufferRealize")
 class BufferRealize(Stmt):
     """Buffer realize node.
 
@@ -177,36 +191,41 @@ class BufferRealize(Stmt):
 
     body : Stmt
         The body of the statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, buffer, bounds, condition, body):
+
+    def __init__(self, buffer, bounds, condition, body, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferRealize, buffer, bounds, condition, body)
+            _ffi_api.BufferRealize, buffer, bounds, condition, body, span
+        )
 
 
-@tvm._ffi.register_object
-class Provide(Stmt):
-    """Provide node.
+@tvm._ffi.register_object("tir.ProducerStore")
+class ProducerStore(Stmt):
+    """ProducerStore node.
 
     Parameters
     ----------
-    func : Operation
-        The operation to create the function.
-
-    value_index : int
-        The output value index
+    producer : DataProducer
+        The data producer.
 
     value : PrimExpr
         The value to be stored.
 
-    args : list of Expr
-        The index arguments of the Provide.
+    indices : list of Expr
+        The index arguments of the store.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, func, value_index, value, args):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Provide, func, value_index, value, args)
+
+    def __init__(self, producer, value, indices, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.ProducerStore, producer, value, indices, span)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Allocate")
 class Allocate(Stmt):
     """Allocate node.
 
@@ -226,19 +245,18 @@ class Allocate(Stmt):
 
     body : Stmt
         The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self,
-                 buffer_var,
-                 dtype,
-                 extents,
-                 condition,
-                 body):
+
+    def __init__(self, buffer_var, dtype, extents, condition, body, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.Allocate, buffer_var, dtype,
-            extents, condition, body)
+            _ffi_api.Allocate, buffer_var, dtype, extents, condition, body, span
+        )
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.
 
@@ -255,40 +273,23 @@ class AttrStmt(Stmt):
 
     body : Stmt
         The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, node, attr_key, value, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.AttrStmt, node, attr_key, value, body)
+
+    def __init__(self, node, attr_key, value, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.AttrStmt, node, attr_key, value, body, span)
 
 
-@tvm._ffi.register_object
-class Free(Stmt):
-    """Free node.
+@tvm._ffi.register_object("tir.ProducerRealize")
+class ProducerRealize(Stmt):
+    """ProducerRealize node.
 
     Parameters
     ----------
-    buffer_var : Var
-        The buffer variable.
-    """
-    def __init__(self, buffer_var):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Free, buffer_var)
-
-
-@tvm._ffi.register_object
-class Realize(Stmt):
-    """Realize node.
-
-    Parameters
-    ----------
-    func : Operation
-        The operation to create the function.
-
-    value_index : int
-        The output value index
-
-    dtype : str
-        The data type of the operation.
+    producer : DataProducer
+        The data producer.
 
     bounds : list of range
         The bound of realize
@@ -298,20 +299,18 @@ class Realize(Stmt):
 
     body : Stmt
         The realize body
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self,
-                 func,
-                 value_index,
-                 dtype,
-                 bounds,
-                 condition,
-                 body):
+
+    def __init__(self, producer, bounds, condition, body, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.Realize, func, value_index, dtype,
-            bounds, condition, body)
+            _ffi_api.ProducerRealize, producer, bounds, condition, body, span
+        )
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.SeqStmt")
 class SeqStmt(Stmt):
     """Sequence of statements.
 
@@ -319,10 +318,13 @@ class SeqStmt(Stmt):
     ----------
     seq : List[Stmt]
         The statements
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, seq):
-        self.__init_handle_by_constructor__(
-            _ffi_api.SeqStmt, seq)
+
+    def __init__(self, seq, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)
 
     def __getitem__(self, i):
         return self.seq[i]
@@ -331,7 +333,7 @@ class SeqStmt(Stmt):
         return len(self.seq)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.IfThenElse")
 class IfThenElse(Stmt):
     """IfThenElse node.
 
@@ -345,13 +347,18 @@ class IfThenElse(Stmt):
 
     else_case : Stmt
         The statement to execute if condition is false.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, condition, then_case, else_case):
+
+    def __init__(self, condition, then_case, else_case, span=None):
         self.__init_handle_by_constructor__(
-            _ffi_api.IfThenElse, condition, then_case, else_case)
+            _ffi_api.IfThenElse, condition, then_case, else_case, span
+        )
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Evaluate")
 class Evaluate(Stmt):
     """Evaluate node.
 
@@ -359,13 +366,16 @@ class Evaluate(Stmt):
     ----------
     value : PrimExpr
         The expression to be evalued.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, value):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Evaluate, value)
+
+    def __init__(self, value, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.Prefetch")
 class Prefetch(Stmt):
     """Prefetch node.
 
@@ -376,10 +386,13 @@ class Prefetch(Stmt):
 
     bounds : list of Range
         The bounds to be prefetched.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
     """
-    def __init__(self, buffer, bounds):
-        self.__init_handle_by_constructor__(
-            _ffi_api.Prefetch, buffer, bounds)
+
+    def __init__(self, buffer, bounds, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds, span)
 
 
 def stmt_seq(*args):

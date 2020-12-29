@@ -37,8 +37,8 @@ namespace tvm {
 namespace relay {
 
 template <typename X>
-using VarMap = std::unordered_map<Var, X, ObjectHash, ObjectEqual>;
-using VarSet = std::unordered_set<Var, ObjectHash, ObjectEqual>;
+using VarMap = std::unordered_map<Var, X, ObjectPtrHash, ObjectPtrEqual>;
+using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
 
 class CalcDep;
 class FindDef : private ExprVisitor {
@@ -46,7 +46,7 @@ class FindDef : private ExprVisitor {
   VarMap<Expr> expr_map_;
 
   void VisitExpr_(const LetNode* l) final {
-    CHECK_EQ(expr_map_.count(l->var), 0);
+    ICHECK_EQ(expr_map_.count(l->var), 0);
     expr_map_[l->var] = l->value;
     VisitExpr(l->value);
     VisitExpr(l->body);

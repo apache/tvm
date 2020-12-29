@@ -47,7 +47,7 @@ class CopyIntrinInjector : public StmtMutator {
       storage_scope_[buf] = op->value.as<StringImmNode>()->value;
     } else if (op->attr_key == pragma_key_) {
       Stmt ret;
-      CHECK(MatchCopyPattern(op->body, &ret)) << "Cannot match copy pattern of " << op->body;
+      ICHECK(MatchCopyPattern(op->body, &ret)) << "Cannot match copy pattern of " << op->body;
       return ret;
     }
     return StmtMutator::VisitStmt_(op);
@@ -76,7 +76,7 @@ class CopyIntrinInjector : public StmtMutator {
     const CastNode* cast = store->value.as<CastNode>();
     const LoadNode* load = store->value.as<LoadNode>();
     if (0 == loops.size()) {
-      CHECK(!has_cond);
+      ICHECK(!has_cond);
     }
     // for now only support true condition matching
     if (has_cond) {
@@ -112,15 +112,15 @@ class CopyIntrinInjector : public StmtMutator {
       Array<PrimExpr> clip_bound = arith::DetectClipBound(sel_cond.Eval(), loop_vars);
       pad_value = sel_false_value.Eval();
       if (clip_bound.size() == 0) return false;
-      CHECK_EQ(src_shape.size(), loop_vars.size());
-      CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
+      ICHECK_EQ(src_shape.size(), loop_vars.size());
+      ICHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
       for (size_t i = 0; i < src_shape.size(); ++i) {
         PrimExpr min_value = clip_bound[2 * i];
         PrimExpr max_value = clip_bound[2 * i + 1];
         DataType t = loop_vars[i].dtype();
         PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          PrimExpr pbefore = analyzer_.Simplify(MaxNode::make(min_value, make_zero(t)));
+          PrimExpr pbefore = analyzer_.Simplify(Max(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -139,22 +139,22 @@ class CopyIntrinInjector : public StmtMutator {
       }
       src_elem_offset = analyzer_.Simplify(src_elem_offset);
     }
-    CHECK_EQ(load_strides.size(), store_strides.size());
-    CHECK_EQ(load_strides.size(), loop_var_size + 1);
+    ICHECK_EQ(load_strides.size(), store_strides.size());
+    ICHECK_EQ(load_strides.size(), loop_var_size + 1);
     Array<PrimExpr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<PrimExpr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     if (loop_var_size == 0) {
       src_strides.push_back(make_const(DataType::Int(32), 1));
       dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
-    Buffer dst = BufferNode::make(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
-                                  store_strides[loop_var_size], store->buffer_var->name_hint,
-                                  GetStorageScope(store->buffer_var.get()), 0, 0, kDefault);
-    Buffer src = BufferNode::make(load->buffer_var, load->dtype, src_shape, src_strides,
-                                  src_elem_offset, load->buffer_var->name_hint,
-                                  GetStorageScope(load->buffer_var.get()), 0, 0, kDefault);
+    Buffer dst = Buffer(store->buffer_var, store->value.dtype(), dst_shape, dst_strides,
+                        store_strides[loop_var_size], store->buffer_var->name_hint,
+                        GetStorageScope(store->buffer_var.get()), 0, 0, kDefault);
+    Buffer src = Buffer(load->buffer_var, load->dtype, src_shape, src_strides, src_elem_offset,
+                        load->buffer_var->name_hint, GetStorageScope(load->buffer_var.get()), 0, 0,
+                        kDefault);
     *out = flower_copy_fromto_(src, dst, pad_before, pad_after, pad_value);
-    CHECK(out->defined()) << "flower function did not return correct stmt";
+    ICHECK(out->defined()) << "flower function did not return correct stmt";
     return true;
   }
   // Get storage scope
@@ -183,7 +183,7 @@ Stmt InjectCopyIntrin(Stmt stmt, const std::string& pragma_key,
 
 namespace transform {
 
-Pass InjectCopyIntrin(std::string pragma_key, PackedFunc flower_copy_fromto) {
+Pass InjectCopyIntrin(String pragma_key, PackedFunc flower_copy_fromto) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(n->body));

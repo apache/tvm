@@ -57,15 +57,17 @@ Below you can find an example on how to compile TFLite model using TVM.
 # ----------------------------------------------
 import os
 
+
 def extract(path):
     import tarfile
+
     if path.endswith("tgz") or path.endswith("gz"):
         dir_path = os.path.dirname(path)
         tar = tarfile.open(path)
         tar.extractall(path=dir_path)
         tar.close()
     else:
-        raise RuntimeError('Could not decompress the file: ' + path)
+        raise RuntimeError("Could not decompress the file: " + path)
 
 
 ######################################################################
@@ -77,7 +79,7 @@ from tvm.contrib.download import download_testdata
 model_url = "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz"
 
 # Download model tar file and extract it to get mobilenet_v1_1.0_224.tflite
-model_path = download_testdata(model_url, "mobilenet_v1_1.0_224.tgz", module=['tf', 'official'])
+model_path = download_testdata(model_url, "mobilenet_v1_1.0_224.tgz", module=["tf", "official"])
 model_dir = os.path.dirname(model_path)
 extract(model_path)
 
@@ -88,9 +90,11 @@ tflite_model_buf = open(tflite_model_file, "rb").read()
 # Get TFLite model from buffer
 try:
     import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
 except AttributeError:
     import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ######################################################################
@@ -101,8 +105,8 @@ from PIL import Image
 from matplotlib import pyplot as plt
 import numpy as np
 
-image_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-image_path = download_testdata(image_url, 'cat.png', module='data')
+image_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
+image_path = download_testdata(image_url, "cat.png", module="data")
 resized_image = Image.open(image_path).resize((224, 224))
 plt.imshow(resized_image)
 plt.show()
@@ -116,7 +120,7 @@ image_data = np.expand_dims(image_data, axis=0)
 image_data[:, :, :, 0] = 2.0 / 255.0 * image_data[:, :, :, 0] - 1
 image_data[:, :, :, 1] = 2.0 / 255.0 * image_data[:, :, :, 1] - 1
 image_data[:, :, :, 2] = 2.0 / 255.0 * image_data[:, :, :, 2] - 1
-print('input', image_data.shape)
+print("input", image_data.shape)
 
 ######################################################################
 # Compile the model with relay
@@ -128,15 +132,16 @@ input_shape = (1, 224, 224, 3)
 input_dtype = "float32"
 
 # Parse TFLite model and convert it to a Relay module
-from tvm import relay
-mod, params = relay.frontend.from_tflite(tflite_model,
-                                         shape_dict={input_tensor: input_shape},
-                                         dtype_dict={input_tensor: input_dtype})
+from tvm import relay, transform
+
+mod, params = relay.frontend.from_tflite(
+    tflite_model, shape_dict={input_tensor: input_shape}, dtype_dict={input_tensor: input_dtype}
+)
 
 # Build the module against to x86 CPU
 target = "llvm"
-with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod, target, params=params)
+with transform.PassContext(opt_level=3):
+    lib = relay.build(mod, target, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -146,13 +151,10 @@ from tvm import te
 from tvm.contrib import graph_runtime as runtime
 
 # Create a runtime executor module
-module = runtime.create(graph, lib, tvm.cpu())
+module = runtime.GraphModule(lib["default"](tvm.cpu()))
 
 # Feed input data
 module.set_input(input_tensor, tvm.nd.array(image_data))
-
-# Feed related params
-module.set_input(**params)
 
 # Run
 module.run()
@@ -165,12 +167,16 @@ tvm_output = module.get_output(0).asnumpy()
 # ---------------
 
 # Load label file
-label_file_url = ''.join(['https://raw.githubusercontent.com/',
-                          'tensorflow/tensorflow/master/tensorflow/lite/java/demo/',
-                          'app/src/main/assets/',
-                          'labels_mobilenet_quant_v1_224.txt'])
+label_file_url = "".join(
+    [
+        "https://raw.githubusercontent.com/",
+        "tensorflow/tensorflow/master/tensorflow/lite/java/demo/",
+        "app/src/main/assets/",
+        "labels_mobilenet_quant_v1_224.txt",
+    ]
+)
 label_file = "labels_mobilenet_quant_v1_224.txt"
-label_path = download_testdata(label_file_url, label_file, module='data')
+label_path = download_testdata(label_file_url, label_file, module="data")
 
 # List of 1001 classes
 with open(label_path) as f:

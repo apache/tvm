@@ -17,6 +17,18 @@ if(WIN32)
   target_compile_definitions(tvm_rpc PUBLIC -DNOMINMAX)
 endif()
 
+if (OS)
+   if (OS STREQUAL "Linux")
+      set_property(TARGET tvm_rpc PROPERTY LINK_FLAGS -lpthread)
+   endif()
+endif()
+
+if(USE_OPENCL)
+  if (ANDROID_ABI)
+    set_property(TARGET tvm_rpc PROPERTY LINK_FLAGS -fuse-ld=gold)
+  endif()
+endif()
+
 target_include_directories(
   tvm_rpc
   PUBLIC "../../include"

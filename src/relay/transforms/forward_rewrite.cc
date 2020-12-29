@@ -27,7 +27,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 
-#include "pass_util.h"
+#include "pass_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -53,7 +53,7 @@ class TempRealizer : private MixedModeMutator {
 
 class ForwardRewriter : private MixedModeMutator {
  public:
-  ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
+  ForwardRewriter(const OpAttrMap<FForwardRewrite>* rewrite_map,
                   std::function<ObjectRef(const Call&)> fcontext,
                   std::function<Expr(const Expr&)> fmulti_ref_trigger)
       : rewrite_map_(rewrite_map), fcontext_(fcontext), fmulti_ref_trigger_(fmulti_ref_trigger) {}
@@ -73,7 +73,7 @@ class ForwardRewriter : private MixedModeMutator {
 
  private:
   // The rewrite rule.
-  const OpMap<FForwardRewrite>* rewrite_map_{nullptr};
+  const OpAttrMap<FForwardRewrite>* rewrite_map_{nullptr};
   const FForwardRewrite* rewrite_func_{nullptr};
   // The context.const
   std::function<ObjectRef(const Call&)> fcontext_{nullptr};
@@ -89,7 +89,7 @@ class ForwardRewriter : private MixedModeMutator {
     if (fmulti_ref_trigger_ != nullptr) {
       Expr ret = post;
       auto it = ref_counter_.find(expr.get());
-      CHECK(it != ref_counter_.end());
+      ICHECK(it != ref_counter_.end());
       if (it->second > 1) {
         ret = fmulti_ref_trigger_(ret);
       }
@@ -136,7 +136,7 @@ class ForwardRewriter : private MixedModeMutator {
     if (rewrite_func_) {
       frewrite = *rewrite_func_;
     } else {
-      CHECK(rewrite_map_);
+      ICHECK(rewrite_map_);
       frewrite = rewrite_map_->get(call_node->op, nullptr);
     }
     const auto* post_node = post.as<CallNode>();
@@ -172,10 +172,10 @@ class ForwardRewriter : private MixedModeMutator {
   }
 };
 
-Expr ForwardRewrite(const Expr& expr, const std::string& rewrite_map_name,
+Expr ForwardRewrite(const Expr& expr, const String& rewrite_map_name,
                     std::function<ObjectRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
-  auto rewrite_map = Op::GetAttr<FForwardRewrite>(rewrite_map_name);
+  auto rewrite_map = Op::GetAttrMap<FForwardRewrite>(rewrite_map_name);
   return ForwardRewriter(&rewrite_map, fcontext, fmulti_ref_trigger).Rewrite(expr);
 }
 

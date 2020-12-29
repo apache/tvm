@@ -44,6 +44,57 @@ namespace relay {
 namespace backend {
 
 /*!
+ * \brief A helper to expand the params by adding the ones used in a given expression.
+ */
+struct ConstantUpdater : public ExprVisitor {
+ public:
+  ConstantUpdater(const std::string& symbol,
+                  std::unordered_map<std::string, runtime::NDArray>* params)
+      : symbol_(symbol), params_(params) {}
+
+  void VisitExpr_(const ConstantNode* cn) final {
+    std::string name = symbol_ + "_const_" + std::to_string(const_idx_++);
+    (*params_)[name] = cn->data;
+  }
+
+ private:
+  int const_idx_{0};
+  std::string symbol_;
+  std::unordered_map<std::string, runtime::NDArray>* params_;
+};
+
+/*!
+ * \brief A function to update the params with constants found in an external function.
+ * \param func The function from which to get the constant params.
+ * \param params The params to update with the constants.
+ */
+inline void UpdateConstants(Function func,
+                            std::unordered_map<std::string, runtime::NDArray>* params) {
+  auto codegen = func->GetAttr<String>(attr::kCompiler);
+  ICHECK(codegen.defined()) << "No external codegen is set";
+  std::string codegen_name = codegen.value();
+  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  std::string symbol = std::string(name_node.value());
+  std::string const_update_name = "relay.ext." + codegen_name + ".constant_updater";
+  // Get the constant updater for the external codegen
+  auto pf = tvm::runtime::Registry::Get(const_update_name);
+  // If the backend hasn't registered a constant updater, use a default one
+  if (pf == nullptr) {
+    ConstantUpdater const_visit(symbol, params);
+    const_visit(func);
+  } else {
+    Map<String, tvm::runtime::NDArray> constants = (*pf)(func, symbol);
+    for (const auto& it : constants) {
+      std::string const_name(it.first);
+      // Constant names should begin this the compiler name (to avoid conflicts)
+      ICHECK(const_name.find(codegen_name) == 0)
+          << "External constant names must start with compiler name";
+      (*params)[const_name] = it.second;
+    }
+  }
+}
+
+/*!
  * \brief A simple wrapper around ExprFunctor for a single argument case.
  *  The result of visit is memoized.
  */
@@ -61,7 +112,7 @@ class MemoizedExprTranslator : public ::tvm::relay::ExprFunctor<OutputType(const
    * \return The result of the call
    */
   virtual OutputType VisitExpr(const Expr& n) {
-    CHECK(n.defined());
+    ICHECK(n.defined());
     auto it = memo_.find(n);
     if (it != memo_.end()) {
       return it->second;
@@ -73,7 +124,7 @@ class MemoizedExprTranslator : public ::tvm::relay::ExprFunctor<OutputType(const
 
  protected:
   /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, OutputType, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, OutputType, ObjectPtrHash, ObjectPtrEqual> memo_;
 };
 
 /*!
@@ -95,9 +146,25 @@ inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
 template <typename R, typename... Args>
 inline const runtime::TypedPackedFunc<R(Args...)> GetTypedPackedFunc(const std::string& func_name) {
   auto* pf = GetPackedFunc(func_name);
-  CHECK(pf != nullptr) << "can not find packed function";
+  ICHECK(pf != nullptr) << "can not find packed function";
   return runtime::TypedPackedFunc<R(Args...)>(*pf);
 }
+
+/*!
+ * \brief Extract shape from an IndexExpr array to std::vector<int64_t>
+ *
+ * \param shape The shape in Array
+ * \return The converted shape in std::vector<int64_t>
+ */
+inline std::vector<int64_t> GetIntShape(const Array<IndexExpr>& shape) {
+  std::vector<int64_t> ret;
+  for (const auto& dim : shape) {
+    const int64_t* pval = tir::as_const_int(dim);
+    ret.push_back(pval ? *pval : -1);
+  }
+  return ret;
+}
+
 /*!
  * \brief Convert type to string
  *
@@ -112,8 +179,12 @@ inline std::string DType2String(const tvm::DataType dtype) {
     os << "int";
   } else if (dtype.is_uint()) {
     os << "uint";
+  } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
+    os << "custom["
+       << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
+       << "]";
   } else {
-    LOG(FATAL) << "Unknown type";
+    LOG(FATAL) << "Unknown type with code " << static_cast<unsigned>(dtype.code());
   }
   os << dtype.bits();
   return os.str();
@@ -128,7 +199,7 @@ inline std::string DType2String(const tvm::DataType dtype) {
 inline relay::Function BindParamsByName(
     relay::Function func, const std::unordered_map<std::string, runtime::NDArray>& params) {
   std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
+  std::unordered_set<relay::Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
@@ -138,7 +209,7 @@ inline relay::Function BindParamsByName(
     }
   }
 
-  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
+  std::unordered_map<relay::Var, Expr, ObjectPtrHash, ObjectPtrEqual> bind_dict;
   for (auto& kv : params) {
     if (name_dict.count(kv.first) == 0) {
       continue;
@@ -151,8 +222,8 @@ inline relay::Function BindParamsByName(
   }
   Expr bound_expr = relay::Bind(func, bind_dict);
   Function ret = Downcast<Function>(bound_expr);
-  CHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
-                       << "\n";
+  ICHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
+                        << "\n";
   return ret;
 }
 
@@ -163,11 +234,11 @@ inline relay::Function BindParamsByName(
  */
 inline std::vector<int> GetShape(const Type& type) {
   const auto* ttype = type.as<TensorTypeNode>();
-  CHECK(ttype) << "Expect TensorTypeNode";
+  ICHECK(ttype) << "Expect TensorTypeNode";
   std::vector<int> shape;
   for (size_t i = 0; i < ttype->shape.size(); ++i) {
     auto* val = ttype->shape[i].as<IntImmNode>();
-    CHECK(val);
+    ICHECK(val);
     shape.push_back(val->value);
   }
   return shape;
@@ -182,7 +253,7 @@ inline std::vector<int> GetShape(const Type& type) {
  */
 inline bool IsOp(const CallNode* call, const std::string& op_name) {
   const auto* op_node = call->op.as<OpNode>();
-  CHECK(op_node) << "Expects a single op.";
+  ICHECK(op_node) << "Expects a single op.";
   Op op = GetRef<Op>(op_node);
   return op == Op::Get(op_name);
 }
@@ -198,17 +269,38 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
 
 inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
                                    const std::vector<std::string>& expected_op_names) {
-  CHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
-        IsOp(current_call, expected_op_names[depth]));
+  ICHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
+         IsOp(current_call, expected_op_names[depth]));
 
   if (depth == 0) {
     return current_call;
   }
 
-  CHECK_GT(current_call->args.size(), 0);
+  ICHECK_GT(current_call->args.size(), 0);
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
+}
+
+/*!
+ * \brief Get the external symbol of the Relay function name.
+ *
+ * \param func The provided function.
+ * \return An external symbol.
+ */
+inline std::string GetExtSymbol(const Function& func) {
+  const auto name_node = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  ICHECK(name_node.defined()) << "Fail to retrieve external symbol.";
+  return std::string(name_node.value());
+}
+
+/*!
+ * \brief Return whether the auto scheduler is enabled in the pass context.
+ */
+inline bool IsAutoSchedulerEnabled() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.use_auto_scheduler", Bool(false))
+      .value();
 }
 
 }  // namespace backend

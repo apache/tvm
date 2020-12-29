@@ -23,7 +23,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 
 TVM_DLL void* tvm_runtime_create(const char* json_data, const char* params_data,
-                                 const uint64_t params_size);
+                                 const uint64_t params_size, const char* argv);
 
 TVM_DLL void tvm_runtime_destroy(void* runtime);
 

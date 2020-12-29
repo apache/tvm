@@ -74,6 +74,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   Doc PrintFinal(const ObjectRef& node);
   std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
   std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
+  Doc PrintSpan(const Span& span);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
 
@@ -108,7 +109,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   //------------------------------------
   // Overload of Expr printing functions
   //------------------------------------
-  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline);
+  Doc PrintExpr(const Expr& expr, bool meta, bool try_inline, bool optional_info = true);
   // Should only be triggered when op is a free variable being visited for the
   // first time.
   Doc VisitExpr_(const VarNode* op) final;
@@ -170,11 +171,11 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   /*! \brief Stack of docs to implement scoped GNFing. */
   std::vector<Doc> doc_stack_{};
   /*! \brief Map from Expr to Doc */
-  std::unordered_map<Expr, Doc, ObjectHash, ObjectEqual> memo_;
+  std::unordered_map<Expr, Doc, ObjectPtrHash, ObjectPtrEqual> memo_;
   /*! \brief Map from Type to Doc */
-  std::unordered_map<Type, Doc, ObjectHash, ObjectEqual> memo_type_;
+  std::unordered_map<Type, Doc, ObjectPtrHash, ObjectPtrEqual> memo_type_;
   /*! \brief Map from Type to Doc */
-  std::unordered_map<Pattern, Doc, ObjectHash, ObjectEqual> memo_pattern_;
+  std::unordered_map<Pattern, Doc, ObjectPtrHash, ObjectPtrEqual> memo_pattern_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief meta data context */
@@ -253,9 +254,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief meta collector */
   MetaCollector meta_collector_;
   /*! \brief Map from Var to Doc */
-  std::unordered_map<Var, Doc, ObjectHash, ObjectEqual> memo_var_;
+  std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
-  std::unordered_map<Buffer, Doc, ObjectHash, ObjectEqual> memo_buf_;
+  std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
 
@@ -286,6 +287,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const NotNode* op) override;
   Doc VisitExpr_(const SelectNode* op) override;
   Doc VisitExpr_(const BufferLoadNode* op) override;
+  Doc VisitExpr_(const ProducerLoadNode* op) override;
   Doc VisitExpr_(const LoadNode* op) override;
   Doc VisitExpr_(const RampNode* op) override;
   Doc VisitExpr_(const BroadcastNode* op) override;
@@ -302,7 +304,6 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
-  Doc VisitStmt_(const FreeNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const EvaluateNode* op) override;
@@ -320,6 +321,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc BufferNode2Doc(const BufferNode* op, Doc doc);
   Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
   /*!
@@ -354,14 +356,20 @@ namespace tvm {
 class TextPrinter {
  public:
   explicit TextPrinter(bool show_meta_data,
-                       const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate)
+                       const runtime::TypedPackedFunc<std::string(ObjectRef)>& annotate,
+                       bool show_warning = true)
       : show_meta_data_(show_meta_data),
+        show_warning_(show_warning),
         annotate_(annotate),
         relay_text_printer_(show_meta_data, &meta_, annotate),
         tir_text_printer_(show_meta_data, &meta_) {}
 
   /*! \brief whether show meta data */
   bool show_meta_data_;
+
+  /*! \brief whether show the meta data warning message */
+  bool show_warning_;
+
   /*! \brief meta data context */
   TextMetaDataContext meta_;
   /*! \brief additional comment function */
@@ -384,10 +392,12 @@ class TextPrinter {
     if (!meta_.empty()) {
       doc << Doc::NewLine();
       if (show_meta_data_) {
-        // append meta data in the end.
-        doc << "METADATA:" << Doc::NewLine() << meta_.GetMetaSection();
-      } else {
-        doc << "// meta data omitted. you can use show_meta_data=True to include meta data";
+        doc << "#[metadata]" << Doc::NewLine() << meta_.GetMetaSection();
+      } else if (show_warning_) {
+        doc << "/* For debugging purposes the metadata section has been omitted." << Doc::NewLine()
+            << " * If you would like to see the full metadata section you can set the "
+            << Doc::NewLine() << " * option to `True` when invoking `astext`. " << Doc::NewLine()
+            << " */";
       }
     }
     return doc;

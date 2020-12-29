@@ -26,6 +26,7 @@
 
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <string>
 #include <unordered_map>
@@ -68,6 +69,10 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
+ protected:
+  void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+                       bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
+
  private:
   // Handle volatile loads
   void HandleVolatileLoads(const std::string& value, const LoadNode* op, std::ostream& os) final;
@@ -91,6 +96,8 @@ class CodeGenCUDA final : public CodeGenC {
   bool need_math_constants_h_{false};
   // whether need mma.h
   bool need_mma_h_{false};
+  // Op attribute map
+  OpAttrMap<bool> op_need_warp_shuffle_ = Op::GetAttrMap<bool>("cuda.need_warp_shuffle");
 
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;

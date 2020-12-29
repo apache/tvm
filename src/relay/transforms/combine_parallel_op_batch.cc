@@ -58,7 +58,7 @@
 
 #include "./combine_parallel_op.h"
 #include "./expr_subst.h"
-#include "pattern_util.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -175,7 +175,7 @@ Expr CombineParallelOpBatch(const Expr& expr, const std::string& op_name,
 
 namespace transform {
 
-Pass CombineParallelOpBatch(const std::string& op_name, const std::string& batch_op_name,
+Pass CombineParallelOpBatch(const String& op_name, const String& batch_op_name,
                             uint64_t min_num_branches) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {

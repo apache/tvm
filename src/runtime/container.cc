@@ -25,12 +25,9 @@
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/vm.h>
 
 namespace tvm {
 namespace runtime {
-
-using namespace vm;
 
 TVM_REGISTER_GLOBAL("runtime.GetADTTag").set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
@@ -48,7 +45,7 @@ TVM_REGISTER_GLOBAL("runtime.GetADTFields").set_body([](TVMArgs args, TVMRetValu
   ObjectRef obj = args[0];
   int idx = args[1];
   const auto& adt = Downcast<ADT>(obj);
-  CHECK_LT(idx, adt.size());
+  ICHECK_LT(idx, adt.size());
   *rv = adt[idx];
 });
 

@@ -73,7 +73,7 @@ class AnnotatedRegionNode : public Object {
   std::list<Expr> GetOutputs() const { return outs_; }
 
   /*! \brief Get the region's nodes. */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> GetNodes() const { return nodes_; }
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> GetNodes() const { return nodes_; }
 
   static constexpr const char* _type_key = "relay.AnnotatedRegion";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotatedRegionNode, Object);
@@ -88,7 +88,7 @@ class AnnotatedRegionNode : public Object {
   /*! \brief The outputs of this region */
   std::list<Expr> outs_;
   /*! \brief Nodes in this region. */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> nodes_;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> nodes_;
 
   friend class AnnotatedRegionSet;
   friend class AnnotatedRegionSetNode;
@@ -114,13 +114,13 @@ class AnnotatedRegion : public ObjectRef {
   /*! \return Mutable pointers to the node. */
   AnnotatedRegionNode* operator->() const {
     auto* ptr = get_mutable();
-    CHECK(ptr != nullptr);
+    ICHECK(ptr != nullptr);
     return static_cast<AnnotatedRegionNode*>(ptr);
   }
 };
 
 class AnnotatedRegionSetNode : public Object {
-  using UnorderedRegionSet = std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual>;
+  using UnorderedRegionSet = std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual>;
   // Create iterator alias for a RegionSet object.
   using iterator = UnorderedRegionSet::iterator;
   using const_iterator = UnorderedRegionSet::const_iterator;
@@ -180,7 +180,7 @@ class AnnotatedRegionSetNode : public Object {
    */
   AnnotatedRegion MakeRegion(const std::string& target);
 
-  std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> regions_;
+  std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> regions_;
   /*! \brief The next region ID to assign. */
   int region_id_{0};
 
@@ -195,7 +195,7 @@ class AnnotatedRegionSetNode : public Object {
  * to update and query regions.
  */
 class AnnotatedRegionSet : public ObjectRef {
-  using UnorderedRegionSet = std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual>;
+  using UnorderedRegionSet = std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual>;
   // Create iterator alias for a RegionSet object.
   using iterator = UnorderedRegionSet::iterator;
   using const_iterator = UnorderedRegionSet::const_iterator;
@@ -216,39 +216,39 @@ class AnnotatedRegionSet : public ObjectRef {
   /*! \return The begin iterator. */
   iterator begin() {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->begin();
   }
   /*! \return The end iterator. */
   iterator end() {
     auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->end();
   }
   /*! \return The begin iterator. */
   const_iterator begin() const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->begin();
   }
   /*! \return The end iterator. */
   const_iterator end() const {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->end();
   }
 
   /*! \return mutable pointers to the node. */
   AnnotatedRegionSetNode* operator->() const {
     auto* ptr = get_mutable();
-    CHECK(ptr != nullptr);
+    ICHECK(ptr != nullptr);
     return static_cast<AnnotatedRegionSetNode*>(ptr);
   }
 
   /*! \return The region an expression belongs to. */
   AnnotatedRegion operator[](const Expr& expr) {
     const auto* n = operator->();
-    CHECK(n);
+    ICHECK(n);
     return n->GetRegion(expr);
   }
 

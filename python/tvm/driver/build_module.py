@@ -25,10 +25,11 @@ import tvm.tir
 from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
-from tvm.target import codegen, BuildConfig
+from tvm.ir.transform import PassContext
+from tvm.target import codegen
 from tvm.te import tensor
 from tvm.te import schedule
-from tvm import target as _target
+from tvm.target import Target
 
 
 def get_binds(args, compact=False, binds=None):
@@ -56,7 +57,6 @@ def get_binds(args, compact=False, binds=None):
         The list of symbolic buffers of arguments.
     """
     binds = {} if binds is None else binds.copy()
-    cfg = BuildConfig.current()
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
@@ -64,12 +64,8 @@ def get_binds(args, compact=False, binds=None):
             buffer_type = "auto_broadcast" if any_dim and not compact else ""
             if x not in binds:
                 buf = tvm.tir.decl_buffer(
-                    x.shape,
-                    dtype=x.dtype,
-                    name=x.name,
-                    data_alignment=cfg.data_alignment,
-                    offset_factor=cfg.offset_factor,
-                    buffer_type=buffer_type)
+                    x.shape, dtype=x.dtype, name=x.name, buffer_type=buffer_type
+                )
                 binds[x] = buf
                 arg_list.append(buf)
             else:
@@ -105,7 +101,7 @@ def form_irmodule(sch, args, name, binds):
     The body formed according to the given schedule
     """
     # normalize schedule first
-    cfg = BuildConfig.current()
+    pass_ctx = PassContext.current()
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
@@ -117,16 +113,13 @@ def form_irmodule(sch, args, name, binds):
     func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
 
     func = func.with_attr("global_symbol", name)
-    if cfg.restricted_func:
+
+    if pass_ctx.config.get("tir.noalias", True):
         func = func.with_attr("tir.noalias", True)
     return tvm.IRModule({name: func})
 
 
-def lower(sch,
-          args,
-          name="main",
-          binds=None,
-          simple_mode=False):
+def lower(sch, args, name="main", binds=None, simple_mode=False):
     """Lowering step before build into target.
 
     Parameters
@@ -155,10 +148,12 @@ def lower(sch,
        The result IRModule, if simple_mode=False
        Then the Stmt before make api is returned.
     """
-    cfg = BuildConfig.current()
-    add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-    if cfg.dump_pass_ir:
-        add_lower_pass = BuildConfig._dump_ir.decorate_custompass(add_lower_pass)
+    # config setup
+    pass_ctx = PassContext.current()
+    instrument_bound_checkers = bool(pass_ctx.config.get("tir.instrument_bound_checkers", False))
+    disable_vectorize = bool(pass_ctx.config.get("tir.disable_vectorize", False))
+    add_lower_pass = pass_ctx.config.get("tir.add_lower_pass", [])
+
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
@@ -174,7 +169,8 @@ def lower(sch,
     # Phase 1
     pass_list += [
         tvm.tir.transform.InjectPrefetch(),
-        tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
+        tvm.tir.transform.StorageFlatten(64, instrument_bound_checkers),
+        tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
     ]
@@ -182,18 +178,14 @@ def lower(sch,
 
     # Phase 2
     if not simple_mode:
-        pass_list += [(tvm.tir.transform.LoopPartition(cfg.partition_const_loop))]
+        pass_list += [(tvm.tir.transform.LoopPartition())]
 
     pass_list += [
-        tvm.tir.transform.VectorizeLoop(not cfg.disable_vectorize),
+        tvm.tir.transform.VectorizeLoop(not disable_vectorize),
         tvm.tir.transform.InjectVirtualThread(),
-        tvm.tir.transform.InjectDoubleBuffer(cfg.double_buffer_split_loop),
+        tvm.tir.transform.InjectDoubleBuffer(),
         tvm.tir.transform.StorageRewrite(),
-        tvm.tir.transform.UnrollLoop(
-            cfg.auto_unroll_max_step,
-            cfg.auto_unroll_max_depth,
-            cfg.auto_unroll_max_extent,
-            cfg.unroll_explicit),
+        tvm.tir.transform.UnrollLoop(),
     ]
     pass_list += lower_phase2
 
@@ -203,12 +195,12 @@ def lower(sch,
         tvm.tir.transform.RemoveNoOp(),
     ]
 
-    if not cfg.disable_select_rewriting:
-        pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    pass_list += [tvm.tir.transform.HoistIfThenElse()]
     pass_list += lower_phase3
 
     # Instrument BoundCheckers
-    if cfg.instrument_bound_checkers:
+    if instrument_bound_checkers:
         pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
 
     optimize = tvm.transform.Sequential(pass_list)
@@ -239,9 +231,9 @@ def _build_for_device(input_mod, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    target = _target.create(target)
-    target_host = _target.create(target_host)
-    device_type = ndarray.context(target.target_name, 0).device_type
+    target = Target(target)
+    target_host = Target(target_host)
+    device_type = ndarray.context(target.kind.name, 0).device_type
 
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
@@ -249,57 +241,64 @@ def _build_for_device(input_mod, target, target_host):
     opt_mixed = [tvm.tir.transform.VerifyMemory()]
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
-    if BuildConfig.current().detect_global_barrier:
-        opt_mixed += [tvm.tir.transform.ThreadSync("global")]
-    opt_mixed += [tvm.tir.transform.ThreadSync("shared"),
-                  tvm.tir.transform.ThreadSync("warp"),
-                  tvm.tir.transform.InferFragment(),
-                  tvm.tir.transform.LowerThreadAllreduce(),
-                  tvm.tir.transform.MakePackedAPI(),
-                  tvm.tir.transform.SplitHostDevice()]
-    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
 
+    if PassContext.current().config.get("tir.detect_global_barrier", False):
+        opt_mixed += [tvm.tir.transform.ThreadSync("global")]
+    opt_mixed += [
+        tvm.tir.transform.ThreadSync("shared"),
+        tvm.tir.transform.ThreadSync("warp"),
+        tvm.tir.transform.InferFragment(),
+        tvm.tir.transform.LowerThreadAllreduce(),
+        tvm.tir.transform.MakePackedAPI(),
+        tvm.tir.transform.SplitHostDevice(),
+    ]
+    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
 
     # device optimizations
     opt_device = tvm.transform.Sequential(
-        [tvm.tir.transform.Filter(
-            lambda f: "calling_conv" in f.attrs and
-            f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
-         tvm.tir.transform.LowerWarpMemory(),
-         tvm.tir.transform.Simplify(),
-         tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-         tvm.tir.transform.LowerIntrin()])
+        [
+            tvm.tir.transform.Filter(
+                lambda f: "calling_conv" in f.attrs
+                and f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH
+            ),
+            tvm.tir.transform.LowerWarpMemory(),
+            tvm.tir.transform.Simplify(),
+            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
+            tvm.tir.transform.LowerCustomDatatypes(),
+            tvm.tir.transform.LowerIntrin(),
+        ]
+    )
     mod_dev = opt_device(mod_mixed)
 
     # host optimizations
     opt_host = tvm.transform.Sequential(
-        [tvm.tir.transform.Filter(
-            lambda f: "calling_conv" not in f.attrs or
-            f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH),
-         tvm.tir.transform.Apply(lambda f: f.with_attr("target", target)),
-         tvm.tir.transform.LowerTVMBuiltin(),
-         tvm.tir.transform.LowerDeviceStorageAccessInfo(),
-         tvm.tir.transform.LowerIntrin(),
-         tvm.tir.transform.CombineContextCall()])
+        [
+            tvm.tir.transform.Filter(
+                lambda f: "calling_conv" not in f.attrs
+                or f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH
+            ),
+            tvm.tir.transform.Apply(lambda f: f.with_attr("target", target_host)),
+            tvm.tir.transform.LowerTVMBuiltin(),
+            tvm.tir.transform.LowerDeviceStorageAccessInfo(),
+            tvm.tir.transform.LowerCustomDatatypes(),
+            tvm.tir.transform.LowerIntrin(),
+            tvm.tir.transform.CombineContextCall(),
+        ]
+    )
     mod_host = opt_host(mod_mixed)
 
     if device_type == ndarray.cpu(0).device_type and target_host == target:
         assert len(mod_dev.functions) == 0
     if "gpu" in target.keys and len(mod_dev.functions) == 0:
         warnings.warn(
-            "Specified target %s, but cannot find device code, did you do "
-            "bind?" % target)
+            "Specified target %s, but cannot find device code, did you do " "bind?" % target
+        )
 
     rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
     return mod_host, rt_mod_dev
 
 
-def build(inputs,
-          args=None,
-          target=None,
-          target_host=None,
-          name="default_function",
-          binds=None):
+def build(inputs, args=None, target=None, target_host=None, name="default_function", binds=None):
     """Build a function with arguments as signature. Code will be generated
     for devices coupled with target information.
 
@@ -373,9 +372,7 @@ def build(inputs,
     if isinstance(inputs, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
-        input_mod = lower(inputs, args,
-                          name=name,
-                          binds=binds)
+        input_mod = lower(inputs, args, name=name, binds=binds)
     elif isinstance(inputs, (list, tuple, container.Array)):
         merged_mod = tvm.IRModule({})
         for x in inputs:
@@ -384,27 +381,28 @@ def build(inputs,
     elif isinstance(inputs, tvm.IRModule):
         input_mod = inputs
     elif not isinstance(inputs, (dict, container.Map)):
-        raise ValueError("inputs must be Schedule, IRModule or dict of target to IRModule")
+        raise ValueError(
+            f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
+            f"but got {type(inputs)}."
+        )
 
     if not isinstance(inputs, (dict, container.Map)):
-        target = _target.Target.current() if target is None else target
+        target = Target.current() if target is None else target
         target = target if target else "llvm"
         target_input_mod = {target: input_mod}
     else:
         target_input_mod = inputs
 
     for tar, mod in target_input_mod.items():
-        if not isinstance(tar, (str, _target.Target)):
-            raise ValueError("The key of inputs must be str or "
-                             "_target.Target when inputs is dict.")
+        if not isinstance(tar, (str, Target)):
+            raise ValueError("The key of inputs must be str or " "Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
-            raise ValueError("inputs must be Schedule, IRModule,"
-                             "or dict of str to IRModule.")
+            raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
 
     if not target_host:
         for tar, _ in target_input_mod.items():
-            tar = _target.create(tar)
-            device_type = ndarray.context(tar.target_name, 0).device_type
+            tar = Target(tar)
+            device_type = ndarray.context(tar.kind.name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
                 break
@@ -426,4 +424,16 @@ def build(inputs,
     for mdev in device_modules:
         if mdev:
             rt_mod_host.import_module(mdev)
+
+    if not isinstance(target_host, Target):
+        target_host = Target(target_host)
+    if (
+        "system-lib" in target_host.attrs
+        and target_host.attrs["system-lib"].value == 1
+        and target_host.kind.name == "c"
+    ):
+        create_csource_metadata_module = tvm._ffi.get_global_func(
+            "runtime.CreateCSourceMetadataModule"
+        )
+        return create_csource_metadata_module([rt_mod_host], target_host)
     return rt_mod_host

@@ -41,7 +41,7 @@ namespace tvm {
 class EnvFuncNode : public Object {
  public:
   /*! \brief Unique name of the global function */
-  std::string name;
+  String name;
   /*! \brief The internal packed function */
   runtime::PackedFunc func;
   /*! \brief constructor */
@@ -83,7 +83,7 @@ class EnvFunc : public ObjectRef {
   template <typename... Args>
   runtime::TVMRetValue operator()(Args&&... args) const {
     const EnvFuncNode* n = operator->();
-    CHECK(n != nullptr);
+    ICHECK(n != nullptr);
     return n->func(std::forward<Args>(args)...);
   }
   /*!
@@ -137,7 +137,7 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
    */
   R operator()(Args... args) const {
     const EnvFuncNode* n = operator->();
-    CHECK(n != nullptr);
+    ICHECK(n != nullptr);
     return runtime::detail::typed_packed_call_dispatcher<R>::run(n->func,
                                                                  std::forward<Args>(args)...);
   }

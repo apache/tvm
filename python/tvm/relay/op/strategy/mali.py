@@ -17,9 +17,11 @@
 """Definition of mali operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
-import topi
+from tvm import topi
+from tvm.auto_scheduler import is_auto_scheduler_enabled
 from .generic import *
 from .. import op as _op
+
 
 @conv2d_strategy.register("mali")
 def conv2d_strategy_mali(attrs, inputs, out_type, target):
@@ -40,24 +42,66 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
-                    name="conv2d_nchw_spatial_pack.mali")
+                    name="conv2d_nchw_spatial_pack.mali",
+                )
                 # check if winograd algorithm is applicable
                 _, _, kh, kw = get_const_tuple(kernel.shape)
-                if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
-                   dilation_h == 1 and dilation_w == 1:
+                if (
+                    kh == 3
+                    and kw == 3
+                    and stride_h == 1
+                    and stride_w == 1
+                    and dilation_h == 1
+                    and dilation_w == 1
+                ):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
                         name="conv2d_nchw_winograd.mali",
-                        plevel=5)
+                        plevel=5,
+                    )
             elif re.match(r"OIHW\d*o", kernel_layout):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
-                    name="conv2d_nchw_spatial_pack.mali")
+                    name="conv2d_nchw_spatial_pack.mali",
+                )
             else:
-                raise RuntimeError("Unsupported weight layout {} for conv2d NCHW".
-                                   format(kernel_layout))
+                raise RuntimeError(
+                    "Unsupported weight layout {} for conv2d NCHW".format(kernel_layout)
+                )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWIO"
+            if not is_auto_scheduler_enabled():
+                raise RuntimeError(
+                    "conv2d NHWC layout is not enabled for mali without auto_scheduler."
+                )
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.conv2d_nhwc, need_auto_scheduler_layout=True),
+                naive_schedule,
+                name="conv2d_nhwc.mali",
+            )
+            is_winograd_applicable = False
+            if len(kernel.shape) == 4:
+                kernel_h, kernel_w, _, _ = get_const_tuple(kernel.shape)
+                is_winograd_applicable = (
+                    "float" in data.dtype
+                    and "float" in kernel.dtype
+                    and kernel_h == 3
+                    and kernel_w == 3
+                    and stride_h == 1
+                    and stride_w == 1
+                    and dilation_h == 1
+                    and dilation_w == 1
+                )
+            if is_winograd_applicable:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc),
+                    naive_schedule,  # this implementation should never be picked by autotvm
+                    name="conv2d_nhwc.winograd",
+                    plevel=15,
+                )
+
         else:
             raise RuntimeError("Unsupported conv2d layout {} for mali".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
@@ -66,12 +110,25 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.mali.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.mali.schedule_depthwise_conv2d_nchw),
-                name="depthwise_conv2d_nchw.mali")
+                name="depthwise_conv2d_nchw.mali",
+            )
+        elif layout == "NHWC":
+            assert kernel_layout == "HWOI"
+            if not is_auto_scheduler_enabled():
+                raise RuntimeError(
+                    "depthwise_conv2d NHWC layout is not enabled for mali without auto_scheduler."
+                )
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                naive_schedule,
+                name="depthwise_conv2d_nhwc.mali",
+            )
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for mali".format(layout))
-    else: # group_conv2d
+    else:  # group_conv2d
         raise RuntimeError("group_conv2d is not supported for mali")
     return strategy
+
 
 @conv2d_winograd_without_weight_transfrom_strategy.register("mali")
 def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_type, target):
@@ -90,17 +147,33 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
         strategy.add_implementation(
             wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
             wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
-            name="conv2d_nchw_winograd.mali")
+            name="conv2d_nchw_winograd.mali",
+        )
+    elif layout == "NHWC":
+        if not is_auto_scheduler_enabled():
+            raise RuntimeError(
+                "Winograd conv2d NHWC is not enabled for mali without auto_scheduler."
+            )
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.nn.conv2d_winograd_nhwc_without_weight_transform),
+            naive_schedule,  # this implementation should never be picked by autotvm
+            name="conv2d_nhwc_winograd_without_weight_transform",
+            plevel=15,
+        )
     else:
-        raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
-                           format(layout))
+        raise RuntimeError(
+            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
+        )
     return strategy
+
 
 @dense_strategy.register("mali")
 def dense_strategy_mali(attrs, inputs, out_type, target):
     """dense mali strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(wrap_compute_dense(topi.mali.dense),
-                                wrap_topi_schedule(topi.mali.schedule_dense),
-                                name="dense.mali")
+    strategy.add_implementation(
+        wrap_compute_dense(topi.mali.dense),
+        wrap_topi_schedule(topi.mali.schedule_dense),
+        name="dense.mali",
+    )
     return strategy

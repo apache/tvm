@@ -17,8 +17,9 @@
 """Utility for Interacting with SPIRV Tools"""
 import subprocess
 import os
-from . import util
+from . import utils
 from .._ffi.base import py_str
+
 
 def optimize(spv_bin):
     """Optimize SPIRV using spirv-opt via CLI
@@ -36,7 +37,7 @@ def optimize(spv_bin):
         The HSA Code Object
     """
 
-    tmp_dir = util.tempdir()
+    tmp_dir = utils.tempdir()
     tmp_in = tmp_dir.relpath("input.spv")
     tmp_out = tmp_dir.relpath("output.spv")
     with open(tmp_in, "wb") as out_file:
@@ -45,10 +46,7 @@ def optimize(spv_bin):
     sdk = os.environ.get("VULKAN_SDK", None)
     cmd = os.path.join(sdk, "bin/spirv-opt") if sdk else "spirv-opt"
     args = [cmd, "-O", tmp_in, "-o", tmp_out]
-    proc = subprocess.Popen(
-        args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
 
     if proc.returncode != 0:

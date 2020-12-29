@@ -95,7 +95,7 @@ class WorkspacePool::Pool {
       int index = static_cast<int>(allocated_.size()) - 2;
       for (; index > 0 && allocated_[index].data != data; --index) {
       }
-      CHECK_GT(index, 0) << "trying to free things that has not been allocated";
+      ICHECK_GT(index, 0) << "trying to free things that has not been allocated";
       e = allocated_[index];
       allocated_.erase(allocated_.begin() + index);
     }
@@ -115,7 +115,7 @@ class WorkspacePool::Pool {
   }
   // Release all resources
   void Release(TVMContext ctx, DeviceAPI* device) {
-    CHECK_EQ(allocated_.size(), 1);
+    ICHECK_EQ(allocated_.size(), 1);
     for (size_t i = 1; i < free_list_.size(); ++i) {
       device->FreeDataSpace(ctx, free_list_[i].data);
     }
@@ -134,7 +134,7 @@ class WorkspacePool::Pool {
   std::vector<Entry> allocated_;
 };
 
-WorkspacePool::WorkspacePool(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device)
+WorkspacePool::WorkspacePool(DLDeviceType device_type, DeviceAPI* device)
     : device_type_(device_type), device_(device) {}
 
 WorkspacePool::~WorkspacePool() {
@@ -143,7 +143,7 @@ WorkspacePool::~WorkspacePool() {
       TVMContext ctx;
       ctx.device_type = device_type_;
       ctx.device_id = static_cast<int>(i);
-      array_[i]->Release(ctx, device_.get());
+      array_[i]->Release(ctx, device_);
       delete array_[i];
     }
   }
@@ -156,11 +156,11 @@ void* WorkspacePool::AllocWorkspace(TVMContext ctx, size_t size) {
   if (array_[ctx.device_id] == nullptr) {
     array_[ctx.device_id] = new Pool();
   }
-  return array_[ctx.device_id]->Alloc(ctx, device_.get(), size);
+  return array_[ctx.device_id]->Alloc(ctx, device_, size);
 }
 
 void WorkspacePool::FreeWorkspace(TVMContext ctx, void* ptr) {
-  CHECK(static_cast<size_t>(ctx.device_id) < array_.size() && array_[ctx.device_id] != nullptr);
+  ICHECK(static_cast<size_t>(ctx.device_id) < array_.size() && array_[ctx.device_id] != nullptr);
   array_[ctx.device_id]->Free(ptr);
 }
 

@@ -28,7 +28,7 @@
 
 #include <unordered_set>
 
-#include "op_util.h"
+#include "op_utils.h"
 
 namespace tvm {
 namespace te {
@@ -50,39 +50,44 @@ DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders
 
 Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
 
-Operation ExternOpNode::make(std::string name, std::string tag, Map<std::string, ObjectRef> attrs,
-                             Array<Tensor> inputs, Array<Buffer> input_placeholders,
-                             Array<Buffer> output_placeholders, Stmt body) {
+ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                   Array<Tensor> inputs, Array<Buffer> input_placeholders,
+                   Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, ObjectRef>();
+    attrs = Map<String, ObjectRef>();
   }
   auto n = make_object<ExternOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
-  CHECK_EQ(inputs.size(), input_placeholders.size());
+  ICHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
-    CHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
-    CHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
+    ICHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
+    ICHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
     for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
-      CHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
+      ICHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
     }
-    CHECK_EQ(input_placeholders[i]->strides.size(), 0U);
+    ICHECK_EQ(input_placeholders[i]->strides.size(), 0U);
   }
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);
   n->output_placeholders = std::move(output_placeholders);
   n->body = std::move(body);
-  return Operation(n);
+  data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ExternOp").set_body_typed(ExternOpNode::make);
+TVM_REGISTER_GLOBAL("te.ExternOp")
+    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+                       Array<Tensor> inputs, Array<Buffer> input_placeholders,
+                       Array<Buffer> output_placeholders, Stmt body) {
+      return ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body);
+    });
 
 Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
 
 Operation ExternOpNode::ReplaceInputs(const Operation& self,
                                       const std::unordered_map<Tensor, Tensor>& rmap) const {
-  CHECK_EQ(self.operator->(), this);
+  ICHECK_EQ(self.operator->(), this);
   auto n = make_object<ExternOpNode>(*this);
   n->body = ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
@@ -107,8 +112,8 @@ void ExternOpNode::PropBoundToInputs(const Operation& self, arith::Analyzer* ana
     if (it == out_dom_map->end()) continue;
     TensorDom& dom = it->second;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      dom.data[i].emplace_back(IntSet::range(
-          Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
+      dom.data[i].emplace_back(
+          IntSet::FromRange(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i])));
     }
   }
 }
@@ -120,16 +125,15 @@ void ExternOpNode::GatherBound(const Operation& self,
 Stmt ExternOpNode::BuildRealize(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& realize_map,
                                 const Stmt& body) const {
-  CHECK_EQ(stage->op.get(), this);
+  ICHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
     Tensor t = stage->op.output(k);
     Region bounds;
     for (size_t i = 0; i < t->shape.size(); ++i) {
-      bounds.push_back(Range::make_by_min_extent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
+      bounds.push_back(Range::FromMinExtent(make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body =
-        tir::RealizeNode::make(t->op, t->value_index, t->dtype, bounds, const_true(), realize_body);
+    realize_body = tir::ProducerRealize(t, bounds, const_true(), realize_body);
   }
   return realize_body;
 }
@@ -137,9 +141,8 @@ Stmt ExternOpNode::BuildRealize(const Stage& stage,
 Stmt ExternOpNode::BuildProvide(const Stage& stage,
                                 const std::unordered_map<IterVar, Range>& dom_map,
                                 bool debug_keep_trivial_loop) const {
-  CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret =
-      AttrStmtNode::make(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
+  ICHECK_EQ(stage->op.operator->(), this);
+  Stmt ret = AttrStmt(make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;
     Array<PrimExpr> tuple;
@@ -149,9 +152,8 @@ Stmt ExternOpNode::BuildProvide(const Stage& stage,
       tuple.push_back(make_const(buffer->shape[k].dtype(), 0));
       tuple.push_back(buffer->shape[k]);
     }
-    ret = AttrStmtNode::make(
-        bind_spec, tir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
+    ret = AttrStmt(bind_spec, tir::attr::buffer_bind_scope,
+                   Call(DataType::Handle(), builtin::tvm_tuple(), tuple), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {
     f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));

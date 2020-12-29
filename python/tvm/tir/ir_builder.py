@@ -17,14 +17,16 @@
 """Developer API of IR node builder make function."""
 from tvm._ffi.base import string_types
 from tvm.runtime import ObjectGeneric, DataType, convert, const
-from tvm.ir import container as _container
+from tvm.ir import container as _container, PointerType, PrimType
 
 from . import stmt as _stmt
 from . import expr as _expr
+from . import op
 
 
 class WithScope(object):
     """Auxiliary scope  with"""
+
     def __init__(self, enter_value, exit_cb):
         self._enter_value = enter_value
         self._exit_cb = exit_cb
@@ -41,6 +43,9 @@ class BufferVar(ObjectGeneric):
 
     Do not create it directly, create use IRBuilder.
 
+    BufferVars support array access either via a linear index, or, if given a
+    shape, via a multidimensional index.
+
     Examples
     --------
     In the follow example, x is BufferVar.
@@ -54,15 +59,23 @@ class BufferVar(ObjectGeneric):
         x = ib.pointer("float32")
         x[0] = x[10] + 1
 
+        y = ib.allocate("float32", (32, 32))
+        # Array access using a linear index
+        y[(2*32) + 31] = 0.
+        # The same array access using a multidimensional index
+        y[2, 31] = 0.
+
     See Also
     --------
     IRBuilder.pointer
     IRBuilder.buffer_ptr
     IRBuilder.allocate
     """
-    def __init__(self, builder, buffer_var, content_type):
+
+    def __init__(self, builder, buffer_var, shape, content_type):
         self._builder = builder
         self._buffer_var = buffer_var
+        self._shape = shape
         self._content_type = content_type
 
     def asobject(self):
@@ -72,23 +85,41 @@ class BufferVar(ObjectGeneric):
     def dtype(self):
         return self._content_type
 
+    def _linear_index(self, index):
+        if not isinstance(index, tuple) or self._shape is None:
+            return index
+        assert len(index) == len(self._shape), "Index size (%s) does not match shape size (%s)" % (
+            len(index),
+            len(self._shape),
+        )
+        dim_size = 1
+        lidx = 0
+        for dim, idx in zip(reversed(self._shape), reversed(index)):
+            lidx += idx * dim_size
+            dim_size *= dim
+        return lidx
+
     def __getitem__(self, index):
         t = DataType(self._content_type)
+        index = self._linear_index(index)
         if t.lanes > 1:
             base = index * t.lanes
-            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
+            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
+            index = _expr.Ramp(base, stride, t.lanes)
         return _expr.Load(self._content_type, self._buffer_var, index)
 
     def __setitem__(self, index, value):
         value = convert(value)
         if value.dtype != self._content_type:
             raise ValueError(
-                "data type does not match content type %s vs %s" % (
-                    value.dtype, self._content_type))
+                "data type does not match content type %s vs %s" % (value.dtype, self._content_type)
+            )
+        index = self._linear_index(index)
         t = DataType(self._content_type)
         if t.lanes > 1:
             base = index * t.lanes
-            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
+            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
+            index = _expr.Ramp(base, stride, t.lanes)
         self._builder.emit(_stmt.Store(self._buffer_var, value, index))
 
 
@@ -108,6 +139,7 @@ class IRBuilder(object):
         # The result stmt.
         stmt = ib.get()
     """
+
     def __init__(self):
         self._seq_stack = [[]]
         self.nidx = 0
@@ -169,6 +201,9 @@ class IRBuilder(object):
             node = _expr.StringImm(node)
         if isinstance(value, string_types):
             value = _expr.StringImm(value)
+        # thread_extent could be zero for dynamic workloads
+        if attr_key == "thread_extent":
+            value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
     def for_range(self, begin, end, name="i", dtype="int32", for_type="serial"):
@@ -206,12 +241,13 @@ class IRBuilder(object):
             with ib.for_range(1, 10, name="i") as i:
                 x[i] = x[i - 1] + 1
         """
-        if name == 'i':
+        if name == "i":
             name = chr(ord(name) + self.nidx) if self.nidx < 3 else name + "_" + str(self.nidx - 3)
             self.nidx += 1
         self._seq_stack.append([])
         loop_var = _expr.Var(name, dtype=dtype)
         extent = end if begin == 0 else (end - begin)
+
         def _exit_cb():
             if for_type == "serial":
                 for_type_id = 0
@@ -223,8 +259,8 @@ class IRBuilder(object):
                 for_type_id = 3
             else:
                 raise ValueError("Unknown for_type")
-            self.emit(_stmt.For(
-                loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
+            self.emit(_stmt.For(loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
+
         return WithScope(loop_var, _exit_cb)
 
     def if_scope(self, cond):
@@ -251,8 +287,10 @@ class IRBuilder(object):
                 x[i] = x[i - 1] + 1
         """
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(_stmt.IfThenElse(cond, self._pop_seq(), None))
+
         return WithScope(None, _exit_cb)
 
     def else_scope(self):
@@ -284,8 +322,10 @@ class IRBuilder(object):
             raise RuntimeError("else_scope can only follow an if_scope")
         self._seq_stack[-1].pop()
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(_stmt.IfThenElse(prev.condition, prev.then_case, self._pop_seq()))
+
         return WithScope(None, _exit_cb)
 
     def new_scope(self):
@@ -299,8 +339,10 @@ class IRBuilder(object):
            The result new scope.
         """
         self._seq_stack.append([])
+
         def _exit_cb():
             self.emit(self._pop_seq())
+
         return WithScope(None, _exit_cb)
 
     def allocate(self, dtype, shape, name="buf", scope=None):
@@ -325,14 +367,13 @@ class IRBuilder(object):
         buffer : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _expr.Var(name, dtype="handle")
+        buffer_var = _expr.Var(name, PointerType(PrimType(dtype)))
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
         if scope:
             self.scope_attr(buffer_var, "storage_scope", scope)
-        self.emit(lambda x: _stmt.Allocate(
-            buffer_var, dtype, shape, const(1, dtype="uint1"), x))
-        return BufferVar(self, buffer_var, dtype)
+        self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
+        return BufferVar(self, buffer_var, shape, dtype)
 
     def pointer(self, content_type, name="ptr"):
         """Create pointer variable with content type.
@@ -351,9 +392,9 @@ class IRBuilder(object):
             The buffer var representing the buffer.
         """
         buffer_var = _expr.Var(name, dtype="handle")
-        return BufferVar(self, buffer_var, content_type)
+        return BufferVar(self, buffer_var, None, content_type)
 
-    def buffer_ptr(self, buf):
+    def buffer_ptr(self, buf, shape=None):
         """Create pointer variable corresponds to buffer ptr.
 
         Parameters
@@ -361,12 +402,15 @@ class IRBuilder(object):
         buf : Buffer
             The buffer to be extracted.
 
+        shape : Tuple
+            Optional shape of the buffer. Overrides existing buffer shape.
+
         Returns
         -------
         ptr : BufferVar
             The buffer var representing the buffer.
         """
-        return BufferVar(self, buf.data, buf.dtype)
+        return BufferVar(self, buf.data, buf.shape if shape is None else shape, buf.dtype)
 
     def likely(self, expr):
         """Add likely tag for expression.
@@ -379,8 +423,7 @@ class IRBuilder(object):
         expr : Expr
             The expression will likely tag.
         """
-        return _expr.Call(expr.dtype, "likely", [expr],
-                          _expr.Call.PureIntrinsic, None, 0)
+        return _expr.Call(expr.dtype, "tir.likely", [expr])
 
     def get(self):
         """Return the builded IR.

@@ -17,7 +17,7 @@
 """Test function extraction"""
 import tvm
 from tvm import relay
-from tvm.relay.testing.resnet import get_workload
+from tvm.relay.testing.synthetic import get_workload
 
 
 def get_conv_net():
@@ -34,23 +34,11 @@ def get_conv_net():
     """
     dshape = (1, 1, 5, 1)
     x = relay.var("x", shape=dshape)
-    y = relay.nn.conv2d(x, relay.var("w1"),
-                        kernel_size=(3, 3),
-                        padding=(1, 1),
-                        channels=1)
+    y = relay.nn.conv2d(x, relay.var("w1"), kernel_size=(3, 3), padding=(1, 1), channels=1)
 
-    x1 = relay.nn.conv2d(y, relay.var("w2"),
-                         kernel_size=(3, 3),
-                         padding=(1, 1),
-                         channels=1)
-    x2 = relay.nn.conv2d(y, relay.var("w3"),
-                         kernel_size=(3, 3),
-                         padding=(1, 1),
-                         channels=1)
-    x3 = relay.nn.conv2d(y, relay.var("w4"),
-                         kernel_size=(3, 3),
-                         padding=(1, 1),
-                         channels=1)
+    x1 = relay.nn.conv2d(y, relay.var("w2"), kernel_size=(3, 3), padding=(1, 1), channels=1)
+    x2 = relay.nn.conv2d(y, relay.var("w3"), kernel_size=(3, 3), padding=(1, 1), channels=1)
+    x3 = relay.nn.conv2d(y, relay.var("w4"), kernel_size=(3, 3), padding=(1, 1), channels=1)
 
     z = relay.add(x1, x2)
     z = relay.add(x3, z)
@@ -60,13 +48,16 @@ def get_conv_net():
 
 def get_conv2d():
     x = relay.var("x", shape=(1, 56, 56, 64))
-    weight1 = relay.var('weight1', shape=(3, 3, 64, 32))
-    y = relay.nn.conv2d(x, weight1,
-                        channels=32,
-                        kernel_size=(3, 3),
-                        padding=(1, 1),
-                        data_layout='NHWC',
-                        kernel_layout='HWIO')
+    weight1 = relay.var("weight1", shape=(3, 3, 64, 32))
+    y = relay.nn.conv2d(
+        x,
+        weight1,
+        channels=32,
+        kernel_size=(3, 3),
+        padding=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+    )
     return tvm.IRModule.from_expr(y)
 
 
@@ -75,8 +66,7 @@ def test_extract_identity():
     items = relay.analysis.extract_fused_functions(mod)
     assert len(items) == 1
 
-    mod["main"] = mod["main"].with_attr(
-        "Primitive", tvm.tir.IntImm("int32", 1))
+    mod["main"] = mod["main"].with_attr("Primitive", tvm.tir.IntImm("int32", 1))
     tvm.ir.structural_equal(list(items.values())[0], mod["main"])
 
 
@@ -106,10 +96,10 @@ def test_extract_conv_net():
 def test_extract_resnet():
     mod, _params = get_workload()
     items = relay.analysis.extract_fused_functions(mod)
-    assert len(items) == 34
+    assert len(items) == 6
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_extract_identity()
     test_extract_conv_net()
     test_extract_resnet()

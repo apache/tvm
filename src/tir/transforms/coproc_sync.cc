@@ -21,6 +21,7 @@
  * \file coproc_sync.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -28,7 +29,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ir_util.h"
+#include "ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
@@ -54,7 +55,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
   void VisitExpr_(const CallNode* op) final {
-    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
       const VarNode* buffer = op->args[1].as<VarNode>();
       if (in_scope_) {
         touched_[buffer].coproc = true;
@@ -148,7 +149,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
         }
       }
       if (sync_write) {
-        CHECK_NE(i, 0U);
+        ICHECK_NE(i, 0U);
         sync_[seq[i - 1].stmt] = GetSync(co_access);
         co_access.clear();
         contain_sync = true;
@@ -174,7 +175,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
       }
     }
     if (sync_at_end && co_access.size() != 0) {
-      CHECK_NE(seq.size(), 0);
+      ICHECK_NE(seq.size(), 0);
       contain_sync = true;
       sync_[seq.back().stmt] = GetSync(co_access);
       co_access.clear();
@@ -189,14 +190,13 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   // Add write Synchronization
   std::vector<Stmt> GetSync(const std::vector<AccessEntry>& co_access) {
     // Does not consider memory coherence, need runtime.
-    CHECK_NE(co_access.size(), 0U);
-    CHECK_EQ(co_access[0].threads.size(), 1U);
+    ICHECK_NE(co_access.size(), 0U);
+    ICHECK_EQ(co_access[0].threads.size(), 1U);
     return GetSync(coproc_name_ + ".coproc_sync");
   }
 
   std::vector<Stmt> GetSync(std::string sync_name) {
-    return {
-        EvaluateNode::make(CallNode::make(DataType::Int(32), sync_name, {}, CallNode::Intrinsic))};
+    return {Evaluate(Call(DataType::Int(32), Op::Get("tir." + sync_name), {}))};
   }
 
   const std::unordered_set<const VarNode*>& touched_;
@@ -209,8 +209,8 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   explicit CoProcBarrierDetector(const std::unordered_set<const VarNode*>& touched,
                                  const std::string& coproc_name)
       : touched_(touched) {
-    read_barrier_name_ = coproc_name + ".coproc_read_barrier";
-    write_barrier_name_ = coproc_name + ".coproc_write_barrier";
+    read_barrier_name_ = "tir." + coproc_name + ".coproc_read_barrier";
+    write_barrier_name_ = "tir." + coproc_name + ".coproc_write_barrier";
   }
 
   void PlanReadBarrier(const Stmt& stmt) {
@@ -250,7 +250,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     auto fupdate = [&](size_t i, const AccessEntry& acc) {
       auto it = write_set.find(acc.buffer.get());
       if (it != write_set.end()) {
-        CHECK_NE(i, 0U);
+        ICHECK_NE(i, 0U);
         barrier_after_[seq[i - 1].stmt].push_back(MakeBarrier(write_barrier_name_, it->second));
         write_set.erase(it);
       }
@@ -288,7 +288,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     auto fupdate = [&](size_t i, const AccessEntry& acc) {
       auto it = read_set.find(acc.buffer.get());
       if (it != read_set.end()) {
-        CHECK_NE(i, seq.size());
+        ICHECK_NE(i, seq.size());
         barrier_before_[seq[i].stmt].push_back(MakeBarrier(read_barrier_name_, it->second));
         read_set.erase(it);
       }
@@ -324,17 +324,16 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     // insert write point
     Array<arith::IntSet> wset;
     for (const AccessEntry& acc : wvec) {
-      CHECK(acc.dtype == wvec[0].dtype);
+      ICHECK(acc.dtype == wvec[0].dtype);
       wset.push_back(acc.touched);
     }
     Range none;
-    Range r = arith::Union(wset).cover_range(none);
-    CHECK(r.defined()) << "Cannot deduce write range of " << wvec[0].buffer;
+    Range r = arith::Union(wset).CoverRange(none);
+    ICHECK(r.defined()) << "Cannot deduce write range of " << wvec[0].buffer;
     PrimExpr min = r->min;
     PrimExpr extent = r->extent;
-    return EvaluateNode::make(CallNode::make(
-        DataType::Int(32), func, {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent},
-        CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), Op::Get(func),
+                         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}));
   }
   // Write barrier name
   bool read_barrier_{false};
@@ -347,8 +346,8 @@ class CoProcInstDepDetector : public StmtVisitor {
  public:
   explicit CoProcInstDepDetector(const IterVar& coproc_axis, const std::string& coproc_name)
       : coproc_axis_(coproc_axis) {
-    sync_push_name_ = coproc_name + ".coproc_dep_push";
-    sync_pop_name_ = coproc_name + ".coproc_dep_pop";
+    sync_push_op_ = Op::Get("tir." + coproc_name + ".coproc_dep_push");
+    sync_pop_op_ = Op::Get("tir." + coproc_name + ".coproc_dep_pop");
   }
 
   void Plan(const Stmt& stmt) {
@@ -362,7 +361,7 @@ class CoProcInstDepDetector : public StmtVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::coproc_scope && op->node.same_as(coproc_axis_)) {
       const IntImmNode* ctx_id = op->value.as<IntImmNode>();
-      CHECK(ctx_id != nullptr);
+      ICHECK(ctx_id != nullptr);
       curr_state_.clear();
       curr_state_.node = op->body.get();
       curr_state_.enter_ctx.insert(ctx_id->value);
@@ -381,7 +380,7 @@ class CoProcInstDepDetector : public StmtVisitor {
     curr_state_.clear();
     if (last_state_.node != nullptr) {
       curr_state_.node = op;
-      CHECK(first_state_.node != nullptr);
+      ICHECK(first_state_.node != nullptr);
       // loop carry dependency
       InjectSync(last_state_, first_state_, &(curr_state_.exit_push), &(curr_state_.enter_pop));
       curr_state_.enter_ctx = first_state_.enter_ctx;
@@ -549,29 +548,25 @@ class CoProcInstDepDetector : public StmtVisitor {
       InjectSync(last_state_, curr_state_, &t1, &t2);
       std::swap(last_state_, curr_state_);
     } else {
-      CHECK(first_state_.node == nullptr);
+      ICHECK(first_state_.node == nullptr);
       first_state_ = curr_state_;
       last_state_ = curr_state_;
     }
   }
 
   Stmt MakePush(int from, int to) {
-    return EvaluateNode::make(
-        CallNode::make(DataType::Int(32), sync_push_name_,
-                       {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-                       CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), sync_push_op_,
+                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)}));
   }
   Stmt MakePop(int from, int to) {
-    return EvaluateNode::make(
-        CallNode::make(DataType::Int(32), sync_pop_name_,
-                       {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-                       CallNode::Intrinsic));
+    return Evaluate(Call(DataType::Int(32), sync_pop_op_,
+                         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)}));
   }
   // sync states.
   SyncState first_state_, last_state_, curr_state_;
   // Variables
   IterVar coproc_axis_;
-  std::string sync_push_name_, sync_pop_name_;
+  Op sync_push_op_, sync_pop_op_;
 };
 
 class CoProcSyncInserter : public StmtMutator {
@@ -587,7 +582,7 @@ class CoProcSyncInserter : public StmtMutator {
         touched.insert(kv.first);
       }
     }
-    CHECK_EQ(visitor.coproc_.size(), 1U);
+    ICHECK_EQ(visitor.coproc_.size(), 1U);
     std::string coproc_name = (*visitor.coproc_.begin())->var->name_hint;
     // plan sync.
     CoProcSyncPlanner sync_planner(touched, coproc_name);

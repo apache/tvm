@@ -24,10 +24,10 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/support/logging.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
  * hence we use 1.2 APIs, some of which are now deprecated.  In order
@@ -51,7 +51,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../file_util.h"
+#include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
@@ -167,7 +167,7 @@ inline const char* CLGetErrorString(cl_int error) {
  * \param func Expression to call.
  */
 #define OPENCL_CHECK_ERROR(e) \
-  { CHECK(e == CL_SUCCESS) << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); }
+  { ICHECK(e == CL_SUCCESS) << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); }
 
 #define OPENCL_CALL(func)  \
   {                        \
@@ -221,9 +221,9 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual bool IsOpenCLDevice(TVMContext ctx) { return ctx.device_type == kDLOpenCL; }
   // get the queue of the context
   cl_command_queue GetQueue(TVMContext ctx) {
-    CHECK(IsOpenCLDevice(ctx));
+    ICHECK(IsOpenCLDevice(ctx));
     this->Init();
-    CHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
+    ICHECK(ctx.device_id >= 0 && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << ctx.device_id;
     return queues[ctx.device_id];
   }
@@ -245,7 +245,7 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual OpenCLThreadEntry* GetThreadEntry();
 
   // get the global workspace
-  static const std::shared_ptr<OpenCLWorkspace>& Global();
+  static OpenCLWorkspace* Global();
 };
 
 /*! \brief Thread local workspace */
@@ -265,8 +265,7 @@ class OpenCLThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device)
-      : pool(device_type, device) {
+  OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device) : pool(device_type, device) {
     context.device_id = 0;
     context.device_type = device_type;
   }
@@ -298,7 +297,7 @@ class OpenCLModuleNode : public ModuleNode {
   /*!
    * \brief Get the global workspace
    */
-  virtual const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace();
+  virtual cl::OpenCLWorkspace* GetGlobalWorkspace();
 
   const char* type_key() const final { return workspace_->type_key.c_str(); }
 
@@ -315,7 +314,7 @@ class OpenCLModuleNode : public ModuleNode {
  private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
-  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
+  cl::OpenCLWorkspace* workspace_;
   // the binary data
   std::string data_;
   // The format

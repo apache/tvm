@@ -45,7 +45,7 @@ We use two python scripts for this tutorial.
       s = te.create_schedule(C.op)
       px, x = s[C].split(C.op.axis[0], nparts=1)
 
-      s[C].bind(px, tvm.thread_axis("pipeline"))
+      s[C].bind(px, tvm.te.thread_axis("pipeline"))
 
       fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
@@ -64,11 +64,11 @@ We use two python scripts for this tutorial.
 
       tgt="sdaccel"
 
-      fadd = tvm.runtime.load("myadd.so")
+      fadd = tvm.runtime.load_module("myadd.so")
       if os.environ.get("XCL_EMULATION_MODE"):
-          fadd_dev = tvm.runtime.load("myadd.xclbin")
+          fadd_dev = tvm.runtime.load_module("myadd.xclbin")
       else:
-          fadd_dev = tvm.runtime.load("myadd.awsxclbin")
+          fadd_dev = tvm.runtime.load_module("myadd.awsxclbin")
       fadd.import_module(fadd_dev)
 
       ctx = tvm.context(tgt, 0)

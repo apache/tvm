@@ -42,17 +42,19 @@ def _get_np_int32_array_handle(arr):
     return ctypes.cast(ptr, ctypes.c_void_p)
 
 
-def conv2d_forward(x,
-                   w,
-                   stride_h=1,
-                   stride_w=1,
-                   pad_h=0,
-                   pad_w=0,
-                   dilation_h=1,
-                   dilation_w=1,
-                   conv_mode=0,
-                   data_type=1,
-                   group_count=1):
+def conv2d_forward(
+    x,
+    w,
+    stride_h=1,
+    stride_w=1,
+    pad_h=0,
+    pad_w=0,
+    dilation_h=1,
+    dilation_w=1,
+    conv_mode=0,
+    data_type=1,
+    group_count=1,
+):
     """Create an extern op that compute 2D convolution with MIOpen
 
     Parameters
@@ -86,34 +88,37 @@ def conv2d_forward(x,
     y: Tensor
         The result tensor
     """
-    assert (0 <= conv_mode <= 2), "0: miopenConvolution / 1: miopenTranspose / 2: miopenGroupConv"
+    assert 0 <= conv_mode <= 2, "0: miopenConvolution / 1: miopenTranspose / 2: miopenGroupConv"
     if group_count > 1:
         conv_mode = 2
     oshape = np.zeros((len(x.shape)), dtype=np.int32)
     xshape = x.shape
     wshape = w.shape
     setup_func = tvm._ffi.get_global_func("tvm.contrib.miopen.conv2d.setup")
-    algo = setup_func(conv_mode,
-                      data_type,
-                      pad_h,
-                      pad_w,
-                      stride_h,
-                      stride_w,
-                      dilation_h,
-                      dilation_w,
-                      xshape[0].value,
-                      xshape[1].value,
-                      xshape[2].value,
-                      xshape[3].value,
-                      wshape[0].value,
-                      wshape[1].value,
-                      wshape[2].value,
-                      wshape[3].value,
-                      group_count,
-                      _get_np_int32_array_handle(oshape))
+    algo = setup_func(
+        conv_mode,
+        data_type,
+        pad_h,
+        pad_w,
+        stride_h,
+        stride_w,
+        dilation_h,
+        dilation_w,
+        xshape[0].value,
+        xshape[1].value,
+        xshape[2].value,
+        xshape[3].value,
+        wshape[0].value,
+        wshape[1].value,
+        wshape[2].value,
+        wshape[3].value,
+        group_count,
+        _get_np_int32_array_handle(oshape),
+    )
 
     return te.extern(
-        list(oshape), [x, w],
+        list(oshape),
+        [x, w],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.miopen.conv2d.forward",
             conv_mode,
@@ -127,4 +132,7 @@ def conv2d_forward(x,
             algo,
             ins[0],
             ins[1],
-            outs[0]), name="y")
+            outs[0],
+        ),
+        name="y",
+    )

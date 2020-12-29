@@ -31,7 +31,8 @@ const DL_UINT_CODE: u8 = 1;
 const DL_FLOAT_CODE: u8 = 2;
 const DL_HANDLE: u8 = 3;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
 pub struct DataType {
     code: u8,
     bits: u8,
@@ -39,7 +40,7 @@ pub struct DataType {
 }
 
 impl DataType {
-    pub fn new(code: u8, bits: u8, lanes: u16) -> DataType {
+    pub const fn new(code: u8, bits: u8, lanes: u16) -> DataType {
         DataType { code, bits, lanes }
     }
 
@@ -73,6 +74,22 @@ impl DataType {
     pub fn lanes(&self) -> usize {
         self.lanes as usize
     }
+
+    pub const fn int(bits: u8, lanes: u16) -> DataType {
+        DataType::new(DL_INT_CODE, bits, lanes)
+    }
+
+    pub const fn float(bits: u8, lanes: u16) -> DataType {
+        DataType::new(DL_FLOAT_CODE, bits, lanes)
+    }
+
+    pub const fn float32() -> DataType {
+        Self::float(32, 1)
+    }
+
+    pub const fn uint(bits: u8, lanes: u16) -> DataType {
+        DataType::new(DL_UINT_CODE, bits, lanes)
+    }
 }
 
 impl<'a> From<&'a DataType> for DLDataType {
@@ -87,6 +104,16 @@ impl<'a> From<&'a DataType> for DLDataType {
 
 impl From<DLDataType> for DataType {
     fn from(dtype: DLDataType) -> Self {
+        Self {
+            code: dtype.code,
+            bits: dtype.bits,
+            lanes: dtype.lanes,
+        }
+    }
+}
+
+impl From<DataType> for DLDataType {
+    fn from(dtype: DataType) -> Self {
         Self {
             code: dtype.code,
             bits: dtype.bits,

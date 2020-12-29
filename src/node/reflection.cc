@@ -36,10 +36,10 @@ using runtime::TVMRetValue;
 // Attr getter.
 class AttrGetter : public AttrVisitor {
  public:
-  const std::string& skey;
+  const String& skey;
   TVMRetValue* ret;
 
-  AttrGetter(const std::string& skey, TVMRetValue* ret) : skey(skey), ret(ret) {}
+  AttrGetter(const String& skey, TVMRetValue* ret) : skey(skey), ret(ret) {}
 
   bool found_ref_object{false};
 
@@ -50,7 +50,7 @@ class AttrGetter : public AttrVisitor {
     if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, uint64_t* value) final {
-    CHECK_LE(value[0], static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+    ICHECK_LE(value[0], static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         << "cannot return too big constant";
     if (skey == key) *ret = static_cast<int64_t>(value[0]);
   }
@@ -84,7 +84,7 @@ class AttrGetter : public AttrVisitor {
   }
 };
 
-runtime::TVMRetValue ReflectionVTable::GetAttr(Object* self, const std::string& field_name) const {
+runtime::TVMRetValue ReflectionVTable::GetAttr(Object* self, const String& field_name) const {
   runtime::TVMRetValue ret;
   AttrGetter getter(field_name, &ret);
 
@@ -195,14 +195,13 @@ class NodeAttrSetter : public AttrVisitor {
   }
 };
 
-void InitNodeByPackedArgs(Object* n, const TVMArgs& args) {
+void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const TVMArgs& args) {
   NodeAttrSetter setter;
   setter.type_key = n->GetTypeKey();
-  CHECK_EQ(args.size() % 2, 0);
+  ICHECK_EQ(args.size() % 2, 0);
   for (int i = 0; i < args.size(); i += 2) {
     setter.attrs.emplace(args[i].operator std::string(), args[i + 1]);
   }
-  auto* reflection = ReflectionVTable::Global();
   reflection->VisitAttrs(n, &setter);
 
   if (setter.attrs.size() != 0) {
@@ -215,15 +214,44 @@ void InitNodeByPackedArgs(Object* n, const TVMArgs& args) {
   }
 }
 
+ObjectRef ReflectionVTable::CreateObject(const std::string& type_key, const TVMArgs& kwargs) {
+  ObjectPtr<Object> n = this->CreateInitObject(type_key);
+  if (n->IsInstance<BaseAttrsNode>()) {
+    static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
+  } else {
+    InitNodeByPackedArgs(this, n.get(), kwargs);
+  }
+  return ObjectRef(n);
+}
+
+ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
+                                         const Map<String, ObjectRef>& kwargs) {
+  // Redirect to the TVMArgs version
+  // It is not the most efficient way, but CreateObject is not meant to be used
+  // in a fast code-path and is mainly reserved as a flexible API for frontends.
+  std::vector<TVMValue> values(kwargs.size() * 2);
+  std::vector<int32_t> tcodes(kwargs.size() * 2);
+  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
+  int index = 0;
+
+  for (const auto& kv : *static_cast<const MapNode*>(kwargs.get())) {
+    setter(index, Downcast<String>(kv.first).c_str());
+    setter(index + 1, kv.second);
+    index += 2;
+  }
+
+  return CreateObject(type_key, runtime::TVMArgs(values.data(), tcodes.data(), kwargs.size() * 2));
+}
+
 // Expose to FFI APIs.
 void NodeGetAttr(TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* self = static_cast<Object*>(args[0].value().v_handle);
   *ret = ReflectionVTable::Global()->GetAttr(self, args[1]);
 }
 
 void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* self = static_cast<Object*>(args[0].value().v_handle);
 
   auto names =
@@ -246,14 +274,7 @@ void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
   std::string type_key = args[0];
   std::string empty_str;
   TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
-  auto* reflection = ReflectionVTable::Global();
-  ObjectPtr<Object> n = reflection->CreateInitObject(type_key);
-  if (n->IsInstance<BaseAttrsNode>()) {
-    static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
-  } else {
-    InitNodeByPackedArgs(n.get(), kwargs);
-  }
-  *rv = ObjectRef(n);
+  *rv = ReflectionVTable::Global()->CreateObject(type_key, kwargs);
 }
 
 TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body(NodeGetAttr);

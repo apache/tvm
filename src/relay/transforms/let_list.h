@@ -64,8 +64,8 @@ class LetList {
    * \return a Var that hold the inserted expr.
    */
   Var Push(Var pv, Expr expr) {
-    CHECK(!used_);
-    CHECK(WellFormed(expr));
+    ICHECK(!used_);
+    ICHECK(WellFormed(expr));
     lets_.emplace_back(std::make_pair(pv, expr));
     return pv;
   }
@@ -98,7 +98,7 @@ class LetList {
    *  \return the wrapped expr.
    */
   Expr Get(const Expr& body) {
-    CHECK(!used_);
+    ICHECK(!used_);
     Expr ret = body;
     for (auto rit = lets_.rbegin(); rit != lets_.rend(); ++rit) {
       ret = Let(std::get<0>(*rit), std::get<1>(*rit), ret);
@@ -106,6 +106,12 @@ class LetList {
     used_ = true;
     return ret;
   }
+
+  /*! \brief get the number of let bindings in the let list.
+   *
+   *  \return the let list size.
+   */
+  size_t size() const { return lets_.size(); }
 
   /*! \brief generate an LetList and wrap the result automatically.
    *

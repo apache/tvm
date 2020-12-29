@@ -37,7 +37,7 @@ Though dataflow graphs are limited in terms of the computations they are capable
 lacking control flow, their simplicity makes it easier to implement automatic differentiation and
 compile for heterogeneous execution environments (e.g., executing parts of the graph on specialized hardware).
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/relay/dataflow.png
     :align: center
 
 
@@ -127,7 +127,7 @@ it to the var, then return the evaluated result in the body expression.
 You can use a sequence of let bindings to construct a logically equivalent program to a dataflow program.
 The code example below shows one program with two forms side by side.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow_vs_func.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/relay/dataflow_vs_func.png
     :align: center
 
 
@@ -151,7 +151,7 @@ Why We Might Need Let Binding
 One key usage of let binding is that it specifies the scope of computation. Let us take a look at the following example,
 which does not use let bindings.
 
-.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/let_scope.png
+.. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/main/images/relay/let_scope.png
     :align: center
 
 The problem comes when we try to decide where we should evaluate node ``%1``. In particular, while the text format seems

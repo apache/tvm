@@ -24,8 +24,7 @@ def test_cast():
     m = analyzer.modular_set((x * 3).astype("uint32"))
     assert m.coeff == 3
     assert m.base == 0
-    m = analyzer.modular_set(
-        (x * 3 + 1).astype("float32").astype("int32"))
+    m = analyzer.modular_set((x * 3 + 1).astype("float32").astype("int32"))
     assert m.coeff == 3
     assert m.base == 1
 
@@ -111,7 +110,7 @@ def test_mix_index():
     assert m.coeff == 2
     assert m.base == 0
 
-    m = analyzer.modular_set((a * 12 + 1) - (b * 3 * 7  + 2))
+    m = analyzer.modular_set((a * 12 + 1) - (b * 3 * 7 + 2))
     assert m.coeff == 3
     assert m.base == 2
 
@@ -142,6 +141,7 @@ def test_constraint_scope():
     assert m.coeff == 1
     assert m.base == 0
 
+
 def test_intersect():
     a = te.var("a")
     analyzer = tvm.arith.Analyzer()
@@ -160,7 +160,17 @@ def test_intersect():
                 assert m.base == 23
 
 
+def test_let():
+    analyzer = tvm.arith.Analyzer()
+    x = te.var("x")
+    y = te.var("y")
+    m = analyzer.modular_set(tvm.tir.Let(x, y * 10, x + 1))
+    m.coeff = 10
+    m.base = 1
+
+
 if __name__ == "__main__":
+    test_let()
     test_cast()
     test_add_sub()
     test_mul()

@@ -68,15 +68,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
   }
 
   // Currently only supports input dtype to be float32.
-  CHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
-                             "to be float.";
+  ICHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
+                              "to be float.";
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC != 1)
-  CHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
-                              "to be float32.";
+  ICHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
+                               "to be float32.";
 #endif
-  CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                 "input ndim "
-                              << input->ndim;
+  ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                  "input ndim "
+                               << input->ndim;
 
   for (int i = 0; i < input->ndim; ++i) {
     if (i < axis) {
@@ -125,7 +125,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
 });
 
 template <typename DataType, typename OutType>
-void argsort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
+void sort_impl(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend, bool is_argsort) {
   auto data_ptr = static_cast<DataType*>(input->data);
   auto out_ptr = static_cast<OutType*>(output->data);
   std::vector<std::pair<int64_t, DataType>> sorter;
@@ -153,11 +153,27 @@ void argsort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
       } else {
         std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<DataType>);
       }
-      for (int64_t k = 0; k < input->shape[axis]; ++k) {
-        out_ptr[base_idx + k * axis_mul_after] = static_cast<OutType>(sorter[k].first);
+      if (is_argsort) {
+        for (int64_t k = 0; k < input->shape[axis]; ++k) {
+          out_ptr[base_idx + k * axis_mul_after] = static_cast<OutType>(sorter[k].first);
+        }
+      } else {
+        for (int64_t k = 0; k < input->shape[axis]; ++k) {
+          out_ptr[base_idx + k * axis_mul_after] = static_cast<OutType>(sorter[k].second);
+        }
       }
     }
   }
+}
+
+template <typename DataType, typename OutType>
+void argsort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
+  return sort_impl<DataType, OutType>(input, output, axis, is_ascend, true);
+}
+
+template <typename DataType>
+void sort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
+  return sort_impl<DataType, DataType>(input, output, axis, is_ascend, false);
 }
 
 // Argsort implemented C library sort.
@@ -175,9 +191,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body([](TVMArgs args, TVMRet
   if (axis < 0) {
     axis = input->ndim + axis;
   }
-  CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                 "input ndim "
-                              << input->ndim;
+  ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                  "input ndim "
+                               << input->ndim;
 
   auto data_dtype = DLDataType2String(input->dtype);
   auto out_dtype = DLDataType2String(output->dtype);
@@ -238,6 +254,47 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body([](TVMArgs args, TVMRet
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
+  } else {
+    LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
+  }
+});
+
+// Sort implemented C library sort.
+// Return  sorted tensor.
+// By default, the last axis will be used to sort.
+// sort_num specify the number of elements to be sorted.
+// If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
+// and sort axis is dk. sort_num should have dimension of
+// (d1, d2, ..., d(k-1), d(k+1), ..., dn).
+TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort").set_body([](TVMArgs args, TVMRetValue* ret) {
+  DLTensor* input = args[0];
+  DLTensor* output = args[1];
+  int32_t axis = args[2];
+  bool is_ascend = args[3];
+  if (axis < 0) {
+    axis = input->ndim + axis;
+  }
+  ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                  "input ndim "
+                               << input->ndim;
+
+  auto data_dtype = DLDataType2String(input->dtype);
+  auto out_dtype = DLDataType2String(output->dtype);
+
+  ICHECK_EQ(data_dtype, out_dtype);
+
+  if (data_dtype == "float32") {
+    sort<float>(input, output, axis, is_ascend);
+  } else if (data_dtype == "float64") {
+    sort<double>(input, output, axis, is_ascend);
+#if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
+  } else if (data_dtype == "float16") {
+    sort<__fp16, __fp16>(input, output, axis, is_ascend);
+#endif
+  } else if (data_dtype == "int32") {
+    sort<int32_t>(input, output, axis, is_ascend);
+  } else if (data_dtype == "int64") {
+    sort<int64_t>(input, output, axis, is_ascend);
   } else {
     LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
   }
@@ -322,7 +379,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body([](TVMArgs args, TVMRetVal
   if (axis < 0) {
     axis = input->ndim + axis;
   }
-  CHECK(axis >= 0 && axis < input->ndim) << "Axis out of boundary for input ndim " << input->ndim;
+  ICHECK(axis >= 0 && axis < input->ndim) << "Axis out of boundary for input ndim " << input->ndim;
 
   auto data_dtype = DLDataType2String(input->dtype);
   auto out_dtype = (indices_out == nullptr) ? "int64" : DLDataType2String(indices_out->dtype);

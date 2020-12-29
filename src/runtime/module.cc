@@ -28,7 +28,7 @@
 #include <cstring>
 #include <unordered_set>
 
-#include "file_util.h"
+#include "file_utils.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,7 +39,7 @@ void ModuleNode::Import(Module other) {
     static const PackedFunc* fimport_ = nullptr;
     if (fimport_ == nullptr) {
       fimport_ = runtime::Registry::Get("rpc.ImportRemoteModule");
-      CHECK(fimport_ != nullptr);
+      ICHECK(fimport_ != nullptr);
     }
     (*fimport_)(GetRef<Module>(this), other);
     return;
@@ -57,7 +57,7 @@ void ModuleNode::Import(Module other) {
       stack.push_back(next);
     }
   }
-  CHECK(!visited.count(this)) << "Cyclic dependency detected during import";
+  ICHECK(!visited.count(this)) << "Cyclic dependency detected during import";
   this->imports_.emplace_back(std::move(other));
 }
 
@@ -67,8 +67,10 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
   if (pf != nullptr) return pf;
   if (query_imports) {
     for (Module& m : self->imports_) {
-      pf = m->GetFunction(name, m.data_);
-      if (pf != nullptr) return pf;
+      pf = m.operator->()->GetFunction(name, query_imports);
+      if (pf != nullptr) {
+        return pf;
+      }
     }
   }
   return pf;
@@ -76,13 +78,13 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
 
 Module Module::LoadFromFile(const std::string& file_name, const std::string& format) {
   std::string fmt = GetFileFormat(file_name, format);
-  CHECK(fmt.length() != 0) << "Cannot deduce format of file " << file_name;
+  ICHECK(fmt.length() != 0) << "Cannot deduce format of file " << file_name;
   if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
     fmt = "so";
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
   const PackedFunc* f = Registry::Get(load_f_name);
-  CHECK(f != nullptr) << "Loader of " << format << "(" << load_f_name << ") is not presented.";
+  ICHECK(f != nullptr) << "Loader of " << format << "(" << load_f_name << ") is not presented.";
   Module m = (*f)(file_name, format);
   return m;
 }
@@ -110,8 +112,8 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   }
   if (pf == nullptr) {
     const PackedFunc* f = Registry::Get(name);
-    CHECK(f != nullptr) << "Cannot find function " << name
-                        << " in the imported modules or global registry";
+    ICHECK(f != nullptr) << "Cannot find function " << name
+                         << " in the imported modules or global registry";
     return f;
   } else {
     import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
@@ -129,6 +131,8 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
     f_name = "device_api.metal";
+  } else if (target == "tflite") {
+    f_name = "target.runtime.tflite";
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
   } else if (target == "stackvm") {
@@ -137,6 +141,8 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "device_api.rpc";
   } else if (target == "micro_dev") {
     f_name = "device_api.micro_dev";
+  } else if (target == "hexagon") {
+    f_name = "device_api.hexagon";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
     f_name = "device_api.gpu";
   } else if (target.length() >= 4 && target.substr(0, 4) == "rocm") {

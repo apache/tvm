@@ -17,26 +17,34 @@
 import tvm
 from tvm import te
 
+
 def test_domain_touched():
-    i = te.var('i')
-    j = te.var('j')
+    i = te.var("i")
+    j = te.var("j")
     n = tvm.runtime.convert(100)
-    m = te.var('m')
+    m = te.var("m")
 
-    a = tvm.tir.decl_buffer((n, m), name='a')
-    b = tvm.tir.decl_buffer((n, m), name='b')
-
+    a = tvm.tir.decl_buffer((n, m), name="a")
+    b = tvm.tir.decl_buffer((n, m), name="b")
 
     ir = tvm.tir.For(
-            i, 0, n, 0, 0,
-            tvm.tir.For(j, 0, m, 0, 0,
-                tvm.tir.BufferStore(
-                    a,
-                    tvm.tir.BufferLoad(b, [i - 1, j + 1]) +
-                    tvm.tir.BufferLoad(a, [i - 1, j - 1]),
-                    [i, j]
-                )
-            )
+        i,
+        0,
+        n,
+        0,
+        0,
+        tvm.tir.For(
+            j,
+            0,
+            m,
+            0,
+            0,
+            tvm.tir.BufferStore(
+                a,
+                tvm.tir.BufferLoad(b, [i - 1, j + 1]) + tvm.tir.BufferLoad(a, [i - 1, j - 1]),
+                [i, j],
+            ),
+        ),
     )
 
     a_domain_r = tvm.arith._ffi_api.DomainTouched(ir, a, True, False)
@@ -44,20 +52,20 @@ def test_domain_touched():
     assert a_domain_r[0].min.value == -1
     assert a_domain_r[0].extent.value == 100
     assert a_domain_r[1].min.value == -1
-    assert a_domain_r[1].extent.name == 'm'
+    assert a_domain_r[1].extent.name == "m"
 
     a_domain_w = tvm.arith._ffi_api.DomainTouched(ir, a, False, True)
     assert a_domain_w[0].min.value == 0
     assert a_domain_w[0].extent.value == 100
     assert a_domain_w[1].min.value == 0
-    assert a_domain_w[1].extent.name == 'm'
+    assert a_domain_w[1].extent.name == "m"
 
-    a_domain_rw= tvm.arith._ffi_api.DomainTouched(ir, a, True, True)
+    a_domain_rw = tvm.arith._ffi_api.DomainTouched(ir, a, True, True)
     assert a_domain_rw[0].min.value == -1
     assert a_domain_rw[0].extent.value == 101
     assert a_domain_rw[1].min.value == -1
     assert isinstance(a_domain_rw[1].extent, tvm.tir.Add)
-    assert a_domain_rw[1].extent.a.name == 'm'
+    assert a_domain_rw[1].extent.a.name == "m"
     assert a_domain_rw[1].extent.b.value == 1
 
     b_domain_r = tvm.arith._ffi_api.DomainTouched(ir, b, True, False)
@@ -65,11 +73,12 @@ def test_domain_touched():
     assert b_domain_r[0].min.value == -1
     assert b_domain_r[0].extent.value == 100
     assert b_domain_r[1].min.value == 1
-    assert b_domain_r[1].extent.name == 'm'
+    assert b_domain_r[1].extent.name == "m"
 
     b_domain_w = tvm.arith._ffi_api.DomainTouched(ir, b, False, True)
     assert isinstance(b_domain_w, tvm.container.Array)
     assert len(b_domain_w) == 0
+
 
 if __name__ == "__main__":
     test_domain_touched()

@@ -71,7 +71,7 @@ public class RPCWatchdog extends Thread {
             } else {
               System.err.println("watchdog woke up!");
               System.err.println("terminating...");
-              System.exit(0);
+              terminate();
             }
           } catch (InterruptedException e) {
             System.err.println("watchdog interrupted...");
@@ -79,5 +79,12 @@ public class RPCWatchdog extends Thread {
         }
       }
     }
+  }
+
+  /**
+   * Default method to terminate the running RPCActivity process.
+   */
+  protected void terminate() {
+    System.exit(0);
   }
 }

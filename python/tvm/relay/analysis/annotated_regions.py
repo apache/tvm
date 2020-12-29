@@ -31,16 +31,15 @@ class AnnotatedRegionSet(Object):
         ----------
         expr : tvm.relay.Expr
             The expression from which to construct the regions.
-        region_begin_op : tvm.relay.Op
+        region_begin_op : tvm.ir.Op
             The region begin annotation.
-        region_end_op : tvm.relay.Op
+        region_end_op : tvm.ir.Op
             The region end annotation.
 
         """
-        self.__init_handle_by_constructor__(_ffi_api.AnnotatedRegionSet,
-                                            expr,
-                                            region_begin_op,
-                                            region_end_op)
+        self.__init_handle_by_constructor__(
+            _ffi_api.AnnotatedRegionSet, expr, region_begin_op, region_end_op
+        )
 
     def __len__(self):
         return len(self.regions)

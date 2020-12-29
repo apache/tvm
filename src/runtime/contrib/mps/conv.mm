@@ -34,7 +34,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img").set_body([](TVMArgs args, TVMR
   id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->ctx);
   id<MTLBuffer> temp = rt->GetTempBuffer(buf->ctx, [mtlbuf length]);
   entry_ptr->metal_api->CopyDataFromTo((__bridge void*)mtlbuf, 0, (__bridge void*)temp, 0,
-                                       [mtlbuf length], buf -> ctx, buf -> ctx, nullptr);
+                                       [mtlbuf length], buf -> ctx, buf -> ctx, buf -> dtype,
+                                       nullptr);
 
   MPSImageDescriptor* desc =
       [MPSImageDescriptor imageDescriptorWithChannelFormat:MPSImageFeatureChannelFormatFloat32
@@ -69,7 +70,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer").set_body([](TVMArgs args, TVMR
          imageIndex:0];
 
   entry_ptr->metal_api->CopyDataFromTo((__bridge void*)temp, 0, (__bridge void*)mtlbuf, 0,
-                                       [mtlbuf length], buf -> ctx, buf -> ctx, nullptr);
+                                       [mtlbuf length], buf -> ctx, buf -> ctx, buf -> dtype,
+                                       nullptr);
 });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -80,15 +82,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetVa
   int pad = args[3];
   int stride = args[4];
 
-  CHECK_EQ(data->ndim, 4);
-  CHECK_EQ(weight->ndim, 4);
-  CHECK_EQ(output->ndim, 4);
-  CHECK(output->strides == nullptr);
-  CHECK(weight->strides == nullptr);
-  CHECK(data->strides == nullptr);
+  ICHECK_EQ(data->ndim, 4);
+  ICHECK_EQ(weight->ndim, 4);
+  ICHECK_EQ(output->ndim, 4);
+  ICHECK(output->strides == nullptr);
+  ICHECK(weight->strides == nullptr);
+  ICHECK(data->strides == nullptr);
 
-  CHECK_EQ(data->shape[0], 1);
-  CHECK_EQ(output->shape[0], 1);
+  ICHECK_EQ(data->shape[0], 1);
+  ICHECK_EQ(output->shape[0], 1);
 
   int oCh = weight->shape[0];
   int kH = weight->shape[1];
@@ -111,7 +113,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetVa
   id<MTLBuffer> bufB = (__bridge id<MTLBuffer>)(weight->data);
   id<MTLBuffer> tempB = rt->GetTempBuffer(weight->ctx, [bufB length]);
   entry_ptr->metal_api->CopyDataFromTo((__bridge void*)bufB, 0, (__bridge void*)tempB, 0,
-                                       [bufB length], weight -> ctx, weight -> ctx, nullptr);
+                                       [bufB length], weight -> ctx, weight -> ctx, tmp_in.dtype,
+                                       nullptr);
   float* ptr_w = (float*)[tempB contents];
   // output to MPSImage
   DLTensor tmp_out;

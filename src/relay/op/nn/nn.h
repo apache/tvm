@@ -37,15 +37,15 @@ namespace relay {
 template <typename AttrType>
 bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
               const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const AttrType* param = attrs.as<AttrType>();
-  CHECK(param != nullptr);
+  ICHECK(param != nullptr);
 
-  CHECK(static_cast<int>(data->shape.size()) != 0);
+  ICHECK(static_cast<int>(data->shape.size()) != 0);
 
   Array<tvm::PrimExpr> oshape = data->shape;
   if (param->units.defined()) {
@@ -57,15 +57,25 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // data dtype as the weight dtype. However if weight dtype is explicitly
     // present we will use that.
     auto weight_dtype = (weight == nullptr ? data->dtype : weight->dtype);
-    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    if (param->auto_scheduler_rewritten_layout.size() == 0) {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, weight_dtype));
+    } else {
+      // If the layout is rewritten by auto-scheduler,
+      // we just forcly apply the layout provided by auto-scheduler and
+      // skip the normal inference logic.
+      {}  // do nothing
+    }
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
     Array<tvm::PrimExpr> wshape = weight->shape;
-    CHECK(static_cast<int>(weight->shape.size()) == 2);
-    CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
-        << "DenseRel: input dimension doesn't match,"
-        << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+    ICHECK(static_cast<int>(weight->shape.size()) == 2);
+    if (!data->shape.back().as<tir::AnyNode>()) {
+      ICHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1], weight->shape[1]))
+          << "DenseRel: input dimension doesn't match,"
+          << " data shape=" << data->shape << ", weight shape=" << weight->shape;
+    }
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 

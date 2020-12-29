@@ -25,16 +25,16 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <iterator>
 #include <stack>
 
-#include "../../arith/compute_expr.h"
-
 namespace tvm {
 namespace tir {
-// TODO(tqchen): change to floormod/div
+
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
 
@@ -45,9 +45,9 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
-  return BufferNode::make(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
-                          PrimExpr(), name, "", 0, 0, kDefault);
+Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, Span span) {
+  return Buffer(Var(name, PointerType(PrimType(dtype)), span), dtype, shape, Array<PrimExpr>(),
+                PrimExpr(), name, "", 0, 0, kDefault, span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -244,10 +244,10 @@ inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
     // Scalar case
     if (n->shape.size() == 0 && index.size() == 1) {
       auto is_int = index[0].as<IntImmNode>();
-      CHECK(is_int && is_int->value == 0);
+      ICHECK(is_int && is_int->value == 0);
       base = base + index[0];
     } else {
-      CHECK_EQ(n->shape.size(), index.size());
+      ICHECK_EQ(n->shape.size(), index.size());
       if (index.size() > 0) {
         PrimExpr offset = index[0];
         for (size_t i = 1; i < index.size(); ++i) {
@@ -257,7 +257,7 @@ inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
       }
     }
   } else {
-    CHECK_EQ(n->strides.size(), index.size());
+    ICHECK_EQ(n->strides.size(), index.size());
     if (is_zero(base)) {
       base = MergeMulMod(&ana, index[0] * n->strides[0]);
     } else {
@@ -276,40 +276,37 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return tir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    return tir::Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
 }
 
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
-  // specially handle bool, stored asDataType::Int(8)
+  // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
-  CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
+  ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
-    return tir::CastNode::make(
-        DataType::Bool(),
-        tir::LoadNode::make(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
-                            const_true()));
+    return tir::Cast(DataType::Bool(),
+                     tir::Load(DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
+                               const_true()));
   } else {
-    return tir::LoadNode::make(dtype, n->data, BufferOffset(n, begin, dtype),
-                               const_true(dtype.lanes()));
+    return tir::Load(dtype, n->data, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 
 Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
-  // specially handle bool, stored asDataType::Int(8)
+  // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   DataType dtype = value.dtype();
-  CHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
-      << "Cannot load " << dtype << " from buffer of " << n->dtype;
+  ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
+      << "Cannot store " << dtype << " to buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return tir::StoreNode::make(n->data, tir::CastNode::make(DataType::Int(8), value),
-                                BufferOffset(n, begin, DataType::Int(8)), const_true());
+    return tir::Store(n->data, tir::Cast(DataType::Int(8), value),
+                      BufferOffset(n, begin, DataType::Int(8)), const_true());
   } else {
-    return tir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
-                                const_true(dtype.lanes()));
+    return tir::Store(n->data, value, BufferOffset(n, begin, dtype), const_true(dtype.lanes()));
   }
 }
 
@@ -352,8 +349,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
       return MakeStrideView().MakeSlice(begins, extents);
     }
   }
-  return BufferNode::make(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice",
-                          n->scope, n->data_alignment, 0, n->buffer_type);
+  return Buffer(n->data, n->dtype, extents, strides, elem_offset, n->name + "_slice", n->scope,
+                n->data_alignment, 0, n->buffer_type);
 }
 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
@@ -367,7 +364,9 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    extent = arith::ComputeReduce<tir::MulNode>(self->shape, PrimExpr()) - offset;
+    extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                   make_const(DataType::Int(32), 1), self->shape) -
+             offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
@@ -379,16 +378,20 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
   }
   Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
                            make_const(DataType::Int(32), access_mask)};
-  return tir::CallNode::make(ptr_type, tir::intrinsic::tvm_access_ptr, acc_args,
-                             tir::CallNode::Intrinsic);
+  return tir::Call(ptr_type, tir::builtin::tvm_access_ptr(), acc_args);
 }
 
-Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
-                        PrimExpr elem_offset, std::string name, std::string scope,
-                        int data_alignment, int offset_factor, BufferType buffer_type) {
+Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
+               PrimExpr elem_offset, String name, String scope, int data_alignment,
+               int offset_factor, BufferType buffer_type, Span span) {
+  ICHECK(IsPointerType(data->type_annotation, dtype))
+      << "Buffer data field expect to have the right pointer type annotation"
+      << " annotation=" << data->type_annotation << ", dtype=" << dtype;
+
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
+
   n->shape = std::move(shape);
   n->strides = std::move(strides);
   n->name = std::move(name);
@@ -414,7 +417,8 @@ Buffer BufferNode::make(Var data, DataType dtype, Array<PrimExpr> shape, Array<P
       n->strides.push_back(Var("stride", n->shape[i].dtype()));
     }
   }
-  return Buffer(n);
+  n->span = std::move(span);
+  data_ = std::move(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -426,11 +430,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args.size(), 10);
-  auto buffer_type = args[9].operator std::string();
+  ICHECK_EQ(args.size(), 11);
+  auto buffer_type = args[9].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7],
-                          args[8], type);
+  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                type, args[10]);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);

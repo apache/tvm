@@ -37,10 +37,12 @@ def register_pattern_table(compiler, table=None):
     fregister : function
         Register function if value is not specified.
     """
+
     def _register(t):
         """internal register function"""
         _PATTERN_TABLES[compiler] = t()
         return t
+
     return _register(table) if table is not None else _register
 
 

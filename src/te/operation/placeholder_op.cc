@@ -41,25 +41,25 @@ int PlaceholderOpNode::num_outputs() const { return 1; }
 Array<IterVar> PlaceholderOpNode::root_iter_vars() const { return {}; }
 
 DataType PlaceholderOpNode::output_dtype(size_t i) const {
-  CHECK_EQ(i, 0U);
+  ICHECK_EQ(i, 0U);
   return dtype;
 }
 
 Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
-  CHECK_EQ(i, 0U);
+  ICHECK_EQ(i, 0U);
   return shape;
 }
 
-Operation PlaceholderOpNode::make(std::string name, Array<PrimExpr> shape, DataType dtype) {
+PlaceholderOp::PlaceholderOp(std::string name, Array<PrimExpr> shape, DataType dtype) {
   auto n = make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
-  return Operation(n);
+  data_ = std::move(n);
 }
 
 Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
-  return PlaceholderOpNode::make(name, shape, dtype).output(0);
+  return PlaceholderOp(name, shape, dtype).output(0);
 }
 
 TVM_REGISTER_GLOBAL("te.Placeholder")

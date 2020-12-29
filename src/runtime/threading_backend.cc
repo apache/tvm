@@ -21,8 +21,8 @@
  * \file threading_backend.cc
  * \brief Native threading backend
  */
-#include <dmlc/logging.h>
 #include <tvm/runtime/threading_backend.h>
+#include <tvm/support/logging.h>
 
 #include <algorithm>
 #include <thread>
@@ -34,6 +34,9 @@
 #if defined(__linux__)
 #include <sched.h>
 #endif
+#if defined(__hexagon__)
+#include <dlfcn.h>
+#endif
 
 namespace tvm {
 namespace runtime {
@@ -43,7 +46,7 @@ class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
-    CHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
+    ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
@@ -92,8 +95,8 @@ class ThreadGroup::Impl {
 
  private:
   // bind worker threads to disjoint cores
-  // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
-  // the master thread is bound to core 0.
+  // if worker 0 is offloaded to main, i.e. exclude_worker0 is true,
+  // the main thread is bound to core 0.
   void SetAffinity(bool exclude_worker0, bool reverse = false) {
 #if defined(__ANDROID__)
 #ifndef CPU_SET
@@ -109,7 +112,7 @@ class ThreadGroup::Impl {
 #endif
 #endif
 #if defined(__linux__) || defined(__ANDROID__)
-    CHECK_GE(sorted_order_.size(), num_workers_);
+    ICHECK_GE(sorted_order_.size(), num_workers_);
 
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
@@ -127,9 +130,9 @@ class ThreadGroup::Impl {
       pthread_setaffinity_np(threads_[i].native_handle(), sizeof(cpu_set_t), &cpuset);
 #endif
     }
-    if (exclude_worker0) {  // master thread run task
+    if (exclude_worker0) {  // main thread run task
       // Master thread will have free migration on needed cores.
-      // Typically, the OS will schedule the master thread to run at core 0,
+      // Typically, the OS will schedule the main thread to run at core 0,
       // which is idle, when other workers are running.
       // See the comment inside SetMasterThreadFullCpuAffinity function to get more detail.
       SetMasterThreadFullCpuAffinity(reverse);
@@ -145,25 +148,19 @@ class ThreadGroup::Impl {
     // And we use config_threadpool API to set we will only use 4xA53.
     // The sorted_order will be [4, 5, 0, 1, 2, 3].
     // When to call this API, we have spawn threads on little cores for other workers
-    // in SetAffinity function. And for tvm master thread, it should also run on little cores,
+    // in SetAffinity function. And for tvm main thread, it should also run on little cores,
     // not big cores (4, 5).
 
     // Note: this works well on x86 too. Because x86 doesn't have BIG.LITTLE,
-    // our implementation will use kBig mode by default and will let master thread
+    // our implementation will use kBig mode by default and will let main thread
     // run on intended cores.
     if (reverse) {
       for (int i = 0; i < little_count_; ++i) {
         CPU_SET(sorted_order_[sorted_order_.size() - i - 1], &cpuset);
       }
     } else {
-      int big_count = big_count_;
-      // Imagine our x86 has cores 0 - 7
-      // physical cores are 0 - 3, logical cores are 4 - 7, big_count_ is 8
-      // we wish we run on physical cores, not logical cores to avoid contention issue.
-#if defined(_M_X64) || defined(__x86_64__)
-      big_count /= 2;  // ignore hyper-threading
-#endif
-      for (int i = 0; i < big_count; ++i) {
+      int num_cpu_workers = std::min(MaxConcurrency(), big_count_);
+      for (int i = 0; i < num_cpu_workers; ++i) {
         CPU_SET(sorted_order_[i], &cpuset);
       }
     }
@@ -177,6 +174,11 @@ class ThreadGroup::Impl {
 
   void InitSortedOrder() {
     unsigned int threads = std::thread::hardware_concurrency();
+#if defined(__hexagon__)
+    // With unsigned PDs, getting the number of available hardware threads
+    // is not supported in earlier versions of QuRT. In such cases assume 4.
+    if (threads == 0) threads = 4;
+#endif
     std::vector<std::pair<unsigned int, int64_t> > max_freqs;
 
     for (unsigned int i = 0; i < threads; ++i) {

@@ -17,30 +17,35 @@
 import tvm
 from tvm import te
 from tvm import relay
-import tvm.relay.testing
+from tvm.relay import testing
 import numpy as np
 from tvm.relay import Expr
 from tvm.relay.analysis import free_vars
+import pytest
 
-do_print = [False]
+DEBUG_PRINT = False
 
-SEMVER = "v0.0.4\n"
+SEMVER = '#[version = "0.0.5"]\n'
 
-def astext(p, unify_free_vars=False):
-    txt = p.astext()
-    if isinstance(p, Expr) and free_vars(p):
-        return txt
-    x = relay.fromtext(txt)
-    if unify_free_vars:
-        tvm.ir.assert_structural_equal(x, p, map_free_vars=True)
+
+def astext(program, unify_free_vars=False):
+    text = program.astext()
+    print(text)
+    if isinstance(program, Expr):
+        roundtrip_program = tvm.parser.parse_expr(text)
     else:
-        tvm.ir.assert_structural_equal(x, p)
-    return txt
+        roundtrip_program = tvm.parser.fromtext(text)
+
+    tvm.ir.assert_structural_equal(roundtrip_program, program, map_free_vars=True)
+
+    return text
+
 
 def show(text):
-    if do_print[0]:
+    if DEBUG_PRINT:
         print("---------------------------")
         print(text)
+
 
 def test_func():
     x = relay.var("x", shape=(3, 2))
@@ -53,20 +58,21 @@ def test_func():
     show(astext(f))
 
 
-def test_env():
+def test_mod():
     x = relay.var("x", "float32")
     y = relay.var("y", "float32")
     z = relay.add(x, y)
     z = relay.add(z, z)
     f = relay.Function([x, y], z)
-    env = tvm.IRModule()
-    env["myf"] = f
-    text = astext(env)
+    mod = tvm.IRModule()
+    mod["myf"] = f
+    mod = relay.transform.InferType()(mod)
+    text = astext(mod)
     assert "def @myf" in text
-    assert "def @myf" in str(env)
+    assert "def @myf" in str(mod)
     assert "add(%0, %0) /* ty=float32 */" in text
-    assert "add(%0, %0) /* ty=float32 */" in str(env)
-    show(env.astext(annotate=lambda x: str(x.checked_type.dtype) if type(x) == relay.Call else ""))
+    assert "add(%0, %0) /* ty=float32 */" in str(mod)
+    show(mod.astext(annotate=lambda x: str(x.checked_type.dtype) if type(x) == relay.Call else ""))
     show(text)
 
 
@@ -74,10 +80,7 @@ def test_meta_data():
     n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", shape=(n, c, h, w))
     w = relay.var("w")
-    z = relay.nn.conv2d(x, w,
-                        kernel_size=(3, 3),
-                        padding=(1, 1),
-                        channels=2)
+    z = relay.nn.conv2d(x, w, kernel_size=(3, 3), padding=(1, 1), channels=2)
     f = relay.Function([x, w], z)
     text = astext(f, unify_free_vars=True)
     text_no_meta = str(f)
@@ -88,7 +91,7 @@ def test_meta_data():
     assert "type_key" in text
     assert "type_key" not in text_no_meta
 
-    text = astext(relay.const([1,2,3]))
+    text = astext(relay.const([1, 2, 3]))
     assert "meta[relay.Constant][0]" in text
 
 
@@ -135,84 +138,83 @@ def test_variable_name():
 
 
 def test_mlp():
-    net, params = tvm.relay.testing.mlp.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.mlp.get_workload(batch_size=1)
     astext(net)
 
 
 def test_resnet():
-    net, params = tvm.relay.testing.resnet.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.resnet.get_workload(batch_size=1)
     astext(net)
 
 
 def test_mobilenet():
-    net, params = tvm.relay.testing.mobilenet.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.mobilenet.get_workload(batch_size=1)
     astext(net)
 
 
 def test_dqn():
-    net, params = tvm.relay.testing.dqn.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.dqn.get_workload(batch_size=1)
     astext(net)
 
 
 def test_dcgan():
-    net, params = tvm.relay.testing.dcgan.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.dcgan.get_workload(batch_size=1)
     astext(net)
 
 
 def test_lstm():
-    net, params = tvm.relay.testing.lstm.get_workload(1, 1)
+    net, _ = tvm.relay.testing.lstm.get_workload(1, 1)
     astext(net)
 
-    net, params = tvm.relay.testing.lstm.get_workload(4, 4)
+    net, _ = tvm.relay.testing.lstm.get_workload(4, 4)
     astext(net)
+
 
 def test_inception_v3():
-    net, params = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
     astext(net)
 
 
 def test_squeezenet():
-    for version in ['1.0', '1.1']:
-        net, params = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
+    for version in ["1.0", "1.1"]:
+        net, _ = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
         astext(net)
 
 
 def test_vgg():
-    net, params = tvm.relay.testing.vgg.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.vgg.get_workload(batch_size=1)
     astext(net)
 
 
 def test_densenet():
-    net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
+    net, _ = tvm.relay.testing.densenet.get_workload(batch_size=1)
     astext(net)
 
 
 def test_call_node_order():
     x = relay.var("x")
     y = relay.var("y")
-    prog = relay.Call(relay.Function([x], x), [relay.Call(relay.Function([y], y), [relay.const(1)])])
-    assert astext(prog) == SEMVER + \
-        ("%0 = fn (%y) {\n"
-         "  %y\n"
-         "};\n"
-         "%1 = %0(1);\n"
-         "%2 = fn (%x) {\n"
-         "  %x\n"
-         "};\n"
-         "%2(%1)")
+    prog = relay.Call(
+        relay.Function([x], x), [relay.Call(relay.Function([y], y), [relay.const(1)])]
+    )
+    assert astext(prog) == SEMVER + (
+        "%0 = fn (%y) {\n"
+        "  %y\n"
+        "};\n"
+        "%1 = %0(1);\n"
+        "%2 = fn (%x) {\n"
+        "  %x\n"
+        "};\n"
+        "%2(%1)"
+    )
 
 
 def test_let_inlining():
     tup = relay.Tuple([relay.const(0), relay.const(0)])
     x = relay.var("x")
-    assert astext(relay.Let(x, tup, tup)) == SEMVER + \
-        ("%0 = (0, 0);\n"
-         "let %x = %0;\n"
-         "%0")
+    assert astext(relay.Let(x, tup, tup)) == SEMVER + ("%0 = (0, 0);\n" "let %x = %0;\n" "%0")
 
-    assert astext(relay.Let(x, tup, x)) == SEMVER + \
-        ("let %x = (0, 0);\n"
-         "%x")
+    assert astext(relay.Let(x, tup, x)) == SEMVER + ("let %x = (0, 0);\n" "%x")
 
 
 def test_zeros():
@@ -232,7 +234,7 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
   Cons
 }
     """
-    mod = relay.fromtext(SEMVER + type_def_str + main_def_str)
+    mod = tvm.parser.parse(SEMVER + type_def_str + main_def_str)
     mod_str = str(mod)
     # ensure constructors are printed correctly in type definitions (with their
     # signature) and as exprs (without their signature)
@@ -240,25 +242,32 @@ def @main[A]() -> fn (A, List[A]) -> List[A] {
     assert main_def_str.strip() in mod_str
 
 
+def test_null_attribute():
+    x = relay.var("x")
+    y = relay.var("y")
+    z = relay.Function([x], y)
+    z = z.with_attr("TestAttribute", None)
+    txt = astext(z)
+    assert "TestAttribute=(nullptr)" in txt
+
+
+def test_span():
+    x = relay.var("x", shape=(3, 2))
+    y = relay.var("y")
+    one = relay.const(10e10, dtype="float32")
+    z = relay.add(x, one)
+    z = relay.Call(
+        z.op, z.args, z.attrs, z.type_args, relay.Span(relay.SourceName("Add0"), 0, 0, 0, 0)
+    )
+    z = relay.add(z, z)
+    z = relay.Call(
+        z.op, z.args, z.attrs, z.type_args, relay.Span(relay.SourceName("Add1"), 0, 0, 0, 0)
+    )
+    f = relay.Function([x, y], z)
+    txt = astext(f)
+    assert "Add0" in txt
+    assert "Add1" in txt
+
+
 if __name__ == "__main__":
-    do_print[0] = True
-    test_lstm()
-    test_zeros()
-    test_meta_data()
-    test_let_inlining()
-    test_resnet()
-    test_mobilenet()
-    test_mlp()
-    test_dqn()
-    test_dcgan()
-    test_squeezenet()
-    test_inception_v3()
-    test_vgg()
-    test_densenet()
-    test_func()
-    test_env()
-    test_call_attrs()
-    test_let_if_scope()
-    test_variable_name()
-    test_call_node_order()
-    test_unapplied_constructor()
+    pytest.main([__file__])

@@ -24,17 +24,16 @@ import warnings
 
 from .. import autotvm
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--act", type=str, choices=['pick-best'], required=True,
-                        help="The action")
+    parser.add_argument("--act", type=str, choices=["pick-best"], required=True, help="The action")
     parser.add_argument("--i", type=str, help="The input file or directory", required=True)
     parser.add_argument("--o", type=str, help="The output file")
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
-    if args.act == 'pick-best':
+    if args.act == "pick-best":
         if os.path.isfile(args.i):
             args.o = args.o or args.i + ".best.log"
             autotvm.record.pick_best(args.i, args.o)
@@ -42,7 +41,7 @@ if __name__ == '__main__':
             args.o = args.o or "best.log"
             tmp_filename = args.o + ".tmp"
 
-            with open(tmp_filename, 'w') as tmp_fout:
+            with open(tmp_filename, "w") as tmp_fout:
                 for filename in os.listdir(args.i):
                     if filename.endswith(".log"):
                         try:

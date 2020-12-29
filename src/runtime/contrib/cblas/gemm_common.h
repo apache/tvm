@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
+#include <string>
 
 namespace tvm {
 namespace contrib {
@@ -70,23 +71,23 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
   bool transa = args[3];
   bool transb = args[4];
   int bit_depth = sizeof(typename TGemmOp::TDatatype) * 8;
-  CHECK_EQ(A->ndim, 2);
-  CHECK_EQ(B->ndim, 2);
-  CHECK_EQ(C->ndim, 2);
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
 
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed(C));
+  ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  CHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  CHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -97,6 +98,53 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
      ColumnStride(A), static_cast<typename TGemmOp::TDatatype>(beta),
      reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(C->data) + C->byte_offset),
      ColumnStride(C));
+}
+
+// Call a column major blas.  Note that data is stored in tvm as row
+// major, so this we switch the arguments.
+template <typename TGemmOp>
+inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
+  DLTensor* A = args[0];
+  DLTensor* B = args[1];
+  DLTensor* C = args[2];
+  bool transa = args[3];
+  bool transb = args[4];
+
+  // Set the sgemm attributes. Currently, support is limited to CblasFixOffset with all offsets
+  // equal to 0. This is sufficient for relay dense.
+  std::string offset_ctype = "CblasFixOffset";
+  int16_t offset_a = 0;
+  int16_t offset_b = 0;
+  int offset_c[1];
+  offset_c[0] = 0;
+
+  ICHECK_EQ(A->ndim, 2);
+  ICHECK_EQ(B->ndim, 2);
+  ICHECK_EQ(C->ndim, 2);
+
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
+
+  // C can never be transposed.
+  ICHECK(!IsInPlaceTransposed(C));
+
+  // Reversed strides indicates an in-place transpose operation.
+  transa = IsInPlaceTransposed(A) ? !transa : transa;
+  transb = IsInPlaceTransposed(B) ? !transb : transb;
+
+  ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
+  ICHECK(TypeMatch(B->dtype, kDLInt, 8));
+  ICHECK(TypeMatch(C->dtype, kDLInt, 32));
+  double alpha = args.size() > 5 ? args[5] : 1.0;
+  double beta = args.size() > 6 ? args[6] : 0.0;
+  op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
+     static_cast<float>(alpha),
+     reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset), ColumnStride(B),
+     offset_b, reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset),
+     ColumnStride(A), offset_a, static_cast<float>(beta),
+     reinterpret_cast<int*>(static_cast<char*>(C->data) + C->byte_offset), ColumnStride(C),
+     offset_ctype, offset_c);
 }
 
 inline int ColumnStride3D(DLTensor* tensor) {
@@ -132,22 +180,22 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
   bool transa = args[3];
   bool transb = args[4];
   int bit_depth = sizeof(DType) * 8;
-  CHECK_EQ(A->ndim, 3);
-  CHECK_EQ(B->ndim, 3);
-  CHECK_EQ(C->ndim, 3);
+  ICHECK_EQ(A->ndim, 3);
+  ICHECK_EQ(B->ndim, 3);
+  ICHECK_EQ(C->ndim, 3);
   int batch_size = BatchCount3D(A);
-  CHECK_EQ(BatchCount3D(B), batch_size);
-  CHECK_EQ(BatchCount3D(C), batch_size);
-  CHECK_EQ(ElementStride(A), 1);
-  CHECK_EQ(ElementStride(B), 1);
-  CHECK_EQ(ElementStride(C), 1);
+  ICHECK_EQ(BatchCount3D(B), batch_size);
+  ICHECK_EQ(BatchCount3D(C), batch_size);
+  ICHECK_EQ(ElementStride(A), 1);
+  ICHECK_EQ(ElementStride(B), 1);
+  ICHECK_EQ(ElementStride(C), 1);
   // C can never be transposed.
-  CHECK(!IsInPlaceTransposed3D(C));
+  ICHECK(!IsInPlaceTransposed3D(C));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
-  CHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  CHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
+  ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
   const int A_size = A->shape[1] * A->shape[2];

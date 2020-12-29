@@ -21,24 +21,25 @@ from __future__ import absolute_import
 import logging
 import numpy as np
 import tvm
-from tvm import te
+from tvm import te, autotvm
+from tvm.ir.transform import PassContext
 from tvm.runtime import Object
-from ... import target as _target
-from ... import autotvm
+from tvm.support import libinfo
+from tvm.target import Target
 from .. import function as _function
-from .. import op as _op
 from .. import ty as _ty
 from . import _backend
 
-logger = logging.getLogger('compile_engine')
+logger = logging.getLogger("compile_engine")
+autotvm_logger = logging.getLogger("autotvm")
 
 
 @tvm._ffi.register_object("relay.LoweredOutput")
 class LoweredOutput(Object):
     """Lowered output"""
+
     def __init__(self, outputs, implement):
-        self.__init_handle_by_constructor__(
-            _backend._make_LoweredOutput, outputs, implement)
+        self.__init_handle_by_constructor__(_backend._make_LoweredOutput, outputs, implement)
 
 
 @tvm._ffi.register_object("relay.CCacheKey")
@@ -53,21 +54,20 @@ class CCacheKey(Object):
     target : tvm.Target
         The target we want to run the function on.
     """
+
     def __init__(self, source_func, target):
-        self.__init_handle_by_constructor__(
-            _backend._make_CCacheKey, source_func, target)
+        self.__init_handle_by_constructor__(_backend._make_CCacheKey, source_func, target)
 
 
 @tvm._ffi.register_object("relay.CCacheValue")
 class CCacheValue(Object):
-    """Value in the CompileEngine, including usage statistics.
-    """
+    """Value in the CompileEngine, including usage statistics."""
 
 
 def _get_cache_key(source_func, target):
     if isinstance(source_func, _function.Function):
         if isinstance(target, str):
-            target = _target.create(target)
+            target = Target(target)
             if not target:
                 raise ValueError("Need target when source_func is a Function")
         return CCacheKey(source_func, target)
@@ -81,9 +81,12 @@ def get_shape(shape):
     ret = []
     for dim in shape:
         if isinstance(dim, tvm.tir.IntImm):
-            val = int(dim)
-            assert val <= np.iinfo(np.int32).max
-            ret.append(tvm.tir.IntImm("int32", val))
+            if libinfo()["INDEX_DEFAULT_I64"] == "ON":
+                ret.append(dim)
+            else:
+                val = int(dim)
+                assert val <= np.iinfo(np.int32).max
+                ret.append(tvm.tir.IntImm("int32", val))
         elif isinstance(dim, tvm.tir.Any):
             ret.append(te.var("any_dim", "int32"))
         else:
@@ -98,7 +101,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
 
     Parameters
     ----------
-    op : relay.op.Op
+    op : tvm.ir.Op
         Relay operator.
 
     attrs : object
@@ -119,7 +122,10 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
         The list of all valid op implementations.
     """
     fstrategy = op.get_attr("FTVMStrategy")
-    assert fstrategy is not None, "%s doesn't have FTVMStrategy registered" % op.name
+    assert fstrategy is not None, (
+        "%s doesn't have an FTVMStrategy registered. You can register "
+        "one in python with `tvm.relay.op.register_strategy`." % op.name
+    )
     with target:
         strategy = fstrategy(attrs, inputs, out_type, target)
     analyzer = tvm.arith.Analyzer()
@@ -157,7 +163,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     Parameters
     ----------
-    op : relay.op.Op
+    op : tvm.ir.Op
         Relay operator.
 
     attrs : object
@@ -181,41 +187,86 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         The best op implementation and the corresponding output tensors.
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
+    best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
 
-    best_plevel_impl = None
-    for impl in all_impls:
-        if best_plevel_impl is None or impl.plevel > best_plevel_impl.plevel:
-            best_plevel_impl = impl
+    # Disable autotvm if auto_scheduler is enabled.
+    # (i.e., always return the implementation with the highest priority for auto-scheduler).
+    if PassContext.current().config.get("relay.backend.use_auto_scheduler", False):
+        use_autotvm = False
+
+    # If not use autotvm, always return the implementation with the highest priority
     if not use_autotvm:
+        logger.info(
+            "Using %s for %s based on highest priority (%d)",
+            best_plevel_impl.name,
+            op.name,
+            best_plevel_impl.plevel,
+        )
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
+    # Otherwise, try autotvm templates
     outputs = {}
+    workloads = {}
     best_autotvm_impl = None
     best_cfg = None
     dispatch_ctx = autotvm.task.DispatchContext.current
+    old_silent = autotvm.GLOBAL_SCOPE.silent
+    autotvm.GLOBAL_SCOPE.silent = True
     for impl in all_impls:
         outs = impl.compute(attrs, inputs, out_type)
         outputs[impl] = outs
         workload = autotvm.task.get_workload(outs)
+        workloads[impl] = workload
         if workload is None:
+            # Not an AutoTVM tunable implementation
             continue
         cfg = dispatch_ctx.query(target, workload)
         if cfg.is_fallback:
-            # It's a fallback config
+            # Skip fallback config
             continue
+        logger.info("Implementation %s for %s has cost %.2e", impl.name, op.name, cfg.cost)
         if best_cfg is None or best_cfg.cost > cfg.cost:
             best_autotvm_impl = impl
             best_cfg = cfg
+    autotvm.GLOBAL_SCOPE.silent = old_silent
+
     if best_autotvm_impl:
+        # The best autotvm implementation definitely doesn't use fallback config
+        logger.info(
+            "Using %s for %s based on lowest cost (%.2e)",
+            best_autotvm_impl.name,
+            op.name,
+            best_cfg.cost,
+        )
         return best_autotvm_impl, outputs[best_autotvm_impl]
+
+    # Use the implementation with highest plevel
+    if workloads[best_plevel_impl] is not None:
+        msg = (
+            "Cannot find config for target=%s, workload=%s. A fallback configuration "
+            "is used, which may bring great performance regression."
+            % (target, workloads[best_plevel_impl])
+        )
+        if (
+            not autotvm.env.GLOBAL_SCOPE.silent
+            and msg not in autotvm.task.DispatchContext.warning_messages
+        ):
+            autotvm.task.DispatchContext.warning_messages.add(msg)
+            autotvm_logger.warning(msg)
+    logger.info(
+        "Using %s for %s based on highest priority (%s)",
+        best_plevel_impl.name,
+        op.name,
+        best_plevel_impl.plevel,
+    )
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
 @tvm._ffi.register_func("relay.backend.lower_call")
 def lower_call(call, inputs, target):
     """Lower the call expression to op implementation and tensor outputs."""
-    assert isinstance(call.op, _op.Op)
+    assert isinstance(call.op, tvm.ir.Op)
     op = call.op
 
     # Prepare the call_node->checked_type(). For the call node inputs, we ensure that
@@ -233,9 +284,9 @@ def lower_call(call, inputs, target):
                 new_fields.append(field)
         ret_type = _ty.TupleType(new_fields)
 
-    is_dyn = _ty.type_has_any(call.checked_type)
+    is_dyn = _ty.is_dynamic(call.checked_type)
     for arg in call.args:
-        is_dyn = is_dyn or _ty.type_has_any(arg.checked_type)
+        is_dyn = is_dyn or _ty.is_dynamic(arg.checked_type)
 
     # check if in the AutoTVM tracing mode, and disable if op is not in wanted list
     env = autotvm.task.TaskExtractEnv.current
@@ -246,14 +297,12 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     if not is_dyn:
-        best_impl, outputs = select_implementation(
-            op, call.attrs, inputs, ret_type, target)
-        logger.info("Use implementation %s for op %s", best_impl.name, op.name)
+        best_impl, outputs = select_implementation(op, call.attrs, inputs, ret_type, target)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
-        #   Currently, we just use the implementation with highest plevel
         best_impl, outputs = select_implementation(
-            op, call.attrs, inputs, ret_type, target, use_autotvm=False)
+            op, call.attrs, inputs, ret_type, target, use_autotvm=False
+        )
 
     # re-enable AutoTVM tracing
     if reenable_tracing:
@@ -263,8 +312,8 @@ def lower_call(call, inputs, target):
 
 @tvm._ffi.register_object("relay.CompileEngine")
 class CompileEngine(Object):
-    """CompileEngine to get lowered code.
-    """
+    """CompileEngine to get lowered code."""
+
     def __init__(self):
         raise RuntimeError("Cannot construct a CompileEngine")
 
@@ -290,6 +339,7 @@ class CompileEngine(Object):
             return _backend._CompileEngineLower(self, key)
         except Exception:
             import traceback
+
             msg = traceback.format_exc()
             msg += "Error during compile func\n"
             msg += "--------------------------\n"
@@ -334,7 +384,10 @@ class CompileEngine(Object):
         """
         res = _backend._CompileEngineListItems(self)
         assert len(res) % 2 == 0
-        return [(res[2*i], res[2*i+1]) for i in range(len(res) // 2)]
+        return [(res[2 * i], res[2 * i + 1]) for i in range(len(res) // 2)]
+
+    def get_current_ccache_key(self):
+        return _backend._CompileEngineGetCurrentCCacheKey(self)
 
     def dump(self):
         """Return a string representation of engine dump.

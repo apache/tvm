@@ -29,6 +29,7 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/container.h>
+#include <tvm/parser/source_map.h>
 
 #include <string>
 #include <unordered_map>
@@ -53,14 +54,17 @@ class IRModuleNode : public Object {
   Map<GlobalVar, BaseFunc> functions;
   /*! \brief A map from global type vars to ADT type data. */
   Map<GlobalTypeVar, TypeData> type_definitions;
+  /*! \brief The source map for the module. */
+  parser::SourceMap source_map;
 
-  IRModuleNode() {}
+  IRModuleNode() : source_map() {}
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("global_type_var_map_", &global_type_var_map_);
+    v->Visit("source_map", &source_map);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -250,12 +254,12 @@ class IRModuleNode : public Object {
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
-  Map<std::string, GlobalVar> global_var_map_;
+  Map<String, GlobalVar> global_var_map_;
 
   /*! \brief A map from string names to global type variables (ADT names)
    * that ensures global uniqueness.
    */
-  Map<std::string, GlobalTypeVar> global_type_var_map_;
+  Map<String, GlobalTypeVar> global_type_var_map_;
 
   /*! \brief A map from constructor tags to constructor objects
    * for convenient access
@@ -280,12 +284,14 @@ class IRModule : public ObjectRef {
    * \param functions Functions in the module.
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module
+   * \param map The module source map.
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
-                            std::unordered_set<String> import_set = {});
+                            std::unordered_set<String> import_set = {}, parser::SourceMap map = {});
+
   /*! \brief default constructor */
-  IRModule() {}
+  IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}
   /*!
    * \brief constructor
    * \param n The object pointer.
@@ -294,16 +300,10 @@ class IRModule : public ObjectRef {
   /*! \return mutable pointers to the node. */
   IRModuleNode* operator->() const {
     auto* ptr = get_mutable();
-    CHECK(ptr != nullptr);
+    ICHECK(ptr != nullptr);
     return static_cast<IRModuleNode*>(ptr);
   }
 
-  /*!
-   * \brief Construct an empty module.
-   *
-   * \returns The constructed module
-   */
-  static IRModule Empty() { return IRModule(Map<GlobalVar, BaseFunc>()); }
   /*!
    * \brief Construct a module from a standalone expression.
    *
@@ -330,6 +330,10 @@ class IRModule : public ObjectRef {
 
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
+
+  /*! \brief Declare whether Ref is nullable. */
+  static constexpr bool _type_is_nullable = false;
+
   // allow copy on write.
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };

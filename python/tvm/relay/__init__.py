@@ -29,7 +29,6 @@ from . import adt
 from . import prelude
 from . import loops
 from . import scope_builder
-from . import parser
 
 from . import transform
 from . import analysis
@@ -40,12 +39,12 @@ from . import param_dict
 from .backend import vm
 
 # Root operators
-from .op import Op
 from .op import nn
 from .op import image
 from .op import annotation
 from .op import vision
 from .op import contrib
+from .op import dyn
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
@@ -57,6 +56,12 @@ from . import data_dep_optimization
 
 # Dialects
 from . import qnn
+
+from .scope_builder import ScopeBuilder
+
+# Load Memory Passes
+from .transform import memory_alloc
+from .transform import memory_plan
 
 # Required to traverse large programs
 setrecursionlimit(10000)
@@ -126,11 +131,8 @@ ExprMutator = expr_functor.ExprMutator
 # Prelude
 Prelude = prelude.Prelude
 
-# Scope builder
+# Scope Builder
 ScopeBuilder = scope_builder.ScopeBuilder
-
-# Parser
-fromtext = parser.fromtext
 
 # Param Serialization
 save_param_dict = param_dict.save_param_dict

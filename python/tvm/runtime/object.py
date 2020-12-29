@@ -28,8 +28,10 @@ try:
         raise ImportError()
     from tvm._ffi._cy3.core import _set_class_object, _set_class_object_generic
     from tvm._ffi._cy3.core import ObjectBase, PyNativeObject
-except (RuntimeError, ImportError):
+except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position,unused-import
+    if _FFI_MODE == "cython":
+        raise error
     from tvm._ffi._ctypes.packed_func import _set_class_object, _set_class_object_generic
     from tvm._ffi._ctypes.object import ObjectBase, PyNativeObject
 
@@ -41,24 +43,26 @@ def _new_object(cls):
 
 class Object(ObjectBase):
     """Base class for all tvm's runtime objects."""
+
     __slots__ = []
+
     def __repr__(self):
         return _ffi_node_api.AsRepr(self)
 
     def __dir__(self):
+        class_names = dir(self.__class__)
         fnames = _ffi_node_api.NodeListAttrNames(self)
         size = fnames(-1)
-        return [fnames(i) for i in range(size)]
+        return sorted([fnames(i) for i in range(size)] + class_names)
 
     def __getattr__(self, name):
         try:
             return _ffi_node_api.NodeGetAttr(self, name)
         except AttributeError:
-            raise AttributeError(
-                "%s has no attribute %s" % (str(type(self)), name))
+            raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
 
     def __hash__(self):
-        return _ffi_api.ObjectHash(self)
+        return _ffi_api.ObjectPtrHash(self)
 
     def __eq__(self, other):
         return self.same_as(other)
@@ -68,21 +72,20 @@ class Object(ObjectBase):
 
     def __reduce__(self):
         cls = type(self)
-        return (_new_object, (cls, ), self.__getstate__())
+        return (_new_object, (cls,), self.__getstate__())
 
     def __getstate__(self):
         handle = self.handle
         if handle is not None:
-            return {'handle': _ffi_node_api.SaveJSON(self)}
-        return {'handle': None}
+            return {"handle": _ffi_node_api.SaveJSON(self)}
+        return {"handle": None}
 
     def __setstate__(self, state):
         # pylint: disable=assigning-non-slot, assignment-from-no-return
-        handle = state['handle']
+        handle = state["handle"]
         self.handle = None
         if handle is not None:
-            self.__init_handle_by_constructor__(
-                _ffi_node_api.LoadJSON, handle)
+            self.__init_handle_by_constructor__(_ffi_node_api.LoadJSON, handle)
 
     def _move(self):
         """Create an RValue reference to the object and mark the object as moved.

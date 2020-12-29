@@ -34,7 +34,7 @@ It is important to clone the submodules along, with ``--recursive`` option.
 
 .. code:: bash
 
-    git clone --recursive https://github.com/apache/incubator-tvm tvm
+    git clone --recursive https://github.com/apache/tvm tvm
 
 For windows users who use github tools, you can open the git shell, and type the following command.
 
@@ -51,9 +51,9 @@ Build the Shared Library
 
 Our goal is to build the shared libraries:
 
-- On Linux the target library are `libtvm.so, libtvm_topi.so`
-- On macOS the target library are `libtvm.dylib, libtvm_topi.dylib`
-- On Windows the target library are `libtvm.dll, libtvm_topi.dll`
+- On Linux the target library are `libtvm.so`
+- On macOS the target library are `libtvm.dylib`
+- On Windows the target library are `libtvm.dll`
 
 
 .. code:: bash
@@ -67,6 +67,7 @@ The minimal building requirements are
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
 - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
+- On macOS, you may want to install `Homebrew <https://brew.sh>` to easily install and manage dependencies.
 
 
 We use cmake to build the library.
@@ -85,15 +86,15 @@ The configuration of TVM can be modified by `config.cmake`.
 - Edit ``build/config.cmake`` to customize the compilation options
 
   - On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
-  - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. So do other backends and libraries
-    (OpenCL, RCOM, METAL, VULKAN, ...).
+  - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. Do the same for other backends and libraries
+    you want to build for (OpenCL, RCOM, METAL, VULKAN, ...).
+  - To help with debugging, ensure the embedded graph runtime and debugging functions are enabled with ``set(USE_GRAPH_RUNTIME ON)`` and ``set(USE_GRAPH_RUNTIME_DEBUG ON)``
 
-- TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
+- TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
   - LLVM 4.0 or higher is needed for build with LLVM. Note that version of LLVM from default apt may lower than 4.0.
   - Since LLVM takes long time to build from source, you can download pre-built version of LLVM from
     `LLVM Download Page <http://releases.llvm.org/download.html>`_.
-
 
     - Unzip to a certain location, modify ``build/config.cmake`` to add ``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``
     - You can also directly set ``set(USE_LLVM ON)`` and let cmake search for a usable version of LLVM.
@@ -101,7 +102,7 @@ The configuration of TVM can be modified by `config.cmake`.
   - You can also use `LLVM Nightly Ubuntu Build <https://apt.llvm.org/>`_
 
     - Note that apt-package append ``llvm-config`` with version number.
-      For example, set ``set(LLVM_CONFIG llvm-config-4.0)`` if you installed 4.0 package
+      For example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 package
 
 - We can then build tvm and related libraries.
 
@@ -121,21 +122,58 @@ The configuration of TVM can be modified by `config.cmake`.
 
 If everything goes well, we can go to :ref:`python-package-installation`
 
-Building on Windows
-~~~~~~~~~~~~~~~~~~~
+.. _build-with-conda:
 
-TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
-In order to generate the VS solution file using cmake, make sure you have a recent version of cmake added to your path and then from the TVM directory:
+Building with a Conda Environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Conda is a very handy way to the necessary obtain dependencies needed for running TVM.
+First, follow the `conda's installation guide <https://docs.conda.io/projects/conda/en/latest/user-guide/install/>`_
+to install miniconda or anaconda if you do not yet have conda in your system. Run the following command in a conda environment:
 
 .. code:: bash
 
-  mkdir build
-  cd build
-  cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CONFIGURATION_TYPES="Release" ..
+    # Create a conda environment with the dependencies specified by the yaml
+    conda env create --file conda/build-environment.yaml
+    # Activate the created environment
+    conda activate tvm-build
 
-This will generate the VS project using the MSVC 14 64 bit generator.
-Open the .sln file in the build directory and build with Visual Studio.
-In order to build with LLVM in windows, you will need to build LLVM from source.
+The above command will install all necessary build dependencies such as cmake and LLVM. You can then run the standard build process in the last section.
+
+If you want to use the compiled binary outside the conda environment,
+you can set LLVM to static linking mode ``set(USE_LLVM "llvm-config --link-static")``.
+In this way, the resulting library won't depend on the dynamic LLVM libraries in the conda environment.
+
+The above instructions show how to use conda to provide the necessary build dependencies to build libtvm.
+If you are already using conda as your package manager and wish to directly build and install tvm as a conda package, you can follow the instructions below:
+
+.. code:: bash
+
+   conda build --output-folder=conda/pkg  conda/recipe
+   # Run conda/build_cuda.sh to build with cuda enabled
+   conda install tvm -c ./conda/pkg
+
+Building on Windows
+~~~~~~~~~~~~~~~~~~~
+TVM support build via MSVC using cmake. You will need to ontain a visual studio compiler.
+The minimum required VS version is **Visual Studio Community 2015 Update 3**.
+We recommend following :ref:`build-with-conda` to obtain necessary dependencies and
+get an activated tvm-build environment. Then you can run the following command to build
+
+.. code:: bash
+
+    mkdir build
+    cd build
+    cmake -A x64 -Thost=x64 ..
+    cd ..
+
+The above command generates the solution file under the build directory.
+You can then run the following command to build
+
+.. code:: bash
+
+    cmake --build build --config Release -- /m
+
 
 Building ROCm support
 ~~~~~~~~~~~~~~~~~~~~~
@@ -154,6 +192,11 @@ Python Package Installation
 TVM package
 ~~~~~~~~~~~
 
+Depending on your development environment, you may want to use a virtual environment and package manager, such
+as ``virtualenv`` or ``conda``, to manage your python packages and dependencies.
+
+to install and maintain your python development environment.
+
 The python package is located at `tvm/python`
 There are two ways to install the package:
 
@@ -161,14 +204,14 @@ Method 1
    This method is **recommended for developers** who may change the codes.
 
    Set the environment variable `PYTHONPATH` to tell python where to find
-   the library. For example, assume we cloned `tvm` on the home directory
-   `~`. then we can added the following line in `~/.bashrc`.
+   the library. For example, assume we cloned `tvm` on the directory
+   `/path/to/tvm` then we can add the following line in `~/.bashrc`.
    The changes will be immediately reflected once you pull the code and rebuild the project (no need to call ``setup`` again)
 
    .. code:: bash
 
        export TVM_HOME=/path/to/tvm
-       export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:${PYTHONPATH}
+       export PYTHONPATH=$TVM_HOME/python:${PYTHONPATH}
 
 
 Method 2
@@ -182,11 +225,13 @@ Method 2
        #       providing --user flag may trigger error during installation in such case.
        export MACOSX_DEPLOYMENT_TARGET=10.9  # This is required for mac to avoid symbol conflicts with libstdc++
        cd python; python setup.py install --user; cd ..
-       cd topi/python; python setup.py install --user; cd ../..
-
 
 Python dependencies
 ~~~~~~~~~~~~~~~~~~~
+
+Note that the ``--user`` flag is not necessary if you're installing to a managed local environment,
+like ``virtualenv``.
+
    * Necessary dependencies:
 
    .. code:: bash
@@ -203,14 +248,7 @@ Python dependencies
 
    .. code:: bash
 
-       pip3 install --user tornado psutil xgboost
-
-   * If you want to build tvm to compile a model, you must use Python 3 and run the following
-
-   .. code:: bash
-
-       sudo apt install antlr4
-       pip3 install --user mypy orderedset antlr4-python3-runtime
+       pip3 install --user tornado psutil xgboost cloudpickle
 
 
 Install Contrib Libraries
@@ -235,7 +273,7 @@ tests in TVM. The easiest way to install GTest is from source.
        cd build
        cmake ..
        make
-       make install
+       sudo make install
 
 
 After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.

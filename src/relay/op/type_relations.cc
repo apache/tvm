@@ -25,6 +25,7 @@
 #include "./type_relations.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/tir/op.h>
@@ -63,7 +64,7 @@ bool EqualConstInt(const IndexExpr& lhs, int64_t value) {
   return false;
 }
 
-Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType output_dtype) {
+TensorType ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType output_dtype) {
   std::vector<IndexExpr> oshape;
   size_t ndim1 = t1->shape.size();
   size_t ndim2 = t2->shape.size();
@@ -75,10 +76,10 @@ Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType outp
       oshape.push_back(s2);
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
-    } else if (s1.as<Any>()) {
+    } else if (s1.as<AnyNode>()) {
       // s1 == 1 || s1 == s2
       oshape.push_back(s2);
-    } else if (s2.as<Any>()) {
+    } else if (s2.as<AnyNode>()) {
       // s2 == 1 || s2 == s1
       oshape.push_back(s1);
     } else if (EqualCheck(s1, s2)) {
@@ -98,12 +99,12 @@ Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataType outp
 
 bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
   if (auto* t0 = types[0].as<TensorTypeNode>()) {
     if (auto* t1 = types[1].as<TensorTypeNode>()) {
-      CHECK_EQ(t0->dtype, t1->dtype);
+      ICHECK_EQ(t0->dtype, t1->dtype);
       reporter->Assign(
           types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1), t0->dtype));
       return true;
@@ -114,12 +115,12 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
+  ICHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
   if (auto* t0 = types[0].as<TensorTypeNode>()) {
     if (auto* t1 = types[1].as<TensorTypeNode>()) {
-      CHECK_EQ(t0->dtype, t1->dtype);
+      ICHECK_EQ(t0->dtype, t1->dtype);
       reporter->Assign(types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1),
                                                    DataType::Bool()));
       return true;
@@ -144,6 +145,20 @@ Array<IndexExpr> RankShape(const Array<IndexExpr>& shape) {
   } else {
     return {tvm::Integer(shape.size())};
   }
+}
+
+bool ShapeOfRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                const TypeReporter& reporter) {
+  ICHECK_EQ(num_inputs, 1);
+  auto tt = types[0].as<TensorTypeNode>();
+  if (tt == nullptr) {
+    return false;
+  }
+  const auto* param = attrs.as<ShapeOfAttrs>();
+  ICHECK(param != nullptr);
+  auto rank_shape = RankShape(tt->shape);
+  reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
+  return true;
 }
 
 }  // namespace relay

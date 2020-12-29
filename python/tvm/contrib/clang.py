@@ -20,7 +20,7 @@ import subprocess
 
 from tvm._ffi.base import py_str
 import tvm.target
-from . import util
+from . import utils
 
 
 def find_clang(required=True):
@@ -49,18 +49,14 @@ def find_clang(required=True):
         cc_list += ["clang-%d" % major]
     cc_list += ["clang"]
     cc_list += ["clang.exe"]
-    valid_list = [util.which(x) for x in cc_list]
+    valid_list = [utils.which(x) for x in cc_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
-        raise RuntimeError(
-            "cannot find clang, candidates are: " + str(cc_list))
+        raise RuntimeError("cannot find clang, candidates are: " + str(cc_list))
     return valid_list
 
 
-def create_llvm(inputs,
-                output=None,
-                options=None,
-                cc=None):
+def create_llvm(inputs, output=None, options=None, cc=None):
     """Create llvm text ir.
 
     Parameters
@@ -87,12 +83,12 @@ def create_llvm(inputs,
     cc = cc if cc else find_clang()[0]
     cmd = [cc]
     cmd += ["-S", "-emit-llvm"]
-    temp = util.tempdir()
+    temp = utils.tempdir()
     output = output if output else temp.relpath("output.ll")
     inputs = [inputs] if isinstance(inputs, str) else inputs
     input_files = []
     for i, code in enumerate(inputs):
-        if util.is_source_path(code):
+        if utils.is_source_path(code):
             input_files.append(code)
         else:
             temp_path = temp.relpath("input%d.cc" % i)
@@ -103,8 +99,7 @@ def create_llvm(inputs,
         cmd += options
     cmd += ["-o", output]
     cmd += input_files
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         msg = "Compilation error:\n"

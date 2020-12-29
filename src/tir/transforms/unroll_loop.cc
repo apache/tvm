@@ -33,11 +33,40 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../arith/compute_expr.h"
-#include "ir_util.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
+
+struct UnrollLoopConfigNode : public tvm::AttrsNode<UnrollLoopConfigNode> {
+  int auto_max_step;
+  int auto_max_depth;
+  int auto_max_extent;
+  int explicit_unroll;
+
+  TVM_DECLARE_ATTRS(UnrollLoopConfigNode, "tir.transform.UnrollLoopConfig") {
+    TVM_ATTR_FIELD(auto_max_step)
+        .describe("Threshold of number of steps in the loop to be automatically unrolled")
+        .set_default(0);
+    TVM_ATTR_FIELD(auto_max_depth)
+        .describe("The maximum nested level of loops that can be automatically unrolled.")
+        .set_default(8);
+    TVM_ATTR_FIELD(auto_max_extent)
+        .describe("The maximum extent of loop that will be unrolled.")
+        .set_default(0);
+    TVM_ATTR_FIELD(explicit_unroll)
+        .describe("Whether to explicitly unroll the loop instead of setting a pragma")
+        .set_default(true);
+  }
+};
+
+class UnrollLoopConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(UnrollLoopConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
 class LoopUnroller : public StmtExprMutator {
  public:
@@ -78,7 +107,7 @@ class LoopUnroller : public StmtExprMutator {
         auto_unroll && (value * step_count_ <= auto_max_step_ || value <= auto_max_extent_);
 
     if (op->for_type == ForType::Unrolled) {
-      CHECK_GE(value, 0) << "Cannot unroll non-constant loop";
+      ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
       auto_unroll = true;
     }
 
@@ -96,8 +125,8 @@ class LoopUnroller : public StmtExprMutator {
     } else {
       if (auto_unroll) {
         if (op->for_type != ForType::Unrolled) {
-          return ForNode::make(op->loop_var, op->min, op->extent, ForType::Unrolled, op->device_api,
-                               op->body);
+          return For(op->loop_var, op->min, op->extent, ForType::Unrolled, op->device_api,
+                     op->body);
         }
       }
       return stmt;
@@ -134,8 +163,8 @@ class LoopUnroller : public StmtExprMutator {
   Stmt Unroll(const ForNode* op) {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
-    CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
-    if (value == 0) return EvaluateNode::make(0);
+    ICHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
+    if (value == 0) return Evaluate(0);
     Stmt body = op->body;
     Map<Var, PrimExpr> vmap;
     Array<Stmt> unrolled;
@@ -179,9 +208,9 @@ class LoopUnroller : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
-Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_max_depth, int auto_max_extent,
-                bool explicit_unroll) {
-  Stmt ret = LoopUnroller(auto_max_step, auto_max_depth, auto_max_extent, explicit_unroll)(stmt);
+Stmt UnrollLoop(Stmt stmt, UnrollLoopConfig cfg) {
+  Stmt ret = LoopUnroller(cfg->auto_max_step, cfg->auto_max_depth, cfg->auto_max_extent,
+                          cfg->explicit_unroll)(stmt);
   if (!ret.same_as(stmt)) {
     return ConvertSSA(ret);
   } else {
@@ -191,11 +220,14 @@ Stmt UnrollLoop(Stmt stmt, int auto_max_step, int auto_max_depth, int auto_max_e
 
 namespace transform {
 
-Pass UnrollLoop(int auto_max_step, int auto_max_depth, int auto_max_extent, bool explicit_unroll) {
+Pass UnrollLoop() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = UnrollLoop(std::move(f->body), auto_max_step, auto_max_depth, auto_max_extent,
-                         explicit_unroll);
+    auto cfg = ctx->GetConfig<UnrollLoopConfig>("tir.UnrollLoop");
+    if (!cfg.defined()) {
+      cfg = AttrsWithDefaultValues<UnrollLoopConfig>();
+    }
+    n->body = UnrollLoop(std::move(f->body), cfg.value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.UnrollLoop", {});

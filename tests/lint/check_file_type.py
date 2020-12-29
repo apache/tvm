@@ -44,6 +44,7 @@ ALLOW_EXTENSION = {
     "pyd",
     "pyx",
     "cu",
+    "bat",
     # relay text format
     "rly",
     # configurations
@@ -77,7 +78,9 @@ ALLOW_EXTENSION = {
     "tokens",
     # interface definition
     "idl",
-    }
+    # opencl file
+    "cl",
+}
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
@@ -96,7 +99,7 @@ ALLOW_FILE_NAME = {
     ".scalafmt.conf",
     "Cargo.lock",
     "with_the_same_user",
-   }
+}
 
 # List of specific files allowed in relpath to <proj_root>
 ALLOW_SPECIFIC_FILE = {
@@ -107,7 +110,9 @@ ALLOW_SPECIFIC_FILE = {
     "Jenkinsfile",
     # cargo config
     "rust/runtime/tests/test_wasm32/.cargo/config",
+    "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
     "apps/sgx/.cargo/config",
+    "apps/wasm-standalone/wasm-graph/.cargo/config",
     # html for demo purposes
     "web/apps/browser/rpc_server.html",
     # images are normally not allowed
@@ -118,7 +123,15 @@ ALLOW_SPECIFIC_FILE = {
     "docs/_static/css/tvm_theme.css",
     "docs/_static/img/tvm-logo-small.png",
     "docs/_static/img/tvm-logo-square.png",
-   }
+    # pytest config
+    "pytest.ini",
+    # Zephyr tests
+    "tests/micro/qemu/zephyr-runtime/prj.conf",
+    "tests/micro/qemu/zephyr-runtime/qemu-hack/qemu-system-i386",
+    # microTVM Virtual Machines
+    "apps/microtvm/reference-vm/zephyr/Vagrantfile",
+    "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
+}
 
 
 def filename_allowed(name):
@@ -158,8 +171,9 @@ def copyright_line(line):
     # so that the copyright detector won't detect the file itself.
     if line.find("Copyright " + "(c)") != -1:
         return True
-    if (line.find("Copyright") != -1 and
-        line.find(" by") != -1):
+    # break pattern into two lines to avoid false-negative check
+    spattern1 = "Copyright"
+    if line.find(spattern1) != -1 and line.find("by") != -1:
         return True
     return False
 
@@ -186,10 +200,9 @@ def check_asf_copyright(fname):
 
 def main():
     cmd = ["git", "ls-files"]
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    assert proc.returncode == 0
+    assert proc.returncode == 0, f'{" ".join(cmd)} errored: {out}'
     res = out.decode("utf-8")
     flist = res.split()
     error_list = []
@@ -202,9 +215,11 @@ def main():
         report = "------File type check report----\n"
         report += "\n".join(error_list)
         report += "\nFound %d files that are now allowed\n" % len(error_list)
-        report += ("We do not check in binary files into the repo.\n"
-                   "If necessary, please discuss with committers and"
-                   "modify tests/lint/check_file_type.py to enable the file you need.\n")
+        report += (
+            "We do not check in binary files into the repo.\n"
+            "If necessary, please discuss with committers and"
+            "modify tests/lint/check_file_type.py to enable the file you need.\n"
+        )
         sys.stderr.write(report)
         sys.stderr.flush()
         sys.exit(-1)
@@ -218,7 +233,9 @@ def main():
     if asf_copyright_list:
         report = "------File type check report----\n"
         report += "\n".join(asf_copyright_list) + "\n"
-        report += "------Found %d files that has ASF header with copyright message----\n" % len(asf_copyright_list)
+        report += "------Found %d files that has ASF header with copyright message----\n" % len(
+            asf_copyright_list
+        )
         report += "--- Files with ASF header do not need Copyright lines.\n"
         report += "--- Contributors retain copyright to their contribution by default.\n"
         report += "--- If a file comes with a different license, consider put it under the 3rdparty folder instead.\n"
@@ -232,6 +249,7 @@ def main():
         sys.exit(-1)
 
     print("check_file_type.py: all checks passed..")
+
 
 if __name__ == "__main__":
     main()

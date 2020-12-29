@@ -18,7 +18,8 @@
 import tvm._ffi
 from ..rpc import base as rpc_base
 
-def create(tflite_model_bytes, ctx, runtime_target='cpu'):
+
+def create(tflite_model_bytes, ctx, runtime_target="cpu"):
     """Create a runtime executor module given a tflite model and context.
     Parameters
     ----------
@@ -36,7 +37,7 @@ def create(tflite_model_bytes, ctx, runtime_target='cpu'):
     """
     device_type = ctx.device_type
 
-    if runtime_target == 'edge_tpu':
+    if runtime_target == "edge_tpu":
         runtime_func = "tvm.edgetpu_runtime.create"
     else:
         runtime_func = "tvm.tflite_runtime.create"
@@ -72,6 +73,7 @@ class TFLiteModule(object):
         self._set_input = module["set_input"]
         self._invoke = module["invoke"]
         self._get_output = module["get_output"]
+        self._set_num_threads = module["set_num_threads"]
 
     def set_input(self, index, value):
         """Set inputs to the module via kwargs
@@ -108,3 +110,12 @@ class TFLiteModule(object):
             The output index
         """
         return self._get_output(index)
+
+    def set_num_threads(self, num_threads):
+        """Set the number of threads via kwargs
+        Parameters
+        ----------
+        num_threads : int
+           The number of threads
+        """
+        self._set_num_threads(num_threads)

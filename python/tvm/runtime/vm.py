@@ -1,4 +1,4 @@
-# License .to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -27,6 +27,7 @@ from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from .object import Object
 from . import _ffi_api, container
+
 
 def _convert(arg, cargs):
     if isinstance(arg, Object):
@@ -59,6 +60,7 @@ def convert(args):
 
 class Executable(object):
     """Relay VM executable"""
+
     def __init__(self, mod):
         self.mod = mod
         self._function_params = {}
@@ -106,7 +108,7 @@ class Executable(object):
 
             import numpy as np
             import tvm
-from tvm import te
+            from tvm import te
             from tvm import relay
             # define a simple network.
             x = relay.var('x', shape=(10, 10))
@@ -118,7 +120,7 @@ from tvm import te
             executable = relay.vm.compile(mod, target)
             code, lib = executable.save()
             # save and load the code and lib file.
-            tmp = tvm.contrib.util.tempdir()
+            tmp = tvm.contrib.utils.tempdir()
             path_lib = tmp.relpath("lib.so")
             lib.export_library(path_lib)
             with open(tmp.relpath("code.ro"), "wb") as fo:
@@ -129,8 +131,7 @@ from tvm import te
             des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_code)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = tvm.runtime.vm.VirtualMachine(des_exec)
-            des_vm.init(ctx)
+            des_vm = tvm.runtime.vm.VirtualMachine(des_exec, ctx)
             res = des_vm.run(x_data)
             print(res.asnumpy())
         """
@@ -156,12 +157,16 @@ from tvm import te
         if isinstance(bytecode, (bytes, str)):
             code = bytearray(bytecode)
         elif not isinstance(bytecode, (bytearray, TVMByteArray)):
-            raise TypeError("bytecode is expected to be the type of bytearray " +
-                            "or TVMByteArray, but received {}".format(type(code)))
+            raise TypeError(
+                "bytecode is expected to be the type of bytearray "
+                + "or TVMByteArray, but received {}".format(type(code))
+            )
 
         if lib is not None and not isinstance(lib, tvm.runtime.Module):
-            raise TypeError("lib is expected to be the type of tvm.runtime.Module" +
-                            ", but received {}".format(type(lib)))
+            raise TypeError(
+                "lib is expected to be the type of tvm.runtime.Module"
+                + ", but received {}".format(type(lib))
+            )
 
         return Executable(_ffi_api.Load_Executable(bytecode, lib))
 
@@ -271,28 +276,76 @@ from tvm import te
 
 
 class VirtualMachine(object):
-    """Relay VM runtime."""
-    def __init__(self, mod):
-        if not isinstance(mod, (Executable, tvm.runtime.Module)):
-            raise TypeError("mod is expected to be the type of Executable or " +
-                            "tvm.runtime.Module, but received {}".format(type(mod)))
-        m = mod.module if isinstance(mod, Executable) else mod
-        self.mod = _ffi_api._VirtualMachine(m)
-        self._exec = mod
-        self._init = self.mod["init"]
-        self._invoke = self.mod["invoke"]
-        self._set_input = self.mod["set_input"]
+    """Relay VM runtime.
 
-    def init(self, ctx):
-        """Initialize the context in the VM.
+    Parameters
+    ----------
+    exe : Executable
+        The VM executable.
 
-        Parameters
-        ----------
-        ctx : :py:class:`TVMContext`
-            The runtime context to run the code on.
-        """
-        args = [ctx.device_type, ctx.device_id]
-        self._init(*args)
+    ctx : tvm.runtime.TVMContext or List[tvm.runtime.TVMContext]
+        The context to deploy the module
+
+    memory_cfg : str or Dict[tvm.runtime.TVMContext, str], optional
+        Config the type of memory allocator. The allocator type can be ["naive",
+        "pooled"]. If memory_cfg is None, all contexts will use pooled allocator
+        by default. If memory_cfg is string, all contexts will use the specified
+        allocator type. If memory_cfg is a dict, each context uses the allocator
+        type specified in the dict, or pooled allocator if not specified in the
+        dict.
+    """
+
+    NAIVE_ALLOCATOR = 1
+    POOLED_ALLOCATOR = 2
+
+    def __init__(self, exe, ctx, memory_cfg=None):
+        if not isinstance(exe, Executable):
+            raise TypeError(
+                "exe is expected to be the type of Executable, "
+                + "but received {}".format(type(exe))
+            )
+        self.module = _ffi_api._VirtualMachine(exe.module)
+        self._exec = exe
+        self._init = self.module["init"]
+        self._invoke = self.module["invoke"]
+        self._set_input = self.module["set_input"]
+        self._setup_ctx(ctx, memory_cfg)
+
+    def _setup_ctx(self, ctx, memory_cfg):
+        """Init context and allocators."""
+        ctxs = ctx
+        if not isinstance(ctx, (list, tuple)):
+            if not isinstance(ctx, tvm.runtime.TVMContext):
+                raise TypeError(
+                    "ctx is expected to be TVMContext or \
+                                List[TVMContext]"
+                )
+            ctxs = [ctx]
+
+        # CPU is required for executing shape functions
+        if not any(c.device_type == tvm.cpu().device_type for c in ctxs):
+            ctxs.append(tvm.cpu())
+
+        default_alloc_type = VirtualMachine.POOLED_ALLOCATOR
+        if memory_cfg is None:
+            memory_cfg = {}
+        elif isinstance(memory_cfg, str):
+            assert memory_cfg in ["naive", "pooled"]
+            if memory_cfg == "naive":
+                default_alloc_type = VirtualMachine.NAIVE_ALLOCATOR
+            memory_cfg = {}
+        elif not isinstance(memory_cfg, dict):
+            raise TypeError(
+                "memory_cfg is expected be string or dictionary, "
+                + "but received {}".format(type(memory_cfg))
+            )
+        init_args = []
+        for context in ctxs:
+            init_args.append(context.device_type)
+            init_args.append(context.device_id)
+            alloc_type = memory_cfg[context] if context in memory_cfg else default_alloc_type
+            init_args.append(alloc_type)
+        self._init(*init_args)
 
     def set_input(self, func_name, *args, **kwargs):
         """Set the input to a function.
@@ -309,12 +362,17 @@ class VirtualMachine(object):
             Named arguments to the function.
         """
         if kwargs:
+            # kwargs is a super set of the required function parameters. We
+            # only find the ones that are needed.
             func_params = self._exec.get_function_params(func_name)
             new_args = [None] * len(func_params)
-            assert len(args) + len(kwargs) == len(func_params)
+            cnt = 0
             for k in kwargs:
-                idx = func_params.index(k)
-                new_args[idx] = kwargs[k]
+                if k in func_params:
+                    idx = func_params.index(k)
+                    new_args[idx] = kwargs[k]
+                    cnt += 1
+            assert len(args) + cnt == len(func_params)
             idx = 0
             for i, arg in enumerate(new_args):
                 if arg is None:

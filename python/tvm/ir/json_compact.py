@@ -39,6 +39,7 @@ def create_updater(node_map, from_ver, to_ver):
     fupdater : function
         The updater function
     """
+
     def _updater(data):
         assert data["attrs"]["tvm_version"].startswith(from_ver)
         nodes = data["nodes"]
@@ -52,6 +53,7 @@ def create_updater(node_map, from_ver, to_ver):
             nodes[idx] = item
         data["attrs"]["tvm_version"] = to_ver
         return data
+
     return _updater
 
 
@@ -63,6 +65,7 @@ def create_updater_06_to_07():
     fupdater : function
         The updater function
     """
+
     def _ftype_var(item, nodes):
         vindex = int(item["attrs"]["var"])
         item["attrs"]["name_hint"] = nodes[vindex]["attrs"]["name"]
@@ -70,13 +73,14 @@ def create_updater_06_to_07():
         nodes[vindex]["type_key"] = ""
         del item["attrs"]["var"]
         assert item["type_key"].startswith("relay.")
-        item["type_key"] = item["type_key"][len("relay."):]
+        item["type_key"] = item["type_key"][len("relay.") :]
         return item
 
     def _rename(new_name):
         def _convert(item, _):
             item["type_key"] = new_name
             return item
+
         return _convert
 
     def _update_tir_var(new_name):
@@ -84,11 +88,13 @@ def create_updater_06_to_07():
             item["type_key"] = new_name
             item["attrs"]["type_annotation"] = "0"
             return item
+
         return _convert
 
     def _update_global_key(item, _):
-        item["repr_str"] = item["global_key"]
-        del item["global_key"]
+        if "global_key" in item:
+            item["repr_str"] = item["global_key"]
+            del item["global_key"]
         return item
 
     def _update_from_std_str(key):
@@ -99,19 +105,21 @@ def create_updater_06_to_07():
             val = jdata["nodes"][root_idx]
             sidx = len(nodes)
             nodes.append(val)
-            item["attrs"][key] = '%d' % sidx
+            item["attrs"][key] = "%d" % sidx
             return item
 
         return _convert
-
 
     node_map = {
         # Base IR
         "SourceName": _update_global_key,
         "EnvFunc": _update_global_key,
-        "relay.Op": _update_global_key,
+        "relay.Op": [_update_global_key, _rename("Op")],
         "relay.TypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "TypeVar": _update_from_std_str("name_hint"),
+        "relay.Id": [_update_from_std_str("name_hint")],
         "relay.GlobalTypeVar": [_ftype_var, _update_from_std_str("name_hint")],
+        "GlobalTypeVar": _update_from_std_str("name_hint"),
         "relay.Type": _rename("Type"),
         "relay.TupleType": _rename("TupleType"),
         "relay.TypeConstraint": _rename("TypeConstraint"),
@@ -119,18 +127,66 @@ def create_updater_06_to_07():
         "relay.IncompleteType": _rename("IncompleteType"),
         "relay.TypeRelation": _rename("TypeRelation"),
         "relay.TypeCall": _rename("TypeCall"),
+        "relay.Constructor": [_update_from_std_str("name_hint")],
         "relay.Module": _rename("IRModule"),
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
         "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint")],
+        "GlobalVar": _update_from_std_str("name_hint"),
         "relay.Pass": _rename("transform.Pass"),
         "relay.PassInfo": _rename("transform.PassInfo"),
         "relay.PassContext": _rename("transform.PassContext"),
         "relay.ModulePass": _rename("transform.ModulePass"),
         "relay.Sequential": _rename("transform.Sequential"),
+        "StrMap": _rename("Map"),
         # TIR
-        "Variable": _update_tir_var("tir.Var"),
-        "SizeVar": _update_tir_var("tir.SizeVar"),
+        "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
+        "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
+        "StringImm": [_rename("tir.StringImm"), _update_from_std_str("value")],
+        "Cast": [_rename("tir.Cast")],
+        "Add": [_rename("tir.Add")],
+        "Sub": [_rename("tir.Sub")],
+        "Mul": [_rename("tir.Mul")],
+        "Div": [_rename("tir.Div")],
+        "Mod": [_rename("tir.Mod")],
+        "FloorDiv": [_rename("tir.FloorDiv")],
+        "FloorMod": [_rename("tir.FloorMod")],
+        "Min": [_rename("tir.Min")],
+        "Max": [_rename("tir.Max")],
+        "EQ": [_rename("tir.EQ")],
+        "NE": [_rename("tir.NE")],
+        "LT": [_rename("tir.LT")],
+        "LE": [_rename("tir.LE")],
+        "GT": [_rename("tir.GT")],
+        "GE": [_rename("tir.GE")],
+        "And": [_rename("tir.And")],
+        "Or": [_rename("tir.Or")],
+        "Not": [_rename("tir.Not")],
+        "Select": [_rename("tir.Select")],
+        "Load": [_rename("tir.Load")],
+        "BufferLoad": [_rename("tir.BufferLoad")],
+        "Ramp": [_rename("tir.Ramp")],
+        "Broadcast": [_rename("tir.Broadcast")],
+        "Shuffle": [_rename("tir.Shuffle")],
+        "Call": [_rename("tir.Call"), _update_from_std_str("name")],
+        "Let": [_rename("tir.Let")],
+        "Any": [_rename("tir.Any")],
+        "LetStmt": [_rename("tir.LetStmt")],
+        "AssertStmt": [_rename("tir.AssertStmt")],
+        "Store": [_rename("tir.Store")],
+        "BufferStore": [_rename("tir.BufferStore")],
+        "BufferRealize": [_rename("tir.BufferRealize")],
+        "Allocate": [_rename("tir.Allocate")],
+        "IfThenElse": [_rename("tir.IfThenElse")],
+        "Evaluate": [_rename("tir.Evaluate")],
+        "Prefetch": [_rename("tir.Prefetch")],
+        "AttrStmt": [_rename("tir.AttrStmt"), _update_from_std_str("attr_key")],
+        "Layout": [_rename("tir.Layout"), _update_from_std_str("name")],
+        "Buffer": [
+            _rename("tir.Buffer"),
+            _update_from_std_str("name"),
+            _update_from_std_str("scope"),
+        ],
     }
     return create_updater(node_map, "0.6", "0.7")
 

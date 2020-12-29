@@ -61,7 +61,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.7.dev1"
+#define TVM_VERSION "0.8.dev0"
 
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
@@ -87,12 +87,24 @@ typedef enum {
 } TVMDeviceExtType;
 
 /*!
- * \brief The type code in used in the TVM FFI.
+ * \brief The type code in used and only used in TVM FFI for argument passing.
+ *
+ * DLPack consistency:
+ * 1) kTVMArgInt is compatible with kDLInt
+ * 2) kTVMArgFloat is compatible with kDLFloat
+ * 3) kDLUInt is not in ArgTypeCode, but has a spared slot
+ *
+ * Downstream consistency:
+ * The kDLInt, kDLUInt, kDLFloat are kept consistent with the original ArgType code
+ *
+ * It is only used in argument passing, and should not be confused with
+ * DataType::TypeCode, which is DLPack-compatible.
+ *
+ * \sa tvm::runtime::DataType::TypeCode
  */
 typedef enum {
-  // The type code of other types are compatible with DLPack.
-  // The next few fields are extension types
-  // that is used by TVM API calls.
+  kTVMArgInt = kDLInt,
+  kTVMArgFloat = kDLFloat,
   kTVMOpaqueHandle = 3U,
   kTVMNullptr = 4U,
   kTVMDataType = 5U,
@@ -115,9 +127,7 @@ typedef enum {
   // The following section of code is used for non-reserved types.
   kTVMExtReserveEnd = 64U,
   kTVMExtEnd = 128U,
-  // The rest of the space is used for custom, user-supplied datatypes
-  kTVMCustomBegin = 129U,
-} TVMTypeCode;
+} TVMArgTypeCode;
 
 /*!
  * \brief The Device information, abstract away common device types.
@@ -356,6 +366,12 @@ TVM_DLL int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out);
  */
 TVM_DLL int TVMFuncListGlobalNames(int* out_size, const char*** out_array);
 
+/*!
+ * \brief Remove a global function.
+ * \param name The name of the function.
+ */
+TVM_DLL int TVMFuncRemoveGlobal(const char* name);
+
 // Array related apis for quick proptyping
 /*!
  * \brief Allocate a nd-array's memory,
@@ -505,6 +521,15 @@ TVM_DLL int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
 TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
 
 /*!
+ * \brief Increase the reference count of an object.
+ *
+ * \param obj The object handle.
+ * \note Internally we increase the reference counter of the object.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMObjectRetain(TVMObjectHandle obj);
+
+/*!
  * \brief Free the object.
  *
  * \param obj The object handle.
@@ -513,6 +538,13 @@ TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
  * \return 0 when success, -1 when failure happens
  */
 TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
+
+/*!
+ * \brief Free a TVMByteArray returned from TVMFuncCall, and associated memory.
+ * \param arr The TVMByteArray instance.
+ * \return 0 on success, -1 on failure.
+ */
+TVM_DLL int TVMByteArrayFree(TVMByteArray* arr);
 
 /*!
  * \brief Allocate a data space on device.
@@ -553,6 +585,16 @@ TVM_DLL int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* 
                                     size_t to_offset, size_t num_bytes, TVMContext ctx_from,
                                     TVMContext ctx_to, DLDataType type_hint,
                                     TVMStreamHandle stream);
+
+/*!
+ * \brief Check that an object is derived from another.
+ * \param child_type_index The type index of the derived type.
+ * \param parent_type_index The type index of the parent type.
+ * \param is_derived A boolean representing whether this predicate holds.
+ * \return 0 when success, -1 when failure happens.
+ */
+TVM_DLL int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index,
+                                 int* is_derived);
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

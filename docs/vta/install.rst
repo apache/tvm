@@ -20,15 +20,15 @@ VTA Installation Guide
 
 We present three installation guides, each extending on the previous one:
 
-1. `Simulator Installation`_
+1. `VTA Simulator Installation`_
 2. `Xilinx Pynq FPGA Setup`_
 3. `Intel DE10 FPGA Setup`_
 4. `Bitstream Generation with Xilinx Toolchains`_
 5. `Bitstream Generation with Intel Toolchains`_
 
 
-Simulator Installation
-----------------------
+VTA Simulator Installation
+--------------------------
 
 You need `TVM installed <https://tvm.apache.org/docs/install/index.html>`_ on your machine.
 For a quick and easy start, checkout the `Docker Guide <https://tvm.apache.org/docs/install/docker.html>`_.
@@ -114,8 +114,8 @@ Setup your Pynq board based on the `Pynq board getting started tutorial <http://
 
 You should follow the instructions up to and including the *Turning On the PYNQ-Z1* step (no need to pursue the tutorial beyond this point).
 
-* Make sure that you've downloaded the latest Pynq image, `PYNQ-Z1 v2.4 <http://www.pynq.io/board.html>`_ (released February 22rd 2019), and have imaged your SD card with it (we recommend the free `Etcher <https://etcher.io/>`_ program).
-* For this test setup, follow the `"Connect to a Computer" <http://pynq.readthedocs.io/en/latest/getting_started.html#connect-to-a-computer>`_ Ethernet setup instructions. To be able to talk to the board, make sure to `assign your computer a static IP address <http://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip>`_
+* Make sure that you've downloaded the latest Pynq image, `PYNQ-Z1 v2.5 <http://www.pynq.io/board.html>`_, and have imaged your SD card with it (we recommend the free `Etcher <https://etcher.io/>`_ program).
+* For this test setup, follow the `"Connect to a Computer" <https://pynq.readthedocs.io/en/latest/getting_started/pynq_z1_setup.html>`_ Ethernet setup instructions. To be able to talk to the board, make sure to `assign your computer a static IP address <https://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip>`_
 
 Once the board is powered on and connected to your development machine, try connecting to it to make sure you've properly set up your Pynq board:
 
@@ -135,7 +135,7 @@ Because the direct board-to-computer connection prevents the board from directly
    mkdir <mountpoint>
    sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
    cd <mountpoint>
-   git clone --recursive https://github.com/apache/incubator-tvm tvm
+   git clone --recursive https://github.com/apache/tvm tvm
    # When finished, you can leave the moutpoint and unmount the directory
    cd ~
    sudo umount <mountpoint>
@@ -156,6 +156,8 @@ The build process should take roughly 5 minutes.
    cd build
    cmake ..
    make runtime vta -j2
+   # FIXME (tmoreau89): remove this step by fixing the cmake build
+   make clean; make runtime vta -j2
    # Build VTA RPC server (takes 1 min)
    cd ..
    sudo ./apps/vta_rpc/start_rpc_server.sh # pw is 'xilinx'
@@ -199,7 +201,8 @@ In addition, you'll need to edit the ``vta_config.json`` file on the host to ind
 This time again, we will run the 2D convolution testbench.
 Beforehand, we need to program the Pynq board FPGA with a VTA bitstream, and build the VTA runtime via RPC.
 The following ``test_program_rpc.py`` script will perform two operations:
-* FPGA programming, by downloading a pre-compiled bitstream from a `VTA bitstream repository <https://github.com/uwsaml/vta-distro>`_ that matches the default ``vta_config.json`` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
+
+* FPGA programming, by downloading a pre-compiled bitstream from a `VTA bitstream repository <https://github.com/uwsampl/vta-distro>`_ that matches the default ``vta_config.json`` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
 * Runtime building on the Pynq, which needs to be run every time the ``vta_config.json`` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete so be patient!
 
 .. code:: bash
@@ -226,14 +229,14 @@ You can also try out our `VTA programming tutorials <https://tvm.apache.org/docs
 Intel DE10 FPGA Setup
 ---------------------
 
-Similar to the PYNQ side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano.
+Similar to the Pynq-side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano.
 
 In terms of hardware components, you would need the `DE10-Nano Development Kit <https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&No=1046>`_, which can be acquired for $130, or $100 for academics from `Terasic <https://www.terasic.com.tw/>`_. A microSD card would be delivered the kit. Power cables and USB cables would be included as well. However, an additional Ethernet cable would be needed to connect the board to LAN.
 
 The rest part of this guide would provide the steps to
 
 * Flash the microSD card with latest Angstrom Linux image
-* Cross compilation setup
+* Cross-compilation setup
 * Device-side RPC server setup and deployment
 
 DE10-Nano Board Setup
@@ -269,7 +272,7 @@ This would take a few minutes for your PC to write the whole file systems into t
 After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
 Now you can connect the power cable and serial port to boot the Angstrom Linux.
 
-   **Note**: When boot up from the microSD card, you might notice the incompatibility of the linux kernel ``zImage`` in the microSD card.
+   **Note**: When boot up from the microSD card, you might notice the incompatibility of the Linux kernel ``zImage`` in the microSD card.
    In this case, you might need to build the ``zImage`` file of your own from `socfpga-4.9.78-ltsi <https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi>`_ branch of the `linux-socfpga <https://github.com/altera-opensource/linux-socfpga>`_ repository.
    For a quick fix, you can also download a prebuilt version of the ``zImage`` file `from this link <https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage>`_.
 
@@ -304,38 +307,38 @@ Specifically, to compile application executables for the system, you need to dow
 Bitstream Generation with Xilinx Toolchains
 -------------------------------------------
 
-If you're interested in generating the Xilinx FPGA bitstream on your own instead of using the pre-built VTA bistreams, follow the instructions below.
+If you're interested in generating the Xilinx FPGA bitstream on your own instead of using the pre-built VTA bitstreams, follow the instructions below.
 
 Xilinx Toolchain Installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We recommend using Vivado 2018.3 since our scripts have been tested to work on this version of the Xilinx toolchains.
+We recommend using Vivado 2020.1 since our scripts have been tested to work on this version of the Xilinx toolchains.
 Our guide is written for Linux (Ubuntu) installation.
 
-You’ll need to install Xilinx’ FPGA compilation toolchain, `Vivado HL WebPACK 2018.3 <https://www.xilinx.com/products/design-tools/vivado.html>`_, which a license-free version of the Vivado HLx toolchain.
+You’ll need to install Xilinx’ FPGA compilation toolchain, `Vivado HL WebPACK 2020.1 <https://www.xilinx.com/products/design-tools/vivado.html>`_, which a license-free version of the Vivado HLx toolchain.
 
 Obtaining and Launching the Vivado GUI Installer
 """"""""""""""""""""""""""""""""""""""""""""""""
 
-1. Go to the `download webpage <https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2018-3.html>`_, and download the Linux Self Extracting Web Installer for Vivado HLx 2018.3: WebPACK and Editions.
+1. Go to the `download webpage <https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools/2020-1.html>`_, and download the Linux Self Extracting Web Installer for Vivado HLx 2020.1: WebPACK and Editions.
 2. You’ll have to sign in with a Xilinx account. This requires a Xilinx account creation that will take 2 minutes.
-3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called ``Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin``.
+3. Complete the Name and Address Verification by clicking “Next”, and you will get the opportunity to download a binary file, called ``Xilinx_Unified_2020.1_0602_1208_Lin64.bin``.
 4. Now that the file is downloaded, go to your ``Downloads`` directory, and change the file permissions so it can be executed:
 
 .. code:: bash
 
-   chmod u+x Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
+   chmod u+x Xilinx_Unified_2020.1_0602_1208_Lin64.bin
 
 5. Now you can execute the binary:
 
 .. code:: bash
 
-   ./Xilinx_Vivado_SDK_Web_2018.3_1207_2324_Lin64.bin
+   ./Xilinx_Unified_2020.1_0602_1208_Lin64.bin
 
 Xilinx Vivado GUI Installer Steps
 """""""""""""""""""""""""""""""""
 
-At this point you've launched the Vivado 2018.3 Installer GUI program.
+At this point you've launched the Vivado 2020.1 Installer GUI program.
 
 1. Click “Next” on the "Welcome" screen.
 2. On the "Select Install Type" screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next”.
@@ -360,11 +363,11 @@ The last step is to update your ``~/.bashrc`` with the following lines. This wil
 
 .. code:: bash
 
-   # Xilinx Vivado 2018.3 environment
-   export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.3
+   # Xilinx Vivado 2020.1 environment
+   export XILINX_VIVADO=${XILINX_PATH}/Vivado/2020.1
    export PATH=${XILINX_VIVADO}/bin:${PATH}
 
-HLS-based Custom VTA Bitstream Compilation for PYNQ
+HLS-based Custom VTA Bitstream Compilation for Pynq
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 High-level hardware parameters are listed in the VTA configuration file and can be customized by the user.
@@ -463,7 +466,7 @@ This would add quartus binary path into your ``PATH`` environment variable, so y
 Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file `Configs.scala <https://github.com/apache/incubator-tvm/blob/master/3rdparty/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala>`_, and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file `Configs.scala <https://github.com/apache/tvm/blob/main/3rdparty/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala>`_, and they can be customized by the user.
 
 For Intel FPGA, bitstream generation is driven by a top-level ``Makefile`` under ``<tvm root>/3rdparty/vta-hw/hardware/intel``.
 

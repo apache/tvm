@@ -81,12 +81,16 @@ def _rule_float_suffix(op):
 
     See Also
     --------
-    register_intrin_rule : The registeration function for intrin rule.
+    register_intrin_rule : The registration function for intrin rule.
     """
+    name = op.op.name
+    assert name.startswith("tir.")
+    prefix = name[4:]
+
     if op.dtype == "float32":
-        return call_pure_extern(op.dtype, "%sf" % op.name, *op.args)
+        return call_pure_extern(op.dtype, "%sf" % prefix, *op.args)
     if op.dtype == "float64":
-        return call_pure_extern(op.dtype, op.name, *op.args)
+        return call_pure_extern(op.dtype, prefix, *op.args)
     return op
 
 
@@ -108,11 +112,12 @@ def _rule_float_direct(op):
 
     See Also
     --------
-    register_intrin_rule : The registeration function for intrin rule.
+    register_intrin_rule : The registration function for intrin rule.
     """
     if str(op.dtype).startswith("float"):
-        return call_pure_extern(op.dtype, op.name, *op.args)
+        return call_pure_extern(op.dtype, op.op.name[4:], *op.args)
     return None
+
 
 # opencl pattern for exp
 register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)

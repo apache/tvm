@@ -28,8 +28,8 @@
 #include <tvm/relay/qnn/attrs.h>
 
 #include "../../op/nn/nn.h"
-#include "../../transforms/pattern_util.h"
-#include "../util.h"
+#include "../../transforms/pattern_utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace relay {
@@ -39,26 +39,33 @@ namespace qnn {
 
 bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 7);
+  // Expected Types: data, weight, input_zero_point, weight_zero_point, input_scale, weight_scale,
+  // out_type
+  ICHECK_EQ(types.size(), 7);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<DenseAttrs>();
-  CHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
-  CHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
+  ICHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
-  CHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
+  ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for weight but was " << weight->dtype;
-  CHECK(param->out_dtype == DataType::Int(32))
+  ICHECK(param->out_dtype == DataType::Int(32))
       << "Expected quantized dense type(int32) for output but was " << param->out_dtype;
 
   // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
-  CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
-  AssignType(types[5], DataType::Float(32), param->units, reporter);
+  for (size_t i = 2; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));                  // input_zero_point
+  ICHECK(IsScalarType(types[3], DataType::Int(32)));                  // weight_zero_point
+  ICHECK(IsScalarType(types[4], DataType::Float(32)));                // input_scale
+  AssignType(types[5], DataType::Float(32), param->units, reporter);  // weight_scale
 
-  CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
+  ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Dense infer type function.
@@ -99,6 +106,18 @@ Expr DenseFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int re
   return MakeConstantScalar(DataType::Int(32), scalar_term);
 }
 
+Expr DenseFourthTerm(const Expr& input_zero_point, const Expr& kernel_zero_point,
+                     int reduction_dim_size) {
+  auto reduction_dim = MakeConstantScalar(DataType::Int(32), reduction_dim_size);
+  return Multiply(Multiply(input_zero_point, kernel_zero_point), reduction_dim);
+}
+
+Expr DenseCombineTerms(const Expr& term1, const Expr& term2, const Expr& term3, const Expr& term4) {
+  auto data_term = Subtract(term1, term2);
+  // Putting constant terms together, so that constant folding can fold it.
+  auto const_term = Subtract(term4, term3);
+  return Add(data_term, const_term);
+}
 /*
  * \brief Forward rewrite the qnn dense op.
  * \param attrs The QNN dense attrs.
@@ -133,7 +152,7 @@ Expr DenseFourthTerm(int input_zero_point_int, int kernel_zero_point_int, int re
  */
 Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
-  CHECK_EQ(new_args.size(), 6);
+  ICHECK_EQ(new_args.size(), 6);
   Expr quantized_data = new_args[0];
   Expr quantized_kernel = new_args[1];
   Expr input_zero_point = new_args[2];
@@ -144,14 +163,24 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   const auto* qnn_dense_attrs = attrs.as<DenseAttrs>();
 
-  // Extract the integer zero points.
-  auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
-  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
-
-  // Get all the terms as described in the comments.
   auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);
   auto term2 = DenseSecondTerm(quantized_data, kernel_zero_point);
   auto term3 = DenseThirdTerm(quantized_kernel, input_zero_point);
+
+  // Extract the integer zero points.
+  auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
+
+  if (!IsConstScalar(input_zero_point)) {
+    if (kernel_zero_point_int == 0) {
+      return Subtract(term1, term3);
+    }
+    auto term4 = DenseFourthTerm(input_zero_point, kernel_zero_point, reduction_dim_size);
+    return DenseCombineTerms(term1, term2, term3, term4);
+  }
+
+  auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
+
+  // Get all the terms as described in the comments.
   auto term4 = DenseFourthTerm(input_zero_point_int, kernel_zero_point_int, reduction_dim_size);
 
   // Combine those 4 terms depending on the zero points to get the best lowering.
@@ -165,10 +194,7 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     // term 2 and term 4 become zero.
     return Subtract(term1, term3);
   } else {
-    auto data_term = Subtract(term1, term2);
-    // Putting constant terms together, so that constant folding can fold it.
-    auto const_term = Subtract(term4, term3);
-    return Add(data_term, const_term);
+    return DenseCombineTerms(term1, term2, term3, term4);
   }
 }
 
@@ -189,6 +215,7 @@ RELAY_REGISTER_OP("qnn.dense")
                   "The quantization zero_point of the weight tensor.")
     .set_support_level(11)
     .add_type_rel("QDense", QnnDenseRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.dense").set_body_typed(MakeQuantizedDense);

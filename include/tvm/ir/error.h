@@ -177,8 +177,8 @@ class ErrorReporter {
 
  private:
   std::vector<Error> errors_;
-  std::unordered_map<ObjectRef, std::vector<size_t>, ObjectHash, ObjectEqual> node_to_error_;
-  std::unordered_map<ObjectRef, GlobalVar, ObjectHash, ObjectEqual> node_to_gv_;
+  std::unordered_map<ObjectRef, std::vector<size_t>, ObjectPtrHash, ObjectPtrEqual> node_to_error_;
+  std::unordered_map<ObjectRef, GlobalVar, ObjectPtrHash, ObjectPtrEqual> node_to_gv_;
 };
 
 }  // namespace tvm

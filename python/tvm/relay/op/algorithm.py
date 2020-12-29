@@ -16,8 +16,33 @@
 # under the License.
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
+
 from . import _make
-from ..expr import TupleWrapper
+from .dyn import _make as _dyn_make
+from ..expr import TupleWrapper, Expr, Constant
+
+
+def sort(data, axis=-1, is_ascend=1):
+    """Performs sorting along the given axis and returns data in sorted order.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data tensor.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    Returns
+    -------
+    out : relay.Expr
+        Tensor with same shape as data.
+    """
+    return _make.sort(data, axis, is_ascend)
+
 
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies
@@ -58,7 +83,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
     data : relay.Expr
         The input data tensor.
 
-    k : int, optional
+    k : int or relay.Expr, optional
         Number of top elements to select. Return all elements if k < 1.
 
     axis : int, optional
@@ -81,7 +106,12 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
     out : relay.Expr or List[relay.Expr]
         The computed result.
     """
-    out = _make.topk(data, k, axis, ret_type, is_ascend, dtype)
+    if isinstance(k, Constant):
+        k = k.data.asnumpy().item()
+    if isinstance(k, Expr):
+        out = _dyn_make.topk(data, k, axis, ret_type, is_ascend, dtype)
+    else:
+        out = _make.topk(data, k, axis, ret_type, is_ascend, dtype)
     if ret_type == "both":
         return TupleWrapper(out, 2)
     return out

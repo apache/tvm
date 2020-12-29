@@ -19,6 +19,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import transform
 
+
 def test_dup_type():
     a = relay.TypeVar("a")
     av = relay.Var("av", a)

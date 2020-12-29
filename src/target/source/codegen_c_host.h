@@ -26,6 +26,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include "codegen_c.h"
 #include "tvm/target/codegen.h"
@@ -37,7 +38,12 @@ namespace codegen {
 class CodeGenCHost final : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts);
+  void Init(bool output_ssa, bool emit_asserts, std::string target_str);
+
+  void AddFunction(const PrimFunc& f);
+
+  /*! \brief Add linked parameters, if they are present. */
+  void LinkParameters(Map<String, LinkedParam> params);
 
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
   void PrintFuncPrefix() final;                        // NOLINT(*)
@@ -53,10 +59,14 @@ class CodeGenCHost final : public CodeGenC {
 
   void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
 
+  Array<String> GetFunctionNames() { return function_names_; }
+
  private:
   std::string module_name_;
   /* \brief tracks declared global variables which live despite GetUniqueName */
   std::set<std::string> declared_globals_;
+  /* \brief names of the functions declared in this module */
+  Array<String> function_names_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
 

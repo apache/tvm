@@ -23,14 +23,14 @@
  * \brief Registration of annotation operators.
  */
 
-#include <topi/elemwise.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/expr.h>
+#include <tvm/topi/elemwise.h>
 
-#include "../../transforms/infer_layout_util.h"
+#include "../../transforms/infer_layout_utils.h"
 #include "../type_relations.h"
 
 namespace tvm {
@@ -50,11 +50,17 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
 RELAY_REGISTER_OP("on_device")
     .describe(R"code(Annotate an expression with device type)code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+    .set_attr<FTVMCompute>("FTVMCompute",
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_type) -> Array<te::Tensor> {
+                             return {topi::identity(inputs[0])};
+                           });
 
 Expr StopFusion(Expr data) {
   static const Op& op = Op::Get("annotation.stop_fusion");
@@ -112,6 +118,7 @@ RELAY_REGISTER_OP("annotation.bitpack_start")
 Mark the start of bitpacking.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
@@ -128,6 +135,7 @@ RELAY_REGISTER_OP("annotation.bitpack_end")
 Mark the end of bitpacking.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
@@ -150,6 +158,7 @@ Mark a checkpoint for checkpointing memory optimization.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .set_support_level(10)
+    .add_argument("data", "Tensor", "The input data.")
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -171,6 +180,7 @@ RELAY_REGISTER_OP("annotation.compiler_begin")
 Beginning of a region that is handled by a given compiler.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
@@ -183,7 +193,7 @@ Beginning of a region that is handled by a given compiler.
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_begin")
-    .set_body_typed([](Expr expr, std::string compiler) {
+    .set_body_typed([](Expr expr, String compiler) {
       auto attrs = make_object<CompilerAttrs>();
       attrs->compiler = compiler;
       static const Op& op = Op::Get("annotation.compiler_begin");
@@ -195,6 +205,7 @@ RELAY_REGISTER_OP("annotation.compiler_end")
 End of a region that is handled by a given compiler.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
@@ -207,7 +218,7 @@ End of a region that is handled by a given compiler.
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_end")
-    .set_body_typed([](Expr expr, std::string compiler) {
+    .set_body_typed([](Expr expr, String compiler) {
       auto attrs = make_object<CompilerAttrs>();
       attrs->compiler = compiler;
       static const Op& op = Op::Get("annotation.compiler_end");

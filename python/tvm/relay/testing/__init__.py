@@ -14,19 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=invalid-name
+# pylint: disable=invalid-name
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
+import collections
 import numpy as np
 
 import tvm
 from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
-
+from tvm.relay import Prelude
+from tvm.testing import enabled_targets
 
 from . import mlp
 from . import resnet
+from . import resnet_3d
 from . import dqn
 from . import dcgan
 from . import mobilenet
@@ -37,16 +40,20 @@ from . import vgg
 from . import densenet
 from . import yolo_detection
 from . import temp_op_attr
+from . import synthetic
 
-from .config import ctx_list
 from .init import create_workload
-from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
+from .nat import count, make_nat_value, make_nat_expr
 from .py_converter import to_python, run_as_python
 from ..transform import gradient
 
-def run_opt_pass(expr, opt_pass):
+
+def run_opt_pass(expr, opt_pass, import_prelude=False):
     assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
+    if import_prelude:
+        Prelude(mod)
+    mod = relay.transform.InferType()(mod)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -57,10 +64,24 @@ def run_infer_type(expr):
 
 
 def _np_randn_from_type(t, scale=1, mean=0):
-    return (mean + (scale * np.random.randn(*(int(d) for d in t.shape)))).astype(t.dtype)
+    res = mean + (scale * np.random.randn(*(int(d) for d in t.shape)))
+    # if t.shape == (), then randn returns a scalar so we need to wrap for dtype conversion
+    if np.isscalar(res):
+        res = np.array(res)
+    return res.astype(t.dtype)
 
 
-def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, mean=0):
+def check_grad(
+    func,
+    inputs=None,
+    test_inputs=None,
+    eps=1e-6,
+    atol=1e-5,
+    rtol=1e-3,
+    scale=None,
+    mean=0,
+    mode="higher_order",
+):
     """Perform numerical gradient checking given a relay function.
 
     Compare analytical gradients to numerical gradients derived from two-sided approximation. Note
@@ -74,6 +95,11 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
     inputs: List[np.array]
         Optional user-provided input parameters to use. If not given, will generate random normal
         inputs scaled to be close to the chosen epsilon value to avoid numerical precision loss.
+
+    test_inputs: List[np.array]
+        The inputs to test for gradient matching. Useful in cases where some inputs are not
+        differentiable, such as symbolic inputs to dynamic ops. If not given, all inputs are
+        tested.
 
     eps: float
         The epsilon value to use for computing numerical gradient approximation.
@@ -94,7 +120,7 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
     """
 
     fwd_func = run_infer_type(func)
-    bwd_func = run_infer_type(gradient(fwd_func))
+    bwd_func = run_infer_type(gradient(fwd_func, mode=mode))
 
     if scale is None:
         scale = 10 * eps
@@ -104,16 +130,32 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
         # Generate random inputs on the same scale as epsilon to avoid numerical precision loss.
         inputs = [_np_randn_from_type(x.checked_type, scale=scale, mean=mean) for x in params]
 
-    for target, ctx in ctx_list():
+    if test_inputs is None:
+        test_inputs = inputs
+
+    for target, ctx in enabled_targets():
         intrp = relay.create_executor(ctx=ctx, target=target)
 
         # Get analytic gradients.
         _, grads = intrp.evaluate(bwd_func)(*inputs)
         grads = [grad.asnumpy().astype("float64") for grad in grads]
 
+        # Throw out gradients we aren't testing
+        if inputs != test_inputs:
+            tmp = []
+            # find the gradient that corresponds to every test input
+            for test_input in test_inputs:
+                for i, grad in enumerate(grads):
+                    if inputs[i] is test_input:
+                        tmp.append(grad)
+                        break
+            grads = tmp
+
+        assert len(grads) > 0, "You must test at least one gradient."
+
         # Get numeric gradients for each dimension of each param, using two-sided approximation.
         approx_grads = []
-        for x in inputs:
+        for x in test_inputs:
             approx_grad = np.zeros(x.shape)
             for i in np.ndindex(*x.shape):
                 x_i = x[i]
@@ -124,7 +166,6 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
                 x[i] = x_i
                 approx_grad[i] = np.sum((fwd_plus - fwd_minus) / (2 * eps))
             approx_grads.append(approx_grad)
-
         # Compare gradients by checking that relative difference is below tolerance.
         for grad, approx_grad in zip(grads, approx_grads):
             np.testing.assert_allclose(grad, approx_grad, atol=atol, rtol=rtol)
@@ -132,3 +173,23 @@ def check_grad(func, inputs=None, eps=1e-6, atol=1e-5, rtol=1e-3, scale=None, me
 
 def rand(dtype, *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
+
+
+def count_ops(expr):
+    """count number of times a given op is called in the graph"""
+
+    class OpCounter(tvm.relay.ExprVisitor):
+        """OpCounter"""
+
+        def visit_call(self, call):
+            if hasattr(call, "op"):
+                self.node_counter[call.op.name] += 1
+            return super().visit_call(call)
+
+        def count(self, expr):
+            self.node_set = {}
+            self.node_counter = collections.Counter()
+            self.visit(expr)
+            return self.node_counter
+
+    return OpCounter().count(expr)

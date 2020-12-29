@@ -65,6 +65,37 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   }
 };
 
+/*! \brief Attributes used in image resize3d operator */
+struct Resize3dAttrs : public tvm::AttrsNode<Resize3dAttrs> {
+  Array<IndexExpr> size;
+  String layout;
+  String method;
+  String coordinate_transformation_mode;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Resize3dAttrs, "relay.attrs.Resize3dAttrs") {
+    TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(layout).set_default("NCDHW").describe(
+        "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+        "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+        "dimensions respectively. Resize3d is applied on the 'D', 'H' and"
+        "'W' dimensions.");
+    TVM_ATTR_FIELD(method)
+        .set_default("trilinear")
+        .describe(
+            "Specify the mode to use for scaling."
+            "nearest_neighbor -  Nearest Neighbor"
+            "trilinear - Trilinear Interpolation");
+    TVM_ATTR_FIELD(coordinate_transformation_mode)
+        .set_default("half_pixel")
+        .describe(
+            "Describes how to transform the coordinate in the resized tensor"
+            "to the coordinate in the original tensor."
+            "Available options are half_pixel, align_corners and asymmetric");
+    TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
+  }
+};
+
 /*! \brief Attributes used in image crop_and_resize operator */
 struct CropAndResizeAttrs : public tvm::AttrsNode<CropAndResizeAttrs> {
   Array<IndexExpr> crop_size;
@@ -133,6 +164,34 @@ struct Dilation2DAttrs : public tvm::AttrsNode<Dilation2DAttrs> {
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
+
+/*! \brief Attributes used in image affine_grid operator */
+struct AffineGridAttrs : public tvm::AttrsNode<AffineGridAttrs> {
+  Array<IndexExpr> target_shape;
+
+  TVM_DECLARE_ATTRS(AffineGridAttrs, "relay.attrs.AffineGridAttrs") {
+    TVM_ATTR_FIELD(target_shape).describe("Specifies the output shape (H, W).");
+  }
+};
+
+/*! \brief Attributes used in image grid_sample operator */
+struct GridSampleAttrs : public tvm::AttrsNode<GridSampleAttrs> {
+  String method;
+  String layout;
+
+  TVM_DECLARE_ATTRS(GridSampleAttrs, "relay.attrs.GridSampleAttrs") {
+    TVM_ATTR_FIELD(method)
+        .set_default("bilinear")
+        .describe(
+            "Specify the mode to use for scaling."
+            "bilinear - Bilinear Interpolation");
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively. Resize is applied on the 'H' and"
+        "'W' dimensions.");
   }
 };
 

@@ -32,12 +32,12 @@ TVM_REGISTER_NODE_TYPE(MultiBoxPriorAttrs);
 
 bool MultiboxPriorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const MultiBoxPriorAttrs* param = attrs.as<MultiBoxPriorAttrs>();
   const auto& dshape = data->shape;
-  CHECK_EQ(dshape.size(), 4) << "Input data should be 4D: "
-                                "[batch, channel, height, width]";
+  ICHECK_EQ(dshape.size(), 4) << "Input data should be 4D: "
+                                 "[batch, channel, height, width]";
   IndexExpr in_height = dshape[2];
   IndexExpr in_width = dshape[3];
   int num_sizes = static_cast<int>(param->sizes.size());
@@ -78,28 +78,31 @@ TVM_REGISTER_NODE_TYPE(MultiBoxTransformLocAttrs);
 
 bool MultiBoxTransformLocRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                              const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4);
+  ICHECK_EQ(types.size(), 4);
 
   const auto* cls_prob = types[0].as<TensorTypeNode>();
   const auto* loc_pred = types[1].as<TensorTypeNode>();
   const auto* anchor = types[2].as<TensorTypeNode>();
-  CHECK(cls_prob != nullptr && loc_pred != nullptr && anchor != nullptr);
+
+  if (cls_prob == nullptr || loc_pred == nullptr || anchor == nullptr) {
+    return false;
+  }
 
   const auto& cls_shape = cls_prob->shape;
   const auto& loc_shape = loc_pred->shape;
   const auto& anchor_shape = anchor->shape;
 
-  CHECK_EQ(cls_shape.size(), 3U) << "The dimension of class probability should be 3, but received "
-                                 << cls_shape.size();
-  CHECK_EQ(loc_shape.size(), 2U)
+  ICHECK_EQ(cls_shape.size(), 3U) << "The dimension of class probability should be 3, but received "
+                                  << cls_shape.size();
+  ICHECK_EQ(loc_shape.size(), 2U)
       << "The dimension of location prediction should be 2, but received " << loc_shape.size();
-  CHECK_EQ(anchor_shape.size(), 3U)
+  ICHECK_EQ(anchor_shape.size(), 3U)
       << "The dimension of anchor should be 3, but received " << anchor_shape.size();
 
-  CHECK(reporter->AssertEQ(cls_shape[2], anchor_shape[1])) << "Number of anchors mismatch found";
-  CHECK(reporter->AssertEQ(cls_shape[2] * 4, loc_shape[1])) << "# anchors mismatch with # loc.";
-  CHECK(reporter->Assert(anchor_shape[1] > 0)) << "Number of anchors must > 0.";
-  CHECK(reporter->AssertEQ(anchor_shape[2], 4));
+  ICHECK(reporter->AssertEQ(cls_shape[2], anchor_shape[1])) << "Number of anchors mismatch found";
+  ICHECK(reporter->AssertEQ(cls_shape[2] * 4, loc_shape[1])) << "# anchors mismatch with # loc.";
+  ICHECK(reporter->Assert(anchor_shape[1] > 0)) << "Number of anchors must > 0.";
+  ICHECK(reporter->AssertEQ(anchor_shape[2], 4));
 
   std::vector<IndexExpr> oshape0({cls_shape[0], anchor_shape[1], 6});
   std::vector<IndexExpr> oshape1({cls_shape[0]});

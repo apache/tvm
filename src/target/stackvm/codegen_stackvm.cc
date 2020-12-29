@@ -25,6 +25,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -41,31 +42,31 @@ using namespace tir;
 // map struct field kind to runtime variants
 // We keep two separate enums to ensure runtime/compiler isolation.
 StackVM::StructFieldKind MapFieldKind(int64_t kind) {
-  auto val = static_cast<intrinsic::TVMStructFieldKind>(kind);
+  auto val = static_cast<builtin::TVMStructFieldKind>(kind);
   switch (val) {
-    case intrinsic::kArrData:
+    case builtin::kArrData:
       return StackVM::kArrData;
-    case intrinsic::kArrShape:
+    case builtin::kArrShape:
       return StackVM::kArrShape;
-    case intrinsic::kArrAddr:
+    case builtin::kArrAddr:
       return StackVM::kArrAddr;
-    case intrinsic::kArrStrides:
+    case builtin::kArrStrides:
       return StackVM::kArrStrides;
-    case intrinsic::kArrNDim:
+    case builtin::kArrNDim:
       return StackVM::kArrNDim;
-    case intrinsic::kArrTypeCode:
+    case builtin::kArrTypeCode:
       return StackVM::kArrTypeCode;
-    case intrinsic::kArrTypeBits:
+    case builtin::kArrTypeBits:
       return StackVM::kArrTypeBits;
-    case intrinsic::kArrTypeLanes:
+    case builtin::kArrTypeLanes:
       return StackVM::kArrTypeLanes;
-    case intrinsic::kArrByteOffset:
+    case builtin::kArrByteOffset:
       return StackVM::kArrByteOffset;
-    case intrinsic::kArrDeviceId:
+    case builtin::kArrDeviceId:
       return StackVM::kArrDeviceId;
-    case intrinsic::kArrDeviceType:
+    case builtin::kArrDeviceType:
       return StackVM::kArrDeviceType;
-    case intrinsic::kTVMValueContent:
+    case builtin::kTVMValueContent:
       return StackVM::kTVMValueContent;
     default:
       LOG(FATAL) << "Do not know how to map field " << kind;
@@ -74,12 +75,12 @@ StackVM::StructFieldKind MapFieldKind(int64_t kind) {
 }
 
 StackVM CodeGenStackVM::Compile(const PrimFunc& f) {
-  CHECK_EQ(f->buffer_map.size(), 0U)
+  ICHECK_EQ(f->buffer_map.size(), 0U)
       << "Cannot codegen function with buffer_map, please lower them first";
   for (size_t i = 0; i < f->params.size(); ++i) {
     Var v = f->params[i];
     int vid = AllocVarID(v.get());
-    CHECK_EQ(static_cast<size_t>(vid), i);
+    ICHECK_EQ(static_cast<size_t>(vid), i);
   }
   this->Push(f->body);
   vm_.InitCache();
@@ -100,7 +101,7 @@ void CodeGenStackVM::PushOp(StackVM::OpCode opcode) {
 }
 
 void CodeGenStackVM::SetOperand(int64_t operand_index, int64_t operand) {
-  CHECK(operand >= std::numeric_limits<int>::min() && operand <= std::numeric_limits<int>::max());
+  ICHECK(operand >= std::numeric_limits<int>::min() && operand <= std::numeric_limits<int>::max());
   vm_.code.at(operand_index).v_int = static_cast<int>(operand);
 }
 
@@ -124,9 +125,9 @@ int CodeGenStackVM::GetStrID(const std::string& key) {
 }
 
 int CodeGenStackVM::AllocVarID(const VarNode* v) {
-  CHECK(!var_idmap_.count(v));
+  ICHECK(!var_idmap_.count(v));
   int vid = static_cast<int>(vm_.heap_size);
-  CHECK_EQ(vm_.heap_size, var_idmap_.size());
+  ICHECK_EQ(vm_.heap_size, var_idmap_.size());
   vm_.heap_id_name.push_back(v->name_hint);
   ++vm_.heap_size;
   var_idmap_[v] = vid;
@@ -135,7 +136,7 @@ int CodeGenStackVM::AllocVarID(const VarNode* v) {
 
 int CodeGenStackVM::GetVarID(const VarNode* v) const {
   auto it = var_idmap_.find(v);
-  CHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
+  ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
   return it->second;
 }
 
@@ -174,22 +175,22 @@ void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
 }
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
-  if (op->is_intrinsic(intrinsic::tvm_address_of)) {
+  if (op->op.same_as(builtin::address_of())) {
     const LoadNode* l = op->args[0].as<LoadNode>();
-    CHECK(op->args.size() == 1 && l);
+    ICHECK(op->args.size() == 1 && l);
     this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
     this->Push(l->index);
     this->PushOp(StackVM::PUSH_I64, l->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
-  } else if (op->is_intrinsic(CallNode::reinterpret)) {
+  } else if (op->op.same_as(builtin::reinterpret())) {
     this->Push(op->args[0]);
-  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
-    CHECK_EQ(op->args.size(), 3U);
+  } else if (op->op.same_as(builtin::tvm_struct_get())) {
+    ICHECK_EQ(op->args.size(), 3U);
     int kind = op->args[2].as<IntImmNode>()->value;
     this->Push(op->args[0]);
     const IntImmNode* index = op->args[1].as<IntImmNode>();
-    CHECK(index != nullptr);
+    ICHECK(index != nullptr);
     StackVM::Code code;
     code.op_code = StackVM::TVM_STRUCT_GET;
     vm_.code.push_back(code);
@@ -197,10 +198,10 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     vm_.code.push_back(code);
     code.v_int = MapFieldKind(kind);
     vm_.code.push_back(code);
-  } else if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
-    CHECK_GE(op->args.size(), 5U);
+  } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
+    ICHECK_GE(op->args.size(), 5U);
     const StringImmNode* s = op->args[0].as<StringImmNode>();
-    CHECK(s != nullptr) << "tvm_call_global expect first argument as function name";
+    ICHECK(s != nullptr) << "tvm_call_global expect first argument as function name";
     this->Push(op->args[1]);
     this->Push(op->args[2]);
     int begin = op->args[3].as<IntImmNode>()->value;
@@ -226,11 +227,11 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     vm_.code.push_back(code);
     code.v_int = end;
     vm_.code.push_back(code);
-  } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
-    CHECK_EQ(op->args.size(), 2U);
+  } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
+    ICHECK_EQ(op->args.size(), 2U);
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
-    CHECK(num != nullptr);
+    ICHECK(num != nullptr);
     static_assert(alignof(TVMValue) % alignof(DLTensor) == 0, "invariant");
     // static_assert(alignof(TVMValue) % alignof(tvm_index_t) == 0, "invariant");
     size_t unit = sizeof(TVMValue);
@@ -249,29 +250,29 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     // add stack size to be safe.
     vm_.stack_size += size;
     this->PushOp(StackVM::TVM_STACK_ALLOCA_BY_8BYTE, static_cast<int>(size));
-  } else if (op->name == "TVMBackendAllocWorkspace") {
-    CHECK_EQ(op->args.size(), 5U);
+  } else if (op->op.same_as(backend_alloc_workspace_op_)) {
+    ICHECK_EQ(op->args.size(), 5U);
     this->Push(op->args[0]);
     this->Push(op->args[1]);
     this->Push(op->args[2]);
     this->Push(op->args[3]);
     this->Push(op->args[4]);
     this->PushOp(StackVM::TVM_DEVICE_ALLOCA);
-  } else if (op->name == "TVMBackendFreeWorkspace") {
-    CHECK_EQ(op->args.size(), 3U);
+  } else if (op->op.same_as(backend_free_workspace_op_)) {
+    ICHECK_EQ(op->args.size(), 3U);
     this->Push(op->args[0]);
     this->Push(op->args[1]);
     this->Push(op->args[2]);
     this->PushOp(StackVM::TVM_DEVICE_FREE);
-  } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
+  } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PushOp(StackVM::TVM_THROW_LAST_ERROR);
-  } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
-    CHECK_EQ(op->args.size(), 1U);
+  } else if (op->op.same_as(builtin::isnullptr())) {
+    ICHECK_EQ(op->args.size(), 1U);
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
     this->PushOp(StackVM::EQ_HANDLE);
   } else {
-    LOG(FATAL) << "unknown function call " << op->name;
+    LOG(FATAL) << "unknown function call " << op->op;
   }
 }
 
@@ -304,8 +305,8 @@ void CodeGenStackVM::VisitExpr_(const StringImmNode* op) {
 }
 
 void CodeGenStackVM::VisitExpr_(const IntImmNode* op) {
-  CHECK(op->value >= std::numeric_limits<int>::min() &&
-        op->value <= std::numeric_limits<int>::max())
+  ICHECK(op->value >= std::numeric_limits<int>::min() &&
+         op->value <= std::numeric_limits<int>::max())
       << "Int constant exceed bound";
   this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
 }
@@ -398,7 +399,7 @@ void CodeGenStackVM::VisitExpr_(const NotNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const ForNode* op) {
-  CHECK(is_zero(op->min));
+  ICHECK(is_zero(op->min));
   int vid = this->AllocVarID(op->loop_var.get());
   this->PushOp(StackVM::PUSH_I64, 0);
   int64_t loop_head = this->GetPC();
@@ -428,14 +429,14 @@ void CodeGenStackVM::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const EvaluateNode* ev) {
-  if (is_const(ev->value)) return;
+  if (is_const_int(ev->value)) return;
   const CallNode* op = ev->value.as<CallNode>();
-  if (op && op->is_intrinsic(intrinsic::tvm_struct_set)) {
-    CHECK_EQ(op->args.size(), 4U);
+  if (op && op->op.same_as(builtin::tvm_struct_set())) {
+    ICHECK_EQ(op->args.size(), 4U);
     this->Push(op->args[0]);
     this->Push(op->args[3]);
     const IntImmNode* index = op->args[1].as<IntImmNode>();
-    CHECK(index != nullptr);
+    ICHECK(index != nullptr);
     StackVM::Code code;
     code.op_code = StackVM::TVM_STRUCT_SET;
     vm_.code.push_back(code);
@@ -509,19 +510,19 @@ void CodeGenStackVM::VisitExpr_(const LetNode* op) {
   this->Push(op->body);
 }
 
-runtime::Module BuildStackVM(const IRModule& mod, const std::string& target) {
+runtime::Module BuildStackVM(IRModule mod, Target target) {
   std::unordered_map<std::string, StackVM> fmap;
   std::string entry_func;
 
   for (auto kv : mod->functions) {
-    CHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenStackVM: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenStackVM: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    CHECK(global_symbol.defined())
+    ICHECK(global_symbol.defined())
         << "CodeGenStackVM: Expect PrimFunc to have the global_symbol attribute";
     std::string f_name = global_symbol.value();
     StackVM vm = codegen::CodeGenStackVM().Compile(f);
-    CHECK(!fmap.count(f_name)) << "Function name " << f_name << "already exist in list";
+    ICHECK(!fmap.count(f_name)) << "Function name " << f_name << "already exist in list";
     fmap[f_name] = std::move(vm);
 
     if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {

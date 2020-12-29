@@ -26,7 +26,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/vm.h>
 #include <tvm/support/logging.h>
 
 #include <iostream>
@@ -47,7 +46,7 @@ struct CallTracer : ExprVisitor {
   std::unordered_set<std::string> called_funcs_;
 
   // Record the expressions that are being visited
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> visiting_;
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 
   explicit CallTracer(const IRModule& module) : module_{module}, called_funcs_{}, visiting_{} {}
 

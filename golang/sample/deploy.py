@@ -26,15 +26,15 @@ import numpy as np
 
 # Global declarations of environment.
 
-tgt_host="llvm"
-tgt="llvm"
+tgt_host = "llvm"
+tgt = "llvm"
 
 ######################################################################
 # Describe the Computation
 # ------------------------
 n = te.var("n")
-A = te.placeholder((n,), name='A')
-B = te.placeholder((n,), name='B')
+A = te.placeholder((n,), name="A")
+B = te.placeholder((n,), name="B")
 C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 ######################################################################
@@ -51,7 +51,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # Save Compiled Module
 # --------------------
 from tvm.contrib import cc
-from tvm.contrib import util
+from tvm.contrib import utils
 
 fadd.save("deploy.o")
 cc.create_shared("deploy.so", ["deploy.o"])

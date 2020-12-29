@@ -34,8 +34,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "infer_layout_util.h"
-#include "pattern_util.h"
+#include "infer_layout_utils.h"
+#include "pattern_utils.h"
 
 namespace tvm {
 namespace relay {
@@ -126,7 +126,7 @@ class TransformMemorizer : public ObjectRef {
     if (src_layout.ndim_primal() < dst_layout.ndim_primal()) {
       // If scalar, then no need of layout transformation as scalar can be broadcasted easily even
       // if the other operand has a transformed layout.
-      if (IsScalar(input_expr)) {
+      if (input_expr->checked_type_.defined() && IsScalar(input_expr)) {
         return raw;
       }
       int num_new_axis = dst_layout.ndim_primal() - src_layout.ndim_primal();
@@ -138,9 +138,9 @@ class TransformMemorizer : public ObjectRef {
     }
 
     // 2) Insert layout transform on the transformed src.
-    CHECK(new_src_layout.defined() && dst_layout.defined())
+    ICHECK(new_src_layout.defined() && dst_layout.defined())
         << "Cannot insert layout transform because there are undefined layouts";
-    CHECK(tir::BijectiveLayout(new_src_layout, dst_layout).defined())
+    ICHECK(tir::BijectiveLayout(new_src_layout, dst_layout).defined())
         << "Cannot insert layout transform because there are inconvertible layouts: "
         << new_src_layout << " v.s. " << dst_layout;
     return MakeLayoutTransform(input_expr, new_src_layout.name(), dst_layout.name());
@@ -267,6 +267,18 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     }
   }
 
+  // If there is no FInferCorrectLayout for the type, then we just assume the layout is correct.
+  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
+  if (Op::HasAttrMap("FTVMAlterOpLayout")) {
+    static auto falter_layout = Op::GetAttrMap<FTVMAlterOpLayout>("FTVMAlterOpLayout");
+    if (ref_call->op.as<OpNode>()) {
+      Op op = Downcast<Op>(ref_call->op);
+      if (falter_layout.count(op) && !finfer_layout.count(op)) {
+        return memorizer.CallWithNewLayouts(ref_call, normal_new_args);
+      }
+    }
+  }
+
   // old_in, new_in = state[inputs]
   Array<Layout> old_in, old_out, new_in, new_out, new_in2;
   for (auto inp : inputs) {
@@ -287,7 +299,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   if (!success) {
     return Expr(nullptr);
   }
-  CHECK_EQ(old_in.size(), new_in.size());
+  ICHECK_EQ(old_in.size(), new_in.size());
 
   // if new_in == 'undef':  new_in = old_in
   for (size_t i = 0; i < new_in.size(); ++i) {
@@ -310,9 +322,9 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     return Expr(nullptr);
   }
 
-  CHECK_EQ(new_out.size(), old_out.size())
+  ICHECK_EQ(new_out.size(), old_out.size())
       << "The number of output nodes should keep the same during alter_op_layout";
-  CHECK_EQ(new_in.size(), new_in2.size())
+  ICHECK_EQ(new_in.size(), new_in2.size())
       << "The number of input nodes should keep the same during alter_op_layout";
 
   // if (new_in != new_in2): insert transform (new_in -> new_in2)
@@ -332,7 +344,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
       pt++;
     }
   }
-  CHECK_EQ(pt, inputs.size());
+  ICHECK_EQ(pt, inputs.size());
 
   // state[node] = (old_out, new_out)
   // (handle tuple output)
@@ -350,7 +362,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     return Tuple(fields);
   } else {
     auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
-    CHECK_EQ(new_out.size(), 1);
+    ICHECK_EQ(new_out.size(), 1);
     rnode->value = Call(new_call->op, transformed_args, new_call->attrs);
     rnode->old_layout = old_out[0];
     rnode->new_layout = new_out[0];

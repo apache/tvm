@@ -25,8 +25,9 @@
 #include "../../../src/runtime/c_runtime_api.cc"
 #include "../../../src/runtime/cpu_device_api.cc"
 #include "../../../src/runtime/dso_library.cc"
-#include "../../../src/runtime/file_util.cc"
+#include "../../../src/runtime/file_utils.cc"
 #include "../../../src/runtime/library_module.cc"
+#include "../../../src/runtime/metadata_module.cc"
 #include "../../../src/runtime/module.cc"
 #include "../../../src/runtime/ndarray.cc"
 #include "../../../src/runtime/object.cc"
@@ -37,6 +38,9 @@
 #include "../../../src/runtime/workspace_pool.cc"
 
 // RPC server
+#include "../../../src/runtime/rpc/rpc_channel.cc"
+#include "../../../src/runtime/rpc/rpc_endpoint.cc"
+#include "../../../src/runtime/rpc/rpc_local_session.cc"
 #include "../../../src/runtime/rpc/rpc_module.cc"
 #include "../../../src/runtime/rpc/rpc_server_env.cc"
 #include "../../../src/runtime/rpc/rpc_session.cc"
@@ -82,9 +86,9 @@ class NSStreamChannel final : public RPCChannel {
 FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string name,
                                        std::string remote_key) {
   std::unique_ptr<NSStreamChannel> ch(new NSStreamChannel(outputStream));
-  std::shared_ptr<RPCSession> sess = RPCSession::Create(std::move(ch), name, remote_key);
+  std::shared_ptr<RPCEndpoint> sess = RPCEndpoint::Create(std::move(ch), name, remote_key);
   return [sess](const std::string& in_bytes, int flag) {
-    return sess->ServerEventHandler(in_bytes, flag);
+    return sess->ServerAsyncIOEventHandler(in_bytes, flag);
   };
 }
 
@@ -114,8 +118,8 @@ void LaunchSyncServer() {
   std::ifstream fs(name, std::ios::in);
   std::string url, key;
   int port;
-  CHECK(fs >> url >> port >> key) << "Invalid RPC config file " << name;
-  RPCConnect(url, port, "server:" + key)->ServerLoop();
+  ICHECK(fs >> url >> port >> key) << "Invalid RPC config file " << name;
+  RPCConnect(url, port, "server:" + key, TVMArgs(nullptr, nullptr, 0))->ServerLoop();
 }
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([](TVMArgs args, TVMRetValue* rv) {

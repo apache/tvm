@@ -51,7 +51,7 @@ int main(int argc, char** argv) {
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
 
-  auto* handle = tvm_runtime_create(json_data, params_data, params_size);
+  void* handle = tvm_runtime_create(json_data, params_data, params_size, argv[0]);
   gettimeofday(&t1, 0);
 
   float input_storage[10 * 5];

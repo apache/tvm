@@ -120,13 +120,13 @@ void TouchExtractor::ExitItervar_() {
     if (kv.second.stride != 0) {  // multiply count
       for (auto stack_var : itervar_stack_) {
         auto touch_pattern = itervar_map[stack_var].touch_feature.find(kv.first);
-        CHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
+        ICHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
         touch_pattern->second.count *= itervar_map[var].length;
       }
     } else {  // multiply reuse ratio
       for (auto stack_var : itervar_stack_) {
         auto touch_pattern = itervar_map[stack_var].touch_feature.find(kv.first);
-        CHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
+        ICHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
         touch_pattern->second.reuse *= itervar_map[var].length;
       }
     }
@@ -151,7 +151,7 @@ void TouchExtractor::ExitItervar_() {
       for (auto stack_var : itervar_stack_) {
         if (ParallelLevel(itervar_map[stack_var].ann) == para_level + 1) {
           auto touch_pattern = itervar_map[stack_var].touch_feature.find(kv.first);
-          CHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
+          ICHECK(touch_pattern != itervar_map[stack_var].touch_feature.end());
           touch_pattern->second.thread_reuse = -kv.second.reuse;
           touch_pattern->second.thread_count = -kv.second.count;
           // NOTE: use minus as a flag to denote it is a base,
@@ -250,10 +250,10 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
   for (auto var : vars) {
     Array<Array<PrimExpr> > feature_row;
     ItervarFeature& fea = touch_analyzer.itervar_map[var];
-    feature_row.push_back(Array<PrimExpr>{tvm::tir::StringImmNode::make("_itervar_"), var});
+    feature_row.push_back(Array<PrimExpr>{tvm::tir::StringImm("_itervar_"), var});
 
     Array<PrimExpr> attr{
-        tvm::tir::StringImmNode::make("_attr_"),
+        tvm::tir::StringImm("_attr_"),
         FloatImm(DataType::Float(32), trans(fea.length)),
         IntImm(DataType::Int(32), fea.nest_level),
         FloatImm(DataType::Float(32), trans(fea.topdown_product)),
@@ -267,7 +267,7 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
 
     // arithmetic
     feature_row.push_back(Array<PrimExpr>{
-        tvm::tir::StringImmNode::make("_arith_"),
+        tvm::tir::StringImm("_arith_"),
         FloatImm(DataType::Float(32), trans(fea.add_ct)),
         FloatImm(DataType::Float(32), trans(fea.mul_ct)),
         FloatImm(DataType::Float(32), trans(fea.div_ct)),
@@ -282,7 +282,7 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
     for (auto k : bufs) {
       TouchPattern& v = fea.touch_feature[k];
       feature_row.push_back(Array<PrimExpr>{
-          tvm::tir::StringImmNode::make(k),
+          tvm::tir::StringImm(k),
           FloatImm(DataType::Float(32), trans(v.stride)),
           FloatImm(DataType::Float(32), trans(v.mod)),
           FloatImm(DataType::Float(32), trans(v.count)),

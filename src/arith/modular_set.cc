@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
 
@@ -66,7 +67,7 @@ struct ModularSetAnalyzer::Entry {
   Entry() = default;
 
   Entry(int64_t coeff, int64_t base) {
-    CHECK_GE(coeff, 0);
+    ICHECK_GE(coeff, 0);
     this->coeff = coeff;
     if (coeff != 0) {
       base = base % coeff;
@@ -88,14 +89,14 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
  public:
   explicit Impl(Analyzer* parent) : parent_(parent) {}
 
-  void Update(const Var& var, const ModularSet& info, bool override) {
-    if (!override) {
+  void Update(const Var& var, const ModularSet& info, bool allow_override) {
+    if (!allow_override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
-        CHECK(it->second == info) << "Trying to update var \'" << var << "\'"
-                                  << " with a different const bound: "
-                                  << "original=" << ModularSet(it->second.coeff, it->second.base)
-                                  << ", new=" << info;
+        ICHECK(it->second == info)
+            << "Trying to update var \'" << var << "\'"
+            << " with a different const bound: "
+            << "original=" << ModularSet(it->second.coeff, it->second.base) << ", new=" << info;
       }
     }
     var_map_[var] = Entry(info->coeff, info->base);
@@ -116,6 +117,19 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 
   // Override visitor behaviors
   Entry VisitExprDefault_(const Object* op) final { return Everything(); }
+
+  Entry VisitExpr_(const LetNode* op) final {
+    auto it = var_map_.find(op->var);
+    // if the var has not been binded, update the info.
+    if (it == var_map_.end()) {
+      var_map_[op->var] = this->VisitExpr(op->value);
+      Entry ret = VisitExpr(op->body);
+      var_map_.erase(op->var);
+      return ret;
+    } else {
+      return VisitExpr(op->body);
+    }
+  }
 
   Entry VisitExpr_(const CastNode* op) final { return VisitExpr(op->value); }
 
@@ -151,7 +165,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
 
   Entry DivByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
     Entry a = VisitExpr(lhs);
-    CHECK_NE(val, 0);
+    ICHECK_NE(val, 0);
     if (a.coeff % val == 0) {
       if (a.base == 0) {
         // a c x  / c -> a x
@@ -203,7 +217,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
-    if (op->is_intrinsic(CallNode::shift_right)) {
+    if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
     } else {
       return Everything();
@@ -224,7 +238,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     Entry b = VisitExpr(op->args[1]);
     // a c x  / c -> a x
     if (b.is_const()) {
-      return DivByConst(op->args[0], 1 << b.base, true);
+      return DivByConst(op->args[0], static_cast<int64_t>(1) << b.base, true);
     }
     return Everything();
   }
@@ -233,7 +247,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   /*! \brief pointer to parent. */
   Analyzer* parent_{nullptr};
   // internal variable map
-  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> var_map_;
   /*!
    * \brief Update var by intersecting entry with var's current set.
    * \param var The variable.
@@ -270,49 +284,7 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
       return Entry(ZeroAwareGCD(ZeroAwareGCD(base0, base1), coeff), base0);
     }
   }
-  /*!
-   * \brief Use Extended Euclidean algorithm to solve ax + by = gcd(a, b)
-   * \param a The first coefficient.
-   * \param b The second coefficient.
-   * \param x The solution of x.
-   * \param y The solution of y.
-   * \return The GCD of a and b.
-   */
-  static int64_t ExtendedEuclidean(int64_t a, int64_t b, int64_t* x, int64_t* y) {
-    // Extended Euclidean algorithm
-    // if a < 0, the problem can be convert into
-    // |a|* (-x) + b * y = gcd(|a|, b)
-    //
-    // initial condition:
-    // a * 0 + b * 1 = b
-    // a * 1 + b * 0 = a
-    int64_t s = 0, old_s = 1;
-    int64_t r = b, old_r = a >= 0 ? a : -a;
-    // Iteration (r2 < r1):
-    // a * x1 + b * y1 = r1
-    // a * x2 + b * y2 = r2
-    // The above two eqs can derive the following eq (q = r1 / r2)
-    // a * (x1 - x2 * q) + b * (y1 - y2 * q) = r1 - r2 * q = r3
-    // Because r3 < r2, the iteration can eventually terminate
-    while (r != 0) {
-      int64_t q = old_r / r;
-      int64_t tmp = old_r;
-      old_r = r;
-      r = tmp - q * r;
-      tmp = old_s;
-      old_s = s;
-      s = tmp - q * s;
-    }
 
-    *x = a >= 0 ? old_s : -old_s;
-    if (b != 0) {
-      *y = (old_r - (*x) * a) / b;
-    } else {
-      *y = 1;
-    }
-
-    return old_r;
-  }
   /*!
    * \brief Create interect of two sets.
    * \param a The left operand.
@@ -340,25 +312,6 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     }
   }
   /*!
-   * \brief Take GCD of a and b.
-   * \param a The first operand.
-   * \param b The second operand.
-   * \return The result.
-   */
-  static int64_t ZeroAwareGCD(int64_t a, int64_t b) {
-    if (a < 0) a = -a;
-    if (b < 0) b = -b;
-    if (a < b) std::swap(a, b);
-    if (b == 0) return a;
-    // perform GCD (greatest common divisor)
-    // ax + by = gcd(a, b) z if a != 0, b != 0
-    while (a % b != 0) {
-      a = a % b;
-      std::swap(a, b);
-    }
-    return b;
-  }
-  /*!
    * \brief return everything dtype can represent.
    * \return Bound that represent everything dtype can represent.
    */
@@ -375,8 +328,8 @@ ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
   return ModularSet(ret.coeff, ret.base);
 }
 
-void ModularSetAnalyzer::Update(const Var& var, const ModularSet& info, bool override) {
-  impl_->Update(var, info, override);
+void ModularSetAnalyzer::Update(const Var& var, const ModularSet& info, bool allow_override) {
+  impl_->Update(var, info, allow_override);
 }
 
 std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {

@@ -68,17 +68,19 @@ class TensorFunc:
         elif output_shape is not None:
             self.dynamic_output_shape = self._pack_shape_tensor(output_shape)
 
-        self.module = self._load_platform_specific_library("tvm_dso_op")
+        self.module = self._load_platform_specific_library("libtvm_dso_op")
         self.tvm_dso_op = self.module.tvm_dso_op
 
     def apply(self, *params):
-        return self.tvm_dso_op(params,
-                               dynamic_output_shape=self.dynamic_output_shape,
-                               static_output_shape=self.static_output_shape,
-                               has_static_output_shape=self.has_static_output_shape,
-                               lib_path=self.lib_path,
-                               func_name=self.func_name,
-                               output_dtype=self.output_dtype)
+        return self.tvm_dso_op(
+            params,
+            dynamic_output_shape=self.dynamic_output_shape,
+            static_output_shape=self.static_output_shape,
+            has_static_output_shape=self.has_static_output_shape,
+            lib_path=self.lib_path,
+            func_name=self.func_name,
+            output_dtype=self.output_dtype,
+        )
 
     def __call__(self, *params):
         return self.apply(*params)

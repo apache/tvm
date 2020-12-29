@@ -89,7 +89,7 @@ class PatternFunctor<R(const Pattern& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitPattern(const Pattern& n, Args... args) {
-    CHECK(n.defined());
+    ICHECK(n.defined());
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -158,7 +158,7 @@ class PatternMutator : public ::tvm::relay::PatternFunctor<Pattern(const Pattern
   virtual Constructor VisitConstructor(const Constructor& c);
 
  private:
-  std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map_;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_map_;
 };
 
 }  // namespace relay

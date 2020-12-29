@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 
 
@@ -22,23 +23,21 @@ def test_prim_func_pass():
     @tvm.tir.transform.prim_func_pass(opt_level=1)
     class TestReplaceFunc:
         """Simple test function to replace one argument to another."""
+
         def __init__(self, new_func):
             self.new_func = new_func
 
         def transform_function(self, func, mod, ctx):
             return self.new_func
 
-    x = te.var('x')
-    y = te.var('y')
+    x = te.var("x")
+    y = te.var("y")
     b = tvm.tir.decl_buffer((x,), "float32")
-    stmt = tvm.tir.LetStmt(
-        x, 10, tvm.tir.Evaluate(x + 1));
+    stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
 
-    func = tvm.tir.PrimFunc(
-        [x, y, b], stmt)
+    func = tvm.tir.PrimFunc([x, y, b], stmt)
 
-    new_func = tvm.tir.PrimFunc(
-        [x, y, b], tvm.tir.Evaluate(0))
+    new_func = tvm.tir.PrimFunc([x, y, b], tvm.tir.Evaluate(0))
 
     mod = tvm.IRModule({"main": func})
     mod = TestReplaceFunc(new_func)(mod)
@@ -52,18 +51,17 @@ def test_cow_pass():
         return f
 
     pidentity = tvm.tir.transform.Apply(fapply)
-    x = te.var('x')
-    func = tvm.tir.PrimFunc(
-        [x], tvm.tir.Evaluate(x)).with_attr("target_bits", 32)
+    x = te.var("x")
+    func = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x)).with_attr("target_bits", 32)
     func_hash = func.__hash__()
     mod = tvm.IRModule({"main": func})
     del func
     # copy on write
     mod_hash = mod.__hash__()
-    mod = tvm.transform.Sequential(
-        [pidentity, tvm.tir.transform.NarrowDataType(32)])(mod._move())
+    mod = tvm.transform.Sequential([pidentity, tvm.tir.transform.NarrowDataType(32)])(mod._move())
     assert mod_hash == mod.__hash__()
     assert func_hash == mod["main"].__hash__()
+
 
 if __name__ == "__main__":
     test_cow_pass()

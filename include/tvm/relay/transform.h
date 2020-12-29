@@ -58,7 +58,7 @@ using Sequential = tvm::transform::Sequential;
  */
 TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, const std::string& name, const tvm::Array<runtime::String>& required);
+    int opt_level, String name, tvm::Array<String> required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -107,6 +107,14 @@ TVM_DLL Pass FoldConstant();
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
+ * \brief The inverse operation of FuseOps. It transforms a fused program returned by
+ * FuseOps into the program before FuseOps. (i.e. x == DefuseOps(FuseOps(x)))
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass DefuseOps();
+
+/*!
  * \brief Rewrite the annotated program.
  *
  * \param fallback_device The fallback device which is the default device for
@@ -115,6 +123,21 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
  * \return The pass.
  */
 TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
+
+/*!
+ * \brief Turn an expression to Basic Block Normal Form.
+ *
+ * We define a block as a group of expressions implied by the scope structure.
+ *
+ * Each graph node can only belong to a single block.
+ *
+ * For any value that is being used in multiple blocks, it has to be referred
+ * by a Var which is defined in a block, whose scope is the least common ancestor
+ * of blocks this value is used.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ToBasicBlockNormalForm();
 
 /*!
  * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
@@ -131,6 +154,15 @@ TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
  * \return The pass.
  */
 TVM_DLL Pass ToANormalForm();
+
+/*!
+ * \brief ToANormalForm but on incomplete graph.
+ *
+ * \param expr the graph.
+ *
+ * \return The transformed program.
+ */
+TVM_DLL Expr ToANormalForm(const Expr& expr);
 
 /*!
  * \brief Turn an expression into continuation passing style(CPS).
@@ -170,8 +202,9 @@ TVM_DLL Pass ToGraphNormalForm();
 TVM_DLL Pass PartialEval();
 
 /*!
- * \brief Simplify certain operators during inference. For example, batch norm
- * will be unpacked into a number of simplified operators.
+ * \brief Simplify certain operators during inference. For example, the result
+ * of a batch norm which is indexed at tuple index 0 will be unpacked into a
+ * number of simplified operators.
  *
  * \return The Pass.
  */
@@ -183,6 +216,17 @@ TVM_DLL Pass SimplifyInference();
  * \return The Pass.
  */
 TVM_DLL Pass FastMath();
+
+/*!
+ * \brief Find Dynamic ops and make them static
+ *
+ * Searches the graph for dynamic ops. If the dynamic inputs to those ops are constants, it replaces
+ * them with static ops and re-performs type inference and constant folding. The pass repeats
+ * itself until the graph stops changing or we run too many iterations.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass DynamicToStatic();
 
 /*!
  * \brief Infer the type of an expression.
@@ -223,10 +267,23 @@ TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
  * `min_num_branch`.
  *
  * \param min_num_branches The minimun number of branches.
+ * \param to_batch_matmul Whether to combine parallel dense ops to batch matmul.
+ *                        If set false, combine dense ops to single dense op.
  *
  * \return The pass.
  */
-TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3);
+TVM_DLL Pass CombineParallelDense(uint64_t min_num_branches = 3, bool to_batch_matmul = true);
+
+/*!
+ * \brief Combine parallel batch_matmul ops into a single batch_matmul
+ *  if the number of branches of this dense operator is not less than
+ * `min_num_branch`.
+ *
+ * \param min_num_branches The minimun number of branches.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CombineParallelBatchMatmul(uint64_t min_num_branches = 3);
 
 /*!
  * \brief Backward fold axis scaling into weights of conv/dense operators.
@@ -267,6 +324,12 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Do layout rewrite according to the tile structure created by auto-scheduler.
+ * \return The pass
+ */
+TVM_DLL Pass AutoSchedulerLayoutRewrite();
+
+/*!
  * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
  * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
  * at the start and one at the end.
@@ -281,10 +344,12 @@ TVM_DLL Pass AlterOpLayout();
  * layouts for conv2d ops for now. Most of the other operators try to adapt to their input layout
  * using the InferCorrectLayout infrastructure.
  *
- * \param desired_layout The desired layout.
+ * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
+ *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
+ *                        this specifies the desired layout for data then kernel for nn.conv2d.
  * \return The pass.
  */
-TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
+TVM_DLL Pass ConvertLayout(const Map<String, Array<String>>& desired_layouts);
 
 /*!
  * \brief Legalizes an expr with another expression.
@@ -296,7 +361,7 @@ TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
  *
  * \return The pass.
  */
-TVM_DLL Pass Legalize(const std::string& legalize_map_attr_name = "FTVMLegalize");
+TVM_DLL Pass Legalize(const String& legalize_map_attr_name = "FTVMLegalize");
 
 /*!
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
@@ -347,6 +412,13 @@ TVM_DLL Pass Inline();
  */
 TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
+/*!
+ * \brief Simplify the Relay expression.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass SimplifyExpr();
+
 }  // namespace transform
 
 /*!
@@ -362,18 +434,6 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 /*!
- * \brief Infer the type of a function as if it is mapped to var in the mod.
- *
- * \param f the function.
- * \param mod The module used for referencing global functions.
- * \param var The global variable corresponding to the function.
- *
- * \return A type checked Function with its checked_type field populated.
- * \note this function mutates mod and is not thread-safe.
- */
-TVM_DLL Function InferType(const Function& f, const IRModule& mod, const GlobalVar& var);
-
-/*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
  * function is used as a helper function to rewrtie an expression in a pass.
  *
@@ -385,7 +445,7 @@ TVM_DLL Function InferType(const Function& f, const IRModule& mod, const GlobalV
  *                           an Expr consumed by multiple callers.
  * \return The rewritten expression.
  */
-TVM_DLL Expr ForwardRewrite(const Expr& expr, const std::string& rewrite_map_attr_name,
+TVM_DLL Expr ForwardRewrite(const Expr& expr, const String& rewrite_map_attr_name,
                             std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 

@@ -51,8 +51,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     """
     shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr) else shape
     dtype = "float32" if dtype is None else dtype
-    return _ffi_api.Placeholder(
-        shape, dtype, name)
+    return _ffi_api.Placeholder(shape, dtype, name)
 
 
 def compute(shape, fcompute, name="compute", tag="", attrs=None):
@@ -96,7 +95,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     if code.co_argcount == 0:
         arg_names = ["i%d" % i for i in range(ndim)]
     else:
-        arg_names = code.co_varnames[:code.co_argcount]
+        arg_names = code.co_varnames[: code.co_argcount]
         out_ndim = code.co_argcount
 
     if out_ndim != len(arg_names):
@@ -109,21 +108,22 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         for i, s in enumerate(shape[out_ndim:]):
             var_name = "ax" + str(i)
             dim_var.append(tvm.tir.IterVar((0, s), var_name, 4))
-        op_node = _ffi_api.TensorComputeOp(name,
-                                           tag,
-                                           dim_var,
-                                           body.reduce_axis,
-                                           out_ndim,
-                                           body.intrin,
-                                           body.tensors,
-                                           body.regions,
-                                           body.scalar_inputs)
+        op_node = _ffi_api.TensorComputeOp(
+            name,
+            tag,
+            dim_var,
+            body.reduce_axis,
+            out_ndim,
+            body.intrin,
+            body.tensors,
+            body.regions,
+            body.scalar_inputs,
+        )
     else:
         if not isinstance(body, (list, tuple)):
             body = [body]
         body = convert(body)
-        op_node = _ffi_api.ComputeOp(
-            name, tag, attrs, dim_var, body)
+        op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
 
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
@@ -192,23 +192,23 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
     axis = tvm.tir.IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
-    op = _ffi_api.ScanOp(name, tag, attrs,
-                         axis, init, update,
-                         state_placeholder, inputs)
+    op = _ffi_api.ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
 
 
-def extern(shape,
-           inputs,
-           fcompute,
-           name="extern",
-           dtype=None,
-           in_buffers=None,
-           out_buffers=None,
-           tag="",
-           attrs=None):
-    """Compute several tensor via extern function.
+def extern(
+    shape,
+    inputs,
+    fcompute,
+    name="extern",
+    dtype=None,
+    in_buffers=None,
+    out_buffers=None,
+    tag="",
+    attrs=None,
+):
+    """Compute several tensors via an extern function.
 
     Parameters
     ----------
@@ -281,13 +281,17 @@ def extern(shape,
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
         if len(inputs) != len(in_buffers):
-            raise RuntimeError("Number of inputs and in_buffers mismatch: %d vs %d."
-                               % (len(inputs), len(in_buffers)))
+            raise RuntimeError(
+                "Number of inputs and in_buffers mismatch: %d vs %d."
+                % (len(inputs), len(in_buffers))
+            )
     if out_buffers is not None:
         out_buffers = [out_buffers] if not isinstance(out_buffers, list) else out_buffers
         if len(shape) != len(out_buffers):
-            raise RuntimeError("Number of outputs and out_buffers mismatch: %d vs %d."
-                               % (len(shape), len(out_buffers)))
+            raise RuntimeError(
+                "Number of outputs and out_buffers mismatch: %d vs %d."
+                % (len(shape), len(out_buffers))
+            )
     input_placeholders = in_buffers or []
     output_placeholders = out_buffers or []
     types = set()
@@ -295,8 +299,7 @@ def extern(shape,
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
         if in_buffers is None:
-            input_placeholders.append(
-                tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name))
+            input_placeholders.append(tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name))
         types.add(t.dtype)
 
     if dtype is None:
@@ -313,15 +316,19 @@ def extern(shape,
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, tvm.tir.PrimExpr):
         body = tvm.tir.Evaluate(body)
+    if not isinstance(body, tvm.tir.Stmt):
+        raise ValueError(
+            "Function '{}' should return PrimExpr or Stmt, but it returned '{}'".format(
+                fcompute.__name__, type(body)
+            )
+        )
 
-    op = _ffi_api.ExternOp(name, tag, attrs,
-                           inputs, input_placeholders,
-                           output_placeholders, body)
+    op = _ffi_api.ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body)
     res = [op.output(i) for i in range(len(output_placeholders))]
     return res[0] if len(res) == 1 else res
 
 
-def var(name="tindex", dtype="int32"):
+def var(name="tindex", dtype="int32", span=None):
     """Create a new variable with specified name and dtype
 
     Parameters
@@ -332,15 +339,18 @@ def var(name="tindex", dtype="int32"):
     dtype : str
         The data type
 
+    span : Optional[Span]
+        The location of this variable in the source.
+
     Returns
     -------
     var : Var
         The result symbolic variable.
     """
-    return tvm.tir.Var(name, dtype)
+    return tvm.tir.Var(name, dtype, span)
 
 
-def size_var(name="size", dtype="int32"):
+def size_var(name="size", dtype="int32", span=None):
     """Create a new variable represents a tensor shape size, which is non-negative.
 
     Parameters
@@ -351,15 +361,18 @@ def size_var(name="size", dtype="int32"):
     dtype : str
         The data type
 
+    span : Optional[Span]
+        The location of this variable in the source.
+
     Returns
     -------
     var : SizeVar
         The result symbolic shape variable.
     """
-    return tvm.tir.SizeVar(name, dtype)
+    return tvm.tir.SizeVar(name, dtype, span)
 
 
-def thread_axis(dom=None, tag="", name=""):
+def thread_axis(dom=None, tag="", name="", span=None):
     """Create a new IterVar to represent thread index.
 
     Parameters
@@ -374,6 +387,9 @@ def thread_axis(dom=None, tag="", name=""):
     name : str, optional
         The name of the var.
 
+    span : Optional[Span]
+        The location of this variable in the source.
+
     Returns
     -------
     axis : IterVar
@@ -384,10 +400,10 @@ def thread_axis(dom=None, tag="", name=""):
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
-    return tvm.tir.IterVar(dom, name, 1, tag)
+    return tvm.tir.IterVar(dom, name, 1, tag, span)
 
 
-def reduce_axis(dom, name="rv"):
+def reduce_axis(dom, name="rv", thread_tag="", span=None):
     """Create a new IterVar for reduction.
 
     Parameters
@@ -398,9 +414,15 @@ def reduce_axis(dom, name="rv"):
     name : str
         The name of the variable.
 
+    thread_tag : Optional[str]
+        The name of the thread_tag.
+
+    span : Optional[Span]
+        The location of this variable in the source.
+
     Returns
     -------
     axis : IterVar
         An iteration variable representing the value.
     """
-    return tvm.tir.IterVar(dom, name, 2)
+    return tvm.tir.IterVar(dom, name, 2, thread_tag, span)

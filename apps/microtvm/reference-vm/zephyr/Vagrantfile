@@ -1,0 +1,60 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "tlcpack/microtvm-zephyr"
+
+  tvm_home = "../../../.."
+  dirs_to_mount = [Pathname.new(Pathname.new(tvm_home).expand_path())]
+  if ENV.has_key?("TVM_PROJECT_DIR") then
+    dirs_to_mount.append(ENV["TVM_PROJECT_DIR"])
+    puts "NOTE: also configuring project dir: %s" % [dirs_to_mount[-1]]
+  end
+
+  git_file = Pathname.new(tvm_home + "/.git")
+  if git_file.ftype() == "file" then
+    gitdir_match = Regexp.new('^gitdir: (?<gitdir>.*/.git).*\n$', Regexp::MULTILINE).match(git_file.read())
+    if !gitdir_match.nil? then
+      dirs_to_mount.append(Pathname.new(gitdir_match.named_captures["gitdir"]))
+      puts "NOTE: also configuring git-worktree gitdir: %s" % [dirs_to_mount[-1]]
+    end
+  end
+
+  config.vm.provision "shell", path: "setup.sh", env: {"TVM_HOME": dirs_to_mount[0]}, privileged: false
+
+  # Enable USB Controller on VirtualBox
+  vm_name = "microtvm-#{Time.now.tv_sec}"
+  config.vm.provider "virtualbox" do |vb, overrides|
+    vb.name = vm_name
+    vb.customize ["modifyvm", :id, "--usb", "on"]
+    vb.customize ["modifyvm", :id, "--usbehci", "on"]
+    vb.customize ["modifyvm", :id, "--usbxhci", "on"]
+    dirs_to_mount.each do |d|
+      overrides.vm.synced_folder d.to_s, d.to_s
+    end
+  end
+
+  config.vm.provider "parallels" do |prl, overrides|
+    prl.name = vm_name
+    prl.update_guest_tools = true
+    prl.customize ["set", :id, "--support-usb30", "on"]
+    dirs_to_mount.each do |d|
+      overrides.vm.synced_folder d.to_s, d.to_s, mount_options: ["share", "nosuid", "host_inodes"]
+    end
+  end
+
+end

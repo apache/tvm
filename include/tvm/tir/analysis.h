@@ -28,6 +28,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 
 #include <string>
@@ -56,7 +57,7 @@ struct ExprDeepEqual {
 };
 
 /*!
- * \brief Find undefined vars in the statment.
+ * \brief Find undefined vars in the statement.
  * \param stmt The function to be checked.
  * \param defs The vars that is defined.
  * \return Array of undefined vars.
@@ -64,11 +65,19 @@ struct ExprDeepEqual {
 TVM_DLL Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
 
 /*!
- * \brief Whether the expression have side effect.
+ * \brief Find undefined vars in the expression.
  * \param expr The expression to be checked.
- * \return whether expression have side effect
+ * \return Array of undefined vars.
  */
-TVM_DLL bool HasSideEffect(const PrimExpr& expr);
+TVM_DLL Array<Var> UndefinedVars(const PrimExpr& expr);
+
+/*!
+ * \brief Analyze the side effect
+ * \param expr The expression to be checked.
+ *
+ * \return CallEffectKind, can be kPure, kReadState or kUpdateState
+ */
+TVM_DLL CallEffectKind SideEffect(const PrimExpr& expr);
 
 /*!
  * \brief Whether e expression used any var in variable set..
@@ -130,7 +139,7 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  * \return valid Whether it is a valid GPU code
  *
  */
-TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<std::string, PrimExpr> constraints);
+TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.
@@ -163,7 +172,7 @@ TVM_DLL Pass VerifyMemory();
  * \returns The pass.
  * \sa tvm::tir::VerifyGPUCode
  */
-TVM_DLL Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints);
+TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 
 }  // namespace transform
 }  // namespace tir

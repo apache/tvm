@@ -92,21 +92,13 @@ class BoundDeducer : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const LTNode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
-  }
+  void VisitExpr_(const LTNode* op) final { success_ = false; }
 
-  void VisitExpr_(const LENode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
-  }
+  void VisitExpr_(const LENode* op) final { success_ = false; }
 
-  void VisitExpr_(const GTNode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
-  }
+  void VisitExpr_(const GTNode* op) final { success_ = false; }
 
-  void VisitExpr_(const GENode* op) final {
-    LOG(FATAL) << "unable to deduce due to multiple comparison operator";
-  }
+  void VisitExpr_(const GENode* op) final { success_ = false; }
 
   void VisitExpr_(const AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
@@ -135,7 +127,7 @@ class BoundDeducer : public ExprVisitor {
     if (operand.dtype().is_uint()) {
       sign_operand = kPositive;
     } else {
-      sign_operand = expr_map_[operand].sign_type();
+      sign_operand = expr_map_[operand].GetSignType();
     }
 
     if (sign_operand == SignType::kNegative) {
@@ -315,7 +307,7 @@ void BoundDeducer::Deduce() {
 void BoundDeducer::Relax() {
   IntSet a = EvalSet(expr_, relax_map_);
   IntSet b = EvalSet(result_, relax_map_);
-  if (a.is_everything() || b.is_everything()) {
+  if (a.IsEverything() || b.IsEverything()) {
     success_ = false;
     return;
   }
@@ -336,7 +328,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
                    const std::unordered_map<const VarNode*, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
-  if (!d.success_) return IntSet::nothing();
+  if (!d.success_) return IntSet::Nothing();
   PrimExpr min = neg_inf(), max = pos_inf();
   if (d.comp_op == kEqual) {
     min = d.result_;
@@ -346,7 +338,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
   } else {
     max = d.result_;
   }
-  return IntSet::interval(min, max);
+  return IntSet::Interval(min, max);
 }
 
 // assuming e >= 0, deduce the bound of variable from it.

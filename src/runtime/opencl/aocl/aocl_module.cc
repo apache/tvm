@@ -39,12 +39,10 @@ class AOCLModuleNode : public OpenCLModuleNode {
   explicit AOCLModuleNode(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNode(data, fmt, fmap, source) {}
-  const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace() final;
+  cl::OpenCLWorkspace* GetGlobalWorkspace() final;
 };
 
-const std::shared_ptr<cl::OpenCLWorkspace>& AOCLModuleNode::GetGlobalWorkspace() {
-  return cl::AOCLWorkspace::Global();
-}
+cl::OpenCLWorkspace* AOCLModuleNode::GetGlobalWorkspace() { return cl::AOCLWorkspace::Global(); }
 
 Module AOCLModuleCreate(std::string data, std::string fmt,
                         std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {

@@ -72,16 +72,16 @@ class ValidateAnnotation : private ExprVisitor {
     if (IsOnDeviceNode(call_node)) {
       int device_type = GetDeviceId(call_node);
       if (annotation_map_.count(call_node)) {
-        CHECK_EQ(annotation_map_.at(call_node), device_type)
+        ICHECK_EQ(annotation_map_.at(call_node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({call_node, GetDeviceId(call_node)});
       }
 
-      CHECK_EQ(call_node->args.size(), 1U);
+      ICHECK_EQ(call_node->args.size(), 1U);
       const auto* node = call_node->args[0].operator->();
       if (annotation_map_.count(node)) {
-        CHECK_EQ(annotation_map_.at(node), device_type)
+        ICHECK_EQ(annotation_map_.at(node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({node, GetDeviceId(call_node)});
@@ -103,7 +103,7 @@ class ValidateAnnotation : private ExprVisitor {
    * \return The device type.
    */
   int GetDeviceId(const CallNode* call_node) {
-    CHECK(IsOnDeviceNode(call_node)) << "The input call node must be on_device node.";
+    ICHECK(IsOnDeviceNode(call_node)) << "The input call node must be on_device node.";
     const OnDeviceAttrs* on_device_attr = call_node->attrs.as<OnDeviceAttrs>();
     return on_device_attr->device_type;
   }
@@ -226,7 +226,7 @@ class RewriteAnnotation : public ExprMutator {
     const auto sit = annotation_map_.find(src_node);
     if (sit == annotation_map_.end()) {
       const auto dit = annotation_map_.find(dst);
-      CHECK(dit != annotation_map_.end())
+      ICHECK(dit != annotation_map_.end())
           << "Device copy op is not required when both src and dst ops are not "
              "annotated.";
       return CreateDeviceCopy(src, fallback_device_, dit->second);
@@ -385,23 +385,34 @@ class DeviceInfo {
       // TODO(zhiics) Skip annotation of function node for now.
     }
 
-    void VisitExpr_(const ConstantNode* cn) final {
-      post_dfs_order_.push_back(std::make_pair(cn, has_copy_));
-    }
+    void VisitExpr_(const ConstantNode* cn) final { device_tag_[cn] = dev_type_; }
 
     void VisitExpr_(const CallNode* call) final {
       // Skip annotation nodes.
       if (!IsOnDeviceNode(call)) {
-        if (GetDeviceCopyNode(call)) {
+        if (const auto* node = GetDeviceCopyNode(call)) {
+          ICHECK(node->IsInstance<CallNode>());
+          const auto* call_node = static_cast<const CallNode*>(node);
+          auto attrs = call_node->attrs.as<DeviceCopyAttrs>();
+
           num_device_copy_ops_++;
-          bool has_copy_prev = has_copy_;
-          has_copy_ = true;
-          ExprVisitor::VisitExpr_(call);
-          post_dfs_order_.push_back(std::make_pair(call, has_copy_));
-          has_copy_ = has_copy_prev;
+          dev_type_ = attrs->src_dev_type;
+          for (auto& arg : call->args) {
+            Visit(arg);
+            // restore the type for remaining arguments
+            dev_type_ = attrs->src_dev_type;
+          }
+          device_tag_[call] = attrs->dst_dev_type;
+          // update the out_dev_type_, which should be the dst_dev_type of last copy
+          out_dev_type_ = attrs->dst_dev_type;
         } else {
-          ExprVisitor::VisitExpr_(call);
-          post_dfs_order_.push_back(std::make_pair(call, has_copy_));
+          for (auto& arg : call->args) {
+            int cur_dev_type = dev_type_;
+            Visit(arg);
+            // restore the type for remaining arguments
+            dev_type_ = cur_dev_type;
+          }
+          device_tag_[call] = dev_type_;
         }
       }
     }
@@ -413,23 +424,22 @@ class DeviceInfo {
 
     void VisitExpr_(const TupleGetItemNode* op) final { ExprVisitor::VisitExpr_(op); }
 
-    void VisitExpr_(const VarNode* vn) final {
-      post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
-    }
+    void VisitExpr_(const VarNode* vn) final { device_tag_[vn] = dev_type_; }
 
     void VisitExpr_(const LetNode* ln) final {
       ExprVisitor::VisitExpr_(ln);
-      post_dfs_order_.push_back(std::make_pair(ln, has_copy_));
+      device_tag_[ln] = dev_type_;
     }
 
     void VisitExpr_(const IfNode* in) final {
       ExprVisitor::VisitExpr_(in);
-      post_dfs_order_.push_back(std::make_pair(in, has_copy_));
+      device_tag_[in] = dev_type_;
     }
 
     int num_device_copy_ops_{0};
-    bool has_copy_ = false;
-    std::vector<std::pair<const ExprNode*, bool>> post_dfs_order_;
+    int dev_type_ = -1;
+    int out_dev_type_ = -1;
+    std::unordered_map<const ExprNode*, int> device_tag_;
     friend DeviceInfo;
   };
 
@@ -455,38 +465,13 @@ class DeviceInfo {
   }
 
   void PropagateDeviceId() {
-    // Bottom-up propagation.
-    int out_dev_type = BottomUpPropagation();
-    // propagation for remained nodes.
-    FillPropagation(out_dev_type);
-  }
-
-  int BottomUpPropagation() {
-    const CallNode* last_copy_node = nullptr;
-    int cur_dev_type = -1;
-    int out_dev_type = -1;
-    for (auto it = post_visitor_.post_dfs_order_.crbegin();
-         it != post_visitor_.post_dfs_order_.crend(); ++it) {
-      if (const auto* node = GetDeviceCopyNode(it->first)) {
-        CHECK(node->IsInstance<CallNode>());
-        last_copy_node = static_cast<const CallNode*>(node);
-        const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
-        cur_dev_type = attrs->src_dev_type;
-        if (out_dev_type == -1) out_dev_type = attrs->dst_dev_type;
-        if (it->second) device_map_.Set(GetRef<Expr>(it->first), attrs->dst_dev_type);
-      } else if (last_copy_node) {
-        Expr expr = GetRef<Expr>(it->first);
-        CHECK_EQ(device_map_.count(expr), 0U);
-        if (it->second) device_map_.Set(expr, cur_dev_type);
+    int out_dev_type = post_visitor_.out_dev_type_;
+    for (auto& it : post_visitor_.device_tag_) {
+      if (it.second != -1) {
+        device_map_.Set(GetRef<Expr>(it.first), it.second);
+      } else {
+        device_map_.Set(GetRef<Expr>(it.first), out_dev_type);
       }
-    }
-    return out_dev_type;
-  }
-
-  void FillPropagation(int out_dev_type) {
-    for (const auto& it : post_visitor_.post_dfs_order_) {
-      Expr expr = GetRef<Expr>(it.first);
-      if (!it.second) device_map_.Set(expr, out_dev_type);
     }
   }
 
@@ -511,7 +496,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
           new_body.push_back(field);
         }
       }
-      CHECK_GT(new_body.size(), 0U);
+      ICHECK_GT(new_body.size(), 0U);
       if (new_body.size() == 1) {
         return Function(params, new_body[0], Type(nullptr), fn->type_params, fn->attrs);
       } else if (tuple->fields.size() == new_body.size()) {
@@ -530,7 +515,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
         new_fields.push_back(field);
       }
     }
-    CHECK_GT(new_fields.size(), 0U);
+    ICHECK_GT(new_fields.size(), 0U);
     if (tuple->fields.size() == new_fields.size()) {
       return new_fields.size() == 1 ? new_fields[0] : new_expr;
     } else {

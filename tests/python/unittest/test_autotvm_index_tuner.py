@@ -16,6 +16,7 @@
 # under the License.
 """Test index based tuners"""
 
+import multiprocessing
 from test_autotvm_common import DummyRunner, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.tuner import GridSearchTuner, RandomTuner
@@ -43,6 +44,18 @@ def test_gridsearch_tuner():
     assert not tuner.has_next()
 
 
+def grid_search_spawn():
+    assert multiprocessing.get_spawn_method(False) == "spawn"
+    test_gridsearch_tuner()
+
+
+def test_grid_search_tuner_spawn():
+    ctx = multiprocessing.get_context("spawn")
+    p = ctx.Process(target=test_gridsearch_tuner)
+    p.start()
+    p.join()
+
+
 def test_random_tuner():
     """Test RandomTuner"""
 
@@ -63,6 +76,7 @@ def test_random_tuner():
         assert 8 <= idx <= 15
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_gridsearch_tuner()
+    test_gridsearch_tuner_spawn()
     test_random_tuner()

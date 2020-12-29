@@ -38,8 +38,8 @@ them on the runtime. Graph runtime provides a fast execution experience but only
 subset of Relay programs.
 
 An alternative but not-standard approach is Relay's ahead-of-time compiler,
-which compiles a Relay program into a shared library containing an ahead-
-of-time implementation. The ahead-of-time compiler provides compelling performance
+which compiles a Relay program into a shared library containing an ahead-of-time
+implementation. The ahead-of-time compiler provides compelling performance
 but is difficult to extend and instrument, which can only be done by modifying the
 code generation and optimization mechanisms.
 
@@ -110,7 +110,7 @@ InvokePacked
 Invoke the packed function denoted by ``packed_index``. The ``arity``
 and ``output_size`` are used to inform the VM how many inputs and
 outputs to expect. ``packed_args`` stores the list of argument registers. Note ``Index``
-is an alais of ``int64_t``, and it will be used in other instructions as well.
+is an alias of ``int64_t``, and it will be used in other instructions as well.
 
 AllocTensor
 ^^^^^^^^^^^
@@ -276,13 +276,13 @@ VM.
 Currently, three types of objects, ``NDArray``, ``ADT``, and ``Closure`` objects, are used
 to represent tensor, tuple/list, and closure data, respectively. More details
 for each of them can be found at `include/tvm/runtime/ndarray.h`_,
-`include/tvm/runtime/vm.h`_, and `include/tvm/runtime/container.h`_, respectively.
+`include/tvm/runtime/vm/vm.h`_, and `include/tvm/runtime/container.h`_, respectively.
 
-.. _include/tvm/runtime/ndarray.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/ndarray.h
+.. _include/tvm/runtime/ndarray.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/ndarray.h
 
-.. _include/tvm/runtime/vm.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/vm.h
+.. _include/tvm/runtime/vm/vm.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/vm/vm.h
 
-.. _include/tvm/runtime/container.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/container.h
+.. _include/tvm/runtime/container.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/container.h
 
 Stack and State
 ~~~~~~~~~~~~~~~
@@ -321,7 +321,12 @@ VM Compiler
 
 An important part of this infrastructure is a compiler from Relay's full IR into a sequence of bytecode.
 The VM compiler transforms a ``tvm::relay::Module`` into a ``tvm::relay::vm::Executable``. The executable
-contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``. The functions contain metadata about the function as well as its compiled bytecode. The emitted executable object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the data structures, please see `include/tvm/runtime/vm.h`_.
+contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``.
+The functions contain metadata about the function as well as its compiled bytecode. The emitted executable
+object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the
+data structures, please see `include/tvm/runtime/vm/executable.h`_ and `include/tvm/runtime/vm/vm.h`_.
+
+.. _include/tvm/runtime/vm/executable.h: https://github.com/apache/tvm/blob/main/include/tvm/runtime/vm/executable.h
 
 Optimizations
 ~~~~~~~~~~~~~
@@ -338,11 +343,11 @@ Optimizations marked with `TODO` are not implemented yet.
 - Tail Call Optimization (TODO)
 - Liveness Analysis (TODO)
 
-.. _src/relay/vm/lambda_lift.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/vm/lambda_lift.cc
+.. _src/relay/vm/lambda_lift.cc: https://github.com/apache/tvm/blob/main/src/relay/backend/vm/lambda_lift.cc
 
-.. _src/relay/vm/inline_primitives.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/vm/inline_primitives.cc
+.. _src/relay/vm/inline_primitives.cc: https://github.com/apache/tvm/blob/main/src/relay/backend/vm/inline_primitives.cc
 
-.. _src/relay/backend/vm/compiler.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/vm/compiler.cc
+.. _src/relay/backend/vm/compiler.cc: https://github.com/apache/tvm/blob/main/src/relay/backend/vm/compiler.cc
 
 Serialization
 ~~~~~~~~~~~~~
@@ -381,7 +386,7 @@ load the serialized kernel binary and executable related binary code, which will
 instantiate a VM object. Please refer to the `test_vm_serialization.py`_ file for more
 examples.
 
-.. _test_vm_serialization.py: https://github.com/apache/incubator-tvm/blob/master/tests/python/relay/test_vm_serialization.py
+.. _test_vm_serialization.py: https://github.com/apache/tvm/blob/main/tests/python/relay/test_vm_serialization.py
 
 Unresolved Questions
 ~~~~~~~~~~~~~~~~~~~~
@@ -401,4 +406,4 @@ How do we support heterogenous execution?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Heterogenous execution should work out of the box assuming we have annotated the appropriate device copies.
-In order to do this properly we need to run the device annotation and copying passes. 
+In order to do this properly we need to run the device annotation and copying passes.

@@ -19,7 +19,7 @@ from __future__ import absolute_import
 
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from topi.util import get_const_int, get_const_tuple
+from tvm.topi.utils import get_const_int, get_const_tuple
 from . import op as _reg
 
 _reg.register_reduce_schedule("argmax")
@@ -32,6 +32,7 @@ _reg.register_reduce_schedule("min")
 _reg.register_reduce_schedule("prod")
 _reg.register_reduce_schedule("mean")
 _reg.register_reduce_schedule("variance")
+
 
 def _create_axis_record(attrs, inputs):
     axes = attrs.axis if attrs.axis is None else list(get_const_tuple(attrs.axis))
@@ -79,12 +80,14 @@ def _reduce_shape_func(data_shape, axis_record):
 
     return out
 
+
 def reduce_shape_func(attrs, inputs, _):
     """
     Shape function for reduce op.
     """
     axis_record = _create_axis_record(attrs, inputs)
     return [_reduce_shape_func(inputs[0], convert(axis_record))]
+
 
 _reg.register_shape_func("argmax", False, reduce_shape_func)
 _reg.register_shape_func("argmin", False, reduce_shape_func)
