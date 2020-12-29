@@ -3438,13 +3438,9 @@ def test_bincount():
 
 
 def test_hard_swish():
-    hard_swish = torch.nn.Hardswish()
-    hard_swish_inplace = torch.nn.Hardswish(inplace=True)
-    examples = [torch.rand(8), torch.rand(8, 8), torch.rand(8, 16), torch.rand(1, 1, 8)]
-    targets = ["llvm", "cuda"]
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
     for input in examples:
-        verify_trace_model(hard_swish, [input], targets)
-        verify_trace_model(hard_swish_inplace, [input], targets)
+        verify_model(torch.nn.Hardswish().eval(), input_data=input)
 
 
 if __name__ == "__main__":
