@@ -975,6 +975,26 @@ def _sparse_tensor_dense_matmul():
     return _impl
 
 
+def _sparse_reshape():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 3, "There should be 3 input tensors"
+
+        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        values_tensor = np.zeros(indices_tensor.shape[0], dtype=indices_tensor.dtype)
+        prev_shape_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        new_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+
+        indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
+        values_data = _expr.const(values_tensor, values_tensor.dtype)
+
+        ret = _op.sparse_reshape(
+            indices_data, values_data, list(prev_shape_tensor), list(new_shape_tensor)
+        )
+        return ret, _expr.const(new_shape_tensor, new_shape_tensor.dtype)
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2423,6 +2443,7 @@ _convert_map = {
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
+    "SparseReshape": _sparse_reshape(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
