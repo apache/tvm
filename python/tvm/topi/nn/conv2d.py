@@ -38,16 +38,16 @@ Workload = namedtuple(
         "in_filter",
         "groups",
         "out_filter",
-        "hkernel",
-        "wkernel",
+        "kernel_h",
+        "kernel_w",
         "padt",
         "padl",
         "padb",
         "padr",
-        "hdilation",
-        "wdilation",
-        "hstride",
-        "wstride",
+        "dilation_h",
+        "dilation_w",
+        "stride_h",
+        "stride_w",
     ],
 )
 
@@ -175,7 +175,9 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
     pt, pl, pb, pr = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
-    hdilation, wdilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilation_h, dilation_w = (
+        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    )
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -201,8 +203,8 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         pl,
         pb,
         pr,
-        hdilation,
-        wdilation,
+        dilation_h,
+        dilation_w,
         HSTR,
         WSTR,
     )

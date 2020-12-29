@@ -114,7 +114,7 @@ def compile_conv2d_NHWC_gemm_int8_arm(
                 s,
                 [A, W, bias, C],
                 device,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
+                name="relu_%dnnn_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
         else:
@@ -387,9 +387,13 @@ def verify_conv2d_nchw_int8(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
-    def verify_fallback_schedule_cpu_padding():
+    def verify_workload_padding():
         _, _, out_height, out_width = get_const_tuple(c_np.shape)
         wkl = _get_workload(A, W, (stride, stride), padding, dilation, dtype)
+
+        # for testing functionality,
+        # we choose arbitrary int32_lanes and num_int8_elements can divide the channel,
+        # regardless of the performance.
         int32_lanes, num_int8_elements = num_filter, in_channel
 
         # check if tile_ow candidates are the factors of the right output weight.
@@ -450,7 +454,7 @@ def verify_conv2d_nchw_int8(
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    verify_fallback_schedule_cpu_padding()
+    verify_workload_padding()
 
     for device in ["cuda"]:
         check_device(device)

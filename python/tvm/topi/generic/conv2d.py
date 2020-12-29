@@ -39,8 +39,8 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
         This is related to input channel.
     """
     pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    dilated_kernel_w = (wkl.wkernel - 1) * wkl.wdilation + 1
+    HSTR, WSTR = wkl.stride_h, wkl.stride_w
+    dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
     out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
 
     assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
