@@ -797,8 +797,7 @@ class PyTorchOpConverter:
         def _relu6(data):
             return _op.tensor.clip(data, 0.0, 6.0)
 
-        return input * _relu6(input + _expr.const(3.0,  dtype=dtype)) / _expr.const(6.0, dtype=dtype)
-        
+        return input * _relu6(input + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
 
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
