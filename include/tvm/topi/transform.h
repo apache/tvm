@@ -1459,11 +1459,14 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
         }
       },
       name, tag));
-  result.push_back(compute(Array<PrimExpr>{new_shape_size}, [&](const Array<Var>& indices) {
-    PrimExpr ret = new_shape(indices);
-    ret = if_then_else(ret == -1, neg_shape_val[0], ret);
-    return ret;
-  }, name, tag));
+  result.push_back(compute(
+      Array<PrimExpr>{new_shape_size},
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = new_shape(indices);
+        ret = if_then_else(ret == -1, neg_shape_val[0], ret);
+        return ret;
+      },
+      name, tag));
   return result;
 }  // namespace topi
 /*!
