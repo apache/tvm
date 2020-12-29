@@ -1046,7 +1046,6 @@ def test_scatter_add():
 def test_sparse_reshape():
     def ref_sparse_reshape(
         sparse_indices: np.ndarray,
-        sparse_values: np.ndarray,
         prev_shape: np.ndarray,
         new_shape: np.ndarray,
     ):
@@ -1054,7 +1053,7 @@ def test_sparse_reshape():
         This function calculates the expected output of sparseshape operator given the inputs.
         """
         new_sparse_indices = np.ones(
-            (sparse_values.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
+            (sparse_indices.shape[0], new_shape.shape[0]), dtype=sparse_indices.dtype
         )
         multipliers = np.ones(prev_shape.shape[0])
         dividers = np.ones(new_shape.shape[0])
@@ -1066,11 +1065,14 @@ def test_sparse_reshape():
             division_total_ele *= new_shape[i]
         for i in range(prev_shape.shape[0] - 2, -1, -1):
             multipliers[i] = prev_shape[i + 1] * multipliers[i + 1]
+
+        for i in range(len(new_shape)):
+            if new_shape[i] == -1:
+                new_shape[i] = total_ele // division_total_ele
+
         for i in range(new_shape.shape[0] - 2, -1, -1):
-            if new_shape[i + 1] == -1:
-                dividers[i] = (total_ele // division_total_ele) * dividers[i + 1]
-            else:
-                dividers[i] = new_shape[i + 1] * dividers[i + 1]
+            dividers[i] = new_shape[i + 1] * dividers[i + 1]
+
         for row_num, sparse_row in enumerate(sparse_indices):
             flat_idx = 0
             if len(sparse_indices.shape) != 1:
@@ -1085,7 +1087,7 @@ def test_sparse_reshape():
             else:
                 new_sparse_indices[row_num] = flat_idx
 
-        return new_sparse_indices
+        return new_sparse_indices, new_shape
 
     def verify_sparse_reshape(
         sparse_indices_np: np.ndarray,
@@ -1100,23 +1102,25 @@ def test_sparse_reshape():
             "sparse_indices",
             relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
         )
-        sparse_values = relay.var(
-            "sparse_values", relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype))
+        prev_shape = relay.var(
+            "prev_shape", relay.TensorType(prev_shape_np.shape, str(prev_shape_np.dtype))
         )
-        z = relay.op.sparse_reshape(
-            sparse_indices, sparse_values, list(prev_shape_np), list(new_shape_np)
+        new_shape = relay.var(
+            "new_shape", relay.TensorType(new_shape_np.shape, str(new_shape_np.dtype))
         )
+        z = relay.op.sparse_reshape(sparse_indices, prev_shape, new_shape).astuple()
 
-        func = relay.Function([sparse_indices, sparse_values], z)
+        func = relay.Function([sparse_indices, prev_shape, new_shape], z)
 
-        ref_res = ref_sparse_reshape(
-            sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np
-        )
+        ref_res = ref_sparse_reshape(sparse_indices_np, prev_shape_np, new_shape_np)
         for target, ctx in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+                op_res = intrp.evaluate(func)(sparse_indices_np, prev_shape_np, new_shape_np)
+                for op_res_item, ref_res_item in zip(op_res, ref_res):
+                    tvm.testing.assert_allclose(
+                        op_res_item.asnumpy(), ref_res_item, rtol=1e-5, atol=1e-5
+                    )
 
     sparse_indices_np = np.array(
         [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32
@@ -1146,7 +1150,7 @@ def test_sparse_reshape():
     new_shape_np = np.array([-1], dtype=np.int32)
     verify_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np)
 
-    sparse_indices_np = np.array([0, 5, 10, 20, 24], dtype=np.int32)
+    sparse_indices_np = np.array([[0], [5], [10], [20], [24]], dtype=np.int32)
     sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
     prev_shape_np = np.array([25], dtype=np.int32)
     new_shape_np = np.array([5, 5], dtype=np.int32)

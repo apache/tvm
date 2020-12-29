@@ -980,17 +980,13 @@ def _sparse_reshape():
         assert len(inputs) == 3, "There should be 3 input tensors"
 
         indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = np.zeros(indices_tensor.shape[0], dtype=indices_tensor.dtype)
+        values_tensor = params["SparseTensor/values"].asnumpy()
         prev_shape_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        new_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
-
+        new_shape = inputs[2]
         indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
-        values_data = _expr.const(values_tensor, values_tensor.dtype)
-
-        ret = _op.sparse_reshape(
-            indices_data, values_data, list(prev_shape_tensor), list(new_shape_tensor)
-        )
-        return ret, _expr.const(new_shape_tensor, new_shape_tensor.dtype)
+        prev_shape_data = _expr.const(prev_shape_tensor, prev_shape_tensor.dtype)
+        ret = _op.sparse_reshape(indices_data, prev_shape_data, new_shape).astuple()
+        return ret, _expr.const(values_tensor, values_tensor.dtype)
 
     return _impl
 
