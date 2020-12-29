@@ -181,14 +181,14 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
         baseline_input = [inp.cuda() for inp in baseline_input]
 
     with torch.no_grad():
-        baseline_outputs = baseline_model(*baseline_input)
+        baseline_outputs = baseline_model(*[input.clone() for input in baseline_input])
 
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
         baseline_outputs = (baseline_outputs.cpu().numpy(),)
 
-    trace = torch.jit.trace(baseline_model, baseline_input)
+    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
     if isinstance(baseline_model, torch.nn.Module):
         trace = trace.float().eval()
 
@@ -200,7 +200,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-    compiled_input = dict(zip(input_names, [inp.cpu().numpy() for inp in baseline_input]))
+    compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
@@ -3441,6 +3441,7 @@ def test_hard_swish():
     examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
     for input in examples:
         verify_model(torch.nn.Hardswish().eval(), input_data=input)
+        verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
 
 
 if __name__ == "__main__":
