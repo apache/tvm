@@ -790,6 +790,15 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
+    def hard_swish(self, inputs, input_types):
+        data = inputs[0]
+        dtype = input_types[0]
+
+        def _relu6(input_tensor):
+            return _op.tensor.clip(input_tensor, 0.0, 6.0)
+
+        return data * _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
@@ -2266,6 +2275,8 @@ class PyTorchOpConverter:
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
+            "aten::hardswish_": self.hard_swish,
+            "aten::hardswish": self.hard_swish,
         }
 
     def update_convert_map(self, custom_map):
