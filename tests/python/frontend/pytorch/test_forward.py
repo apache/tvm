@@ -3437,6 +3437,16 @@ def test_bincount():
     verify_trace_model(test_fn, [inp, weights], targets)
 
 
+def test_hard_swish():
+    hard_swish = torch.nn.Hardswish()
+    hard_swish_inplace = torch.nn.Hardswish(inplace=True)
+    examples = [torch.rand(8), torch.rand(8, 8), torch.rand(8, 16), torch.rand(1, 1, 8)]
+    targets = ["llvm", "cuda"]
+    for input in examples:
+        verify_trace_model(hard_swish, [input], targets)
+        verify_trace_model(hard_swish_inplace, [input], targets)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3603,3 +3613,4 @@ if __name__ == "__main__":
 
     # Test convert torch script(jit) with specific inputs' types
     test_convert_torch_script_with_input_types()
+    test_hard_swish()
