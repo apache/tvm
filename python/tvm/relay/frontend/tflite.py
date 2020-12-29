@@ -511,13 +511,30 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
 
         # If the tensors are quantized, ensure that input/output qnn params are same.
-        if input_tensor.qnn_params:
+
+        input_tensor_type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
+        if input_tensor.qnn_params and input_tensor_type_str == "int8":
+            # TFLite 2.x quantization spec requires qnn params to be same and dtype to be int8.
+            # For TFLite 1.x, dtype can be uint8 and qnn params can be different
             output_tensor = output_tensors[0]
             assert self.has_same_qnn_params(
                 input_tensor, output_tensor
             ), "TFLite reshape requires input and output scale and zero points to be equal"
 
         out = _op.reshape(in_expr, newshape=target_shape)
+        if input_tensor.qnn_params and input_tensor_type_str == "uint8":
+            output_tensor = output_tensors[0]
+            if not self.has_same_qnn_params(input_tensor, output_tensor):
+                output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
+                out = _qnn.op.requantize(
+                    out,
+                    input_scale=input_tensor.qnn_params["scale"],
+                    input_zero_point=input_tensor.qnn_params["zero_point"],
+                    output_scale=output_tensor.qnn_params["scale"],
+                    output_zero_point=output_tensor.qnn_params["zero_point"],
+                    out_dtype=output_tensor_type_str,
+                )
+
         return out
 
     def _convert_resize(self, method, op):
@@ -2526,6 +2543,17 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        if input_tensors[0].qnn_params:
+            output_tensor = output_tensors[0]
+            assert self.has_same_qnn_params(
+                input_tensors[0], output_tensor
+            ), "TFLite pack requires input and output scale and zero points to be equal"
+
+            for input_tensor in input_tensors:
+                assert self.has_same_qnn_params(
+                    input_tensors[0], input_tensor
+                ), "TFLite pack requires all input tensors to have same scale and zero point"
 
         assert op.BuiltinOptionsType() == BuiltinOptions.PackOptions
         op_options = op.BuiltinOptions()
