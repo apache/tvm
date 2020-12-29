@@ -212,7 +212,7 @@ def traverse_to_get_io_tensors(outs):
     Returns
     -------
     io_tensors: List[Tensor]
-        The input and output tensors
+        The input and output tensors with static shape
     has_layout_free: bool
         Whether the compute DAG has layout_free placeholders
     """
