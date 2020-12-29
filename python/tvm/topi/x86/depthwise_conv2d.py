@@ -46,7 +46,7 @@ def _fallback_schedule(cfg, wkl):
     HSTR, WSTR = wkl.stride_h, wkl.stride_w
     dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
 
-    out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
+    out_width = (wkl.width - dilated_kernel_w + pl + pr) // WSTR + 1
 
     oc_bn = 1
     for bn in range(simd_width, 0, -1):

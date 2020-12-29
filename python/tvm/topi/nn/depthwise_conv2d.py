@@ -55,11 +55,9 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype):
     _, in_channel, height, width = [x.value for x in data.shape]
     channel, channel_multiplier, kh, kw = [x.value for x in kernel.shape]
     out_channel = channel * channel_multiplier
-    pt, pl, pb, pr = get_pad_tuple(padding, kernel)
     dilation_h, dilation_w = (
         dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     )
-
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
     else:
@@ -70,6 +68,9 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype):
         '{} vs. {}".format(
         data.dtype, kernel.dtype
     )
+    dilated_kernel_h = (kh - 1) * dilation_h + 1
+    dilated_kernel_w = (kw - 1) * dilation_w + 1
+    pt, pl, pb, pr = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
     return Workload(
         data.dtype,
         out_dtype,
