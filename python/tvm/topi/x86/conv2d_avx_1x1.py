@@ -31,10 +31,13 @@ from .utils import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
     simd_width = get_fp32_len()
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
+    HSTR, WSTR = wkl.stride_h, wkl.stride_w
+    dilated_kernel_h = (wkl.kernel_h - 1) * wkl.dilation_h + 1
+    dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
+
+    out_height = (wkl.height + pt + pb - dilated_kernel_h) // HSTR + 1
+    out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
 
     oc_bn = 1
     for bn in range(simd_width, 0, -1):
