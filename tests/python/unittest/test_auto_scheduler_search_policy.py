@@ -25,8 +25,13 @@ import tempfile
 import tvm
 import tvm.testing
 from tvm import auto_scheduler
+from tvm.auto_scheduler.utils import get_const_tuple
 
-from test_auto_scheduler_common import matmul_auto_scheduler_test
+from test_auto_scheduler_common import (
+    matmul_auto_scheduler_test,
+    zero_rank_compute_auto_scheduler_test,
+    zero_rank_reduce_auto_scheduler_test,
+)
 import multiprocessing
 
 
@@ -41,21 +46,21 @@ class CustomMeasureCallback(auto_scheduler.measure.PythonBasedMeasureCallback):
 
 
 def search_common(
-    workload=matmul_auto_scheduler_test,
+    task=None,
     target="llvm",
     search_policy="sketch",
-    seed=0,
     runner="local",
     num_measure_trials=100,
     cost_model=auto_scheduler.RandomModel(),
     init_search_callbacks=None,
 ):
-    print("Test search policy '%s' for '%s'" % (search_policy, target))
+    if task is None:
+        task = auto_scheduler.SearchTask(
+            func=matmul_auto_scheduler_test, args=(64, 64, 64), target=target
+        )
+    target = task.target
 
-    random.seed(seed)
-    N = 128
-    target = tvm.target.Target(target)
-    task = auto_scheduler.SearchTask(func=workload, args=(N, N, N), target=target)
+    print("Test search policy '%s' for '%s'" % (search_policy, target))
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -72,6 +77,7 @@ def search_common(
         else:
             raise ValueError("Invalid policy: " + search_policy)
 
+        # Tune
         tuning_options = auto_scheduler.TuningOptions(
             num_measure_trials=num_measure_trials,
             num_measures_per_round=2,
@@ -80,33 +86,47 @@ def search_common(
             measure_callbacks=[auto_scheduler.RecordToFile(log_file), CustomMeasureCallback()],
         )
         task.tune(tuning_options=tuning_options, search_policy=search_policy)
+
+        # Compile with the best schedule
         sch, args = task.apply_best(log_file)
+        mod = tvm.build(sch, args, target)
 
-        try:
-            mod = tvm.build(sch, args, target)
+        # Compile with naive schedule for correctness check
+        sch, args = task.compute_dag.apply_steps_from_state(task.compute_dag.init_state)
+        mod_ref = tvm.build(sch, args, "llvm")
 
-            ctx = tvm.context(str(target), 0)
-            dtype = task.compute_dag.tensors[0].dtype
-            a = tvm.nd.array(np.random.uniform(size=(N, N)).astype(dtype), ctx)
-            b = tvm.nd.array(np.random.uniform(size=(N, N)).astype(dtype), ctx)
-            c = tvm.nd.array(np.zeros((N, N), dtype=dtype), ctx)
-            mod(a, b, c)
-            tvm.testing.assert_allclose(c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
-        except Exception:
-            raise Exception("Error encountered with seed: %d" % (seed))
+        ctx = tvm.context(str(target), 0)
+        np_arrays = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype) for x in args]
+
+        tvm_arrays = [tvm.nd.array(x, ctx) for x in np_arrays]
+        mod(*tvm_arrays)
+        actual = [x.asnumpy() for x in tvm_arrays]
+
+        tvm_arrays = [tvm.nd.array(x) for x in np_arrays]
+        mod_ref(*tvm_arrays)
+        expected = [x.asnumpy() for x in tvm_arrays]
+
+        for x, y in zip(actual, expected):
+            tvm.testing.assert_allclose(x, y, rtol=1e-5)
 
 
 @tvm.testing.requires_llvm
-def test_workload_registry_search_basic():
+def test_workload_registry_empty_policy():
     search_common(search_policy="empty", num_measure_trials=2)
 
+    N = 64
+    target = "llvm"
     search_common(
-        workload="matmul_auto_scheduler_test",
+        task=auto_scheduler.SearchTask(
+            func="matmul_auto_scheduler_test", args=(N, N, N), target=target
+        ),
         num_measure_trials=2,
         search_policy="empty",
     )
     search_common(
-        workload="matmul_auto_scheduler_test_rename_1",
+        task=auto_scheduler.SearchTask(
+            func="matmul_auto_scheduler_test_rename_1", args=(N, N, N), target=target
+        ),
         num_measure_trials=2,
         search_policy="empty",
     )
@@ -147,10 +167,27 @@ def test_sketch_search_policy_cuda_xgbmodel_rpc_runner():
     search_common(target="cuda", runner=measure_ctx.runner, cost_model=auto_scheduler.XGBModel())
 
 
+@tvm.testing.requires_llvm
+@tvm.testing.requires_cuda
+def test_sketch_search_policy_zero_rank():
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext()
+    for target in ["llvm", "cuda"]:
+        task = auto_scheduler.SearchTask(
+            func=zero_rank_compute_auto_scheduler_test, args=(10,), target=target
+        )
+        search_common(task, runner=measure_ctx.runner)
+
+        task = auto_scheduler.SearchTask(
+            func=zero_rank_reduce_auto_scheduler_test, args=(10,), target=target
+        )
+        search_common(task, runner=measure_ctx.runner)
+
+
 if __name__ == "__main__":
-    test_workload_registry_search_basic()
+    test_workload_registry_empty_policy()
     test_sketch_search_policy_basic()
     test_sketch_search_policy_basic_spawn()
     test_sketch_search_policy_xgbmodel()
     test_sketch_search_policy_cuda_rpc_runner()
     test_sketch_search_policy_cuda_xgbmodel_rpc_runner()
+    test_sketch_search_policy_zero_rank()
