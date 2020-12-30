@@ -533,15 +533,9 @@ def nms_ir(
 
             # When return_indices is False, no need to populate box_indices
             if return_indices:
-                orig_idx = sorted_index[i * num_anchors + j]
-                box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
-
-            # TODO(masahi): Want to do this instead of above, but the following is eliminated
-            # during codegen
-            # # Only one thread needs to this write
-            # with ib.if_scope(tx == 0):
-            #     orig_idx = sorted_index[i * num_anchors + j]
-            #     box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
+                with ib.if_scope(tx + 0 == 0):
+                    orig_idx = sorted_index[i * num_anchors + j]
+                    box_indices[i, num_valid_boxes_local[0]] = indices[i, orig_idx]
 
             num_valid_boxes_local[0] += 1
 
@@ -593,11 +587,8 @@ def nms_ir(
                     with ib.else_scope():
                         nms_inner_loop(ib, j)
 
-            num_valid_boxes[i] = num_valid_boxes_local[0]
-            # TODO(masahi): Want to do this instead of above, but the following is eliminated
-            # during codegen
-            # with ib.if_scope(tx == 0):
-            #     num_valid_boxes[i] = num_valid_boxes_local[0]
+            with ib.if_scope(tx + 0 == 0):
+                num_valid_boxes[i] = num_valid_boxes_local[0]
 
         with ib.else_scope():
             num_valid_boxes[i] = 0
