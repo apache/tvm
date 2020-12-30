@@ -22,8 +22,8 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
-import logging
 import json
+import logging
 import threading
 
 import tvm
@@ -31,11 +31,14 @@ from tvm import autotvm, te, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
+from tvm.tir import Reduce
 from tvm.tir import expr as _expr
+
 from . import _ffi_api
 from .compute_dag import ComputeDAG, LayoutRewriteOption
 from .dispatcher import DispatchContext
 from .search_task import SearchTask
+from .utils import get_const_tuple
 from .workload_registry import register_workload_tensors
 
 logger = logging.getLogger("auto_scheduler")
@@ -56,9 +59,20 @@ def call_all_topi_funcs(mod, params, target):
         config={"relay.backend.use_auto_scheduler": True},
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
-        opt_mod, _ = relay.optimize(mod, target, params)
-        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-        grc.codegen(opt_mod["main"])
+        try:
+            opt_mod, _ = relay.optimize(mod, target, params)
+            grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+            grc.codegen(opt_mod["main"])
+        except tvm.TVMError:
+            print(
+                "Get errors with GraphRuntimeCodegen for task extraction. "
+                "Fallback to VMCompiler."
+            )
+            compiler = relay.vm.VMCompiler()
+            if params:
+                compiler.set_params(params)
+            mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
+            compiler.lower(mod, target)
 
     autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
@@ -192,7 +206,8 @@ def exit_layout_rewrite():
 
 
 def traverse_to_get_io_tensors(outs):
-    """Traverse from a list of output tensors to get both input and output tensors
+    """Traverse from a list of output tensors to get input/output tensors and
+    other useful information.
 
     Parameters
     ----------
@@ -202,36 +217,50 @@ def traverse_to_get_io_tensors(outs):
     Returns
     -------
     io_tensors: List[Tensor]
-        The input and output tensors
+        The input and output tensors with static shape
     has_layout_free: bool
         Whether the compute DAG has layout_free placeholders
+    has_complex_op: bool
+        Whether the topi compute function includes at least one complex (reduce) op
     """
     layout_free_ops = []
     inputs = []
 
+    has_complex_op = False
     visited = set()
 
     def traverse(t):
-        if t in visited:
+        nonlocal has_complex_op
+
+        # We cannot directly add tensors to the set, because the comparison of
+        # two tensors with ndim=0 is ambiguous.
+        assert t.handle is not None
+        if t.handle.value in visited:
             return
         if isinstance(t.op, PlaceholderOp):
             inputs.append(t)
         elif isinstance(t.op, ComputeOp):
+            has_complex_op = has_complex_op or any([isinstance(e, Reduce) for e in t.op.body])
             if "layout_free_placeholders" in t.op.attrs:
                 layout_free_ops.append(t.op)
             for x in t.op.input_tensors:
                 traverse(x)
-        visited.add(t)
+        visited.add(t.handle.value)
 
     for t in outs:
         traverse(t)
 
-    has_layout_free = len(layout_free_ops) > 0
-    return inputs + list(outs), has_layout_free
+    io_tensors = inputs + list(outs)
+    for tensor in io_tensors:
+        # Reject the compute if any of its I/O tensors has dynamic shape.
+        if any([not isinstance(v, int) for v in get_const_tuple(tensor.shape)]):
+            return ([], False, False)
+
+    return (io_tensors, len(layout_free_ops) > 0, has_complex_op)
 
 
 @tvm._ffi.register_func("auto_scheduler.relay_integration.auto_schedule_topi_compute")
-def auto_schedule_topi(outs, has_complex_op):
+def auto_schedule_topi(outs):
     """Use auto-scheduler to schedule any topi compute function.
 
     Note: This is used internally for relay integration. Do
@@ -241,8 +270,6 @@ def auto_schedule_topi(outs, has_complex_op):
     ----------
     outs: List[Tensor]
         The output tensors of topi compute functions
-    has_complex_op: bool
-        Whether the topi compute function includes at least one complex op.
 
     Returns
     -------
@@ -253,7 +280,10 @@ def auto_schedule_topi(outs, has_complex_op):
     # pylint: disable=import-outside-toplevel
     from tvm import relay
 
-    io_tensors, has_layout_free = traverse_to_get_io_tensors(outs)
+    io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
+    if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
+        return None
+
     try:
         dag = ComputeDAG(io_tensors)
     except tvm.error.TVMError as err:
