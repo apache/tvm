@@ -211,6 +211,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         shared_shedule(BS, BS_align)
 
         shape = (wmma_m, wmma_n, wmma_k)
+        # TODO: add checking here, datatype casting may cause precision loss
         in_dtype = "float16"
         AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=in_dtype)
         BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=in_dtype)
