@@ -527,13 +527,12 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     Array<Integer> dep_spec = tshape_data_dependant[op];
     if (dep_spec.size() == 1 && call_node->args.size() > 1) {
       for (size_t i = 1; i < call_node->args.size(); ++i) {
-	dep_spec.push_back(dep_spec[0]);
+        dep_spec.push_back(dep_spec[0]);
       }
     } else {
       ICHECK_EQ(dep_spec.size(), call_node->args.size());
     }
     data_dependants_per_input_.push_back(dep_spec);
-    LOG(INFO) << op->name << ", " << dep_spec;
 
     // Visit all inputs
     Array<te::Tensor> inputs;
