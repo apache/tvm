@@ -224,8 +224,9 @@ def test_task_extraction():
     # Every Relay function becomes a task regardless what ops in its body.
     verify_task_extraction(get_simple_func(), 1, True)
 
-    # "relay.shape_of" has TOpPattern=kOpaque so it is defined as a "complex" op.
-    verify_task_extraction(get_shape_of_func(), 1)
+    # The Relay function without any reduce op is considered as a simple task.
+    verify_task_extraction(get_shape_of_func(), 0)
+    verify_task_extraction(get_shape_of_func(), 1, True)
 
     # The Relay function with dynamic shape inputs/outputs will not be extracted.
     verify_task_extraction(get_func_with_dynamic_shape(), 0)

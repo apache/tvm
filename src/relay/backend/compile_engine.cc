@@ -157,8 +157,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
             runtime::Registry::Get("auto_scheduler.relay_integration.auto_schedule_topi_compute");
         ICHECK(fauto_schedule != nullptr)
             << "auto_scheduler.relay_integration.auto_schedule_topi_compute is not registered";
-        bool has_complex_op = anchor_op_pattern_ >= kCommReduce;
-        ObjectRef obj = (*fauto_schedule)(tensor_outs, has_complex_op);
+        ObjectRef obj = (*fauto_schedule)(tensor_outs);
         if (obj.defined()) {
           schedule = Downcast<te::Schedule>(obj);
         }
