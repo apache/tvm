@@ -1583,7 +1583,7 @@ Array<te::Tensor> SparseFillEmptyRowsCompute(const Attrs& attrs, const Array<te:
                                              const Type& out_type) {
   ICHECK_EQ(inputs.size(), 3) << "SparseFillEmptyRowsCompute expects 3 arguments but " << inputs.size() << " were provided.";
   const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  ICHECK(param != nullptr);
+  ICHECK_NOTNULL(param);
   return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], param->dense_shape)};
 }
 
