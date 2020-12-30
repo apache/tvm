@@ -171,9 +171,16 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
 def dense_strategy_mali(attrs, inputs, out_type, target):
     """dense mali strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_dense(topi.mali.dense),
-        wrap_topi_schedule(topi.mali.schedule_dense),
-        name="dense.mali",
-    )
+    if not is_auto_scheduler_enabled():
+        strategy.add_implementation(
+            wrap_compute_dense(topi.mali.dense),
+            wrap_topi_schedule(topi.mali.schedule_dense),
+            name="dense.mali",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_dense(topi.nn.dense, need_auto_scheduler_layout=True),
+            naive_schedule,
+            name="dense.mali",
+        )
     return strategy
