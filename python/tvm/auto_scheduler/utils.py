@@ -91,8 +91,8 @@ def get_const_tuple(in_tuple):
 
     Returns
     -------
-    out_tuple : Tuple[int]
-        The output tuple of int. The dynamic shape (Var or Any) will be -1.
+    out_tuple : Tuple[Union[int,tvm.tir.Var,tvm.tir.Any]]
+        The output tuple of int. The dynamic shape variables (Var or Any) will be preserved.
     """
     ret = []
     for elem in in_tuple:
