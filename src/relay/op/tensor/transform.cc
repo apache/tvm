@@ -1557,7 +1557,7 @@ TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
-  // types: [ sparse_indices, sparse_values, default_values, result]
+  // types: [ sparse_indices, sparse_values, default_value, result]
   ICHECK_EQ(types.size(), 4) << "SparseFillEmptyRowsRel expects 4 arguments but " << types.size()
                              << " were provided.";
   std::vector<Type> fields;
@@ -1604,9 +1604,14 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
     value.)code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .set_attrs_type<SparseFillEmptyRowsAttrs>()
-    .add_argument("sparse_indices", "Tensor", "The first tensor")
-    .add_argument("sparse_values", "Tensor", "The second tensor")
-    .add_argument("default_value", "Tensor", "The third tensor")
+    .add_argument(
+        "sparse_indices", "Tensor",
+        "A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the"
+        "number of sparse values and n_dim is the number of dimensions of the dense_shape")
+    .add_argument("sparse_values", "Tensor",
+                  "A 1-D tensor[N] containing the sparse values for the sparse indices")
+    .add_argument("default_value", "Tensor",
+                  "A tensor containing the default value for the remaining locations")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
