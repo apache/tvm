@@ -34,6 +34,7 @@ try:
 except ImportError:
     psutil = None
 
+import tvm
 from tvm import rpc
 from tvm.tir import expr
 from tvm.tir.transform import Simplify
@@ -90,10 +91,16 @@ def get_const_tuple(in_tuple):
 
     Returns
     -------
-    out_tuple : Tuple[int]
-        The output.
+    out_tuple : Tuple[Union[int,tvm.tir.Var,tvm.tir.Any]]
+        The output tuple of int. The dynamic shape variables (Var or Any) will be preserved.
     """
-    return tuple(get_const_int(x) for x in in_tuple)
+    ret = []
+    for elem in in_tuple:
+        if isinstance(elem, (tvm.tir.Var, tvm.tir.expr.Any)):
+            ret.append(elem)
+        else:
+            ret.append(get_const_int(elem))
+    return tuple(ret)
 
 
 def list_to_tuple(x):
