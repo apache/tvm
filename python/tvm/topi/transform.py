@@ -947,12 +947,12 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_s
     sparse_values : relay.Expr
         A 1-D tensor[N] containing the sparse values for the sparse indices.
 
-    dense_shape : relay.Expr
-        A list of integers. Shape of the dense output tensor.
-
     default_value : relay.Expr
         A 0-D tensor containing the default value for the remaining locations.
         Defaults to 0.
+
+    dense_shape : relay.Expr
+        A list of integers. Shape of the dense output tensor.
 
     Returns
     -------

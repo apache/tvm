@@ -1464,13 +1464,11 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
   result.push_back(compute(
       Array<PrimExpr>{1},
       [&](const Array<Var>& indices) {
-        PrimExpr new_sparse_values_len = sparse_values->shape[0];
-        PrimExpr empty_row_count = 0;
+        PrimExpr non_empty_rows = 0;
         for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
-          new_sparse_values_len = if_then_else(empty_row_indicator[i], new_sparse_values_len + 1,
-                                               new_sparse_values_len);
+          non_empty_rows = if_then_else(empty_row_indicator[i], non_empty_rows, non_empty_rows + 1);
         }
-        return new_sparse_values_len;
+        return non_empty_rows;
       },
       name, tag));
   return result;

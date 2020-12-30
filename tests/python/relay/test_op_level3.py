@@ -1059,7 +1059,7 @@ def test_sparse_fill_empty_rows():
         )
         empty_row_indicator = np.ones(dense_shape[0], dtype=bool)
         new_sparse_values = -1 * np.ones(sparse_indices.shape[0] + dense_shape[0])
-        slice_element_index = np.array(sparse_indices.shape[0], dtype=np.int32)
+        slice_element_index = np.array(0, dtype=np.int32)
 
         for i in range(sparse_indices.shape[0]):
             empty_row_indicator[sparse_indices[i][0]] = False
@@ -1074,6 +1074,7 @@ def test_sparse_fill_empty_rows():
                 new_sparse_indices[new_sparse_indices_index, 1:] = 0
                 new_sparse_values[new_sparse_indices_index] = default_value[0]
                 new_sparse_indices_index += 1
+            else:
                 slice_element_index += 1
 
         return new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index

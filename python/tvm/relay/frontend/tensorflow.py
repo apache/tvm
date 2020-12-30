@@ -1365,6 +1365,57 @@ def _sparse_to_dense():
     return _impl
 
 
+def _sparse_fill_empty_rows():
+    def _impl(inputs, attr, params, mod):
+        assert len(inputs) == 4, "There should be 4 input tensors"
+
+        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+        default_value_tensor = _infer_value(inputs[3], params, mod).asnumpy().reshape(1)
+
+        indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
+        values_data = _expr.const(values_tensor, values_tensor.dtype)
+        default_value_data = _expr.const(default_value_tensor, default_value_tensor.dtype)
+
+        (
+            new_sparse_indices,
+            empty_row_indicator,
+            new_sparse_values,
+            non_empty_rows,
+        ) = get_relay_op("sparse_fill_empty_rows")(
+            indices_data, values_data, default_value_data, list(dense_shape_tensor)
+        )
+        first_row = get_relay_op("split")(new_sparse_indices, indices_tensor.shape[1], axis=1)
+        sorted_indices = _op.argsort(_op.squeeze(first_row[0]))
+        sorted_sparse_indices = get_relay_op("take")(
+            new_sparse_indices, sorted_indices, axis=0, mode="clip"
+        )
+
+        final_sparse_indices = _op.strided_slice(
+            _op.take(new_sparse_indices, sorted_indices, axis=0),
+            begin=_op.concatenate([non_empty_rows, _expr.const([0])], 0),
+            end=[-1, -1],
+            strides=[1, 1],
+            slice_mode="size",
+        )
+
+        final_sparse_values = _op.strided_slice(
+            _op.take(new_sparse_values, sorted_indices),
+            begin=non_empty_rows,
+            end=_expr.const([-1]),
+            slice_mode="size",
+        )
+
+        return (
+            final_sparse_indices,
+            final_sparse_values,
+            empty_row_indicator,
+        )
+
+    return _impl
+
+
 def _bias_add():
     def _impl(inputs, attr, params, mod):
         # Must expand for proper broadcasting in NCHW.
@@ -2422,6 +2473,7 @@ _convert_map = {
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
+    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
     "Split": _split(False),
     "SplitV": _split(True),
