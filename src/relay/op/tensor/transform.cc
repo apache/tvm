@@ -1563,7 +1563,7 @@ bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attr
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
   const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  ICHECK(param != nullptr);
+  ICHECK_NOTNULL(param);
 
   Array<IndexExpr> sp_ordered_output_shape;
   sp_ordered_output_shape.push_back(param->dense_shape[0] + sparse_indices->shape[0]);
