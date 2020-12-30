@@ -20,8 +20,13 @@ import tvm
 from tvm import autotvm
 from tvm import te
 from ..utils import traverse_inline, get_const_tuple
-from .tensor_intrin import intrin_wmma_load_matrix_A, \
-        intrin_wmma_load_matrix_W, intrin_wmma_store_matrix, intrin_wmma_gemm
+from .tensor_intrin import (
+    intrin_wmma_load_matrix_A,
+    intrin_wmma_load_matrix_W,
+    intrin_wmma_store_matrix,
+    intrin_wmma_gemm,
+)
+
 
 @autotvm.register_topi_compute("batch_matmul_tensorcore.cuda")
 def batch_matmul_tensorcore(cfg, x, y, out_shape=None):
@@ -58,18 +63,19 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         s[B].compute_inline()
 
         # Explicit memory access
-        AS = s.cache_read(A, 'shared', [C])
-        BS = s.cache_read(B, 'shared', [C])
-        AF = s.cache_read(AS, 'wmma.matrix_a', [C])
-        BF = s.cache_read(BS, 'wmma.matrix_b', [C])
-        CF = s.cache_write(C, 'wmma.accumulator')
-        CS = s.cache_read(CF, 'shared', [C])
+        AS = s.cache_read(A, "shared", [C])
+        BS = s.cache_read(B, "shared", [C])
+        AF = s.cache_read(AS, "wmma.matrix_a", [C])
+        BF = s.cache_read(BS, "wmma.matrix_b", [C])
+        CF = s.cache_write(C, "wmma.accumulator")
+        CS = s.cache_read(CF, "shared", [C])
 
         # fallback support
         target = tvm.target.Target.current()
         if cfg.is_fallback:
             ref_log = autotvm.tophub.load_reference_log(
-                target.kind.name, target.model, 'batch_matmul_tensorcore.cuda')
+                target.kind.name, target.model, "batch_matmul_tensorcore.cuda"
+            )
             cfg.fallback_with_reference_log(ref_log)
 
         # Deal with op fusion, such as bias/relu and slice after padding
@@ -88,11 +94,11 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         cfg.define_knob("vec", [1, 2, 4, 8])
 
         # Ensure that the default parameters are applicable when autotvm is not in use
-        if (m_dim % 32 == 0 and n_dim % 8 == 0):
+        if m_dim % 32 == 0 and n_dim % 8 == 0:
             cfg.define_knob("wmma_m", [32, 16, 8])
-        elif (m_dim % 16 == 0 and n_dim % 16 == 0):
+        elif m_dim % 16 == 0 and n_dim % 16 == 0:
             cfg.define_knob("wmma_m", [16, 8, 32])
-        elif (m_dim % 8 == 0 and n_dim % 32 == 0):
+        elif m_dim % 8 == 0 and n_dim % 32 == 0:
             cfg.define_knob("wmma_m", [8, 16, 32])
 
         warp_size = 32
@@ -125,12 +131,12 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         CF_stride = [warp_col_tiles * wmma_n, 1]
         CS_stride = [CS_align, 1]
 
-        block_x = te.thread_axis('blockIdx.x')
-        block_y = te.thread_axis('blockIdx.y')
-        block_z = te.thread_axis('blockIdx.z')
-        thread_x = te.thread_axis('threadIdx.x')
-        thread_y = te.thread_axis('threadIdx.y')
-        thread_z = te.thread_axis('threadIdx.z')
+        block_x = te.thread_axis("blockIdx.x")
+        block_y = te.thread_axis("blockIdx.y")
+        block_z = te.thread_axis("blockIdx.z")
+        thread_x = te.thread_axis("threadIdx.x")
+        thread_y = te.thread_axis("threadIdx.y")
+        thread_z = te.thread_axis("threadIdx.z")
 
         # Schedule for dense computation
         block_factor_m = wmma_m * warp_row_tiles * block_row_warps
@@ -167,7 +173,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         bs, warp_i, warp_j = CF.op.axis
         warp_i, _ii = s[CF].split(warp_i, factor=wmma_m)
         warp_j, _jj = s[CF].split(warp_j, factor=wmma_n)
-        k, = CF.op.reduce_axis
+        (k,) = CF.op.reduce_axis
         k, _k = s[CF].split(k, factor=wmma_k)
         ko, ki = s[CF].split(k, factor=chunk)
         s[CF].reorder(bs, ko, ki, warp_i, warp_j, _ii, _jj, _k)
@@ -205,27 +211,55 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
         shared_shedule(BS, BS_align)
 
         shape = (wmma_m, wmma_n, wmma_k)
-        in_dtype = 'float16'
-        AL_gemm = te.placeholder((wmma_m, wmma_k), name='AL_gemm', dtype=in_dtype)
-        BL_gemm = te.placeholder((wmma_n, wmma_k), name='BL_gemm', dtype=in_dtype)
-        k_gemm = te.reduce_axis((0, wmma_k), name='k_gemm')
-        CL_compute = te.compute((wmma_m, wmma_n), lambda ii, jj:
-        te.sum(AL_gemm[ii, k_gemm].astype(out_dtype) * \
-               BL_gemm[jj, k_gemm].astype(out_dtype), \
-               axis=k_gemm), name='CL_compute')
+        in_dtype = "float16"
+        AL_gemm = te.placeholder((wmma_m, wmma_k), name="AL_gemm", dtype=in_dtype)
+        BL_gemm = te.placeholder((wmma_n, wmma_k), name="BL_gemm", dtype=in_dtype)
+        k_gemm = te.reduce_axis((0, wmma_k), name="k_gemm")
+        CL_compute = te.compute(
+            (wmma_m, wmma_n),
+            lambda ii, jj: te.sum(
+                AL_gemm[ii, k_gemm].astype(out_dtype) * BL_gemm[jj, k_gemm].astype(out_dtype),
+                axis=k_gemm,
+            ),
+            name="CL_compute",
+        )
 
         # lower the computation loops down to TensorCore hardware intrinsics
         # by mapping the dense tensorcore to tensor intrinsics
-        s[AF].tensorize(b_ii, intrin_wmma_load_matrix_A( \
-            AF_stride, AS_stride, shape, "row_major", \
-            (wmma_m, wmma_k), (wmma_m, wmma_k), 'float16'))
-        s[BF].tensorize(o_ii, intrin_wmma_load_matrix_W( \
-            BF_stride, BS_stride, shape, "col_major", \
-            (wmma_n, wmma_k), (wmma_n, wmma_k), 'float16'))
-        s[CF].tensorize(_ii, intrin_wmma_gemm( \
-            AL_gemm, BL_gemm, CL_compute, AF_stride, BF_stride, CF_stride, shape))
-        s[CS].tensorize(bbi, intrin_wmma_store_matrix( \
-            CS_stride, CF_stride, shape, out_dtype, (wmma_m, wmma_n), (wmma_m, wmma_n)))
+        s[AF].tensorize(
+            b_ii,
+            intrin_wmma_load_matrix_A(
+                AF_stride,
+                AS_stride,
+                shape,
+                "row_major",
+                (wmma_m, wmma_k),
+                (wmma_m, wmma_k),
+                "float16",
+            ),
+        )
+        s[BF].tensorize(
+            o_ii,
+            intrin_wmma_load_matrix_W(
+                BF_stride,
+                BS_stride,
+                shape,
+                "col_major",
+                (wmma_n, wmma_k),
+                (wmma_n, wmma_k),
+                "float16",
+            ),
+        )
+        s[CF].tensorize(
+            _ii,
+            intrin_wmma_gemm(AL_gemm, BL_gemm, CL_compute, AF_stride, BF_stride, CF_stride, shape),
+        )
+        s[CS].tensorize(
+            bbi,
+            intrin_wmma_store_matrix(
+                CS_stride, CF_stride, shape, out_dtype, (wmma_m, wmma_n), (wmma_m, wmma_n)
+            ),
+        )
 
     def _callback(op):
         if "batch_matmul_tensorcore" in op.tag:
@@ -233,6 +267,7 @@ def schedule_batch_matmul_tensorcore(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 def batch_matmul_tensorcore_cuda(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
@@ -260,15 +295,20 @@ def batch_matmul_tensorcore_cuda(x, y):
     N = y.shape[1]
     out_dtype = x.dtype
 
-    assert ((M % 8 == 0 and K % 16 == 0 and N % 32 == 0) or \
-            (M % 16 == 0 and K % 16 == 0 and N % 16 == 0) or \
-            (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)), \
-        "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+    assert (
+        (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+        or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+        or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+    ), "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
 
-    x_16 = te.compute((batch, M, K), lambda b, i, k: x[b, i, k].astype('float16'))
-    y_16 = te.compute((batch, N, K), lambda b, j, k: y[b, j, k].astype('float16'))
+    x_16 = te.compute((batch, M, K), lambda b, i, k: x[b, i, k].astype("float16"))
+    y_16 = te.compute((batch, N, K), lambda b, j, k: y[b, j, k].astype("float16"))
 
-    k = te.reduce_axis((0, K), name='k')
-    return te.compute((batch, M, N),
-                  lambda b, i, j: te.sum(x_16[b, i, k].astype(out_dtype) * y_16[b, j, k].astype(out_dtype), axis=k),
-                  tag='batch_matmul_tensorcore')
+    k = te.reduce_axis((0, K), name="k")
+    return te.compute(
+        (batch, M, N),
+        lambda b, i, j: te.sum(
+            x_16[b, i, k].astype(out_dtype) * y_16[b, j, k].astype(out_dtype), axis=k
+        ),
+        tag="batch_matmul_tensorcore",
+    )
