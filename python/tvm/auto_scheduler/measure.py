@@ -63,6 +63,9 @@ from .workload_registry import (
 # We use 1e10 instead of sys.float_info.max for better readability in log
 MAX_FLOAT = 1e10
 
+class CustomBuildFunc:
+    """ store custom build_func to class variable. """
+    build_func = None
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
@@ -303,11 +306,16 @@ class LocalBuilder(ProgramBuilder):
         This is used in a wrapper of the multiprocessing.Process.join().
     n_parallel : int = multiprocessing.cpu_count()
         Number of threads used to build in parallel.
-    build_func : str = 'default'
-        The name of registered build function.
+    build_func: callable or str
+        If is 'default', use default build function
+        If is 'ndk', use function for android ndk
+        If is callable, use it as custom build function, expect lib_format field.
     """
 
     def __init__(self, timeout=15, n_parallel=multiprocessing.cpu_count(), build_func="default"):
+        if not isinstance(build_func, str):
+            CustomBuildFunc.build_func = build_func
+            build_func = "custom"
         self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, build_func)
 
 
@@ -628,6 +636,8 @@ def local_build_worker(args):
         build_func = tar.tar
     elif build_func == "ndk":
         build_func = ndk.create_shared
+    elif build_func == "custom":
+        build_func = CustomBuildFunc.build_func
     else:
         raise ValueError("Invalid build_func" + build_func)
 
