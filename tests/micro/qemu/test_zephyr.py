@@ -143,6 +143,33 @@ def test_compile_runtime(platform):
         test_basic_add(sess)
 
 
+def test_platform_timer(platform):
+    """Test compiling the on-device runtime."""
+
+    model, zephyr_board = PLATFORMS[platform]
+
+    # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
+    def test_basic_add(sess):
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        assert (B_data.asnumpy() == np.array([4])).all()
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        assert (C_data.asnumpy() == np.array([0, 0])).all()
+
+        system_lib = sess.get_system_lib()
+        time_eval_f = system_lib.time_evaluator(
+            "add", sess.context, number=20, repeat=3, min_repeat_ms=40
+        )
+        result = time_eval_f(A_data, B_data, C_data)
+        assert (C_data.asnumpy() == np.array([6, 7])).all()
+        assert result.mean > 0
+        assert len(result.results) == 3
+
+    with _make_add_sess(model, zephyr_board) as sess:
+        test_basic_add(sess)
+
+
 def test_relay(platform):
     """Testing a simple relay graph"""
     model, zephyr_board = PLATFORMS[platform]

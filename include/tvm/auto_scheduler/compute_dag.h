@@ -179,7 +179,7 @@ class ComputeDAGNode : public Object {
   double flop_ct;
   /*! \brief The initial state without any transform steps. */
   State init_state;
-  /*! \brief The static read-write access analyzer */
+  /*! \brief The static read-write access analyzer. */
   AccessAnalyzer access_analyzer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -302,6 +302,14 @@ class ComputeDAG : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeDAG, ObjectRef, ComputeDAGNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeDAGNode);
 };
+
+/*!
+ *  \brief Get the orginal shape from a rewritten layout string.
+ *  \param rewritten_layout The layout after auto-scheduler's layout rewrite.
+ *  \param axis_names Specifiy the names of axes.
+ *  \return shape The original shape.
+ */
+Array<PrimExpr> GetShapeFromRewrittenLayout(String rewritten_layout, Array<String> axis_names);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

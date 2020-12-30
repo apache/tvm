@@ -25,6 +25,8 @@ import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.conv2d import _get_workload
+from tvm.topi.x86.conv2d_avx_common import _fallback_schedule
 
 import tvm.testing
 
@@ -76,6 +78,17 @@ def verify_conv2d_nchw(
 
     a_np, w_np, b_np, c_np = get_ref_data()
 
+    def verify_workload_padding():
+        _, _, out_height, out_width = get_const_tuple(c_np.shape)
+        wkl = _get_workload(A, W, (stride, stride), padding, dilation, dtype)
+
+        # check if tile_ow candidates are the factors of the right output weight.
+        cfg = autotvm.get_config()
+        _fallback_schedule(cfg, wkl)
+        ow_tile = np.prod(cfg["tile_ow"].size)
+
+        tvm.testing.assert_allclose(ow_tile, out_width)
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not tvm.testing.device_enabled(device):
@@ -100,6 +113,9 @@ def verify_conv2d_nchw(
             if add_relu:
                 C = topi.nn.relu(C)
             s = fschedule([C])
+
+            if "llvm" in device:
+                verify_workload_padding()
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
@@ -242,6 +258,7 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 64, 8, 64, 5, 2, (1, 3), add_bias=True)
     verify_conv2d_nchw(1, 64, 8, 64, 3, 1, "VALID", add_bias=True, add_relu=True)
     verify_conv2d_nchw(1, 64, 8, 64, 24, 1, "SAME", add_bias=True, add_relu=True)
+    verify_conv2d_nchw(1, 32, 35, 64, 7, 2, (0, 0, 2, 2))
 
 
 if __name__ == "__main__":

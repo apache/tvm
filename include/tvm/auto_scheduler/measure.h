@@ -232,6 +232,35 @@ class MeasureCallback : public ObjectRef {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureCallback, ObjectRef, MeasureCallbackNode);
 };
 
+/*! \brief A wrapper for measure callback defined by python code
+ *  This class will call functions defined in the python */
+class PythonBasedMeasureCallbackNode : public MeasureCallbackNode {
+ public:
+  /*! \brief Pointer to the callback funcion in python */
+  PackedFunc callback_func;
+
+  void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,
+                const Array<MeasureResult>& results) final;
+  static constexpr const char* _type_key = "auto_scheduler.PythonBasedMeasureCallback";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PythonBasedMeasureCallbackNode, MeasureCallbackNode);
+};
+
+/*!
+ * \brief Managed reference to PythonBasedMeasureCallbackNode.
+ * \sa PythonBasedMeasureCallbackNode
+ */
+class PythonBasedMeasureCallback : public MeasureCallback {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param callback_func The pointer to the callback function defined in python
+   */
+  explicit PythonBasedMeasureCallback(PackedFunc callback_func);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PythonBasedMeasureCallback, MeasureCallback,
+                                        PythonBasedMeasureCallbackNode);
+};
+
 // The base class of ProgramBuilders and ProgramRunners.
 
 /*! \brief ProgramBuilder that builds the programs */

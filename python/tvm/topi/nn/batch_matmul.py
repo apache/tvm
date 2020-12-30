@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Binary Neural Network (BNN) Operators"""
+"""Batch matrix multiplication"""
 # pylint: disable=invalid-name
-from tvm import te
+from tvm import te, auto_scheduler
 from ..utils import get_const_tuple
 
 
-def batch_matmul(x, y, oshape=None):
+def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch. Supports broadcasting for batch dimension.
 
@@ -36,14 +36,25 @@ def batch_matmul(x, y, oshape=None):
         Explicit intended output shape of the computation. Can be useful in cases
         with dynamic input shapes.
 
+    auto_scheduler_rewritten_layout: str = ""
+        The layout after auto-scheduler's layout rewrite pass.
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
-    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     x_shape = get_const_tuple(x.shape)
-    y_shape = get_const_tuple(y.shape)
+    if auto_scheduler_rewritten_layout:
+        # Infer shape for the rewritten layout
+        y_shape = auto_scheduler.get_shape_from_rewritten_layout(
+            auto_scheduler_rewritten_layout, ["b", "j", "k"]
+        )
+        auto_scheduler.remove_index_check(y)
+    else:
+        y_shape = get_const_tuple(y.shape)
+    assert len(x_shape) == 3 and len(y_shape) == 3, "only support 3-dim batch_matmul"
+
     XB = x_shape[0]
     YB = y_shape[0]
     _, M, K = x.shape
@@ -54,8 +65,15 @@ def batch_matmul(x, y, oshape=None):
         batch = te.max(XB, YB)
         N = y.shape[1]
         oshape = (batch, M, N)
-    return te.compute(
+
+    output = te.compute(
         oshape,
         lambda b, i, j: te.sum(x[b if XB != 1 else 0, i, k] * y[b if YB != 1 else 0, j, k], axis=k),
         tag="batch_matmul",
+        attrs={"layout_free_placeholders": [y]},
     )
+
+    if auto_scheduler_rewritten_layout:
+        output = auto_scheduler.rewrite_compute_body(output, auto_scheduler_rewritten_layout)
+
+    return output

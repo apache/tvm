@@ -34,11 +34,19 @@ def record_common(dag, s):
     inp = auto_scheduler.measure.MeasureInput(task, s)
     res = auto_scheduler.measure.MeasureResult([0.1], 0, "", 0.2, 1)
 
+    # Test in-memory record processing.
+    record_str = auto_scheduler.measure_record.dump_record_to_string(inp, res)
+    r_inp, r_res = auto_scheduler.measure_record.load_record_from_string(record_str)
+    # Only check the workload_key for simplification.
+    assert inp.task.workload_key == r_inp.task.workload_key
+    assert str(res) == str(r_res)
+
+    # Test file-based record processing.
     with tempfile.NamedTemporaryFile() as fp:
         auto_scheduler.save_records(fp.name, [inp], [res])
 
         log_reader = auto_scheduler.RecordReader(fp.name)
-        inputs, results = log_reader.read_lines()
+        inputs, _ = log_reader.read_lines()
         assert len(inputs) == 1
 
         s1 = dag.infer_bound_from_state(s)
@@ -180,7 +188,7 @@ def test_recover_measure_input():
         auto_scheduler.save_records(fp.name, [inp], [res])
 
         log_reader = auto_scheduler.RecordReader(fp.name)
-        inputs, results = log_reader.read_lines()
+        inputs, _ = log_reader.read_lines()
         assert len(inputs) == 1
 
         raw_inp = inputs[0]
@@ -266,7 +274,7 @@ def test_measure_target_host():
         auto_scheduler.save_records(fp.name, [inp], [res])
 
         log_reader = auto_scheduler.RecordReader(fp.name)
-        inputs, results = log_reader.read_lines()
+        inputs, _ = log_reader.read_lines()
         assert len(inputs) == 1
 
         raw_inp = inputs[0]

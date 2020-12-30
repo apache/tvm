@@ -53,7 +53,6 @@ from .utils import (
     make_traceback_info,
     request_remote,
 )
-from .compute_dag import LayoutRewriteOption
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
@@ -68,6 +67,31 @@ MAX_FLOAT = 1e10
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
     """ The base class of measurement callback functions. """
+
+
+@tvm._ffi.register_object("auto_scheduler.PythonBasedMeasureCallback")
+class PythonBasedMeasureCallback(MeasureCallback):
+    """Base class for measure callbacks implemented in python"""
+
+    def __init__(self):
+        def callback_func(policy, inputs, results):
+            self.callback(policy, inputs, results)
+
+        self.__init_handle_by_constructor__(_ffi_api.PythonBasedMeasureCallback, callback_func)
+
+    def callback(self, policy, inputs, results):
+        """The callback function.
+
+        Parameters
+        ----------
+        policy: auto_scheduler.search_policy.SearchPolicy
+            The search policy.
+        inputs : List[auto_scheduler.measure.MeasureInput]
+            The measurement inputs
+        results : List[auto_scheduler.measure.MeasureResult]
+            The measurement results
+        """
+        raise NotImplementedError
 
 
 @tvm._ffi.register_object("auto_scheduler.MeasureInput")
@@ -186,6 +210,7 @@ def recover_measure_input(inp, rebuild_state=False):
         target=task.target,
         target_host=task.target_host,
         hardware_params=task.hardware_params,
+        layout_rewrite_option=task.layout_rewrite_option,
     )
 
     if rebuild_state:
@@ -551,7 +576,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     try:
         sch, args = task.compute_dag.apply_steps_from_state(
-            inp.state, layout_rewrite=LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+            inp.state, layout_rewrite=task.layout_rewrite_option
         )
     # pylint: disable=broad-except
     except Exception:
@@ -577,9 +602,9 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print(".", end="")
+            print(".", end="", flush=True)
         else:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
 
     return filename, args, error_no, error_msg, time.time() - tic
 
@@ -609,11 +634,11 @@ def local_build_worker(args):
     res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
     if isinstance(res, TimeoutError):
         if verbose >= 1:
-            print(".T", end="")  # Build timeout
+            print(".T", end="", flush=True)  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
     elif isinstance(res, Exception):
         if verbose >= 1:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
         res = None, [], MeasureErrorNo.COMPILE_HOST, str(res), timeout
 
     return res
@@ -726,9 +751,9 @@ def _timed_eval_func(
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print("*", end="")
+            print("*", end="", flush=True)
         else:
-            print("*E", end="")  # Run error
+            print("*E", end="", flush=True)  # Run error
     return costs, error_no, error_msg, toc - tic + build_res.time_cost, toc
 
 
@@ -814,10 +839,11 @@ def local_run(
                     enable_cpu_cache_flush,
                     verbose,
                 ),
+                add_thread_wrapper=True,
             )
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
-                    print("*T", end="")  # Run timeout
+                    print("*T", end="", flush=True)  # Run timeout
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUN_TIMEOUT,
@@ -827,7 +853,7 @@ def local_run(
                 )
             elif isinstance(res, Exception):
                 if verbose >= 1:
-                    print("*E", end="")  # Run error
+                    print("*E", end="", flush=True)  # Run error
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUNTIME_DEVICE,
@@ -839,7 +865,7 @@ def local_run(
         measure_results.append(MeasureResult(*res))
 
     if verbose >= 1:
-        print("")
+        print("", flush=True)
 
     return measure_results
 

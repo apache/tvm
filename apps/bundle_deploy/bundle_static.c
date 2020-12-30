@@ -124,3 +124,9 @@ tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void*
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
   return g_memory_manager->Free(g_memory_manager, ptr, ctx);
 }
+
+tvm_crt_error_t TVMPlatformTimerStart() { return kTvmErrorFunctionCallNotImplemented; }
+
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  return kTvmErrorFunctionCallNotImplemented;
+}

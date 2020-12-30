@@ -78,6 +78,25 @@ tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void*
  * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
  */
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx);
+
+/*! \brief Start a device timer.
+ *
+ * The device timer used must not be running.
+ *
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformTimerStart();
+
+/*! \brief Stop the running device timer and get the elapsed time (in microseconds).
+ *
+ * The device timer used must be running.
+ *
+ * \param elapsed_time_seconds Pointer to write elapsed time into.
+ *
+ * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+ */
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

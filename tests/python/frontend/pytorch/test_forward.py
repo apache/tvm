@@ -181,14 +181,14 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
         baseline_input = [inp.cuda() for inp in baseline_input]
 
     with torch.no_grad():
-        baseline_outputs = baseline_model(*baseline_input)
+        baseline_outputs = baseline_model(*[input.clone() for input in baseline_input])
 
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
         baseline_outputs = (baseline_outputs.cpu().numpy(),)
 
-    trace = torch.jit.trace(baseline_model, baseline_input)
+    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
     if isinstance(baseline_model, torch.nn.Module):
         trace = trace.float().eval()
 
@@ -200,7 +200,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}, rtol=1e-5, at
     input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
     input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-    compiled_input = dict(zip(input_names, [inp.cpu().numpy() for inp in baseline_input]))
+    compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
         for target, ctx in tvm.testing.enabled_targets():
@@ -1675,10 +1675,10 @@ def test_forward_nms():
         boxes = torch.rand(num_boxes, box_len, dtype=torch.float) * 0.5
         boxes[:, 2] += boxes[:, 0]
         boxes[:, 3] += boxes[:, 1]
-        scores = torch.rand(num_boxes, dtype=torch.float)
+        scores = torch.from_numpy(np.random.uniform(-1, 1, size=(num_boxes,)).astype(np.float32))
         return boxes, scores
 
-    targets = ["llvm"]  # dynamic nms does not work on gpu
+    targets = ["llvm", "cuda"]
 
     for num_boxes, iou_thres in [(10, 0.3), (100, 0.5), (500, 0.9)]:
         in_boxes, in_scores = _gen_rand_inputs(num_boxes)
@@ -3437,6 +3437,13 @@ def test_bincount():
     verify_trace_model(test_fn, [inp, weights], targets)
 
 
+def test_hard_swish():
+    examples = [torch.rand(8).float(), torch.rand(8, 10).float(), torch.rand(1, 1, 10).float()]
+    for input in examples:
+        verify_model(torch.nn.Hardswish().eval(), input_data=input)
+        verify_model(torch.nn.Hardswish(inplace=True).eval(), input_data=input)
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3603,3 +3610,4 @@ if __name__ == "__main__":
 
     # Test convert torch script(jit) with specific inputs' types
     test_convert_torch_script_with_input_types()
+    test_hard_swish()

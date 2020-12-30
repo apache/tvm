@@ -1105,8 +1105,8 @@ def stack(data, axis):
 
     Parameters
     ----------
-    data : Union(List[relay.Expr], Tuple(relay.Expr))
-        A list of tensors.
+    data : Union(List[relay.Expr], relay.Expr)
+        A list of tensors or a Relay expression that evaluates to a tuple of tensors.
 
     axis : int
         The axis in the result array along which the input arrays are stacked.
@@ -1116,12 +1116,13 @@ def stack(data, axis):
     ret : relay.Expr
         The stacked tensor.
     """
-    data = list(data)
     if not data:
         raise ValueError("relay.stack requires data to be non-empty.")
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
-    return _make.stack(Tuple(data), axis)
+    if not isinstance(data, Expr):
+        data = Tuple(list(data))
+    return _make.stack(data, axis)
 
 
 def copy(data):
