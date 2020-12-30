@@ -1386,8 +1386,8 @@ def _sparse_fill_empty_rows():
         ) = get_relay_op("sparse_fill_empty_rows")(
             indices_data, values_data, default_value_data, list(dense_shape_tensor)
         )
-        first_row = get_relay_op("split")(new_sparse_indices, indices_tensor.shape[1], axis=1)
-        sorted_indices = _op.argsort(_op.squeeze(first_row[0]))
+        first_column = get_relay_op("split")(new_sparse_indices, indices_tensor.shape[1], axis=1)
+        sorted_indices = _op.argsort(_op.squeeze(first_column[0]))
 
         final_sparse_indices = _op.strided_slice(
             _op.take(new_sparse_indices, sorted_indices, axis=0),
