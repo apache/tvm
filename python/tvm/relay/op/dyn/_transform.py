@@ -32,11 +32,8 @@ _reg.register_injective_schedule("dyn.sparse_to_dense")
 
 
 @script
-def _reshape_shape_func_input_data(data, newshape, ndim):
+def _reshape_shape_func_input_data(data_shape, newshape, ndim):
     out = output_tensor((ndim,), "int64")
-    data_shape = allocate((len(data.shape),), "int64")
-    for x in const_range(len(data.shape)):
-        data_shape[x] = int64(data.shape[x])
     src_idx = 0
     dst_idx = 0
     infer_idx = -1
@@ -87,7 +84,7 @@ def _reshape_shape_func_input_data(data, newshape, ndim):
     return out
 
 
-@_reg.register_shape_func("dyn.reshape", True)
+@_reg.register_shape_func("dyn.reshape", [False, True])
 def dynamic_reshape_shape_func(attrs, inputs, out_ndims):
     return [_reshape_shape_func_input_data(*inputs, out_ndims[0])]
 
