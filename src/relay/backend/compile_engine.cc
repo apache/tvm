@@ -440,10 +440,8 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       ICHECK(data_dependants_.size());
       auto dep_spec = data_dependants_per_input_.back();
       auto index = param_to_index_[var];
-      LOG(INFO) << dep_spec.size() << ", " << index;
       ICHECK(dep_spec.size() > index);
-      // bool data_dependant = dep_spec[index];
-      bool data_dependant = data_dependants_.back();
+      bool data_dependant = dep_spec[index];
       if (data_dependant) {
         param_states_[var] |= kNeedInputData;
         return param_data_[var];
