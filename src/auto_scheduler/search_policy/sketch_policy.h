@@ -87,6 +87,8 @@ struct SketchParamKey {
   static constexpr const char* disable_change_compute_location = "disable_change_compute_location";
 };
 
+class SketchPolicy;
+
 /*!
  * \brief The search policy that searches in a hierarchical search space defined by sketches.
  * The policy randomly samples programs from the space defined by sketches
@@ -166,6 +168,11 @@ class SketchPolicyNode : public SearchPolicyNode {
 
   /*! \brief The cached sketches */
   Array<State> sketch_cache_;
+
+  /*! \brief The minimul output population of SampleInitPopulation */
+  int sample_init_min_pop_;
+
+  friend class SketchPolicy;
 };
 
 /*!
