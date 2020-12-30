@@ -1387,7 +1387,7 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
 }
 
 /*!
- * \brief Fill Empty rows of a sparse tensor with default value
+ * \brief Fill empty rows of a sparse tensor with default values
  *
  * \param sparse_indices Indices where values of the dense tensor exist
  * \param sparse_values Values at the above indices respectively
