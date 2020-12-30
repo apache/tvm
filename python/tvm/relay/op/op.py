@@ -374,7 +374,9 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     level : int
         The priority level
     """
-    get(op_name).set_attr("TShapeDataDependant", [int(data_dependant)], level)
+    if not isinstance(data_dependant, list):
+        data_dependant = [data_dependant]
+    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     return tvm.ir.register_op_attr(op_name, "FShapeFunc", shape_func, level)
 
 

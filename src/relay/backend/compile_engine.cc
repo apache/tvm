@@ -336,8 +336,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   MakeShapeFunc() {}
 
   std::pair<te::Schedule, CachedFunc> Create(const Function& prim_func) {
-    for (auto param : prim_func->params) {
+    for (size_t i = 0; i < prim_func->params.size(); ++i) {
+      auto param = prim_func->params[i];
       param_states_[param] = kNoNeed;
+      param_to_index_[param] = i;
       Array<tvm::te::Tensor> data_inputs;
       Array<tvm::te::Tensor> shape_inputs;
 
@@ -436,6 +438,11 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       return {};
     } else {
       ICHECK(data_dependants_.size());
+      auto dep_spec = data_dependants_per_input_.back();
+      auto index = param_to_index_[var];
+      LOG(INFO) << dep_spec.size() << ", " << index;
+      ICHECK(dep_spec.size() > index);
+      // bool data_dependant = dep_spec[index];
       bool data_dependant = data_dependants_.back();
       if (data_dependant) {
         param_states_[var] |= kNeedInputData;
@@ -518,6 +525,18 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
         << "Internal error, cannot find TShapeDataDependant for " << op->name;
 
     data_dependants_.push_back(IsDataDependant(call_node));
+
+    Array<Integer> dep_spec = tshape_data_dependant[op];
+    if (dep_spec.size() == 1 && call_node->args.size() > 1) {
+      for (size_t i = 1; i < call_node->args.size(); ++i) {
+	dep_spec.push_back(dep_spec[0]);
+      }
+    } else {
+      ICHECK_EQ(dep_spec.size(), call_node->args.size());
+    }
+    data_dependants_per_input_.push_back(dep_spec);
+    LOG(INFO) << op->name << ", " << dep_spec;
+
     // Visit all inputs
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -550,6 +569,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Call shape function
     auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
     data_dependants_.pop_back();
+    data_dependants_per_input_.pop_back();
     readable_name_stream_ << "_" << op->name;
     return outputs;
   }
@@ -593,8 +613,10 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
   std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_shapes_;
+  std::unordered_map<Expr, size_t, ObjectPtrHash, ObjectPtrEqual> param_to_index_;
   /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
+  std::vector<Array<Integer>> data_dependants_per_input_;
   /*! \brief Scalars used in the shape function */
   Array<te::Tensor> scalars_;
 };
