@@ -85,7 +85,7 @@ using TNonComputational = bool;
 /*!
  * \brief Mark the operator whether output shape is data dependant.
  */
-using TShapeDataDependant = bool;
+using TShapeDataDependant = Array<Integer>;
 
 /*!
  * \brief Computation description interface.

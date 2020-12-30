@@ -490,7 +490,8 @@ bool IsDataDependant(const CallNode* call) {
     }
   }
 
-  return tshape_data_dependant[op];
+  Array<Integer> reqs = tshape_data_dependant[op];
+  return reqs[0]->value != 0;
 }
 }  // namespace relay
 }  // namespace tvm
