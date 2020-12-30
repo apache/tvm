@@ -1558,8 +1558,7 @@ TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
   // types: [ sparse_indices, sparse_values, default_values, result]
-  ICHECK_EQ(types.size(), 4) << "SparseFillEmptyRowsRel expects 4 arguments but provided "
-                             << types.size();
+  ICHECK_EQ(types.size(), 4) << "SparseFillEmptyRowsRel expects 4 arguments but " << types.size() << " were provided.";
   std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
