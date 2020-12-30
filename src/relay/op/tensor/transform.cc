@@ -455,8 +455,8 @@ RELAY_REGISTER_OP("transpose")
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 TVM_REGISTER_NODE_TYPE(ReshapeLikeAttrs);
 
-Array<IndexExpr> infer_newshape(const Array<IndexExpr>& data_shape, const Attrs& attrs,
-                                bool reverse) {
+Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& attrs,
+                               bool reverse) {
   const auto* param = attrs.as<ReshapeAttrs>();
   Array<IndexExpr> oshape;
   Array<IndexExpr> ishape;
@@ -594,7 +594,7 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     return false;
   }
 
-  const auto& oshape = infer_newshape(data->shape, attrs, false);
+  const auto& oshape = InferNewShape(data->shape, attrs, false);
 
   // Verify that the sum of dimensions in the output shape is the sum of
   // dimensions in the input shape
@@ -644,7 +644,7 @@ bool ReverseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& at
     return false;
   }
 
-  const auto& oshape = infer_newshape(data->shape, attrs, true);
+  const auto& oshape = InferNewShape(data->shape, attrs, true);
 
   // Verify that the sum of dimensions in the output shape is the sum of
   // dimensions in the input shape
@@ -743,7 +743,7 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   }
 
   if (newshape_has_any) {
-    newshape = infer_newshape(inputs[0]->shape, attrs, false);
+    newshape = InferNewShape(inputs[0]->shape, attrs, false);
   }
   return {topi::reshape(inputs[0], newshape)};
 }
