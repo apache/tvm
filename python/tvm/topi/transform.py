@@ -948,8 +948,7 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_s
         A 1-D tensor[N] containing the sparse values for the sparse indices.
 
     default_value : relay.Expr
-        A 0-D tensor containing the default value for the remaining locations.
-        Defaults to 0.
+        A 1-D tensor containing the default value for the remaining locations.
 
     dense_shape : relay.Expr
         A list of integers. Shape of the dense output tensor.
@@ -967,12 +966,13 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_s
 
     new_sparse_values : relay.Expr
         A 1-D tensor[dense_shape[0]] containing the sparse values for the sparse indices. It is
-        filled with -1 at to_be_discarded indices
+        filled with -1 at indices which will be discarded in the following strided_slice op.
+        This is done since the real rows of new_sparse_indices depends on the input.
 
-    slice_element_index : relay.Expr
-        A 1-D tensor containing the amount of elements in the sparse_indices and new_sparse_values
-        expression to be sliced in a future op discarding non-useful elements in new_sparse_indices
-        and new_sparse_values
+    non_empty_rows : relay.Expr
+        A 1-D tensor containing the amount of non-empty rows in the sparse_indices. This value will
+        be used to slice irrelevant indices(filled with -1) in new_sparse_values and
+        new_sparse_indices
 
     Examples
     -------
@@ -1005,7 +1005,7 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_s
 
         new_sparse_values = [1, 2, 3, 4, 10, 10, -1, -1, -1]
 
-        slice_element_index = [6]
+        slice_element_index = [3]
 
     """
     return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape)
