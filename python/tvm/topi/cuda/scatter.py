@@ -22,11 +22,7 @@ from ..scatter import _verify_scatter_nd_inputs
 from ..generic import schedule_extern
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust, is_thrust_available
-from ..utils import prod
-
-
-def ceil_div(a, b):
-    return (a + b - 1) // b
+from ..utils import prod, ceil_div
 
 
 def _memcpy_ir(ib, out_ptr, data_ptr, shape):

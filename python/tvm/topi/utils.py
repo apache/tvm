@@ -487,3 +487,7 @@ def is_empty_shape(shape):
       Whether input shape is empty or has dimesion with size 0.
     """
     return cpp.utils.is_empty_shape(shape)
+
+
+def ceil_div(a, b):
+    return (a + b - 1) // b
