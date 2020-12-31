@@ -300,7 +300,7 @@ def batch_matmul_tensorcore_cuda(x, y):
         (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
         or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
         or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
-    ), "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+    ), "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32)"
 
     x_16 = te.compute((batch, M, K), lambda b, i, k: x[b, i, k].astype("float16"))
     y_16 = te.compute((batch, N, K), lambda b, j, k: y[b, j, k].astype("float16"))
