@@ -657,7 +657,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             name="batch_matmul_cublas.cuda",
             plevel=15,
         )
-    if target.kind.name == "cuda" and nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+    if target.kind.name == "cuda" and nvcc.have_tensorcore(target=target):
         x, y = inputs
         _, M, K = get_const_tuple(x.shape)
         _, N, K = get_const_tuple(y.shape)
