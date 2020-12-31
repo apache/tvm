@@ -678,8 +678,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
         if target.kind.name == "cuda":
             if nvcc.have_tensorcore(target=target):
                 if (
-                    (data.dtype in ["float32"] and i % 4 == 0 and b % 8 == 0 and o % 8 == 0)
-                    or (
+                    (
                         data.dtype in ["float16", "int8", "uint8"]
                         and (
                             (i % 16 == 0 and b % 16 == 0 and o % 16 == 0)
