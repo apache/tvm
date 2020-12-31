@@ -659,9 +659,8 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         )
     if target.kind.name == "cuda" and nvcc.have_tensorcore(tvm.gpu(0).compute_version):
         x, y = inputs
-        B, M, K = get_const_tuple(x.shape)
-        B, N, K = get_const_tuple(y.shape)
-        # "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+        _, M, K = get_const_tuple(x.shape)
+        _, N, K = get_const_tuple(y.shape)
         if (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
