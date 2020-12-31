@@ -213,7 +213,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     out_indices: tvm.te.Tensor or numpy NDArray
         Related index in input data.
     """
-    if isinstance(score_threshold, float):
+    if isinstance(score_threshold, (float, int)):
         score_threshold = tvm.tir.const(score_threshold, dtype=data.dtype)
     id_index_const = tvm.tir.const(id_index, "int32")
     score_index_const = tvm.tir.const(score_index, "int32")

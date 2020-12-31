@@ -105,27 +105,18 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
         tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), ctx)
         tvm_out3 = tvm.nd.array(np.zeros(np_out3.shape, dtype="int32"), ctx)
-        if device == "llvm":
-            f = tvm.build(s, [data, outs[0], outs[1], outs[2]], device)
-            f(tvm_input_data, tvm_out1, tvm_out2, tvm_out3)
-            tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
-            tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
-            tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
-        else:
-            f = tvm.build(s, [data, outs[0], outs[1]], device)
-            f(tvm_input_data, tvm_out1, tvm_out2)
-            tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
-            tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
+
+        f = tvm.build(s, [data, outs[0], outs[1], outs[2]], device)
+        f(tvm_input_data, tvm_out1, tvm_out2, tvm_out3)
+        tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out3.asnumpy(), np_out3, rtol=1e-3)
 
     for device in ["llvm", "cuda", "opencl"]:
         check_device(device)
 
 
 @tvm.testing.uses_gpu
-@pytest.mark.skip(
-    "Skip this test as it is intermittent."
-    "See https://github.com/apache/tvm/pull/4901#issuecomment-595040094"
-)
 def test_get_valid_counts():
     verify_get_valid_counts((1, 1000, 5), 0.5, -1, 0)
     verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
