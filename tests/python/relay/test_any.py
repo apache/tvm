@@ -454,6 +454,7 @@ def verify_any_conv2d(
     dilation,
     static_data_shape,
     ref_out_shape,
+    use_cudnn=False,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -463,7 +464,17 @@ def verify_any_conv2d(
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
+        check_result(
+            [data_np, kernel_np],
+            mod,
+            ref_out_shape,
+            assert_shape=True,
+            targets=[("cuda -libs=cudnn", tvm.gpu(0))],
+        )
+    else:
+        check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -486,6 +497,16 @@ def test_any_conv2d():
         (2, 2),
         (2, 64, 224, 224),
         (2, 64, 222, 222),
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        use_cudnn=True,
     )
 
 
@@ -1452,4 +1473,5 @@ def test_non_max_suppression():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_any_conv2d()
