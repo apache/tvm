@@ -1983,7 +1983,6 @@ def test_single_ops():
     verify_single_ops("Tanh", x, np.tanh(x))
     verify_single_ops("Sigmoid", x, 1 / (1 + np.exp(-x)))
     verify_single_ops("Softsign", x, x / (1 + np.abs(x)))
-    verify_single_ops("SoftPlus", x, np.log(1 + np.exp(x)))
 
 
 @tvm.testing.uses_gpu
