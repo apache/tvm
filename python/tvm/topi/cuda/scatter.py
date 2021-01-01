@@ -21,6 +21,7 @@ from tvm import te
 from ..scatter import _verify_scatter_nd_inputs
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust, is_thrust_available
+from ..utils import get_const_int
 
 
 def ceil_div(a, b):
@@ -547,7 +548,12 @@ def scatter(data, indices, updates, axis=0):
 
     in_bufs = [data]
 
-    if rank == 1 and is_thrust_available():
+    def is_small_scatter(dim):
+        if isinstance(data.shape[0], tvm.tir.expr.Any):
+            return False
+        return get_const_int(dim) < 50
+
+    if rank == 1 and is_thrust_available() and not is_small_scatter(indices.shape[0]):
         ir_funcs[1] = gen_scatter_1d_thrust
         indices_sorted, updates_sorted = stable_sort_by_key_thrust(
             indices, updates, for_scatter=True
