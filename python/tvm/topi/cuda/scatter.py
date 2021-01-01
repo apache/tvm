@@ -312,19 +312,17 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
     out_ptr = ib.buffer_ptr(out)
     data_ptr = ib.buffer_ptr(data)
     with ib.new_scope():
-        i = te.thread_axis("blockIdx.x")
-        ib.scope_attr(i, "thread_extent", n)
-        j = te.thread_axis("blockIdx.y")
-        ib.scope_attr(j, "thread_extent", c)
-        k = te.thread_axis("blockIdx.z")
-        ib.scope_attr(k, "thread_extent", h)
+        fused = n * c * h * w
+        num_thread = 1024
+        num_blocks = ceil_div(fused, num_thread)
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(bx, "thread_extent", num_blocks)
         tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(tx, "thread_extent", warp_size)
-        with ib.for_range(0, ceil_div(w, warp_size), name="l") as l_:
-            l = l_ * warp_size + tx
-            with ib.if_scope(l < w):
-                idx = ((i * c + j) * h + k) * w + l
-                out_ptr[idx] = data_ptr[idx]
+        ib.scope_attr(tx, "thread_extent", num_thread)
+        tid = bx * num_thread + tx
+
+        with ib.if_scope(tid < fused):
+            out_ptr[tid] = data_ptr[tid]
 
     indices_ptr = ib.buffer_ptr(indices)
     updates_ptr = ib.buffer_ptr(updates)
