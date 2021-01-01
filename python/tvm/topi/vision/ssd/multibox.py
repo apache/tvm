@@ -238,7 +238,8 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, v
                 out_loc[i, valid_count[i], 4] = out_coord[2]
                 out_loc[i, valid_count[i], 5] = out_coord[3]
                 valid_count[i] += 1
-
+        for j in range(valid_count[i], num_anchors):
+            out_loc[i, j, 0] = -1.0
     return out_loc, valid_count
 
 
