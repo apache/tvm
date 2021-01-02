@@ -953,10 +953,6 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
     -------
     result: relay.Expr
         Output tensor containing the sparse segment sum
-    output_num_segments: relay.Expr
-        Number of output segments. If the number of rows in the result is greater than the
-        output_num_segments, this op will be followed by a strided_slice op. If num_segments is not
-        None, then output_num_segments = num_segments
 
     Examples
     --------
@@ -970,7 +966,7 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
 
         num_segments = 4
 
-        result, output_num_segments = relay.sparse_segment_sqrtn(data,
+        result = relay.sparse_segment_sqrtn(data,
                                         indices,
                                         segment_ids,
                                         num_segments)
@@ -978,7 +974,6 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
                       [ 0  0  0  0]
                       [-1 -2 -3 -4]
                       [ 0  0  0  0]]
-        num_segments = 4
     """
     if not num_segments:
         num_segments = -1

@@ -1400,9 +1400,9 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  * \return A Tensor whose op member is the sparse_segment_sqrtn operation
  */
 inline Array<Tensor> SparseSegmentSqrtN(const Tensor& data, const Tensor& selected_indices,
-                                           const Tensor& segment_ids, int num_segments,
-                                           const std::string name = "T_sparse_segment_sqrtn",
-                                           std::string tag = kInjective) {
+                                        const Tensor& segment_ids, int num_segments,
+                                        const std::string name = "T_sparse_segment_sqrtn",
+                                        std::string tag = kInjective) {
   Array<Tensor> result;
   Array<PrimExpr> new_data_shape;
   if (num_segments != -1) {
@@ -1432,16 +1432,6 @@ inline Array<Tensor> SparseSegmentSqrtN(const Tensor& data, const Tensor& select
         PrimExpr sqrt_length_segment =
             tvm::sqrt(if_then_else(length_segment == 0, 1, length_segment));
         return div(ret, sqrt_length_segment);
-      },
-      name, tag));
-  result.push_back(compute(
-      Array<PrimExpr>{1},
-      [&](const Array<Var>& indices) {
-        PrimExpr output_num_segments = num_segments;
-        for (int i = 0; i < GetConstInt(segment_ids->shape[0]); ++i) {
-          output_num_segments = tvm::max(segment_ids[i] + 1, output_num_segments);
-        }
-        return output_num_segments;
       },
       name, tag));
   return result;

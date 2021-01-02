@@ -975,40 +975,41 @@ def _sparse_tensor_dense_matmul():
     return _impl
 
 
+def _sparse_segment_sqrtn_with_num_segments():
+    def _impl(inputs, attr, params, mod):
+
+        assert len(inputs) == 4, "There should be 4 input tensors"
+        num_segments = _infer_value(inputs[3], params, mod).asnumpy().tolist()
+        return _op.sparse_segment_sqrtn(inputs[0], inputs[1], inputs[2], num_segments)
+
+    return _impl
+
+
 def _sparse_segment_sqrtn():
     def _impl(inputs, attr, params, mod):
 
-        assert 3 <= len(inputs) <= 4, "There should be 3 or 4 input tensors"
-        if len(inputs) == 3:
-            num_segments = -1
-        else:
-            num_segments = _infer_value(inputs[3], params, mod).asnumpy().tolist()
-
-        output_tensor, num_output_segments = get_relay_op("sparse_segment_sqrtn")(
-            inputs[0], inputs[1], inputs[2], num_segments
-        )
-        if num_segments == -1:
-            num_output_shape_dims = len(attr["_output_shapes"][0])
-            begin_indices = _op.repeat(_expr.const([0]), num_output_shape_dims, 0)
-            if num_output_shape_dims == 1:
-                end_indices = num_output_segments
-            else:
-                end_indices = _op.concatenate(
-                    [
-                        num_output_segments,
-                        _op.repeat(_expr.const([-1]), num_output_shape_dims - 1, 0),
-                    ],
-                    0,
-                )
-            strides = _op.repeat(_expr.const([1]), num_output_shape_dims, 0)
-            return _op.strided_slice(
-                output_tensor,
-                begin=begin_indices,
-                end=end_indices,
-                strides=strides,
-                slice_mode="size",
+        assert len(inputs) == 3, "There should be 3 input tensors"
+        result = _op.sparse_segment_sqrtn(inputs[0], inputs[1], inputs[2])
+        num_segments = _op.add(get_relay_op("max")(inputs[2]), _expr.const([1]))
+        num_output_shape_dims = len(attr["_output_shapes"][0])
+        begin_indices = _op.repeat(_expr.const([0]), num_output_shape_dims, 0)
+        end_indices = num_segments
+        if num_output_shape_dims > 1:
+            end_indices = _op.concatenate(
+                [
+                    end_indices,
+                    _op.repeat(_expr.const([-1]), num_output_shape_dims - 1, 0),
+                ],
+                0,
             )
-        return output_tensor
+        strides = _op.repeat(_expr.const([1]), num_output_shape_dims, 0)
+        return _op.strided_slice(
+            result,
+            begin=begin_indices,
+            end=end_indices,
+            strides=strides,
+            slice_mode="size",
+        )
 
     return _impl
 
@@ -2462,7 +2463,7 @@ _convert_map = {
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
     "SparseSegmentSqrtN": _sparse_segment_sqrtn(),
-    "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sqrtn(),
+    "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sqrtn_with_num_segments(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),

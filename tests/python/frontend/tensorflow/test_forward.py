@@ -1821,33 +1821,22 @@ def test_forward_sparse_dense_matmul():
 
 def _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments):
     with tf.Graph().as_default():
-        # data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
-        # indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
-        # segment_ids = tf.placeholder(
-        #     shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
-        # )
-
-        data = tf.constant(data_np, data_np.dtype)
-        indices = tf.constant(indices_np, indices_np.dtype)
+        data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+        indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
         segment_ids = tf.constant(segment_ids_np, segment_ids_np.dtype)
 
         result = tf.sparse.segment_sqrt_n(
             data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sqrtn"
         )
-        # compare_tf_with_tvm(
-        #     [data_np, indices_np, segment_ids_np],
-        #     [data.name, indices.name, segment_ids.name],
-        #     result.name,
-        # )
         compare_tf_with_tvm(
-            None,
-            "",
+            [data_np, indices_np],
+            [data.name, indices.name],
             result.name,
         )
 
 
 def test_sparse_segment_sqrtn():
-    """ sparse_fill_empty_rows op test"""
+    """ sparse_segment_sqrtn test"""
 
     data_np = np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float32)
     indices_np = np.array([0, 1], dtype=np.int32)
@@ -4755,5 +4744,4 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    test_sparse_segment_sqrtn()
-    # pytest.main([__file__])
+    pytest.main([__file__])

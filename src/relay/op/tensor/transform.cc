@@ -1556,7 +1556,7 @@ RELAY_REGISTER_OP("meshgrid")
 TVM_REGISTER_NODE_TYPE(SparseSegmentSqrtNAttrs);
 
 bool SparseSegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                              const TypeReporter& reporter) {
+                           const TypeReporter& reporter) {
   // types: [data, indices, segment_ids, result]
   ICHECK_EQ(types.size(), 4) << "SparseSegmentSqrtNRel expects 4 types but provided "
                              << types.size();
@@ -1573,15 +1573,12 @@ bool SparseSegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs
   for (int i = 1; i < static_cast<int>(data->shape.size()); ++i) {
     new_data_shape.push_back(data->shape[i]);
   }
-  std::vector<Type> fields;
-  fields.push_back(TensorType(new_data_shape, tvm::DataType::Float(32)));
-  fields.push_back(TensorType(Array<PrimExpr>{1}, tvm::DataType::Int(32)));
-  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
+  reporter->Assign(types[3], TensorType(new_data_shape, tvm::DataType::Float(32)));
   return true;
 }
 
 Array<te::Tensor> SparseSegmentSqrtNCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                               const Type& out_type) {
+                                            const Type& out_type) {
   ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSqrtNCompute expects 3 input but provided "
                               << inputs.size();
   const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
@@ -1596,8 +1593,7 @@ Expr MakeSparseSegmentSqrtN(Expr data, Expr indices, Expr segment_ids, int num_s
   return Call(op, {data, indices, segment_ids}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparse_segment_sqrtn")
-    .set_body_typed(MakeSparseSegmentSqrtN);
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_segment_sqrtn").set_body_typed(MakeSparseSegmentSqrtN);
 
 RELAY_REGISTER_OP("sparse_segment_sqrtn")
     .describe(R"code(Return sparse segment sum of the tensor given segments
