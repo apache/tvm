@@ -1397,11 +1397,11 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the sparse_segment_sum_sqrtn operation
+ * \return A Tensor whose op member is the sparse_segment_sqrtn operation
  */
-inline Array<Tensor> SparseSegmentSumSqrtN(const Tensor& data, const Tensor& selected_indices,
+inline Array<Tensor> SparseSegmentSqrtN(const Tensor& data, const Tensor& selected_indices,
                                            const Tensor& segment_ids, int num_segments,
-                                           const std::string name = "T_sparse_segment_sum_sqrtn",
+                                           const std::string name = "T_sparse_segment_sqrtn",
                                            std::string tag = kInjective) {
   Array<Tensor> result;
   Array<PrimExpr> new_data_shape;

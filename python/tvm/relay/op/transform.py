@@ -1322,7 +1322,7 @@ def adv_index(inputs):
     return _make.adv_index(Tuple(inputs))
 
 
-def sparse_segment_sum_sqrtn(data, indices, segment_ids, num_segments=None):
+def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
     """
     Compute the sparse segment sum on the indices over the segment_ids
 
@@ -1359,7 +1359,7 @@ def sparse_segment_sum_sqrtn(data, indices, segment_ids, num_segments=None):
 
         num_segments = 4
 
-        result, output_num_segments = relay.sparse_segment_sum_sqrtn(data,
+        result, output_num_segments = relay.sparse_segment_sqrtn(data,
                                         indices,
                                         segment_ids,
                                         num_segments)
@@ -1371,4 +1371,4 @@ def sparse_segment_sum_sqrtn(data, indices, segment_ids, num_segments=None):
     """
     if not num_segments:
         num_segments = -1
-    return TupleWrapper(_make.sparse_segment_sum_sqrtn(data, indices, segment_ids, num_segments), 2)
+    return TupleWrapper(_make.sparse_segment_sqrtn(data, indices, segment_ids, num_segments), 2)

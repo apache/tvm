@@ -254,6 +254,9 @@ def compare_tf_with_tvm(
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
+            # import pdb
+
+            # pdb.set_trace()
             for i in range(len(tf_output)):
                 if not isinstance(tf_output[i], np.ndarray):
                     assert len(tvm_output[i].shape) == 0
@@ -1809,6 +1812,76 @@ def test_forward_sparse_dense_matmul():
     _test_sparse_dense_matmul(
         [[0, 0], [1, 3], [4, 3]], [3.0, 6.0, 9.0], [9, 5], [7, 9], "float32", True
     )
+
+
+#######################################################################
+# SparseSegmentSqrtN
+# ------------
+
+
+def _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments):
+    with tf.Graph().as_default():
+        # data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
+        # indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
+        # segment_ids = tf.placeholder(
+        #     shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+        # )
+
+        data = tf.constant(data_np, data_np.dtype)
+        indices = tf.constant(indices_np, indices_np.dtype)
+        segment_ids = tf.constant(segment_ids_np, segment_ids_np.dtype)
+
+        result = tf.sparse.segment_sqrt_n(
+            data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sqrtn"
+        )
+        # compare_tf_with_tvm(
+        #     [data_np, indices_np, segment_ids_np],
+        #     [data.name, indices.name, segment_ids.name],
+        #     result.name,
+        # )
+        compare_tf_with_tvm(
+            None,
+            "",
+            result.name,
+        )
+
+
+def test_sparse_segment_sqrtn():
+    """ sparse_fill_empty_rows op test"""
+
+    data_np = np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float32)
+    indices_np = np.array([0, 1], dtype=np.int32)
+    segment_ids_np = np.array([0, 1], dtype=np.int32)
+    num_segments = 2
+    _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+
+    data_np = np.array([[1, 2, 3, 4], [7, 8, 2, -4], [5, 6, 7, 8]], dtype=np.float32)
+    indices_np = np.array([0, 1, 2], dtype=np.int32)
+    segment_ids_np = np.array([0, 0, 2], dtype=np.int32)
+    num_segments = None
+    _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+
+    data_np = np.array(
+        [
+            [[1, 2, 3, 4], [7, 8, 2, -4], [5, 6, 7, -8]],
+            [[-1, -2, -3, -4], [7, 8, 2, -4], [2, 8, -9, 4]],
+            [[2, 4, 7, 3], [-3, 2, 5, 7], [7, -1, 3, 6]],
+            [[1, 2, 3, 4], [7, 8, 2, -4], [5, 6, 7, -8]],
+            [[-1, -2, -3, -4], [7, 8, 2, -4], [2, 8, -9, 4]],
+            [[2, 4, 7, 3], [-3, 2, 5, 7], [7, -1, 3, 6]],
+        ],
+        dtype=np.float32,
+    )
+    indices_np = np.array([0, 1, 2, 3, 4, 5], dtype=np.int32)
+    segment_ids_np = np.array([0, 0, 2, 2, 2, 3], dtype=np.int32)
+    num_segments = None
+    _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+
+    data_np = np.array([1, 2, 3, 4], dtype=np.float32)
+    indices_np = np.array([0, 1, 3], dtype=np.int32)
+    segment_ids_np = np.array([0, 1, 1], dtype=np.int32)
+    num_segments = None
+    _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
 
 
 #######################################################################
@@ -4682,4 +4755,5 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_sparse_segment_sqrtn()
+    # pytest.main([__file__])

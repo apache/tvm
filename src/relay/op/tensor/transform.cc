@@ -1553,16 +1553,16 @@ RELAY_REGISTER_OP("meshgrid")
     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-TVM_REGISTER_NODE_TYPE(SparseSegmentSumSqrtNAttrs);
+TVM_REGISTER_NODE_TYPE(SparseSegmentSqrtNAttrs);
 
-bool SparseSegmentSumSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool SparseSegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                               const TypeReporter& reporter) {
   // types: [data, indices, segment_ids, result]
-  ICHECK_EQ(types.size(), 4) << "SparseSegmentSumSqrtNRel expects 4 types but provided "
+  ICHECK_EQ(types.size(), 4) << "SparseSegmentSqrtNRel expects 4 types but provided "
                              << types.size();
   auto data = types[0].as<TensorTypeNode>();
   auto indices = types[1].as<TensorTypeNode>();
-  const auto* param = attrs.as<SparseSegmentSumSqrtNAttrs>();
+  const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
   ICHECK(param != nullptr);
   Array<PrimExpr> new_data_shape;
   if (param->num_segments != -1) {
@@ -1580,37 +1580,37 @@ bool SparseSegmentSumSqrtNRel(const Array<Type>& types, int num_inputs, const At
   return true;
 }
 
-Array<te::Tensor> SparseSegmentSumSqrtNCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+Array<te::Tensor> SparseSegmentSqrtNCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                                const Type& out_type) {
-  ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSumSqrtNCompute expects 3 input but provided "
+  ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSqrtNCompute expects 3 input but provided "
                               << inputs.size();
-  const auto* param = attrs.as<SparseSegmentSumSqrtNAttrs>();
+  const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
   ICHECK(param != nullptr);
-  return {topi::SparseSegmentSumSqrtN(inputs[0], inputs[1], inputs[2], param->num_segments)};
+  return {topi::SparseSegmentSqrtN(inputs[0], inputs[1], inputs[2], param->num_segments)};
 }
 
-Expr MakeSparseSegmentSumSqrtN(Expr data, Expr indices, Expr segment_ids, int num_segments) {
-  auto attrs = make_object<SparseSegmentSumSqrtNAttrs>();
+Expr MakeSparseSegmentSqrtN(Expr data, Expr indices, Expr segment_ids, int num_segments) {
+  auto attrs = make_object<SparseSegmentSqrtNAttrs>();
   attrs->num_segments = std::move(num_segments);
-  static const Op& op = Op::Get("sparse_segment_sum_sqrtn");
+  static const Op& op = Op::Get("sparse_segment_sqrtn");
   return Call(op, {data, indices, segment_ids}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.sparse_segment_sum_sqrtn")
-    .set_body_typed(MakeSparseSegmentSumSqrtN);
+TVM_REGISTER_GLOBAL("relay.op._make.sparse_segment_sqrtn")
+    .set_body_typed(MakeSparseSegmentSqrtN);
 
-RELAY_REGISTER_OP("sparse_segment_sum_sqrtn")
+RELAY_REGISTER_OP("sparse_segment_sqrtn")
     .describe(R"code(Return sparse segment sum of the tensor given segments
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
-    .set_attrs_type<SparseSegmentSumSqrtNAttrs>()
+    .set_attrs_type<SparseSegmentSqrtNAttrs>()
     .add_argument("data", "Tensor", "The first tensor")
     .add_argument("indices", "Tensor", "The second tensor")
     .add_argument("segment_ids", "Tensor", "The third tensor")
-    .add_type_rel("sparse_segment_sum_sqrtn", SparseSegmentSumSqrtNRel)
+    .add_type_rel("sparse_segment_sqrtn", SparseSegmentSqrtNRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_support_level(3)
-    .set_attr<FTVMCompute>("FTVMCompute", SparseSegmentSumSqrtNCompute);
+    .set_attr<FTVMCompute>("FTVMCompute", SparseSegmentSqrtNCompute);
 
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);

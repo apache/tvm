@@ -401,13 +401,13 @@ struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   }
 };  // struct SparseToDenseAttrs
 
-/*! \brief Attributes used in sparse_segment_sum_sqrtn operator */
-struct SparseSegmentSumSqrtNAttrs : public tvm::AttrsNode<SparseSegmentSumSqrtNAttrs> {
+/*! \brief Attributes used in sparse_segment_sqrtn operator */
+struct SparseSegmentSqrtNAttrs : public tvm::AttrsNode<SparseSegmentSqrtNAttrs> {
   int num_segments;
-  TVM_DECLARE_ATTRS(SparseSegmentSumSqrtNAttrs, "relay.attrs.SparseSegmentSumSqrtNAttrs") {
+  TVM_DECLARE_ATTRS(SparseSegmentSqrtNAttrs, "relay.attrs.SparseSegmentSqrtNAttrs") {
     TVM_ATTR_FIELD(num_segments).describe("Number of Segments in the output tensor");
   }
-};  // struct SparseSegmentSumSqrtNAttrs
+};  // struct SparseSegmentSqrtNAttrs
 
 /*! \brief Attributes for ndarray_size operator */
 struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {

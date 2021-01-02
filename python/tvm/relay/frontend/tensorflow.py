@@ -975,6 +975,44 @@ def _sparse_tensor_dense_matmul():
     return _impl
 
 
+def _sparse_segment_sqrtn():
+    def _impl(inputs, attr, params, mod):
+
+        assert 3 <= len(inputs) <= 4, "There should be 3 or 4 input tensors"
+        if len(inputs) == 3:
+            num_segments = -1
+        else:
+            num_segments = _infer_value(inputs[3], params, mod).asnumpy().tolist()
+
+        output_tensor, num_output_segments = get_relay_op("sparse_segment_sqrtn")(
+            inputs[0], inputs[1], inputs[2], num_segments
+        )
+        if num_segments == -1:
+            num_output_shape_dims = len(attr["_output_shapes"][0])
+            begin_indices = _op.repeat(_expr.const([0]), num_output_shape_dims, 0)
+            if num_output_shape_dims == 1:
+                end_indices = num_output_segments
+            else:
+                end_indices = _op.concatenate(
+                    [
+                        num_output_segments,
+                        _op.repeat(_expr.const([-1]), num_output_shape_dims - 1, 0),
+                    ],
+                    0,
+                )
+            strides = _op.repeat(_expr.const([1]), num_output_shape_dims, 0)
+            return _op.strided_slice(
+                output_tensor,
+                begin=begin_indices,
+                end=end_indices,
+                strides=strides,
+                slice_mode="size",
+            )
+        return output_tensor
+
+    return _impl
+
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -2423,6 +2461,8 @@ _convert_map = {
     "SpaceToDepth": _space_to_depth(),
     "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
+    "SparseSegmentSqrtN": _sparse_segment_sqrtn(),
+    "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sqrtn(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
