@@ -1045,35 +1045,42 @@ def test_scatter_add():
 
 
 @tvm.testing.uses_gpu
-def test_sparse_segment_sum():
-    def ref_sparse_segment_sum(
+def test_sparse_segment_sum_sqrtn():
+    def ref_sparse_segment_sum_sqrtn(
         data: np.ndarray,
         indices: np.ndarray,
         segment_ids: np.ndarray,
         num_segments: Optional[int] = None,
     ):
         """
-        This function calculates the expected output of sparse_segment_sum operator given the inputs.
+        This function calculates the expected output of sparse_segment_sum_sqrtn operator given the inputs.
         """
         selected_data = np.take(data, indices, axis=0, mode="clip")
         if num_segments:
-            result = np.zeros(((num_segments,) + data.shape[1:]), dtype=data.dtype)
+            result = np.zeros(((num_segments,) + data.shape[1:]), dtype=np.float32)
         else:
-            result = np.zeros(((indices.shape[0],) + data.shape[1:]), dtype=data.dtype)
+            result = np.zeros(((indices.shape[0],) + data.shape[1:]), dtype=np.float32)
             num_segments = -1
+        length_segments = [0 for _ in range(max(np.max(segment_ids) + 1, num_segments))]
+
+        for element in segment_ids:
+            length_segments[element] += 1
+
         for row_num, element in enumerate(segment_ids):
             result[element] += selected_data[row_num]
+        for row_num, length_segment in enumerate(length_segments):
+            result[row_num] /= max(np.sqrt(length_segment), 1)
 
-        return result, max(np.max(segment_ids) + 1, num_segments)
+        return result, len(length_segments)
 
-    def verify_sparse_segment_sum(
+    def verify_sparse_segment_sum_sqrtn(
         data_np: np.ndarray,
         indices_np: np.ndarray,
         segment_ids_np: np.ndarray,
         num_segments: Optional[int] = None,
     ):
         """
-        This function verifies the relay output of sparse_segment_sum with its expected output.
+        This function verifies the relay output of sparse_segment_sum_sqrtn with its expected output.
         """
         data = relay.var(
             "data",
@@ -1086,12 +1093,14 @@ def test_sparse_segment_sum():
         segment_ids = relay.var(
             "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
         )
-        z = relay.op.sparse_segment_sum(data, indices, segment_ids, num_segments).astuple()
+        z = relay.op.sparse_segment_sum_sqrtn(data, indices, segment_ids, num_segments).astuple()
 
         func = relay.Function([data, indices, segment_ids], z)
 
-        ref_res = ref_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
+        ref_res = ref_sparse_segment_sum_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
         for target, ctx in tvm.testing.enabled_targets():
+            if target == "nvptx" or target == "cuda":
+                continue
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, segment_ids_np)
@@ -1105,13 +1114,35 @@ def test_sparse_segment_sum():
     indices_np = np.array([0, 1], dtype=np.int32)
     segment_ids_np = np.array([0, 2], dtype=np.int32)
     num_segments = 4
-    verify_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
+    verify_sparse_segment_sum_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+
+    data_np = np.array([[1, 2, 3, 4], [7, 8, 2, -4], [5, 6, 7, 8]], dtype=np.int32)
+    indices_np = np.array([0, 1, 2], dtype=np.int32)
+    segment_ids_np = np.array([0, 0, 2], dtype=np.int32)
+    num_segments = 4
+    verify_sparse_segment_sum_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+
+    data_np = np.array(
+        [
+            [[1, 2, 3, 4], [7, 8, 2, -4], [5, 6, 7, -8]],
+            [[-1, -2, -3, -4], [7, 8, 2, -4], [2, 8, -9, 4]],
+            [[2, 4, 7, 3], [-3, 2, 5, 7], [7, -1, 3, 6]],
+            [[1, 2, 3, 4], [7, 8, 2, -4], [5, 6, 7, -8]],
+            [[-1, -2, -3, -4], [7, 8, 2, -4], [2, 8, -9, 4]],
+            [[2, 4, 7, 3], [-3, 2, 5, 7], [7, -1, 3, 6]],
+        ],
+        dtype=np.int32,
+    )
+    indices_np = np.array([0, 1, 2, 3, 4, 5], dtype=np.int32)
+    segment_ids_np = np.array([0, 0, 2, 2, 2, 3], dtype=np.int32)
+    num_segments = None
+    verify_sparse_segment_sum_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
 
     data_np = np.array([1, 2, 3, 4], dtype=np.int32)
     indices_np = np.array([0, 1, 3], dtype=np.int32)
-    segment_ids_np = np.array([0, 1], dtype=np.int32)
+    segment_ids_np = np.array([0, 1, 1], dtype=np.int32)
     num_segments = None
-    verify_sparse_segment_sum(data_np, indices_np, segment_ids_np, num_segments)
+    verify_sparse_segment_sum_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
 
 
 @tvm.testing.uses_gpu
@@ -1385,7 +1416,10 @@ def test_adv_index():
 
 
 if __name__ == "__main__":
-    test_sparse_segment_sum()
+    test_sparse_segment_sum_sqrtn()
+    import sys
+
+    sys.exit()
     test_cast()
     test_zeros_ones()
     test_unary_identity()
