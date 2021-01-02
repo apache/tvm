@@ -146,6 +146,23 @@ def invalid_compute_definition():
 
 
 @auto_scheduler.register_workload
+def zero_rank_reduce_auto_scheduler_test(N):
+    A = tvm.te.placeholder((N,), name="A")
+    k = tvm.te.reduce_axis((0, N), name="k")
+    B = tvm.te.compute((), lambda: tvm.te.sum(A[k], k), name="B")
+
+    return [A, B]
+
+
+@auto_scheduler.register_workload
+def zero_rank_compute_auto_scheduler_test(N):
+    A = tvm.te.placeholder((N,), name="A")
+    B = tvm.te.compute((), lambda: A[0], name="B")
+
+    return [A, B]
+
+
+@auto_scheduler.register_workload
 def conv2d_winograd_nhwc_auto_scheduler_test(
     N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1
 ):

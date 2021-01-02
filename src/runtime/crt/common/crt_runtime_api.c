@@ -110,6 +110,9 @@ static const TVMModule* registered_modules[TVM_CRT_MAX_REGISTERED_MODULES];
 /*! \brief Passed as `module_index` to EncodeFunctionHandle. */
 static const tvm_module_index_t kGlobalFuncModuleIndex = TVM_CRT_MAX_REGISTERED_MODULES;
 
+/*! \brief Special module handle for retur values from RPCTimeEvaluator. */
+static const tvm_module_index_t kTimeEvaluatorModuleIndex = 0x7fff;
+
 static int DecodeModuleHandle(TVMModuleHandle handle, tvm_module_index_t* out_module_index) {
   tvm_module_index_t module_index;
 
@@ -185,19 +188,35 @@ static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* mo
       (tvm_module_index_t)(((uintptr_t)handle) >> (sizeof(tvm_function_index_t) * 8));
   unvalidated_module_index &= ~0x8000;
 
-  if (unvalidated_module_index > kGlobalFuncModuleIndex) {
-    TVMAPIErrorf("invalid module handle: index=%08x", unvalidated_module_index);
-    return -1;
-  } else if (unvalidated_module_index < kGlobalFuncModuleIndex &&
-             registered_modules[unvalidated_module_index] == NULL) {
-    TVMAPIErrorf("unregistered module: index=%08x", unvalidated_module_index);
-    return -1;
+  if (unvalidated_module_index != kTimeEvaluatorModuleIndex) {
+    if (unvalidated_module_index > kGlobalFuncModuleIndex) {
+      TVMAPIErrorf("invalid module handle: index=%08x", unvalidated_module_index);
+      return -1;
+    } else if (unvalidated_module_index < kGlobalFuncModuleIndex &&
+               registered_modules[unvalidated_module_index] == NULL) {
+      TVMAPIErrorf("unregistered module: index=%08x", unvalidated_module_index);
+      return -1;
+    }
   }
 
   *function_index = ((uint32_t)((uintptr_t)handle)) & ~0x8000;
   *module_index = unvalidated_module_index;
   return 0;
 }
+
+int TVMByteArrayFree(TVMByteArray* arr) {
+  DLContext ctx = {kDLCPU, 0};
+  int to_return = TVMPlatformMemoryFree((void*)arr->data, ctx);
+  if (to_return != 0) {
+    return to_return;
+  }
+
+  return TVMPlatformMemoryFree((void*)arr, ctx);
+}
+
+tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* args,
+                                 int* type_codes, int num_args, TVMValue* ret_val,
+                                 int* ret_type_code);
 
 int TVMFuncCall(TVMFunctionHandle func_handle, TVMValue* arg_values, int* type_codes, int num_args,
                 TVMValue* ret_val, int* ret_type_code) {
@@ -211,7 +230,10 @@ int TVMFuncCall(TVMFunctionHandle func_handle, TVMValue* arg_values, int* type_c
     return -1;
   }
 
-  if (module_index == kGlobalFuncModuleIndex) {
+  if (module_index == kTimeEvaluatorModuleIndex) {
+    return RunTimeEvaluator(function_index, arg_values, type_codes, num_args, ret_val,
+                            ret_type_code);
+  } else if (module_index == kGlobalFuncModuleIndex) {
     resource_handle = NULL;
     registry = &global_func_registry.registry;
   } else {
@@ -315,6 +337,8 @@ int TVMFuncFree(TVMFunctionHandle func) {
   return 0;
 }
 
+int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
+                     int* ret_type_code);
 tvm_crt_error_t TVMInitializeRuntime() {
   int idx = 0;
   tvm_crt_error_t error = kTvmErrorNoError;
@@ -351,10 +375,134 @@ tvm_crt_error_t TVMInitializeRuntime() {
     error = TVMFuncRegisterGlobal("tvm.rpc.server.ModuleGetFunction", &ModuleGetFunction, 0);
   }
 
+  if (error == kTvmErrorNoError) {
+    error = TVMFuncRegisterGlobal("runtime.RPCTimeEvaluator", &RPCTimeEvaluator, 0);
+  }
+
   if (error != kTvmErrorNoError) {
     TVMPlatformMemoryFree(registry_backing_memory, ctx);
     TVMPlatformMemoryFree(func_registry_memory, ctx);
   }
 
   return error;
+}
+
+typedef struct {
+  uint16_t function_index;
+  TVMFunctionHandle func_to_time;
+  TVMContext ctx;
+  int number;
+  int repeat;
+  int min_repeat_ms;
+} time_evaluator_state_t;
+
+static time_evaluator_state_t g_time_evaluator_state;
+
+int RPCTimeEvaluator(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
+                     int* ret_type_code) {
+  ret_val[0].v_handle = NULL;
+  ret_type_code[0] = kTVMNullptr;
+  if (num_args < 8) {
+    TVMAPIErrorf("not enough args");
+    return kTvmErrorFunctionCallNumArguments;
+  }
+  if (type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
+      type_codes[2] != kTVMArgInt || type_codes[3] != kTVMArgInt || type_codes[4] != kTVMArgInt ||
+      type_codes[5] != kTVMArgInt || type_codes[6] != kTVMArgInt || type_codes[7] != kTVMStr) {
+    TVMAPIErrorf("one or more invalid arg types");
+    return kTvmErrorFunctionCallWrongArgType;
+  }
+
+  TVMModuleHandle mod = (TVMModuleHandle)args[0].v_handle;
+  const char* name = args[1].v_str;
+  g_time_evaluator_state.ctx.device_type = args[2].v_int64;
+  g_time_evaluator_state.ctx.device_id = args[3].v_int64;
+  g_time_evaluator_state.number = args[4].v_int64;
+  g_time_evaluator_state.repeat = args[5].v_int64;
+  g_time_evaluator_state.min_repeat_ms = args[6].v_int64;
+
+  int ret_code =
+      TVMModGetFunction(mod, name, /* query_imports */ 0, &g_time_evaluator_state.func_to_time);
+  if (ret_code != 0) {
+    return ret_code;
+  }
+
+  g_time_evaluator_state.function_index++;
+  ret_val[0].v_handle =
+      EncodeFunctionHandle(kTimeEvaluatorModuleIndex, g_time_evaluator_state.function_index);
+  ret_type_code[0] = kTVMPackedFuncHandle;
+  return kTvmErrorNoError;
+}
+
+tvm_crt_error_t RunTimeEvaluator(tvm_function_index_t function_index, TVMValue* args,
+                                 int* type_codes, int num_args, TVMValue* ret_val,
+                                 int* ret_type_code) {
+  if (function_index != g_time_evaluator_state.function_index) {
+    return kTvmErrorTimeEvaluatorBadHandle;
+  }
+
+  // TODO(areusch): should *really* rethink needing to return doubles
+  DLContext result_byte_ctx = {kDLCPU, 0};
+  TVMByteArray* result_byte_arr = NULL;
+  tvm_crt_error_t err =
+      TVMPlatformMemoryAllocate(sizeof(TVMByteArray), result_byte_ctx, (void*)&result_byte_arr);
+  if (err != kTvmErrorNoError) {
+    goto release_and_return;
+  }
+  result_byte_arr->data = NULL;
+  size_t data_size = sizeof(double) * g_time_evaluator_state.repeat;
+  err = TVMPlatformMemoryAllocate(data_size, result_byte_ctx, (void*)&result_byte_arr->data);
+  if (err != kTvmErrorNoError) {
+    goto release_and_return;
+  }
+  result_byte_arr->size = data_size;
+  double min_repeat_seconds = ((double)g_time_evaluator_state.min_repeat_ms) / 1000;
+  double* iter = (double*)result_byte_arr->data;
+  for (int i = 0; i < g_time_evaluator_state.repeat; i++) {
+    double repeat_res_seconds = 0.0;
+    int exec_count = 0;
+    // do-while structure ensures we run even when `min_repeat_ms` isn't set (i.e., is 0).
+    do {
+      err = TVMPlatformTimerStart();
+      if (err != kTvmErrorNoError) {
+        goto release_and_return;
+      }
+
+      for (int j = 0; j < g_time_evaluator_state.number; j++) {
+        err = TVMFuncCall(g_time_evaluator_state.func_to_time, args, type_codes, num_args, ret_val,
+                          ret_type_code);
+        if (err != kTvmErrorNoError) {
+          goto release_and_return;
+        }
+      }
+      exec_count += g_time_evaluator_state.number;
+
+      double curr_res_seconds;
+      err = TVMPlatformTimerStop(&curr_res_seconds);
+      if (err != kTvmErrorNoError) {
+        goto release_and_return;
+      }
+      repeat_res_seconds += curr_res_seconds;
+    } while (repeat_res_seconds < min_repeat_seconds);
+    double mean_exec_seconds = repeat_res_seconds / exec_count;
+    *iter = mean_exec_seconds;
+    iter++;
+  }
+
+  *ret_type_code = kTVMBytes;
+  ret_val->v_handle = result_byte_arr;
+  return err;
+
+release_and_return : {
+  tvm_crt_error_t release_err =
+      TVMPlatformMemoryFree((void*)&result_byte_arr->data, result_byte_ctx);
+  if (release_err != kTvmErrorNoError) {
+    release_err = TVMPlatformMemoryFree((void*)&result_byte_arr, result_byte_ctx);
+  }
+
+  if (err == kTvmErrorNoError && release_err != kTvmErrorNoError) {
+    err = release_err;
+  }
+}
+  return err;
 }

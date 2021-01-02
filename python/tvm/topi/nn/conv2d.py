@@ -38,12 +38,16 @@ Workload = namedtuple(
         "in_filter",
         "groups",
         "out_filter",
-        "hkernel",
-        "wkernel",
-        "hpad",
-        "wpad",
-        "hstride",
-        "wstride",
+        "kernel_h",
+        "kernel_w",
+        "padt",
+        "padl",
+        "padb",
+        "padr",
+        "dilation_h",
+        "dilation_w",
+        "stride_h",
+        "stride_w",
     ],
 )
 
@@ -154,7 +158,7 @@ def conv2d_infer_layout(workload, cfg):
     raise ValueError("missing register for topi.nn.conv2d_infer_layout")
 
 
-def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
+def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
     """ Get the workload structure. """
     if data_layout == "NCHW":
         _, CI, IH, IW = get_const_tuple(data.shape)
@@ -170,7 +174,10 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
     else:
         KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
+    pt, pl, pb, pr = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
+    dilation_h, dilation_w = (
+        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    )
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -182,7 +189,25 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout="NCHW"):
         '{} vs. {}".format(
         data.dtype, kernel.dtype
     )
-    return Workload(data.dtype, out_dtype, IH, IW, CI, GRPS, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    return Workload(
+        data.dtype,
+        out_dtype,
+        IH,
+        IW,
+        CI,
+        GRPS,
+        CO,
+        KH,
+        KW,
+        pt,
+        pl,
+        pb,
+        pr,
+        dilation_h,
+        dilation_w,
+        HSTR,
+        WSTR,
+    )
 
 
 def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):

@@ -42,9 +42,11 @@ def _fallback_schedule(cfg, wkl):
     """
     simd_width = get_fp32_len()
 
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    pt, pl, pb, pr = wkl.padt, wkl.padl, wkl.padb, wkl.padr
+    HSTR, WSTR = wkl.stride_h, wkl.stride_w
+    dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
+
+    out_width = (wkl.width - dilated_kernel_w + pl + pr) // WSTR + 1
 
     oc_bn = 1
     for bn in range(simd_width, 0, -1):
@@ -165,6 +167,7 @@ def depthwise_conv2d_NCHWc(
         ),
         strides,
         (pad_top, pad_down),
+        dilation,
         out_dtype,
     )
     if cfg.is_fallback:

@@ -178,6 +178,13 @@ class SearchTask(Object):
         The target host device of this search task.
     hardware_params : Optional[HardwareParams]
         Hardware parameters used in this search task.
+    layout_rewrite_option : Optional[LayoutRewriteOption]
+        The layout rewrite option used for measuring programs. If None, the default value will be
+        set depending on the specified target.
+        Auto_scheduler will find a better schedule for the specified layout rewrite option.
+        The NO_REWRITE and INSERT_TRANSFORM_STAGE are expected to be used when tuning a standalone
+        op, and the REWRITE_FOR_PRE_TRANSFORMED is expected to be used when tuning ops inside a
+        network.
 
     Examples
     --------
@@ -204,6 +211,7 @@ class SearchTask(Object):
         target=None,
         target_host=None,
         hardware_params=None,
+        layout_rewrite_option=None,
     ):
         assert (
             func is not None or workload_key is not None
@@ -221,7 +229,13 @@ class SearchTask(Object):
             target_host = Target(target_host)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchTask, compute_dag, workload_key, target, target_host, hardware_params
+            _ffi_api.SearchTask,
+            compute_dag,
+            workload_key,
+            target,
+            target_host,
+            hardware_params,
+            layout_rewrite_option or LayoutRewriteOption.get_target_default(target),
         )
 
     def tune(self, tuning_options, search_policy=None):
@@ -250,6 +264,7 @@ class SearchTask(Object):
         layout_rewrite_option : Optional[LayoutRewriteOption]
            The layout rewrite option.
 
+
         Returns
         -------
             A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
@@ -260,11 +275,9 @@ class SearchTask(Object):
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
             )
 
-        if layout_rewrite_option is None:
-            layout_rewrite_option = LayoutRewriteOption.NO_REWRITE
-            if self.target.kind.name == "llvm":
-                layout_rewrite_option = LayoutRewriteOption.INSERT_TRANSFORM_STAGE
-        sch, args = self.compute_dag.apply_steps_from_state(inp.state, layout_rewrite_option)
+        sch, args = self.compute_dag.apply_steps_from_state(
+            inp.state, layout_rewrite_option or self.layout_rewrite_option
+        )
         return sch, args
 
     def print_best(self, log_file, print_mode="schedule"):
@@ -305,6 +318,7 @@ class SearchTask(Object):
             "target": self.target,
             "target_host": self.target_host,
             "hardware_params": self.hardware_params,
+            "layout_rewrite_option": self.layout_rewrite_option,
         }
 
     def __setstate__(self, state):
@@ -327,6 +341,7 @@ class SearchTask(Object):
             state["target"],
             state["target_host"],
             state["hardware_params"],
+            state["layout_rewrite_option"],
         )
 
 

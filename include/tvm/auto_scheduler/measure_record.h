@@ -34,7 +34,7 @@
 namespace tvm {
 namespace auto_scheduler {
 
-const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.4";  // NOLINT(*)
+const std::string AUTO_SCHEDULER_LOG_VERSION = "v0.5";  // NOLINT(*)
 
 /*! \brief Callback for logging the input and results of measurements to file */
 class RecordToFileNode : public MeasureCallbackNode {
