@@ -1071,7 +1071,7 @@ def test_sparse_segment_sqrtn():
         for row_num, length_segment in enumerate(length_segments):
             result[row_num] /= max(np.sqrt(length_segment), 1)
 
-        return result, len(length_segments)
+        return result
 
     def verify_sparse_segment_sqrtn(
         data_np: np.ndarray,
@@ -1093,7 +1093,7 @@ def test_sparse_segment_sqrtn():
         segment_ids = relay.var(
             "segment_ids", relay.TensorType(segment_ids_np.shape, str(segment_ids_np.dtype))
         )
-        z = relay.op.sparse_segment_sqrtn(data, indices, segment_ids, num_segments).astuple()
+        z = relay.op.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)
 
         func = relay.Function([data, indices, segment_ids], z)
 
@@ -1102,11 +1102,7 @@ def test_sparse_segment_sqrtn():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(data_np, indices_np, segment_ids_np)
-                print(op_res, ref_res)
-                for op_res_item, ref_res_item in zip(op_res, ref_res):
-                    tvm.testing.assert_allclose(
-                        op_res_item.asnumpy(), ref_res_item, rtol=1e-5, atol=1e-5
-                    )
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     data_np = np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float32)
     indices_np = np.array([0, 1], dtype=np.int32)
@@ -1415,6 +1411,10 @@ def test_adv_index():
 
 if __name__ == "__main__":
     test_sparse_segment_sqrtn()
+    import sys
+
+    sys.exit()
+
     test_cast()
     test_zeros_ones()
     test_unary_identity()
