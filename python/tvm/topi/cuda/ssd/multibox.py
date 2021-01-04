@@ -341,47 +341,14 @@ def transform_loc_ir(
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
 
-        with ib.if_scope(cls_id[tid] > 0):
-            with ib.if_scope(tid == 0):
-                out_base_idx = i * num_anchors * 6
-                out_loc[out_base_idx] = cls_id[tid] - 1.0
-                out_loc[out_base_idx + 1] = score[tid]
-                (
-                    out_loc[out_base_idx + 2],
-                    out_loc[out_base_idx + 3],
-                    out_loc[out_base_idx + 4],
-                    out_loc[out_base_idx + 5],
-                ) = transform_loc(
-                    loc_pred,
-                    tid * 4,
-                    anchor,
-                    j * 4,
-                    clip,
-                    variances[0],
-                    variances[1],
-                    variances[2],
-                    variances[3],
-                )
-            with ib.else_scope():
-                out_base_idx = i * num_anchors * 6 + temp_valid_count[tid - 1] * 6
-                out_loc[out_base_idx] = cls_id[tid] - 1.0
-                out_loc[out_base_idx + 1] = score[tid]
-                (
-                    out_loc[out_base_idx + 2],
-                    out_loc[out_base_idx + 3],
-                    out_loc[out_base_idx + 4],
-                    out_loc[out_base_idx + 5],
-                ) = transform_loc(
-                    loc_pred,
-                    tid * 4,
-                    anchor,
-                    j * 4,
-                    clip,
-                    variances[0],
-                    variances[1],
-                    variances[2],
-                    variances[3],
-                )
+        out_base_idx = i * num_anchors * 6 + tid * 6
+        out_loc[out_base_idx] = cls_id[tid] - 1.0
+        out_loc[out_base_idx + 1] = score[tid]
+        out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
+            out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
+                                                      anchor, j * 4, clip, variances[0],
+                                                      variances[1], variances[2],
+                                                      variances[3])
 
     return ib.get()
 
