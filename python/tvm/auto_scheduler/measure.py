@@ -63,15 +63,18 @@ from .workload_registry import (
 # We use 1e10 instead of sys.float_info.max for better readability in log
 MAX_FLOAT = 1e10
 
+
 class BuildFunc:
-    """ store build_func name and callable to class variable.
-        name: str = "default"
-            The name of registered build function.
-        build_func: callable = tar.tar
-            The callable of registered build function.
+    """store build_func name and callable to class variable.
+    name: str = "default"
+        The name of registered build function.
+    build_func: callable = tar.tar
+        The callable of registered build function.
     """
+
     name = "default"
     build_func = tar.tar
+
 
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
@@ -331,7 +334,9 @@ class LocalBuilder(ProgramBuilder):
         else:
             raise ValueError("Invalid build_func" + build_func)
 
-        self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, BuildFunc.name)
+        self.__init_handle_by_constructor__(
+            _ffi_api.LocalBuilder, timeout, n_parallel, BuildFunc.name
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.LocalRunner")
@@ -647,6 +652,7 @@ def local_build_worker(args):
         The build result of this Builder thread.
     """
     inp, build_func, timeout, verbose = args
+    assert any(build_func == name for name in BuildFunc.name)
     build_func = BuildFunc.build_func
 
     res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
