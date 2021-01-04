@@ -54,7 +54,8 @@ void thrust_sort(DLTensor* input,
   }
   thrust::copy(data_ptr, data_ptr + size, values_ptr);
 
-  if (input->ndim == 1 || (input->ndim == 2 && input->shape[0] == 1)) {
+  if (size == static_cast<size_t>(input->shape[input->ndim - 1])) {
+    // A fast path for single segment case
     thrust::sequence(indices_ptr, indices_ptr + n_values);
     if (is_ascend) {
       thrust::sort_by_key(values_ptr, values_ptr + n_values, indices_ptr);
