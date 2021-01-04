@@ -65,6 +65,7 @@ _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
 _reg.register_injective_schedule("sparse_segment_sqrtn")
 _reg.register_injective_schedule("sparse_fill_empty_rows")
+_reg.register_injective_schedule("sparse_reshape")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)

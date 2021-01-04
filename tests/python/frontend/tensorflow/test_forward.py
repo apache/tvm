@@ -1871,6 +1871,9 @@ def test_forward_sparse_segment_sqrtn():
     segment_ids_np = np.array([0, 1, 1], dtype=np.int32)
     num_segments = None
     _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+
+
+#######################################################################
 # SparseFillEmptyRows
 # ------------
 
@@ -1935,6 +1938,76 @@ def test_forward_sparse_fill_empty_rows():
     dense_shape_np = np.array([9, 3, 7], dtype=np.int32)
     default_value_np = np.array([100], dtype=np.int32)
     _test_sparse_fill_empty_rows(sparse_indices_np, sparse_values_np, default_value, dense_shape_np)
+
+
+#######################################################################
+# SparseReshape
+# ------------
+
+
+def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, dtype):
+    with tf.Graph().as_default():
+        sp_input = tf.sparse.SparseTensor(
+            indices=indices_np, values=values_np, dense_shape=prev_shape_np
+        )
+        new_shape = tf.placeholder(
+            shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
+        )
+
+        tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        compare_tf_with_tvm(
+            [new_shape_np],
+            [new_shape.name],
+            ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+        )
+
+
+def test_forward_sparse_reshape():
+    """ sparse_reshape op test"""
+    ###################################################################
+    #
+    # In order to create a SparseTensor, it requires 3 input as below:
+    #    SparseTensor(indices=[[0, 0], [1, 2]], values=[1, 2], dense_shape=[3, 4])
+    #
+    # Above Sparse can be represented in Dense as below :
+    #    [[1, 0, 0, 0]
+    #     [0, 0, 2, 0]
+    #     [0, 0, 0, 0]]
+    #
+    # ------------------------------------------------------------------
+    sparse_indices_np = np.array(
+        [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 2, 3]], dtype=np.int32
+    )
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([2, 3, 6], dtype=np.int32)
+    new_shape_np = np.array([9, 4], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+
+    sparse_indices_np = np.array(
+        [[0, 0, 0, 0], [0, 0, 1, 2], [0, 1, 0, 3], [1, 0, 0, 4], [1, 2, 3, 6]], dtype=np.int32
+    )
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([2, 3, 6, 7], dtype=np.int32)
+    new_shape_np = np.array([9, -1, 7], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+
+    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([9, 4], dtype=np.int32)
+    new_shape_np = np.array([2, -1, 6], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+
+    sparse_indices_np = np.array([[0, 0], [0, 1], [3, 4], [4, 3], [7, 3]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([9, 4], dtype=np.int32)
+    new_shape_np = np.array([-1], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
+
+    sparse_indices_np = np.array([[0], [5], [10], [20], [24]], dtype=np.int32)
+    sparse_values_np = np.array([7, 5, 6, 3, 9], dtype=np.int32)
+    prev_shape_np = np.array([25], dtype=np.int32)
+    new_shape_np = np.array([5, 5], dtype=np.int32)
+    _test_sparse_reshape(sparse_indices_np, sparse_values_np, prev_shape_np, new_shape_np, "int32")
 
 
 #######################################################################
