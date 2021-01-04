@@ -1558,8 +1558,8 @@ TVM_REGISTER_NODE_TYPE(SparseSegmentSqrtNAttrs);
 bool SparseSegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                            const TypeReporter& reporter) {
   // types: [data, indices, segment_ids, result]
-  ICHECK_EQ(types.size(), 4) << "SparseSegmentSqrtNRel expects 4 types but provided "
-                             << types.size();
+  ICHECK_EQ(types.size(), 4) << "SparseSegmentSqrtNRel expects 4 types but " << types.size()
+                             << " were provided";
   auto data = types[0].as<TensorTypeNode>();
   auto indices = types[1].as<TensorTypeNode>();
   const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
@@ -1579,8 +1579,8 @@ bool SparseSegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs
 
 Array<te::Tensor> SparseSegmentSqrtNCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                             const Type& out_type) {
-  ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSqrtNCompute expects 3 input but provided "
-                              << inputs.size();
+  ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSqrtNCompute expects 3 input but " << inputs.size()
+                              << " were provided";
   const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
   ICHECK_NOTNULL(param);
   return {topi::SparseSegmentSqrtN(inputs[0], inputs[1], inputs[2], param->num_segments)};
