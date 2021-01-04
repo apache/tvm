@@ -935,8 +935,8 @@ def adv_index(data, indices):
 
 def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
     """
-    Compute the sparse segment sum on the indices over the segment_ids
-
+    Computes the sum along sparse segments of a tensor divided by the sqrt of the length of segment
+    Reference Link: https://www.tensorflow.org/api_docs/python/tf/sparse/segment_sqrt_n?hl=bn
     Parameters
     ----------
     data : relay.Expr
