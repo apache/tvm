@@ -82,11 +82,12 @@ def make_search_policies(
     if isinstance(search_policy, str):
         policy_type, model_type = search_policy.split(".")
         if model_type == "xgb":
-            cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
-            if load_model_file:
-                logger.info("TaskScheduler: Load pretrained model...")
-                cost_model.load(load_model_file)
-            elif load_log_file:
+            cost_model = XGBModel(
+                num_warmup_sample=len(tasks) * num_measures_per_round,
+                model_file=load_model_file,
+            )
+            if load_log_file:
+                logger.info("TaskScheduler: Reload measured states and pretrain model...")
                 cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()

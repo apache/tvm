@@ -88,7 +88,7 @@ class XGBModel(PythonBasedModel):
     their predictions.
     """
 
-    def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
+    def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None, model_file=None):
         global xgb
         try:
             if xgb is None:
@@ -116,12 +116,17 @@ class XGBModel(PythonBasedModel):
         self.plan_size = 32
         self.num_warmup_sample = num_warmup_sample
         self.verbose_eval = verbose_eval
+        self.model_file = model_file
+        if model_file:
+            logger.info("XGBModel: Load pretrained model from %s..." % model_file)
+            self.load(model_file)
 
         super().__init__()
 
         # cache measurement input/result pairs and extracted features
         self.inputs = []
         self.results = []
+        self.last_train_length = 0
         self.inputs_feature_cache = []
 
     def update(self, inputs, results):
@@ -140,6 +145,15 @@ class XGBModel(PythonBasedModel):
 
         self.inputs.extend(inputs)
         self.results.extend(results)
+
+        print("self.inputs: ", len(self.inputs))
+        print("self.last_train_length", self.last_train_length)
+
+        if len(self.inputs) - self.last_train_length < self.last_train_length / 5:
+            # Skip if the added
+            return
+        else:
+            self.last_train_length = len(self.inputs)
 
         # extract feature
         n_cached = len(self.inputs_feature_cache)
@@ -175,6 +189,9 @@ class XGBModel(PythonBasedModel):
                 )
             ],
         )
+
+        if self.model_file:
+            self.save(self.model_file)
 
     def predict(self, task, states):
         """Predict the scores of states
@@ -298,6 +315,7 @@ class XGBModel(PythonBasedModel):
         file_name: str
             The filename
         """
+        print(file_name)
         if self.bst is None:
             self.bst = xgb.Booster(self.xgb_params)
         self.bst.load_model(file_name)
