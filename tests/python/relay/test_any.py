@@ -72,12 +72,11 @@ def check_result(
                         str(e),
                         str(r),
                     )
-                    return
-
-                if flatten:
-                    r = r.flatten()
-                    e = e.flatten()
-                tvm.testing.assert_allclose(r, e, atol=2e-6)
+                else:
+                    if flatten:
+                        r = r.flatten()
+                        e = e.flatten()
+                    tvm.testing.assert_allclose(r, e, atol=2e-6)
 
 
 def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
@@ -454,6 +453,7 @@ def verify_any_conv2d(
     dilation,
     static_data_shape,
     ref_out_shape,
+    use_cudnn=False,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -463,7 +463,12 @@ def verify_any_conv2d(
     mod["main"] = relay.Function([data, kernel], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True)
+
+    targets = None
+    if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
+        targets = [("cuda -libs=cudnn", tvm.gpu(0))]
+
+    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -486,6 +491,16 @@ def test_any_conv2d():
         (2, 2),
         (2, 64, 224, 224),
         (2, 64, 222, 222),
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, 224, 224),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        use_cudnn=True,
     )
 
 
@@ -724,7 +739,13 @@ def test_any_batch_flatten():
 
 
 def verify_any_dense(
-    data_shape, weight_shape, units, static_data_shape, static_weight_shape, ref_out_shape
+    data_shape,
+    weight_shape,
+    units,
+    static_data_shape,
+    static_weight_shape,
+    ref_out_shape,
+    use_cublas=False,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -734,7 +755,12 @@ def verify_any_dense(
     mod["main"] = relay.Function([data, weight], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     weight_np = np.random.uniform(size=static_weight_shape).astype(dtype)
-    check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True)
+
+    targets = None
+    if use_cublas and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+        targets = [("cuda -libs=cublas", tvm.gpu(0))]
+
+    check_result([data_np, weight_np], mod, ref_out_shape, assert_shape=True, targets=targets)
 
 
 # TODO(tvm-team) Fix dense schedule
@@ -742,6 +768,12 @@ def verify_any_dense(
 def test_any_dense():
     verify_any_dense(any_dims(2), any_dims(2), None, (4, 16), (8, 16), (4, 8))
     verify_any_dense(any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50))
+
+
+@tvm.testing.uses_gpu
+def test_any_dense_dynamic_batch():
+    verify_any_dense((relay.Any(), 40), (50, 40), 50, (4, 40), (50, 40), (4, 50))
+    verify_any_dense((relay.Any(), 40), (50, 40), 50, (4, 40), (50, 40), (4, 50), use_cublas=True)
 
 
 @tvm.testing.uses_gpu

@@ -921,7 +921,6 @@ class ReshapeOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     auto input = params->inputs.at(0).tensor;
-    ICHECK_EQ(std::stoi(params->node.GetAttr<std::vector<std::string>>("reverse")[0]), false);
     auto str_newshape = params->node.GetAttr<std::vector<std::string>>("newshape");
     std::vector<int> new_shape;
     const int start_index = TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0;
