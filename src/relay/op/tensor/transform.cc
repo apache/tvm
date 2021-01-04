@@ -1563,7 +1563,7 @@ bool SparseSegmentSqrtNRel(const Array<Type>& types, int num_inputs, const Attrs
   auto data = types[0].as<TensorTypeNode>();
   auto indices = types[1].as<TensorTypeNode>();
   const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
-  ICHECK(param != nullptr);
+  ICHECK_NOTNULL(param);
   Array<PrimExpr> new_data_shape;
   if (param->num_segments != -1) {
     new_data_shape.push_back(param->num_segments);
