@@ -146,11 +146,9 @@ class XGBModel(PythonBasedModel):
         self.inputs.extend(inputs)
         self.results.extend(results)
 
-        print("self.inputs: ", len(self.inputs))
-        print("self.last_train_length", self.last_train_length)
-
         if len(self.inputs) - self.last_train_length < self.last_train_length / 5:
-            # Skip if the added
+            # Set a training threshold related to `last_train_length` to reduce the training
+            # overhead when there're too many logs
             return
         else:
             self.last_train_length = len(self.inputs)
@@ -190,6 +188,7 @@ class XGBModel(PythonBasedModel):
             ],
         )
 
+        # Update the model file if it has been set
         if self.model_file:
             self.save(self.model_file)
 
@@ -315,7 +314,6 @@ class XGBModel(PythonBasedModel):
         file_name: str
             The filename
         """
-        print(file_name)
         if self.bst is None:
             self.bst = xgb.Booster(self.xgb_params)
         self.bst.load_model(file_name)
