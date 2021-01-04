@@ -1582,7 +1582,7 @@ Array<te::Tensor> SparseSegmentSqrtNCompute(const Attrs& attrs, const Array<te::
   ICHECK_EQ(inputs.size(), 3) << "SparseSegmentSqrtNCompute expects 3 input but provided "
                               << inputs.size();
   const auto* param = attrs.as<SparseSegmentSqrtNAttrs>();
-  ICHECK(param != nullptr);
+  ICHECK_NOTNULL(param);
   return {topi::SparseSegmentSqrtN(inputs[0], inputs[1], inputs[2], param->num_segments)};
 }
 
