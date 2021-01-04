@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/runtime/crt/memory.h
- * \brief The virtual memory manager for micro-controllers
+ * \brief An implementation of a dynamic memory allocator for microcontrollers.
  */
 
 #ifndef TVM_RUNTIME_CRT_MEMORY_H_
@@ -30,30 +30,50 @@ extern "C" {
 #endif
 
 #include <stdlib.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/error_codes.h>
 
 extern int vleak_size;
 
-/*!
- * \brief Allocate memory from manager
- * \param size The size of memory
- * \return The virtual address
- */
-void* vmalloc(size_t size);
+typedef struct MemoryManagerInterface MemoryManagerInterface;
+
+struct MemoryManagerInterface {
+  /*!
+   * \brief Allocate a chunk of memory.
+   * \param interface Pointer to this structure.
+   * \param num_bytes Number of bytes requested.
+   * \param ctx Execution context that will be used with the allocated memory. Must be {kDLCPU, 0}.
+   * \param out_ptr A pointer to which is written a pointer to the newly-allocated memory.
+   * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+   */
+  tvm_crt_error_t (*Allocate)(MemoryManagerInterface* interface, size_t num_bytes, DLContext ctx,
+                              void** out_ptr);
+
+  /*!
+   * \brief Free a chunk of previously-used memory.
+   *
+   * \param interface Pointer to this structure.
+   * \param ptr A pointer returned from TVMPlatformMemoryAllocate which should be free'd.
+   * \param ctx Execution context passed to TVMPlatformMemoryAllocate. Fixed to {kDLCPU, 0}.
+   * \return kTvmErrorNoError if successful; a descriptive error code otherwise.
+   */
+  tvm_crt_error_t (*Free)(MemoryManagerInterface* interface, void* ptr, DLContext ctx);
+
+  /*! \brief Used in testing; the number of allocated objects. */
+  int vleak_size;
+};
 
 /*!
- * \brief Reallocate memory from manager
- * \param ptr The pointer to the memory area to be reallocated
- * \param size The size of memory
- * \return The virtual address
+ * Exposed for testing.
+ *
+ * \param manager Pointer, initialized with the new MemoryManager.
+ * \param memory_pool Pointer to the global memory pool used by the CRT.
+ * \param memory_pool_size_bytes Size of `memory_pool`, in bytes.
+ * \param page_size_bytes_log2 log2 of the page size, in bytes.
+ * \return kTvmErrorNoError on success.
  */
-void* vrealloc(void* ptr, size_t size);
-
-/*!
- * \brief Free the memory.
- * \param ptr The pointer to the memory to deallocate
- * \return The virtual address
- */
-void vfree(void* ptr);
+tvm_crt_error_t MemoryManagerCreate(MemoryManagerInterface** manager, uint8_t* memory_pool,
+                                    size_t memory_pool_size_bytes, size_t page_size_bytes_log2);
 
 #ifdef __cplusplus
 }  // extern "C"

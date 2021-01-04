@@ -148,34 +148,9 @@ class CallPatternNode : public DFPatternNode {
   /*! \brief The arguments(inputs) of the call */
   tvm::Array<relay::DFPattern> args;
 
-  /*! \brief The additional attributes */
-  Attrs attrs;
-
-  /*!
-   * \brief The type arguments passed to polymorphic(template) function.
-   *
-   * This is the advance feature that is only used when the function is
-   * polymorphic. It is safe to be ignored in most cases. For example, in the
-   * following code, the type_args of addone call is [int].
-   *
-   * \code
-   *
-   * template<typename T>
-   * T addone(T a) { return a + 1; }
-   *
-   * void main() {
-   *   int x = addone<int>(10);
-   * }
-   *
-   * \endcode
-   */
-  tvm::Array<Type> type_args;
-
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
-    v->Visit("attrs", &attrs);
-    v->Visit("type_args", &type_args);
   }
 
   static constexpr const char* _type_key = "relay.dataflow_pattern.CallPattern";
@@ -184,8 +159,50 @@ class CallPatternNode : public DFPatternNode {
 
 class CallPattern : public DFPattern {
  public:
-  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args);
+  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args);
   TVM_DEFINE_OBJECT_REF_METHODS(CallPattern, DFPattern, CallPatternNode);
+};
+
+/*!
+ * \brief Relay Function container
+ * \sa Function
+ */
+class FunctionPatternNode : public DFPatternNode {
+ public:
+  /*! \brief Function parameters */
+  tvm::Array<DFPattern> params;
+  /*!
+   * \brief
+   * The expression which represents the computation of the function,
+   * the expression may reference the parameters, and the type of it
+   * or sub-expressions may reference the type variables.
+   */
+  DFPattern body;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("params", &params);
+    v->Visit("body", &body);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.FunctionPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief Managed reference to FunctionNode.
+ * \sa FunctionNode
+ */
+class FunctionPattern : public DFPattern {
+ public:
+  /*!
+   * \brief Constructor
+   * \param params The parameters of the function.
+   * \param body The body of the function.
+   */
+  TVM_DLL FunctionPattern(tvm::Array<DFPattern> params, DFPattern body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPattern, DFPattern, FunctionPatternNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionPatternNode);
 };
 
 /*! \brief Tuple of multiple Exprs */

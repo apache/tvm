@@ -32,12 +32,12 @@ from .conv2d_gemm import (
 from .arm_utils import get_tiling_B_interleaved_t
 
 
-def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
+def _get_default_config(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """
     Get default int8 schedule config for the workload
     """
-    wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
-    is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
+    wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype)
+    is_kernel_1x1 = wkl.kernel_h == 1 and wkl.kernel_w == 1
     if is_kernel_1x1:
         conv2d_generic.fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes=2, num_int8_elements=4)
     else:
@@ -65,6 +65,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             te.placeholder((num_filter, in_channel, kh, kw), dtype=kernel.dtype),
             strides,
             padding,
+            dilation,
             out_dtype,
         )
     return nn.conv2d_NCHWc_int8_compute(

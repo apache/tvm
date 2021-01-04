@@ -16,6 +16,8 @@
 # under the License.
 
 """Test ComputeDAG (replay, infer bound)"""
+import json
+import pickle
 
 import tvm
 from tvm import topi
@@ -23,6 +25,7 @@ from tvm import auto_scheduler, te
 
 from test_auto_scheduler_common import (
     get_tiled_matmul,
+    invalid_compute_definition,
     matmul_auto_scheduler_test,
     parallel_matmul_auto_scheduler_test,
 )
@@ -32,7 +35,7 @@ def test_apply_steps():
     dag, s = get_tiled_matmul()
     dag.print_python_code_from_state(s)
     sch, tensors = dag.apply_steps_from_state(s)
-    stmt = tvm.lower(sch, tensors, simple_mode=True)
+    tvm.lower(sch, tensors, simple_mode=True)
 
 
 def test_infer_bound():
@@ -61,6 +64,7 @@ def test_estimate_flop():
 
 
 def test_stage_order():
+    """Test if the stage order is preserved when recovering a DAG."""
     N = 512
     A, B, C, D, E = parallel_matmul_auto_scheduler_test(N)
     sch = te.create_schedule([D.op, E.op])
@@ -105,9 +109,44 @@ def test_stage_order():
     for op1, op2 in zip(stage_ops_1, stage_ops_2):
         assert op1.name == op2.name
 
+    # Serialize and deserialize the ComputeDAG constructed by a list of tensor ops.
+    loaded_dag = pickle.loads(pickle.dumps(dag))
+    assert str(loaded_dag.get_init_state()) == str(dag.get_init_state())
+    assert len(loaded_dag.get_init_state().stage_ops) == len(dag.get_init_state().stage_ops)
+
+    # Serialize and deserialize the search task. Note that we intentionally skip hardware_params
+    # to test if the default one is serialized along with other attributes as well.
+    task = auto_scheduler.SearchTask(
+        compute_dag=dag, workload_key=json.dumps(("test-key",)), target=tvm.target.Target("llvm")
+    )
+
+    task2 = pickle.loads(pickle.dumps(task))
+    assert "test-key" in auto_scheduler.workload_registry.WORKLOAD_FUNC_REGISTRY
+    assert str(task.compute_dag.get_init_state()) == str(task2.compute_dag.get_init_state())
+    assert len(task.compute_dag.get_init_state().stage_ops) == len(
+        task2.compute_dag.get_init_state().stage_ops
+    )
+    assert task.workload_key == task2.workload_key
+    assert str(task.target) == str(task2.target)
+    assert task.hardware_params.num_cores == task2.hardware_params.num_cores
+    assert task.hardware_params.vector_unit_bytes == task2.hardware_params.vector_unit_bytes
+    assert task.hardware_params.cache_line_bytes == task2.hardware_params.cache_line_bytes
+
+
+def test_invalid_compute_dag():
+    failed = False
+    try:
+        A, B = invalid_compute_definition()
+        auto_scheduler.ComputeDAG([A, B])
+    except tvm.TVMError:
+        failed = True
+
+    assert failed
+
 
 if __name__ == "__main__":
     test_apply_steps()
     test_infer_bound()
     test_estimate_flop()
     test_stage_order()
+    test_invalid_compute_dag()

@@ -1091,12 +1091,19 @@ def _mx_box_decode(inputs, attrs):
 def _mx_l2_normalize(inputs, attrs):
     new_attrs = {}
     mode = attrs.get_str("mode", "instance")
-    if mode != "channel":
+    if mode == "channel":
+        new_attrs["axis"] = [1]
+    elif mode == "instance":
+        ndim = len(_infer_type(inputs[0]).checked_type.shape)
+        new_attrs["axis"] = list(range(1, ndim))
+    elif mode == "spatial":
+        ndim = len(_infer_type(inputs[0]).checked_type.shape)
+        new_attrs["axis"] = list(range(2, ndim))
+    else:
         raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "mode" must equal "channel" for operator l2_normalize.'
+            'Mode "{}" is not supported for operator l2_normalize.'.format(mode)
         )
     new_attrs["eps"] = attrs.get_float("eps", 1e-10)
-    new_attrs["axis"] = [1]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
@@ -2686,6 +2693,8 @@ _convert_map = {
     "_npi_multiply_scalar": _binop_scalar(_op.multiply),
     "_npi_add": _rename(_op.add),
     "_npi_add_scalar": _binop_scalar(_op.add),
+    "_npi_subtract": _rename(_op.subtract),
+    "_npi_subtract_scalar": _binop_scalar(_op.subtract),
     "_npi_where_rscalar": _mx_npi_where_rscalar,
     "_npi_less": _rename(_op.less),
     "_npi_less_equal": _mx_compare(_op.less_equal, _rename),

@@ -57,7 +57,7 @@ class PreloadMeasuredStates(SearchCallback):
         The name of the record file.
     """
 
-    def __init__(self, filename="auto_scheduler_tuning.json"):
+    def __init__(self, filename):
         self.__init_handle_by_constructor__(_ffi_api.PreloadMeasuredStates, filename)
 
 
@@ -147,11 +147,11 @@ class SketchPolicy(SearchPolicy):
 
     DEFAULT_PARAMS = {
         "eps_greedy": 0.05,
-        "retry_search_one_round_on_empty": 10,
+        "retry_search_one_round_on_empty": 1,
         "sample_init_min_population": 50,
         "sample_init_use_measured_ratio": 0.2,
         "evolutionary_search_population": 2048,
-        "evolutionary_search_num_iters": 10,
+        "evolutionary_search_num_iters": 4,
         "evolutionary_search_mutation_prob": 0.85,
         "cpu_multi_level_tiling_structure": "SSRSRS",
         "gpu_multi_level_tiling_structure": "SSSRRSRS",

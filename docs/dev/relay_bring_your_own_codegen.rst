@@ -137,7 +137,7 @@ Here we highlight the notes marked in the above code:
 
 * **Note 3** is a TVM runtime compatible wrapper function. It accepts a list of input tensors and one output tensor (the last argument), casts them to the right data type, and invokes the subgraph function described in Note 2. In addition, ``TVM_DLL_EXPORT_TYPED_FUNC`` is a TVM macro that generates another function ``gcc_0`` with unified the function arguments by packing all tensors to ``TVMArgs``. As a result, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
 
-In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `/src/relay/backend/contrib/codegen_c/ <https://github.com/apache/incubator-tvm/blob/main/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
+In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `/src/relay/backend/contrib/codegen_c/ <https://github.com/apache/tvm/blob/main/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
 
 Specifically, we are going to implement two classes in this file and here is their relationship:
 

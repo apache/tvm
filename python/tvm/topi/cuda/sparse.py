@@ -65,10 +65,11 @@ def schedule_sparse_dense(outs):
     # pylint:disable=invalid-name
     s = te.create_schedule([x.op for x in outs])
 
+    # TODO(ANSHUMAN87): Add for sparse_dense_bsrmm_v1 also
     def _callback(op):
-        if op.tag == "sparse_dense_bsrmm":
+        if op.tag == "sparse_dense_bsrmm_v2":
             y_bsrmm = op.input_tensors[0]
-            assert y_bsrmm.op.tag == "sparse_dense_bsrmm_block"
+            assert y_bsrmm.op.tag == "sparse_dense_bsrmm_block_v2"
             out = s.outputs[0].output(0)
 
             if op not in s.outputs:
@@ -362,6 +363,7 @@ def _alter_sparse_dense_layout(_attrs, inputs, _tinfos, _out_type):
     sparse_dense implementation for one that operates on a padded matrix. We
     also padd the matrix.
     """
+    # TODO(ANSHUMAN87): Handle for sparse_lhs case too
     if (
         isinstance(inputs[1], relay.Constant)
         and isinstance(inputs[2], relay.Constant)

@@ -32,6 +32,7 @@
 #include <deque>
 #include <exception>
 #include <future>
+#include <iomanip>
 #include <numeric>
 #include <random>
 #include <string>
@@ -191,7 +192,7 @@ inline bool StrEndsWith(const String& a, const String& b) {
 /*! \brief Get an int value from an Expr */
 inline int64_t GetIntImm(const PrimExpr& expr) {
   auto pint = expr.as<IntImmNode>();
-  ICHECK(pint != nullptr);
+  ICHECK(pint != nullptr) << "Expect an IntImm but get " << expr;
   return pint->value;
 }
 
@@ -251,6 +252,16 @@ inline std::string Chars(const char& str, int times) {
     ret << str;
   }
   return ret.str();
+}
+
+/*! \brief Print the time elapsed */
+inline void PrintTimeElapsed(std::chrono::time_point<std::chrono::high_resolution_clock> t_begin,
+                             const std::string& info, int verbose) {
+  double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                        std::chrono::high_resolution_clock::now() - t_begin)
+                        .count();
+  StdCout(verbose) << "Time elapsed for " << info << ": " << std::fixed << std::setprecision(2)
+                   << duration << " s" << std::endl;
 }
 
 /*!

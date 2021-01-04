@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.topi.cuda import stable_sort_by_key_thrust, is_thrust_available, sort_by_key
 import numpy as np
 
 
@@ -90,6 +91,72 @@ def test_sort_np():
     tvm.testing.assert_allclose(c.asnumpy(), np_out, rtol=1e-5)
 
 
+def test_thrust_stable_sort_by_key():
+    if not is_thrust_available():
+        print("skip because thrust is not enabled...")
+        return
+
+    size = 6
+    keys = te.placeholder((size,), name="keys", dtype="int32")
+    values = te.placeholder((size,), name="values", dtype="int32")
+
+    keys_out, values_out = stable_sort_by_key_thrust(keys, values)
+
+    ctx = tvm.gpu(0)
+    target = "cuda"
+    s = te.create_schedule([keys_out.op, values_out.op])
+    f = tvm.build(s, [keys, values, keys_out, values_out], target)
+
+    keys_np = np.array([1, 4, 2, 8, 2, 7], np.int32)
+    values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
+    keys_np_out = np.zeros(keys_np.shape, np.int32)
+    values_np_out = np.zeros(values_np.shape, np.int32)
+    keys_in = tvm.nd.array(keys_np, ctx)
+    values_in = tvm.nd.array(values_np, ctx)
+    keys_out = tvm.nd.array(keys_np_out, ctx)
+    values_out = tvm.nd.array(values_np_out, ctx)
+    f(keys_in, values_in, keys_out, values_out)
+
+    ref_keys_out = np.sort(keys_np)
+    ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
+    tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
+    tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+
+
+def test_sort_by_key_gpu():
+    size = 6
+    keys = te.placeholder((size,), name="keys", dtype="int32")
+    values = te.placeholder((size,), name="values", dtype="int32")
+
+    for target in ["cuda", "nvptx", "opencl", "rocm"]:
+        if not tvm.testing.device_enabled(target):
+            print("Skip because %s is not enabled" % target)
+            continue
+
+        with tvm.target.Target(target):
+            keys_out, values_out = sort_by_key(keys, values)
+            ctx = tvm.context(target)
+            s = te.create_schedule([keys_out.op, values_out.op])
+            f = tvm.build(s, [keys, values, keys_out, values_out], target)
+
+            keys_np = np.array([1, 4, 2, 8, 2, 7], np.int32)
+            values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
+            keys_np_out = np.zeros(keys_np.shape, np.int32)
+            values_np_out = np.zeros(values_np.shape, np.int32)
+            keys_in = tvm.nd.array(keys_np, ctx)
+            values_in = tvm.nd.array(values_np, ctx)
+            keys_out = tvm.nd.array(keys_np_out, ctx)
+            values_out = tvm.nd.array(values_np_out, ctx)
+            f(keys_in, values_in, keys_out, values_out)
+
+            ref_keys_out = np.sort(keys_np)
+            ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
+            tvm.testing.assert_allclose(keys_out.asnumpy(), ref_keys_out, rtol=1e-5)
+            tvm.testing.assert_allclose(values_out.asnumpy(), ref_values_out, rtol=1e-5)
+
+
 if __name__ == "__main__":
     test_sort()
     test_sort_np()
+    test_thrust_stable_sort_by_key()
+    test_sort_by_key_gpu()

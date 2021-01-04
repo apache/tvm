@@ -23,7 +23,7 @@ import tarfile
 from pathlib import Path
 
 import tvm
-from tvm import autotvm
+from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.contrib import cc
 from tvm.contrib import utils
@@ -178,18 +178,37 @@ def compile_model(
         mod = common.convert_graph_layout(mod, alter_layout)
 
     tvm_target = common.target_from_cli(target)
-    target_host = target_host or ""
+    target_host = tvm_target if not target_host else target_host
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
-        with autotvm.apply_history_best(tuning_records):
-            with tvm.transform.PassContext(opt_level=3):
-                logger.debug("building relay graph with tuning records")
-                graph_module = relay.build(mod, tvm_target, params=params, target_host=tvm_target)
+
+        use_autoscheduler = True
+        try:
+            auto_scheduler.load_records(tuning_records)
+        except tvm._ffi.base.TVMError:
+            use_autoscheduler = False
+
+        if use_autoscheduler:
+            with auto_scheduler.ApplyHistoryBest(tuning_records):
+                with tvm.transform.PassContext(
+                    opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+                ):
+                    logger.debug("building relay graph with autoscheduler")
+                    graph_module = relay.build(
+                        mod, target=target, params=params, target_host=target_host
+                    )
+        else:
+            with autotvm.apply_history_best(tuning_records):
+                with tvm.transform.PassContext(opt_level=3):
+                    logger.debug("building relay graph with tuning records")
+                    graph_module = relay.build(
+                        mod, tvm_target, params=params, target_host=target_host
+                    )
     else:
         with tvm.transform.PassContext(opt_level=3):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, tvm_target, params=params, target_host=tvm_target)
+            graph_module = relay.build(mod, tvm_target, params=params, target_host=target_host)
 
     # Generate output dump files with sources
     dump_code = dump_code or []

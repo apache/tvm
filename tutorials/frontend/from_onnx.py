@@ -60,7 +60,11 @@ onnx_model = onnx.load(model_path)
 ######################################################################
 # Load a test image
 # ---------------------------------------------
-# A single cat dominates the examples!
+# A single cat dominates the examples! This model takes a single input image of size
+# 224x224 and outputs a scaled image that is 3x greater than the input along each
+# axis, a 672x672 image. Re-scale the cat image to fit this input shape then
+# convert to `YCbCr`. The super resolution model will then be applied to the
+# luminance (`Y`) channel.
 from PIL import Image
 
 img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
@@ -73,6 +77,14 @@ x = np.array(img_y)[np.newaxis, np.newaxis, :, :]
 ######################################################################
 # Compile the model with relay
 # ---------------------------------------------
+# Typically ONNX models mix model input values with parameter values, with
+# the input having the name `1`. This model dependent, and you should check
+# with the documentation for your model to determine the full input and
+# parameter name space.
+#
+# Passing in the shape dictionary to the `relay.frontend.from_onnx` method
+# tells relay which ONNX parameters are inputs, and which are parameters, and
+# provides a static definition of the input size.
 target = "llvm"
 
 input_name = "1"
@@ -91,7 +103,9 @@ tvm_output = intrp.evaluate()(tvm.nd.array(x.astype(dtype)), **params).asnumpy()
 ######################################################################
 # Display results
 # ---------------------------------------------
-# We put input and output image neck to neck
+# We put input and output image neck to neck. The luminance channel, `Y` is the output
+# from the model. The chroma channels `Cb` and `Cr` are resized to match with a simple
+# bicubic algorithm. The image is then recombined and converted back to `RGB`.
 from matplotlib import pyplot as plt
 
 out_y = Image.fromarray(np.uint8((tvm_output[0, 0]).clip(0, 255)), mode="L")
@@ -112,3 +126,8 @@ plt.show()
 # into a static shapes at compile time. If this fails, there may still be dynamic
 # operations in the model. Not all TVM kernels currently support dynamic shapes,
 # please file an issue on discuss.tvm.apache.org if you hit an error with dynamic kernels.
+#
+# This particular model was build using an older version of ONNX. During the import
+# phase ONNX importer will run the ONNX verifier, which may throw a `Mismatched attribute type`
+# warning. Because TVM supports a number of different ONNX versions, the Relay model
+# will still be valid.

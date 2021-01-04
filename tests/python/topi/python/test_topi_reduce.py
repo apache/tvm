@@ -152,5 +152,31 @@ def test_reduce_map():
     )
 
 
+@tvm.testing.uses_gpu
+def test_complex_reduce():
+    in_shape = (2, 3)
+    dtype = "float32"
+    axis = 0
+    keepdims = False
+    A = te.placeholder(shape=in_shape, name="A", dtype=dtype)
+    B = topi.sum(A, axis=axis, keepdims=keepdims)
+    C = topi.add(B, B)
+    D = topi.multiply(B, B)
+    E = topi.add(C, D)
+    for device, ctx in tvm.testing.enabled_targets():
+        print("Running on target: %s" % device)
+        with tvm.target.Target(device):
+            s = tvm.topi.testing.get_reduce_schedule(device)(E)
+        foo = tvm.build(s, [A, E], device, name="sum")
+        in_npy = np.random.uniform(-1, 1, size=in_shape).astype(dtype)
+        sum_npy = in_npy.sum(axis=axis, keepdims=keepdims)
+        out_npy = sum_npy * 2 + sum_npy * sum_npy
+        data_tvm = tvm.nd.array(in_npy, ctx=ctx)
+        out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=ctx, dtype=dtype)
+        foo(data_tvm, out_tvm)
+        tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1e-3, 1e-3)
+
+
 if __name__ == "__main__":
     test_reduce_map()
+    test_complex_reduce()

@@ -62,6 +62,19 @@ def test_CallPattern():
     assert isinstance(c.args[1], WildcardPattern)
 
 
+def test_FunctionPattern():
+    wc1 = wildcard()
+    wc2 = wildcard()
+    c = is_op("add")(wc1, wc2)
+    f = FunctionPattern([wc1, wc2], c)
+    assert isinstance(f, FunctionPattern)
+    assert isinstance(f.params[0], WildcardPattern)
+    assert isinstance(f.params[1], WildcardPattern)
+    assert isinstance(f.body, CallPattern)
+    assert isinstance(f.body.args[0], WildcardPattern)
+    assert isinstance(f.body.args[1], WildcardPattern)
+
+
 def test_TuplePattern():
     wc1 = wildcard()
     wc2 = wildcard()
@@ -165,6 +178,24 @@ def test_no_match_call():
     y = relay.var("y")
     add_pattern = is_op("add")(wildcard(), wildcard())
     assert not add_pattern.match(x - y)
+
+
+def test_match_func():
+    x = relay.var("x")
+    y = relay.var("y")
+    wc1 = wildcard()
+    wc2 = wildcard()
+    func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
+    assert func_pattern.match(relay.Function([x, y], x + y))
+
+
+def test_no_match_func():
+    x = relay.var("x")
+    y = relay.var("y")
+    wc1 = wildcard()
+    wc2 = wildcard()
+    func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
+    assert not func_pattern.match(relay.Function([x, y], x - y))
 
 
 def test_match_option():
@@ -1210,7 +1241,7 @@ def test_partition_overused():
 
 
 def test_partition_check():
-    pattern = is_op("nn.relu")(is_op("nn.conv2d")(wildcard(), wildcard()))
+    pattern = is_op("nn.relu")(is_op("nn.conv2d")(is_var("input"), wildcard()))
 
     def check(pre):
         return pre.args[0].attrs.data_layout == "NCHW"
@@ -1298,6 +1329,36 @@ def test_partition_option():
 
     assert pattern2.match(relu)
     assert tvm.ir.structural_equal(func(x, w, b), pattern2.partition(relu))
+
+
+def test_partition_function():
+    x = relay.var("x")
+    w = relay.var("w")
+    b = relay.var("b")
+
+    x1 = relay.var("x1")
+    w1 = relay.var("w1")
+
+    wc_x = wildcard()
+    wc_w = wildcard()
+    wc_b = wildcard()
+    wc_x1 = wildcard()
+    wc_w1 = wildcard()
+
+    func_pattern = FunctionPattern([wc_x1, wc_w1], is_op("nn.conv2d")(wc_x1, wc_w1))
+    pattern = func_pattern(wc_x, wc_w) + wc_b
+
+    func = relay.Function([x1, w1], relay.nn.conv2d(x1, w1))
+    expr = func(x, w) + b + b
+
+    x2 = relay.var("x2")
+    w2 = relay.var("w2")
+    b2 = relay.var("b2")
+    func2 = relay.Function([x2, w2, b2], func(x2, w2) + b2).with_attr(
+        "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
+    )
+    expr2 = func2(x, w, b) + b
+    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
 
 
 def test_match_match():

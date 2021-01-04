@@ -56,6 +56,7 @@ class StringImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
@@ -74,7 +75,7 @@ class StringImmNode : public PrimExprNode {
  */
 class StringImm : public PrimExpr {
  public:
-  TVM_DLL StringImm(String value);
+  TVM_DLL StringImm(String value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
 };
 
@@ -90,6 +91,7 @@ class CastNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CastNode* other, SEqualReducer equal) const {
@@ -111,7 +113,7 @@ class CastNode : public PrimExprNode {
  */
 class Cast : public PrimExpr {
  public:
-  TVM_DLL Cast(DataType dtype, PrimExpr value);
+  TVM_DLL Cast(DataType dtype, PrimExpr value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Cast, PrimExpr, CastNode);
 };
 
@@ -131,6 +133,7 @@ class BinaryOpNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -158,7 +161,7 @@ class AddNode : public BinaryOpNode<AddNode> {
  */
 class Add : public PrimExpr {
  public:
-  TVM_DLL Add(PrimExpr a, PrimExpr b);
+  TVM_DLL Add(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Add, PrimExpr, AddNode);
 };
 
@@ -174,7 +177,7 @@ class SubNode : public BinaryOpNode<SubNode> {
  */
 class Sub : public PrimExpr {
  public:
-  TVM_DLL Sub(PrimExpr a, PrimExpr b);
+  TVM_DLL Sub(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Sub, PrimExpr, SubNode);
 };
 
@@ -190,7 +193,7 @@ class MulNode : public BinaryOpNode<MulNode> {
  */
 class Mul : public PrimExpr {
  public:
-  TVM_DLL Mul(PrimExpr a, PrimExpr b);
+  TVM_DLL Mul(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Mul, PrimExpr, MulNode);
 };
 
@@ -209,7 +212,7 @@ class DivNode : public BinaryOpNode<DivNode> {
  */
 class Div : public PrimExpr {
  public:
-  TVM_DLL Div(PrimExpr a, PrimExpr b);
+  TVM_DLL Div(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Div, PrimExpr, DivNode);
 };
 
@@ -228,7 +231,7 @@ class ModNode : public BinaryOpNode<ModNode> {
  */
 class Mod : public PrimExpr {
  public:
-  TVM_DLL Mod(PrimExpr a, PrimExpr b);
+  TVM_DLL Mod(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Mod, PrimExpr, ModNode);
 };
 
@@ -244,7 +247,7 @@ class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  */
 class FloorDiv : public PrimExpr {
  public:
-  TVM_DLL FloorDiv(PrimExpr a, PrimExpr b);
+  TVM_DLL FloorDiv(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(FloorDiv, PrimExpr, FloorDivNode);
 };
 
@@ -260,7 +263,7 @@ class FloorModNode : public BinaryOpNode<FloorModNode> {
  */
 class FloorMod : public PrimExpr {
  public:
-  TVM_DLL FloorMod(PrimExpr a, PrimExpr b);
+  TVM_DLL FloorMod(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(FloorMod, PrimExpr, FloorModNode);
 };
 
@@ -276,7 +279,7 @@ class MinNode : public BinaryOpNode<MinNode> {
  */
 class Min : public PrimExpr {
  public:
-  TVM_DLL Min(PrimExpr a, PrimExpr b);
+  TVM_DLL Min(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Min, PrimExpr, MinNode);
 };
 
@@ -292,7 +295,7 @@ class MaxNode : public BinaryOpNode<MaxNode> {
  */
 class Max : public PrimExpr {
  public:
-  TVM_DLL Max(PrimExpr a, PrimExpr b);
+  TVM_DLL Max(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Max, PrimExpr, MaxNode);
 };
 
@@ -312,6 +315,7 @@ class CmpOpNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -339,7 +343,7 @@ class EQNode : public CmpOpNode<EQNode> {
  */
 class EQ : public PrimExpr {
  public:
-  TVM_DLL EQ(PrimExpr a, PrimExpr b);
+  TVM_DLL EQ(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(EQ, PrimExpr, EQNode);
 };
 
@@ -355,7 +359,7 @@ class NENode : public CmpOpNode<NENode> {
  */
 class NE : public PrimExpr {
  public:
-  TVM_DLL NE(PrimExpr a, PrimExpr b);
+  TVM_DLL NE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(NE, PrimExpr, NENode);
 };
 
@@ -371,7 +375,7 @@ class LTNode : public CmpOpNode<LTNode> {
  */
 class LT : public PrimExpr {
  public:
-  TVM_DLL LT(PrimExpr a, PrimExpr b);
+  TVM_DLL LT(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(LT, PrimExpr, LTNode);
 };
 
@@ -387,7 +391,7 @@ struct LENode : public CmpOpNode<LENode> {
  */
 class LE : public PrimExpr {
  public:
-  TVM_DLL LE(PrimExpr a, PrimExpr b);
+  TVM_DLL LE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(LE, PrimExpr, LENode);
 };
 
@@ -403,7 +407,7 @@ class GTNode : public CmpOpNode<GTNode> {
  */
 class GT : public PrimExpr {
  public:
-  TVM_DLL GT(PrimExpr a, PrimExpr b);
+  TVM_DLL GT(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(GT, PrimExpr, GTNode);
 };
 
@@ -419,7 +423,7 @@ class GENode : public CmpOpNode<GENode> {
  */
 class GE : public PrimExpr {
  public:
-  TVM_DLL GE(PrimExpr a, PrimExpr b);
+  TVM_DLL GE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(GE, PrimExpr, GENode);
 };
 
@@ -435,6 +439,7 @@ class AndNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AndNode* other, SEqualReducer equal) const {
@@ -457,7 +462,7 @@ class AndNode : public PrimExprNode {
  */
 class And : public PrimExpr {
  public:
-  TVM_DLL And(PrimExpr a, PrimExpr b);
+  TVM_DLL And(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(And, PrimExpr, AndNode);
 };
 
@@ -473,6 +478,7 @@ class OrNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const OrNode* other, SEqualReducer equal) const {
@@ -495,7 +501,7 @@ class OrNode : public PrimExprNode {
  */
 class Or : public PrimExpr {
  public:
-  TVM_DLL Or(PrimExpr a, PrimExpr b);
+  TVM_DLL Or(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Or, PrimExpr, OrNode);
 };
 
@@ -508,6 +514,7 @@ class NotNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("a", &a);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const NotNode* other, SEqualReducer equal) const {
@@ -529,7 +536,7 @@ class NotNode : public PrimExprNode {
  */
 class Not : public PrimExpr {
  public:
-  TVM_DLL Not(PrimExpr a);
+  TVM_DLL Not(PrimExpr a, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Not, PrimExpr, NotNode);
 };
 
@@ -554,6 +561,7 @@ class SelectNode : public PrimExprNode {
     v->Visit("condition", &condition);
     v->Visit("true_value", &true_value);
     v->Visit("false_value", &false_value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const SelectNode* other, SEqualReducer equal) const {
@@ -578,7 +586,7 @@ class SelectNode : public PrimExprNode {
  */
 class Select : public PrimExpr {
  public:
-  TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value);
+  TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Select, PrimExpr, SelectNode);
 };
@@ -604,6 +612,7 @@ class BufferLoadNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("buffer", &buffer);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferLoadNode* other, SEqualReducer equal) const {
@@ -627,7 +636,7 @@ class BufferLoadNode : public PrimExprNode {
  */
 class BufferLoad : public PrimExpr {
  public:
-  TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices);
+  TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
 };
 
@@ -651,6 +660,7 @@ class ProducerLoadNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("producer", &producer);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerLoadNode* other, SEqualReducer equal) const {
@@ -674,7 +684,7 @@ class ProducerLoadNode : public PrimExprNode {
  */
 class ProducerLoad : public PrimExpr {
  public:
-  TVM_DLL explicit ProducerLoad(DataProducer producer, Array<PrimExpr> indices);
+  TVM_DLL explicit ProducerLoad(DataProducer producer, Array<PrimExpr> indices, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerLoad, PrimExpr, ProducerLoadNode);
 };
@@ -708,6 +718,7 @@ class LoadNode : public PrimExprNode {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("index", &index);
     v->Visit("predicate", &predicate);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const LoadNode* other, SEqualReducer equal) const {
@@ -732,7 +743,8 @@ class LoadNode : public PrimExprNode {
  */
 class Load : public PrimExpr {
  public:
-  TVM_DLL Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate);
+  TVM_DLL Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate,
+               Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Load, PrimExpr, LoadNode);
 };
 
@@ -759,6 +771,7 @@ class RampNode : public PrimExprNode {
     v->Visit("base", &base);
     v->Visit("stride", &stride);
     v->Visit("lanes", &lanes);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const RampNode* other, SEqualReducer equal) const {
@@ -783,7 +796,7 @@ class RampNode : public PrimExprNode {
  */
 class Ramp : public PrimExpr {
  public:
-  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes);
+  TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Ramp, PrimExpr, RampNode);
 };
 
@@ -799,6 +812,7 @@ class BroadcastNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
     v->Visit("lanes", &lanes);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BroadcastNode* other, SEqualReducer equal) const {
@@ -821,7 +835,7 @@ class BroadcastNode : public PrimExprNode {
  */
 class Broadcast : public PrimExpr {
  public:
-  TVM_DLL Broadcast(PrimExpr value, int lanes);
+  TVM_DLL Broadcast(PrimExpr value, int lanes, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Broadcast, PrimExpr, BroadcastNode);
 };
 
@@ -842,6 +856,7 @@ class LetNode : public PrimExprNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
@@ -866,7 +881,7 @@ class LetNode : public PrimExprNode {
  */
 class Let : public PrimExpr {
  public:
-  TVM_DLL Let(Var var, PrimExpr value, PrimExpr body);
+  TVM_DLL Let(Var var, PrimExpr value, PrimExpr body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Let, PrimExpr, LetNode);
 };
 
@@ -889,6 +904,7 @@ class CallNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
     v->Visit("args", &args);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -911,7 +927,7 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args);
+  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
 };
 
@@ -930,6 +946,7 @@ class ShuffleNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vectors", &vectors);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ShuffleNode* other, SEqualReducer equal) const {
@@ -953,9 +970,9 @@ class ShuffleNode : public PrimExprNode {
  */
 class Shuffle : public PrimExpr {
  public:
-  TVM_DLL Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices);
-  TVM_DLL static PrimExpr Concat(Array<PrimExpr> vectors);
-  TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index);
+  TVM_DLL Shuffle(Array<PrimExpr> vectors, Array<PrimExpr> indices, Span span = Span());
+  TVM_DLL static PrimExpr Concat(Array<PrimExpr> vectors, Span span = Span());
+  TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Shuffle, PrimExpr, ShuffleNode);
 };
@@ -981,12 +998,18 @@ class CommReducerNode : public Object {
   Array<PrimExpr> identity_element;
   /*! \brief Function call operator to combine a and b */
   Array<PrimExpr> operator()(Array<PrimExpr> a, Array<PrimExpr> b) const;
+  /*!
+   * \brief Span that points to the original source code.
+   *        Reserved debug information.
+   */
+  mutable Span span;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("lhs", &lhs);
     v->Visit("rhs", &rhs);
     v->Visit("result", &result);
     v->Visit("identity_element", &identity_element);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CommReducerNode* other, SEqualReducer equal) const {
@@ -1014,7 +1037,7 @@ class CommReducerNode : public Object {
 class CommReducer : public ObjectRef {
  public:
   TVM_DLL CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
-                      Array<PrimExpr> identity_element);
+                      Array<PrimExpr> identity_element, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(CommReducer, ObjectRef, CommReducerNode);
 };
@@ -1046,6 +1069,7 @@ class ReduceNode : public PrimExprNode {
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
     v->Visit("value_index", &value_index);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ReduceNode* other, SEqualReducer equal) const {
@@ -1077,7 +1101,7 @@ class ReduceNode : public PrimExprNode {
 class Reduce : public PrimExpr {
  public:
   TVM_DLL Reduce(CommReducer combiner, Array<PrimExpr> src, Array<IterVar> rdom, PrimExpr condition,
-                 int value_index, Array<PrimExpr> init);
+                 int value_index, Array<PrimExpr> init, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Reduce, PrimExpr, ReduceNode);
 };
@@ -1085,7 +1109,10 @@ class Reduce : public PrimExpr {
 /*! \brief Any shape. */
 class AnyNode : public PrimExprNode {
  public:
-  void VisitAttrs(AttrVisitor* v) { v->Visit("dtype", &dtype); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype);
@@ -1106,7 +1133,7 @@ class AnyNode : public PrimExprNode {
  */
 class Any : public PrimExpr {
  public:
-  TVM_DLL Any();
+  TVM_DLL Any(Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Any, PrimExpr, AnyNode);
 };

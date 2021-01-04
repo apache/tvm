@@ -46,7 +46,7 @@ class SimplifyReshape {
     x_ = WildcardPattern(make_object<WildcardPatternNode>());
     auto reshape1 = AltPattern(ExprPattern(reshape_op), ExprPattern(reverse_reshape_op));
     auto reshape2 = AltPattern(ExprPattern(reshape_op), ExprPattern(reverse_reshape_op));
-    pattern_ = CallPattern(reshape1, {CallPattern(reshape2, {x_}, Attrs{}, {})}, Attrs{}, {});
+    pattern_ = CallPattern(reshape1, {CallPattern(reshape2, {x_})});
   }
 
   Expr callback(const Expr& pre, const Expr& post, const Map<DFPattern, Array<Expr>>& node_map) {

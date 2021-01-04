@@ -29,7 +29,7 @@ import numpy as np
 import tvm
 import tvm.rpc
 import tvm.micro
-import tvm.relay
+import tvm.relay as relay
 
 from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
@@ -141,6 +141,61 @@ def test_compile_runtime(platform):
 
     with _make_add_sess(model, zephyr_board) as sess:
         test_basic_add(sess)
+
+
+def test_platform_timer(platform):
+    """Test compiling the on-device runtime."""
+
+    model, zephyr_board = PLATFORMS[platform]
+
+    # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
+    def test_basic_add(sess):
+        A_data = tvm.nd.array(np.array([2, 3], dtype="int8"), ctx=sess.context)
+        assert (A_data.asnumpy() == np.array([2, 3])).all()
+        B_data = tvm.nd.array(np.array([4], dtype="int8"), ctx=sess.context)
+        assert (B_data.asnumpy() == np.array([4])).all()
+        C_data = tvm.nd.array(np.array([0, 0], dtype="int8"), ctx=sess.context)
+        assert (C_data.asnumpy() == np.array([0, 0])).all()
+
+        system_lib = sess.get_system_lib()
+        time_eval_f = system_lib.time_evaluator(
+            "add", sess.context, number=20, repeat=3, min_repeat_ms=40
+        )
+        result = time_eval_f(A_data, B_data, C_data)
+        assert (C_data.asnumpy() == np.array([6, 7])).all()
+        assert result.mean > 0
+        assert len(result.results) == 3
+
+    with _make_add_sess(model, zephyr_board) as sess:
+        test_basic_add(sess)
+
+
+def test_relay(platform):
+    """Testing a simple relay graph"""
+    model, zephyr_board = PLATFORMS[platform]
+    shape = (10,)
+    dtype = "int8"
+
+    # Construct Relay program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+
+    target = tvm.target.target.micro(model)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        graph, mod, params = tvm.relay.build(func, target=target)
+
+    with _make_session(model, target, zephyr_board, mod) as session:
+        graph_mod = tvm.micro.create_local_graph_runtime(
+            graph, session.get_system_lib(), session.context
+        )
+        graph_mod.set_input(**params)
+        x_in = np.random.randint(10, size=shape[0], dtype=dtype)
+        graph_mod.run(x=x_in)
+        result = graph_mod.get_output(0).asnumpy()
+        tvm.testing.assert_allclose(graph_mod.get_input(0).asnumpy(), x_in)
+        tvm.testing.assert_allclose(result, x_in * x_in + 1)
 
 
 if __name__ == "__main__":

@@ -119,3 +119,52 @@ def deformable_conv2d_nchw_python(
         b_np[n, f, h, w] += np.tensordot(a_deform[n, c, h, w], w_np[f, c])
 
     return b_np
+
+
+def deformable_conv2d_nhwc_python(
+    a_np, offset_np, w_np, stride, padding, dilation, deformable_groups, groups
+):
+    """Deformable convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    offset_np : numpy.ndarray
+        4-D with shape [batch, out_height, out_width,
+                        deformable_groups * filter_height * filter_width * 2]
+
+    w_np : numpy.ndarray
+        4-D with shape [filter_height, filter_width, in_channel, num_filter]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str or a list/tuple of 2 or 4 ints
+        Padding size, or ['VALID', 'SAME'], or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
+
+    dilation : int or a list/tuple of two ints
+        Dilation size, or [dilate_height, dilate_width]
+
+    deformable_groups : int
+        Number of deformable groups
+
+    groups : int
+        Number of groups
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    a_np = np.transpose(a_np, [0, 3, 1, 2])  # NHWC -> NCHW
+    offset_np = np.transpose(offset_np, [0, 3, 1, 2])  # NHWC -> NCHW
+    w_np = np.transpose(w_np, [3, 2, 0, 1])  # HWIO -> OIHW
+    b_np = deformable_conv2d_nchw_python(
+        a_np, offset_np, w_np, stride, padding, dilation, deformable_groups, groups
+    )
+    b_np = np.transpose(b_np, [0, 2, 3, 1])  # NCHW -> NHWC
+    return b_np

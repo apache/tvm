@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Arm Compute Library supported operators."""
-import tvm
 import numpy as np
+import tvm
 
 from tvm.relay.expr import const
 from tvm.relay import transform
@@ -63,7 +63,7 @@ def partition_for_arm_compute_lib(mod, params=None):
         [
             transform.InferType(),
             transform.MergeComposite(arm_compute_lib_pattern_table()),
-            transform.AnnotateTarget("arm_compute_lib"),
+            transform.AnnotateTarget("arm_compute_lib", False),
             transform.PartitionGraph(),
         ]
     )

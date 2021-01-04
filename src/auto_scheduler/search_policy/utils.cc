@@ -413,55 +413,19 @@ void PruneInvalidState(const SearchTask& task, Array<State>* states) {
 }
 
 /********** SplitFactorizationMemo **********/
-
-void SplitFactorizationMemo::ReadWriteLock::GetRead() {
-  std::unique_lock<std::mutex> lock(cv_mutex_);
-  // Wake up and get the mutex lock if there's no writing thread
-  cv_.wait(lock, [this]() { return !this->is_writing_; });
-  read_count_++;
-}
-
-void SplitFactorizationMemo::ReadWriteLock::GetWrite() {
-  std::unique_lock<std::mutex> lock(cv_mutex_);
-  // Wake up and get the mutex lock if there's no reading or writing threads
-  cv_.wait(lock, [this]() { return this->read_count_ == 0 && !this->is_writing_; });
-  is_writing_ = true;
-}
-
-void SplitFactorizationMemo::ReadWriteLock::UnlockRead() {
-  std::lock_guard<std::mutex> lock(cv_mutex_);
-  read_count_--;
-  // Notify the other blocked threads if this is the last reading thread
-  if (read_count_ == 0) {
-    cv_.notify_one();
-  }
-}
-
-void SplitFactorizationMemo::ReadWriteLock::UnlockWrite() {
-  std::lock_guard<std::mutex> lock(cv_mutex_);
-  is_writing_ = false;
-  // Notify the other blocked threads
-  cv_.notify_one();
-}
-
 const Array<Array<Integer>>& SplitFactorizationMemo::GetFactorizationSchemes(
     int extent, int n_lengths, int max_innermost_factor) {
   QueryKey key = std::make_tuple(extent, n_lengths, max_innermost_factor);
-  const auto& const_memory = memory_;
-  lock_.GetRead();
-  const auto& it = const_memory.find(key);
-  const auto& memory_end = const_memory.end();
-  lock_.UnlockRead();
-  if (it != memory_end) {
+  const auto& it = memory_.find(key);
+  if (it != memory_.end()) {
     return it->second;
   }
 
-  lock_.GetWrite();
   tmp_stack_ = Array<Integer>(n_lengths, Integer());
   results_ = &memory_[key];
   n_lengths_ = n_lengths;
+
   DfsEnumerate(0, extent, max_innermost_factor);
-  lock_.UnlockWrite();
 
   return *results_;
 }

@@ -16,9 +16,6 @@
 # under the License.
 
 """Common functions for auto_scheduler test cases"""
-
-import threading
-
 import tvm
 from tvm import te, auto_scheduler
 from tvm import topi
@@ -138,6 +135,34 @@ def softmax_abcd_auto_scheduler_test(a, b, c, d):
 
 
 @auto_scheduler.register_workload
+def invalid_compute_definition():
+    A = te.placeholder((10, 10), name="A")
+    # The names of the following two iterators are the same.
+    # This is invalid.
+    r1 = te.reduce_axis((0, 2), name="r1")
+    r2 = te.reduce_axis((0, 2), name="r1")
+    B = te.compute((10,), lambda i: te.sum(A[i][r1 + r2], axis=[r1, r2]), name="B")
+    return [A, B]
+
+
+@auto_scheduler.register_workload
+def zero_rank_reduce_auto_scheduler_test(N):
+    A = tvm.te.placeholder((N,), name="A")
+    k = tvm.te.reduce_axis((0, N), name="k")
+    B = tvm.te.compute((), lambda: tvm.te.sum(A[k], k), name="B")
+
+    return [A, B]
+
+
+@auto_scheduler.register_workload
+def zero_rank_compute_auto_scheduler_test(N):
+    A = tvm.te.placeholder((N,), name="A")
+    B = tvm.te.compute((), lambda: A[0], name="B")
+
+    return [A, B]
+
+
+@auto_scheduler.register_workload
 def conv2d_winograd_nhwc_auto_scheduler_test(
     N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1
 ):
@@ -161,14 +186,12 @@ def conv2d_winograd_nhwc_auto_scheduler_test(
     r = KW
     m = tile_size
     alpha = m + r - 1
-    A, B, G = winograd_transform_matrices(m, r, "float32")
+    A, B, _ = winograd_transform_matrices(m, r, "float32")
 
     H = (H + 2 * HPAD - KH) // HSTR + 1
     W = (W + 2 * WPAD - KW) // WSTR + 1
     nH, nW = (H + m - 1) // m, (W + m - 1) // m
     P = N * nH * nW
-    r_kh = te.reduce_axis((0, KH), name="r_kh")
-    r_kw = te.reduce_axis((0, KW), name="r_kw")
     kshape = (alpha, alpha, CI, CO)
     kernel_pack = te.placeholder(kshape, inputs.dtype, name="weight")
 
@@ -242,18 +265,3 @@ def get_tiled_matmul():
     )
 
     return dag, s0
-
-
-class PropagatingThread(threading.Thread):
-    def run(self):
-        self.exc = None
-        try:
-            self.ret = self._target(*self._args, **self._kwargs)
-        except BaseException as e:
-            self.exc = e
-
-    def join(self):
-        super(PropagatingThread, self).join()
-        if self.exc:
-            raise self.exc
-        return self.ret

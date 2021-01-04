@@ -18,7 +18,7 @@
 # NOTE: We name this test file to start with test_graph_tuner
 # to make it execute after zero_rank tensor test cases. This
 # helps avoid topi arithmetic operator overloading issue:
-# https://github.com/apache/incubator-tvm/issues/3240
+# https://github.com/apache/tvm/issues/3240
 # TODO: restore the file name after this issue is resolved.
 import tvm
 from tvm import te

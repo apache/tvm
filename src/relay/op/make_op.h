@@ -46,11 +46,15 @@ Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeDense(Expr data, Expr weight, IndexExpr units, DataType out_dtype);
 
+Expr MakeBatchMatmul(Expr lhs, Expr rhs);
+
 Expr MakeExpandDims(Expr data, int axis, int num_newaxis);
 
 Expr MakeFull(Expr fill_value, Array<Integer> shape, DataType dtype);
 
 Expr MakeLayoutTransform(Expr data, String src_layout, String dst_layout);
+
+Expr MakeAutoSchedulerLayoutTransform(Expr data, String src_layout, String dst_layout);
 
 Expr MakeOnes(Array<Integer> shape, DataType dtype);
 
@@ -61,6 +65,9 @@ Expr MakeReduce(Expr data, Array<Integer> axis, bool keepdims, bool exclude, Str
 Expr MakeRepeat(Expr data, int repeats, int axis);
 
 Expr MakeReshape(Expr data, Array<Integer> newshape);
+
+Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
+                     Integer rhs_end);
 
 Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 
@@ -90,6 +97,8 @@ Expr MakeOneHot(Expr indices, Expr on_value, Expr off_value, int depth, int axis
 
 Expr MakeResize(Expr data, Array<IndexExpr> size, String layout, String method,
                 String coordinate_transformation_mode, DataType out_dtype);
+
+Expr MakeSparseToDense(Expr indices, Array<Integer> output_shape, Expr values, Expr default_value);
 
 }  // namespace relay
 }  // namespace tvm

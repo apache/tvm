@@ -45,9 +45,9 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
   return array;
 }
 
-Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name) {
-  return Buffer(Var(name, PointerType(PrimType(dtype))), dtype, shape, Array<PrimExpr>(),
-                PrimExpr(), name, "", 0, 0, kDefault);
+Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, Span span) {
+  return Buffer(Var(name, PointerType(PrimType(dtype)), span), dtype, shape, Array<PrimExpr>(),
+                PrimExpr(), name, "", 0, 0, kDefault, span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -364,8 +364,9 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
-    extent = foldl(fmul, make_const(DataType::Int(32), 1), self->shape) - offset;
+    extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                   make_const(DataType::Int(32), 1), self->shape) -
+             offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
@@ -382,7 +383,7 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                PrimExpr elem_offset, String name, String scope, int data_alignment,
-               int offset_factor, BufferType buffer_type) {
+               int offset_factor, BufferType buffer_type, Span span) {
   ICHECK(IsPointerType(data->type_annotation, dtype))
       << "Buffer data field expect to have the right pointer type annotation"
       << " annotation=" << data->type_annotation << ", dtype=" << dtype;
@@ -416,6 +417,7 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
       n->strides.push_back(Var("stride", n->shape[i].dtype()));
     }
   }
+  n->span = std::move(span);
   data_ = std::move(n);
 }
 
@@ -428,11 +430,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args.size(), 10);
+  ICHECK_EQ(args.size(), 11);
   auto buffer_type = args[9].operator String();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret =
-      Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], type);
+  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                type, args[10]);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);

@@ -313,10 +313,8 @@ def test_get_valid_counts():
         for target, ctx in tvm.testing.enabled_targets():
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
+
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
-            # get_valid_count for cuda, opencl doesn't do data rearrangement
-            if target in ["cuda", "opencl"]:
-                return
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
             tvm.testing.assert_allclose(out[2].asnumpy(), np_out3, rtol=1e-3, atol=1e-04)
 
@@ -393,8 +391,6 @@ def test_non_max_suppression():
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-            if target == "cuda":
-                return
             op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
             tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data, x3_data)
@@ -789,12 +785,34 @@ def test_yolo_reorg():
 
 @tvm.testing.uses_gpu
 def test_deformable_conv2d():
-    def test_infer_type(batch, in_channel, size, out_channel, deformable_groups, groups):
-        data_shape = (batch, in_channel, size, size)
+    def test_infer_type(batch, in_channel, size, out_channel, deformable_groups, groups, layout):
+        kernel_size = (3, 3)
+        if layout == "NCHW":
+            kernel_layout = "OIHW"
+            data_shape = (batch, in_channel, size, size)
+            weight_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
+            out_shape = (batch, out_channel, size, size)
+            offset_shape = (
+                batch,
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+                out_shape[2],
+                out_shape[3],
+            )
+        else:
+            kernel_layout = "HWIO"
+            data_shape = (batch, size, size, in_channel)
+            weight_shape = (kernel_size[0], kernel_size[1], in_channel // groups, out_channel)
+            out_shape = (batch, size, size, out_channel)
+            offset_shape = (
+                batch,
+                out_shape[1],
+                out_shape[2],
+                2 * kernel_size[0] * kernel_size[1] * deformable_groups,
+            )
+
         data = relay.var("data", shape=data_shape)
         offset = relay.var("offset")
         kernel = relay.var("kernel")
-        kernel_size = (3, 3)
         y = relay.nn.deformable_conv2d(
             data,
             offset,
@@ -802,26 +820,22 @@ def test_deformable_conv2d():
             strides=(1, 1),
             padding=(1, 1),
             dilation=(1, 1),
+            data_layout=layout,
+            kernel_layout=kernel_layout,
             kernel_size=kernel_size,
             deformable_groups=deformable_groups,
             groups=groups,
             channels=out_channel,
         )
-        weight_shape = (out_channel, in_channel // groups, kernel_size[0], kernel_size[1])
-        out_shape = (batch, out_channel, size, size)
-        offset_shape = (
-            batch,
-            2 * kernel_size[0] * kernel_size[1] * deformable_groups,
-            out_shape[2],
-            out_shape[3],
-        )
         yy = run_infer_type(y)
-        assert yy.checked_type == relay.TensorType(out_shape)
+        assert yy.checked_type == relay.TensorType(out_shape), yy.checked_type
         assert yy.args[1].checked_type == relay.TensorType(offset_shape), yy.args[1].checked_type
-        assert yy.args[2].checked_type == relay.TensorType(weight_shape)
+        assert yy.args[2].checked_type == relay.TensorType(weight_shape), yy.args[2].checked_type
 
-    test_infer_type(1, 4, 16, 4, 4, 1)
-    test_infer_type(2, 4, 16, 4, 1, 2)
+    test_infer_type(1, 4, 16, 4, 4, 1, "NCHW")
+    test_infer_type(2, 4, 16, 4, 1, 2, "NCHW")
+    test_infer_type(1, 4, 16, 4, 4, 1, "NHWC")
+    test_infer_type(2, 4, 16, 4, 1, 2, "NHWC")
 
     def test_run(batch, in_channel, size, out_channel, deformable_groups, groups):
         kernel_size = (3, 3)
@@ -1141,6 +1155,60 @@ def test_grid_sample():
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
 
 
+@tvm.testing.uses_gpu
+def test_space_to_batch_nd():
+    def verify_space_to_batch_nd(dshape, block_shape, paddings):
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        pad_before, pad_after = map(list, zip(*paddings))
+        ref_res = tvm.topi.testing.space_to_batch_nd_python(
+            x_data, block_shape, pad_before, pad_after
+        )
+
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.nn.space_to_batch_nd(x, block_shape, paddings)
+        assert "block_shape=" in z.astext()
+        assert "paddings=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+
+    verify_space_to_batch_nd([3, 3, 2, 1], [3], [[0, 0]])
+    verify_space_to_batch_nd([2, 2, 4, 1], [2, 2], [[0, 0], [2, 0]])
+
+
+@tvm.testing.uses_gpu
+def test_batch_to_space_nd():
+    def verify_batch_to_space_nd(dshape, block_shape, crops):
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        crop_begin_list, crop_end_list = map(list, zip(*crops))
+        ref_res = tvm.topi.testing.batch_to_space_nd_python(
+            x_data, block_shape, crop_begin_list, crop_end_list
+        )
+
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.nn.batch_to_space_nd(x, block_shape, crops)
+        assert "block_shape=" in z.astext()
+        assert "crops=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+
+    verify_batch_to_space_nd([4, 1, 1, 3], [2, 2], [[0, 0], [0, 0]])
+    verify_batch_to_space_nd([8, 1, 3, 1], [2, 2], [[0, 0], [2, 0]])
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
@@ -1163,3 +1231,4 @@ if __name__ == "__main__":
     test_dilation2d_run()
     test_affine_grid()
     test_grid_sample()
+    test_space_to_batch_nd()

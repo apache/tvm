@@ -32,10 +32,11 @@ from test_auto_scheduler_common import matmul_auto_scheduler_test
 def test_task_scheduler_round_robin():
     tasks = []
     for n in [2, 4, 8]:
-        tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
-
-    def objective_func(costs):
-        return sum(costs)
+        tasks.append(
+            auto_scheduler.SearchTask(
+                func=matmul_auto_scheduler_test, args=(n, n, n), target="llvm"
+            )
+        )
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name
@@ -49,7 +50,7 @@ def test_task_scheduler_round_robin():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func, strategy="round-robin")
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, strategy="round-robin")
         task_scheduler.tune(tune_option, search_policy="sketch.random")
 
         # Check the result of round robin
@@ -57,7 +58,7 @@ def test_task_scheduler_round_robin():
         for task in tasks:
             counters[task.workload_key] = 0
 
-        for inp, res in auto_scheduler.load_records(log_file):
+        for inp, _ in auto_scheduler.load_records(log_file):
             counters[inp.task.workload_key] += 1
 
         for task in tasks:
@@ -65,7 +66,7 @@ def test_task_scheduler_round_robin():
 
         # test continuous tuning (restoring the status)
         task_scheduler = auto_scheduler.TaskScheduler(
-            tasks, objective_func, strategy="round-robin", load_log_file=log_file
+            tasks, strategy="round-robin", load_log_file=log_file
         )
         tune_option = auto_scheduler.TuningOptions(
             num_measure_trials=len(tasks),
@@ -93,7 +94,11 @@ def test_task_scheduler_round_robin_spawn():
 def test_task_scheduler_gradient():
     tasks = []
     for n in [2, 4]:
-        tasks.append(auto_scheduler.create_task(matmul_auto_scheduler_test, (n, n, n), "llvm"))
+        tasks.append(
+            auto_scheduler.SearchTask(
+                func=matmul_auto_scheduler_test, args=(n, n, n), target="llvm"
+            )
+        )
 
     def objective_func(costs):
         return costs[0]
@@ -111,7 +116,7 @@ def test_task_scheduler_gradient():
             num_measures_per_round=1,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
-        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func)
+        task_scheduler = auto_scheduler.TaskScheduler(tasks, objective_func=objective_func)
 
         # Forcely rewrite the initial values.
         # This can make this test more stable on the slow CI machines
@@ -124,7 +129,7 @@ def test_task_scheduler_gradient():
         for task in tasks:
             counters[task.workload_key] = 0
 
-        for inp, res in auto_scheduler.load_records(log_file):
+        for inp, _ in auto_scheduler.load_records(log_file):
             counters[inp.task.workload_key] += 1
 
         assert counters[tasks[0].workload_key] == n_trials - 1

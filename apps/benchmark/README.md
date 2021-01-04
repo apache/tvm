@@ -20,7 +20,7 @@
 
 ## Results
 
-See results on wiki page https://github.com/apache/incubator-tvm/wiki/Benchmark
+See results on wiki page https://github.com/apache/tvm/wiki/Benchmark
 
 ## How to Reproduce
 
@@ -78,7 +78,7 @@ python3 -m tvm.exec.rpc_tracker
   `python3 -m tvm.exec.rpc_server --tracker=10.77.1.123:9190 --key=rk3399`, where 10.77.1.123 is the IP address of the tracker.
 
 * For Android device
-   * Build and install tvm RPC apk on your device [Help](https://github.com/apache/incubator-tvm/tree/main/apps/android_rpc).
+   * Build and install tvm RPC apk on your device [Help](https://github.com/apache/tvm/tree/main/apps/android_rpc).
      Make sure you can pass the android rpc test. Then you have alreadly known how to register.
 
 3. Verify the device registration

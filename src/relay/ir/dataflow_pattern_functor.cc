@@ -62,6 +62,13 @@ void DFPatternVisitor::VisitDFPattern_(const DominatorPatternNode* op) {
 
 void DFPatternVisitor::VisitDFPattern_(const ExprPatternNode* op) {}
 
+void DFPatternVisitor::VisitDFPattern_(const FunctionPatternNode* op) {
+  for (auto param : op->params) {
+    VisitDFPattern(param);
+  }
+  VisitDFPattern(op->body);
+}
+
 void DFPatternVisitor::VisitDFPattern_(const ShapePatternNode* op) { VisitDFPattern(op->pattern); }
 
 void DFPatternVisitor::VisitDFPattern_(const TupleGetItemPatternNode* op) {

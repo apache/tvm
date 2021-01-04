@@ -369,8 +369,8 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 #else
   int num_workers = tvm::runtime::threading::MaxConcurrency();
   if (num_task == 0) num_task = num_workers;
-  omp_set_num_threads(num_workers);
-#pragma omp parallel num_threads(num_workers)
+  omp_set_num_threads(num_task);
+#pragma omp parallel num_threads(num_task)
   {
     TVMParallelGroupEnv env;
     env.num_task = num_task;

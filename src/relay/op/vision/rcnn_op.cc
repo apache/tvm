@@ -119,12 +119,33 @@ bool ROIPoolRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(roi_pool_attrs);
   ICHECK_EQ(dshape.size(), 4) << "Input data should be 4-D.";
   ICHECK_EQ(rshape.size(), 2) << "Input rois should be 2-D.";
-  ICHECK_EQ(roi_pool_attrs->layout, "NCHW") << "ROI Pool only supports NCHW layout";
   // assign output type
-  std::vector<IndexExpr> oshape(
-      {rshape[0], dshape[1], roi_pool_attrs->pooled_size[0], roi_pool_attrs->pooled_size[1]});
+  std::vector<IndexExpr> oshape;
+  if (roi_pool_attrs->layout == "NCHW") {
+    oshape = {rshape[0], dshape[1], roi_pool_attrs->pooled_size[0], roi_pool_attrs->pooled_size[1]};
+  } else if (roi_pool_attrs->layout == "NHWC") {
+    oshape = {rshape[0], roi_pool_attrs->pooled_size[0], roi_pool_attrs->pooled_size[1], dshape[3]};
+  } else {
+    LOG(FATAL) << "vision.roi_pool does not support " << roi_pool_attrs->layout << " layout";
+  }
+
   reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
+}
+
+template <typename T>
+Array<Array<Layout> > ROIPoolInferCorrectLayout(const Attrs& attrs,
+                                                const Array<Layout>& new_in_layouts,
+                                                const Array<Layout>& old_in_layouts,
+                                                const Array<tvm::relay::Type>& old_in_types) {
+  // NOTE: Discard "const" qualifier here.
+  T* params = const_cast<T*>(attrs.as<T>());
+  Layout data_layout = params->layout;
+
+  // Layout inference needs to define the layout for all inputs and output data layouts.
+  // For roi_pool, the second inputs is 2-D tensor with shape [num_roi, 5].
+  // So, we set the layout as "N5".
+  return Array<Array<Layout> >{{data_layout, Layout("N5")}, {data_layout}};
 }
 
 Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
@@ -153,7 +174,8 @@ RELAY_REGISTER_OP("vision.roi_pool")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("rois", "Tensor", "The input rois")
     .set_support_level(5)
-    .add_type_rel("ROIPool", ROIPoolRel);
+    .add_type_rel("ROIPool", ROIPoolRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ROIPoolInferCorrectLayout<ROIPoolAttrs>);
 
 TVM_REGISTER_NODE_TYPE(ProposalAttrs);
 

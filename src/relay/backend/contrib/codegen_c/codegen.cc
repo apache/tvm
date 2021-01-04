@@ -215,20 +215,19 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
  public:
-  std::pair<std::string, Array<String>> GenCFunc(const Function& func) {
+  std::tuple<Array<String>, String, String> GenCFunc(const Function& func) {
     ICHECK(func.defined()) << "Input error: expect a Relay function.";
-
-    // Record the external symbol for runtime lookup.
-    auto sid = GetExtSymbol(func);
-
-    CodegenC builder(sid);
+    CodegenC builder(GetExtSymbol(func));
     auto out = builder.VisitExpr(func->body);
-    code_stream_ << builder.JIT(out);
-
-    return {sid, builder.const_vars_};
+    return std::make_tuple(builder.const_vars_, builder.ext_func_id_, builder.JIT(out));
   }
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
+    ICHECK(ref->IsInstance<FunctionNode>());
+    auto res = GenCFunc(Downcast<Function>(ref));
+    Array<String> variables = std::get<0>(res);
+    String func_name = std::get<1>(res);
+
     // Create headers
     code_stream_ << "#include <cstring>\n";
     code_stream_ << "#include <vector>\n";
@@ -259,18 +258,13 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     )op_macro";
 
     code_stream_ << operator_macro << "\n\n";
-
-    ICHECK(ref->IsInstance<FunctionNode>());
-    auto res = GenCFunc(Downcast<Function>(ref));
+    code_stream_ << std::get<2>(res);
     std::string code = code_stream_.str();
-
-    String sym = std::get<0>(res);
-    Array<String> variables = std::get<1>(res);
 
     // Create a CSource module
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
     ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    return (*pf)(code, "c", sym, variables);
+    return (*pf)(code, "c", Array<String>{func_name}, variables);
   }
 
  private:

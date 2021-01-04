@@ -609,12 +609,11 @@ inline State FuseAllOuterSpaceIterators(const State& state, int stage_id, Iterat
     to_fuse.push_back(it);
   }
 
-  ICHECK(!to_fuse.empty());
   State tmp_s = state;
-  if (to_fuse.size() > 1) {
-    *fused_iter = tmp_s.fuse(stage_id, to_fuse);
-  } else {
+  if (to_fuse.size() == 1) {
     *fused_iter = to_fuse[0];
+  } else {
+    *fused_iter = tmp_s.fuse(stage_id, to_fuse);
   }
   return tmp_s;
 }
@@ -657,9 +656,9 @@ inline int RandomChoose(const std::vector<double>& prefix_sum_probs, std::mt1993
 
 /*! \brief Print a title */
 inline void PrintTitle(const std::string& title, int verbose) {
-  StdCout(verbose) << Chars('-', 60) << "\n"
-                   << Chars('-', 25) << "  [ " << title << " ]\n"
-                   << Chars('-', 60) << std::endl;
+  StdCout(verbose) << Chars('-', 70) << "\n"
+                   << Chars('-', 30) << "  [ " << title << " ]\n"
+                   << Chars('-', 70) << std::endl;
 }
 
 /*!
@@ -676,33 +675,6 @@ class SplitFactorizationMemo {
 
  private:
   void DfsEnumerate(int now, int remaining_length, int max_innermost_factor);
-
-  /*!
-   * \brief A simple implementation of read-write lock.
-   * The guarded block can be read by multiple threads at the same time, while other operations will
-   * be blocked if one thread is writing.
-   * \note Writing threads will wait until all reading threads have finshed. If there're multiple
-   * writing threads, the process order of them is not guaranteed.
-   */
-  class ReadWriteLock {
-   public:
-    /*! \brief The method to get the read lock. One thread can process read if there's on other
-     * writing threads. */
-    void GetRead();
-    /*! \brief The method to get the write lock. One thread can process write if there's on other
-     * reading or writing threads. */
-    void GetWrite();
-    /*! \brief The method to release the read lock. */
-    void UnlockRead();
-    /*! \brief The method to release the write lock. */
-    void UnlockWrite();
-
-   private:
-    uint32_t read_count_ = 0;
-    bool is_writing_ = false;
-    std::mutex cv_mutex_;
-    std::condition_variable cv_;
-  } lock_;
 
   std::unordered_map<QueryKey, Array<Array<Integer>>> memory_;
 

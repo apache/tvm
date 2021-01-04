@@ -97,7 +97,7 @@ void GraphRuntimeFactory::SaveToBinary(dmlc::Stream* stream) {
 
 Module GraphRuntimeFactory::RuntimeCreate(const std::vector<TVMContext>& ctxs) {
   auto exec = make_object<GraphRuntime>();
-  exec->Init(this->graph_json_, this->imports_[0], ctxs);
+  exec->Init(this->graph_json_, this->imports_[0], ctxs, PackedFunc());
   // set params
   SetParams(exec.get(), this->params_);
   return Module(exec);

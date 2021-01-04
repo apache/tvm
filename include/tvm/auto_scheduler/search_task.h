@@ -44,24 +44,23 @@ class HardwareParamsNode : public Object {
   int cache_line_bytes;
 
   // GPU related parameters got from device query API
-
-  /*! \brief The max shared memory per block. */
-  int max_shared_memory_per_block{INT32_MAX};
-  /*! \brief The max register memory per block. */
-  int max_registers_per_block{INT32_MAX};
-  /*! \brief The max threads per block. */
-  int max_threads_per_block{INT32_MAX};
+  /*! \brief The max shared memory per block in bytes. */
+  int max_shared_memory_per_block;
+  /*! \brief The max local memory per block in bytes. */
+  int max_local_memory_per_block;
+  /*! \brief The max number of threads per block. */
+  int max_threads_per_block;
   /*! \brief The max vthread extent. */
-  int max_vthread_extent{INT32_MAX};
+  int max_vthread_extent;
   /*! \brief The thread numbers of a warp. */
-  int warp_size{INT32_MAX};
+  int warp_size;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("num_cores", &num_cores);
     v->Visit("vector_unit_bytes", &vector_unit_bytes);
     v->Visit("cache_line_bytes", &cache_line_bytes);
     v->Visit("max_shared_memory_per_block", &max_shared_memory_per_block);
-    v->Visit("max_registers_per_block", &max_registers_per_block);
+    v->Visit("max_local_memory_per_block", &max_local_memory_per_block);
     v->Visit("max_threads_per_block", &max_threads_per_block);
     v->Visit("max_vthread_extent", &max_vthread_extent);
     v->Visit("warp_size", &warp_size);
@@ -90,8 +89,15 @@ class HardwareParams : public ObjectRef {
    * \param num_cores The number of cores.
    * \param vector_unit_bytes The width of vector units in bytes.
    * \param cache_line_bytes The size of cache line in bytes.
+   * \param max_shared_memory_per_block The max amount of shared memory per block for GPU.
+   * \param max_local_memory_per_block The max amount of local memory per block for GPU.
+   * \param max_threads_per_block The max number of threads per block for GPU.
+   * \param max_vthread_extent The max extent of vthread for GPU.
+   * \param warp_size The warp size for GPU
    */
-  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes);
+  HardwareParams(int num_cores, int vector_unit_bytes, int cache_line_bytes,
+                 int max_shared_memory_per_block, int max_local_memory_per_block,
+                 int max_threads_per_block, int max_vthread_extent, int warp_size);
 
   TVM_DEFINE_OBJECT_REF_METHODS(HardwareParams, ObjectRef, HardwareParamsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(HardwareParamsNode);
@@ -112,6 +118,8 @@ class SearchTaskNode : public Object {
   Target target_host;
   /*! \brief Hardware parameters used in this search task. */
   HardwareParams hardware_params;
+  /*! \brief The layout rewrite option used for measuring programs. */
+  LayoutRewriteOption layout_rewrite_option;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("compute_dag", &compute_dag);
@@ -119,6 +127,7 @@ class SearchTaskNode : public Object {
     v->Visit("target", &target);
     v->Visit("target_host", &target_host);
     v->Visit("hardware_params", &hardware_params);
+    v->Visit("layout_rewrite_option", &layout_rewrite_option);
   }
 
   static constexpr const char* _type_key = "auto_scheduler.SearchTask";
@@ -138,9 +147,10 @@ class SearchTask : public ObjectRef {
    * \param target The target device of this search task.
    * \param target_host The target host device of this search task.
    * \param hardware_params Hardware parameters used in this search task.
+   * \param layout_rewrite_option The layout rewrite option used for measuring programs.
    */
   SearchTask(ComputeDAG compute_dag, String workload_key, Target target, Target target_host,
-             Optional<HardwareParams> hardware_params);
+             Optional<HardwareParams> hardware_params, LayoutRewriteOption layout_rewrite_option);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SearchTask, ObjectRef, SearchTaskNode);
 };

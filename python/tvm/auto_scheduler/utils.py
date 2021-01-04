@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """ Common utilities for auto_scheduler. """
 
@@ -23,6 +24,7 @@ import multiprocessing.pool
 import queue
 import signal
 import threading
+import traceback
 import os
 
 import numpy as np
@@ -32,6 +34,7 @@ try:
 except ImportError:
     psutil = None
 
+import tvm
 from tvm import rpc
 from tvm.tir import expr
 from tvm.tir.transform import Simplify
@@ -88,10 +91,16 @@ def get_const_tuple(in_tuple):
 
     Returns
     -------
-    out_tuple : Tuple[int]
-        The output.
+    out_tuple : Tuple[Union[int,tvm.tir.Var,tvm.tir.Any]]
+        The output tuple of int. The dynamic shape variables (Var or Any) will be preserved.
     """
-    return tuple(get_const_int(x) for x in in_tuple)
+    ret = []
+    for elem in in_tuple:
+        if isinstance(elem, (tvm.tir.Var, tvm.tir.expr.Any)):
+            ret.append(elem)
+        else:
+            ret.append(get_const_int(elem))
+    return tuple(ret)
 
 
 def list_to_tuple(x):
@@ -138,32 +147,83 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
         parent = psutil.Process(parent_pid)
     except psutil.NoSuchProcess:
         return
-    children = parent.children(recursive=True)
-    for process in children:
-        try:
-            process.send_signal(sig)
-        except psutil.NoSuchProcess:
-            return
-
-
-def _func_wrapper(que, func, args, kwargs):
-    """Call function and return the result over the queue."""
-    if kwargs:
-        que.put(func(*args, **kwargs))
-    else:
-        que.put(func(*args))
-
-
-def call_func_with_timeout(timeout, func, args=(), kwargs=None):
-    """Call a function with timeout"""
-
-    que = multiprocessing.Queue(2)
-    process = multiprocessing.Process(target=_func_wrapper, args=(que, func, args, kwargs))
-    process.start()
-    process.join(timeout)
 
     try:
-        res = que.get(block=False)
+        children = parent.children(recursive=True)
+        for process in children:
+            process.send_signal(sig)
+    except psutil.NoSuchProcess:
+        return
+
+
+# The maximum length of traceback information
+MAX_TRACEBACK_INFO_LEN = 512
+
+
+def make_traceback_info():
+    """ Get the error message from traceback. """
+    info = str(traceback.format_exc())
+    if len(info) > MAX_TRACEBACK_INFO_LEN:
+        info = (
+            info[: MAX_TRACEBACK_INFO_LEN // 2] + "\n...\n" + info[-MAX_TRACEBACK_INFO_LEN // 2 :]
+        )
+    return info
+
+
+class PropagatingThread(threading.Thread):
+    """A thread that propagates the exception to the main thread"""
+
+    def run(self):
+        self.exc = None
+        try:
+            self.ret = self._target(*self._args, **self._kwargs)
+        except Exception as e:  # pylint: disable=broad-except
+            self.exc = e
+
+    def join(self, timeout=None):
+        super(PropagatingThread, self).join(timeout)
+        if self.exc:
+            raise self.exc
+        return self.ret
+
+
+def call_func_with_thread(func, args, kwargs):
+    """Call a function within a new thread"""
+    res = []
+
+    def wrapper():
+        res.append(func(*args, **kwargs))
+
+    t = PropagatingThread(target=wrapper)
+    t.start()
+    t.join()
+    return res[0]
+
+
+def _func_wrapper(que, func, args, kwargs, add_thread_wrapper):
+    """Call function and return the result over the queue."""
+    try:
+        if add_thread_wrapper:
+            # Add a new layer of threadinng to avoid the conflict between
+            # python's multiprocessing and tvm's thread pool.
+            res = call_func_with_thread(func, args, kwargs)
+        else:
+            res = func(*args, **kwargs)
+        que.put(res)
+    except Exception:  # pylint: disable=broad-except
+        que.put(Exception(make_traceback_info()))
+
+
+def call_func_with_timeout(timeout, func, args=(), kwargs=None, add_thread_wrapper=False):
+    """Call a function with timeout"""
+    que = multiprocessing.Queue(2)
+    process = multiprocessing.Process(
+        target=_func_wrapper, args=(que, func, args, kwargs or {}, add_thread_wrapper)
+    )
+    process.start()
+
+    try:
+        res = que.get(timeout=timeout)
     except queue.Empty:
         res = TimeoutError()
 

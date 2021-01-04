@@ -51,7 +51,6 @@ def build_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-
         lib.save(os.path.join(build_dir, file_format_str.format(name="model", ext="o")))
         with open(
             os.path.join(build_dir, file_format_str.format(name="graph", ext="json")), "w"
@@ -85,7 +84,6 @@ def build_test_module(opts):
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-
         lib.save(os.path.join(build_dir, file_format_str.format(name="test_model", ext="o")))
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_graph", ext="json")), "w"

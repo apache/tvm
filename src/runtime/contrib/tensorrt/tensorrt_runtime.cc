@@ -41,6 +41,13 @@ namespace tvm {
 namespace runtime {
 namespace contrib {
 
+struct PairHash {
+  template <class T1, class T2>
+  std::size_t operator()(const std::pair<T1, T2>& pair) const {
+    return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+  }
+};
+
 using namespace tvm::runtime::json;
 
 class TensorRTRuntime : public JSONRuntimeBase {
@@ -78,8 +85,6 @@ class TensorRTRuntime : public JSONRuntimeBase {
     LoadGlobalAttributes();
     if (GetCachedEnginesFromDisk()) return;
     SetupConstants(consts);
-    BuildEngine();
-    CacheEngineToDisk();
   }
 
   void LoadGlobalAttributes() {
@@ -106,11 +111,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
 #ifdef TVM_GRAPH_RUNTIME_TENSORRT
   /*! \brief Run inference using built engine. */
   void Run() override {
-    auto& engine_and_context = trt_engine_cache_.at(symbol_name_);
+    BuildEngine();
+    batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
+    if (batch_size_ == 0) return;
+    auto& engine_and_context = trt_engine_cache_.at(std::make_pair(symbol_name_, batch_size_));
     auto engine = engine_and_context.engine;
     auto context = engine_and_context.context;
+    auto& device_buffers = engine_and_context.device_buffers;
     std::vector<void*> bindings(engine->getNbBindings(), nullptr);
-
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
@@ -119,7 +127,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
           ICHECK_NE(binding_index, -1);
-          bindings[binding_index] = data_entry_[eid]->data;
+          if (data_entry_[eid]->ctx.device_type == kDLGPU) {
+            bindings[binding_index] = data_entry_[eid]->data;
+          } else {
+            device_buffers[binding_index].CopyFrom(data_entry_[eid]);
+            bindings[binding_index] = device_buffers[binding_index]->data;
+          }
         }
       }
     }
@@ -129,7 +142,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
       ICHECK_NE(binding_index, -1);
-      bindings[binding_index] = data_entry_[eid]->data;
+      if (data_entry_[eid]->ctx.device_type == kDLGPU) {
+        bindings[binding_index] = data_entry_[eid]->data;
+      } else {
+        bindings[binding_index] = device_buffers[binding_index]->data;
+      }
     }
 
 #if TRT_VERSION_GE(6, 0, 1)
@@ -141,18 +158,32 @@ class TensorRTRuntime : public JSONRuntimeBase {
 #else
     ICHECK(context->execute(batch_size_, bindings.data())) << "Running TensorRT failed.";
 #endif
+
+    // Copy outputs from GPU buffers if needed.
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      uint32_t eid = EntryID(outputs_[i]);
+      const std::string& name = engine_and_context.outputs[i];
+      int binding_index = engine->getBindingIndex(name.c_str());
+      ICHECK_NE(binding_index, -1);
+      if (data_entry_[eid]->ctx.device_type != kDLGPU) {
+        device_buffers[binding_index].CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
+      }
+    }
   }
 
  private:
   /*!
-   * \brief Build TensorRT engine from JSON representation.
+   * \brief Build TensorRT engine from JSON representation and cache it. If engine is already built,
+   * do nothing.
    */
   void BuildEngine() {
-    DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_;
+    batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
+    if (trt_engine_cache_.count(std::make_pair(symbol_name_, batch_size_))) return;
+    DLOG(INFO) << "Building new TensorRT engine for subgraph " << symbol_name_
+               << " with batch size " << batch_size_;
     const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
-    batch_size_ = GetBatchSize();
-    TensorRTBuilder builder(&logger_, max_workspace_size_, use_implicit_batch_, use_fp16,
-                            batch_size_);
+    TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
+                            use_fp16, batch_size_);
 
     // Add inputs and constants.
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
@@ -160,7 +191,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       const auto& node = nodes_[nid];
       std::string name = node.GetOpName();
       if (node.GetOpType() == "input") {
-        builder.AddInput(nid, node);
+        builder.AddInput(nid, EntryID(nid, 0), node);
       } else {
         ICHECK_EQ(node.GetOpType(), "const");
         uint32_t eid = EntryID(nid, 0);
@@ -177,12 +208,14 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
     // Add outputs.
     for (size_t i = 0; i < outputs_.size(); ++i) {
-      builder.AddOutput(outputs_[i]);
+      builder.AddOutput(outputs_[i], EntryID(outputs_[i]));
     }
 
     // Build engine.
-    trt_engine_cache_[symbol_name_] = builder.BuildEngine();
-    DLOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_;
+    trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)] = builder.BuildEngine();
+    DLOG(INFO) << "Finished building TensorRT engine for subgraph " << symbol_name_
+               << " with batch size " << batch_size_;
+    CacheEngineToDisk();
   }
 
   /*! \brief If TVM_TENSORRT_CACHE_DIR is set, will check that directory for
@@ -217,7 +250,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
     helper.DeclareField("inputs", &engine_and_context.inputs);
     helper.DeclareField("outputs", &engine_and_context.outputs);
     helper.ReadAllFields(&reader);
-    trt_engine_cache_[symbol_name_] = engine_and_context;
+    const int batch_size = 1;
+    trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
     return true;
   }
 
@@ -225,13 +259,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * directory so it can be loaded later.
    */
   void CacheEngineToDisk() {
+    batch_size_ = data_entry_[input_var_eid_[0]]->shape[0];
     std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return;
     std::string key = GetSubgraphKey();
     std::string path = cache_dir + "/" + key + ".plan";
     DLOG(INFO) << "Caching TensorRT engine to " << path;
     // Serialize engine to disk
-    nvinfer1::IHostMemory* serialized_engine = trt_engine_cache_[symbol_name_].engine->serialize();
+    nvinfer1::IHostMemory* serialized_engine =
+        trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)].engine->serialize();
     SaveBinaryToFile(path, std::string(static_cast<const char*>(serialized_engine->data()),
                                        serialized_engine->size()));
     serialized_engine->destroy();
@@ -239,8 +275,10 @@ class TensorRTRuntime : public JSONRuntimeBase {
     std::ostringstream os;
     dmlc::JSONWriter writer(&os);
     writer.BeginObject();
-    writer.WriteObjectKeyValue("inputs", trt_engine_cache_[symbol_name_].inputs);
-    writer.WriteObjectKeyValue("outputs", trt_engine_cache_[symbol_name_].outputs);
+    writer.WriteObjectKeyValue("inputs",
+                               trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)].inputs);
+    writer.WriteObjectKeyValue(
+        "outputs", trt_engine_cache_[std::make_pair(symbol_name_, batch_size_)].outputs);
     writer.EndObject();
     std::string meta_path = cache_dir + "/" + key + ".meta";
     SaveBinaryToFile(meta_path, os.str());
@@ -267,7 +305,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
   /*! \brief Map of function name to TRT engine if built already. */
-  std::unordered_map<std::string, TensorRTEngineAndContext> trt_engine_cache_;
+  std::unordered_map<std::pair<std::string, int>, TensorRTEngineAndContext, PairHash>
+      trt_engine_cache_;
 
   /*! \brief TensorRT logger. */
   TensorRTLogger logger_;

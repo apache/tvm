@@ -21,6 +21,7 @@ from tvm.ir import container as _container, PointerType, PrimType
 
 from . import stmt as _stmt
 from . import expr as _expr
+from . import op
 
 
 class WithScope(object):
@@ -103,7 +104,8 @@ class BufferVar(ObjectGeneric):
         index = self._linear_index(index)
         if t.lanes > 1:
             base = index * t.lanes
-            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
+            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
+            index = _expr.Ramp(base, stride, t.lanes)
         return _expr.Load(self._content_type, self._buffer_var, index)
 
     def __setitem__(self, index, value):
@@ -116,7 +118,8 @@ class BufferVar(ObjectGeneric):
         t = DataType(self._content_type)
         if t.lanes > 1:
             base = index * t.lanes
-            index = _expr.Ramp(base, const(1, base.dtype), t.lanes)
+            stride = 1 if (not hasattr(base, "dtype")) else const(1, base.dtype)
+            index = _expr.Ramp(base, stride, t.lanes)
         self._builder.emit(_stmt.Store(self._buffer_var, value, index))
 
 
@@ -198,6 +201,9 @@ class IRBuilder(object):
             node = _expr.StringImm(node)
         if isinstance(value, string_types):
             value = _expr.StringImm(value)
+        # thread_extent could be zero for dynamic workloads
+        if attr_key == "thread_extent":
+            value = op.max(1, value)
         self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
     def for_range(self, begin, end, name="i", dtype="int32", for_type="serial"):

@@ -49,7 +49,7 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 # .. code-block:: bash
 #
-#   git clone --recursive https://github.com/apache/incubator-tvm tvm
+#   git clone --recursive https://github.com/apache/tvm tvm
 #   cd tvm
 #   make runtime -j2
 #

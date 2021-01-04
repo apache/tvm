@@ -89,14 +89,16 @@ PrimExpr InjectPredicate(const Array<PrimExpr>& predicates, PrimExpr body) {
   using tir::SelectNode;
   if (predicates.size() == 0) return body;
   const ReduceNode* reduce = body.as<ReduceNode>();
-  auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
 
   if (reduce) {
     auto n = make_object<ReduceNode>(*reduce);
-    n->condition = foldl(fand, n->condition, predicates);
+    n->condition = foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                         n->condition, predicates);
     return PrimExpr(n);
   }
-  return Select(foldl(fand, const_true(1), predicates), body, make_zero(body.dtype()));
+  return Select(foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                      const_true(1), predicates),
+                body, make_zero(body.dtype()));
 }
 
 // Replace data flow appears in all stages given the tensor change.
@@ -502,7 +504,7 @@ void RebaseNonZeroMinLoop(ScheduleNode* sch) {
   }
 }
 
-void InjectInline(ScheduleNode* sch) {
+void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   sch->InvalidateCache();
 
   std::vector<Array<PrimExpr> > new_body(sch->stages.size());
@@ -524,7 +526,15 @@ void InjectInline(ScheduleNode* sch) {
           args.push_back(iv->var);
         }
         ICHECK_EQ(compute->body.size(), 1U) << "can only inline compute op with 1 output";
-        body = compute->body[0];
+
+        if (feature_extraction_mode && compute->attrs.count("const_matrix")) {
+          // Use constant value to replace access of const matrices.
+          // This produces wrong IR but is good enough for feature extraction purposes.
+          // This simplification can accelerate the feature extration and evolutionary search.
+          body = make_const(compute->output_dtype(0), 1.0f);
+        } else {
+          body = compute->body[0];
+        }
       }
       for (size_t j = i; j < sch->stages.size(); ++j) {
         Stage s = sch->stages[j];
@@ -700,7 +710,15 @@ void LegalizeInvalidAttach(ScheduleNode* sch) {
 
 Schedule Schedule::normalize() {
   Schedule sn = copy();
-  InjectInline(sn.operator->());
+  InjectInline(sn.operator->(), false);
+  RebaseNonZeroMinLoop(sn.operator->());
+  LegalizeInvalidAttach(sn.operator->());
+  return sn;
+}
+
+Schedule Schedule::normalize_for_feature_extraction() {
+  Schedule sn = copy();
+  InjectInline(sn.operator->(), true);
   RebaseNonZeroMinLoop(sn.operator->());
   LegalizeInvalidAttach(sn.operator->());
   return sn;
@@ -790,9 +808,10 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   const ReduceNode* reduce = compute_op->body[idx].as<ReduceNode>();
   ICHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  auto fand = [](PrimExpr a, PrimExpr b) { return a && b; };
 
-  PrimExpr predicate = likely(foldl(fand, const_true(1), predicates));
+  PrimExpr predicate =
+      likely(foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                   const_true(1), predicates));
 
   std::unordered_map<const VarNode*, PrimExpr> vsub;
 

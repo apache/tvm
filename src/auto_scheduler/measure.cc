@@ -27,6 +27,8 @@
 
 #include <algorithm>
 
+#include "search_policy/empty_policy.h"
+#include "search_policy/sketch_policy.h"
 #include "utils.h"
 
 namespace tvm {
@@ -36,6 +38,7 @@ TVM_REGISTER_NODE_TYPE(MeasureInputNode);
 TVM_REGISTER_NODE_TYPE(BuildResultNode);
 TVM_REGISTER_NODE_TYPE(MeasureResultNode);
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
+TVM_REGISTER_OBJECT_TYPE(PythonBasedMeasureCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramRunnerNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramMeasurerNode);
@@ -183,6 +186,25 @@ Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
   return Array<MeasureResult>();
 }
 
+/********** MeasureCallback **********/
+PythonBasedMeasureCallback::PythonBasedMeasureCallback(PackedFunc callback_func) {
+  auto node = make_object<PythonBasedMeasureCallbackNode>();
+  node->callback_func = std::move(callback_func);
+  data_ = std::move(node);
+}
+
+void PythonBasedMeasureCallbackNode::Callback(const SearchPolicy& policy,
+                                              const Array<MeasureInput>& inputs,
+                                              const Array<MeasureResult>& results) {
+  if (auto* sketch_policy = static_cast<SketchPolicyNode*>(policy.operator->())) {
+    callback_func(GetRef<SketchPolicy>(sketch_policy), inputs, results);
+  } else if (auto* empty_policy = static_cast<EmptyPolicyNode*>(policy.operator->())) {
+    callback_func(GetRef<EmptyPolicy>(empty_policy), inputs, results);
+  } else {
+    LOG(FATAL) << "Unrecognized search policy type. Expect SketchPolicy or EmptyPolicy";
+  }
+}
+
 /********** ProgramMeasurer **********/
 ProgramMeasurer::ProgramMeasurer(ProgramBuilder builder, ProgramRunner runner,
                                  Optional<Array<MeasureCallback>> callbacks, int verbose,
@@ -203,12 +225,15 @@ void ProgramMeasurerNode::Reset() {
   best_flops.clear();
   best_ct.clear();
   best_state.clear();
+  has_valid.clear();
 }
 
 Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
                                                   const SearchPolicy& policy,
                                                   const Array<MeasureInput>& inputs,
                                                   int batch_size) {
+  auto t_begin = std::chrono::high_resolution_clock::now();
+
   Array<MeasureResult> results;
   results.reserve(inputs.size());
 
@@ -217,8 +242,9 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     batch_size = builder->n_parallel * 2;
   }
 
-  StdCout(verbose) << "Get " << inputs.size() << " programs for measure. (This may take a while)"
-                   << std::endl;
+  int old_verbosity = verbose;
+
+  StdCout(verbose) << "Get " << inputs.size() << " programs to measure:" << std::endl;
 
   for (size_t i = 0; i < inputs.size(); i += batch_size) {
     Array<MeasureInput> input_batch(inputs.begin() + i,
@@ -230,16 +256,18 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
 
     // update current best state according to the new measure result
     for (size_t j = 0; j < input_batch.size(); ++j) {
+      const String& workload_key = input_batch[j]->task->workload_key;
       double flops;
+
       if (result_batch[j]->error_no == 0) {
         flops = task->compute_dag->flop_ct / FloatArrayMean(result_batch[j]->costs);
         error_ct = 0;
+        has_valid.insert(workload_key);
       } else {
         flops = 0.0;
         error_ct++;
       }
 
-      const String& workload_key = input_batch[j]->task->workload_key;
       if (flops > best_flops[workload_key]) {
         best_flops[workload_key] = flops;
         best_state[workload_key] = input_batch[j]->state;
@@ -247,11 +275,12 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
       }
 
       ct++;
-      StdCout(verbose) << std::fixed << std::setprecision(2) << Chars('=', 50) << "\n"
-                       << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
-                       << best_flops[workload_key] / 1e9 << "\tresults: " << result_batch[j] << "\n"
-                       << Chars('=', 50) << "\n"
-                       << input_batch[j]->state << "\n";
+      StdCout(verbose, 2) << std::fixed << std::setprecision(2) << Chars('=', 50) << "\n"
+                          << "No: " << ct << "\tGFLOPS: " << flops / 1e9 << " / "
+                          << best_flops[workload_key] / 1e9 << "\tresults: " << result_batch[j]
+                          << "\n"
+                          << Chars('=', 50) << "\n"
+                          << input_batch[j]->state << "\n";
     }
 
     // Call callback functions
@@ -267,9 +296,15 @@ Array<MeasureResult> ProgramMeasurerNode::Measure(const SearchTask& task,
     }
 
     if (error_ct > max_continuous_error) {
-      LOG(FATAL) << "Too many errors happened during tuning";
+      LOG(WARNING) << "Too many errors happened during tuning. Switching to debug mode."
+                   << std::endl;
+      verbose = 2;
+    } else {
+      verbose = old_verbosity;
     }
   }
+
+  PrintTimeElapsed(t_begin, "measurement", verbose);
 
   return results;
 }
@@ -345,6 +380,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.MeasureResult")
     .set_body_typed([](Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
                        double timestamp) {
       return MeasureResult(costs, error_no, error_msg, all_cost, timestamp);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.PythonBasedMeasureCallback")
+    .set_body_typed([](PackedFunc callback_func) {
+      return PythonBasedMeasureCallback(callback_func);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ProgramMeasurer")
