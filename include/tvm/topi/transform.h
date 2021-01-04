@@ -1387,7 +1387,8 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
 }
 
 /*!
- * \brief Compute the sparse segment sum on the indices over the segment_ids
+ * \brief Compute the sparse segment sum on the indices over the segment_ids divided by the sqrt 
+ * of the length of the segment
  *
  * \param data A Tensor with data that will be assembled in the output.
  * \param selected_indices A 1-D Tensor with indices into data. Has same rank as segment_ids.
