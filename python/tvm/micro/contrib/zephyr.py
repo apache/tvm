@@ -103,7 +103,8 @@ class ZephyrCompiler(tvm.micro.Compiler):
             # Raise this error instead of a potentially-more-cryptic compiler error due to a missing
             # prj.conf.
             raise ProjectNotFoundError(
-                f"project_dir supplied to ZephyrCompiler does not exist: {project_dir}")
+                f"project_dir supplied to ZephyrCompiler does not exist: {project_dir}"
+            )
 
         self._board = board
         if west_cmd is None:
