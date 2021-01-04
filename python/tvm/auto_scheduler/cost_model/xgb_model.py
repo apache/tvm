@@ -118,7 +118,7 @@ class XGBModel(PythonBasedModel):
         self.verbose_eval = verbose_eval
         self.model_file = model_file
         if model_file:
-            logger.info("XGBModel: Load pretrained model from %s..." % model_file)
+            logger.info("XGBModel: Load pretrained model from %s...", model_file)
             self.load(model_file)
 
         super().__init__()
@@ -150,8 +150,7 @@ class XGBModel(PythonBasedModel):
             # Set a training threshold related to `last_train_length` to reduce the training
             # overhead when there're too many logs
             return
-        else:
-            self.last_train_length = len(self.inputs)
+        self.last_train_length = len(self.inputs)
 
         # extract feature
         n_cached = len(self.inputs_feature_cache)
