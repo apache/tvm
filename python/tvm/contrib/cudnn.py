@@ -390,6 +390,8 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
             groups,
         )
         oshape[0] = x.shape[0]
+        # This picks CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM
+        # It seems this is the fastest among algorithms that are always applicable
         algo = 1
 
     if dims == 4:
