@@ -87,7 +87,7 @@ def make_search_policies(
                 model_file=load_model_file,
             )
             if load_log_file:
-                logger.info("TaskScheduler: Reload measured states and pretrain model...")
+                logger.info("TaskScheduler: Reload measured states and train the model...")
                 cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()
