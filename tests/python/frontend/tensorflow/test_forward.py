@@ -1835,7 +1835,7 @@ def _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments
         )
 
 
-def test_sparse_segment_sqrtn():
+def test_forward_sparse_segment_sqrtn():
     """ sparse_segment_sqrtn test"""
 
     data_np = np.array([[1, 2, 3, 4], [-1, -2, -3, -4], [5, 6, 7, 8]], dtype=np.float32)

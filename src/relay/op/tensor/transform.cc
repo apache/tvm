@@ -1604,6 +1604,10 @@ RELAY_REGISTER_OP("sparse_segment_sqrtn")
     .add_argument("indices", "Tensor", "The second tensor")
     .add_argument("segment_ids", "Tensor", "The third tensor")
     .add_type_rel("sparse_segment_sqrtn", SparseSegmentSqrtNRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_support_level(3)
+    .set_attr<FTVMCompute>("FTVMCompute", SparseSegmentSqrtNCompute);
+
 TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -1666,8 +1670,7 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_support_level(3)
-    .set_attr<FTVMCompute>("FTVMCompute", SparseSegmentSqrtNCompute);
+    .set_attr<FTVMCompute>("FTVMCompute", SparseFillEmptyRowsCompute);
 
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);
