@@ -38,7 +38,10 @@
 
 static char g_last_error[1024];
 
-void TVMAPISetLastError(const char* msg) { strncpy(g_last_error, msg, sizeof(g_last_error)); }
+void TVMAPISetLastError(const char* msg) {
+  strncpy(g_last_error, msg, sizeof(g_last_error) - 1);
+  g_last_error[sizeof(g_last_error) - 1] = 0;
+}
 
 __attribute__((format(printf, 1, 2))) int TVMAPIErrorf(const char* msg, ...) {
   va_list args;
