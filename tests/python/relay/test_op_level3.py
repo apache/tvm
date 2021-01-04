@@ -1137,6 +1137,115 @@ def test_sparse_segment_sqrtn():
     segment_ids_np = np.array([0, 1, 1], dtype=np.int32)
     num_segments = None
     verify_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments)
+def test_sparse_fill_empty_rows():
+    def ref_sparse_fill_empty_rows(
+        sparse_indices: np.ndarray,
+        sparse_values: np.ndarray,
+        default_value: np.ndarray,
+        dense_shape: np.ndarray,
+    ) -> None:
+        """
+        This function calculates the expected output of sparse_fill_empty_rows operator given the
+        inputs.
+        """
+        new_sparse_indices = -1 * np.ones(
+            (sparse_indices.shape[0] + dense_shape[0], sparse_indices.shape[1])
+        )
+        empty_row_indicator = np.ones(dense_shape[0], dtype=bool)
+        new_sparse_values = -1 * np.ones(sparse_indices.shape[0] + dense_shape[0])
+        slice_element_index = np.array(0, dtype=np.int32)
+
+        for i in range(sparse_indices.shape[0]):
+            empty_row_indicator[sparse_indices[i][0]] = False
+
+        new_sparse_indices[: sparse_indices.shape[0]][:] = sparse_indices[:]
+        new_sparse_values[: sparse_values.shape[0]] = sparse_values[:]
+        new_sparse_indices_index = sparse_indices.shape[0]
+
+        for empty_row_index, element in enumerate(empty_row_indicator):
+            if element:
+                new_sparse_indices[new_sparse_indices_index, 0] = empty_row_index
+                new_sparse_indices[new_sparse_indices_index, 1:] = 0
+                new_sparse_values[new_sparse_indices_index] = default_value[0]
+                new_sparse_indices_index += 1
+            else:
+                slice_element_index += 1
+
+        return new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index
+
+    def verify_sparse_fill_empty_rows(
+        sparse_indices_np: np.ndarray,
+        sparse_values_np: np.ndarray,
+        default_value_np: np.ndarray,
+        dense_shape_np: np.ndarray,
+    ) -> None:
+        """
+        This function verifies the relay output of sparse_fill_empty_rows with its expected output.
+        """
+        sparse_indices = relay.var(
+            "sparse_indices",
+            relay.TensorType(sparse_indices_np.shape, str(sparse_indices_np.dtype)),
+        )
+        sparse_values = relay.var(
+            "sparse_values", relay.TensorType(sparse_values_np.shape, str(sparse_values_np.dtype))
+        )
+        default_value = relay.var(
+            "default_value", relay.TensorType(default_value_np.shape, str(default_value_np.dtype))
+        )
+        z = relay.op.sparse_fill_empty_rows(
+            sparse_indices, sparse_values, default_value, list(dense_shape_np)
+        ).astuple()
+        func = relay.Function([sparse_indices, sparse_values, default_value], z)
+
+        ref_res = ref_sparse_fill_empty_rows(
+            sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+        )
+        for target, ctx in tvm.testing.enabled_targets():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np, default_value_np)
+                for op_res_item, ref_res_item in zip(op_res, ref_res):
+                    tvm.testing.assert_allclose(op_res_item.asnumpy(), ref_res_item, rtol=1e-5)
+
+    sparse_indices_np = np.array([[0, 1], [0, 3], [2, 0], [3, 1]], dtype=np.int32)
+    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
+    dense_shape_np = np.array([5, 6], dtype=np.int32)
+    default_value_np = np.array([10], dtype=np.int32)
+    verify_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.array([[1, 1, 1], [1, 3, 1], [2, 0, 5], [3, 1, 6]], dtype=np.int32)
+    sparse_values_np = np.array([1, 2, 3, 4], dtype=np.int32)
+    dense_shape_np = np.array([7, 7, 7], dtype=np.int32)
+    default_value_np = np.array([10], dtype=np.int32)
+    verify_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.array([[1], [2]], dtype=np.int32)
+    sparse_values_np = np.array([7, 8], dtype=np.int32)
+    dense_shape_np = np.array([5], dtype=np.int32)
+    default_value_np = np.array([4], dtype=np.int32)
+    verify_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.ones((0, 1), dtype=np.int32)
+    sparse_values_np = np.array([], dtype=np.int32)
+    dense_shape_np = np.array([5], dtype=np.int32)
+    default_value_np = np.array([4], dtype=np.int32)
+    verify_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
+
+    sparse_indices_np = np.ones((0, 3), dtype=np.int32)
+    sparse_values_np = np.array([], dtype=np.int32)
+    dense_shape_np = np.array([9, 3, 7], dtype=np.int32)
+    default_value_np = np.array([100], dtype=np.int32)
+    verify_sparse_fill_empty_rows(
+        sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
+    )
 
 
 @tvm.testing.uses_gpu
@@ -1411,10 +1520,7 @@ def test_adv_index():
 
 if __name__ == "__main__":
     test_sparse_segment_sqrtn()
-    import sys
-
-    sys.exit()
-
+    test_sparse_fill_empty_rows()
     test_cast()
     test_zeros_ones()
     test_unary_identity()

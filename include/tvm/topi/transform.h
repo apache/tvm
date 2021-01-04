@@ -506,7 +506,7 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
     begin_ids.push_back(idx);
   }
 
-  Array<Array<PrimExpr>> out_shapes;
+  Array<Array<PrimExpr> > out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     PrimExpr out_axis_size;
     if (i == begin_ids.size() - 1) {
@@ -1436,6 +1436,95 @@ inline Array<Tensor> SparseSegmentSqrtN(const Tensor& data, const Tensor& select
       name, tag));
   return result;
 }  // namespace topi
+
+/*!
+ * \brief Fill empty rows of a sparse tensor with default values
+ *
+ * \param sparse_indices Indices where values of the dense tensor exist
+ * \param sparse_values Values at the above indices respectively
+ * \param default_value Default value at to be used at empty rows
+ * \param dense_shape Dense shape of the sparse tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the SparseFillEmptyRows operation
+ */
+inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Tensor& sparse_values,
+                                         const Tensor& default_value,
+                                         const Array<Integer>& dense_shape,
+                                         const std::string name = "T_sparse_fill_empty_rows",
+                                         std::string tag = kInjective) {
+  Array<Tensor> result;
+  Array<PrimExpr> sp_ordered_output_shape;
+  sp_ordered_output_shape.push_back(dense_shape[0] + sparse_indices->shape[0]);
+  if (sparse_indices->shape.size() > 1) {
+    sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
+  }
+  auto empty_row_indicator =
+      compute(Array<PrimExpr>{dense_shape[0]}, [&](const Array<Var>& indices) {
+        PrimExpr ret = PrimExpr(Bool(1));
+        for (int i = 0; i < GetConstInt(sparse_indices->shape[0]); ++i) {
+          PrimExpr sparse_index;
+          if (sparse_indices->shape.size() == 1) {
+            sparse_index = sparse_indices[i];
+          } else {
+            sparse_index = sparse_indices[i][0];
+          }
+          ret = if_then_else(sparse_index == indices[0], PrimExpr(Bool(0)), ret);
+        }
+        return ret;
+      });
+  result.push_back(compute(
+      sp_ordered_output_shape,
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = -1;
+        ret = if_then_else(indices[0] < sparse_indices->shape[0], sparse_indices(indices), ret);
+        PrimExpr empty_row_count = 0;
+        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+          empty_row_count =
+              if_then_else(empty_row_indicator[i], empty_row_count + 1, empty_row_count);
+          PrimExpr at_correct_index =
+              (indices[0] == (sparse_indices->shape[0] + empty_row_count - 1));
+          PrimExpr condition = at_correct_index && empty_row_indicator[i];
+
+          ret = if_then_else(condition, i, ret);
+          if (indices.size() > 1) {
+            ret = if_then_else(condition && indices[1] > 0, 0, ret);
+          }
+        }
+        return ret;
+      },
+      name, tag));
+  result.push_back(empty_row_indicator);
+  result.push_back(compute(
+      Array<PrimExpr>{sp_ordered_output_shape[0]},
+      [&](const Array<Var>& indices) {
+        PrimExpr ret = -1;
+        ret = if_then_else(indices[0] < sparse_values->shape[0], sparse_values(indices), ret);
+        PrimExpr empty_row_count = 0;
+        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+          empty_row_count =
+              if_then_else(empty_row_indicator[i], empty_row_count + 1, empty_row_count);
+          PrimExpr condition =
+              (indices[0] == sparse_values->shape[0] + empty_row_count - 1) && empty_row_count > 0;
+          ret = if_then_else(condition, default_value[0], ret);
+        }
+        return ret;
+      },
+      name, tag));
+  result.push_back(compute(
+      Array<PrimExpr>{1},
+      [&](const Array<Var>& indices) {
+        PrimExpr non_empty_rows = 0;
+        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+          non_empty_rows = if_then_else(empty_row_indicator[i], non_empty_rows, non_empty_rows + 1);
+        }
+        return non_empty_rows;
+      },
+      name, tag));
+  return result;
+}
+
 /*!
  * \brief Transform the layout according to \p src_layout and \p dst_layout
  * \param src the source input.

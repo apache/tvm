@@ -1367,3 +1367,83 @@ def sparse_segment_sqrtn(data, indices, segment_ids, num_segments=None):
     if not num_segments:
         num_segments = -1
     return _make.sparse_segment_sqrtn(data, indices, segment_ids, num_segments)
+
+
+def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape):
+    """
+    Fill first column of the empty rows with default values for a sparse array.
+    It returns a TupleWrapper with four outputs
+
+    Parameters
+    ----------
+    sparse_indices : relay.Expr
+        A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
+        number of sparse values and n_dim is the number of dimensions of the dense_shape
+
+    sparse_values : relay.Expr
+        A 1-D tensor[N] containing the sparse values for the sparse indices.
+
+    default_value : relay.Expr
+        A 1-D tensor containing the default value for the remaining locations.
+
+    dense_shape : relay.Expr
+        A list of integers. Shape of the dense output tensor.
+
+    Returns
+    -------
+    new_sparse_indices : relay.Expr
+        A 2-D tensor[N + dense_shape[0], n_dim] of integers containing location of new sparse
+        indices where N is the number of sparse values. It is filled with -1 at irrelevant indices
+        which will be sliced in a future op discarding non-useful elements. This is done since the
+        real rows of new_sparse_indices depends on the input.
+
+    empty_row_indicator : relay.Expr
+        A 1-D Boolean tensor[dense_shape[0]] indicating whether the particular row is empty
+
+    new_sparse_values : relay.Expr
+        A 1-D tensor[dense_shape[0]] containing the sparse values for the sparse indices. It is
+        filled with -1 at indices which will be discarded in the following strided_slice op.
+        This is done since the real rows of new_sparse_indices depends on the input.
+
+    non_empty_rows : relay.Expr
+        A 1-D tensor containing the amount of non-empty rows in the sparse_indices. This value will
+        be used to slice irrelevant indices(filled with -1) in new_sparse_values and
+        new_sparse_indices
+
+    Examples
+    -------
+    .. code-block:: python
+
+        sparse_indices = [[0, 1],
+                         [0, 3],
+                         [2, 0],
+                         [3, 1]]
+        sparse_values = [1, 2, 3, 4]
+        default_value = [10]
+        dense_shape = [5, 6]
+        new_sparse_indices, empty_row_indicator, new_sparse_values, slice_element_index =
+                            relay.sparse_fill_empty_rows(
+                            sparse_indices,
+                            sparse_values,
+                            default_value,
+                            dense_shape)
+        new_sparse_indices = [[0, 1],
+                             [0, 3],
+                             [2, 0],
+                             [3, 1],
+                             [1, 0],
+                             [4, 0],
+                             [-1, -1],
+                             [-1, -1],
+                             [-1, -1]]
+
+        empty_row_indicator = [False, True, False, False, True]
+
+        new_sparse_values = [1, 2, 3, 4, 10, 10, -1, -1, -1]
+
+        slice_element_index = [3]
+
+    """
+    return TupleWrapper(
+        _make.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape), 4
+    )
