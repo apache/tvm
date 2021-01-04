@@ -2693,6 +2693,8 @@ _convert_map = {
     "_npi_multiply_scalar": _binop_scalar(_op.multiply),
     "_npi_add": _rename(_op.add),
     "_npi_add_scalar": _binop_scalar(_op.add),
+    "_npi_subtract": _rename(_op.subtract),
+    "_npi_subtract_scalar": _binop_scalar(_op.subtract),
     "_npi_where_rscalar": _mx_npi_where_rscalar,
     "_npi_less": _rename(_op.less),
     "_npi_less_equal": _mx_compare(_op.less_equal, _rename),

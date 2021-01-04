@@ -2062,8 +2062,14 @@ def test_forward_npx_reshape(data_shape, out_shape, dtype, target, reverse, ctx,
 @tvm.testing.parametrize_targets
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
 def test_forward_npi_binary(data_shape, dtype, target, ctx, kind):
-    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.less]
-    mx_ops = [mx.sym.np.power, mx.sym.np.multiply, mx.sym.np.add, mx.sym.np.less]
+    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.subtract, mx.np.less]
+    mx_ops = [
+        mx.sym.np.power,
+        mx.sym.np.multiply,
+        mx.sym.np.add,
+        mx.sym.np.subtract,
+        mx.sym.np.less,
+    ]
     for i in range(len(ref_ops)):
         ref_op = ref_ops[i]
         mx_op = mx_ops[i]
@@ -2092,8 +2098,14 @@ def test_forward_npi_binary(data_shape, dtype, target, ctx, kind):
 @pytest.mark.parametrize("scalar", [1.0, 2.0, 3.0, 4.0])
 @pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
 def test_forward_npi_binary_scalar(data_shape, dtype, scalar, target, ctx, kind):
-    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.true_divide]
-    mx_ops = [mx.sym.np.power, mx.sym.np.multiply, mx.sym.np.add, mx.sym.np.true_divide]
+    ref_ops = [mx.np.power, mx.np.multiply, mx.np.add, mx.np.subtract, mx.np.true_divide]
+    mx_ops = [
+        mx.sym.np.power,
+        mx.sym.np.multiply,
+        mx.sym.np.add,
+        mx.sym.np.subtract,
+        mx.sym.np.true_divide,
+    ]
     for i in range(len(ref_ops)):
         ref_op = ref_ops[i]
         mx_op = mx_ops[i]

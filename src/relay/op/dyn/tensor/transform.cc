@@ -90,7 +90,6 @@ Array<te::Tensor> ReshapeCompute(const Attrs& attrs, const Array<te::Tensor>& in
 
 Expr MakeReshape(Expr data, Expr newshape) {
   auto attrs = make_object<ReshapeAttrs>();
-  attrs->reverse = false;
   static const Op& op = Op::Get("dyn.reshape");
   return Call(op, {data, newshape}, Attrs(attrs), {});
 }

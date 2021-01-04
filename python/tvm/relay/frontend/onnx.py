@@ -932,14 +932,6 @@ class ScaledTanh(OnnxOpConverter):
         return _op.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
 
 
-class SoftPlus(OnnxOpConverter):
-    """Operator converter for SoftPlus."""
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        return _op.log(_op.exp(inputs[0]) + _expr.const(1.0))
-
-
 class Softsign(OnnxOpConverter):
     """Operator converter for Softsign."""
 
@@ -2661,7 +2653,6 @@ def _get_convert_map(opset):
         "OneHot": OneHot.get_converter(opset),
         # 'Hardmax'
         "Softsign": Softsign.get_converter(opset),
-        "SoftPlus": SoftPlus.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
         "Mod": Mod.get_converter(opset),

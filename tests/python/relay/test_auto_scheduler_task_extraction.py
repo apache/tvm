@@ -132,6 +132,15 @@ def test_task_extraction():
     dtype = "float32"
     target = tvm.target.Target("llvm")
 
+    def verify_task_extraction(func, expected_task, include_simple_tasks=False):
+        mod = tvm.IRModule.from_expr(func)
+        tasks, task_weights = auto_scheduler.extract_tasks(
+            mod["main"], None, target, include_simple_tasks=include_simple_tasks
+        )
+
+        assert len(tasks) == expected_task
+        assert len(task_weights) == expected_task
+
     def get_func():
         data = relay.var("data", shape=(ishape), dtype=dtype)
         weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
@@ -161,6 +170,29 @@ def test_task_extraction():
         out = relay.image.affine_grid(data, (150, 150))
         return relay.Function([data], out)
 
+    def get_shape_of_func():
+        data = relay.var("data", shape=(relay.Any(), 28, 28), dtype="float32")
+        out = relay.shape_of(data)
+        return relay.Function([data], out)
+
+    def get_func_with_dynamic_shape():
+        data = relay.var("data", shape=(relay.Any(), 32), dtype="float32")
+        out = relay.max(data)
+        return relay.Function(relay.analysis.free_vars(out), out)
+
+    def get_func_with_control_flow():
+        data = relay.var("data", shape=(1, 3, 224, 224))
+        weight = relay.var("weight", shape=(32, 3, 3, 3))
+        eq1 = relay.var("e1", shape=[], dtype="float32")
+        eq2 = relay.var("e2", shape=[], dtype="float32")
+        eq = relay.equal(eq1, eq2)
+
+        true_branch = relay.zeros(shape=(1, 32, 222, 222), dtype="float32")
+        false_branch = relay.nn.conv2d(data, weight, kernel_size=(3, 3), channels=32)
+        ife = relay.If(eq, true_branch, false_branch)
+        out = relay.erf(ife)
+        return relay.Function([data, weight, eq1, eq2], out)
+
     def get_func_with_unsupported_op():
         def get_postproc_func():
             data = relay.var("data", shape=((1, 3, 6)), dtype=dtype)
@@ -180,48 +212,30 @@ def test_task_extraction():
         out = relay.Call(get_postproc_func(), [nms])
         return relay.Function([cls_prob, loc_pred, anchors], out)
 
-    func = get_func()
-    mod = tvm.IRModule.from_expr(func)
-    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
-
     # Relay FuseOps puts two conv2ds to separate functions and results in two tasks.
-    assert len(tasks) == 2
-    assert len(task_weights) == 2
-
-    func = get_fused_func()
-    mod = tvm.IRModule.from_expr(func)
-    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+    verify_task_extraction(get_func(), 2)
 
     # By setting the function to primitive, Relay FuseOps will not break it and result in one task.
-    assert len(tasks) == 1
-    assert len(task_weights) == 1
-
-    func = get_simple_func()
-    mod = tvm.IRModule.from_expr(func)
-    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], None, target)
+    verify_task_extraction(get_fused_func(), 1)
 
     # The Relay function without complex ops will not form a task by default.
-    assert len(tasks) == 0
-    assert len(task_weights) == 0
-
-    tasks, task_weights = auto_scheduler.extract_tasks(
-        mod["main"], None, target, include_simple_tasks=True
-    )
+    verify_task_extraction(get_simple_func(), 0)
 
     # Every Relay function becomes a task regardless what ops in its body.
-    assert len(tasks) == 1
-    assert len(task_weights) == 1
+    verify_task_extraction(get_simple_func(), 1, True)
+
+    # The Relay function without any reduce op is considered as a simple task.
+    verify_task_extraction(get_shape_of_func(), 0)
+    verify_task_extraction(get_shape_of_func(), 1, True)
+
+    # The Relay function with dynamic shape inputs/outputs will not be extracted.
+    verify_task_extraction(get_func_with_dynamic_shape(), 0)
+
+    # The Conv2D in the Relay function with control flow could still be a task.
+    verify_task_extraction(get_func_with_control_flow(), 1)
 
     # Func1 (with NMS) -> Func2 (injective).
-    func = get_func_with_unsupported_op()
-    mod = tvm.IRModule.from_expr(func)
-    tasks, task_weights = auto_scheduler.extract_tasks(
-        mod["main"], None, target, include_simple_tasks=True
-    )
-
-    # The function with NMS should fail, but the other function with ReLU should be a task.
-    assert len(tasks) == 1
-    assert len(task_weights) == 1
+    verify_task_extraction(get_func_with_unsupported_op(), 1, True)
 
 
 if __name__ == "__main__":

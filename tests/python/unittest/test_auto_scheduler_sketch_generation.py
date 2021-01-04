@@ -32,6 +32,7 @@ from test_auto_scheduler_common import (
     softmax_nm_auto_scheduler_test,
     softmax_abcd_auto_scheduler_test,
     conv2d_winograd_nhwc_auto_scheduler_test,
+    zero_rank_reduce_auto_scheduler_test,
 )
 
 
@@ -252,6 +253,12 @@ def test_cpu_conv2d_winograd_sketch():
     assert sketches[1] != sketches[2]
 
 
+def test_cpu_zero_rank_sketch():
+    sketches = generate_sketches(zero_rank_reduce_auto_scheduler_test, (128,), "llvm")
+    """ 2 rfactor sketches + 1 multi-level tiling sketches """
+    assert len(sketches) == 3
+
+
 @tvm.testing.requires_cuda
 def test_cuda_matmul_sketch():
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "cuda")
@@ -385,6 +392,13 @@ def test_cuda_conv2d_winograd_sketch():
     assert_is_not_tiled(sketches[0].stages[12])
 
 
+@tvm.testing.requires_cuda
+def test_cuda_zero_rank_sketch():
+    sketches = generate_sketches(zero_rank_reduce_auto_scheduler_test, (128,), "cuda")
+    """ 1 cross thread reuction sketch + 1 multi-level tiling sketch """
+    assert len(sketches) == 2
+
+
 if __name__ == "__main__":
     test_cpu_matmul_sketch()
     test_cpu_conv2d_bn_relu_sketch()
@@ -392,9 +406,11 @@ if __name__ == "__main__":
     test_cpu_min_sketch()
     test_cpu_softmax_sketch()
     test_cpu_conv2d_winograd_sketch()
+    test_cpu_zero_rank_sketch()
     test_cuda_matmul_sketch()
     test_cuda_conv2d_bn_relu_sketch()
     test_cuda_max_pool2d_sketch()
     test_cuda_min_sketch()
     test_cuda_softmax_sketch()
     test_cuda_conv2d_winograd_sketch()
+    test_cuda_zero_rank_sketch()
