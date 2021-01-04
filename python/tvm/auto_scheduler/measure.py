@@ -652,7 +652,6 @@ def local_build_worker(args):
         The build result of this Builder thread.
     """
     inp, build_func, timeout, verbose = args
-    assert any(build_func == name for name in BuildFunc.name)
     build_func = BuildFunc.build_func
 
     res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
