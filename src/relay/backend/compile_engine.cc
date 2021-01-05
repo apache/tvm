@@ -561,7 +561,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Call shape function
     auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
     data_dependants_.pop_back();
-    data_dependants_per_input_.pop_back();
     readable_name_stream_ << "_" << op->name;
     return outputs;
   }
