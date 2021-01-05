@@ -24,7 +24,9 @@ microTVM runs TVM models on bare-metal (i.e. IoT) devices. microTVM depends only
 library, and doesn't require an operating system to execute. microTVM is currently under heavy
 development.
 
-.. image:: ../dev/microtvm_workflow.svg
+.. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_workflow.svg
+   :align: center
+   :width: 85%
 
 microTVM is:
 

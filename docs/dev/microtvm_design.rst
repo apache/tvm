@@ -46,7 +46,9 @@ This section discusses our vision of the "typical" microTVM use case. Each compo
 this typical use case is intended to be designed for flexibility, but this unifying vision serves to
 motivate the inclusion of each part of the design.
 
-.. image:: microtvm_workflow.svg
+.. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_workflow.svg
+   :align: center
+   :width: 85%
 
 The parts of this process are described below:
 
@@ -78,7 +80,7 @@ microTVM aims to achieve these design goals:
 2. **Minimal Overhead**. microTVM generates target-specific, highly optimized code. As much overhead
    from the runtime should be removed.
 3. **Accessible Code**. microTVM considers C source code as a first-class output mechanism so that
-   it is easier for a firmware engineer to understand and tweak. microTVM
+   it is easier for a firmware engineer to understand and tweak.
 
 Overview
 ========
@@ -193,8 +195,8 @@ microTVM supports two ways to do this:
 
 1. **Host-Driven**. The Graph Runtime can run on the host and carry out execution by issuing
    commands to the device using an RPC link with a UART-like transport.
-2. **Standalone**. A C Graph Runtime is available to compiled on-device, but it is not particularly
-   memory efficient. This way enables standalone execution without any attached host.
+2. **Standalone**. A C Graph Runtime is available to be compiled on-device, but it is not
+   particularly memory efficient. This way enables standalone execution without any attached host.
 
 Host-Driven is designed for experimenting with models on-device and, like AutoTVM, uses the RPC server to
 drive computation on-device. Standalone is intended for deployment.
@@ -213,14 +215,18 @@ In Host-Driven execution, the firmware binary is the following:
 This firmware image is flashed onto the device and a GraphRuntime instance is created on the host.
 The GraphRuntime drives execution by sending RPC commands over a UART:
 
-.. image:: microtvm_host_driven.svg
+.. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_host_driven.svg
+   :align: center
+   :width: 85%
 
 Standalone Execution
 ^^^^^^^^^^^^^^^^^^^^
 
 In Standalone execution, the GraphRuntime is instantiated on device:
 
-.. image:: microtvm_standalone.svg
+.. figure:: https://raw.githubusercontent.com/tvmai/web-data/main/images/dev/microtvm_standalone.svg
+   :align: center
+   :width: 85%
 
 microTVM Firmware
 ------------------
@@ -296,7 +302,7 @@ Measuring operator performance
 ------------------------------
 
 The TVM C runtime depends on user-supplied functions to measure time on-device. Users should implement
-``TVMPlatformTimerStart`` and ``TVMPlatformTimerStop``. These functions should measure wall time, so there
+``TVMPlatformTimerStart`` and ``TVMPlatformTimerStop``. These functions should measure wall clock time, so there
 are some pitfalls in implementing this function:
 
 1. If the CPU could halt or sleep during a computation (i.e. if it is being done on an accelerator),
@@ -317,8 +323,10 @@ Ahead-of-Time Runtime
 ----------------------
 
 A limitation of the Graph Runtime is the amount of memory overhead required in parsing the JSON.
-The current implementation contributes to the dynamic memory usage of microTVM. An ahead-of-time
-runtime can avoid the need for any Graph JSON allocations and improve inference speed.
+The current implementation contributes significantly to the dynamic memory usage of microTVM,
+limiting its utility. An ahead-of-time runtime can avoid the need for any Graph JSON parsing and
+improve inference speed by generating C code to call the generated operator implementations directly
+rather than relying on a data-driven approach with the Graph Runtime.
 
 Memory Planning
 ----------------
