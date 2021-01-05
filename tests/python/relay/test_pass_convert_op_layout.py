@@ -570,7 +570,7 @@ def test_slice_like_convert_layout():
 
 def test_transpose_convert_layout():
     def verify_transpose(after, expected_axes):
-        # Verify if the slice_like after the convert layout has the expected axes.
+        # Verify if the transpose after the convert layout has the expected axes.
         has_expected = list()
         checker = lambda x: has_expected.append(
             isinstance(x, tvm.relay.expr.Call)

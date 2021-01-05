@@ -464,9 +464,15 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
   // Infer the output layout string based on the input layout and the axes.
   if (in_layout_str != "") {
     for (auto axis : params->axes) {
+      ICHECK_LT(axis->value, in_layout_str.length());
       out_layout_str += in_layout_str[axis->value];
     }
-    return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
+    try {
+      return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
+    } catch (const dmlc::Error& e) {
+      // If the layout string is invalid for any reason, give up.
+      return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
+    }
   }
   return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
 }
