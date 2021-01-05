@@ -247,9 +247,10 @@ def decl_buffer(
         shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
     if data is None:
-        # store bool as i8
-        storage_dtype = "int8" if dtype == "bool" else dtype
-        data = Var(name, PointerType(PrimType(storage_dtype)), span)
+        # Bool is represented as uint1 in the IR, but stored as int8
+        storage_type = PrimType(dtype)
+        storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
+        data = Var(name, PointerType(storage_type), span)
     return _ffi_api.Buffer(
         data,
         dtype,

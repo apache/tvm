@@ -583,7 +583,8 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   const VarNode* buffer = op->buffer_var.as<VarNode>();
   auto it = alloc_storage_scope_.find(buffer);
   ICHECK(it != alloc_storage_scope_.end())
-      << "Cannot find alloc storage scope for buffer " << op->buffer_var;
+      << "Buffer " << op->buffer_var << " is missing an AttrStmt with a \"storage_scope\" key";
+
   std::string scope = it->second;
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {

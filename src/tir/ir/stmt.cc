@@ -274,9 +274,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
                    Stmt body, Span span) {
-  ICHECK(IsPointerType(buffer_var->type_annotation, dtype))
-      << "Allocate: buffer_var expect to have the right pointer type annotation"
-      << " annotation=" << buffer_var->type_annotation << ", dtype=" << dtype;
+  CHECK(IsPointerType(buffer_var->type_annotation, dtype))
+      << "The allocated data type (" << dtype
+      << ") does not match the type annotation of the buffer " << buffer_var << " ("
+      << buffer_var->type_annotation
+      << "). The data type should be an element of the pointer type.";
 
   for (size_t i = 0; i < extents.size(); ++i) {
     ICHECK(extents[i].defined());
