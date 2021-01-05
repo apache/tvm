@@ -78,12 +78,12 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
 }
 
 /*!
-  * \brief check if value fits in dtype
-  * \param value The value to be analyzed
-  * \param dtype The target dtype
-  * \param analyzer The analyzer
-  * \return whether value fits in dtype
-  */
+ * \brief check if value fits in dtype
+ * \param value The value to be analyzed
+ * \param dtype The target dtype
+ * \param analyzer The analyzer
+ * \return whether value fits in dtype
+ */
 bool CastIsSafe(DataType dtype, PrimExpr value, Analyzer* analyzer) {
   if (!IsIndexType(dtype)) {
     return false;
