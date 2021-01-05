@@ -2335,6 +2335,14 @@ def _mx_npi_concatenate(inputs, attrs):
         return _op.concatenate(tuple(inputs), axis=int(axis))
 
 
+def _mx_npi_stack(inputs, attrs):
+    axis = attrs.get_str("axis", "0")
+    if axis == "None":
+        return _op.reshape(_op.stack(tuple(inputs), axis=0), (-1,))
+    else:
+        return _op.stack(tuple(inputs), axis=int(axis))
+
+
 def _mx_npx_reshape(inputs, attrs):
     shape = attrs.get_int_tuple("newshape")
     reverse = attrs.get_bool("reverse", False)
@@ -2700,6 +2708,7 @@ _convert_map = {
     "_npi_less_equal": _mx_compare(_op.less_equal, _rename),
     "_npi_tanh": _rename(_op.tanh),
     "_npi_true_divide_scalar": _binop_scalar(_op.divide),
+    "_npi_stack": _mx_npi_stack,
 }
 
 # set identity list
