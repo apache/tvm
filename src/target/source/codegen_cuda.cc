@@ -581,7 +581,10 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   int32_t constant_size = op->constant_allocation_size();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
   const VarNode* buffer = op->buffer_var.as<VarNode>();
-  std::string scope = alloc_storage_scope_.at(buffer);
+  auto it = alloc_storage_scope_.find(buffer);
+  ICHECK(it != alloc_storage_scope_.end())
+      << "Cannot find alloc storage scope for buffer " << op->buffer_var;
+  std::string scope = it->second;
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
