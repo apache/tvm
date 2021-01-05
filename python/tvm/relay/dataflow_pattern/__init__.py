@@ -480,8 +480,8 @@ class VarPattern(DFPattern):
         The type annotation on the variable.
     """
 
-    def __init__(self, name_hint: str = "", type_annotation: Optional[tvm.ir.type.Type] = None):
-        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint, type_annotation)
+    def __init__(self, name_hint: str = ""):
+        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)
 
 
 @register_df_node
