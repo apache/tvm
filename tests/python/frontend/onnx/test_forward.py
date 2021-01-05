@@ -2037,12 +2037,15 @@ def test_prelu():
 
         model = helper.make_model(graph, producer_name="prelu_test")
 
-        verify_with_ort(model, [x_shape, a_shape], list(x_shape))
+        verify_with_ort(
+            model, [x_shape, a_shape], list(x_shape), use_vm=True, convert_to_static=True
+        )
 
     verify_prelu([3, 4, 5, 6], [1, 4, 1, 1])
     verify_prelu([1, 8, 5, 6], [1, 8, 1, 1])
     verify_prelu([2, 12, 16, 16], [1, 12, 1, 1])
     verify_prelu([2, 12, 16, 16], [1])  # Test alpha broadcasting.
+    verify_prelu([3, 1], [3, 1])  # Test non NCHW workload.
 
 
 @tvm.testing.uses_gpu
