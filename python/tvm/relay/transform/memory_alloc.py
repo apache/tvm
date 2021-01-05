@@ -204,7 +204,6 @@ class ManifestAllocPass(ExprMutator):
         is_inputs = []
         input_pos = 0
         cpu_ctx = nd.cpu(0)
-
         for i, (arg, state) in enumerate(zip(new_args, input_states)):
             state = int(state)
             # Pass Shapes

@@ -490,7 +490,7 @@ bool IsDataDependant(const CallNode* call) {
     }
   }
 
-  for (auto req: tshape_data_dependant[op]) {
+  for (auto req : tshape_data_dependant[op]) {
     if (req->value != 0) return true;
   }
   return false;

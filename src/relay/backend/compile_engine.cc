@@ -336,7 +336,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   MakeShapeFunc() {}
 
   std::pair<te::Schedule, CachedFunc> Create(const Function& prim_func) {
-    for (auto param: prim_func->params) {
+    for (auto param : prim_func->params) {
       param_states_[param] = kNoNeed;
       Array<tvm::te::Tensor> data_inputs;
       Array<tvm::te::Tensor> shape_inputs;
@@ -524,8 +524,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       for (size_t i = 1; i < call_node->args.size(); ++i) {
         dep_spec.push_back(dep_spec[0]);
       }
-    } else {
-      // ICHECK_EQ(dep_spec.size(), call_node->args.size());
     }
 
     // Visit all inputs
@@ -607,8 +605,9 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
   std::unordered_map<Expr, Array<te::Tensor>, ObjectPtrHash, ObjectPtrEqual> param_shapes_;
-  /*! \brief Stack of data dependencies for shape function */
+  /*! \brief Stack of data dependencies for shape function, specified per op */
   std::vector<bool> data_dependants_;
+  /*! \brief Stack of data dependencies for shape function, specified per each op input */
   std::vector<bool> data_dependants_per_input_;
   /*! \brief Scalars used in the shape function */
   Array<te::Tensor> scalars_;
