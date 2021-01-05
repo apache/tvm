@@ -2752,6 +2752,46 @@ Expr MakeSliceLike(Expr data, Expr shape_like, Array<Integer> axes) {
   return Call(op, {data, shape_like}, Attrs(attrs), {});
 }
 
+Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  Array<Integer> new_axes;
+  if (old_in_layouts.defined() && new_in_layouts.defined()) {
+    ICHECK_EQ(new_in_layouts.size(), 2);
+    ICHECK_EQ(new_in_layouts[0]->name, new_in_layouts[1]->name);
+    ICHECK_EQ(old_in_layouts.size(), 2);
+    ICHECK_EQ(old_in_layouts[0]->name, old_in_layouts[1]->name);
+
+    auto old_layout = old_in_layouts[0];
+    auto new_layout = new_in_layouts[0];
+
+    // Discard "const" qualifier.
+    auto* params = const_cast<SliceLikeAttrs*>(attrs.as<SliceLikeAttrs>());
+    ICHECK(params != nullptr);
+
+    for (auto axis : params->axes) {
+      auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
+      // Cannot find the target axis in the new layout.
+      if (new_axis == -1) {
+        new_axes.clear();
+        break;
+      }
+      new_axes.push_back(new_axis);
+    }
+    if (!new_axes.empty()) {
+      params->axes = std::move(new_axes);
+      return Array<Array<Layout>>({{new_layout, new_layout}, {new_layout}});
+    }
+  }
+
+  if (old_in_layouts.defined()) {
+    ICHECK_EQ(old_in_layouts.size(), 2);
+    return {{old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]}};
+  }
+  return Array<Array<Layout>>({{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}});
+}
+
 Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                    const Type& out_type) {
   const auto* param = attrs.as<SliceLikeAttrs>();
@@ -2801,6 +2841,7 @@ RELAY_REGISTER_OP("slice_like")
     .set_support_level(10)
     .add_type_rel("SliceLike", SliceLikeRel)
     .set_attr<FTVMCompute>("FTVMCompute", SliceLikeCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SliceLikeInferCorrectLayout)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.layout_transform
