@@ -3969,8 +3969,7 @@ def test_loop():
     verify_count_loop()
 
 
-@tvm.testing.uses_gpu
-def test_if():
+def verify_if(cond_array):
     # Given a bool scalar input cond.
     # return constant tensor x if cond is True, otherwise return constant tensor y.
     then_out = onnx.helper.make_tensor_value_info("then_out", onnx.TensorProto.FLOAT, [5])
@@ -4007,13 +4006,23 @@ def test_if():
     )
 
     if_model = onnx.helper.make_model(if_graph)
-    cond = np.array(1).astype("bool")
+    if cond_array:
+        cond = np.array([1]).astype("bool")
+    else:
+        cond = np.array(1).astype("bool")
     correct_out = x if cond else y
 
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output_with_vm(if_model, [cond], target, ctx, freeze_params=True)
         for i in range(len(tvm_out)):
             tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+
+
+@tvm.testing.uses_gpu
+def test_if():
+    # Confirm that if works with cond as an array or scalar.
+    verify_if(cond_array=False)
+    verify_if(cond_array=True)
 
 
 @tvm.testing.uses_gpu
