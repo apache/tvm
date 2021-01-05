@@ -19,7 +19,6 @@
 """Cost model based on xgboost"""
 import multiprocessing
 import logging
-import os
 from collections import defaultdict
 
 import numpy as np
@@ -314,9 +313,6 @@ class XGBModel(PythonBasedModel):
         file_name: str
             The filename
         """
-        if not os.path.isfile(file_name):
-            return
-
         if self.bst is None:
             self.bst = xgb.Booster(self.xgb_params)
         self.bst.load_model(file_name)

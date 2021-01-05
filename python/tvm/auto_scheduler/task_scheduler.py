@@ -86,7 +86,10 @@ def make_search_policies(
                 num_warmup_sample=len(tasks) * num_measures_per_round,
                 model_file=load_model_file,
             )
-            if load_log_file:
+            if load_model_file:
+                logger.info("TaskScheduler: Load pretrained model...")
+                cost_model.load(load_model_file)
+            elif load_log_file:
                 logger.info("TaskScheduler: Reload measured states and train the model...")
                 cost_model.update_from_file(load_log_file)
         elif model_type == "random":
