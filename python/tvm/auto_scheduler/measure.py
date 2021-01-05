@@ -328,7 +328,7 @@ class LocalBuilder(ProgramBuilder):
         elif build_func == "ndk":
             BuildFunc.name = "ndk"
             BuildFunc.build_func = ndk.create_shared
-        elif not isinstance(build_func, str):
+        elif callable(build_func):
             BuildFunc.name = "custom"
             BuildFunc.build_func = build_func
         else:
