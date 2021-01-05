@@ -124,6 +124,7 @@ class XGBModel(PythonBasedModel):
         self.num_warmup_sample = num_warmup_sample
         self.verbose_eval = verbose_eval
         self.model_file = model_file
+        self.adapative_training = adapative_training
 
         super().__init__()
 
