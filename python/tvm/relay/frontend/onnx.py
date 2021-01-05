@@ -2266,6 +2266,9 @@ class If(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         cond = inputs[0]
+        # Convert array to bool if needed.
+        if len(infer_shape(cond)) > 0:
+            cond = _op.take(cond, _expr.const(0, dtype="int64"))
         then_branch = attr.get("then_branch", None)
         else_branch = attr.get("else_branch", None)
         assert then_branch is not None and else_branch is not None
