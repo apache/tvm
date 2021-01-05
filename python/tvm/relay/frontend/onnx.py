@@ -822,13 +822,11 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        input_channels = infer_shape(inputs[0])[1]
-        alpha_shape = infer_shape(inputs[1])
-        if len(alpha_shape) != 1:
-            alpha = _op.reshape(inputs[1], (-1,))
-        else:
-            alpha = inputs[1]
-        return _op.nn.prelu(inputs[0], _op.broadcast_to(alpha, [input_channels]))
+        input_shape = _op.shape_of(inputs[0])
+        alpha = _op.broadcast_to_like(inputs[1], inputs[0])
+        alpha = _op.reshape(alpha, [-1])
+        output = _op.nn.prelu(_op.reshape(inputs[0], [-1]), alpha, axis=0)
+        return _op.reshape(output, input_shape)
 
 
 class Reciprocal(OnnxOpConverter):
