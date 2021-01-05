@@ -202,7 +202,7 @@ Host-Driven is designed for experimenting with models on-device and, like AutoTV
 drive computation on-device. Standalone is intended for deployment.
 
 Host-Driven Execution
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^
 
 In Host-Driven execution, the firmware binary is the following:
 
@@ -252,7 +252,7 @@ When configuring for standalone deployment, the firmware needs to:
 4. Run the model.
 
 Parts of a microTVM Binary
-------------------------
+--------------------------
 
 To summarize, a microTVM firwmare binary image must contain these parts:
 
@@ -337,12 +337,12 @@ coalesces memory allocations within 16x of each other, this strategy typically r
 peak memory usage.
 
 Heterogeneous Execution
-------------------
+-----------------------
 
 Newer Cortex-M SoC can contain multiple CPUs and onboard ML accelerators.
 
 
 Autotuning Target
-----------------
+-----------------
 
 As discussed previously,

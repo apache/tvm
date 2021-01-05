@@ -46,7 +46,7 @@ demos run against QEMU and the following hardware:
 
 
 Getting Started with microTVM
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Before working with microTVM, we recommend you have a supported development board. Then, follow these
 tutorials to get started with microTVM:
@@ -66,7 +66,7 @@ You can read more about the design of these pieces at the :doc:`microTVM Design 
 
 
 Help and Discussion
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 The `TVM Discuss Forum <https://discuss.tvm.ai>`_ is a great place to collaborate on microTVM tasks,
 and maintains a searchable history of past problems.
