@@ -53,6 +53,18 @@ struct BuildOutput {
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
 
+struct BuildModelInput {
+  IRModule mod;
+  std::unordered_map<std::string, runtime::NDArray> params;
+};
+
+struct BuildTempOutput {
+  std::string graph_json;
+  Map<String, IRModule> mod;
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  Array<tvm::runtime::Module> ext_mods;
+};
+
 /*!
  * \brief GraphCodegen module wrapper
  *
@@ -166,6 +178,24 @@ class RelayBuildModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1], this->params_);
       });
+    } else if (name == "build_one_system_lib") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ((args.num_args - 2) % 3, 0);
+
+        std::map<std::string, BuildModelInput> mods;
+        for (int i = 2; i < args.num_args; i += 3) {
+          BuildModelInput input;
+          std::string name = args[i];
+          input.mod = args[i + 1];
+          Map<String, Constant> params = args[i + 2];
+          for (const auto& kv : params) {
+            input.params[kv.first] = kv.second->data;
+          }
+          mods[name] = input;
+        }
+
+        *rv = this->BuildOneSystemLib(mods, args[0], args[1]);
+      });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -240,6 +270,95 @@ class RelayBuildModule : public runtime::ModuleNode {
     BuildRelay(mod, params_);
     // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
     CompileEngine::Global()->Clear();
+  }
+
+  class SystemLibItem : public runtime::ModuleNode {
+   public:
+    SystemLibItem() {}
+
+    void setGraphJson(const String& graphJson) { graph_json = graphJson; }
+    void setParams(const Map<String, Constant>& params) { SystemLibItem::params = params; }
+    void setMod(const runtime::Module& mod) { SystemLibItem::mod = mod; }
+
+    PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+      if (name == "get_graph_json") {
+        return PackedFunc(
+            [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = graph_json; });
+      } else if (name == "get_params") {
+        return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = params; });
+      } else if (name == "get_module") {
+        return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = mod; });
+      } else {
+        LOG(FATAL) << "Unknown packed function: " << name;
+        return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+      }
+    }
+
+    const char* type_key() const final { return "SystemLibItem"; }
+
+   protected:
+    String graph_json;
+    Map<String, Constant> params;
+    runtime::Module mod;
+  };
+
+  Map<String, runtime::Module> BuildOneSystemLib(const std::map<std::string, BuildModelInput>& mods,
+                                                 const TargetsMap& targets,
+                                                 const tvm::Target& target_host) {
+    targets_ = targets;
+    target_host_ = target_host;
+
+    std::map<std::string, BuildTempOutput> retMap;
+
+    for (auto& kv : mods) {
+      auto relay_module = Optimize(kv.second.mod, targets_, kv.second.params);
+      // Get the updated function.
+      auto func = Downcast<Function>(relay_module->Lookup("main"));
+      graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
+      graph_codegen_->Init(nullptr, targets_);
+      graph_codegen_->Codegen(func);
+      BuildTempOutput ret;
+      ret.graph_json = graph_codegen_->GetJSON();
+      ret.params = graph_codegen_->GetParams();
+      ret.mod = graph_codegen_->GetIRModule();
+      ret.ext_mods = graph_codegen_->GetExternalModules();
+      retMap[kv.first] = ret;
+
+      CompileEngine::Global()->Clear();
+    }
+
+    Map<String, IRModule> lowered_funcs;
+
+    for (auto& kv : retMap) {
+      for (auto& kkv : kv.second.mod) {
+        if (lowered_funcs.find(kkv.first) == lowered_funcs.end()) {
+          lowered_funcs.Set(kkv.first, IRModule(Map<GlobalVar, BaseFunc>()));
+        }
+        lowered_funcs[kkv.first]->Update(kkv.second);
+      }
+    }
+
+    auto mod = tvm::build(lowered_funcs, target_host_);
+    Map<String, runtime::Module> ret;
+
+    for (auto& kv : retMap) {
+      Map<String, Constant> params;
+
+      for (const auto& kkv : kv.second.params) {
+        params.Set(kkv.first, Constant(kkv.second));
+      }
+
+      auto item = make_object<SystemLibItem>();
+      item->setParams(params);
+      item->setGraphJson(String(kv.second.graph_json));
+      item->setMod(mod);
+      ret.Set(kv.first, runtime::Module(item));
+    }
+
+    // Clear compile engine so that tuning schedules can be changed between runs. See issue #6096.
+    CompileEngine::Global()->Clear();
+
+    return ret;
   }
 
  protected:

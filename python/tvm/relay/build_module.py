@@ -19,23 +19,23 @@ Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
 import warnings
+
 import numpy as np
-
 from tvm.ir import IRModule
-
 from tvm.ir.transform import PassContext
 from tvm.tir import expr as tvm_expr
-from .. import nd as _nd, autotvm
-from ..target import Target
-from ..contrib import graph_runtime as _graph_rt
+
 from . import _build_module
-from . import ty as _ty
 from . import expr as _expr
 from . import function as _function
-from .transform import InferType
+from . import ty as _ty
 from .backend import graph_runtime_factory as _graph_runtime_factory
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
+from .transform import InferType
+from .. import nd as _nd, autotvm
+from ..contrib import graph_runtime as _graph_rt
+from ..target import Target
 
 
 def _update_target(target):
@@ -79,6 +79,7 @@ class BuildModule(object):
         self._get_graph_json = self.mod["get_graph_json"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
+        self._build_one_system_lib = self.mod["build_one_system_lib"]
         self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
@@ -144,6 +145,16 @@ class BuildModule(object):
         params = self.get_params()
 
         return graph_json, mod, params
+
+    def build_one_system_lib(self, mods, target, target_host):
+        target = _update_target(target)
+        args = []
+        for k in mods:
+            args.append(k)
+            args.append(mods[k][0])
+            args.append(mods[k][1])
+
+        return self._build_one_system_lib(target, target_host, *args)
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -275,6 +286,120 @@ def build(mod, target=None, target_host=None, params=None, mod_name="default"):
         graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
         mod = _graph_runtime_factory.GraphRuntimeFactoryModule(graph_json, mod, mod_name, params)
         return mod
+
+
+class SystemLibItem(object):
+    """
+    Use for store one-system-lib build results
+    """
+
+    def __init__(self, graph_json_str, libmod, libmod_name, params):
+        self.graph_json = graph_json_str
+        self.lib = libmod
+        self.libmod_name = libmod_name
+        self.params = params
+
+    def get_params(self):
+        return self.params
+
+    def get_json(self):
+        return self.graph_json
+
+    def get_lib(self):
+        return self.lib
+
+    def get_name(self):
+        return self.libmod_name
+
+
+def build_one_system_lib(mods, target=None, target_host=None):
+    """Helper function that builds a Relay function to run on TVM graph
+    runtime.
+
+    Parameters
+    ----------
+    mods : dict of str(lib name) to array [mod, params]
+        mod: The IR module to build. Using relay.Function is deprecated.
+
+        params : dict
+            The parameters of the final graph.
+
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
+    name) to str/tvm.target.Target, optional
+        For heterogeneous compilation, it is a dictionary indicating context to
+        target mapping. For homogeneous compilation, it is a build target.
+
+    target_host : str or :any:`tvm.target.Target`, optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    Returns
+    -------
+    ret_mods : dict of str(lib name) to SystemLibItem
+    """
+
+    if "--system-lib" not in target and "--system-lib" not in target_host:
+        raise Exception(
+            "only support build system lib, please add --system-lib to target or target_host"
+        )
+
+    def preprocess_mod(mod, params):
+        if not isinstance(mod, (IRModule, _function.Function)):
+            raise ValueError("Type of input parameter mod must be tvm.IRModule")
+
+        if isinstance(mod, _function.Function):
+            if params:
+                mod = bind_params_by_name(mod, params)
+            mod = IRModule.from_expr(mod)
+            warnings.warn(
+                "Please use input parameter mod (tvm.IRModule) "
+                "instead of deprecated parameter mod (tvm.relay.function.Function)",
+                DeprecationWarning,
+            )
+        return mod
+
+    for key in mods:
+        mods[key][0] = preprocess_mod(*mods[key])
+        mods[key][1] = {}
+
+    target = _update_target(target)
+
+    if isinstance(target_host, (str, Target)):
+        target_host = Target(target_host)
+    elif target_host:
+        raise ValueError("target host must be the type of str, " + "tvm.target.Target, or None")
+
+    # If current dispatch context is fallback context (the default root context),
+    # then load pre-tuned parameters from TopHub
+    if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+        tophub_context = autotvm.tophub.context(list(target.values()))
+    else:
+        tophub_context = autotvm.utils.EmptyContext()
+
+    with tophub_context:
+        bld_mod = BuildModule()
+        ret_mods = bld_mod.build_one_system_lib(mods, target, target_host)
+
+        ret = {}
+        for lib_name, mod in ret_mods.items():
+            # mm = ret_mod[fk]
+            graph_json = mod["get_graph_json"]()
+            params = mod["get_params"]()
+            lib = mod["get_module"]()
+
+            tmp = {}
+            for key, value in params.items():
+                tmp[key] = value.data
+            params = tmp
+
+            ret[lib_name] = SystemLibItem(graph_json, lib, lib_name, params)
+
+        return ret
 
 
 def optimize(mod, target=None, params=None):
