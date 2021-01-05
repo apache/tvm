@@ -419,6 +419,58 @@ bool TransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
+Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  // Discard "const" qualifier.
+  auto* params = const_cast<TransposeAttrs*>(attrs.as<TransposeAttrs>());
+  ICHECK(params != nullptr);
+
+  std::string in_layout_str = "";
+  std::string out_layout_str = "";
+
+  // Infer the input layout string and update the axes.
+  if (old_in_layouts.defined()) {
+    ICHECK_EQ(old_in_layouts.size(), 1);
+    auto old_layout = old_in_layouts[0];
+
+    if (new_in_layouts.defined()) {
+      ICHECK_EQ(new_in_layouts.size(), 1);
+      auto new_layout = new_in_layouts[0];
+
+      // Update the axes based on the new layout.
+      Array<Integer> new_axes;
+      for (auto axis : params->axes) {
+        auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
+        if (new_axis == -1) { // Cannot find the target axis in the new layout.
+          new_axes.clear();
+          break;
+        }
+        new_axes.push_back(new_axis);
+      }
+      if (!new_axes.empty()) {
+        params->axes = std::move(new_axes);
+        in_layout_str = new_layout.name();
+      }
+    }
+
+    // If the input layout string cannot be determined, propagate the old layout.
+    if (in_layout_str == "") {
+      in_layout_str = old_layout.name();
+    }
+  }
+
+  // Infer the output layout string based on the input layout and the axes.
+  if (in_layout_str != "") {
+    for (auto axis : params->axes) {
+      out_layout_str += in_layout_str[axis->value];
+    }
+    return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
+  }
+  return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
+}
+
 Array<te::Tensor> TransposeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                    const Type& out_type) {
   const auto* param = attrs.as<TransposeAttrs>();
@@ -449,6 +501,7 @@ RELAY_REGISTER_OP("transpose")
     .set_support_level(3)
     .add_type_rel("Transpose", TransposeRel)
     .set_attr<FTVMCompute>("FTVMCompute", TransposeCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", TransposeInferCorrectLayout)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 /* relay.reshape */

@@ -568,6 +568,60 @@ def test_slice_like_convert_layout():
     verify_slice_like(after, [1, 2])
 
 
+def test_transpose_convert_layout():
+    def verify_transpose (after, expected_axes):
+        # Verify if the slice_like after the convert layout has the expected axes.
+        has_expected = list()
+        checker = lambda x: has_expected.append(
+            isinstance(x, tvm.relay.expr.Call)
+            and x.op.name == "transpose"
+            and str(x.attrs.axes) == str(expected_axes)
+        )
+        relay.analysis.post_order_visit(after, checker)
+        assert any(has_expected)
+
+    def func_nhwc():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight1 = relay.var("weight1", shape=(3, 3, 64, 32))
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        z = relay.var("z", shape=(56, 56, 32))
+        out = relay.add(y, z)
+        out = relay.transpose(out, axes=[0, 1, 2, 3])
+        out = relay.nn.batch_flatten(out)
+        return relay.Function(analysis.free_vars(out), out)
+
+    after = run_opt_pass(func_nhwc(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
+    verify_transpose(after, [0, 3, 1, 2])
+
+    def func_nchw():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(32, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        z = relay.var("z", shape=(32, 56, 56))
+        out = relay.add(y, z)
+        out = relay.transpose(out, axes=[0, 2, 3, 1])
+        out = relay.nn.batch_flatten(out)
+        return relay.Function(analysis.free_vars(out), out)
+
+    after = run_opt_pass(func_nchw(), transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
+    verify_transpose(after, [0, 1, 2, 3])
+
 def test_resnet_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -1482,6 +1536,7 @@ if __name__ == "__main__":
     test_dual_path_convert_layout()
     test_bn_convert_layout()
     test_slice_like_convert_layout()
+    test_transpose_convert_layout
     test_resnet_convert_layout()
     test_scalar_convert_layout()
     test_conv_bn_convert_layout()
