@@ -443,7 +443,7 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
       Array<Integer> new_axes;
       for (auto axis : params->axes) {
         auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
-        if (new_axis == -1) { // Cannot find the target axis in the new layout.
+        if (new_axis == -1) {  // Cannot find the target axis in the new layout.
           new_axes.clear();
           break;
         }

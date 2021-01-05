@@ -569,7 +569,7 @@ def test_slice_like_convert_layout():
 
 
 def test_transpose_convert_layout():
-    def verify_transpose (after, expected_axes):
+    def verify_transpose(after, expected_axes):
         # Verify if the slice_like after the convert layout has the expected axes.
         has_expected = list()
         checker = lambda x: has_expected.append(
@@ -621,6 +621,7 @@ def test_transpose_convert_layout():
 
     after = run_opt_pass(func_nchw(), transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
     verify_transpose(after, [0, 1, 2, 3])
+
 
 def test_resnet_convert_layout():
     def before():
