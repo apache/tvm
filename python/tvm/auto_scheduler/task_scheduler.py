@@ -91,7 +91,7 @@ def make_search_policies(
                 model_file=load_model_file,
                 adapative_training=adapative_training,
             )
-            if load_model_file:
+            if load_model_file and os.path.isfile(load_model_file):
                 logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
