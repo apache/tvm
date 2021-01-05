@@ -73,7 +73,7 @@ def make_search_policies(
         task scheduler, search policies and cost models will be restored according to this file.
     adapative_training: bool = False
         Option used for XGBModel, which will reduce the model training frequency when there're too
-        many logs
+        many logs.
 
     Returns
     -------

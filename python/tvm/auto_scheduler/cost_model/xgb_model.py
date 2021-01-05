@@ -88,8 +88,14 @@ class XGBModel(PythonBasedModel):
     their predictions.
     """
 
-    def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None, model_file=None,
-                 adapative_training=False):
+    def __init__(
+        self,
+        verbose_eval=25,
+        num_warmup_sample=100,
+        seed=None,
+        model_file=None,
+        adapative_training=False,
+    ):
         global xgb
         try:
             if xgb is None:
@@ -144,8 +150,10 @@ class XGBModel(PythonBasedModel):
         self.inputs.extend(inputs)
         self.results.extend(results)
 
-        if self.adapative_training and \
-            len(self.inputs) - self.last_train_length < self.last_train_length / 5:
+        if (
+            self.adapative_training
+            and len(self.inputs) - self.last_train_length < self.last_train_length / 5
+        ):
             # Set a training threshold related to `last_train_length` to reduce the training
             # overhead when there're too many logs
             return
