@@ -278,8 +278,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Syntatic Sugar
 DFPattern DFPattern::operator()(const std::vector<DFPattern>& args) {
-  return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args), NullValue<Attrs>(),
-                     Array<Type>());
+  return CallPattern(GetRef<DFPattern>(this->get()), Array<DFPattern>(args));
 }
 DFPattern DFPattern::operator+(const DFPattern& other) {
   return IsOp("add")({GetRef<DFPattern>(this->get()), other});
