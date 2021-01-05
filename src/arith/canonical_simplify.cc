@@ -77,7 +77,14 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
   }
 }
 
-bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
+/*!
+  * \brief check if value fits in dtype
+  * \param value The value to be analyzed
+  * \param dtype The target dtype
+  * \param analyzer The analyzer
+  * \return whether value fits in dtype
+  */
+bool CastIsSafe(DataType dtype, PrimExpr value, Analyzer* analyzer) {
   if (!IsIndexType(dtype)) {
     return false;
   }
@@ -90,11 +97,6 @@ bool CheckCastImpl(DataType dtype, PrimExpr value, Analyzer* analyzer) {
   }
   return false;
 }
-
-#define TVM_CHECK_CANONICAL_SIMPLIFY_CAST(DTYPE, VALUE) \
-  if (!CheckCastImpl(DTYPE, VALUE, analyzer)) {         \
-    return false;                                       \
-  }
 
 /*!
  * \brief Internal "Split normal form" of expression.
@@ -148,12 +150,12 @@ class SplitExprNode : public CanonicalExprNode {
   void MulToSelf(int64_t scale) { this->scale *= scale; }
 
   /*!
-   * \brief check if cast(dtype, self) is safe
+   * \brief check if cast can be pushed to sub-expressions
    * \param dtype The target datatype
    * \param analyzer The analyzer
-   * \return whether the cast is safe or not
+   * \return whether the cast can be safely pushed to children
    */
-  bool CheckCast(DataType dtype, Analyzer* analyzer) const {
+  bool CanPushCastToChildren(DataType dtype, Analyzer* analyzer) const {
     // cast(dtype, index % upper_factor / lower_factor * scale) ==
     // cast(dtype, index) % upper_factor / lower_factor * scale
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
@@ -165,19 +167,27 @@ class SplitExprNode : public CanonicalExprNode {
     if (this->scale == 0) {
       return true;
     }
-    TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+    if (!CastIsSafe(dtype, res, analyzer)) {
+      return false;
+    }
     if (this->upper_factor != SplitExprNode::kPosInf) {
       res = ModImpl(res, make_const(this->dtype, this->upper_factor), div_mode);
-      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
     }
     if (this->lower_factor != 1) {
       res = DivImpl(res, make_const(this->dtype, this->lower_factor), div_mode);
-      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
     }
     if (this->scale != 1) {
       ICHECK(!this->dtype.is_uint() || this->scale > 0);
       res = res * make_const(this->dtype, this->scale);
-      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
     }
     return true;
   }
@@ -186,7 +196,7 @@ class SplitExprNode : public CanonicalExprNode {
    * \brief self = cast(dtype, self)
    * \param dtype The target datatype
    */
-  void CastTo(DataType dtype) {
+  void PushCastToChildren(DataType dtype) {
     this->index = cast(dtype, this->index);
     this->dtype = dtype;
   }
@@ -319,12 +329,12 @@ class SumExprNode : public CanonicalExprNode {
   void AddToSelf(const SumExpr& other, int64_t scale);
 
   /*!
-   * \brief check if cast(dtype, self) is safe
+   * \brief check if cast can be pushed to sub-expressions
    * \param dtype The target datatype
    * \param analyzer The analyzer
-   * \return whether the cast is safe or not
+   * \return whether the cast can be safely pushed to children
    */
-  bool CheckCast(DataType dtype, Analyzer* analyzer) const {
+  bool CanPushCastToChildren(DataType dtype, Analyzer* analyzer) const {
     // cast(dtype, arg_1 + arg_2 + ... arg_n) ==
     // cast(dtype, arg_1) + ... + cast(dtype, arg_n)
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
@@ -336,26 +346,34 @@ class SumExprNode : public CanonicalExprNode {
     for (size_t i = 0; i < args.size(); ++i) {
       if (args[i]->scale > 0) {
         res = res + args[i]->Normalize();
-        TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+        if (!CastIsSafe(dtype, res, analyzer)) {
+          return false;
+        }
       }
     }
     if (base > 0) {
       res = res + make_const(dtype, base);
-      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
     }
     // negative scales follows using sub.
     for (size_t i = 0; i < args.size(); ++i) {
       if (args[i]->scale < 0) {
         res = res - args[i]->NormalizeWithScale(-1);
-        TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+        if (!CastIsSafe(dtype, res, analyzer)) {
+          return false;
+        }
       }
     }
     if (base < 0) {
       res = res - make_const(dtype, -base);
-      TVM_CHECK_CANONICAL_SIMPLIFY_CAST(dtype, res)
+      if (!CastIsSafe(dtype, res, analyzer)) {
+        return false;
+      }
     }
     for (const auto& arg : args) {
-      if (!arg->CheckCast(dtype, analyzer)) {
+      if (!arg->CanPushCastToChildren(dtype, analyzer)) {
         return false;
       }
     }
@@ -366,9 +384,9 @@ class SumExprNode : public CanonicalExprNode {
    * \brief self = cast(dtype, self)
    * \param dtype The target datatype
    */
-  void CastTo(DataType dtype) {
+  void PushCastToChildren(DataType dtype) {
     for (auto& arg : args) {
-      arg.CopyOnWrite()->CastTo(dtype);
+      arg.CopyOnWrite()->PushCastToChildren(dtype);
     }
     this->dtype = dtype;
   }
@@ -501,8 +519,6 @@ class SumExprNode : public CanonicalExprNode {
     return res;
   }
 };
-
-#undef TVM_CHECK_CANONICAL_SIMPLIFY_CAST
 
 class SumExpr : public PrimExpr {
  public:
@@ -1199,16 +1215,17 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   // normalize
   PrimExpr value = this->CanonicalMutate(op->value);
   PrimExpr ret;
+  // PushCastToChildren
   if (value.as<SumExprNode>()) {
     SumExpr se = Downcast<SumExpr>(value);
-    if (se->CheckCast(op->dtype, analyzer_)) {
-      se.CopyOnWrite()->CastTo(op->dtype);
+    if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
+      se.CopyOnWrite()->PushCastToChildren(op->dtype);
       ret = se;
     }
   } else if (value.as<SplitExprNode>()) {
     SplitExpr se = Downcast<SplitExpr>(value);
-    if (se->CheckCast(op->dtype, analyzer_)) {
-      se.CopyOnWrite()->CastTo(op->dtype);
+    if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
+      se.CopyOnWrite()->PushCastToChildren(op->dtype);
       ret = se;
     }
   }
