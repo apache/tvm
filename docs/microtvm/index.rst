@@ -59,7 +59,7 @@ tutorials to get started with microTVM:
 
 
 How microTVM Works
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 
 You can read more about the design of these pieces at the :doc:`microTVM Design Document </dev/microtvm_design>`.
