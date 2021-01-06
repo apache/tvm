@@ -452,7 +452,7 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
       Array<Integer> new_axes;
       if (new_layout.ndim() == old_layout.ndim()) {
         // Make sure old and new layouts have consistent dimensions.
-        // For example, transpose does not support NCHW8c so it cannot be the new layout.
+        // For example, transpose does not support NCHW[x]c so it cannot be the new layout.
         for (auto axis : params->axes) {
           auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
           if (new_axis == -1) {  // Cannot find the target axis in the new layout.
