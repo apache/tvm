@@ -56,7 +56,10 @@ def call_all_topi_funcs(mod, params, target):
 
     with transform.PassContext(
         opt_level=3,
-        config={"relay.backend.use_auto_scheduler": True},
+        config={
+            "relay.backend.use_auto_scheduler": True,
+            "relay.backend.disable_compile_engine_cache": True,
+        },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
         try:
@@ -132,8 +135,7 @@ def extract_tasks(
     # create search tasks
     tasks = []
     weights = []
-    for wkl_key, ccache_key in env.wkl_key_to_ccache_key.items():
-        dag = ComputeDAG(wkl_key)
+    for wkl_key, weight in env.wkl_key_to_weight.items():
         tasks.append(
             SearchTask(
                 workload_key=wkl_key,
@@ -145,7 +147,7 @@ def extract_tasks(
                 layout_rewrite_option=LayoutRewriteOption.get_target_default(target, True),
             )
         )
-        weights.append(use_count_dict[ccache_key] + 1)
+        weights.append(weight)
 
     # clean the cached lowering results
     engine.clear()
@@ -169,7 +171,7 @@ class TracingEnvironment:
     def __init__(self, tracing_mode):
         self.tracing_mode = tracing_mode
         self.relay_disable_build_cache = "false"
-        self.wkl_key_to_ccache_key = {}
+        self.wkl_key_to_weight = {}
 
     def __enter__(self):
         TracingEnvironment.current = self
@@ -178,17 +180,17 @@ class TracingEnvironment:
     def __exit__(self, exc_type, exc_val, exc_tb):
         TracingEnvironment.current = None
 
-    def add_workload_key(self, workload_key, ccache_key):
+    def add_workload_key(self, workload_key):
         """Add the workload key of a search task
 
         Parameters
         ----------
         workload_key: str
             The workload key of a task
-        ccache_key: CCacheKey
-            The corresponding ccache_key of the task
         """
-        self.wkl_key_to_ccache_key[workload_key] = ccache_key
+        if workload_key not in self.wkl_key_to_weight:
+            self.wkl_key_to_weight[workload_key] = 0
+        self.wkl_key_to_weight[workload_key] += 1
 
 
 @tvm._ffi.register_func("auto_scheduler.enter_layout_rewrite")
@@ -305,9 +307,7 @@ def auto_schedule_topi(outs):
     elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
-            engine = relay.backend.compile_engine.get()
-            ccache_key = engine.get_current_ccache_key()
-            env.add_workload_key(key, ccache_key)
+            env.add_workload_key(key)
         schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode

@@ -701,7 +701,9 @@ class CompileEngineImpl : public CompileEngineNode {
     } else {
       value = CCacheValue(make_object<CCacheValueNode>());
       value->use_count = 0;
-      cache_[key] = value;
+      if (!backend::IsCompileEngineCacheDisabled()) {
+        cache_[key] = value;
+      }
     }
     cur_ccache_key_ = key;
 
@@ -832,6 +834,7 @@ CompileEngine& CompileEngine::Global() {
 }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.disable_compile_engine_cache", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
     .set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
