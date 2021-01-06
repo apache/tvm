@@ -280,7 +280,6 @@ def auto_schedule_topi(outs):
         An initial schdule in the tracing mode.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import relay
 
     io_tensors, has_layout_free, has_complex_op = traverse_to_get_io_tensors(outs)
     if not io_tensors:  # The compute includes dynamic shapes which are not supported yet.
