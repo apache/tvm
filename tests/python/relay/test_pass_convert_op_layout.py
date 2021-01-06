@@ -569,7 +569,7 @@ def test_slice_like_convert_layout():
 
 
 def test_transpose_convert_layout():
-    def verify_transpose(after, expected_axes):
+    def verify_transpose(after, expected_axes, expected_transform_cnt):
         # Verify if the transpose after the convert layout has the expected axes.
         has_expected = list()
         checker = lambda x: has_expected.append(
@@ -578,7 +578,16 @@ def test_transpose_convert_layout():
             and str(x.attrs.axes) == str(expected_axes)
         )
         relay.analysis.post_order_visit(after, checker)
-        assert any(has_expected)
+        assert any(has_expected), after
+
+        is_transform = list()
+        checker = lambda x: is_transform.append(
+            1 if isinstance(x, tvm.relay.expr.Call) and x.op.name == "layout_transform" else 0
+        )
+        relay.analysis.post_order_visit(after, checker)
+        assert (
+            sum(is_transform) == expected_transform_cnt
+        ), "Expected %s layout_transform, but get\n%s" % (expected_transform_cnt, after)
 
     def func_nhwc():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -594,12 +603,12 @@ def test_transpose_convert_layout():
         )
         z = relay.var("z", shape=(56, 56, 32))
         out = relay.add(y, z)
-        out = relay.transpose(out, axes=[0, 1, 2, 3])
+        out = relay.transpose(out, axes=[0, 3, 1, 2])
         out = relay.nn.batch_flatten(out)
         return relay.Function(analysis.free_vars(out), out)
 
     after = run_opt_pass(func_nhwc(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
-    verify_transpose(after, [0, 3, 1, 2])
+    verify_transpose(after, [0, 1, 2, 3], 3)
 
     def func_nchw():
         x = relay.var("x", shape=(1, 64, 56, 56))
@@ -620,7 +629,27 @@ def test_transpose_convert_layout():
         return relay.Function(analysis.free_vars(out), out)
 
     after = run_opt_pass(func_nchw(), transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
-    verify_transpose(after, [0, 1, 2, 3])
+    verify_transpose(after, [0, 1, 2, 3], 3)
+
+    def func_nchw2():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var("weight1", shape=(32, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            channels=32,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        z = relay.var("z", shape=(32, 56, 56))
+        out = relay.add(y, z)
+        out = relay.transpose(out)  # No axes provided, will use the reversed axes.
+        return relay.Function(analysis.free_vars(out), out)
+
+    after = run_opt_pass(func_nchw2(), transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
+    verify_transpose(after, [2, 1, 3, 0], 3)
 
 
 def test_resnet_convert_layout():
@@ -1528,30 +1557,30 @@ def test_convert_with_config():
 
 
 if __name__ == "__main__":
-    test_qnn_binary_no_convert_layout()
-    test_no_convert_layout()
-    test_conv_convert_layout()
-    test_conv_nhwc_convert_layout()
-    test_conv_bias_pool_convert_layout()
-    test_conv_concat_convert_layout()
-    test_dual_path_convert_layout()
-    test_bn_convert_layout()
-    test_slice_like_convert_layout()
-    test_transpose_convert_layout
-    test_resnet_convert_layout()
-    test_scalar_convert_layout()
-    test_conv_bn_convert_layout()
-    test_qnn_conv_requantize_convert_layout()
-    test_qnn_conv_concat_convert_layout()
-    test_qnn_conv_add_convert_layout()
-    test_qnn_conv_nhwc_convert_layout()
-    test_conv_convert_kernel_layout()
-    test_conv_transpose_convert_layout()
-    test_conv_roi_align_convert_layout()
-    test_conv_roi_pool_convert_layout()
-    test_conv_strided_slice_convert_layout()
-    test_deformable_conv_bias_pool_convert_layout()
-    test_default_keyword()
-    test_different_ops_convert_layout()
-    test_no_desired_layout()
-    test_convert_with_config()
+    # test_qnn_binary_no_convert_layout()
+    # test_no_convert_layout()
+    # test_conv_convert_layout()
+    # test_conv_nhwc_convert_layout()
+    # test_conv_bias_pool_convert_layout()
+    # test_conv_concat_convert_layout()
+    # test_dual_path_convert_layout()
+    # test_bn_convert_layout()
+    # test_slice_like_convert_layout()
+    test_transpose_convert_layout()
+    # test_resnet_convert_layout()
+    # test_scalar_convert_layout()
+    # test_conv_bn_convert_layout()
+    # test_qnn_conv_requantize_convert_layout()
+    # test_qnn_conv_concat_convert_layout()
+    # test_qnn_conv_add_convert_layout()
+    # test_qnn_conv_nhwc_convert_layout()
+    # test_conv_convert_kernel_layout()
+    # test_conv_transpose_convert_layout()
+    # test_conv_roi_align_convert_layout()
+    # test_conv_roi_pool_convert_layout()
+    # test_conv_strided_slice_convert_layout()
+    # test_deformable_conv_bias_pool_convert_layout()
+    # test_default_keyword()
+    # test_different_ops_convert_layout()
+    # test_no_desired_layout()
+    # test_convert_with_config()

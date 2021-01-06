@@ -435,6 +435,15 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
     ICHECK_EQ(old_in_layouts.size(), 1);
     auto old_layout = old_in_layouts[0];
 
+    // Deal with default axes.
+    if (!params->axes.defined() || params->axes.size() == 0) {
+      Array<Integer> axes = Array<Integer>();
+      for (int i = old_layout.ndim() - 1; i >= 0; --i) {
+        axes.push_back(i);
+      }
+      params->axes = std::move(axes);
+    }
+
     if (new_in_layouts.defined()) {
       ICHECK_EQ(new_in_layouts.size(), 1);
       auto new_layout = new_in_layouts[0];
