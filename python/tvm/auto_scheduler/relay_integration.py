@@ -108,7 +108,6 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
-    from tvm import relay
 
     if isinstance(target, str):
         target = tvm.target.Target(target)
@@ -126,12 +125,6 @@ def extract_tasks(
         build_thread.start()
         build_thread.join()
 
-    # query the compile engine to get the number of occurrence of all tasks
-    engine = relay.backend.compile_engine.get()
-    use_count_dict = {}
-    for k, v in engine.items():
-        use_count_dict[k] = v.use_count
-
     # create search tasks
     tasks = []
     weights = []
@@ -148,9 +141,6 @@ def extract_tasks(
             )
         )
         weights.append(weight)
-
-    # clean the cached lowering results
-    engine.clear()
 
     return tasks, weights
 
