@@ -127,8 +127,10 @@ def _threefry(
     assert nrounds % 4 == 0
     assert nwords in [4, 8, 16]
 
-    assert key_buf.dtype == "uint64"  # TODO: support 32 bit inputs
-    assert key_buf.dtype == counter_buf.dtype
+    # The paper has constants for 32 bit threefry, but we keep the implementation simple by only
+    # using 64-bit words.
+    assert key_buf.dtype == "uint64", "threefry only supports 64-bit keys"
+    assert key_buf.dtype == counter_buf.dtype, "threefry key and counter must be the same dtype"
 
     def mix(a, b, rotation):
         x = a + b  # TODO should be wrapping
@@ -148,9 +150,8 @@ def _threefry(
     # initial key constant, full_key[nwords] is equivalent to k_{N_W} in the Skein paper.
     full_key[nwords] = tvm.tir.const(0x1BD11BDAA9FC1A22, dtype="uint64")
     for i in range(nwords):
-        full_key[nwords] ^= key_buf[key_offset + i]  # TODO: wrapping
+        full_key[nwords] ^= key_buf[key_offset + i]
 
-    # TODO: overwrite counter instead?
     with irb.for_range(0, out_shape, dtype="uint64", name="i") as i:
         for j in range(nwords):
             out_buf[out_offset + i * nwords + j] = counter_buf[counter_offset + j] + i
@@ -236,7 +237,7 @@ def threefry_generate(gen, out_shape):
         # enough room in the counter.
         tmp = irb.allocate(gen.dtype, 10, name="tmp", scope="global")
 
-        # TODO(tkonolige): for now we only use the last word of the counter for counting. Its too
+        # TODO(tkonolige): for now we only use the last word of the counter for counting. It is too
         # much work to figure out how to do 128 bit addition.
 
         # Max value for counter should be 2**64-2 because we need to reserve a special value to
@@ -302,7 +303,7 @@ def threefry_generate(gen, out_shape):
 
 
 def _shift_right(irb, a, b, out_a, a_off, out_b, b_off):
-    """Shift a 128bit number composed of two 64 bit words right by one"""
+    """Binary shift a 128bit number composed of two 64 bit words right by one."""
     with irb.if_scope(a == 1):
         out_a[a_off] = tir.const(0, dtype=a.dtype)
         out_b[b_off] = tir.const(0x8000000000000000, dtype=a.dtype)

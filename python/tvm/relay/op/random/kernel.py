@@ -104,7 +104,7 @@ def threefry_split(key):
     .. code-block:: python
 
         def foo(key):
-            new_key, num = threefry_generate(key, (1,))
+            new_key, num = threefry_generate(key, (4,))
             return num
 
         key = threefry_key(0)
