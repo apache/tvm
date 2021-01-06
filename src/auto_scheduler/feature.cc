@@ -1462,12 +1462,18 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
     if (find_res == task_cache.end()) {
       if (inputs[i]->task->compute_dag.defined()) {  // the measure input is complete
         task = inputs[i]->task;
-      } else {  // the measure input is incomplete
-        // rebuild task for incomplete measure pairs read from file
-        Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
-        task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
-                          inputs[i]->task->target_host, inputs[i]->task->hardware_params,
-                          inputs[i]->task->layout_rewrite_option);
+      } else {
+        // The measure input is incomplete, rebuild task for incomplete measure pairs read from file
+        try {
+          Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
+          task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
+                            inputs[i]->task->target_host, inputs[i]->task->hardware_params,
+                            inputs[i]->task->layout_rewrite_option);
+        } catch (std::exception& e) {
+          // Cannot build ComputeDAG from workload key, the task may have not been registered in
+          // this search round
+          continue;
+        }
       }
       task_id = task_cache.size();
 
