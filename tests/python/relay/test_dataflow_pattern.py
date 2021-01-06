@@ -401,6 +401,12 @@ def test_no_match_call_attr():
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
 
 
+def test_match_call_attr_dtype():
+    is_cast = is_op("cast")(wildcard()).has_attr({"dtype": "float32"})
+    x = relay.var("x")
+    assert is_cast.match(relay.op.cast(x, "float32"))
+
+
 def test_match_diamond():
     # Pattern
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard())

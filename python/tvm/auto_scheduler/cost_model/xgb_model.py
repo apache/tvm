@@ -88,7 +88,14 @@ class XGBModel(PythonBasedModel):
     their predictions.
     """
 
-    def __init__(self, verbose_eval=25, num_warmup_sample=100, seed=None):
+    def __init__(
+        self,
+        verbose_eval=25,
+        num_warmup_sample=100,
+        seed=None,
+        model_file=None,
+        adapative_training=False,
+    ):
         global xgb
         try:
             if xgb is None:
@@ -116,12 +123,15 @@ class XGBModel(PythonBasedModel):
         self.plan_size = 32
         self.num_warmup_sample = num_warmup_sample
         self.verbose_eval = verbose_eval
+        self.model_file = model_file
+        self.adapative_training = adapative_training
 
         super().__init__()
 
         # cache measurement input/result pairs and extracted features
         self.inputs = []
         self.results = []
+        self.last_train_length = 0
         self.inputs_feature_cache = []
 
     def update(self, inputs, results):
@@ -140,6 +150,15 @@ class XGBModel(PythonBasedModel):
 
         self.inputs.extend(inputs)
         self.results.extend(results)
+
+        if (
+            self.adapative_training
+            and len(self.inputs) - self.last_train_length < self.last_train_length / 5
+        ):
+            # Set a training threshold related to `last_train_length` to reduce the training
+            # overhead when there're too many logs
+            return
+        self.last_train_length = len(self.inputs)
 
         # extract feature
         n_cached = len(self.inputs_feature_cache)
@@ -175,6 +194,10 @@ class XGBModel(PythonBasedModel):
                 )
             ],
         )
+
+        # Update the model file if it has been set
+        if self.model_file:
+            self.save(self.model_file)
 
     def predict(self, task, states):
         """Predict the scores of states

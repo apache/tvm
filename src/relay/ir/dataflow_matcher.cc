@@ -124,6 +124,13 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
         return val->data == rhs.operator std::string();
       }
       break;
+    case kTVMDataType:
+      if (auto* val = lhs.as<tir::StringImmNode>()) {
+        return rhs.operator std::string() == val->value;
+      } else if (auto* val = lhs.as<StringObj>()) {
+        return rhs.operator std::string() == val->data;
+      }
+      break;
     case kTVMObjectHandle:
       if (rhs.IsObjectRef<String>()) {
         if (auto* val = lhs.as<tir::StringImmNode>()) {
@@ -140,7 +147,10 @@ bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr) {
-  bool matches = false;
+  bool matches = VisitDFPattern(attr_pattern->pattern, expr);
+  if (!matches) {
+    return matches;
+  }
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
   if (const auto* op_node = expr.as<OpNode>()) {
     Op op = GetRef<Op>(op_node);
@@ -179,7 +189,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       }
     }
   }
-  return matches && VisitDFPattern(attr_pattern->pattern, expr);
+  return matches;
 }
 
 Array<DFPattern> reverse(const Array<DFPattern>& args) {
