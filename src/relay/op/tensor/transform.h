@@ -193,9 +193,11 @@ static inline Array<Array<Layout>> ConcatenateLayout(const Attrs& attrs,
  *
  * \param data_shape The input data shape.
  * \param attrs The attributes.
+ * \param reverse Whether to reverse the indices.
  * \return Output shape.
  */
-Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& attrs);
+Array<IndexExpr> InferNewShape(const Array<IndexExpr>& data_shape, const Attrs& attrs,
+                               bool reverse);
 
 }  // namespace relay
 }  // namespace tvm
