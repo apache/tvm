@@ -23,8 +23,8 @@ from tvm import autotvm
 from tvm import te
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
-from .util import get_fp32_len
-from ..util import get_const_tuple
+from .utils import get_fp32_len
+from ..utils import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
 
