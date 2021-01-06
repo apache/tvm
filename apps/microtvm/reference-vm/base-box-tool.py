@@ -208,8 +208,7 @@ def build_command(args):
 
     packer_args += ["packer.json"]
     subprocess.check_call(
-        packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"),
-        env=env
+        packer_args, cwd=os.path.join(THIS_DIR, args.platform, "base-box"), env=env
     )
 
 
@@ -434,12 +433,16 @@ def parse_args():
     parser.add_argument(
         "--skip-creating-release-version",
         action="store_true",
-        help="With release, skip creating the version and just upload for this provider.")
+        help="With release, skip creating the version and just upload for this provider.",
+    )
     parser.add_argument(
         "--debug-packer",
         action="store_true",
-        help=("When the build command is given, run packer in debug mode, and write log to the "
-              "base-box directory"))
+        help=(
+            "When the build command is given, run packer in debug mode, and write log to the "
+            "base-box directory"
+        ),
+    )
 
     return parser.parse_args()
 
