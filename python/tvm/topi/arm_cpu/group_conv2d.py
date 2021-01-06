@@ -23,11 +23,11 @@ from tvm import autotvm
 from tvm import te
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
-from ..util import get_const_tuple
+from ..utils import get_const_tuple
 from ..nn.pad import pad
 from .. import tag
 
-from ..nn.util import infer_pad
+from ..nn.utils import infer_pad
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 
 
@@ -62,8 +62,8 @@ def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, 
 def _fallback_schedule(cfg, wkl):
     simd_width = 4  # assume ARM SIMD Width is 4
     pad_left, pad_right = wkl.padl, wkl.padr
-    stride_w = wkl.wstride
-    out_width = (wkl.width + pad_left + pad_right - wkl.wkernel) // stride_w + 1
+    stride_w = wkl.stride_w
+    out_width = (wkl.width + pad_left + pad_right - wkl.kernel_w) // stride_w + 1
     groups = wkl.groups
     kernels_per_group = wkl.out_filter // groups
     kernel_depth = wkl.in_filter // groups
