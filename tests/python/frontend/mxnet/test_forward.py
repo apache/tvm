@@ -2012,6 +2012,34 @@ def test_forward_npi_concatenate(data_shape1, data_shape2, axis, dtype, target, 
     tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
 
 
+@pytest.mark.parametrize(
+    "data_shape1, data_shape2, axis",
+    [
+        ((3,), (3,), 0),
+        ((3,), (3,), -1),
+        ((1, 3, 2), (1, 3, 2), 2),
+        ((1, 3, 3), (1, 3, 3), 1),
+        ((1, 3), (1, 3), 0),
+    ],
+)
+@pytest.mark.parametrize("dtype", ["float64", "float32", "int64", "int32"])
+@tvm.testing.parametrize_targets
+@pytest.mark.parametrize("kind", ["graph", "vm", "debug"])
+def test_forward_npi_stack(data_shape1, data_shape2, axis, dtype, target, ctx, kind):
+    data_np1 = np.random.uniform(size=data_shape1).astype(dtype)
+    data_np2 = np.random.uniform(size=data_shape2).astype(dtype)
+    data1 = mx.sym.var("data1")
+    data2 = mx.sym.var("data2")
+    ref_res = mx.np.stack([mx.np.array(data_np1), mx.np.array(data_np2)], axis=axis)
+    mx_sym = mx.sym.np.stack([data1.as_np_ndarray(), data2.as_np_ndarray()], axis=axis)
+    mod, _ = relay.frontend.from_mxnet(
+        mx_sym, shape={"data1": data_shape1, "data2": data_shape2}, dtype=dtype
+    )
+    intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+    op_res = intrp.evaluate()(data_np1, data_np2)
+    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-5)
+
+
 @pytest.mark.parametrize("data_shape", [(2, 2, 2), (2, 7, 2), (2, 2, 2, 1, 2, 3, 1), (1, 8)])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "int64", "int32", "bool"])
 @tvm.testing.parametrize_targets
