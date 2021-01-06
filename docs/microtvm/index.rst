@@ -51,7 +51,7 @@ Getting Started with microTVM
 Before working with microTVM, we recommend you have a supported development board. Then, follow these
 tutorials to get started with microTVM:
 
-1. :doc:`Start the microTVM Reference VM </tutorials/micro/micro_reference_vm>`. The microTVM tutorials
+1. :ref:`Start the microTVM Reference VM <tutorial-micro-reference-vm>`. The microTVM tutorials
    depend on Zephyr and on a compiler toolchain for your hardware. The reference VM is a convenient
    way to install those dependencies.
 2. Try the :doc:`microTVM with TFLite Tutorial </tutorials/micro/micro_tflite>`.
