@@ -16,7 +16,7 @@
 # under the License.
 """
 microTVM with TFLite Models
-============================
+===========================
 **Author**: `Tom Gall <https://github.com/tom-gall>`_
 
 This tutorial is an introduction to working with microTVM and a TFLite

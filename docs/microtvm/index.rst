@@ -18,7 +18,7 @@
 .. _microtvm-index:
 
 microTVM: TVM on bare-metal
-====================================
+===========================
 
 microTVM runs TVM models on bare-metal (i.e. IoT) devices. microTVM depends only on the C standard
 library, and doesn't require an operating system to execute. microTVM is currently under heavy
@@ -35,7 +35,7 @@ microTVM is:
 * a minimal C runtime that supports standalone model inference on bare metal devices.
 
 Supported Hardware
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 microTVM currently tests against Cortex-M microcontrollers with the Zephyr RTOS; however, it is
 flexible and portable to other processors such as RISC-V and does not require Zephyr. The current
