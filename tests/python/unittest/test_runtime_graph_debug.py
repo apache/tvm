@@ -106,14 +106,23 @@ def test_graph_simple():
         # Verify the tensors are dumped
         assert len(os.listdir(directory)) > 1
 
-        debug_lines = mod.debug_datum.get_debug_result().split('\n')
+        debug_lines = mod.debug_datum.get_debug_result().split("\n")
+
         def split_debug_line(i):
             to_return = re.split(r"  [ ]*", debug_lines[i])
             assert to_return[-1] == ""
             to_return = to_return[:-1]  # strip empty trailing part
             return to_return
 
-        assert split_debug_line(0) == ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
+        assert split_debug_line(0) == [
+            "Node Name",
+            "Ops",
+            "Time(us)",
+            "Time(%)",
+            "Shape",
+            "Inputs",
+            "Outputs",
+        ]
         myadd_lines = split_debug_line(2)
         assert myadd_lines[0] == "add"
         assert myadd_lines[1] == "myadd"

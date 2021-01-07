@@ -33,7 +33,6 @@ def libinfo():
 
 
 class FrontendTestModule(Module):
-
     def __init__(self, entry_name=None):
         underlying_mod = get_global_func("testing.FrontendTestModule")()
         handle = underlying_mod.handle
