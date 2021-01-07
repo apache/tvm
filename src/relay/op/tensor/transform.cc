@@ -435,13 +435,20 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
     ICHECK_EQ(old_in_layouts.size(), 1);
     auto old_layout = old_in_layouts[0];
 
-    // Deal with default axes.
+    // Deal with default axes and negative axes.
     if (!params->axes.defined() || params->axes.size() == 0) {
       Array<Integer> axes = Array<Integer>();
       for (int i = old_layout.ndim() - 1; i >= 0; --i) {
         axes.push_back(i);
       }
       params->axes = std::move(axes);
+    }
+    for (size_t i = 0; i < params->axes.size(); ++i) {
+      int axis = static_cast<int>(params->axes[i]->value);
+      if (axis < 0) {
+        int new_axis = static_cast<int>(old_layout.ndim()) + axis;
+        params->axes.Set(i, new_axis);
+      }
     }
 
     if (new_in_layouts.defined()) {

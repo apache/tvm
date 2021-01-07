@@ -589,7 +589,7 @@ def test_transpose_convert_layout():
             sum(is_transform) == expected_transform_cnt
         ), "Expected %s layout_transform, but get\n%s" % (expected_transform_cnt, after)
 
-    def func_nhwc():
+    def nhwc_to_nchw():
         x = relay.var("x", shape=(1, 56, 56, 64))
         weight1 = relay.var("weight1", shape=(3, 3, 64, 32))
         y = relay.nn.conv2d(
@@ -605,12 +605,12 @@ def test_transpose_convert_layout():
         out = relay.add(y, z)
         out = relay.transpose(out, axes=[0, 3, 1, 2])
         out = relay.nn.batch_flatten(out)
-        return relay.Function(analysis.free_vars(out), out)
+        func = relay.Function(analysis.free_vars(out), out)
+        return run_opt_pass(func, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
 
-    after = run_opt_pass(func_nhwc(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
-    verify_transpose(after, [0, 1, 2, 3], 3)
+    verify_transpose(nhwc_to_nchw(), [0, 1, 2, 3], 3)
 
-    def func_nchw():
+    def nchw_to_nhwc():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var("weight1", shape=(32, 64, 3, 3))
         y = relay.nn.conv2d(
@@ -624,14 +624,14 @@ def test_transpose_convert_layout():
         )
         z = relay.var("z", shape=(32, 56, 56))
         out = relay.add(y, z)
-        out = relay.transpose(out, axes=[0, 2, 3, 1])
+        out = relay.transpose(out, axes=[0, 2, -1, 1])  # Also test a negative axis.
         out = relay.nn.batch_flatten(out)
-        return relay.Function(analysis.free_vars(out), out)
+        func = relay.Function(analysis.free_vars(out), out)
+        return run_opt_pass(func, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
 
-    after = run_opt_pass(func_nchw(), transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
-    verify_transpose(after, [0, 1, 2, 3], 3)
+    verify_transpose(nchw_to_nhwc(), [0, 1, 2, 3], 3)
 
-    def func_nchw2():
+    def default_axes():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight1 = relay.var("weight1", shape=(32, 64, 3, 3))
         y = relay.nn.conv2d(
@@ -646,10 +646,10 @@ def test_transpose_convert_layout():
         z = relay.var("z", shape=(32, 56, 56))
         out = relay.add(y, z)
         out = relay.transpose(out)  # No axes provided, will use the reversed axes.
-        return relay.Function(analysis.free_vars(out), out)
+        func = relay.Function(analysis.free_vars(out), out)
+        return run_opt_pass(func, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
 
-    after = run_opt_pass(func_nchw2(), transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
-    verify_transpose(after, [2, 1, 3, 0], 3)
+    verify_transpose(default_axes(), [2, 1, 3, 0], 3)
 
 
 def test_resnet_convert_layout():
