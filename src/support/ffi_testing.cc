@@ -103,28 +103,27 @@ TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRet
 
 class FrontendTestModuleNode : public runtime::ModuleNode {
  public:
-  virtual const char* type_key() const {
-    return "frontend_test";
-  }
+  virtual const char* type_key() const { return "frontend_test"; }
 
   static constexpr const char* kAddFunctionName = "__add_function";
 
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
 
  private:
-  std::unordered_map<std::string,PackedFunc> functions_;
+  std::unordered_map<std::string, PackedFunc> functions_;
 };
 
 constexpr const char* FrontendTestModuleNode::kAddFunctionName;
 
-PackedFunc FrontendTestModuleNode::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc FrontendTestModuleNode::GetFunction(const std::string& name,
+                                               const ObjectPtr<Object>& sptr_to_self) {
   if (name == kAddFunctionName) {
-    return TypedPackedFunc<void(std::string,PackedFunc)>(
-      [this,sptr_to_self](std::string func_name, PackedFunc pf) {
-        CHECK_NE(func_name, kAddFunctionName)
-          << "func_name: cannot be special function " << kAddFunctionName;
-        functions_[func_name] = pf;
-      });
+    return TypedPackedFunc<void(std::string, PackedFunc)>(
+        [this, sptr_to_self](std::string func_name, PackedFunc pf) {
+          CHECK_NE(func_name, kAddFunctionName)
+              << "func_name: cannot be special function " << kAddFunctionName;
+          functions_[func_name] = pf;
+        });
   }
 
   auto it = functions_.find(name);
