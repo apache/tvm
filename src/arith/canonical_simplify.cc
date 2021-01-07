@@ -1214,7 +1214,6 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   }
   // normalize
   PrimExpr value = this->CanonicalMutate(op->value);
-  PrimExpr ret;
   // PushCastToChildren
   if (value.as<SumExprNode>()) {
     SumExpr se = Downcast<SumExpr>(value);
