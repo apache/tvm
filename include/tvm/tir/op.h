@@ -1241,7 +1241,7 @@ inline void DivAmbiguityError(const TA& a) {
                 "please call div, indexdiv/indexmod, "
                 "floordiv/floormod or truncdiv/truncmod directly "
                 "to avoid ambiguity in the code. "
-                "Checkout these functions in expr_operator.h.");
+                "Checkout these functions in tir/op.h.");
 }
 
 // The following code are not intended to be used in the codebase.

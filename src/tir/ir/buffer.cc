@@ -46,8 +46,9 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
 }
 
 Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, Span span) {
-  return Buffer(Var(name, PointerType(PrimType(dtype)), span), dtype, shape, Array<PrimExpr>(),
-                PrimExpr(), name, "", 0, 0, kDefault, span);
+  DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
+  return Buffer(Var(name, PointerType(PrimType(storage_dtype)), span), dtype, shape,
+                Array<PrimExpr>(), PrimExpr(), name, "", 0, 0, kDefault, span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -384,9 +385,14 @@ PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lane
 Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                PrimExpr elem_offset, String name, String scope, int data_alignment,
                int offset_factor, BufferType buffer_type, Span span) {
-  ICHECK(IsPointerType(data->type_annotation, dtype))
+  DataType storage_dtype = dtype;
+  // specially handle bool
+  if (storage_dtype == DataType::Bool()) {
+    storage_dtype = DataType::Int(8);
+  }
+  ICHECK(IsPointerType(data->type_annotation, storage_dtype))
       << "Buffer data field expect to have the right pointer type annotation"
-      << " annotation=" << data->type_annotation << ", dtype=" << dtype;
+      << " annotation=" << data->type_annotation << ", storage_dtype=" << storage_dtype;
 
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
