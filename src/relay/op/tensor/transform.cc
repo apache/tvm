@@ -431,45 +431,40 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
   std::string out_layout_str = "";
 
   // Infer the input layout string and update the axes.
-  if (old_in_layouts.defined()) {
+  if (old_in_layouts.defined() && old_in_layouts[0].defined()) {
     ICHECK_EQ(old_in_layouts.size(), 1);
     auto old_layout = old_in_layouts[0];
+    Array<Integer> old_axes = params->axes;
 
     // Deal with default axes and negative axes.
-    if (!params->axes.defined() || params->axes.size() == 0) {
-      Array<Integer> axes = Array<Integer>();
+    if (!old_axes.defined() || old_axes.size() == 0) {
       for (int i = old_layout.ndim() - 1; i >= 0; --i) {
-        axes.push_back(i);
+        old_axes.push_back(i);
       }
-      params->axes = std::move(axes);
     }
-    for (size_t i = 0; i < params->axes.size(); ++i) {
-      int axis = static_cast<int>(params->axes[i]->value);
+    for (size_t i = 0; i < old_axes.size(); ++i) {
+      int axis = static_cast<int>(old_axes[i]->value);
       if (axis < 0) {
-        int new_axis = static_cast<int>(old_layout.ndim()) + axis;
-        params->axes.Set(i, new_axis);
+        int pos_axis = static_cast<int>(old_layout.ndim()) + axis;
+        old_axes.Set(i, pos_axis);
       }
     }
 
-    if (new_in_layouts.defined()) {
+    if (new_in_layouts.defined() && new_in_layouts[0].defined()) {
       ICHECK_EQ(new_in_layouts.size(), 1);
       auto new_layout = new_in_layouts[0];
 
       // Update the axes based on the new layout.
-      Array<Integer> new_axes;
-      if (new_layout.ndim() == old_layout.ndim()) {
-        // Make sure old and new layouts have consistent dimensions.
-        // For example, transpose does not support NCHW[x]c so it cannot be the new layout.
-        for (auto axis : params->axes) {
-          auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
-          if (new_axis == -1) {  // Cannot find the target axis in the new layout.
-            new_axes.clear();
-            break;
-          }
-          new_axes.push_back(new_axis);
+      Array<Integer> new_axes = Array<Integer>();
+      for (auto axis : old_axes) {
+        auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
+        if (new_axis == -1) {  // Cannot find the target axis in the new layout.
+          new_axes.clear();
+          break;
         }
+        new_axes.push_back(new_axis);
       }
-      if (!new_axes.empty()) {
+      if (new_axes.defined() && new_axes.size() == new_layout.ndim()) {
         params->axes = std::move(new_axes);
         in_layout_str = new_layout.name();
       }
@@ -477,6 +472,7 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
 
     // If the input layout string cannot be determined, propagate the old layout.
     if (in_layout_str == "") {
+      params->axes = std::move(old_axes);
       in_layout_str = old_layout.name();
     }
   }
