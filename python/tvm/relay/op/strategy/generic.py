@@ -1317,3 +1317,21 @@ def argwhere_strategy(attrs, inputs, out_type, target):
         name="argwhere.generic",
     )
     return strategy
+
+
+# invert_permutation
+def wrap_compute_invert_permutation(topi_compute):
+    """wrap invert_permutation topi compute"""
+    def _compute_invert_permutation(attrs, inputs, out_type):
+        return [topi_compute(inputs[0])]
+    return _compute_invert_permutation
+
+
+@override_native_generic_func("invert_permutation_strategy")
+def invert_permutation_strategy(attrs, inputs, out_type, target):
+    """invert_permutation generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(wrap_compute_invert_permutation(topi.invert_permutation),
+                                wrap_topi_schedule(topi.generic.schedule_injective),
+                                name="invert_permutation.generic")
+    return strategy

@@ -2276,6 +2276,23 @@ def test_forward_clip_by_value():
 
 
 #######################################################################
+# invert_permutation
+# --------------------
+
+
+def test_invert_permutation():
+    """test InvertPermutation"""
+    input_shape = [6]
+    x = np.array([3, 4, 0, 2, 1, 5]).astype("int64")
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=input_shape, dtype="int64")
+        array_ops.invert_permutation(in_data)
+        out_name = "InvertPermutation:0"
+        compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 

@@ -967,3 +967,15 @@ def argwhere_strategy_cuda(attrs, inputs, out_type, target):
         name="argwhere.cuda",
     )
     return strategy
+
+
+@invert_permutation_strategy.register(["cuda", "gpu"])
+def invert_permutation_strategy_cuda(attrs, inputs, out_type, target):
+    """invert_permutation cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_invert_permutation(topi.cuda.invert_permutation),
+        wrap_topi_schedule(topi.cuda.vision._default_schedule),
+        name="invert_permutation.cuda",
+    )
+    return strategy

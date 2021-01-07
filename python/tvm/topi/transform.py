@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
+from tvm.te import hybrid
 from tvm import topi
 from . import cpp
 from . import tag
@@ -931,3 +932,13 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+
+@hybrid.script
+def invert_permutation(data):
+    result = output_tensor(data.shape, data.dtype)
+    nums = data.shape[0]
+    for ind in range(nums):
+        r_ind = data[ind]
+        result[r_ind] = ind
+    return result
