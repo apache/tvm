@@ -23,6 +23,7 @@
  *  Re-write data access to enable memory sharing when possible.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/type.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/analysis.h>
@@ -934,7 +935,12 @@ class VectorAllocRewriter : public StmtExprMutator {
       if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
                     extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-        return Allocate(op->buffer_var, tvec[0], extents, op->condition, op->body);
+        // create a new buffer var
+        DataType new_dtype = tvec[0];
+        Var new_buffer_var(op->buffer_var->name_hint, PointerType(PrimType(new_dtype)));
+        // update the remap req.
+        var_remap_.Set(op->buffer_var, new_buffer_var);
+        return Allocate(new_buffer_var, new_dtype, extents, op->condition, op->body);
       }
     }
     return stmt;
@@ -949,23 +955,21 @@ class VectorAllocRewriter : public StmtExprMutator {
 
   // Internal access map
   std::unordered_map<const VarNode*, std::vector<DataType> > acc_map_;
+  // Variables to remap
+  Map<tir::Var, PrimExpr> var_remap_;
   // internal analyzer
   arith::Analyzer analyzer_;
 };
 
-Stmt StorageRewrite(Stmt stmt) {
-  stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
-  return VectorAllocRewriter()(std::move(stmt));
-}
-
 PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   auto* n = f.CopyOnWrite();
   VectorAllocRewriter rewriter;
-  n->body = rewriter(n->body);
+  n->body = rewriter(std::move(n->body));
 
+  Map<tir::Var, PrimExpr> var_remap = std::move(rewriter.var_remap_);
   Array<tir::Var> args;
-  Map<tir::Var, PrimExpr> remap_vars;
 
+  // rewrite paramters if needed.
   for (Var var : f->params) {
     if (var.dtype().is_handle()) {
       const auto& tvec = rewriter.acc_map_[var.get()];
@@ -973,15 +977,14 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f) {
       if (tvec.size() == 1) {
         tir::Var new_var(var->name_hint, PointerType(PrimType(tvec[0])));
         args.push_back(new_var);
-        remap_vars.Set(var, new_var);
-
+        var_remap.Set(var, new_var);
       } else {
         // always set data type to be non vectorized so
         // load/store can still work via scalarization
         if (tvec.size() != 0 && !var->type_annotation.defined()) {
           tir::Var new_var(var->name_hint, PointerType(PrimType(tvec[0].with_lanes(1))));
           args.push_back(new_var);
-          remap_vars.Set(var, new_var);
+          var_remap.Set(var, new_var);
         } else {
           args.push_back(var);
         }
@@ -991,9 +994,13 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f) {
     }
   }
 
+  // no variable remap is needed.
+  if (var_remap.size() == 0) return f;
+
+  // remap the variables.
   ICHECK_EQ(args.size(), n->params.size());
   n->params = args;
-  n->body = Substitute(n->body, remap_vars);
+  n->body = Substitute(n->body, var_remap);
   return f;
 }
 
@@ -1003,8 +1010,7 @@ Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
-    n->body = VectorAllocRewriter()(std::move(n->body));
-    return f;
+    return PointerValueTypeRewrite(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
 }
