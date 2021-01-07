@@ -27,7 +27,7 @@ import logging
 import threading
 
 import tvm
-from tvm import autotvm, te, transform
+from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
@@ -293,7 +293,8 @@ def auto_schedule_topi(outs):
 
         schedule, _ = dag.apply_steps_from_state(state)
         return schedule
-    elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
+
+    if env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(key)
