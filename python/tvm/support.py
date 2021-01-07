@@ -33,6 +33,8 @@ def libinfo():
 
 
 class FrontendTestModule(Module):
+    """A tvm.runtime.Module whose member functions are PackedFunc."""
+
     def __init__(self, entry_name=None):
         underlying_mod = get_global_func("testing.FrontendTestModule")()
         handle = underlying_mod.handle
