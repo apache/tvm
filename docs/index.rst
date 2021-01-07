@@ -44,6 +44,7 @@ For Developers
    contribute/index
    deploy/index
    dev/how_to
+   microtvm/index
 
 .. toctree::
    :maxdepth: 1

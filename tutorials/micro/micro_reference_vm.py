@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tutorial-micro-reference-vm:
+
 ===================================
 microTVM Reference Virtual Machines
 ===================================
@@ -90,6 +92,8 @@ machine. It does the following:
 
 .. _microTVM base box: https://app.vagrantup.com/tlcpack/boxes/microtvm
 
+Connect Hardware to the VM
+--------------------------
 
 Next, you need to configure USB passthrough to attach your physical development board to the virtual
 machine (rather than directly to your laptop's host OS).
@@ -102,8 +106,8 @@ forwarding again. It may not be obvious to the end user when this occurs. Instru
  * `Parallels <https://kb.parallels.com/122993>`__
  * `VMWare Workstation <https://docs.vmware.com/en/VMware-Workstation-Pro/15.0/com.vmware.ws.using.doc/GUID-E003456F-EB94-4B53-9082-293D9617CB5A.html>`__
 
-Future use
-----------
+Rebuilding TVM inside the Reference VM
+--------------------------------------
 
 After the first boot, you'll need to ensure you keep the build, in ``$TVM_HOME/build-microtvm``,
 up-to-date when you modify the C++ runtime or checkout a different revision. You can either
