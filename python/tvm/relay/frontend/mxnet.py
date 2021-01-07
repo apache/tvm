@@ -2342,6 +2342,11 @@ def _mx_npi_stack(inputs, attrs):
     else:
         return _op.stack(tuple(inputs), axis=int(axis))
 
+def mx_npi_advanced_indexing_multiple(inputs, attrs):
+    assert len(inputs) == 2
+    data = inputs[0]
+    indices = inputs[1]
+    return _op.adv_index([data] + indices)
 
 def _mx_npx_reshape(inputs, attrs):
     shape = attrs.get_int_tuple("newshape")
@@ -2709,6 +2714,7 @@ _convert_map = {
     "_npi_tanh": _rename(_op.tanh),
     "_npi_true_divide_scalar": _binop_scalar(_op.divide),
     "_npi_stack": _mx_npi_stack,
+    "_npi_advanced_indexing_multiple": mx_npi_advanced_indexing_multiple,
 }
 
 # set identity list
