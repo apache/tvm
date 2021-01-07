@@ -1220,19 +1220,17 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
     SumExpr se = Downcast<SumExpr>(value);
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
-      ret = se;
+      return std::move(se);
     }
-  } else if (value.as<SplitExprNode>()) {
+  }
+  if (value.as<SplitExprNode>()) {
     SplitExpr se = Downcast<SplitExpr>(value);
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
-      ret = se;
+      return std::move(se);
     }
   }
-  if (!ret.defined()) {
-    ret = Rewriter::VisitExpr_(op);
-  }
-  return ret;
+  return Rewriter::VisitExpr_(op);
 }
 
 PrimExpr CanonicalSimplifier::operator()(const PrimExpr& expr) {
