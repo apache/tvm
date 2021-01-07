@@ -230,6 +230,19 @@ class TVMScriptParser(Transformer):
         """Match the arguments of a function call in the AST to the required
         arguments of the function. This handles positional arguments,
         positional arguments specified by name, keyword arguments, and varargs.
+
+        Parameters
+        ----------
+        func : Function
+            The function that provides the signature
+
+        node_call: ast.Call
+            The AST call node that calls into the function.
+
+        Returns
+        -------
+        arg_list : list
+            The parsed positional argument.
         """
         assert isinstance(node_call, ast.Call)
         # collect arguments
@@ -435,8 +448,8 @@ class TVMScriptParser(Transformer):
                         node.rhs.span,
                     )
                 # Pattern 4
-                func.enter_scope(node, self.context)
                 arg_list = self.parse_arg_list(func, node.rhs)
+                func.enter_scope(node, self.context, arg_list, node.rhs.func_name.span)
                 func.body = self.parse_body(node)
                 return func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)
             elif isinstance(func, SpecialStmt):
@@ -532,9 +545,9 @@ class TVMScriptParser(Transformer):
         self.current_col_offset = node.span.start_column
         self.context.new_scope(nodes=node.body.stmts)
         # for scope handler process the scope
-        func.enter_scope(node, self.context)
-        func.body = self.parse_body(node)
         arg_list = self.parse_arg_list(func, node.rhs)
+        func.enter_scope(node, self.context, arg_list, node.rhs.func_name.span)
+        func.body = self.parse_body(node)
         res = func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)
         # exit the scope
         self.context.pop_scope()
@@ -571,9 +584,9 @@ class TVMScriptParser(Transformer):
         self.current_col_offset = node.body.span.start_column
         self.context.new_scope(nodes=node.body.stmts)
         # with scope handler process the scope
-        func.enter_scope(node, self.context)
-        func.body = self.parse_body(node)
         arg_list = self.parse_arg_list(func, node.rhs)
+        func.enter_scope(node, self.context, arg_list, node.rhs.func_name.span)
+        func.body = self.parse_body(node)
         res = func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)
         # exit the scope
         self.context.pop_scope()
@@ -689,7 +702,7 @@ class TVMScriptParser(Transformer):
         if isinstance(func, Intrin) and func.stmt:
             return func.handle(arg_list, node.call.func_name.span)
         elif isinstance(func, WithScopeHandler) and func.concise_scope and not func.def_symbol:
-            func.enter_scope(node, self.context)
+            func.enter_scope(node, self.context, arg_list, node.call.func_name.span)
             func.body = self.parse_body(node)
             return func.exit_scope(node, self.context, arg_list, node.call.func_name.span)
         elif isinstance(func, SpecialStmt) and not func.def_symbol:
