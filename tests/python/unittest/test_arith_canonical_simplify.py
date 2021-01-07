@@ -310,6 +310,46 @@ def test_complex_cases():
     ck.verify(res3, tdiv((x * 1024) + y, 256) - tdiv(y, 256) - (x * 4))
 
 
+def test_simplify_cast():
+    ck = CanonicalChecker()
+    tcast = tvm.tir.Cast
+    fld = tvm.te.floordiv
+    flm = tvm.te.floormod
+    # cast(i64, i + j + 1) - cast(i64, i)
+    i = te.var("i", dtype="int32")
+    j = te.var("j", dtype="int32")
+    res = tcast("int64", i + j + 1) - tcast("int64", i)
+    ck.verify(res, tcast("int64", j) + tvm.tir.const(1, "int64"))
+    # cast(i32, i + j + 1) - cast(i32, i)
+    i = te.var("i", dtype="int64")
+    j = te.var("j", dtype="int64")
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 10))
+    ck.analyzer.update(j, tvm.arith.ConstIntBound(0, 10))
+    res = tcast("int32", i + j + 1) - tcast("int32", i)
+    ck.verify(res, tcast("int32", j) + 1)
+    # cast(i32, i + j - 100)
+    i = te.var("i", dtype="int64")
+    j = te.var("j", dtype="int64")
+    ck.analyzer.update(i, tvm.arith.ConstIntBound(0, 2 ** 31 - 1))
+    ck.analyzer.update(j, tvm.arith.ConstIntBound(0, 10))
+    res = tcast("int32", i + j - 100)
+    ck.verify(res, res)
+    # cast(i32, flm(axis, 7i64) * 2i64 + 1i64) + 1i32
+    # - cast(i32, flm(axis, 7i64) * 2i64)
+    axis = te.var("axis", dtype="int64")
+    ck.analyzer.update(axis, tvm.arith.ConstIntBound(0, 42))
+    res = (
+        tcast(
+            "int32",
+            flm(axis, tvm.tir.const(7, "int64")) * tvm.tir.const(2, "int64")
+            + tvm.tir.const(1, "int64"),
+        )
+        + tvm.tir.const(1, "int32")
+        - tcast("int32", flm(axis, tvm.tir.const(7, "int64")) * tvm.tir.const(2, "int64"))
+    )
+    ck.verify(res, 2)
+
+
 if __name__ == "__main__":
     test_floormod_simplify()
     test_mul_sum_simplify()
@@ -321,3 +361,4 @@ if __name__ == "__main__":
     test_split_index_simplify()
     test_canonical_mixed()
     test_complex_cases()
+    test_simplify_cast()
