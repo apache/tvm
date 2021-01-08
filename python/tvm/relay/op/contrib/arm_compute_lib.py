@@ -77,17 +77,17 @@ def partition_for_arm_compute_lib(mod, params=None):
 @register_func("relay.ext.arm_compute_lib.optimize")
 def preprocess_module(mod):
     """
-        Pre-process a module containing functions ready for ACL codegen. For now we enforce OHWI
-        kernel layout and fold the transforms away.
+    Pre-process a module containing functions ready for ACL codegen. For now we enforce OHWI
+    kernel layout and fold the transforms away.
 
-        Parameters
-        ----------
-        mod : Module
-            The module to run passes on.
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
 
-        Returns
-        -------
-        preprocessed_mod : The processed module.
+    Returns
+    -------
+    preprocessed_mod : The processed module.
     """
 
     def convert_layout_conv2d(conv2d_function):
