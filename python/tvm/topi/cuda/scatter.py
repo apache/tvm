@@ -314,8 +314,9 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
     data_ptr = ib.buffer_ptr(data)
     with ib.new_scope():
         fused = n * c * h * w
-        num_thread = 1024
+        num_thread = int(tvm.target.Target.current(allow_none=False).max_num_threads)
         num_blocks = ceil_div(fused, num_thread)
+
         bx = te.thread_axis("blockIdx.x")
         ib.scope_attr(bx, "thread_extent", num_blocks)
         tx = te.thread_axis("threadIdx.x")
