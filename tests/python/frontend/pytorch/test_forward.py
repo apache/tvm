@@ -447,8 +447,13 @@ def test_forward_unsqueeze():
         def forward(self, *args):
             return args[0].unsqueeze(2)
 
+    class Unsqueeze2(Module):
+        def forward(self, *args):
+            return args[0].unsqueeze_(2)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
+    verify_model(Unsqueeze2().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1176,6 +1181,19 @@ def test_forward_clone():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Clone1().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_copy_():
+    torch.set_grad_enabled(False)
+    input_shape = [10]
+
+    class Copy_(Module):
+        def forward(self, *args):
+            return torch.zeros_like(args[0]).copy_(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Copy_().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -3445,6 +3463,12 @@ def test_hard_swish():
 
 
 if __name__ == "__main__":
+    test_forward_copy_()
+    test_forward_unsqueeze()
+
+    import sys
+
+    sys.exit()
     # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
