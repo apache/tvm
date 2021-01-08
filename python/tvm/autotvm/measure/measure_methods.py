@@ -78,6 +78,9 @@ class LocalBuilder(Builder):
         The timeout of a compilation
     n_parallel: int
         The number of tasks run in parallel. "None" will use all cpu cores
+    build_kwargs: dict
+        If supplied, additional kwargs passed to build_func. Overrides any build_kwargs supplied
+        by the Runner.
     build_func: callable or str
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
@@ -85,8 +88,8 @@ class LocalBuilder(Builder):
         If is callable, use it as custom build function, expect lib_format field.
     """
 
-    def __init__(self, timeout=10, n_parallel=None, build_func="default"):
-        super(LocalBuilder, self).__init__(timeout, n_parallel)
+    def __init__(self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default"):
+        super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
         if isinstance(build_func, str):
             if build_func == "default":
