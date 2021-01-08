@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=pointless-string-statement,consider-using-enumerate,invalid-name
 """User facing API for specifying how to measure the generated code"""
+import enum
 import multiprocessing
 from collections import namedtuple
 
@@ -52,8 +53,15 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
         The absolute time stamp when we finish measurement.
     """
 
+    def __repr__(self):
+        error_no_str = (str(self.error_no)
+                        if self.error_no not in MeasureErrorNo
+                        else str(MeasureErrorNo(self.error_no)))
+        return (f'{self.__class__.__name__}(costs={self.costs!r}, error_no={error_no_str}, '
+                f'all_cost={self.all_cost}, timestamp={self.timestamp!r})')
 
-class MeasureErrorNo(object):
+
+class MeasureErrorNo(enum.IntEnum):
     """Error type for MeasureResult"""
 
     NO_ERROR = 0  # no error
