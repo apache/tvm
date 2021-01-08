@@ -817,6 +817,7 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
+    verify_strided_slice((3, 4, 3), [0, 0, 0], [None, None, None])
 
 
 @tvm.testing.uses_gpu
