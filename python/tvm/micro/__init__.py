@@ -17,7 +17,7 @@
 """MicroTVM module for bare-metal backends"""
 
 from .artifact import Artifact
-from .build import build_static_runtime, default_options, get_standalone_crt_dir
+from .build import autotvm_module_loader, build_static_runtime, default_options, get_standalone_crt_dir
 from .build import get_standalone_crt_lib, Workspace
 from .compiler import Compiler, DefaultCompiler, Flasher
 from .debugger import GdbRemoteDebugger
