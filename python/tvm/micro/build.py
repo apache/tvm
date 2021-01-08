@@ -17,10 +17,13 @@
 
 """Defines top-level glue functions for building microTVM artifacts."""
 
+import contextlib
+import json
 import logging
 import os
 
 from .._ffi import libinfo
+from tvm import rpc as _rpc
 
 
 _LOG = logging.getLogger(__name__)
@@ -57,3 +60,48 @@ def get_standalone_crt_dir() -> str:
             raise CrtNotFoundError()
 
     return STANDALONE_CRT_DIR
+
+
+def autotvm_module_loader(
+    template_project_dir: str,
+    project_options: dict = None,
+):
+    """Configure a new adapter.
+
+    Parameters
+    ----------
+    template_project_dir: str
+        Path to the template project directory on the runner.
+
+    project_options : dict
+        Opt
+        compiler options specific to this build.
+
+    workspace_kw : Optional[dict]
+        Keyword args passed to the Workspace constructor.
+    """
+
+    if type(template_project_dir) is not str:
+        raise TypeError(f"Incorrect type {type(template_project_dir)}.")
+
+    @contextlib.contextmanager
+    def module_loader(remote_kw, build_result):
+        with open(build_result.filename, "rb") as build_file:
+            build_result_bin = build_file.read()
+
+        tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
+        remote = tracker.request(
+            remote_kw["device_key"],
+            priority=remote_kw["priority"],
+            session_timeout=remote_kw["timeout"],
+            session_constructor_args=[
+                "tvm.micro.compile_and_create_micro_session",
+                build_result_bin,
+                template_project_dir,
+                json.dumps(project_options),
+            ],
+        )
+        system_lib = remote.get_function("runtime.SystemLib")()
+        yield remote, system_lib
+
+    return module_loader
