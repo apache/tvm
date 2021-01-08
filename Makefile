@@ -136,7 +136,7 @@ jvminstall:
 			-Dcflags="$(PKG_CFLAGS)" -Dldflags="$(PKG_LDFLAGS)" \
 			-Dcurrent_libdir="$(ROOTDIR)/$(OUTPUTDIR)" $(JVM_TEST_ARGS))
 format:
-	./tests/lint/git-clang-format.sh -i `git rev-parse --abbrev-ref main@{upstream}`
+	./tests/lint/git-clang-format.sh -i $$(git merge-base HEAD main@{$$(git config --get-regexp "remote.*.url" | grep apache | cut -d '.' -f 2)})
 	black .
 	cd rust; which cargo && cargo fmt --all; cd ..
 
