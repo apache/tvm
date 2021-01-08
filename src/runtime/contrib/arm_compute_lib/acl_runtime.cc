@@ -296,7 +296,7 @@ class ACLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     if (node.GetOpName() == "qnn.depthwise_conv2d") {
-      CHECK(num_inputs >= 8U && num_inputs <= 9U)
+      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
           << "Quantized convolution requires 9 inputs with a bias, 8 inputs without.";
       has_bias = num_inputs == 9;
       layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
@@ -307,7 +307,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
-      CHECK(num_inputs >= 2U && num_inputs <= 3U)
+      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
           << "Convolution requires 3 inputs with a bias, 2 inputs without.";
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {
