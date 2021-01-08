@@ -18,15 +18,19 @@
 """Defines a top-level glue class that operates the Transport and Flasher classes."""
 
 import logging
+import os
+import tempfile
 import sys
 
 from ..error import register_error
-from .._ffi import get_global_func
-from ..contrib import graph_executor
+from .._ffi import get_global_func, register_func
+from ..contrib import graph_exectuor
 from ..contrib.debugger import debug_executor
 from ..rpc import RPCSession
 from .transport import IoTimeoutError
 from .transport import TransportLogger
+from . import micro_binary
+from . import compiler
 
 try:
     from .base import _rpc_connect
@@ -234,3 +238,37 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
         graph_json_str,
         dump_root=dump_root,
     )
+
+
+RPC_SESSION = None
+
+
+@register_func("tvm.micro.create_micro_session")
+def create_micro_session(build_result_filename, build_result_bin, flasher_factory_json):
+    global RPC_SESSION
+    if RPC_SESSION is not None:
+        raise Exception('Micro session already established')
+
+    with tempfile.NamedTemporaryFile(prefix=build_result_filename, mode='w+b') as tf:
+        tf.write(build_result_bin)
+        tf.flush()
+
+        binary = micro_binary.MicroBinary.unarchive(
+            tf.name, os.path.join(tempfile.mkdtemp(), 'binary'))
+        flasher_obj = compiler.FlasherFactory.from_json(flasher_factory_json).instantiate()
+
+        RPC_SESSION = Session(binary=binary, flasher=flasher_obj)
+        RPC_SESSION.__enter__()
+        return RPC_SESSION._rpc._sess
+
+
+@register_func
+def destroy_micro_session():
+    global RPC_SESSION
+    if RPC_SESSION is not None:
+        exc_type, exc_value, traceback = RPC_SESSION.__exit__(None, None, None)
+        RPC_SESSION = None
+        if (exc_type, exc_value, traceback) != (None, None, None):
+            exc = exc_type(exc_value)  # See PEP 3109
+            exc.__traceback__ = traceback
+            raise exc
