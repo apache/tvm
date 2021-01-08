@@ -86,9 +86,12 @@ class LocalBuilder(Builder):
         If is 'ndk', use function for android ndk
         If id 'stackvm', use function for stackvm
         If is callable, use it as custom build function, expect lib_format field.
+    do_fork: bool
+        If False, do not fork when building. Requires n_parallel=1.
     """
 
-    def __init__(self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default"):
+    def __init__(self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default",
+                 do_fork=False):
         super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
         if isinstance(build_func, str):
@@ -101,7 +104,10 @@ class LocalBuilder(Builder):
             else:
                 raise ValueError("Invalid build_func" + build_func)
         self.build_func = _WrappedBuildFunc(build_func)
-        self.executor = LocalExecutor(timeout=timeout)
+        if not do_fork:
+            assert n_parallel in (None, 1), (
+                f"if do_fork=False, need n_parallel=None or 1; got {n_parallel}")
+        self.executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
         self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
