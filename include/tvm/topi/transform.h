@@ -1450,8 +1450,7 @@ inline Array<Tensor> SparseSegmentSqrtN(const Tensor& data, const Tensor& select
  * \return A Tensor whose op member is the SparseFillEmptyRows operation
  */
 inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Tensor& sparse_values,
-                                         const Tensor& default_value,
-                                         const Array<Integer>& dense_shape,
+                                         const Tensor& default_value, const Tensor& dense_shape,
                                          const std::string name = "T_sparse_fill_empty_rows",
                                          std::string tag = kInjective) {
   Array<Tensor> result;
@@ -1460,8 +1459,9 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
   if (sparse_indices->shape.size() > 1) {
     sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
   }
+  auto dense_shape_rows = GetConstInt(dense_shape->shape[0]);
   auto empty_row_indicator =
-      compute(Array<PrimExpr>{dense_shape[0]}, [&](const Array<Var>& indices) {
+      compute(Array<PrimExpr>{dense_shape->shape[0]}, [&](const Array<Var>& indices) {
         PrimExpr ret = PrimExpr(Bool(1));
         for (int i = 0; i < GetConstInt(sparse_indices->shape[0]); ++i) {
           PrimExpr sparse_index;
@@ -1480,7 +1480,7 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
         PrimExpr ret = -1;
         ret = if_then_else(indices[0] < sparse_indices->shape[0], sparse_indices(indices), ret);
         PrimExpr empty_row_count = 0;
-        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+        for (int i = 0; i < dense_shape_rows; ++i) {
           empty_row_count =
               if_then_else(empty_row_indicator[i], empty_row_count + 1, empty_row_count);
           PrimExpr at_correct_index =
@@ -1502,7 +1502,7 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
         PrimExpr ret = -1;
         ret = if_then_else(indices[0] < sparse_values->shape[0], sparse_values(indices), ret);
         PrimExpr empty_row_count = 0;
-        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+        for (int i = 0; i < dense_shape_rows; ++i) {
           empty_row_count =
               if_then_else(empty_row_indicator[i], empty_row_count + 1, empty_row_count);
           PrimExpr condition =
@@ -1516,7 +1516,7 @@ inline Array<Tensor> SparseFillEmptyRows(const Tensor& sparse_indices, const Ten
       Array<PrimExpr>{1},
       [&](const Array<Var>& indices) {
         PrimExpr non_empty_rows = 0;
-        for (int i = 0; i < static_cast<int>(dense_shape[0]); ++i) {
+        for (int i = 0; i < dense_shape_rows; ++i) {
           non_empty_rows = if_then_else(empty_row_indicator[i], non_empty_rows, non_empty_rows + 1);
         }
         return non_empty_rows;
@@ -1529,6 +1529,9 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
                                    const Tensor& new_shape,
                                    const std::string name = "T_sparse_reshape",
                                    std::string tag = kInjective) {
+  LOG(INFO) << "Sparse Indices Size " << sparse_indices->shape.size();
+  LOG(INFO) << "Prev Shape Size " << prev_shape->shape.size();
+  LOG(INFO) << "New Shape Size " << new_shape->shape.size();
   Array<Tensor> result;
   Array<PrimExpr> new_sparse_indices_shape{sparse_indices->shape[0], new_shape->shape[0]};
 
@@ -1557,6 +1560,7 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
   result.push_back(compute(
       new_sparse_indices_shape,
       [&](const Array<Var>& indices) {
+        LOG(INFO) << "Indices size 1560 " << indices.size();
         PrimExpr flattened_idx = 0;
         if (sparse_indices->shape.size() == 1) {
           flattened_idx += sparse_indices[indices[0]];
@@ -1589,6 +1593,7 @@ inline Array<Tensor> SparseReshape(const Tensor& sparse_indices, const Tensor& p
   result.push_back(compute(
       Array<PrimExpr>{new_shape_size},
       [&](const Array<Var>& indices) {
+        LOG(INFO) << "Indices size 1593 " << indices.size();
         PrimExpr ret = new_shape(indices);
         ret = if_then_else(ret == -1, neg_shape_val[0], ret);
         return ret;

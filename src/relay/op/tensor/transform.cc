@@ -1608,47 +1608,48 @@ RELAY_REGISTER_OP("sparse_segment_sqrtn")
     .set_support_level(3)
     .set_attr<FTVMCompute>("FTVMCompute", SparseSegmentSqrtNCompute);
 
-TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
+// TVM_REGISTER_NODE_TYPE(SparseFillEmptyRowsAttrs);
 
 bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
-  // types: [ sparse_indices, sparse_values, default_value, result]
-  ICHECK_EQ(types.size(), 4) << "SparseFillEmptyRowsRel expects 4 arguments but " << types.size()
+  // types: [ sparse_indices, sparse_values, default_value, dense_shape, result]
+  ICHECK_EQ(types.size(), 5) << "SparseFillEmptyRowsRel expects 5 arguments but " << types.size()
                              << " were provided.";
   std::vector<Type> fields;
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto default_value = types[2].as<TensorTypeNode>();
-  const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  ICHECK_NOTNULL(param);
+  auto dense_shape = types[3].as<TensorTypeNode>();
+  // const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
+  // ICHECK_NOTNULL(param);
 
   Array<IndexExpr> sp_ordered_output_shape;
-  sp_ordered_output_shape.push_back(param->dense_shape[0] + sparse_indices->shape[0]);
+  sp_ordered_output_shape.push_back(dense_shape->shape[0] + sparse_indices->shape[0]);
   if (sparse_indices->shape.size() > 1) {
     sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
   }
   fields.push_back(TensorType(sp_ordered_output_shape, sparse_indices->dtype));
-  fields.push_back(TensorType(Array<PrimExpr>{param->dense_shape[0]}, tvm::DataType::Bool()));
+  fields.push_back(TensorType(Array<PrimExpr>{dense_shape->shape[0]}, tvm::DataType::Bool()));
   fields.push_back(TensorType(Array<PrimExpr>{sp_ordered_output_shape[0]}, default_value->dtype));
   fields.push_back(TensorType(Array<PrimExpr>{1}, tvm::DataType::Int(32)));
-  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
+  reporter->Assign(types[4], TupleType(Array<Type>(fields)));
   return true;
 }
 
 Array<te::Tensor> SparseFillEmptyRowsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                              const Type& out_type) {
-  ICHECK_EQ(inputs.size(), 3) << "SparseFillEmptyRowsCompute expects 3 arguments but "
+  ICHECK_EQ(inputs.size(), 4) << "SparseFillEmptyRowsCompute expects 4 arguments but "
                               << inputs.size() << " were provided.";
-  const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  ICHECK_NOTNULL(param);
-  return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], param->dense_shape)};
+  // const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
+  // ICHECK_NOTNULL(param);
+  return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], inputs[3])};
 }
 
 Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr default_value,
-                             Array<Integer> dense_shape) {
-  auto attrs = make_object<SparseFillEmptyRowsAttrs>();
-  attrs->dense_shape = std::move(dense_shape);
+                             Expr dense_shape) {
+  // auto attrs = make_object<SparseFillEmptyRowsAttrs>();
+  // attrs->dense_shape = std::move(dense_shape);
   static const Op& op = Op::Get("sparse_fill_empty_rows");
-  return Call(op, {sparse_indices, sparse_values, default_value}, Attrs(attrs), {});
+  return Call(op, {sparse_indices, sparse_values, default_value, dense_shape}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows")
@@ -1657,8 +1658,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.sparse_fill_empty_rows")
 RELAY_REGISTER_OP("sparse_fill_empty_rows")
     .describe(R"code(Return representation of a sparse tensor with empty rows filled with default 
     value.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
-    .set_attrs_type<SparseFillEmptyRowsAttrs>()
+    .set_num_inputs(4)
     .add_argument(
         "sparse_indices", "Tensor",
         "A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the"
@@ -1667,10 +1667,13 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
                   "A 1-D tensor[N] containing the sparse values for the sparse indices")
     .add_argument("default_value", "Tensor",
                   "A tensor containing the default value for the remaining locations")
+    .add_argument("dense_shape", "Tensor",
+                  "A tensor containing the default value for the remaining locations")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", SparseFillEmptyRowsCompute);
+// .set_attrs_type<SparseFillEmptyRowsAttrs>()
 
 bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {

@@ -1018,14 +1018,24 @@ def _sparse_reshape():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 3, "There should be 3 input tensors"
 
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = params["SparseTensor/values"].asnumpy()
-        prev_shape_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        new_shape = inputs[2]
-        indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
-        prev_shape_data = _expr.const(prev_shape_tensor, prev_shape_tensor.dtype)
-        ret = _op.sparse_reshape(indices_data, prev_shape_data, new_shape).astuple()
-        return ret, _expr.const(values_tensor, values_tensor.dtype)
+        new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
+        return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
+        # try:
+        #     indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        #     print("IT WAS SUCCESSFUL")
+        # except:
+        #     return get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
+        # # values_tensor = params["SparseTensor/values"].asnumpy()
+        # prev_shape_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        # new_shape = inputs[2]
+        # indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
+        # prev_shape_data = _expr.const(prev_shape_tensor, prev_shape_tensor.dtype)
+        # # ret = _op.sparse_reshape(indices_data, prev_shape_data, new_shape).astuple()
+        # new_indices, new_shape = get_relay_op("sparse_reshape")(
+        #     indices_data, prev_shape_data, new_shape
+        # )
+        # # return ret, _expr.const(values_tensor, values_tensor.dtype)
+        # return new_indices, new_shape
 
     return _impl
 
@@ -1424,14 +1434,19 @@ def _sparse_fill_empty_rows():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
 
+        import pdb
+
+        pdb.set_trace()
+
         indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
         values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
         dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
-        default_value_tensor = _infer_value(inputs[3], params, mod).asnumpy().reshape(1)
 
         indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
         values_data = _expr.const(values_tensor, values_tensor.dtype)
-        default_value_data = _expr.const(default_value_tensor, default_value_tensor.dtype)
+        dense_shape_data = _expr.const(dense_shape_tensor, dense_shape_tensor.dtype)
+
+        default_value_tensor = _infer_value(inputs[3], params, mod).asnumpy().reshape(1)
 
         (
             new_sparse_indices,
@@ -1439,31 +1454,48 @@ def _sparse_fill_empty_rows():
             new_sparse_values,
             non_empty_rows,
         ) = get_relay_op("sparse_fill_empty_rows")(
-            indices_data, values_data, default_value_data, list(dense_shape_tensor)
-        )
-        first_column = get_relay_op("split")(new_sparse_indices, indices_tensor.shape[1], axis=1)
-        sorted_indices = _op.argsort(_op.squeeze(first_column[0]))
-
-        final_sparse_indices = _op.strided_slice(
-            _op.take(new_sparse_indices, sorted_indices, axis=0),
-            begin=_op.concatenate([non_empty_rows, _expr.const([0])], 0),
-            end=[-1, -1],
-            strides=[1, 1],
-            slice_mode="size",
+            indices_data, values_data, default_value_data, dense_shape_data
         )
 
-        final_sparse_values = _op.strided_slice(
-            _op.take(new_sparse_values, sorted_indices),
-            begin=non_empty_rows,
-            end=_expr.const([-1]),
-            slice_mode="size",
+        # (
+        #     new_sparse_indices,
+        #     empty_row_indicator,
+        #     new_sparse_values,
+        #     non_empty_rows,
+        # ) = get_relay_op("sparse_fill_empty_rows")(
+        #     inputs[0], inputs[1], default_value_data, inputs[2]
+        # )
+
+        return _expr.TupleWrapper(
+            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]), 3
         )
 
-        return (
-            final_sparse_indices,
-            final_sparse_values,
-            empty_row_indicator,
-        )
+        # first_column = get_relay_op("split")(new_sparse_indices, indices_tensor.shape[1], axis=1)
+
+        # first_column = get_relay_op("split")(new_sparse_indices, (1, -1), axis=1)
+
+        # sorted_indices = _op.argsort(_op.squeeze(first_column[0]))
+
+        # final_sparse_indices = _op.strided_slice(
+        #     _op.take(new_sparse_indices, sorted_indices, axis=0),
+        #     begin=_op.concatenate([non_empty_rows, _expr.const([0])], 0),
+        #     end=[-1, -1],
+        #     strides=[1, 1],
+        #     slice_mode="size",
+        # )
+
+        # final_sparse_values = _op.strided_slice(
+        #     _op.take(new_sparse_values, sorted_indices),
+        #     begin=non_empty_rows,
+        #     end=_expr.const([-1]),
+        #     slice_mode="size",
+        # )
+
+        # return (
+        #     final_sparse_indices,
+        #     final_sparse_values,
+        #     empty_row_indicator,
+        # )
 
     return _impl
 

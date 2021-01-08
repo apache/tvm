@@ -1823,15 +1823,19 @@ def _test_sparse_segment_sqrtn(data_np, indices_np, segment_ids_np, num_segments
     with tf.Graph().as_default():
         data = tf.placeholder(shape=data_np.shape, dtype=data_np.dtype, name="data")
         indices = tf.placeholder(shape=indices_np.shape, dtype=indices_np.dtype, name="indices")
-        segment_ids = tf.constant(segment_ids_np, segment_ids_np.dtype)
+        segment_ids = tf.placeholder(
+            shape=segment_ids_np.shape, dtype=segment_ids_np.dtype, name="segment_ids"
+        )
+        # segment_ids = tf.constant(segment_ids_np, segment_ids_np.dtype)
 
         result = tf.sparse.segment_sqrt_n(
             data, indices, segment_ids, num_segments=num_segments, name="sparse_segment_sqrtn"
         )
         compare_tf_with_tvm(
-            [data_np, indices_np],
-            [data.name, indices.name],
+            [data_np, indices_np, segment_ids_np],
+            [data.name, indices.name, segment_ids.name],
             result.name,
+            mode="vm",
         )
 
 
@@ -1953,13 +1957,37 @@ def _test_sparse_reshape(indices_np, values_np, prev_shape_np, new_shape_np, dty
         new_shape = tf.placeholder(
             shape=new_shape_np.shape, dtype=new_shape_np.dtype, name="new_shape"
         )
+        new_shape_2_np = np.array([2, 3, 6], dtype=np.int32)
 
-        tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        new_shape_2 = tf.placeholder(
+            shape=new_shape_2_np.shape, dtype=new_shape_2_np.dtype, name="new_shape_2"
+        )
+        result1 = tf.sparse.reshape(sp_input, new_shape, name="sparse_reshape")
+        # result2 = tf.sparse.reshape(result1, new_shape_2, name="sparse_reshape2")
+        result2 = tf.sparse.fill_empty_rows(result1, 0, name="sparse_fill_empty_rows")
+        # import pdb
+
+        # pdb.set_trace()
         compare_tf_with_tvm(
             [new_shape_np],
             [new_shape.name],
-            ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+            [
+                "sparse_fill_empty_rows/SparseFillEmptyRows:0",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:1",
+                "sparse_reshape:1",
+                "sparse_fill_empty_rows/SparseFillEmptyRows:2",
+            ],
         )
+        # compare_tf_with_tvm(
+        #     [new_shape_np, new_shape_2_np],
+        #     [new_shape.name, new_shape_2.name],
+        #     ["sparse_reshape2:0", "sparse_reshape2:1", "sparse_reshape2/Identity:0"],
+        # )
+        # compare_tf_with_tvm(
+        #     [new_shape_np],
+        #     [new_shape.name],
+        #     ["sparse_reshape:0", "sparse_reshape:1", "sparse_reshape/Identity:0"],
+        # )
 
 
 def test_forward_sparse_reshape():
@@ -4881,4 +4909,7 @@ def test_forward_dynmaic_rnn_lstmblockcell():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # test_forward_sparse_reshape()
+    # test_forward_sparse_fill_empty_rows()
+    test_forward_sparse_segment_sqrtn()
+    # pytest.main([__file__])
