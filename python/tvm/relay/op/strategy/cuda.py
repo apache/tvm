@@ -661,7 +661,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         x, y = inputs
         _, M, K = get_const_tuple(x.shape)
         _, N, K = get_const_tuple(y.shape)
-        if (
+        if data.dtype in ["float16", "int8", "uint8"] and (
             (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
             or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
             or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
