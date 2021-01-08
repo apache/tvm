@@ -3463,12 +3463,6 @@ def test_hard_swish():
 
 
 if __name__ == "__main__":
-    test_forward_copy_()
-    test_forward_unsqueeze()
-
-    import sys
-
-    sys.exit()
     # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
@@ -3532,6 +3526,7 @@ if __name__ == "__main__":
     test_forward_true_divide()
     test_forward_is_floating_point()
     test_forward_clone()
+    test_forward_copy_()
     test_forward_softplus()
     test_forward_softsign()
     test_forward_logsoftmax()
