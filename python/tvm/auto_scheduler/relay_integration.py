@@ -27,7 +27,7 @@ import logging
 import threading
 
 import tvm
-from tvm import autotvm, te, transform
+from tvm import autotvm, transform
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
@@ -267,7 +267,7 @@ def auto_schedule_topi(outs):
     -------
     sch: Optional[te.Schedule]
         A tuned schedule or none (if not tuned) in the final build mode;
-        An initial schdule in the tracing mode.
+        None in the tracing mode so that the fallback topi schedule will be used.
     """
     # pylint: disable=import-outside-toplevel
 
@@ -282,7 +282,6 @@ def auto_schedule_topi(outs):
         return None
 
     key = register_workload_tensors(dag.hash_key(), io_tensors)
-
     target = tvm.target.Target.current()
 
     env = TracingEnvironment.current
@@ -293,11 +292,12 @@ def auto_schedule_topi(outs):
             return None
 
         schedule, _ = dag.apply_steps_from_state(state)
-    elif env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
+        return schedule
+
+    if env.tracing_mode in [TracingMode.EXTRACT_TASK, TracingMode.EXTRACT_COMPLEX_TASK_ONLY]:
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(key)
-        schedule = te.create_schedule([x.op for x in outs])
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
         if (
@@ -315,11 +315,10 @@ def auto_schedule_topi(outs):
             new_key = json.dumps((new_dag.hash_key(),))
             if new_key != key:
                 dispatch_ctx.update(target, new_key, state)
-        return te.create_schedule([x.op for x in outs])
     else:
         raise ValueError("Invalid tracing mode: " + env.tracing_mode)
 
-    return schedule
+    return None
 
 
 def tensor_no_check_call(self, *indices):

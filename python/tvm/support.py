@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Support infra of TVM."""
+import ctypes
 import tvm._ffi
+from .runtime.module import Module
+from . import get_global_func
 
 
 def libinfo():
@@ -27,6 +30,28 @@ def libinfo():
         The dictionary of compile-time info.
     """
     return {k: v for k, v in GetLibInfo().items()}  # pylint: disable=unnecessary-comprehension
+
+
+class FrontendTestModule(Module):
+    """A tvm.runtime.Module whose member functions are PackedFunc."""
+
+    def __init__(self, entry_name=None):
+        underlying_mod = get_global_func("testing.FrontendTestModule")()
+        handle = underlying_mod.handle
+
+        # Set handle to NULL to avoid cleanup in c++ runtime, transferring ownership.
+        # Both cython and ctypes FFI use c_void_p, so this is safe to assign here.
+        underlying_mod.handle = ctypes.c_void_p(0)
+
+        super(FrontendTestModule, self).__init__(handle)
+        if entry_name is not None:
+            self.entry_name = entry_name
+
+    def add_function(self, name, func):
+        self.get_function("__add_function")(name, func)
+
+    def __setitem__(self, key, value):
+        self.add_function(key, value)
 
 
 tvm._ffi._init_api("support", __name__)

@@ -212,7 +212,7 @@ class DebugResult(object):
                     continue
                 name = node["name"]
                 shape = str(self._output_tensor_list[eid].shape)
-                time_us = round(time[0] * 1000000, 3)
+                time_us = round(time[0] * 1e6, 3)
                 time_percent = round(((time[0] / total_time) * 100), 3)
                 inputs = str(node["attrs"]["num_inputs"])
                 outputs = str(node["attrs"]["num_outputs"])
@@ -224,8 +224,8 @@ class DebugResult(object):
             # Sort on the basis of execution time. Prints the most expensive ops in the start.
             data = sorted(data, key=lambda x: x[2], reverse=True)
             # Insert a row for total time at the end.
-            rounded_total_time = round(total_time * 1000000, 3)
-            data.append(["Total_time", "-", rounded_total_time, "-", "-", "-", "-", "-"])
+            rounded_total_time_us = round(total_time * 1e6, 3)
+            data.append(["Total_time", "-", rounded_total_time_us, "-", "-", "-", "-", "-"])
 
         fmt = ""
         for i, _ in enumerate(header):

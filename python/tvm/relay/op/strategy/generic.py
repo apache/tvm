@@ -35,7 +35,7 @@ def naive_schedule(_, outs, target):
     if "gpu" in target.keys:
         # For GPU, we at least need thread binding to make a valid schedule.
         # So the naive schedule cannot be compiled.
-        raise RuntimeError(
+        logger.debug(
             "Cannot compile for GPU targets if no tuned schedule is found. "
             "Please see the warning messages above for more information about the failed workloads."
         )
