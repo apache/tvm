@@ -229,7 +229,7 @@ def ret(val):
     val : Expr
         The returned tir expression, whose data type is int, float or void pointer.
 
-    Returns 
+    Returns
     -------
     ret : PrimExpr
         The return expression
