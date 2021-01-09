@@ -43,6 +43,7 @@ from . import memory
 from . import image
 from . import vision
 from . import op_attrs
+from . import random
 
 
 # operator registry

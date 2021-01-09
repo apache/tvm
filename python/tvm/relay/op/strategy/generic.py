@@ -1317,3 +1317,47 @@ def argwhere_strategy(attrs, inputs, out_type, target):
         name="argwhere.generic",
     )
     return strategy
+
+
+# threefry_generate
+def wrap_compute_threefry_generate(topi_compute):
+    """Wrap threefry_generate topi compute"""
+
+    def _compute_threefry_generate(attrs, inputs, _):
+        return topi_compute(inputs[0], attrs.out_shape)
+
+    return _compute_threefry_generate
+
+
+@override_native_generic_func("threefry_generate_strategy")
+def threefry_generate_strategy(attrs, inputs, out_type, target):
+    """threefry_generate generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_threefry_generate(topi.random.threefry_generate),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="threefry_generate.generic",
+    )
+    return strategy
+
+
+# threefry_split
+def wrap_compute_threefry_split(topi_compute):
+    """Wrap threefry_split topi compute"""
+
+    def _compute_threefry_split(attrs, inputs, _):
+        return topi_compute(inputs[0])
+
+    return _compute_threefry_split
+
+
+@override_native_generic_func("threefry_split_strategy")
+def threefry_split_strategy(attrs, inputs, out_type, target):
+    """threefry_split generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_threefry_split(topi.random.threefry_split),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="threefry_split.generic",
+    )
+    return strategy
