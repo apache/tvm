@@ -43,7 +43,7 @@ TIR_DEFINE_BUILTIN_FUNC(reinterpret)
     .set_num_inputs(1);
 
 TIR_DEFINE_BUILTIN_FUNC(ret)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kControlJump))
     .set_num_inputs(1);
 
 TIR_DEFINE_BUILTIN_FUNC(likely)

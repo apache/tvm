@@ -221,6 +221,22 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
+def ret(val):
+    """Create a tir return expression
+
+    Parameters
+    ----------
+    val : Expr
+        The returned tir expression, whose data type is int, float or void pointer.
+
+    Returns 
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+    return call_intrin(val.dtype, "tir.ret", val)
+
+
 def any(*args, span=None):
     """Create a new experssion of the union of all conditions in the arguments
 

@@ -48,10 +48,10 @@ class ReturnRewriter : public StmtMutator {
   Stmt VisitStmt_(const EvaluateNode* node) override {
     Stmt ret = StmtMutator::VisitStmt_(node);
     const EvaluateNode* eval = ret.as<EvaluateNode>();
-    CHECK(eval);
+    ICHECK(eval);
     if (const CallNode* call = eval->value.as<CallNode>()) {
       if (call->op.same_as(builtin::ret())) {
-        CHECK_EQ(call->args.size(), 1);
+        ICHECK_EQ(call->args.size(), 1) << "tir.ret expect a single argument.";
         ret = WriteToOut(call->args[0], ret_var_, ret_tcode_);
       }
     }
