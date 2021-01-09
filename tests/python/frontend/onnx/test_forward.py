@@ -840,7 +840,7 @@ def test_slice():
     )
 
 
-def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
+def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs, opset=None):
     indata = np.random.uniform(-1, 1, size=inshape).astype(dtype)
     outdata = outfunc(indata, **npargs)
 
@@ -856,7 +856,7 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
     model = helper.make_model(graph, producer_name=opname + "_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype, opset=opset)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
@@ -879,6 +879,26 @@ def test_clip():
         "float32",
         "Clip",
         {"min": -1.0, "max": 1.0},
+    )
+
+    _test_onnx_op_elementwise(
+        (2, 4, 5, 6),
+        np.clip,
+        {"a_min": -np.inf, "a_max": 1.0},
+        "float32",
+        "Clip",
+        {"max": 1.0},
+        opset=1,
+    )
+
+    _test_onnx_op_elementwise(
+        (2, 4, 5, 6),
+        np.clip,
+        {"a_min": -1.0, "a_max": np.inf},
+        "float32",
+        "Clip",
+        {"min": -1.0},
+        opset=1,
     )
 
 
