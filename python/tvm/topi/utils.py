@@ -491,4 +491,4 @@ def is_empty_shape(shape):
 
 def ceil_div(a, b):
     """Return ceil division of a by b"""
-    return (a + (b - 1)) // b
+    return tvm.tir.indexdiv(a + (b - 1), b)
