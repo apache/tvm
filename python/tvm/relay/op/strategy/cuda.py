@@ -787,6 +787,19 @@ def scatter_cuda(attrs, inputs, out_type, target):
         name="scatter.cuda",
         plevel=10,
     )
+
+    rank = len(inputs[0].shape)
+
+    with SpecializedCondition(rank == 1):
+        if target.kind.name == "cuda" and get_global_func(
+            "tvm.contrib.thrust.stable_sort_by_key", allow_missing=True
+        ):
+            strategy.add_implementation(
+                wrap_compute_sort(topi.cuda.scatter1d_via_sort),
+                wrap_topi_schedule(topi.cuda.schedule_extern),
+                name="scatter_thrust.cuda",
+                plevel=9,  # use the sequential version by default
+            )
     return strategy
 
 

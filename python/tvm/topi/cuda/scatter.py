@@ -417,7 +417,63 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
     return ib.get()
 
 
-def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
+def scatter(data, indices, updates, axis=0):
+    """Update data at positions defined by indices with values in updates
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The index locations to update.
+
+    updates : relay.Expr
+        The values to update.
+
+    axis : int
+        The axis to scatter on
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    if axis < 0:
+        axis += len(data.shape)
+    assert axis >= 0
+    assert axis < len(data.shape)
+
+    rank = len(data.shape)
+    assert 1 <= rank <= 4, "scatter only supports 1-4 dimensions"
+
+    ir_funcs = {
+        1: gen_ir_1d,
+        2: gen_ir_2d,
+        3: gen_ir_3d,
+        4: gen_ir_4d,
+    }
+
+    def update_func(dst_ptr, dst_index, update):
+        dst_ptr[dst_index] = update
+
+    out_shape = data.shape
+    out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
+
+    out = te.extern(
+        [out_shape],
+        [data, indices, updates],
+        lambda ins, outs: ir_funcs[rank](ins[0], ins[1], ins[2], axis, outs[0], update_func),
+        dtype=data.dtype,
+        out_buffers=[out_buf],
+        name="scatter_gpu",
+        tag="scatter_gpu",
+    )
+
+    return out
+
+
+def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, out):
     """Generate scatter ir for 1d inputs, using a sorting based approach.
     By sorting indices and comparing neighboring two indices, we can tell which
     of elements in the indices tensor can scatter its update value into the output.
@@ -438,9 +494,6 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
     updates : tir.Tensor
         The values to update, sorted by indices.
 
-    axis : int
-        The axis to scatter on. It must be 0 for this function.
-
     out : tir.Tensor
         The output tensor.
 
@@ -449,7 +502,6 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
     ret : tir
         The computational ir.
     """
-    assert axis == 0
     n = data.shape[0]
 
     ib = tvm.tir.ir_builder.create()
@@ -504,7 +556,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, axis, out, _):
     return ib.get()
 
 
-def scatter(data, indices, updates, axis=0):
+def scatter1d_via_sort(data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
     Parameters
@@ -528,45 +580,17 @@ def scatter(data, indices, updates, axis=0):
     """
     if axis < 0:
         axis += len(data.shape)
-    assert axis >= 0
-    assert axis < len(data.shape)
-
-    rank = len(data.shape)
-    assert 1 <= rank <= 4, "scatter only supports 1-4 dimensions"
-
-    ir_funcs = {
-        1: gen_ir_1d,
-        2: gen_ir_2d,
-        3: gen_ir_3d,
-        4: gen_ir_4d,
-    }
-
-    def update_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = update
+    assert axis == 0 and len(data.shape) == 1, "sorting based scatter only supported for 1d input"
 
     out_shape = data.shape
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
 
-    in_bufs = [data]
-
-    def is_small_scatter(dim):
-        if isinstance(data.shape[0], tvm.tir.expr.Any):
-            return False
-        return get_const_int(dim) < 50
-
-    if rank == 1 and is_thrust_available() and not is_small_scatter(indices.shape[0]):
-        ir_funcs[1] = gen_scatter_1d_thrust
-        indices_sorted, updates_sorted = stable_sort_by_key_thrust(
-            indices, updates, for_scatter=True
-        )
-        in_bufs += [indices_sorted, updates_sorted]
-    else:
-        in_bufs += [indices, updates]
+    indices_sorted, updates_sorted = stable_sort_by_key_thrust(indices, updates, for_scatter=True)
 
     out = te.extern(
         [out_shape],
-        in_bufs,
-        lambda ins, outs: ir_funcs[rank](ins[0], ins[1], ins[2], axis, outs[0], update_func),
+        [data, indices_sorted, updates_sorted],
+        lambda ins, outs: gen_scatter_1d_thrust(ins[0], ins[1], ins[2], outs[0]),
         dtype=data.dtype,
         out_buffers=[out_buf],
         name="scatter_gpu",
