@@ -27,7 +27,7 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
     TODO
     """
     batch_size = data.shape[0]
-    num_anchors = data.shape[1]
+    scan_axis_size = data.shape[1]
 
     ib = tvm.tir.ir_builder.create()
 
@@ -39,11 +39,10 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
 
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
 
-    # Copy boxes to output
-    with ib.if_scope(num_anchors > 0):
+    with ib.if_scope(scan_axis_size > 0):
         with ib.new_scope():
             nthread_tx = max_threads
-            nthread_bx = ceil_div(num_anchors, max_threads)
+            nthread_bx = ceil_div(scan_axis_size, max_threads)
             nthread_by = batch_size
             tx = te.thread_axis("threadIdx.x")
             bx = te.thread_axis("blockIdx.x")
@@ -52,18 +51,17 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
             ib.scope_attr(bx, "thread_extent", nthread_bx)
             ib.scope_attr(by, "thread_extent", nthread_by)
             tid = bx * nthread_tx + tx
-            with ib.if_scope(tid < num_anchors):
+            with ib.if_scope(tid < scan_axis_size):
                 output[by, tid] = data[by, tid]
 
         nthread_tx = max_threads
-        nthread_bx = ceil_div(num_anchors, max_threads)
+        nthread_bx = ceil_div(scan_axis_size, max_threads)
         nthread_by = batch_size
 
-        ## The following algorithm performs parallel exclusive scan to get
-        ## a tensor that can later be used to select valid indices
+        # The following algorithm performs parallel exclusive scan
         # Up Sweep of exclusive scan
         lim = tvm.tir.generic.cast(
-            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(num_anchors, "float64"))), "int64"
+            tvm.tir.ceil(tvm.tir.log2(tvm.tir.generic.cast(scan_axis_size, "float64"))), "int64"
         )
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << l2_width
@@ -75,7 +73,7 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
                 ib.scope_attr(
                     bx,
                     "thread_extent",
-                    tvm.tir.generic.cast(ceil_div(num_anchors, max_threads * width), "int32"),
+                    tvm.tir.generic.cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
                 )
                 tid = bx * nthread_tx + tx
 
@@ -85,12 +83,12 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
                 middle = ib.allocate("int64", (1,), name="middle", scope="local")
                 end = ib.allocate("int64", (1,), name="end", scope="local")
                 start[0] = width * tid
-                with ib.if_scope(start[0] < num_anchors):
+                with ib.if_scope(start[0] < scan_axis_size):
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
-                    end[0] = tvm.te.min(start[0] + width, num_anchors)
-                    with ib.if_scope(middle[0] < num_anchors):
-                        output[by * num_anchors + end[0] - 1] += output[
-                            by * num_anchors + middle[0] - 1
+                    end[0] = tvm.te.min(start[0] + width, scan_axis_size)
+                    with ib.if_scope(middle[0] < scan_axis_size):
+                        output[by * scan_axis_size + end[0] - 1] += output[
+                            by * scan_axis_size + middle[0] - 1
                         ]
 
         # Down Sweep of exclusive scan
@@ -99,8 +97,8 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
             ib.scope_attr(bx, "thread_extent", batch_size)
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
-                    reduction[bx] = output[(bx + 1) * num_anchors - 1]
-                output[(bx + 1) * num_anchors - 1] = 0
+                    reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
+                output[(bx + 1) * scan_axis_size - 1] = 0
 
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << (lim - l2_width - 1)
@@ -112,7 +110,7 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
                 ib.scope_attr(
                     bx,
                     "thread_extent",
-                    tvm.tir.generic.cast(ceil_div(num_anchors, max_threads * width), "int32"),
+                    tvm.tir.generic.cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
                 )
                 tid = bx * nthread_tx + tx
 
@@ -123,13 +121,13 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
                 end = ib.allocate("int64", (1,), name="end", scope="local")
                 tmp = ib.allocate("int32", (1,), name="end", scope="local")
                 start[0] = width * tid
-                with ib.if_scope(tvm.tir.all(start[0] < num_anchors)):
+                with ib.if_scope(tvm.tir.all(start[0] < scan_axis_size)):
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
-                    end[0] = tvm.tir.min(start[0] + width, num_anchors)
-                    with ib.if_scope(middle[0] < num_anchors):
-                        tmp[0] = output[by * num_anchors + middle[0] - 1]
-                        output[by * num_anchors + middle[0] - 1] = output[by * num_anchors + end[0] - 1]
-                        output[by * num_anchors + end[0] - 1] += tmp[0]
+                    end[0] = tvm.tir.min(start[0] + width, scan_axis_size)
+                    with ib.if_scope(middle[0] < scan_axis_size):
+                        tmp[0] = output[by * scan_axis_size + middle[0] - 1]
+                        output[by * scan_axis_size + middle[0] - 1] = output[by * scan_axis_size + end[0] - 1]
+                        output[by * scan_axis_size + end[0] - 1] += tmp[0]
     with ib.else_scope():
         with ib.new_scope():
             bx = te.thread_axis("blockIdx.x")
@@ -137,8 +135,6 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
                     reduction[bx] = 0
-
-
     return ib.get()
 
 
