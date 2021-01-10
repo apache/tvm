@@ -214,6 +214,7 @@ def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False):
     )
 
     if return_reduction:
+        assert exclusive, "return_reduction should be False for inclusive scan"
         ndim = len(data.shape)
         if ndim == 1:
             output = expand_dims(output, axis=0)

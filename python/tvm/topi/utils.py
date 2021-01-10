@@ -490,4 +490,5 @@ def is_empty_shape(shape):
 
 
 def ceil_div(a, b):
-    return (a + b - 1) // b
+    """Return ceil division of a by b"""
+    return (a + (b - 1)) // b
