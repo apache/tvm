@@ -20,6 +20,7 @@ from tvm import te
 from tvm._ffi import get_global_func
 from ..transform import expand_dims, squeeze
 from ..utils import ceil_div
+from ..math import cast
 
 
 def exclusive_sum_scan2d_ir(data, output, reduction=None):
@@ -33,6 +34,8 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
 
     data = ib.buffer_ptr(data)
     output = ib.buffer_ptr(output)
+
+    out_dtype = output.dtype
 
     if reduction is not None:
         reduction = ib.buffer_ptr(reduction)
@@ -98,7 +101,7 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
                     reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
-                output[(bx + 1) * scan_axis_size - 1] = 0
+                output[(bx + 1) * scan_axis_size - 1] = cast(0, out_dtype)
 
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << (lim - l2_width - 1)
@@ -119,15 +122,18 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
                 start = ib.allocate("int64", (1,), name="start", scope="local")
                 middle = ib.allocate("int64", (1,), name="middle", scope="local")
                 end = ib.allocate("int64", (1,), name="end", scope="local")
-                tmp = ib.allocate("int32", (1,), name="end", scope="local")
+                tmp = ib.allocate(out_dtype, (1,), name="end", scope="local")
                 start[0] = width * tid
                 with ib.if_scope(tvm.tir.all(start[0] < scan_axis_size)):
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
                     end[0] = tvm.tir.min(start[0] + width, scan_axis_size)
                     with ib.if_scope(middle[0] < scan_axis_size):
                         tmp[0] = output[by * scan_axis_size + middle[0] - 1]
-                        output[by * scan_axis_size + middle[0] - 1] = output[by * scan_axis_size + end[0] - 1]
+                        output[by * scan_axis_size + middle[0] - 1] = output[
+                            by * scan_axis_size + end[0] - 1
+                        ]
                         output[by * scan_axis_size + end[0] - 1] += tmp[0]
+
     with ib.else_scope():
         with ib.new_scope():
             bx = te.thread_axis("blockIdx.x")
@@ -190,16 +196,17 @@ def is_thrust_available():
     return get_global_func("tvm.contrib.thrust.sum_scan", allow_missing=True) is not None
 
 
-def scan_thrust(data, exclusive=True, return_reduction=False):
+def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False):
+    """TODO"""
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    output_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "output_buf", data_alignment=8)
+    output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
     output = te.extern(
         [data.shape],
         [data],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.thrust.sum_scan", ins[0], outs[0], exclusive
         ),
-        dtype=[data.dtype],
+        dtype=[output_dtype],
         in_buffers=[data_buf],
         out_buffers=[output_buf],
         name="exclusive_sum_scan2d",
@@ -220,22 +227,24 @@ def scan_thrust(data, exclusive=True, return_reduction=False):
 
 
 def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
-    # TODO(masahi): support other binary associative operators
-    # TODO: handle output_dtype
+    """TODO"""
     ndim = len(data.shape)
     if axis < 0:
         axis += ndim
     assert axis == ndim - 1, "Only support scan on the inner most axis."
 
+    if output_dtype is None:
+        output_dtype = data.dtype
+
     target = tvm.target.Target.current()
     if target and target.kind.name == "cuda" and is_thrust_available():
-        return scan_thrust(data, exclusive=True, return_reduction=return_reduction)
+        return scan_thrust(data, output_dtype, exclusive=True, return_reduction=return_reduction)
 
     if ndim == 1:
         data = expand_dims(data, axis=0)
 
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    output_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "output_buf", data_alignment=8)
+    output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
 
     if len(data.shape) == 2:
         if return_reduction:
@@ -243,7 +252,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
                 [data.shape, (data.shape[0],)],
                 [data],
                 lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1]),
-                dtype=[data.dtype, data.dtype],
+                dtype=[data.dtype, output_dtype],
                 in_buffers=[data_buf],
                 name="exclusive_scan",
                 tag="exclusive_scan_gpu",
@@ -253,7 +262,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
                 [data.shape],
                 [data],
                 lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0]),
-                dtype=[data.dtype],
+                dtype=[output_dtype],
                 in_buffers=[data_buf],
                 out_buffers=[output_buf],
                 name="exclusive_scan",
