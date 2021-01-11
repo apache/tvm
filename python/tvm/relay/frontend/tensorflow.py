@@ -1351,6 +1351,16 @@ def _space_to_depth():
 
     return _impl
 
+def _sparse_to_dense():
+    def _impl(inputs, attr, params, mod):
+        sparse_indices = inputs[0]
+        output_shape = inputs[1]
+        sparse_values = inputs[2]
+        default_value = inputs[3]
+
+        return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
+
+    return _impl
 
 def _bias_add():
     def _impl(inputs, attr, params, mod):
@@ -2408,8 +2418,8 @@ _convert_map = {
     "Softsign": _softsign(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
+    "SparseToDense": _sparse_to_dense(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
-    "SparseReshape": _sparse_reshape(),
     "Split": _split(False),
     "SplitV": _split(True),
     "Sqrt": AttrCvt("sqrt"),
