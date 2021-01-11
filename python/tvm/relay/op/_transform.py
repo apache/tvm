@@ -63,9 +63,6 @@ _reg.register_injective_schedule("unravel_index")
 _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
-_reg.register_injective_schedule("sparse_segment_sqrtn")
-# _reg.register_injective_schedule("sparse_fill_empty_rows")
-_reg.register_injective_schedule("sparse_reshape")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
@@ -96,14 +93,6 @@ def compute_scatter(attrs, inputs, output_type):
 
 
 _reg.register_strategy("scatter", strategy.scatter_strategy)
-
-# sparse_fill_empty_rows
-@_reg.register_compute("sparse_fill_empty_rows")
-def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
-    """Compute definition of sparse_fill_empty_rows"""
-    return [topi.sparse_fill_empty_rows(inputs[0], inputs[1], inputs[2], inputs[3])]
-
-_reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows_strategy)
 
 # sample_op 
 @_reg.register_compute("sample_op")
