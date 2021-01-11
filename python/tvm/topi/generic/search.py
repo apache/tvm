@@ -68,9 +68,5 @@ def schedule_scatter_add(outs):
     return _default_schedule(outs, False)
 
 
-def schedule_sparse_fill_empty_rows(outs):
-    return _default_schedule(outs, False)
-
-
 def schedule_sample_op(outs):
     return _default_schedule(outs, False)
