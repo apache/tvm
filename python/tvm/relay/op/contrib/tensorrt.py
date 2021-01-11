@@ -140,7 +140,11 @@ def partition_for_tensorrt(
             RemoveDropoutPass(),
             transform.RemoveUnusedFunctions(),
             transform.ConvertLayout(
-                {"nn.conv2d": ["NCHW", "default"], "nn.conv3d": ["NCDHW", "default"]}
+                {
+                    "nn.conv2d": ["NCHW", "default"],
+                    "nn.conv3d": ["NCDHW", "default"],
+                    "nn.conv2d_transpose": ["NCHW", "default"],
+                }
             ),
             transform.FoldConstant(),
             transform.AnnotateTarget("tensorrt"),
