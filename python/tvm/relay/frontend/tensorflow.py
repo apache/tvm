@@ -974,72 +974,6 @@ def _sparse_tensor_dense_matmul():
 
     return _impl
 
-
-def _sparse_segment_sqrtn_with_num_segments():
-    def _impl(inputs, attr, params, mod):
-
-        assert len(inputs) == 4, "There should be 4 input tensors"
-        num_segments = _infer_value(inputs[3], params, mod).asnumpy().tolist()
-        return _op.sparse_segment_sqrtn(inputs[0], inputs[1], inputs[2], num_segments)
-
-    return _impl
-
-
-def _sparse_segment_sqrtn():
-    def _impl(inputs, attr, params, mod):
-
-        assert len(inputs) == 3, "There should be 3 input tensors"
-        result = _op.sparse_segment_sqrtn(inputs[0], inputs[1], inputs[2])
-        num_segments = _op.add(get_relay_op("max")(inputs[2]), _expr.const([1]))
-        num_output_shape_dims = len(attr["_output_shapes"][0])
-        begin_indices = _op.repeat(_expr.const([0]), num_output_shape_dims, 0)
-        end_indices = num_segments
-        if num_output_shape_dims > 1:
-            end_indices = _op.concatenate(
-                [
-                    end_indices,
-                    _op.repeat(_expr.const([-1]), num_output_shape_dims - 1, 0),
-                ],
-                0,
-            )
-        strides = _op.repeat(_expr.const([1]), num_output_shape_dims, 0)
-        return _op.strided_slice(
-            result,
-            begin=begin_indices,
-            end=end_indices,
-            strides=strides,
-            slice_mode="size",
-        )
-
-    return _impl
-
-
-def _sparse_reshape():
-    def _impl(inputs, attr, params, mod):
-        assert len(inputs) == 3, "There should be 3 input tensors"
-
-        new_indices, new_shape = get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
-        return _expr.TupleWrapper(_expr.Tuple([new_indices, new_shape]), 2)
-        # try:
-        #     indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        #     print("IT WAS SUCCESSFUL")
-        # except:
-        #     return get_relay_op("sparse_reshape")(inputs[0], inputs[1], inputs[2])
-        # # values_tensor = params["SparseTensor/values"].asnumpy()
-        # prev_shape_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        # new_shape = inputs[2]
-        # indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
-        # prev_shape_data = _expr.const(prev_shape_tensor, prev_shape_tensor.dtype)
-        # # ret = _op.sparse_reshape(indices_data, prev_shape_data, new_shape).astuple()
-        # new_indices, new_shape = get_relay_op("sparse_reshape")(
-        #     indices_data, prev_shape_data, new_shape
-        # )
-        # # return ret, _expr.const(values_tensor, values_tensor.dtype)
-        # return new_indices, new_shape
-
-    return _impl
-
-
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -1414,88 +1348,6 @@ def _space_to_depth():
         block_size = int(attr["block_size"])
         layout = attr["data_format"].decode("utf-8")
         return _op.nn.space_to_depth(inputs[0], block_size, layout)
-
-    return _impl
-
-
-def _sparse_to_dense():
-    def _impl(inputs, attr, params, mod):
-        sparse_indices = inputs[0]
-        output_shape = inputs[1]
-        sparse_values = inputs[2]
-        default_value = inputs[3]
-
-        return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
-
-    return _impl
-
-
-def _sparse_fill_empty_rows():
-    def _impl(inputs, attr, params, mod):
-        assert len(inputs) == 4, "There should be 4 input tensors"
-
-        empty_row_indicator = get_relay_op("sparse_fill_empty_rows")(inputs[0], inputs[1], inputs[2], inputs[3])
-        return _expr.TupleWrapper(
-            _expr.Tuple([empty_row_indicator, empty_row_indicator, empty_row_indicator]), 3
-        )
-        # indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        # values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        # dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
-
-        # indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
-        # values_data = _expr.const(values_tensor, values_tensor.dtype)
-        # dense_shape_data = _expr.const(dense_shape_tensor, dense_shape_tensor.dtype)
-
-        # default_value_tensor = _infer_value(inputs[3], params, mod).asnumpy().reshape(1)
-
-        # (
-        #     new_sparse_indices,
-        #     empty_row_indicator,
-        #     new_sparse_values,
-        #     non_empty_rows,
-        # ) = get_relay_op("sparse_fill_empty_rows")(
-        #     indices_data, values_data, default_value_data, dense_shape_data
-        # )
-
-        # (
-        #     new_sparse_indices,
-        #     empty_row_indicator,
-        #     new_sparse_values,
-        #     non_empty_rows,
-        # ) = get_relay_op("sparse_fill_empty_rows")(
-        #     inputs[0], inputs[1], default_value_data, inputs[2]
-        # )
-
-        return _expr.TupleWrapper(
-            _expr.Tuple([new_sparse_indices, new_sparse_values, empty_row_indicator]), 3
-        )
-
-        # first_column = get_relay_op("split")(new_sparse_indices, indices_tensor.shape[1], axis=1)
-
-        # first_column = get_relay_op("split")(new_sparse_indices, (1, -1), axis=1)
-
-        # sorted_indices = _op.argsort(_op.squeeze(first_column[0]))
-
-        # final_sparse_indices = _op.strided_slice(
-        #     _op.take(new_sparse_indices, sorted_indices, axis=0),
-        #     begin=_op.concatenate([non_empty_rows, _expr.const([0])], 0),
-        #     end=[-1, -1],
-        #     strides=[1, 1],
-        #     slice_mode="size",
-        # )
-
-        # final_sparse_values = _op.strided_slice(
-        #     _op.take(new_sparse_values, sorted_indices),
-        #     begin=non_empty_rows,
-        #     end=_expr.const([-1]),
-        #     slice_mode="size",
-        # )
-
-        # return (
-        #     final_sparse_indices,
-        #     final_sparse_values,
-        #     empty_row_indicator,
-        # )
 
     return _impl
 
@@ -2556,11 +2408,7 @@ _convert_map = {
     "Softsign": _softsign(),
     "SpaceToBatchND": _space_to_batch_nd(),
     "SpaceToDepth": _space_to_depth(),
-    "SparseToDense": _sparse_to_dense(),
-    "SparseFillEmptyRows": _sparse_fill_empty_rows(),
     "SparseTensorDenseMatMul": _sparse_tensor_dense_matmul(),
-    "SparseSegmentSqrtN": _sparse_segment_sqrtn(),
-    "SparseSegmentSqrtNWithNumSegments": _sparse_segment_sqrtn_with_num_segments(),
     "SparseReshape": _sparse_reshape(),
     "Split": _split(False),
     "SplitV": _split(True),
