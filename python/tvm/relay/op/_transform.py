@@ -443,18 +443,6 @@ _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 
 
 @script
-def _sparse_fill_empty_rows_shape_func(dense_shape):
-    out = output_tensor((1,), "int64")
-    out[0] = int64(dense_shape[0])
-    return out
-
-
-@_reg.register_shape_func("sparse_fill_empty_rows", True)
-def sparse_fill_empty_rows_func(attrs, inputs, _):
-    return [_sparse_fill_empty_rows_shape_func(inputs[3])]
-
-
-@script
 def _sample_op_shape_func(sample_input):
     out = output_tensor((1,), "int64")
     out[0] = int64(sample_input[0])
