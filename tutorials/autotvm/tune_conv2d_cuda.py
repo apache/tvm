@@ -55,6 +55,7 @@ import numpy as np
 import tvm
 from tvm import te, topi, testing
 from tvm.topi.testing import conv2d_nchw_python
+import tvm.testing
 
 from tvm import autotvm
 
