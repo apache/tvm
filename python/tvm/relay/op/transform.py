@@ -1443,10 +1443,13 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_s
 
         slice_element_index = [3]
     """
-    return TupleWrapper(
-        _make.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape), 4
-    )
+    # return TupleWrapper(
+    #     _make.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape), 4
+    # )
+    return _make.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape)
 
+def sample_op(sample_input):
+    return _make.sample_op(sample_input)
 
 def sparse_reshape(sparse_indices, prev_shape, new_shape):
     """

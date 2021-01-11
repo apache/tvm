@@ -1194,18 +1194,31 @@ def test_sparse_fill_empty_rows():
         default_value = relay.var(
             "default_value", relay.TensorType(default_value_np.shape, str(default_value_np.dtype))
         )
+        dense_shape = relay.var(
+            "dense_shape", relay.TensorType(dense_shape_np.shape, str(dense_shape_np.dtype))
+        )
+
+        # z = relay.op.sparse_fill_empty_rows(
+        #     sparse_indices, sparse_values, default_value, dense_shape
+        # ).astuple()
+
         z = relay.op.sparse_fill_empty_rows(
-            sparse_indices, sparse_values, default_value, list(dense_shape_np)
-        ).astuple()
-        func = relay.Function([sparse_indices, sparse_values, default_value], z)
+            sparse_indices, sparse_values, default_value, dense_shape
+        )
+        func = relay.Function([sparse_indices, sparse_values, default_value, dense_shape], z)
 
         ref_res = ref_sparse_fill_empty_rows(
             sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np
         )
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np, default_value_np)
+        for target, ctx in [("llvm", tvm.cpu())]:
+            for kind in ["vm", "debug"]:
+                mod = tvm.ir.IRModule.from_expr(func)
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                data = [sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np]
+                op_res = intrp.evaluate()(*data)
+                # op_res = intrp.evaluate(func)(sparse_indices_np, sparse_values_np, default_value_np, dense_shape_np)
+
+                import pdb;pdb.set_trace()
                 for op_res_item, ref_res_item in zip(op_res, ref_res):
                     tvm.testing.assert_allclose(op_res_item.asnumpy(), ref_res_item, rtol=1e-5)
 
@@ -1636,9 +1649,12 @@ def test_adv_index():
 
 
 if __name__ == "__main__":
-    test_sparse_segment_sqrtn()
-    test_sparse_fill_empty_rows()
-    test_sparse_reshape()
+    # test_sparse_segment_sqrtn()
+    # test_sparse_fill_empty_rows()
+    test_sample_op()
+    import sys;
+    sys.exit()
+    # test_sparse_reshape()
     test_cast()
     test_zeros_ones()
     test_unary_identity()

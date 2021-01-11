@@ -1615,34 +1615,36 @@ bool SparseFillEmptyRowsRel(const Array<Type>& types, int num_inputs, const Attr
   // types: [ sparse_indices, sparse_values, default_value, dense_shape, result]
   ICHECK_EQ(types.size(), 5) << "SparseFillEmptyRowsRel expects 5 arguments but " << types.size()
                              << " were provided.";
-  std::vector<Type> fields;
-  auto sparse_indices = types[0].as<TensorTypeNode>();
-  auto default_value = types[2].as<TensorTypeNode>();
-  auto dense_shape = types[3].as<TensorTypeNode>();
+  // std::vector<Type> fields;
+  // auto sparse_indices = types[0].as<TensorTypeNode>();
+  // auto default_value = types[2].as<TensorTypeNode>();
+  // auto dense_shape = types[3].as<TensorTypeNode>();
   // const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
   // ICHECK_NOTNULL(param);
 
-  Array<IndexExpr> sp_ordered_output_shape;
-  sp_ordered_output_shape.push_back(dense_shape->shape[0] + sparse_indices->shape[0]);
-  if (sparse_indices->shape.size() > 1) {
-    sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
-  }
-  fields.push_back(TensorType(sp_ordered_output_shape, sparse_indices->dtype));
-  fields.push_back(TensorType(Array<PrimExpr>{dense_shape->shape[0]}, tvm::DataType::Bool()));
-  fields.push_back(TensorType(Array<PrimExpr>{sp_ordered_output_shape[0]}, default_value->dtype));
-  fields.push_back(TensorType(Array<PrimExpr>{1}, tvm::DataType::Int(32)));
-  reporter->Assign(types[4], TupleType(Array<Type>(fields)));
+  // Array<IndexExpr> sp_ordered_output_shape;
+  // sp_ordered_output_shape.push_back(Any());
+  // if (sparse_indices->shape.size() > 1) {
+  //   sp_ordered_output_shape.push_back(sparse_indices->shape[1]);
+  // }
+  // fields.push_back(TensorType(sp_ordered_output_shape, sparse_indices->dtype));
+  // fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Bool()));
+  // fields.push_back(TensorType(Array<PrimExpr>{Any()}, default_value->dtype));
+  // fields.push_back(TensorType(Array<PrimExpr>{1}, tvm::DataType::Int(32)));
+  // reporter->Assign(types[4], TupleType(Array<Type>(fields)));
+
+  reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
   return true;
 }
 
-Array<te::Tensor> SparseFillEmptyRowsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                             const Type& out_type) {
-  ICHECK_EQ(inputs.size(), 4) << "SparseFillEmptyRowsCompute expects 4 arguments but "
-                              << inputs.size() << " were provided.";
-  // const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
-  // ICHECK_NOTNULL(param);
-  return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], inputs[3])};
-}
+// Array<te::Tensor> SparseFillEmptyRowsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+//                                              const Type& out_type) {
+//   ICHECK_EQ(inputs.size(), 4) << "SparseFillEmptyRowsCompute expects 4 arguments but "
+//                               << inputs.size() << " were provided.";
+//   // const auto* param = attrs.as<SparseFillEmptyRowsAttrs>();
+//   // ICHECK_NOTNULL(param);
+//   return {topi::SparseFillEmptyRows(inputs[0], inputs[1], inputs[2], inputs[3])};
+// }
 
 Expr MakeSparseFillEmptyRows(Expr sparse_indices, Expr sparse_values, Expr default_value,
                              Expr dense_shape) {
@@ -1671,9 +1673,36 @@ RELAY_REGISTER_OP("sparse_fill_empty_rows")
                   "A tensor containing the default value for the remaining locations")
     .add_type_rel("sparse_fill_empty_rows", SparseFillEmptyRowsRel)
     .set_support_level(3)
-    .set_attr<TOpPattern>("TOpPattern", kInjective)
-    .set_attr<FTVMCompute>("FTVMCompute", SparseFillEmptyRowsCompute);
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+    // .set_attr<FTVMCompute>("FTVMCompute", SparseFillEmptyRowsCompute);
 // .set_attrs_type<SparseFillEmptyRowsAttrs>()
+
+
+bool SampleOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                            const TypeReporter& reporter) {
+  // types: [ sample_input, result]
+  ICHECK_EQ(types.size(), 2);
+  reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  return true;
+}
+
+Expr MakeSampleOp(Expr sample_input) {
+  static const Op& op = Op::Get("sample_op");
+  return Call(op, {sample_input}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sample_op")
+    .set_body_typed(MakeSampleOp);
+
+RELAY_REGISTER_OP("sample_op")
+    .describe(R"code(Return representation of a sparse tensor with empty rows filled with default 
+    value.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("sample_input", "Tensor",
+                  "A 1-D tensor[N] containing the sparse values for the sparse indices")
+    .add_type_rel("sample_op", SampleOpRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 bool SparseReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                       const TypeReporter& reporter) {

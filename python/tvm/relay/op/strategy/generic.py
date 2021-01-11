@@ -1057,6 +1057,43 @@ def proposal_strategy(attrs, inputs, out_type, target):
     )
     return strategy
 
+# sparse_fill_empty_rows
+@override_native_generic_func("sparse_fill_empty_rows_strategy")
+def sparse_fill_empty_rows_strategy(attrs, outs, out_type, target): 
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sparse_fill_empty_rows(topi.sparse_fill_empty_rows),
+        wrap_topi_schedule(topi.generic.schedule_sparse_fill_empty_rows),
+        name="sparse_fill_empty_rows.generic",
+    )
+    return strategy
+    
+def wrap_compute_sparse_fill_empty_rows(topi_compute):
+    """Wrap sparse fill empty rows compute"""
+
+    def _compute_sparse_fill_empty_rows(attrs, inputs, _): 
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+    return _compute_sparse_fill_empty_rows
+
+# sample_op
+@override_native_generic_func("sample_op_strategy")
+def sample_op_strategy(attrs, outs, out_type, target): 
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sample_op(topi.sample_op),
+        wrap_topi_schedule(topi.generic.schedule_sample_op),
+        name="sample_op.generic",
+    )
+    return strategy
+    
+def wrap_compute_sample_op(topi_compute):
+    """Wrap sample_op compute"""
+
+    def _compute_sample_op(attrs, inputs, _): 
+        return [topi_compute(inputs[0])]
+
+    return _compute_sample_op
 
 # scatter
 @override_native_generic_func("scatter_strategy")

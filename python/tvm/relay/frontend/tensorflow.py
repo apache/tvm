@@ -1434,28 +1434,28 @@ def _sparse_fill_empty_rows():
     def _impl(inputs, attr, params, mod):
         assert len(inputs) == 4, "There should be 4 input tensors"
 
-        import pdb
-
-        pdb.set_trace()
-
-        indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
-        values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
-        dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
-
-        indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
-        values_data = _expr.const(values_tensor, values_tensor.dtype)
-        dense_shape_data = _expr.const(dense_shape_tensor, dense_shape_tensor.dtype)
-
-        default_value_tensor = _infer_value(inputs[3], params, mod).asnumpy().reshape(1)
-
-        (
-            new_sparse_indices,
-            empty_row_indicator,
-            new_sparse_values,
-            non_empty_rows,
-        ) = get_relay_op("sparse_fill_empty_rows")(
-            indices_data, values_data, default_value_data, dense_shape_data
+        empty_row_indicator = get_relay_op("sparse_fill_empty_rows")(inputs[0], inputs[1], inputs[2], inputs[3])
+        return _expr.TupleWrapper(
+            _expr.Tuple([empty_row_indicator, empty_row_indicator, empty_row_indicator]), 3
         )
+        # indices_tensor = _infer_value(inputs[0], params, mod).asnumpy()
+        # values_tensor = _infer_value(inputs[1], params, mod).asnumpy()
+        # dense_shape_tensor = _infer_value(inputs[2], params, mod).asnumpy()
+
+        # indices_data = _expr.const(indices_tensor, indices_tensor.dtype)
+        # values_data = _expr.const(values_tensor, values_tensor.dtype)
+        # dense_shape_data = _expr.const(dense_shape_tensor, dense_shape_tensor.dtype)
+
+        # default_value_tensor = _infer_value(inputs[3], params, mod).asnumpy().reshape(1)
+
+        # (
+        #     new_sparse_indices,
+        #     empty_row_indicator,
+        #     new_sparse_values,
+        #     non_empty_rows,
+        # ) = get_relay_op("sparse_fill_empty_rows")(
+        #     indices_data, values_data, default_value_data, dense_shape_data
+        # )
 
         # (
         #     new_sparse_indices,

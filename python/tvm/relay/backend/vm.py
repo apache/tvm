@@ -66,6 +66,7 @@ def compile(mod, target=None, target_host=None, params=None):
     if params:
         compiler.set_params(params)
     compiler.lower(mod, target, target_host)
+    # import pdb;pdb.set_trace()
     compiler.codegen()
     return compiler.get_exec()
 

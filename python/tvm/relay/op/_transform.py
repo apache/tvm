@@ -64,7 +64,7 @@ _reg.register_injective_schedule("sparse_to_dense")
 _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
 _reg.register_injective_schedule("sparse_segment_sqrtn")
-_reg.register_injective_schedule("sparse_fill_empty_rows")
+# _reg.register_injective_schedule("sparse_fill_empty_rows")
 _reg.register_injective_schedule("sparse_reshape")
 
 # concatenate
@@ -97,6 +97,21 @@ def compute_scatter(attrs, inputs, output_type):
 
 _reg.register_strategy("scatter", strategy.scatter_strategy)
 
+# sparse_fill_empty_rows
+@_reg.register_compute("sparse_fill_empty_rows")
+def compute_sparse_fill_empty_rows(attrs, inputs, output_type):
+    """Compute definition of sparse_fill_empty_rows"""
+    return [topi.sparse_fill_empty_rows(inputs[0], inputs[1], inputs[2], inputs[3])]
+
+_reg.register_strategy("sparse_fill_empty_rows", strategy.sparse_fill_empty_rows_strategy)
+
+# sample_op 
+@_reg.register_compute("sample_op")
+def compute_sample_op(attrs, inputs, output_type):
+    """Compute definition of sample_op"""
+    return [topi.sample_op(inputs[0])]
+
+_reg.register_strategy("sample_op", strategy.sample_op_strategy)
 # scatter_add
 @_reg.register_compute("scatter_add")
 def compute_scatter_add(attrs, inputs, output_type):
@@ -437,6 +452,29 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
 
+
+@script
+def _sparse_fill_empty_rows_shape_func(dense_shape):
+    out = output_tensor((1,), "int64")
+    out[0] = int64(dense_shape[0])
+    return out
+
+
+@_reg.register_shape_func("sparse_fill_empty_rows", True)
+def sparse_fill_empty_rows_func(attrs, inputs, _):
+    return [_sparse_fill_empty_rows_shape_func(inputs[3])]
+
+
+@script
+def _sample_op_shape_func(sample_input):
+    out = output_tensor((1,), "int64")
+    out[0] = int64(sample_input[0])
+    return out
+
+
+@_reg.register_shape_func("sample_op", True)
+def sample_op_func(attrs, inputs, _):
+    return [_sample_op_shape_func(inputs[0])]
 
 @script
 def _layout_transform_shape_func(

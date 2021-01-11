@@ -1036,6 +1036,9 @@ def sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_s
     return cpp.sparse_fill_empty_rows(sparse_indices, sparse_values, default_value, dense_shape)
 
 
+def sample_op(sample_input):
+    return cpp.sample_op(sample_input)
+
 def sparse_reshape(sparse_indices, prev_shape, new_shape):
     """
     Reshape a Sparse Tensor
