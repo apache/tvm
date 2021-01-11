@@ -19,6 +19,7 @@
 import tvm
 from tvm import te, autotvm
 from ..scatter import _verify_scatter_nd_inputs
+from ..generic import schedule_extern
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust, is_thrust_available
 
@@ -417,7 +418,7 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
 
 
 @autotvm.register_topi_compute("scatter.cuda")
-def scatter(_, data, indices, updates, axis=0):
+def scatter(cfg, data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
     Parameters
@@ -460,6 +461,8 @@ def scatter(_, data, indices, updates, axis=0):
     out_shape = data.shape
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
 
+    cfg.add_flop(1)
+
     out = te.extern(
         [out_shape],
         [data, indices, updates],
@@ -471,6 +474,11 @@ def scatter(_, data, indices, updates, axis=0):
     )
 
     return out
+
+
+@autotvm.register_topi_schedule("scatter.cuda")
+def schedule_scatter(_, outs):
+    return schedule_extern(outs)
 
 
 def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, out):
@@ -557,7 +565,7 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, out):
 
 
 @autotvm.register_topi_compute("scatter_via_sort.cuda")
-def scatter1d_via_sort(_, data, indices, updates, axis=0):
+def scatter_via_sort(cfg, data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
     Parameters
@@ -584,6 +592,8 @@ def scatter1d_via_sort(_, data, indices, updates, axis=0):
     assert axis == 0 and len(data.shape) == 1, "sorting based scatter only supported for 1d input"
     assert is_thrust_available(), "Thrust is required for this op"
 
+    cfg.add_flop(1)
+
     out_shape = data.shape
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
 
@@ -600,6 +610,11 @@ def scatter1d_via_sort(_, data, indices, updates, axis=0):
     )
 
     return out
+
+
+@autotvm.register_topi_schedule("scatter_via_sort.cuda")
+def schedule_scatter_via_sort(_, outs):
+    return schedule_extern(outs)
 
 
 def gen_scatter_add_1d_atomic(data, indices, updates, axis, out, _):

@@ -783,7 +783,7 @@ def scatter_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_scatter(topi.cuda.scatter),
-        wrap_topi_schedule(topi.generic.schedule_extern),
+        wrap_topi_schedule(topi.cuda.schedule_scatter),
         name="scatter.cuda",
         plevel=10,
     )
@@ -795,8 +795,8 @@ def scatter_cuda(attrs, inputs, out_type, target):
             "tvm.contrib.thrust.stable_sort_by_key", allow_missing=True
         ):
             strategy.add_implementation(
-                wrap_compute_scatter(topi.cuda.scatter1d_via_sort),
-                wrap_topi_schedule(topi.generic.schedule_extern),
+                wrap_compute_scatter(topi.cuda.scatter_via_sort),
+                wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
                 name="scatter_via_sort.cuda",
                 plevel=9,  # use the sequential version by default
             )
