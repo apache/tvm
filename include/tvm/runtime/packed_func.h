@@ -1233,18 +1233,49 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
 }
 
 namespace detail {
+/*!
+ * \brief template class to get argument types of a function or callable object.
+ * \tparam T The funtion/function object type.
+ */
+template <typename T>
+struct function_arguments : public function_arguments<decltype(&T::operator())> {};
+
+template <typename T, typename R, typename... Args>
+struct function_arguments<R (T::*)(Args...) const> {
+  using ArgTypes = std::tuple<Args...>;
+};
+
+template <typename R, typename... Args>
+struct function_arguments<R (&)(Args...)> {
+  using ArgTypes = std::tuple<Args...>;
+};
+template <typename R, typename... Args>
+struct function_arguments<R (*)(Args...)> {
+  using ArgTypes = std::tuple<Args...>;
+};
+
 template <typename R, int nleft, int index, typename F>
 struct unpack_call_dispatcher {
   template <typename... Args>
   TVM_ALWAYS_INLINE static void run(const std::string& name, const F& f, const TVMArgs& args_pack,
                                     TVMRetValue* rv, Args&&... unpacked_args) {
+    // Remove references in argument types so we don't store a reference to a temporary.
+    using arg_type = typename std::remove_reference<
+        typename std::tuple_element<index, typename function_arguments<F>::ArgTypes>::type>::type;
+    arg_type arg = [&]() -> arg_type {
+      try {
+        return TVMMovableArgValue_(args_pack.values[index], args_pack.type_codes[index]);
+      } catch (dmlc::Error& err) {
+        // TODO(tkonolige): error parsing is messed up, so no newlines are allowed in error messages
+        LOG(FATAL) << "In function " << name << ", could not convert argument " << index << ": "
+                   << err.what();
+        throw "";  // to silence compiler warnings. LOG(FATAL) exits before this.
+      }
+    }();
     // construct a movable argument value
     // which allows potential move of argument to the input of F.
-    // We also inject the function name and argument index into the argument so
-    // that we can display a helpful error message.
     unpack_call_dispatcher<R, nleft - 1, index + 1, F>::run(
-        name, f, args_pack, rv, std::forward<Args>(unpacked_args)...,
-        TVMMovableArgValue_(args_pack.values[index], args_pack.type_codes[index], name, index));
+        name, f, args_pack, rv, std::forward<Args>(unpacked_args)..., std::move(arg));
   }
 };
 
