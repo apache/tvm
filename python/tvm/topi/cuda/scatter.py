@@ -461,7 +461,8 @@ def scatter(cfg, data, indices, updates, axis=0):
     out_shape = data.shape
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
 
-    cfg.add_flop(1)
+    cfg.define_knob("dummy", [1])
+    cfg.add_flop(1) # dummy value to satisfy AutoTVM
 
     out = te.extern(
         [out_shape],
@@ -592,6 +593,7 @@ def scatter_via_sort(cfg, data, indices, updates, axis=0):
     assert axis == 0 and len(data.shape) == 1, "sorting based scatter only supported for 1d input"
     assert is_thrust_available(), "Thrust is required for this op"
 
+    cfg.define_knob("dummy", [1])
     cfg.add_flop(1)
 
     out_shape = data.shape
