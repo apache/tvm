@@ -286,8 +286,6 @@ def test_combine_parallel_dense_flat_biasadd():
         y = run_opt_pass(y_before, combine_pass)
         y_expected = expected(x, w1, w2, b1, b2, j, bias_shape1, bias_shape2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        print(y.astext(False))
-        print(y_expected.astext(False))
         tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, (), ())

@@ -28,7 +28,10 @@ logger = logging.getLogger("strategy")
 
 
 def naive_schedule(_, outs, target):
-    """Return the naive default schedule"""
+    """Return the naive default schedule.
+    This function acts as a placeholder for op implementations that uses auto-scheduler.
+    Implemenations using this function should only be used along with auto-scheduler.
+    """
     if "gpu" in target.keys:
         # For GPU, we at least need thread binding to make a valid schedule.
         # So the naive schedule cannot be compiled.
@@ -154,6 +157,20 @@ def softmax_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("fast_softmax_strategy")
+def fast_softmax_strategy(attrs, inputs, out_type, target):
+    """fast softmax generic strategy"""
+    # NOTE: This op does not have an optimized manual schedule,
+    # so it should only be used together with auto-scheduler.
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        naive_schedule,
+        name="fast_softmax.generic",
+    )
+    return strategy
+
+
 # log_softmax
 @generic_func
 def schedule_log_softmax(attrs, outs, target):
@@ -199,7 +216,6 @@ def wrap_compute_conv2d(
         data_layout = attrs.get_str("data_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
-        auto_scheduler_rewritten_layout = get_auto_scheduler_rewritten_layout(attrs)
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
         args = [inputs[0], inputs[1], strides, padding, dilation]
         if has_groups:
@@ -210,7 +226,7 @@ def wrap_compute_conv2d(
             args.append(out_layout)
         args.append(out_dtype)
         if need_auto_scheduler_layout:
-            args.append(auto_scheduler_rewritten_layout)
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv2d
@@ -489,7 +505,7 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # conv3d
-def wrap_compute_conv3d(topi_compute, need_layout=False):
+def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_layout=False):
     """wrap conv3d topi compute"""
 
     def _compute_conv3d(attrs, inputs, out_type):
@@ -506,11 +522,14 @@ def wrap_compute_conv3d(topi_compute, need_layout=False):
             raise ValueError("Dilation should be positive value")
         if groups != 1:
             raise ValueError("Not support arbitrary group number for conv3d")
+
+        args = [inputs[0], inputs[1], strides, padding, dilation]
         if need_layout:
-            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)
-        else:
-            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation, out_dtype)
-        return [out]
+            args.append(layout)
+        args.append(out_dtype)
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_conv3d
 
@@ -684,14 +703,17 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
 
 
 # dense
-def wrap_compute_dense(topi_compute):
+def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
     """wrap dense topi compute"""
 
     def _compute_dense(attrs, inputs, out_type):
         """Compute definition of dense"""
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-        return [topi_compute(inputs[0], inputs[1], None, out_dtype)]
+        args = [inputs[0], inputs[1], None, out_dtype]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_dense
 
@@ -710,11 +732,14 @@ def dense_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute):
+def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1], out_type.shape)]
+        args = [inputs[0], inputs[1], out_type.shape]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_batch_matmul
 

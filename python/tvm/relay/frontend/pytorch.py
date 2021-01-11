@@ -790,6 +790,15 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.log(_op.tensor.sigmoid(data))
 
+    def hard_swish(self, inputs, input_types):
+        data = inputs[0]
+        dtype = input_types[0]
+
+        def _relu6(input_tensor):
+            return _op.tensor.clip(input_tensor, 0.0, 6.0)
+
+        return data * _relu6(data + _expr.const(3.0, dtype=dtype)) / _expr.const(6.0, dtype=dtype)
+
     def adaptive_avg_pool_2d(self, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
@@ -1857,16 +1866,18 @@ class PyTorchOpConverter:
         scores = inputs[1]
         iou_threshold = inputs[2]
 
+        num_boxes = _op.shape_of(scores)
+
+        # TVM NMS assumes score > 0
+        scores = scores - _op.min(scores) + _op.const(1.0)
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
-
-        # Prepare input data for get_valid_counts
         data = _op.concatenate([scores, boxes], -1)
         data = _op.expand_dims(data, 0, 1)
-        # Leverage get_valid_counts to sort the data and clear invalid boxes
-        ct, data, indices = get_relay_op("get_valid_counts")(
-            data, score_threshold=-1.0, id_index=-1, score_index=0
-        )
+        # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
+        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
+        indices = _op.expand_dims(indices, 0, 1)
+        ct = num_boxes
 
         # Perform Non-Maximum Suppression,
         # PyTorch NMS doesn't have parameter top_k and max_output_size
@@ -2264,6 +2275,8 @@ class PyTorchOpConverter:
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
+            "aten::hardswish_": self.hard_swish,
+            "aten::hardswish": self.hard_swish,
         }
 
     def update_convert_map(self, custom_map):

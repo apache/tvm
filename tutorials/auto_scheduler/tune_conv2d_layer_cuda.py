@@ -186,18 +186,24 @@ print(task.print_best(log_file, print_mode="cuda"))
 # and resume the status of search policy and cost model with the log file.
 # In the example below we resume the status and do more 5 trials.
 
-cost_model = auto_scheduler.XGBModel()
-cost_model.update_from_file(log_file)
-search_policy = auto_scheduler.SketchPolicy(
-    task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
-)
-measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
-tune_option = auto_scheduler.TuningOptions(
-    num_measure_trials=5,
-    runner=measure_ctx.runner,
-    measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
-)
-task.tune(tune_option, search_policy=search_policy)
 
-# Kill the measurement process
-del measure_ctx
+def resume_search(task, log_file):
+    print("Resume search:")
+    cost_model = auto_scheduler.XGBModel()
+    cost_model.update_from_file(log_file)
+    search_policy = auto_scheduler.SketchPolicy(
+        task, cost_model, init_search_callbacks=[auto_scheduler.PreloadMeasuredStates(log_file)]
+    )
+    measure_ctx = auto_scheduler.LocalRPCMeasureContext(min_repeat_ms=300)
+    tune_option = auto_scheduler.TuningOptions(
+        num_measure_trials=5,
+        runner=measure_ctx.runner,
+        measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
+    )
+    task.tune(tune_option, search_policy=search_policy)
+
+    # Kill the measurement process
+    del measure_ctx
+
+
+resume_search(task, log_file)

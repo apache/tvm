@@ -17,7 +17,7 @@
 
 # Minimum docker image for demo purposes
 # prebuilt-image: tvmai/demo-cpu
-FROM tvmai/ci-cpu:v0.55
+FROM tlcpack/ci-cpu:v0.55
 
 # Jupyter notebook.
 RUN pip3 install matplotlib Image Pillow jupyter[notebook]

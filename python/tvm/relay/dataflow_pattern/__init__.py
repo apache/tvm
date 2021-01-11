@@ -480,8 +480,8 @@ class VarPattern(DFPattern):
         The type annotation on the variable.
     """
 
-    def __init__(self, name_hint: str = "", type_annotation: Optional[tvm.ir.type.Type] = None):
-        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint, type_annotation)
+    def __init__(self, name_hint: str = ""):
+        self.__init_handle_by_constructor__(ffi.VarPattern, name_hint)
 
 
 @register_df_node
@@ -504,24 +504,36 @@ class CallPattern(DFPattern):
     args: List[realy.dataflow_pattern.DFPattern]
         The arguments to the call.
 
-    attrs: Optional[tvm.ir.attrs.Attrs]
-        Attributes to the call, can be None
-
-    type_args: Optional[List[tvm.ir.type.Type]]
-        The additional type arguments, this is only
-        used in advanced usecase of template functions.
     """
 
     def __init__(
         self,
         op: "DFPattern",
         args: List["DFPattern"],
-        attrs: Optional[tvm.ir.attrs.Attrs] = None,
-        type_args: Optional[List[tvm.ir.type.Type]] = None,
     ):
-        if not type_args:
-            type_args = []
-        self.__init_handle_by_constructor__(ffi.CallPattern, op, args, attrs, type_args)
+        self.__init_handle_by_constructor__(ffi.CallPattern, op, args)
+
+
+@register_df_node
+class FunctionPattern(DFPattern):
+    """A pattern matching a function node in Relay.
+
+    Parameters
+    ----------
+    params: List[realy.dataflow_pattern.DFPattern]
+        The parameters to the Function.
+
+    body: realy.dataflow_pattern.DFPattern
+        The body fo the Function
+
+    """
+
+    def __init__(
+        self,
+        params: List["DFPattern"],
+        body: "DFPattern",
+    ):
+        self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)
 
 
 @register_df_node

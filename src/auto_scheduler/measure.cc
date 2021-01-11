@@ -27,6 +27,8 @@
 
 #include <algorithm>
 
+#include "search_policy/empty_policy.h"
+#include "search_policy/sketch_policy.h"
 #include "utils.h"
 
 namespace tvm {
@@ -36,6 +38,7 @@ TVM_REGISTER_NODE_TYPE(MeasureInputNode);
 TVM_REGISTER_NODE_TYPE(BuildResultNode);
 TVM_REGISTER_NODE_TYPE(MeasureResultNode);
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
+TVM_REGISTER_OBJECT_TYPE(PythonBasedMeasureCallbackNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramRunnerNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramBuilderNode);
 TVM_REGISTER_OBJECT_TYPE(ProgramMeasurerNode);
@@ -181,6 +184,25 @@ Array<MeasureResult> RPCRunnerNode::Run(const Array<MeasureInput>& inputs,
                << "make sure the TVM Python runtime has been loaded successfully.";
   }
   return Array<MeasureResult>();
+}
+
+/********** MeasureCallback **********/
+PythonBasedMeasureCallback::PythonBasedMeasureCallback(PackedFunc callback_func) {
+  auto node = make_object<PythonBasedMeasureCallbackNode>();
+  node->callback_func = std::move(callback_func);
+  data_ = std::move(node);
+}
+
+void PythonBasedMeasureCallbackNode::Callback(const SearchPolicy& policy,
+                                              const Array<MeasureInput>& inputs,
+                                              const Array<MeasureResult>& results) {
+  if (auto* sketch_policy = static_cast<SketchPolicyNode*>(policy.operator->())) {
+    callback_func(GetRef<SketchPolicy>(sketch_policy), inputs, results);
+  } else if (auto* empty_policy = static_cast<EmptyPolicyNode*>(policy.operator->())) {
+    callback_func(GetRef<EmptyPolicy>(empty_policy), inputs, results);
+  } else {
+    LOG(FATAL) << "Unrecognized search policy type. Expect SketchPolicy or EmptyPolicy";
+  }
 }
 
 /********** ProgramMeasurer **********/
@@ -358,6 +380,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.MeasureResult")
     .set_body_typed([](Array<PrimExpr> costs, int error_no, String error_msg, double all_cost,
                        double timestamp) {
       return MeasureResult(costs, error_no, error_msg, all_cost, timestamp);
+    });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.PythonBasedMeasureCallback")
+    .set_body_typed([](PackedFunc callback_func) {
+      return PythonBasedMeasureCallback(callback_func);
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ProgramMeasurer")

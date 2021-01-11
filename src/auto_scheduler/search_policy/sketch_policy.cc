@@ -78,6 +78,8 @@ SketchPolicy::SketchPolicy(SearchTask task, CostModel program_cost_model,
   node->rand_gen = std::mt19937(seed);
   node->params = std::move(params);
   node->verbose = verbose;
+  node->sample_init_min_pop_ =
+      GetIntParam(node->params, SketchParamKey::SampleInitPopulation::min_population);
 
   if (init_search_callbacks) {
     PrintTitle("Call init-search callbacks", verbose);
@@ -382,8 +384,6 @@ Array<State> SketchPolicyNode::GenerateSketches() {
 Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches) {
   // Use this population as the parallel degree to do sampling
   int population = GetIntParam(params, SketchParamKey::EvolutionarySearch::population);
-  // At least we should sample this number of valid programs
-  int min_population = GetIntParam(params, SketchParamKey::SampleInitPopulation::min_population);
 
   auto tic_begin = std::chrono::high_resolution_clock::now();
 
@@ -397,9 +397,8 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
 
   std::unordered_set<std::string> explored_state_strs;
   size_t iter = 1;
-  size_t target_size = min_population;
   size_t unchange_cnt = 0;
-  while (out_states.size() < target_size) {
+  while (static_cast<int>(out_states.size()) < sample_init_min_pop_) {
     std::vector<State> temp_states(population);
 
     // Sample a batch of states randomly
@@ -458,7 +457,7 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
                             std::chrono::high_resolution_clock::now() - tic_begin)
                             .count();
       StdCout(verbose) << "Sample Iter: " << iter << std::fixed << std::setprecision(4)
-                       << "\t#Pop: " << out_states.size() << "\t#Target: " << target_size
+                       << "\t#Pop: " << out_states.size() << "\t#Target: " << sample_init_min_pop_
                        << "\tfail_ct: " << fail_ct << "\tTime elapsed: " << std::fixed
                        << std::setprecision(2) << duration << std::endl;
     }
@@ -466,9 +465,9 @@ Array<State> SketchPolicyNode::SampleInitPopulation(const Array<State>& sketches
     if (unchange_cnt == 5) {
       // Reduce the target size to avoid too-long time in this phase if no valid state was found
       // in the past iterations
-      if (target_size > 1) {
-        target_size /= 2;
-        StdCout(verbose) << "#Target has been reduced to " << target_size
+      if (sample_init_min_pop_ > 1) {
+        sample_init_min_pop_ /= 2;
+        StdCout(verbose) << "#Target has been reduced to " << sample_init_min_pop_
                          << " due to too many failures or duplications" << std::endl;
       }
       unchange_cnt = 0;

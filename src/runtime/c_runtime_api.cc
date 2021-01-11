@@ -420,6 +420,15 @@ int TVMFuncFree(TVMFunctionHandle func) {
   API_END();
 }
 
+int TVMByteArrayFree(TVMByteArray* arr) {
+  if (arr == &TVMAPIRuntimeStore::Get()->ret_bytes) {
+    return 0;  // Thread-local storage does not need explicit deleting.
+  }
+
+  delete arr;
+  return 0;
+}
+
 int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int num_args,
                 TVMValue* ret_val, int* ret_type_code) {
   API_BEGIN();

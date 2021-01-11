@@ -68,29 +68,30 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
   return memory_manager->Free(memory_manager, ptr, ctx);
 }
 
-high_resolution_clock::time_point g_utvm_start_time;
+steady_clock::time_point g_utvm_start_time;
 int g_utvm_timer_running = 0;
 
-int TVMPlatformTimerStart() {
+tvm_crt_error_t TVMPlatformTimerStart() {
   if (g_utvm_timer_running) {
     std::cerr << "timer already running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  g_utvm_start_time = high_resolution_clock::now();
+  g_utvm_start_time = std::chrono::steady_clock::now();
   g_utvm_timer_running = 1;
-  return 0;
+  return kTvmErrorNoError;
 }
 
-int TVMPlatformTimerStop(double* res_us) {
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     std::cerr << "timer not running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  auto utvm_stop_time = high_resolution_clock::now();
-  duration<double, std::micro> time_span(utvm_stop_time - g_utvm_start_time);
-  *res_us = time_span.count();
+  auto utvm_stop_time = std::chrono::steady_clock::now();
+  std::chrono::microseconds time_span =
+      std::chrono::duration_cast<std::chrono::microseconds>(utvm_stop_time - g_utvm_start_time);
+  *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
   g_utvm_timer_running = 0;
-  return 0;
+  return kTvmErrorNoError;
 }
 }
 

@@ -822,13 +822,11 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        input_channels = infer_shape(inputs[0])[1]
-        alpha_shape = infer_shape(inputs[1])
-        if len(alpha_shape) != 1:
-            alpha = _op.reshape(inputs[1], (-1,))
-        else:
-            alpha = inputs[1]
-        return _op.nn.prelu(inputs[0], _op.broadcast_to(alpha, [input_channels]))
+        input_shape = _op.shape_of(inputs[0])
+        alpha = _op.broadcast_to_like(inputs[1], inputs[0])
+        alpha = _op.reshape(alpha, [-1])
+        output = _op.nn.prelu(_op.reshape(inputs[0], [-1]), alpha, axis=0)
+        return _op.reshape(output, input_shape)
 
 
 class Reciprocal(OnnxOpConverter):
@@ -930,14 +928,6 @@ class ScaledTanh(OnnxOpConverter):
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
         return _op.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
-
-
-class SoftPlus(OnnxOpConverter):
-    """Operator converter for SoftPlus."""
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        return _op.log(_op.exp(inputs[0]) + _expr.const(1.0))
 
 
 class Softsign(OnnxOpConverter):
@@ -2276,6 +2266,9 @@ class If(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         cond = inputs[0]
+        # Convert array to bool if needed.
+        if len(infer_shape(cond)) > 0:
+            cond = _op.take(cond, _expr.const(0, dtype="int64"))
         then_branch = attr.get("then_branch", None)
         else_branch = attr.get("else_branch", None)
         assert then_branch is not None and else_branch is not None
@@ -2661,7 +2654,6 @@ def _get_convert_map(opset):
         "OneHot": OneHot.get_converter(opset),
         # 'Hardmax'
         "Softsign": Softsign.get_converter(opset),
-        "SoftPlus": SoftPlus.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
         "Mod": Mod.get_converter(opset),

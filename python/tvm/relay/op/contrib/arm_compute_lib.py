@@ -63,7 +63,7 @@ def partition_for_arm_compute_lib(mod, params=None):
         [
             transform.InferType(),
             transform.MergeComposite(arm_compute_lib_pattern_table()),
-            transform.AnnotateTarget("arm_compute_lib"),
+            transform.AnnotateTarget("arm_compute_lib", False),
             transform.PartitionGraph(),
         ]
     )

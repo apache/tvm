@@ -573,7 +573,8 @@ Array<te::Tensor> VarianceCompute(const Attrs& attrs, const Array<te::Tensor>& i
     count -= 1;
   }
   std::vector<Integer> expand_shape;
-  auto sq_diff = topi::power(topi::subtract(data, mean), 2);
+  auto diff = topi::subtract(data, mean);
+  auto sq_diff = topi::multiply(diff, diff);
   if (param->exclude) {
     axes = GetExcludeAxes(sq_diff->shape.size(), param->axis);
     ICHECK_NE(axes.size(), 0);

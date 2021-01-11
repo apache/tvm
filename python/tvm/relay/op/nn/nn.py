@@ -698,6 +698,29 @@ def softmax(data, axis=-1):
     return _make.softmax(data, axis)
 
 
+def fast_softmax(data, axis=-1):
+    r"""Computes softmax.
+    Use approximation to compute exponent for faster speed.
+
+    .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
+    .. note::
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data: tvm.relay.Expr
+        The input data to the operator.
+    axis: int, optional
+        The axis to sum over when computing softmax
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.fast_softmax(data, axis)
+
+
 def log_softmax(data, axis=-1):
     r"""Computes log softmax.
 

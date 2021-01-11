@@ -33,6 +33,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/topi/transform.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -997,11 +998,20 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             transform_steps->Set(i, std::move(step));
           }
         }
+
+        // Add schedule for the new added transform stage
         Array<Integer> to_fuse;
-        for (size_t i = 0; i < new_shape.size() - 1; i++) {
-          to_fuse.push_back(i);
+
+        if (new_shape.size() >= 5) {
+          to_fuse.push_back(0);
+          to_fuse.push_back(1);
+          to_fuse.push_back(2);
+          transform_steps->push_back(FuseStep(stage_id, to_fuse));
+        } else if (new_shape.size() >= 3) {
+          to_fuse.push_back(0);
+          to_fuse.push_back(1);
+          transform_steps->push_back(FuseStep(stage_id, to_fuse));
         }
-        transform_steps->push_back(FuseStep(stage_id, to_fuse));
         transform_steps->push_back(AnnotationStep(stage_id, 0, IteratorAnnotation::kParallel));
       }
 
@@ -1023,7 +1033,10 @@ ComputeDAG ComputeDAG::RewriteLayout(Array<Step>* transform_steps,
             }
             original_compute_op = op;
             CHECK(!new_compute_op.defined());
-            new_compute_op = te::ComputeOp(pop->name, pop->tag, pop->attrs, pop->axis, new_body);
+            auto new_attrs = pop->attrs;
+            new_attrs.Set("ori_placeholder_layout", tvm::String(origin_layout));
+            new_attrs.Set("new_placeholder_layout", tvm::String(new_layout));
+            new_compute_op = te::ComputeOp(pop->name, pop->tag, new_attrs, pop->axis, new_body);
           }
         }
       }
@@ -1396,7 +1409,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                    << select->false_value << ")= " << '(' << preduce->source[0] << ','
                    << preduce->source[1] << ")\n";
               } else {
-                LOG(FATAL) << "Unsupported reduction operator" << combiner;
+                ss << "reduce" << combiner << "\n";
               }
             } else {
               ss << " = " << pop->body[k] << "\n";
@@ -1410,13 +1423,35 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ss.str();
     });
 
+Array<PrimExpr> GetShapeFromRewrittenLayout(String rewritten_layout, Array<String> axis_names) {
+  Array<PrimExpr> shape;
+  std::vector<std::string> extracted_names;
+  topi::parse_auto_scheduler_layout(rewritten_layout, &shape, &extracted_names);
+
+  Array<PrimExpr> ret(axis_names.size(), 1);
+
+  size_t ct = 0;
+  for (size_t i = 0; i < axis_names.size(); ++i) {
+    for (size_t j = 0; j < extracted_names.size(); ++j) {
+      if (axis_names[i] == extracted_names[j]) {
+        ret.Set(i, ret[i] * shape[j]);
+        ct++;
+      }
+    }
+  }
+
+  CHECK_EQ(ct, extracted_names.size()) << "The number or names of axes do not match";
+
+  return ret;
+}
+
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAG")
     .set_body_typed([](Optional<Array<te::Tensor>> tensors, Optional<te::Schedule> sch) {
-      if (tensors) {
-        return ComputeDAG(tensors.value());
+      if (sch) {
+        return ComputeDAG(sch.value());
       }
-      ICHECK(sch) << "Both tensors and schedule are null";
-      return ComputeDAG(sch.value());
+      ICHECK(tensors) << "Both tensors and schedule are null";
+      return ComputeDAG(tensors.value());
     });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.ComputeDAGApplyStepsFromState")
@@ -1451,6 +1486,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.RewriteIndexForNewLayout")
       IndexRewriter index_rewriter(placeholder_op, new_layout);
       return index_rewriter.Rewrite(body);
     });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.GetShapeFromRewrittenLayout")
+    .set_body_typed(GetShapeFromRewrittenLayout);
 
 }  // namespace auto_scheduler
 }  // namespace tvm

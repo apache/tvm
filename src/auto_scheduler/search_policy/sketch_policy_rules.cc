@@ -806,12 +806,10 @@ PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* pol
         total_space_extent *= pint->value;
       }
 
-      // Check if the total space extent is too small for multi-level thread binding
-      if (total_space_extent <= policy->search_task->hardware_params->warp_size) {
-        Iterator fused_it;
-        *state = FuseAllOuterSpaceIterators(*state, stage_id, &fused_it);
-        state->bind(stage_id, fused_it, IteratorAnnotation::kThreadX);
-        continue;
+      bool check_min_thread_extent = true;
+      // If the total space extent is too small, disable the check of minimal thread extent
+      if (total_space_extent <= policy->search_task->hardware_params->warp_size * 2) {
+        check_min_thread_extent = false;
       }
 
       // Fuse the outermost space tile as blockIdx
@@ -856,7 +854,8 @@ PopulationGenerationRule::ResultKind InitThreadBind::Apply(SketchPolicyNode* pol
         to_fuse.push_back((*state)->stages[stage_id]->iters[i]);
       }
       const auto& threadidx_it = state->fuse(stage_id, to_fuse);
-      if (GetExtent(threadidx_it) < policy->search_task->hardware_params->warp_size) {
+      if (check_min_thread_extent &&
+          GetExtent(threadidx_it) < policy->search_task->hardware_params->warp_size) {
         return ResultKind::kInvalid;
       }
       state->bind(stage_id, threadidx_it, IteratorAnnotation::kThreadX);
