@@ -24,6 +24,8 @@ import tvm
 from tvm import relay
 from tvm.driver import tvmc
 
+from tvm.driver.tvmc.common import TVMCException
+
 
 def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TFLite, so skip in case it is not present
@@ -182,3 +184,92 @@ def test_shape_parser():
     shape_string = "input:5,10 input2:10,10"
     with pytest.raises(argparse.ArgumentTypeError):
         tvmc.common.parse_shape_string(shape_string)
+
+
+def test_target_from_cli__error_duplicate():
+    with pytest.raises(TVMCException):
+        _ = tvmc.common.target_from_cli("llvm, llvm")
+
+
+def test_target_from_cli__error_target_not_found():
+    with pytest.raises(TVMCException):
+        _ = tvmc.common.target_from_cli("invalidtarget")
+
+
+def test_target_from_cli__error_no_tvm_target():
+    with pytest.raises(TVMCException):
+        _ = tvmc.common.target_from_cli("ethos-n77")
+
+
+def test_tokenize_target_with_opts():
+    tokens = tvmc.common.tokenize_target("foo -opt1=value1 --flag, bar -opt2=value2")
+    expected_tokens = ["foo", "-opt1=value1", "--flag", ",", "bar", "-opt2=value2"]
+
+    assert len(tokens) == len(expected_tokens)
+    assert tokens == expected_tokens
+
+
+def test_tokenize_target_with_plus_sign():
+    tokens = tvmc.common.tokenize_target("foo -opt1=+value1 --flag, bar -opt2=test,+v")
+    expected_tokens = ["foo", "-opt1=+value1", "--flag", ",", "bar", "-opt2=test,+v"]
+
+    assert len(tokens) == len(expected_tokens)
+    assert tokens == expected_tokens
+
+
+def test_tokenize_target_with_commas():
+    tokens = tvmc.common.tokenize_target("foo -opt1=v,a,l,u,e,1 --flag")
+    expected_tokens = ["foo", "-opt1=v,a,l,u,e,1", "--flag"]
+
+    assert len(tokens) == len(expected_tokens)
+    assert tokens == expected_tokens
+
+
+def test_tokenize_target_with_commas_and_single_quotes():
+    tokens = tvmc.common.tokenize_target("foo -opt1='v, a, l, u, e', bar")
+    expected_tokens = ["foo", "-opt1='v, a, l, u, e'", ",", "bar"]
+
+    assert len(tokens) == len(expected_tokens)
+    assert tokens == expected_tokens
+
+
+def test_tokenize_target_with_commas_and_double_quotes():
+    tokens = tvmc.common.tokenize_target('foo -opt1="v, a, l, u, e", bar')
+    expected_tokens = ["foo", '-opt1="v, a, l, u, e"', ",", "bar"]
+
+    assert len(tokens) == len(expected_tokens)
+    assert tokens == expected_tokens
+
+
+def test_tokenize_target_with_dashes():
+    tokens = tvmc.common.tokenize_target("foo-bar1 -opt-1=t-e-s-t, baz")
+    expected_tokens = ["foo-bar1", "-opt-1=t-e-s-t", ",", "baz"]
+
+    assert len(tokens) == len(expected_tokens)
+    assert tokens == expected_tokens
+
+
+def test_parse_single_target_with_opts():
+    targets = tvmc.common.parse_target("llvm -device=arm_cpu --system-lib")
+
+    assert len(targets) == 1
+    assert "device" in targets[0]["opts"]
+    assert "system-lib" in targets[0]["opts"]
+
+
+def test_parse_multiple_target():
+    targets = tvmc.common.parse_target("acl, llvm -device=arm_cpu --system-lib")
+
+    assert len(targets) == 2
+    assert "acl" == targets[0]["name"]
+    assert "llvm" == targets[1]["name"]
+
+
+def test_parse_multiple_target_with_opts():
+    targets = tvmc.common.parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
+
+    assert len(targets) == 2
+    assert "ethos-n77" == targets[0]["name"]
+    assert "myopt" in targets[0]["opts"]
+    assert "value" == targets[0]["opts"]["myopt"]
+    assert "llvm" == targets[1]["name"]
