@@ -974,6 +974,7 @@ def _sparse_tensor_dense_matmul():
 
     return _impl
 
+
 def _identity():
     def _impl(inputs, attr, params, mod):
         return inputs[0]
@@ -1351,6 +1352,7 @@ def _space_to_depth():
 
     return _impl
 
+
 def _sparse_to_dense():
     def _impl(inputs, attr, params, mod):
         sparse_indices = inputs[0]
@@ -1361,6 +1363,7 @@ def _sparse_to_dense():
         return _op.sparse_to_dense(sparse_indices, output_shape, sparse_values, default_value)
 
     return _impl
+
 
 def _bias_add():
     def _impl(inputs, attr, params, mod):
