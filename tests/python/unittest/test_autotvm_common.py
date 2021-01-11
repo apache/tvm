@@ -101,6 +101,6 @@ def get_sample_records(n):
 
     inps, ress = [], []
     for i in range(n):
-        inps.append(MeasureInput(target, tsk, tsk.config_space.get(i)))
+        inps.append(MeasureInput(target, tsk, tsk.config_space.get(i % len(tsk.config_space))))
         ress.append(MeasureResult((i + 1,), 0, i, time.time()))
     return list(zip(inps, ress))
