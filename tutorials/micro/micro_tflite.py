@@ -179,13 +179,17 @@ TARGET = tvm.target.target.micro("host")
 
 # %%
 # Compiling for physical hardware
-#  When running on physical hardware, choose a target that describes
-#  the hardware. The STM32F746 Nucleo target is chosen in this commented
-#  code:
+#  When running on physical hardware, choose a target and a board that
+#  describe the hardware. The STM32F746 Nucleo target and board is chosen in
+#  this commented code. Another option would be to choose the same target but
+#  the STM32F746 Discovery board instead. The disco board has the same
+#  microcontroller as the Nucleo board but a couple of wirings and configs
+#  differ, so it's necessary to select the "stm32f746g_disco" board below.
 #
 #  .. code-block:: python
 #
 #     TARGET = tvm.target.target.micro("stm32f746xx")
+#     BOARD = "nucleo_f746zg" # or "stm32f746g_disco"
 
 ######################################################################
 # Now, compile the model for the target:
@@ -217,12 +221,12 @@ opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
 #     repo_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding='utf-8').strip()
 #     project_dir = f"{repo_root}/tests/micro/qemu/zephyr-runtime"
 #     compiler = zephyr.ZephyrCompiler(
-#            project_dir=project_dir,
-#            board="nucleo_f746zg" if "stm32f746" in str(TARGET) else "qemu_x86",
-#            zephyr_toolchain_variant="zephyr",
-#      )
+#         project_dir=project_dir,
+#         board=BOARD if "stm32f746" in str(TARGET) else "qemu_x86",
+#         zephyr_toolchain_variant="zephyr",
+#     )
 #
-#     opts = tvm.micro.default_options(os.path.join(tvm.micro.CRT_ROOT_DIR, "host"))
+#     opts = tvm.micro.default_options(f"{project_dir}/crt")
 
 workspace = tvm.micro.Workspace()
 micro_binary = tvm.micro.build_static_runtime(
