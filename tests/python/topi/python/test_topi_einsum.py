@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
-from tvm.topi.util import get_const_tuple
+from tvm.topi.utils import get_const_tuple
 
 
 def with_tvm(lam, *args):
@@ -50,11 +50,11 @@ def verify_einsum(subscripts, shapes):
     c1 = np.einsum(subscripts, *ops)
 
     if len(ops) == 1:
-        c2 = with_tvm(lambda A: topi.einsum(subscripts, (A)), *ops)
+        c2 = with_tvm(lambda A: topi.einsum(subscripts, A), *ops)
     elif len(ops) == 2:
-        c2 = with_tvm(lambda A, B: topi.einsum(subscripts, (A, B)), *ops)
+        c2 = with_tvm(lambda A, B: topi.einsum(subscripts, A, B), *ops)
     elif len(ops) == 3:
-        c2 = with_tvm(lambda A, B, C: topi.einsum(subscripts, (A, B, C)), *ops)
+        c2 = with_tvm(lambda A, B, C: topi.einsum(subscripts, A, B, C), *ops)
 
     tvm.testing.assert_allclose(c1, c2, rtol=1e-5, atol=1e-5)
 

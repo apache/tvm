@@ -538,14 +538,6 @@ def tensordot(a, b, axes):
     return cpp.tensordot(a, b, axes[0], axes[1])
 
 
-def einsum(subscripts, a_tuple):
-    # Grab non-einsum kwargs; do not optimize by default.
-    # Temporally not implement the optimized einsum
-    if not isinstance(a_tuple, tuple):
-        a_tuple = (a_tuple,)
-    return cpp.einsum(subscripts, a_tuple)
-
-
 def arange(start, stop=None, step=1, dtype="float32"):
     """Creates a tensor with evenly spaced values within a given interval.
 

@@ -24,6 +24,10 @@
 #ifndef TVM_TOPI_EINSUM_H_
 #define TVM_TOPI_EINSUM_H_
 
+#define LABELRANGE 128
+#define NPY_MAXDIMS 16
+#define NPY_MAXARGS 16
+
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/topi/detail/constant_utils.h>
@@ -35,6 +39,7 @@
 #include <bitset>
 #include <iterator>
 #include <string>
+#include <tuple>
 #include <unordered_set>
 #include <vector>
 
@@ -220,8 +225,8 @@ inline int ParseOutputSubscripts(const char* subscripts, int length, int ndim_br
           << "in an input";
 
       /* Check that there is room in out_labels for this label. */
-      CHECK(ndim < 16) << "einstein sum subscripts string contains "
-                       << "too many subscripts in the output";
+      CHECK(ndim < NPY_MAXDIMS) << "einstein sum subscripts string contains "
+                                << "too many subscripts in the output";
 
       out_labels[ndim++] = label;
     } else if (label == '.') {
@@ -233,8 +238,8 @@ inline int ParseOutputSubscripts(const char* subscripts, int length, int ndim_br
           << "an ellipsis ('...') in the output";
 
       /* Check there is room in out_labels for broadcast dims. */
-      CHECK(ndim + ndim_broadcast <= 16) << "einstein sum subscripts string contains "
-                                         << "too many subscripts in the output";
+      CHECK(ndim + ndim_broadcast <= NPY_MAXDIMS) << "einstein sum subscripts string contains "
+                                                  << "too many subscripts in the output";
 
       ellipsis = 1;
       for (bdim = 0; bdim < ndim_broadcast; ++bdim) {
@@ -273,7 +278,7 @@ inline int ParseOutputSubscripts(const char* subscripts, int length, int ndim_br
 inline void GetCombinedDimsView(const Tensor& op, int iop, char* labels, Array<PrimExpr>* newshape,
                                 Array<PrimExpr>* newstride) {
   int idim, ndim, icombine, combineoffset;
-  int icombinemap[16];
+  int icombinemap[NPY_MAXDIMS];
   int newdim;
 
   Array<PrimExpr> shape = op->shape;
@@ -402,8 +407,8 @@ inline int CountSubstring(const std::string& str, const std::string& sub) {
  *
  * \return bitset.
  */
-inline std::bitset<128> Str2Set(const std::string& str) {
-  std::bitset<128> ret;
+inline std::bitset<LABELRANGE> Str2Set(const std::string& str) {
+  std::bitset<LABELRANGE> ret;
   for (const char& c : str) {
     ret.set(static_cast<int>(c));
   }
@@ -438,10 +443,10 @@ inline std::vector<std::string> Split(const std::string& str, const std::string&
  * if no output, the vector[1] is NULL.
  * "ab, bc -> ac" => ["ab,bc", "ac"]
  */
-inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
-                                                 const std::vector<Array<PrimExpr>>& operands) {
+inline std::tuple<std::string, std::string> ParseEinsumInput(
+    std::string subscripts, const std::vector<Array<PrimExpr>>& operands) {
   const std::string einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  std::bitset<128> einsum_symbols_set;
+  std::bitset<LABELRANGE> einsum_symbols_set;
   for (const char& c : einsum_symbols) {
     einsum_symbols_set.set(c);
   }
@@ -475,7 +480,7 @@ inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
                        [](const char& c) { return c == '.' || c == ',' || c == '-' || c == '>'; }),
         used.end());
 
-    std::bitset<128> used_set = Str2Set(used);
+    std::bitset<LABELRANGE> used_set = Str2Set(used);
     std::string ellipse_inds = "";
     for (const char& c : einsum_symbols) {
       if (!used_set.test(static_cast<int>(c))) {
@@ -544,7 +549,7 @@ inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
       subscripts += "->" + output_sub;
     } else {
       // Special care for outputless ellipses
-      std::bitset<128> out_ellipse_set = Str2Set(out_ellipse);
+      std::bitset<LABELRANGE> out_ellipse_set = Str2Set(out_ellipse);
       std::string tmp_subscripts = subscripts, output_subscript = "";
       size_t len_tmp_subscripts = tmp_subscripts.length();
       std::sort(tmp_subscripts.begin(), tmp_subscripts.end());
@@ -565,12 +570,14 @@ inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
   }
 
   // Build output string if does not exist
-  std::vector<std::string> ret(2);
+  std::tuple<std::string, std::string> ret;
   if (subscripts.find("->") != std::string::npos) {
-    ret = Split(subscripts, "->");
+    std::vector<std::string> tmp(2);
+    tmp = Split(subscripts, "->");
+    ret = std::make_tuple(tmp[0], tmp[1]);
   } else {
-    ret[0] = subscripts;
-    ret[1] = "";
+    std::string first = subscripts;
+    std::string second = "";
     // Build output subscripts
     std::string tmp_subscripts = subscripts;
     size_t len_tmp_subscripts = tmp_subscripts.length();
@@ -583,20 +590,21 @@ inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
       CHECK(einsum_symbols_set.test(c)) << "Character " << c << " is not a valid symbol.";
       if ((i == 0 || tmp_subscripts[i - 1] != c) &&
           (i == len_tmp_subscripts - 1 || tmp_subscripts[i + 1] != c)) {
-        ret[1].append(1, c);
+        second.append(1, c);
       }
     }
+    ret = std::make_tuple(first, second);
   }
 
   // Make sure output subscripts are in the input
-  std::bitset<128> input_subscripts_set = Str2Set(ret[0]);
-  for (const char& c : ret[1]) {
+  std::bitset<LABELRANGE> input_subscripts_set = Str2Set(std::get<0>(ret));
+  for (const char& c : std::get<1>(ret)) {
     CHECK(input_subscripts_set.test(c))
         << "Output character " << c << " did not appear in the input";
   }
 
   // Make sure number operands is equivalent to the number of terms
-  CHECK_EQ(std::count(ret[0].begin(), ret[0].end(), ',') + 1, operands.size())
+  CHECK_EQ(std::count(std::get<0>(ret).begin(), std::get<0>(ret).end(), ',') + 1, operands.size())
       << "Number of einsum subscripts must be equal to the "
       << "number of operands.";
 
@@ -613,14 +621,14 @@ inline std::vector<std::string> ParseEinsumInput(std::string subscripts,
 inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
                                         const std::vector<Array<PrimExpr>>& operands) {
   // Parsing
-  std::vector<std::string> parsed_subscripts = ParseEinsumInput(subscripts, operands);
+  std::tuple<std::string, std::string> parsed_subscripts = ParseEinsumInput(subscripts, operands);
 
   // Build a few useful list and sets
-  std::vector<std::string> input_list = Split(parsed_subscripts[0], ",");
+  std::vector<std::string> input_list = Split(std::get<0>(parsed_subscripts), ",");
   size_t isize = input_list.size();
 
   // Get length of each unique dimension and ensure all dimensions are correct
-  int dimension_dict[128];
+  int dimension_dict[LABELRANGE];
   memset(dimension_dict, -1, sizeof(dimension_dict));
   for (size_t i = 0; i < isize; ++i) {
     const std::string& term = input_list[i];
@@ -649,7 +657,7 @@ inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
   }
 
   // Get oshape
-  const std::string& output_str = parsed_subscripts[1];
+  const std::string& output_str = std::get<1>(parsed_subscripts);
   size_t odim = output_str.size();
   Array<PrimExpr> oshape(odim, -1);
   for (size_t i = 0; i < odim; ++i) {
@@ -662,22 +670,24 @@ inline Array<PrimExpr> NumpyEinsumShape(const std::string subscripts,
 /*!
  * \brief Evaluates the Einstein summation convention on the operands.
  *
- * \param subscripts_str Specifies the subscripts for summation as comma separated list of subscript
- * labels. \param inputs Arrays for the operation. \param name The name of the operation. \param tag
- * The tag to mark the operation.
+ * \param subscripts_str Specifies the subscripts for summation as comma separated list of
+ * subscript labels.
+ * \param inputs Arrays for the operation.
+ * \param name The name of the operation.
+ * \param tag The tag to mark the operation.
  *
  * \return The calculation based on the Einstein summation convention.
  */
 inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inputs,
-                     std::string name = "T_einsum", std::string tag = kMatMul) {
-  // able to compute op: trace, diag, sum, transpose, matmul, dot, inner, outer, multiply, tensordot
+                     std::string name = "T_einsum", std::string tag = kEinsum) {
   bool back = false;
   const char* subscripts = subscripts_str.data();
+  const char* head = subscripts;
   const int nop = inputs.size();
 
   /* Step 1: Parse the subscripts string into label_counts and op_labels */
-  int iop, idim, min_label = 127, max_label = 0;
-  char label_counts[128], op_labels[16][16];
+  int iop, idim, min_label = LABELRANGE - 1, max_label = 0;
+  char label_counts[LABELRANGE], op_labels[NPY_MAXARGS][NPY_MAXDIMS];
   memset(label_counts, 0, sizeof(label_counts));
   for (iop = 0; iop < nop; ++iop) {
     int length = static_cast<int>(strcspn(subscripts, ",-"));
@@ -688,12 +698,15 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     CHECK(!(iop < nop - 1 && subscripts[length] != ','))
         << "fewer operands provided to einstein sum function "
         << "than specified in the subscripts string";
-    ParseOperandSubscripts(subscripts, length, inputs[iop + back].ndim(), iop, op_labels[iop],
-                           label_counts, &min_label, &max_label);
+    CHECK_EQ(ParseOperandSubscripts(subscripts, length, inputs[iop + back].ndim(), iop,
+                                    op_labels[iop], label_counts, &min_label, &max_label),
+             0);
 
     /* Move subscripts to the start of the labels for the next op */
     subscripts += length;
+
     if (iop < nop - 1) {
+      CHECK_LT(subscripts - head, subscripts_str.length()) << "subscripts out of range";
       subscripts++;
     }
   }
@@ -724,7 +737,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
    * using each label that appeared once, in alphabetical order.
    */
   int label, ndim_output;
-  char output_labels[16];
+  char output_labels[NPY_MAXDIMS];
   if (subscripts[0] == '\0') {
     /* If no output was specified, always broadcast left, as usual. */
     for (ndim_output = 0; ndim_output < ndim_broadcast; ++ndim_output) {
@@ -732,8 +745,8 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
     }
     for (label = min_label; label <= max_label; ++label) {
       if (label_counts[label] == 1) {
-        CHECK(ndim_output < 16) << "einstein sum subscript string has too many "
-                                << "distinct labels";
+        CHECK(ndim_output < NPY_MAXDIMS) << "einstein sum subscript string has too many "
+                                         << "distinct labels";
         output_labels[ndim_output++] = label;
       }
     }
@@ -795,7 +808,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   int ndim_iter = ndim_output;
   for (label = min_label; label <= max_label; ++label) {
     if (label_counts[label] > 0 && memchr(output_labels, label, ndim_output) == nullptr) {
-      CHECK(ndim_iter < 16) << "too many subscripts in einsum";
+      CHECK(ndim_iter < NPY_MAXDIMS) << "too many subscripts in einsum";
       iter_labels[ndim_iter++] = label;
     }
   }
@@ -813,8 +826,8 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
   Array<PrimExpr> ostride_true = GetStride(oshape);
   Array<PrimExpr> reduceshape;
   std::vector<Array<PrimExpr>> remainshape(nop);
-  int op_axes_arrays[16][16];
-  int* op_axes[16];
+  int op_axes_arrays[NPY_MAXARGS][NPY_MAXDIMS];
+  int* op_axes[NPY_MAXARGS];
   for (iop = 0; iop < nop; ++iop) {
     op_axes[iop] = op_axes_arrays[iop];
     CHECK_GE(PrepareOpAxes(opshape[iop].size(), iop, op_labels[iop], op_axes[iop], ndim_iter,
@@ -891,7 +904,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       }
     }
     Array<PrimExpr> ridx = UnravelIndex(0, reduceshape);
-    // AType needs to fit the output data
+
     PrimExpr sum = 0;
     bool rec_flag = false;
     do {
@@ -899,7 +912,7 @@ inline Tensor einsum(const std::string& subscripts_str, const Array<Tensor> inpu
       for (int iop = 0; iop < nop; ++iop) {
         if (iop != -1) {
           PrimExpr k = 0;
-          // k = dot(input_indices, ostride) + dot(ridx, rstride)
+
           for (size_t i = 0; i < input_indices.size(); ++i) {
             k += input_indices[i] * ostride[iop][i];
           }
