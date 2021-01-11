@@ -74,7 +74,6 @@ def batch_matmul(x, y, oshape=None, auto_scheduler_rewritten_layout=""):
         attrs={"layout_free_placeholders": [y]},
     )
 
-<<<<<<< HEAD
 
 @tvm.target.generic_func
 def batch_matmul_legalize(attrs, inputs, types):
@@ -96,9 +95,7 @@ def batch_matmul_legalize(attrs, inputs, types):
     """
     # not to change by default
     return None
-=======
     if auto_scheduler_rewritten_layout:
         output = auto_scheduler.rewrite_compute_body(output, auto_scheduler_rewritten_layout)
 
     return output
->>>>>>> main
