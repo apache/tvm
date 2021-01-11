@@ -982,7 +982,7 @@ class OperatorConverter(object):
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) >= 1, "input tensors should greater than 1"
-        in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+        in_exprs = [self.get_tensor_expr(_) for _ in input_tensors]
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
@@ -1830,14 +1830,15 @@ class OperatorConverter(object):
         # if we have bias
         if len(input_tensors) == 3:
             bias_tensor = input_tensors[2]
-            bias_tensor_type = bias_tensor.tensor.Type()
-            # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
-            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(
-                self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
-            )
-            out = _op.nn.bias_add(out, bias_expr)
+            if bias_tensor.tensor_idx != -1:
+                bias_tensor_type = bias_tensor.tensor.Type()
+                # bias tensor type should be INT32 (quantization) or FLOAT32
+                assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
+                bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
+                bias_expr = self.exp_tab.new_const(
+                    self.get_tensor_value(bias_tensor), dtype=bias_tensor_type_str
+                )
+                out = _op.nn.bias_add(out, bias_expr)
 
         # Finally if the dense is quantized. Add a requantize at the end.
         if output_tensor.qnn_params:

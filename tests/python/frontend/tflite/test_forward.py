@@ -3342,9 +3342,9 @@ def test_forward_sparse_to_dense():
 #######################################################################
 # Fully Connected
 # ---------------
-
-
-def _test_fully_connected(tensor_in_sizes, const_input, filter_in_sizes, bias_in_size=None):
+def _test_fully_connected(
+    tensor_in_sizes, const_input, filter_in_sizes, bias_in_size=None, quantized=False
+):
     """ One iteration of fully connected """
 
     total_size_1 = np.prod(tensor_in_sizes)
@@ -3356,11 +3356,11 @@ def _test_fully_connected(tensor_in_sizes, const_input, filter_in_sizes, bias_in
 
     # Initializes the input tensor with array containing incrementing
     # numbers from 1.
-    data_array = np.arange(1, total_size_1 + 1, dtype=np.float32)
-    filter_array = np.arange(1, total_size_2 + 1, dtype=np.float32)
+    data_array = np.arange(1, total_size_1 + 1, dtype=np.uint8 if quantized else np.float32)
+    filter_array = np.arange(1, total_size_2 + 1, dtype=np.uint8 if quantized else np.float32)
+    in_name = "input"
 
     with tf.Graph().as_default():
-        in_name = "input"
         in_data = (
             constant_op.constant(data_array, shape=tensor_in_sizes, dtype=np.float32, name=in_name)
             if const_input
@@ -3368,30 +3368,73 @@ def _test_fully_connected(tensor_in_sizes, const_input, filter_in_sizes, bias_in
         )
 
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype=np.float32)
-
-        # reshape N H W C into N H*W*C
-        in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
-
-        out = math_ops.mat_mul(in_data_reshape, in_filter)
+        data_array = np.reshape(data_array, tensor_in_sizes)
 
         # if we have bias
         if bias_in_size:
             assert bias_in_size[0] == filter_in_sizes[1], "bias and filter size are mismatched"
-            bias_array = np.arange(1, bias_in_size[0] + 1, dtype=np.float32)
+            bias_array = np.arange(
+                1, bias_in_size[0] + 1, dtype=np.uint8 if quantized else np.float32
+            )
             in_bias = constant_op.constant(bias_array, shape=bias_in_size, dtype=np.float32)
-            out = nn_ops.bias_add(out, in_bias)
 
-        data_array = np.reshape(data_array, tensor_in_sizes).astype(np.float32)
-        compare_tflite_with_tvm(data_array, [] if const_input else in_data.name, [in_data], [out])
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(
+                in_data, min=-100, max=100, name="inq_0"
+            )
+            input_range = {"inq_0": (-100, 100)}
+            inq_filter = tf.quantization.fake_quant_with_min_max_args(
+                in_filter, min=-100, max=100, name="inq_1"
+            )
+            input_range = {"inq_0": (-100, 100), "inq_1": (-100, 100)}
+            # reshape N H W C into N H*W*C
+            inq_data_reshape = array_ops.reshape(inq_data, [tensor_in_sizes[0], -1])
+            out = math_ops.mat_mul(inq_data_reshape, inq_filter)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=-100, max=100, name="out")
+
+            # if we have bias
+            if bias_in_size:
+                out = nn_ops.bias_add(out, in_bias)
+
+            compare_tflite_with_tvm(
+                data_array,
+                inq_data.name,
+                [inq_data],
+                [out],
+                quantized=True,
+                input_range=input_range,
+                experimental_new_converter=True,
+            )
+        else:
+            # reshape N H W C into N H*W*C
+            in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
+            out = math_ops.mat_mul(in_data_reshape, in_filter)
+
+            # if we have bias
+            if bias_in_size:
+                out = nn_ops.bias_add(out, in_bias)
+
+            compare_tflite_with_tvm(
+                data_array, in_data.name, [in_data], [out], experimental_new_converter=True
+            )
 
 
 def test_forward_fully_connected():
     """ Fully Connected """
-    for const_input in [False, True]:
-        _test_fully_connected([1, 1, 1, 150], const_input, [150, 100])
-        _test_fully_connected([1, 1, 1, 150], const_input, [150, 100], [100])
-        _test_fully_connected([5, 1, 1, 150], const_input, [150, 100])
-        _test_fully_connected([5, 1, 1, 150], const_input, [150, 100], [100])
+    for input_shape, weight_shape, bias_shape in [
+        ([1, 4], [4, 4], None),
+        ([1, 4], [4, 4], [4]),
+        ([1, 1, 1, 5], [5, 5], None),
+        ([1, 1, 10], [10, 103], None),
+        ([1, 1, 1, 150], [150, 100], None),
+        ([1, 1, 1, 150], [150, 100], None),
+        ([1, 1, 1, 150], [150, 100], [100]),
+        ([5, 1, 1, 150], [150, 100], None),
+        ([5, 1, 1, 150], [150, 100], [100]),
+    ]:
+        for const_input in [False, True]:
+            for quantized in [False, True]:
+                _test_fully_connected(input_shape, const_input, weight_shape, bias_shape, quantized)
 
 
 #######################################################################
