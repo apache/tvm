@@ -1106,6 +1106,24 @@ def proposal_strategy(attrs, inputs, out_type, target):
     )
     return strategy
 
+# sample_op
+@override_native_generic_func("sample_op_strategy")
+def sample_op_strategy(attrs, outs, out_type, target): 
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sample_op(topi.sample_op),
+        wrap_topi_schedule(topi.generic.schedule_sample_op),
+        name="sample_op.generic",
+    )
+    return strategy
+
+def wrap_compute_sample_op(topi_compute):
+    """Wrap sample_op compute"""
+
+    def _compute_sample_op(attrs, inputs, _): 
+        return [topi_compute(inputs[0])]
+
+    return _compute_sample_op
 
 # scatter
 @override_native_generic_func("scatter_strategy")

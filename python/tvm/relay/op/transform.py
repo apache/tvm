@@ -1320,3 +1320,6 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+def sample_op(sample_input):
+    return _make.sample_op(sample_input)

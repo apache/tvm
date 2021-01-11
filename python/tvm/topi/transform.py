@@ -931,3 +931,6 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+def sample_op(sample_input):
+    return cpp.sample_op(sample_input)

@@ -66,3 +66,6 @@ def schedule_scatter_add(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+def schedule_sample_op(outs):
+    return _default_schedule(outs, False)

@@ -39,6 +39,7 @@ from .broadcast import *
 from .sort import *
 from .scatter import *
 from .scatter_add import *
+from .sample_op import *
 from .argwhere import *
 from . import generic
 from . import nn

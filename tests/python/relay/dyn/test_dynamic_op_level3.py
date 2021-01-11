@@ -28,7 +28,7 @@ import tvm.testing
 
 def verify_func(func, data, ref_res):
     assert isinstance(data, list)
-    for target, ctx in tvm.testing.enabled_targets():
+    for target, ctx in [("llvm", tvm.cpu())]:
         for kind in ["vm", "debug"]:
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
@@ -201,6 +201,42 @@ def test_dyn_sparse_to_dense():
     )  # floats
     verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
 
+def test_sample_op():
+    def run_opt_pass(expr, opt_pass):
+        assert isinstance(opt_pass, tvm.transform.Pass)
+
+        mod = tvm.IRModule.from_expr(expr)
+        mod = opt_pass(mod)
+        entry = mod["main"]
+        return entry if isinstance(expr, relay.Function) else entry.body
+    def ref_sample_op(
+        sample_input: np.ndarray,
+    ) -> None:
+        return np.ones(sample_input.shape[0])
+
+    def verify_sample_op(
+        sample_input_np: np.ndarray,
+    ) -> None:
+        """
+        This function verifies the relay output of sample_op with its expected output.
+        """
+        sample_input = relay.var(
+            "sample_input",
+            relay.TensorType(sample_input_np.shape, str(sample_input_np.dtype)),
+        )
+        z = relay.sample_op(sample_input)
+        # zz = run_infer_type(z)
+
+        func = relay.Function([sample_input], z)
+        # func2 = run_infer_type(func)
+        # func3 = run_opt_pass(run_opt_pass(func2, transform.DynamicToStatic()), transform.InferType())
+
+        ref_res = ref_sample_op(sample_input_np)
+        verify_func(func, [sample_input], ref_res)
+
+    sample_input_np = np.array([0, 1, 2, 4], dtype=np.int32)
+    verify_sample_op(sample_input_np)
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    test_sample_op()
+    # pytest.main([__file__])

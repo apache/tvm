@@ -1673,6 +1673,32 @@ RELAY_REGISTER_OP("meshgrid")
     .set_attr<FTVMCompute>("FTVMCompute", MeshgridCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+bool SampleOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                            const TypeReporter& reporter) {
+  // types: [ sample_input, result]
+  ICHECK_EQ(types.size(), 2);
+  reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  return true;
+}
+
+Expr MakeSampleOp(Expr sample_input) {
+  static const Op& op = Op::Get("sample_op");
+  return Call(op, {sample_input}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.sample_op")
+    .set_body_typed(MakeSampleOp);
+
+RELAY_REGISTER_OP("sample_op")
+    .describe(R"code(Return representation of a sparse tensor with empty rows filled with default 
+    value.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("sample_input", "Tensor",
+                  "A 1-D tensor[N] containing the sparse values for the sparse indices")
+    .add_type_rel("sample_op", SampleOpRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
+    
 // tile operator
 TVM_REGISTER_NODE_TYPE(TileAttrs);
 
