@@ -36,6 +36,7 @@ from __future__ import absolute_import, print_function
 
 import tvm
 from tvm import te
+import tvm.testing
 import numpy as np
 
 ######################################################################

@@ -50,6 +50,7 @@ from tvm import te
 
 from tvm import autotvm
 from tvm.contrib import nvcc
+import tvm.testing
 
 
 def matmul_nn(A, B, L, dtype="float16", layout="NN"):
