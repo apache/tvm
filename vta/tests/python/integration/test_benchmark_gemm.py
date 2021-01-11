@@ -182,7 +182,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, mock.dma_copy, env.gemm, mock.alu, mock.dma_copy, print_ir, False
+                    mock.dma_copy, mock.dma_copy, env.gemm, mock.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
@@ -197,7 +197,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, mock.dma_copy, mock.gemm, env.alu, mock.dma_copy, print_ir, False
+                    mock.dma_copy, mock.dma_copy, mock.gemm, env.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
@@ -213,7 +213,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    env.dma_copy, mock.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir, False
+                    env.dma_copy, mock.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (batch_size * channel * env.INP_WIDTH / cost.mean) / float(10 ** 9)
@@ -233,7 +233,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, env.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir, False
+                    mock.dma_copy, env.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (channel * channel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
@@ -253,7 +253,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, mock.dma_copy, mock.gemm, mock.alu, env.dma_copy, print_ir, False
+                    mock.dma_copy, mock.dma_copy, mock.gemm, mock.alu, env.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (batch_size * channel * env.OUT_WIDTH / cost.mean) / float(10 ** 9)
