@@ -21,7 +21,6 @@ from tvm import te
 from ..scatter import _verify_scatter_nd_inputs
 from .nms import atomic_add
 from .sort import stable_sort_by_key_thrust, is_thrust_available
-from ..utils import get_const_int
 
 
 def ceil_div(a, b):
@@ -417,7 +416,8 @@ def gen_ir_4d(data, indices, updates, axis, out, update_func):
     return ib.get()
 
 
-def scatter(data, indices, updates, axis=0):
+@autotvm.register_topi_compute("scatter.cuda")
+def scatter(_, data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
     Parameters
@@ -556,7 +556,8 @@ def gen_scatter_1d_thrust(data, indices_sorted, updates_sorted, out):
     return ib.get()
 
 
-def scatter1d_via_sort(data, indices, updates, axis=0):
+@autotvm.register_topi_compute("scatter_via_sort.cuda")
+def scatter1d_via_sort(_, data, indices, updates, axis=0):
     """Update data at positions defined by indices with values in updates
 
     Parameters
@@ -581,6 +582,7 @@ def scatter1d_via_sort(data, indices, updates, axis=0):
     if axis < 0:
         axis += len(data.shape)
     assert axis == 0 and len(data.shape) == 1, "sorting based scatter only supported for 1d input"
+    assert is_thrust_available(), "Thrust is required for this op"
 
     out_shape = data.shape
     out_buf = tvm.tir.decl_buffer(out_shape, data.dtype, "out_buf")
@@ -593,8 +595,8 @@ def scatter1d_via_sort(data, indices, updates, axis=0):
         lambda ins, outs: gen_scatter_1d_thrust(ins[0], ins[1], ins[2], outs[0]),
         dtype=data.dtype,
         out_buffers=[out_buf],
-        name="scatter_gpu",
-        tag="scatter_gpu",
+        name="scatter_via_sort_gpu",
+        tag="scatter_via_sort_gpu",
     )
 
     return out

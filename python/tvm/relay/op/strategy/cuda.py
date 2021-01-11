@@ -797,7 +797,7 @@ def scatter_cuda(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_sort(topi.cuda.scatter1d_via_sort),
                 wrap_topi_schedule(topi.cuda.schedule_extern),
-                name="scatter_thrust.cuda",
+                name="scatter_via_sort.cuda",
                 plevel=9,  # use the sequential version by default
             )
     return strategy
