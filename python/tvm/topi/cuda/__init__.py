@@ -42,6 +42,7 @@ from .dense import *
 from .pooling import *
 from .nn import schedule_lrn
 from .batch_matmul import *
+from .batch_matmul_tensorcore import *
 from .vision import *
 from .ssd import *
 from .nms import get_valid_counts, non_max_suppression
