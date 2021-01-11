@@ -254,9 +254,6 @@ def compare_tf_with_tvm(
             )
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
-            import pdb
-
-            pdb.set_trace()
             for i in range(len(tf_output)):
                 if not isinstance(tf_output[i], np.ndarray):
                     assert len(tvm_output[i].shape) == 0
