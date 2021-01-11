@@ -401,22 +401,6 @@ struct SparseToDenseAttrs : public tvm::AttrsNode<SparseToDenseAttrs> {
   }
 };  // struct SparseToDenseAttrs
 
-/*! \brief Attributes used in sparse_segment_sqrtn operator */
-struct SparseSegmentSqrtNAttrs : public tvm::AttrsNode<SparseSegmentSqrtNAttrs> {
-  int num_segments;
-  TVM_DECLARE_ATTRS(SparseSegmentSqrtNAttrs, "relay.attrs.SparseSegmentSqrtNAttrs") {
-    TVM_ATTR_FIELD(num_segments).describe("Number of Segments in the output tensor");
-  }
-};  // struct SparseSegmentSqrtNAttrs
-/*! \brief Attributes used in sparsefillemptyRows operator */
-// struct SparseFillEmptyRowsAttrs : public tvm::AttrsNode<SparseFillEmptyRowsAttrs> {
-//   Array<Integer> dense_shape;
-
-//   TVM_DECLARE_ATTRS(SparseFillEmptyRowsAttrs, "relay.attrs.SparseFillEmptyRowsAttrs") {
-//     TVM_ATTR_FIELD(dense_shape).describe("Shape of the dense output tensor");
-//   }
-// };  // struct SparseFillEmptyRowsAttrs
-
 /*! \brief Attributes for ndarray_size operator */
 struct NdarraySizeAttrs : public tvm::AttrsNode<NdarraySizeAttrs> {
   DataType dtype;
