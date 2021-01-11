@@ -219,7 +219,7 @@ def test_sample_op():
         sample_input_np: np.ndarray,
     ) -> None:
         """
-        This function verifies the relay output of sparse_fill_empty_rows with its expected output.
+        This function verifies the relay output of sample_op with its expected output.
         """
         sample_input = relay.var(
             "sample_input",
