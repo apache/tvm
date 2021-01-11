@@ -709,10 +709,10 @@ class LpPool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name="LpPool"
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name="LpPool")
 
         p = _expr.const(attr["p"], dtype)
         reci_p = _expr.const(1.0 / attr["p"], dtype)
