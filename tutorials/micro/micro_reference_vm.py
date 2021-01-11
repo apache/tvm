@@ -59,7 +59,6 @@ Installing prerequisites
 
 A minimal set of prerequisites are needed:
 
-
 1. `Vagrant <https://vagrantup.com>`__
 2. A supported Virtual Machine hypervisor (**VirtualBox**, **Parallels**, or **VMWare Fusion/Workstation**).
    `VirtualBox <https://www.virtualbox.org>`__ is a suggested free hypervisor, but please note
