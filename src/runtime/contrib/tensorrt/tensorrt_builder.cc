@@ -91,10 +91,6 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
 void TensorRTBuilder::AddConstant(int nid, const DLTensor* data) {
   nvinfer1::Weights weight = GetDLTensorAsWeights(data, kDLCPU);
   std::vector<int> shape(data->shape, data->shape + data->ndim);
-  // Remove batch dim when not in explicit batch mode.
-  if (use_implicit_batch_ && shape.size() > 1 && shape[0] == 1) {
-    shape.erase(shape.begin());
-  }
   node_output_map_[nid] = {TensorRTOpInput(weight, shape)};
 }
 
@@ -212,8 +208,18 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
 
 nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& input) {
   if (input.type == kTensor) return input.tensor;
-  auto dims = VectorToTrtDims(input.weight_shape);
-  return network_->addConstant(dims, input.weight)->getOutput(0);
+  auto shape = input.weight_shape;
+  // Remove batch dim when not in explicit batch mode.
+  // Example:
+  // x = Relay dims (1, 32, 224, 224) which becomes TRT Dims (32, 224, 224)
+  // y = Relay dims (1, 32)
+  // z = add(x, y)
+  // y needs to have TRT dims (32,), otherwise broadcasting will result in z having
+  // TRT Dims(1, 32, 224, 224) when it should be (32, 224, 224).
+  if (use_implicit_batch_ && shape.size() > 1 && shape[0] == 1) {
+    shape.erase(shape.begin());
+  }
+  return network_->addConstant(VectorToTrtDims(shape), input.weight)->getOutput(0);
 }
 
 void TensorRTBuilder::CleanUp() {
