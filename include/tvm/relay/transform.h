@@ -56,79 +56,9 @@ using Sequential = tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreateFunctionPass(
+Pass CreateFunctionPass_(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
-
-class FunctionPass;
-
-/*!
- * \brief Function-level passes are used to implement various global
- * optimizations for a given Relay module. It fetches one function at a time
- * from the function list in the module for optimization.
- *
- * Note that the scope of passes at this level is a Relay function. Therefore,
- * we cannot add or delete a function through these passes as they are not aware
- * of the global information.
- */
-class FunctionPassNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief The packed pass function sketches the real optimization. For
-   * instance, we can implement a pass that works on a Relay function as a
-   * `pass_func` and let it run on a given module. The same `pass_func` will
-   * then be applied on each function in the module.
-   */
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func;
-
-  FunctionPassNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
-
-  /*!
-   * \brief Run a function pass on given pass context.
-   *
-   * \param mod The module that an optimization pass is applied on.
-   * \param pass_ctx The context that an optimization pass executes on.
-   *
-   * \return Return the updated module.
-   */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "relay.FunctionPass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
-
- private:
-  /*
-   * \brief Check if a function should be skipped for optimization.
-   *
-   * \param func The target function to be checked.
-   *
-   * \return Return true if the function will be skipped, otherwise false.
-   */
-  bool SkipFunction(const Function& func) const;
-};
-
-class FunctionPass : public Pass {
- public:
-  /*!
-   * \brief The constructor
-   * \param pass_func The packed function which implements a pass.
-   * \param pass_info The pass info.
-   */
-  TVM_DLL FunctionPass(
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
-};
 
 /*
  * \brief Create a function pass. Specialized for lambdas.
@@ -141,9 +71,15 @@ class FunctionPass : public Pass {
  * \return The created function pass.
  */
 template <typename F>
-Pass CreateFunctionPass(F pass_func, int opt_level, String name, tvm::Array<String> required) {
-  PassInfo pass_info = PassInfo(opt_level, name, required);
-  return FunctionPass({pass_func, name}, pass_info);
+inline Pass CreateFunctionPass(F pass_func, int opt_level, String name,
+                               tvm::Array<String> required) {
+  return CreateFunctionPass_({pass_func, name}, opt_level, name, required);
+}
+
+inline Pass CreateFunctionPass(
+    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
+    int opt_level, String name, tvm::Array<String> required) {
+  return CreateFunctionPass_(pass_func, opt_level, name, required);
 }
 
 /*! \brief Remove expressions which does not effect the program result.

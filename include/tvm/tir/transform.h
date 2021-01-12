@@ -52,56 +52,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
+Pass CreatePrimFuncPass_(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
-
-/*!
- * \brief Function level pass that applies transformations to all
- *        TIR functions within the module.
- */
-class PrimFuncPassNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief The pass function called on each. */
-  runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
-
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
-
-  /*!
-   * \brief Run a function pass on given pass context.
-   *
-   * \param mod The module that an optimization pass is applied on.
-   * \param pass_ctx The context that an optimization pass executes on.
-   *
-   * \return Return the updated module.
-   */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "tir.PrimFuncPass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncPassNode, PassNode);
-};
-
-class PrimFuncPass : public Pass {
- public:
-  /*!
-   * \brief The constructor
-   * \param pass_func The packed function which implements a pass.
-   * \param pass_info The pass info.
-   */
-  TVM_DLL PrimFuncPass(
-      runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(PrimFuncPass, Pass, PrimFuncPassNode);
-};
 
 /*
  * \brief Create a function pass that optimizes PrimFuncs. Specialized to lambdas.
@@ -114,9 +67,15 @@ class PrimFuncPass : public Pass {
  * \return The created function pass.
  */
 template <typename F>
-Pass CreatePrimFuncPass(F pass_func, int opt_level, String name, tvm::Array<String> required) {
-  PassInfo pass_info = PassInfo(opt_level, name, required);
-  return PrimFuncPass({pass_func, name}, pass_info);
+inline Pass CreatePrimFuncPass(F pass_func, int opt_level, String name,
+                               tvm::Array<String> required) {
+  return CreatePrimFuncPass_({pass_func, name}, opt_level, name, required);
+}
+
+inline Pass CreatePrimFuncPass(
+    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+    int opt_level, String name, tvm::Array<String> required) {
+  return CreatePrimFuncPass_(pass_func, opt_level, name, required);
 }
 
 /*!

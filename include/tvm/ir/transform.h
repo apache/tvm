@@ -410,57 +410,13 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass
-CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, String name, Array<runtime::String> required);
-
-class ModulePassNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief The pass function sketches the real optimization. For example,
-   * we may need to perform dead code elimination on the module level. We could
-   * implement the algorithm in the `pass_func` and let it run on a module. It
-   * will then remove the dead code including the unused functions in the module.
-   */
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func;
-
-  ModulePassNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
-
-  /*!
-   * \brief Run a module pass on given pass context.
-   *
-   * \param mod The module that an optimization pass is applied on.
-   * \param pass_ctx The context that an optimization pass executes on.
-   *
-   * \return Return the updated module.
-   */
-  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const override { return pass_info; }
-
-  static constexpr const char* _type_key = "transform.ModulePass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModulePassNode, PassNode);
-};
-
-class ModulePass : public Pass {
- public:
-  ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-             PassInfo pass_info);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
-};
+Pass CreateModulePass_(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+                       int opt_level, String name, Array<runtime::String> required);
 
 /*
- * \brief Create a module pass. Specialized for lambdas.
+ * \brief Create a module pass.
  *
- * \param pass_func The lambda that contains the optimization.
+ * \param pass_func The function that contains the optimization.
  * \param opt_level The optimization level of the module pass.
  * \param name The name of the module pass.
  * \param required The list of the passes that the module pass is dependent on.
@@ -468,9 +424,15 @@ class ModulePass : public Pass {
  * \return The created module pass.
  */
 template <typename F>
-Pass CreateModulePass(F pass_func, int opt_level, String name, tvm::Array<String> required) {
-  PassInfo pass_info = PassInfo(opt_level, name, required);
-  return ModulePass({pass_func, name}, pass_info);
+inline Pass CreateModulePass(F pass_func, int opt_level, String name, tvm::Array<String> required) {
+  return CreateModulePass_({pass_func, name}, opt_level, name, required);
+}
+
+// specialized for TypedPackedFunc
+inline Pass CreateModulePass(
+    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
+    String name, tvm::Array<String> required) {
+  return CreateModulePass_(pass_func, opt_level, name, required);
 }
 
 /*!
