@@ -25,7 +25,7 @@ The final optimized programs are sent to actual hardware for measurement.
 The above process is repeated until the auto-scheduler runs out of time budget.
 
 Reference:
-L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "auto_scheduler : Generating High-Performance Tensor
+L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
 Programs for Deep Learning." (OSDI 2020).
 """
 
