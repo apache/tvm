@@ -243,11 +243,6 @@ class SketchPolicy(SearchPolicy):
                 if key not in params:
                     params[key] = value
 
-        # global CUSTOM_SKETCH_REGISTRY
-        # if not init_search_callbacks:
-        #     init_search_callbacks = []
-        # init_search_callbacks.extend(list(CUSTOM_SKETCH_REGISTRY.values()))
-
         self.__init_handle_by_constructor__(
             _ffi_api.SketchPolicy,
             task,
