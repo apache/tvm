@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_VULKAN_STREAM_H
-#define TVM_RUNTIME_VULKAN_VULKAN_STREAM_H
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_STREAM_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_STREAM_H_
 
 #include <functional>
 #include <memory>
@@ -186,4 +186,4 @@ class VulkanStream {
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_VULKAN_VULKAN_STREAM_H
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_STREAM_H_

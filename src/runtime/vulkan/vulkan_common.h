@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_VULKAN_COMMON_H
-#define TVM_RUNTIME_VULKAN_VULKAN_COMMON_H
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -145,4 +145,4 @@ struct VulkanContext {
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_VULKAN_VULKAN_COMMON_H
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_COMMON_H_
