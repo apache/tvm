@@ -167,7 +167,7 @@ def get_pad_pair(input1d, kernel1d, stride1d):
     return [pad_before, pad_after]
 
 
-def onnx_default_layout(dims):
+def onnx_default_layout(dims, op_name):
     if dims == 1:
         return "NCW"
     if dims == 2:
@@ -175,11 +175,11 @@ def onnx_default_layout(dims):
     if dims == 3:
         return "NCDHW"
 
-    msg = "Only 1D, 2D and 3D layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported for operator {}."
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
-def onnx_storage_order2layout(storage_order, dims=2):
+def onnx_storage_order2layout(storage_order, dims, op_name):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid("Mode of storage_order must be either 0 or 1")
@@ -191,7 +191,7 @@ def onnx_storage_order2layout(storage_order, dims=2):
     if dims == 3:
         return "NCDHW" if storage_order == 0 else "NDHWC"
 
-    msg = "Only 1D, 2D and 3D layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported for operator {}."
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
@@ -300,10 +300,10 @@ class Pool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2)
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
         return AttrCvt(
             op_name=dimension_picker(cls.name),
@@ -709,10 +709,10 @@ class LpPool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2)
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name="LpPool"
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name="LpPool")
 
         p = _expr.const(attr["p"], dtype)
         reci_p = _expr.const(1.0 / attr["p"], dtype)
