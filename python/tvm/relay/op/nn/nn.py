@@ -1488,7 +1488,7 @@ def relu(data):
     return _make.relu(data)
 
 
-def leaky_relu(data, alpha):
+def leaky_relu(data, alpha=0.01):
     """This operator takes data as input and does Leaky version
     of a Rectified Linear Unit.
 
