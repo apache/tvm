@@ -25,7 +25,7 @@ The final optimized programs are sent to actual hardware for measurement.
 The above process is repeated until the auto-scheduler runs out of time budget.
 
 Reference:
-L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "Ansor : Generating High-Performance Tensor
+L. Zheng, C. Jia, M. Sun, Z. Wu, C. Yu, et al. "auto_scheduler : Generating High-Performance Tensor
 Programs for Deep Learning." (OSDI 2020).
 """
 
@@ -34,6 +34,7 @@ import random
 import tvm._ffi
 from tvm.runtime import Object
 from .cost_model import RandomModel
+from .loop_state import State
 from . import _ffi_api
 
 
@@ -59,6 +60,72 @@ class PreloadMeasuredStates(SearchCallback):
 
     def __init__(self, filename):
         self.__init_handle_by_constructor__(_ffi_api.PreloadMeasuredStates, filename)
+
+
+@tvm._ffi.register_object("auto_scheduler.PreloadCustomSketchRule")
+class PreloadCustomSketchRule(SearchCallback):
+    """
+    A SearchCallback for SketchSearchPolicy that allowing users to add
+    custom sketch rule.
+
+    Notes
+    -----
+    This is an advanced feature. Make sure you're clear how it
+    works and this should only be used in SketchSearchPolicy.
+
+    Parameters
+    ----------
+    meet_condition_func: Function
+        A function with `(policy, state, stage_id) -> int`
+    apply_func: Function
+        A function with `(policy, state, stage_id) -> [[State, int], ...]`
+    """
+
+    CONDITION_NUM = {
+        "pass": 0,
+        "apply": 1,
+        "apply_and_skip_rest": 2
+    }
+
+    def __init__(self, meet_condition_func, apply_func, rule_name="CustomSketchRule"):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PreloadCustomSketchRule, meet_condition_func, apply_func, rule_name)
+
+
+CUSTOM_SKETCH_REGISTRY = {}
+
+
+def register_custom_sketch_func(compute_name, func=None):
+    """
+    """
+    global CUSTOM_SKETCH_REGISTRY
+
+    if callable(compute_name):
+        func = compute_name
+        compute_name = func.__name__
+
+    if not isinstance(compute_name, str):
+        raise ValueError("expect string function name")
+
+    def register(myf):
+        if compute_name in CUSTOM_SKETCH_REGISTRY:
+            raise RuntimeError('Custom Sketch for %s has been registered for compute already' % compute_name)
+        def meet_condition_func(policy, state, stage_id):
+            state = State(state, policy.search_task.compute_dag)
+            if state.stages[stage_id].op.name == compute_name:
+                return PreloadCustomSketchRule.CONDITION_NUM["apply_and_skip_rest"]
+            else:
+                return PreloadCustomSketchRule.CONDITION_NUM["pass"]
+        CUSTOM_SKETCH_REGISTRY[compute_name] = PreloadCustomSketchRule(meet_condition_func, myf)
+        return myf
+
+    if func:
+        return register(func)
+    return register
+
+
+def get_custom_sketch_callbacks():
+    return list(CUSTOM_SKETCH_REGISTRY.values())
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchPolicy")
@@ -141,8 +208,6 @@ class SketchPolicy(SearchPolicy):
 
           - auto_scheduler.PreloadMeasuredStates
           - auto_scheduler.PreloadCustomSketchRule
-
-        TODO(jcf94): Add these search callback implementations.
     """
 
     DEFAULT_PARAMS = {
@@ -177,6 +242,11 @@ class SketchPolicy(SearchPolicy):
             for key, value in SketchPolicy.DEFAULT_PARAMS.items():
                 if key not in params:
                     params[key] = value
+
+        # global CUSTOM_SKETCH_REGISTRY
+        # if not init_search_callbacks:
+        #     init_search_callbacks = []
+        # init_search_callbacks.extend(list(CUSTOM_SKETCH_REGISTRY.values()))
 
         self.__init_handle_by_constructor__(
             _ffi_api.SketchPolicy,
