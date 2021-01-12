@@ -2046,7 +2046,7 @@ class RoiAlign(OnnxOpConverter):
         x = inputs[0]
         rois = inputs[1]
         batch_indices = inputs[2]
-        mode = attr.get("mode", "avg")
+        mode = attr.get("mode", b"avg")
         if mode != b"avg":
             raise ValueError("RoiAlign in Relay only uses avg mode")
         output_height = attr.get("output_height", 1)
@@ -2056,7 +2056,7 @@ class RoiAlign(OnnxOpConverter):
         spatial_scale = attr.get("spatial_scale", 1.0)
 
         batch_indices = _op.expand_dims(batch_indices, axis=1, num_newaxis=1)
-        batch_indices = _op.cast(batch_indices, infer_type(rois).type_annotation.dtype)
+        batch_indices = _op.cast(batch_indices, infer_type(rois).checked_type.dtype)
         rois = _op.concatenate([batch_indices, rois], 1)
 
         return _vision.roi_align(
@@ -2074,6 +2074,10 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "min" not in attr:
+            attr["min"] = -np.inf
+        if "max" not in attr:
+            attr["max"] = np.inf
         return Clip.convert_attributes(inputs, attr, params)
 
     @classmethod
