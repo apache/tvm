@@ -280,7 +280,7 @@ class TaskScheduler:
         tune_option,
         search_policy="default",
         search_policy_params=None,
-        adapative_training=False
+        adapative_training=False,
     ):
         """Tune a batch of tasks together.
 
@@ -297,9 +297,8 @@ class TaskScheduler:
         search_policy_params : Optional[Dict[str, Any]]
             The parameters of the search policy
         adapative_training : bool = False
-            Option used for XGBModel, which will reduce the model training frequency when there're too
-            many logs.
-
+            Option used for XGBModel, which will reduce the model training frequency when there're
+            too many logs.
         """
         # init members
         self.tune_option = tune_option
@@ -334,7 +333,7 @@ class TaskScheduler:
             tune_option.verbose,
             self.load_model_file,
             self.load_log_file,
-            adapative_training
+            adapative_training,
         )
 
         # do a round robin first to warm up

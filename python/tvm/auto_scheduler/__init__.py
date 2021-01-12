@@ -51,8 +51,12 @@ from .relay_integration import (
 )
 from .search_task import SearchTask, TuningOptions, HardwareParams, create_task, auto_schedule
 from .search_policy import (
-    EmptyPolicy, SketchPolicy, PreloadMeasuredStates, PreloadCustomSketchRule,
-    register_custom_sketch_func, get_custom_sketch_callbacks
+    EmptyPolicy,
+    SketchPolicy,
+    PreloadMeasuredStates,
+    PreloadCustomSketchRule,
+    register_custom_sketch_func,
+    get_custom_sketch_callbacks,
 )
 from .task_scheduler import TaskScheduler
 from .workload_registry import register_workload, make_workload_key

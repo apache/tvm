@@ -81,22 +81,19 @@ class PreloadCustomSketchRule(SearchCallback):
         A function with `(policy, state, stage_id) -> [[State, int], ...]`
     """
 
-    CONDITION_NUM = {
-        "pass": 0,
-        "apply": 1,
-        "apply_and_skip_rest": 2
-    }
+    CONDITION_NUM = {"pass": 0, "apply": 1, "apply_and_skip_rest": 2}
 
     def __init__(self, meet_condition_func, apply_func, rule_name="CustomSketchRule"):
         self.__init_handle_by_constructor__(
-            _ffi_api.PreloadCustomSketchRule, meet_condition_func, apply_func, rule_name)
+            _ffi_api.PreloadCustomSketchRule, meet_condition_func, apply_func, rule_name
+        )
 
 
 CUSTOM_SKETCH_REGISTRY = {}
 
 
 def register_custom_sketch_func(compute_name, func=None):
-    """
+    """ Helper decorator to register custom sketch functions easily.
     """
     global CUSTOM_SKETCH_REGISTRY
 
@@ -109,13 +106,16 @@ def register_custom_sketch_func(compute_name, func=None):
 
     def register(myf):
         if compute_name in CUSTOM_SKETCH_REGISTRY:
-            raise RuntimeError('Custom Sketch for %s has been registered for compute already' % compute_name)
+            raise RuntimeError(
+                "Custom Sketch for %s has been registered for compute already" % compute_name
+            )
+
         def meet_condition_func(policy, state, stage_id):
             state = State(state, policy.search_task.compute_dag)
             if state.stages[stage_id].op.name == compute_name:
                 return PreloadCustomSketchRule.CONDITION_NUM["apply_and_skip_rest"]
-            else:
-                return PreloadCustomSketchRule.CONDITION_NUM["pass"]
+            return PreloadCustomSketchRule.CONDITION_NUM["pass"]
+
         CUSTOM_SKETCH_REGISTRY[compute_name] = PreloadCustomSketchRule(meet_condition_func, myf)
         return myf
 

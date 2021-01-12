@@ -209,7 +209,7 @@ class PreloadCustomSketchRuleNode : public SearchCallbackNode {
 
   void Callback(SearchPolicyNode* policy) final;
 
-  static constexpr const char *_type_key = "auto_scheduler.PreloadCustomSketchRule";
+  static constexpr const char* _type_key = "auto_scheduler.PreloadCustomSketchRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(PreloadCustomSketchRuleNode, SearchCallbackNode);
 };
 

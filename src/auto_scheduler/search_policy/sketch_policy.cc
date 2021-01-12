@@ -675,8 +675,7 @@ Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>
 TVM_REGISTER_OBJECT_TYPE(PreloadCustomSketchRuleNode);
 
 PreloadCustomSketchRule::PreloadCustomSketchRule(PackedFunc meet_condition_func,
-                                                 PackedFunc apply_func,
-                                                 String rule_name) {
+                                                 PackedFunc apply_func, String rule_name) {
   auto node = make_object<PreloadCustomSketchRuleNode>();
   node->meet_condition_func = std::move(meet_condition_func);
   node->apply_func = std::move(apply_func);
@@ -721,9 +720,9 @@ TVM_REGISTER_GLOBAL("auto_scheduler.PrintTitle").set_body_typed([](std::string t
 });
 
 TVM_REGISTER_GLOBAL("auto_scheduler.PreloadCustomSketchRule")
-.set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func, String rule_name) {
-  return PreloadCustomSketchRule(meet_condition_func, apply_func, rule_name);
-});
+    .set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func, String rule_name) {
+      return PreloadCustomSketchRule(meet_condition_func, apply_func, rule_name);
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm

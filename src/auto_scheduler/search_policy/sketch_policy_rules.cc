@@ -463,10 +463,10 @@ std::vector<std::pair<State, int>> RuleSpecialComputeLocationGPU::Apply(
 
 /********** RuleCustomSketch **********/
 
-SketchGenerationRule::ConditionKind RuleCustomSketch::MeetCondition(
-    const SketchPolicyNode& policy, const State& state, int stage_id) const {
-  auto ret = meet_condition_func_(
-      tvm::runtime::GetRef<SketchPolicy>(&policy), state, stage_id);
+SketchGenerationRule::ConditionKind RuleCustomSketch::MeetCondition(const SketchPolicyNode& policy,
+                                                                    const State& state,
+                                                                    int stage_id) const {
+  auto ret = meet_condition_func_(tvm::runtime::GetRef<SketchPolicy>(&policy), state, stage_id);
   if (ret.type_code() == 0) {
     return ConditionKind(static_cast<int>(ret));
   } else {
@@ -475,12 +475,11 @@ SketchGenerationRule::ConditionKind RuleCustomSketch::MeetCondition(
   }
 }
 
-std::vector<std::pair<State, int> > RuleCustomSketch::Apply(const SketchPolicyNode& policy,
-                                                            const State& state,
-                                                            int stage_id) const {
-  Array<Array<ObjectRef>> apply_ret = apply_func_(
-      tvm::runtime::GetRef<SketchPolicy>(&policy), state, stage_id);
-  std::vector<std::pair<State, int> > ret;
+std::vector<std::pair<State, int>> RuleCustomSketch::Apply(const SketchPolicyNode& policy,
+                                                           const State& state, int stage_id) const {
+  Array<Array<ObjectRef>> apply_ret =
+      apply_func_(tvm::runtime::GetRef<SketchPolicy>(&policy), state, stage_id);
+  std::vector<std::pair<State, int>> ret;
   for (const auto& item : apply_ret) {
     CHECK_EQ(item.size(), 2);
     auto next = item[1].as<IntImmNode>();
