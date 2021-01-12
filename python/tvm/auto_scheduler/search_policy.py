@@ -93,8 +93,7 @@ CUSTOM_SKETCH_REGISTRY = {}
 
 
 def register_custom_sketch_func(compute_name, func=None):
-    """ Helper decorator to register custom sketch functions easily.
-    """
+    """Helper decorator to register custom sketch functions easily."""
     global CUSTOM_SKETCH_REGISTRY
 
     if callable(compute_name):

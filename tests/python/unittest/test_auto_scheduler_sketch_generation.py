@@ -36,11 +36,13 @@ from test_auto_scheduler_common import (
 )
 
 
-def generate_sketches(workload_func, args, target, print_for_debug=False,
-                      init_search_callbacks=None):
+def generate_sketches(
+    workload_func, args, target, print_for_debug=False, init_search_callbacks=None
+):
     task = auto_scheduler.SearchTask(func=workload_func, args=args, target=target)
     policy = auto_scheduler.SketchPolicy(
-        task, verbose=0, init_search_callbacks=init_search_callbacks)
+        task, verbose=0, init_search_callbacks=init_search_callbacks
+    )
     return policy.generate_sketches(print_for_debug)
 
 
@@ -279,10 +281,12 @@ def test_cpu_custom_sketch():
         return ret
 
     sketches = generate_sketches(
-        matmul_auto_scheduler_test, (512, 512, 512), "llvm",
+        matmul_auto_scheduler_test,
+        (512, 512, 512),
+        "llvm",
         init_search_callbacks=[
             auto_scheduler.PreloadCustomSketchRule(meet_condition_func, apply_func)
-        ]
+        ],
     )
     assert len(sketches) == 2
     assert sketches[0].stages[2].iters[0].range.extent == 512
@@ -311,8 +315,10 @@ def test_cpu_custom_sketch_registry():
         return ret
 
     sketches = generate_sketches(
-        matmul_auto_scheduler_test, (512, 512, 512), "llvm",
-        init_search_callbacks=auto_scheduler.get_custom_sketch_callbacks()
+        matmul_auto_scheduler_test,
+        (512, 512, 512),
+        "llvm",
+        init_search_callbacks=auto_scheduler.get_custom_sketch_callbacks(),
     )
     assert len(sketches) == 2
     assert sketches[0].stages[2].iters[0].range.extent == 512
