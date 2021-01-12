@@ -340,9 +340,8 @@ inline const char* ArgTypeCode2Str(int type_code);
 #define TVM_ICHECK_TYPE_CODE(CODE, T) \
   ICHECK_EQ(CODE, T) << " expected " << ArgTypeCode2Str(T) << " but got " << ArgTypeCode2Str(CODE)
 
-#define TVM_CHECK_TYPE_CODE(CODE, T, MSG) \
-  if (!((CODE) == (T))) /* NOLINT */      \
-  LOG(FATAL) << (MSG) << "expected " << ArgTypeCode2Str(T) << " but got " << ArgTypeCode2Str(CODE)
+#define TVM_CHECK_TYPE_CODE(CODE, T) \
+  CHECK_EQ(CODE, T) << "expected " << ArgTypeCode2Str(T) << " but got " << ArgTypeCode2Str(CODE)
 
 /*!
  * \brief Type traits for runtime type check during FFI conversion.
@@ -374,31 +373,31 @@ class TVMPODValue_ {
     if (type_code_ == kDLInt) {
       return static_cast<double>(value_.v_int64);
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kDLFloat, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
     return value_.v_float64;
   }
   operator int64_t() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kDLInt, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
   }
   operator uint64_t() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kDLInt, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64;
   }
   operator int() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kDLInt, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     ICHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
     ICHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
     return static_cast<int>(value_.v_int64);
   }
   operator bool() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kDLInt, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
     return value_.v_int64 != 0;
   }
   operator void*() const {
     if (type_code_ == kTVMNullptr) return nullptr;
     if (type_code_ == kTVMDLTensorHandle) return value_.v_handle;
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMOpaqueHandle, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMOpaqueHandle);
     return value_.v_handle;
   }
   operator DLTensor*() const {
@@ -406,25 +405,25 @@ class TVMPODValue_ {
       return static_cast<DLTensor*>(value_.v_handle);
     } else {
       if (type_code_ == kTVMNullptr) return nullptr;
-      LOG(FATAL) << prefix_message_ << "Expected "
+      LOG(FATAL) << "Expected "
                  << "DLTensor* or NDArray but got " << ArgTypeCode2Str(type_code_);
       return nullptr;
     }
   }
   operator NDArray() const {
     if (type_code_ == kTVMNullptr) return NDArray(ObjectPtr<Object>(nullptr));
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMNDArrayHandle, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMNDArrayHandle);
     return NDArray(NDArray::FFIDataFromHandle(static_cast<TVMArrayHandle>(value_.v_handle)));
   }
   operator Module() const {
     if (type_code_ == kTVMNullptr) {
       return Module(ObjectPtr<Object>(nullptr));
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     return Module(ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator TVMContext() const {
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMContext, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
   }
   int type_code() const { return type_code_; }
@@ -449,15 +448,13 @@ class TVMPODValue_ {
   friend class TVMRetValue;
   friend class TVMMovableArgValue_;
   TVMPODValue_() : type_code_(kTVMNullptr) {}
-  TVMPODValue_(TVMValue value, int type_code, const std::string& prefix_message = "")
-      : value_(value), type_code_(type_code), prefix_message_(prefix_message) {}
+  TVMPODValue_(TVMValue value, int type_code)
+      : value_(value), type_code_(type_code){}
 
   /*! \brief The value */
   TVMValue value_;
   /*! \brief the type code */
   int type_code_;
-  /*! \brief Message to prefix any error message with */
-  std::string prefix_message_;
 };
 
 /*!
@@ -474,10 +471,9 @@ class TVMArgValue : public TVMPODValue_ {
    * \brief constructor
    * \param value of the function
    * \param type_code The type code.
-   * \param prefix_message Message to appear before an error messages. Provides additional context.
    */
-  TVMArgValue(TVMValue value, int type_code, const std::string& prefix_message = "")
-      : TVMPODValue_(value, type_code, prefix_message) {}
+  TVMArgValue(TVMValue value, int type_code)
+      : TVMPODValue_(value, type_code) {}
   // reuse converter from parent
   using TVMPODValue_::operator double;
   using TVMPODValue_::operator int64_t;
@@ -538,7 +534,7 @@ class TVMArgValue : public TVMPODValue_ {
 class TVMMovableArgValue_ : public TVMPODValue_ {
  public:
   TVMMovableArgValue_(TVMValue value, int type_code, const std::string& name = "", int argnum = -1)
-      : TVMPODValue_(value, type_code, error_string(name, argnum)) {}
+      : TVMPODValue_(value, type_code) {}
   // reuse converter from parent
   using TVMPODValue_::operator double;
   using TVMPODValue_::operator int64_t;
@@ -571,18 +567,7 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
 
  private:
   /*! \return The arg value repr of the value. */
-  TVMArgValue AsArgValue() const { return TVMArgValue(value_, type_code_, prefix_message_); }
-  /*! \brief Construct a message to provide context to any conversion errors in TVMPODValue_. */
-  inline std::string error_string(const std::string& name, int argnum) {
-    if (name.size() == 0) {
-      return "";
-    }
-    std::string s = "In function " + name + ": ";
-    if (argnum >= 0) {
-      s = s + "could not convert argument " + std::to_string(argnum) + ": ";
-    }
-    return s;
-  }
+  TVMArgValue AsArgValue() const { return TVMArgValue(value_, type_code_); }
 };
 
 /*!
@@ -1439,26 +1424,26 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
 
   if (type_code_ == kTVMNullptr) {
     CHECK(TObjectRef::_type_is_nullable)
-        << prefix_message_ << "Expect a not null value of " << ContainerType::_type_key;
+        << "Expect a not null value of " << ContainerType::_type_key;
     return TObjectRef(ObjectPtr<Object>(nullptr));
   }
   // NOTE: the following code can be optimized by constant folding.
   if (std::is_base_of<NDArray::ContainerType, ContainerType>::value) {
     // Casting to a sub-class of NDArray
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMNDArrayHandle, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMNDArrayHandle);
     ObjectPtr<Object> data =
         NDArray::FFIDataFromHandle(static_cast<TVMArrayHandle>(value_.v_handle));
     CHECK(data->IsInstance<ContainerType>())
-        << prefix_message_ << "Expected " << ContainerType::_type_key << " but got "
+        << "Expected " << ContainerType::_type_key << " but got "
         << data->GetTypeKey();
     return TObjectRef(data);
   }
   if (std::is_base_of<Module::ContainerType, ContainerType>::value) {
     // Casting to a sub-class of Module
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     ObjectPtr<Object> data = GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle));
     CHECK(data->IsInstance<ContainerType>())
-        << prefix_message_ << "Expected " << ContainerType::_type_key << " but got "
+        << "Expected " << ContainerType::_type_key << " but got "
         << data->GetTypeKey();
     return TObjectRef(data);
   }
@@ -1466,13 +1451,13 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
     CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
-        << prefix_message_ << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
+        << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
         << " but got " << ptr->GetTypeKey();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (type_code_ == kTVMObjectRValueRefArg) {
     Object* ptr = *static_cast<Object**>(value_.v_handle);
     CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
-        << prefix_message_ << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
+        << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
         << " but got " << ptr->GetTypeKey();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (std::is_base_of<ContainerType, NDArray::ContainerType>::value &&
@@ -1486,7 +1471,7 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
     // Casting to a base class that Module can sub-class
     return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   } else {
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle, prefix_message_);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
     return TObjectRef(ObjectPtr<Object>(nullptr));
   }
 }
