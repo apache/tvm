@@ -493,6 +493,7 @@ column_transformer_op_types = {
     "RobustMissingIndicator": INPUT_FLOAT,
     "FeatureUnion": INPUT_FLOAT,
     "RobustStandardScaler": INPUT_FLOAT,
+    "RobustOrdinalEncoder": INPUT_STRING,
     "ThresholdOneHotEncoder": INPUT_STRING,
 }
 
@@ -564,7 +565,7 @@ def from_auto_ml(model, shape=None, dtype="float32", func_name="transform"):
     else:
         inexpr = _expr.var("input", shape=shape, dtype=dtype)
         transformer = model.target_transformer
-        outexpr = sklearn_op_to_relay(transformer, outexpr, shape, dtype, func_name, None)
+        outexpr = sklearn_op_to_relay(transformer, inexpr, shape, dtype, func_name, None)
 
     func = _function.Function(analysis.free_vars(outexpr), outexpr)
     return IRModule.from_expr(func), []
