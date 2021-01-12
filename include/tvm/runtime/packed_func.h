@@ -60,7 +60,7 @@ namespace runtime {
 // forward declarations
 class TVMArgs;
 class TVMArgValue;
-class TVMMovableArgValue_;
+class TVMMovableArgValueWithContext_;
 class TVMRetValue;
 class TVMArgsSetter;
 
@@ -215,7 +215,7 @@ class TypedPackedFunc<R(Args...)> {
    * \brief constructor from TVMMovableArgValue_
    * \param value The TVMMovableArgValue_
    */
-  inline TypedPackedFunc(TVMMovableArgValue_&& value);  // NOLINT(*)
+  inline TypedPackedFunc(TVMMovableArgValueWithContext_&& value);  // NOLINT(*)
   /*!
    * \brief construct from a lambda function with the same signature.
    *
@@ -234,7 +234,7 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
                                   FLambda, std::function<R(Args...)>>::value>::type>
-  TypedPackedFunc(const FLambda& typed_lambda, std::string name = "<anonymous>") {  // NOLINT(*)
+  TypedPackedFunc(const FLambda& typed_lambda, std::string name = "") {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda, name);
   }
   /*!
@@ -257,7 +257,7 @@ class TypedPackedFunc<R(Args...)> {
                                   std::is_convertible<FLambda,
                                                       std::function<R(Args...)>>::value>::type>
   TSelf& operator=(FLambda typed_lambda) {  // NOLINT(*)
-    this->AssignTypedLambda(typed_lambda, "<anonymous>");
+    this->AssignTypedLambda(typed_lambda, "");
     return *this;
   }
   /*!
@@ -583,6 +583,37 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
     }
     return s;
   }
+};
+
+/*!
+ * \brief Internal auxiliary struct for TypedPackedFunc to indicate a movable argument
+ *  with additional context information for better error reporting.
+ *
+ * \sa MovableArgValue_
+ * \note For internal development purpose only.
+ */
+class TVMMovableArgValueWithContext_ {
+ public:
+ public:
+  TVMMovableArgValueWithContext_(TVMValue value, int type_code, int arg_index,
+                                 const std::string* name)
+      : value_(value, type_code), arg_index_(arg_index), name_(name) {}
+
+  template <typename T>
+  inline operator T() const {
+    try {
+      return value_;
+    } catch (dmlc::Error& e) {
+      LOG(FATAL) << "In function " << (name_ == nullptr ? "<anonymous>" : *name_)
+                 << ": error while converting argument " << arg_index_ << ": " << e.what();
+      throw "";
+    }
+  }
+
+ private:
+  TVMMovableArgValue_ value_;
+  int arg_index_;
+  const std::string* name_;
 };
 
 /*!
@@ -1233,56 +1264,24 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
 }
 
 namespace detail {
-/*!
- * \brief template class to get argument types of a function or callable object.
- * \tparam T The funtion/function object type.
- */
-template <typename T>
-struct function_arguments : public function_arguments<decltype(&T::operator())> {};
-
-template <typename T, typename R, typename... Args>
-struct function_arguments<R (T::*)(Args...) const> {
-  using ArgTypes = std::tuple<Args...>;
-};
-
-template <typename R, typename... Args>
-struct function_arguments<R (&)(Args...)> {
-  using ArgTypes = std::tuple<Args...>;
-};
-template <typename R, typename... Args>
-struct function_arguments<R (*)(Args...)> {
-  using ArgTypes = std::tuple<Args...>;
-};
-
 template <typename R, int nleft, int index, typename F>
 struct unpack_call_dispatcher {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string& name, const F& f, const TVMArgs& args_pack,
+  TVM_ALWAYS_INLINE static void run(const std::string* name, const F& f, const TVMArgs& args_pack,
                                     TVMRetValue* rv, Args&&... unpacked_args) {
-    // Remove references in argument types so we don't store a reference to a temporary.
-    using arg_type = typename std::remove_reference<
-        typename std::tuple_element<index, typename function_arguments<F>::ArgTypes>::type>::type;
-    arg_type arg = [&]() -> arg_type {
-      try {
-        return TVMMovableArgValue_(args_pack.values[index], args_pack.type_codes[index]);
-      } catch (dmlc::Error& err) {
-        // TODO(tkonolige): error parsing is messed up, so no newlines are allowed in error messages
-        LOG(FATAL) << "In function " << name << ", could not convert argument " << index << ": "
-                   << err.what();
-        throw "";  // to silence compiler warnings. LOG(FATAL) exits before this.
-      }
-    }();
     // construct a movable argument value
     // which allows potential move of argument to the input of F.
     unpack_call_dispatcher<R, nleft - 1, index + 1, F>::run(
-        name, f, args_pack, rv, std::forward<Args>(unpacked_args)..., std::move(arg));
+        name, f, args_pack, rv, std::forward<Args>(unpacked_args)...,
+        TVMMovableArgValueWithContext_(args_pack.values[index], args_pack.type_codes[index], index,
+                                       name));
   }
 };
 
 template <typename R, int index, typename F>
 struct unpack_call_dispatcher<R, 0, index, F> {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string& name, const F& f, const TVMArgs& args_pack,
+  TVM_ALWAYS_INLINE static void run(const std::string* name, const F& f, const TVMArgs& args_pack,
                                     TVMRetValue* rv, Args&&... unpacked_args) {
     using RetType = decltype(f(std::forward<Args>(unpacked_args)...));
     if (std::is_same<RetType, R>::value) {
@@ -1296,17 +1295,17 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string& name, const F& f, const TVMArgs& args_pack,
+  TVM_ALWAYS_INLINE static void run(const std::string* name, const F& f, const TVMArgs& args_pack,
                                     TVMRetValue* rv, Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
   }
 };
 
 template <typename R, int nargs, typename F>
-TVM_ALWAYS_INLINE void unpack_call(const std::string& name, const F& f, const TVMArgs& args,
+TVM_ALWAYS_INLINE void unpack_call(const std::string* name, const F& f, const TVMArgs& args,
                                    TVMRetValue* rv) {
-  CHECK_EQ(nargs, args.size()) << name << " expected " << nargs << " arguments but got "
-                               << args.size();
+  CHECK_EQ(nargs, args.size()) << (name == nullptr ? "<anonymous>" : *name) << " expected " << nargs
+                               << " arguments but got " << args.size();
   unpack_call_dispatcher<R, nargs, 0, F>::run(name, f, args, rv);
 }
 
@@ -1355,7 +1354,7 @@ TypedPackedFunc<R(Args...)>::TypedPackedFunc(const TVMArgValue& value)
     : packed_(value.operator PackedFunc()) {}
 
 template <typename R, typename... Args>
-TypedPackedFunc<R(Args...)>::TypedPackedFunc(TVMMovableArgValue_&& value)
+TypedPackedFunc<R(Args...)>::TypedPackedFunc(TVMMovableArgValueWithContext_&& value)
     : packed_(value.operator PackedFunc()) {}
 
 template <typename R, typename... Args>
@@ -1363,10 +1362,10 @@ template <typename FType>
 inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda, std::string name) {
   packed_ = PackedFunc([flambda, name](const TVMArgs& args, TVMRetValue* rv) {
     if (args.size() != sizeof...(Args)) {
-      LOG(FATAL) << "Function " << name << " expects " << sizeof...(Args) << " arguments, but "
-                 << args.size() << " were provided.";
+      LOG(FATAL) << "Function " << (name.size() == 0 ? "<anonymous>" : name) << " expects "
+                 << sizeof...(Args) << " arguments, but " << args.size() << " were provided.";
     }
-    detail::unpack_call<R, sizeof...(Args)>(name, flambda, args, rv);
+    detail::unpack_call<R, sizeof...(Args)>(&name, flambda, args, rv);
   });
 }
 
