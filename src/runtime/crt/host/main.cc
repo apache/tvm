@@ -22,11 +22,11 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
+#include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
-#include <time.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -99,7 +99,7 @@ static_assert(RAND_MAX >= (1 << 8));
 unsigned int random_seed = 0;
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   if (random_seed == 0) {
-    random_seed = (unsigned int) time(NULL);
+    random_seed = (unsigned int)time(NULL);
   }
   for (size_t i = 0; i < num_bytes; ++i) {
     int random = rand_r(&random_seed);
