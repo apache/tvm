@@ -449,7 +449,8 @@ def test_forward_unsqueeze():
 
     class Unsqueeze2(Module):
         def forward(self, *args):
-            return args[0].unsqueeze_(2)
+            y = args[0].unsqueeze_(2)
+            return args[0]
 
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
@@ -1181,19 +1182,6 @@ def test_forward_clone():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Clone1().float().eval(), input_data=input_data)
-
-
-@tvm.testing.uses_gpu
-def test_forward_copy_():
-    torch.set_grad_enabled(False)
-    input_shape = [10]
-
-    class Copy_(Module):
-        def forward(self, *args):
-            return torch.zeros_like(args[0]).copy_(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Copy_().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
