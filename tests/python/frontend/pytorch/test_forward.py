@@ -450,9 +450,9 @@ def test_forward_unsqueeze():
     class Unsqueeze2(Module):
         def forward(self, *args):
             _ = args[0].unsqueeze_(2)
-            # Check whether operations after inplace unsqueeze works as expected 
+            # Check whether operations after inplace unsqueeze works as expected
             y = args[0].squeeze(2)
-            return torch.add(y, y)  
+            return torch.add(y, y)
 
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
