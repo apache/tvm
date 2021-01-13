@@ -260,7 +260,7 @@ Pass DynamicToStatic() {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(DynamicToStatic(f, m));
       };
-  return CreateFunctionPass(pass_func, 3, "DynamicToStatic", {});
+  return CreateFunctionPass(pass_func, 2, "DynamicToStatic", {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.DynamicToStatic").set_body_typed([]() {
