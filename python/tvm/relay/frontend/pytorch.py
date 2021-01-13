@@ -1295,13 +1295,6 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.tensor.copy(data)
 
-    def copy_(self, inputs, input_types):
-        assert self.infer_shape(inputs[0]) == self.infer_shape(
-            inputs[1]
-        ), "Shapes of source and destination tensors must be the same"
-
-        return _op.tensor.copy(_op.cast(inputs[1], input_types[0]))
-
     def log_softmax(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -2170,7 +2163,6 @@ class PyTorchOpConverter:
             "aten::view": self.view,
             "aten::reshape": self.reshape,
             "aten::clone": self.clone,
-            "aten::copy_": self.copy_,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
             "aten::softplus": self.softplus,

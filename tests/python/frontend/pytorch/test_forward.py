@@ -449,8 +449,10 @@ def test_forward_unsqueeze():
 
     class Unsqueeze2(Module):
         def forward(self, *args):
-            y = args[0].unsqueeze_(2)
-            return args[0]
+            _ = args[0].unsqueeze_(2)
+            # Check whether operations after inplace unsqueeze works as expected 
+            y = args[0].squeeze(2)
+            return torch.add(y, y)  
 
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
@@ -3451,6 +3453,9 @@ def test_hard_swish():
 
 
 if __name__ == "__main__":
+    test_forward_unsqueeze()
+    import sys;
+    sys.exit()
     # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
@@ -3514,7 +3519,6 @@ if __name__ == "__main__":
     test_forward_true_divide()
     test_forward_is_floating_point()
     test_forward_clone()
-    test_forward_copy_()
     test_forward_softplus()
     test_forward_softsign()
     test_forward_logsoftmax()
