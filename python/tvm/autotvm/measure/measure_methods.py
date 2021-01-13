@@ -31,8 +31,6 @@ from random import getrandbits
 from collections import namedtuple
 import tempfile
 
-import numpy as np
-
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd, rpc as _rpc
