@@ -105,7 +105,7 @@ class MicroTransportChannel : public RPCChannel {
         write_stream_{fsend, session_start_timeout},
         framer_{&write_stream_},
         receive_buffer_{new uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES], TVM_CRT_MAX_PACKET_SIZE_BYTES},
-        session_{0x5c, &framer_, &receive_buffer_, &HandleMessageReceivedCb, this},
+        session_{&framer_, &receive_buffer_, &HandleMessageReceivedCb, this},
         unframer_{session_.Receiver()},
         did_receive_message_{false},
         frecv_{frecv},
@@ -161,13 +161,24 @@ class MicroTransportChannel : public RPCChannel {
     }
   }
 
+  static constexpr const int kNumRandRetries = 10;
+
+  inline uint8_t GenerateRandomNonce() {
+    uint8_t initial_nonce = 0;
+    for (int i = 0; i < kNumRandRetries && initial_nonce == 0; ++i) {
+      initial_nonce = rand();
+    }
+    ICHECK_NE(initial_nonce, 0) << "rand() does not seem to be producing random values";
+    return initial_nonce;
+  }
+
   bool StartSessionInternal() {
     using ::std::chrono::duration_cast;
     using ::std::chrono::microseconds;
     using ::std::chrono::steady_clock;
 
     steady_clock::time_point start_time = steady_clock::now();
-    ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
+    ICHECK_EQ(kTvmErrorNoError, session_.Initialize(GenerateRandomNonce()));
     ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
 
     if (session_start_timeout_ == microseconds::zero() &&
@@ -198,7 +209,7 @@ class MicroTransportChannel : public RPCChannel {
       }
       end_time += session_start_retry_timeout_;
 
-      ICHECK_EQ(kTvmErrorNoError, session_.Initialize());
+      ICHECK_EQ(kTvmErrorNoError, session_.Initialize(GenerateRandomNonce()));
       ICHECK_EQ(kTvmErrorNoError, session_.StartSession());
     }
 

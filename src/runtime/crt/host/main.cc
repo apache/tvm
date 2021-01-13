@@ -93,6 +93,16 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   g_utvm_timer_running = 0;
   return kTvmErrorNoError;
 }
+
+static_assert(RAND_MAX >= (1 << 8));
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  for (size_t i = 0; i < num_bytes; ++i) {
+    int random = rand();
+    buffer[i] = (uint8_t) random;
+  }
+
+  return kTvmErrorNoError;
+}
 }
 
 uint8_t memory[512 * 1024];

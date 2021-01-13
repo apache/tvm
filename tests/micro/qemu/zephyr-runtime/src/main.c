@@ -26,6 +26,7 @@
 #include <drivers/uart.h>
 #include <kernel.h>
 #include <power/reboot.h>
+#include <random/rand32.h>
 #include <stdio.h>
 #include <sys/printk.h>
 #include <sys/ring_buffer.h>
@@ -158,6 +159,25 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   }
 
   g_utvm_timer_running = 0;
+  return kTvmErrorNoError;
+}
+
+tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  while (num_bytes > 0) {
+    uint32_t random = sys_rand32_get();
+    if (num_bytes > sizeof(random)) {
+      *((uint32_t*) buffer) = random;
+      num_bytes -= sizeof(random);
+      buffer += sizeof(random);
+      continue;
+    }
+
+    for (int i = 0; i < num_bytes; ++i) {
+      buffer[i] = ((uint8_t*) &random)[i];
+    }
+    num_bytes = 0;
+  }
+
   return kTvmErrorNoError;
 }
 
