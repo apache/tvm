@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#pragma once
+
+#ifndef TVM_RUNTIME_VULKAN_VULKAN_STREAM_H_
+#define TVM_RUNTIME_VULKAN_VULKAN_STREAM_H_
 
 #include <functional>
 #include <memory>
@@ -184,3 +186,4 @@ class VulkanStream {
 }  // namespace vulkan
 }  // namespace runtime
 }  // namespace tvm
+#endif  // TVM_RUNTIME_VULKAN_VULKAN_STREAM_H_
