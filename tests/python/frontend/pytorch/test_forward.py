@@ -3453,9 +3453,6 @@ def test_hard_swish():
 
 
 if __name__ == "__main__":
-    test_forward_unsqueeze()
-    import sys;
-    sys.exit()
     # some structural tests
     test_forward_traced_function()
     test_forward_dtypes()
