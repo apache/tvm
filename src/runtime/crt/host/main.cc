@@ -98,7 +98,7 @@ static_assert(RAND_MAX >= (1 << 8));
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   for (size_t i = 0; i < num_bytes; ++i) {
     int random = rand();
-    buffer[i] = (uint8_t) random;
+    buffer[i] = (uint8_t)random;
   }
 
   return kTvmErrorNoError;

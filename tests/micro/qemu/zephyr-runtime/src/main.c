@@ -166,14 +166,14 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   while (num_bytes > 0) {
     uint32_t random = sys_rand32_get();
     if (num_bytes > sizeof(random)) {
-      *((uint32_t*) buffer) = random;
+      *((uint32_t*)buffer) = random;
       num_bytes -= sizeof(random);
       buffer += sizeof(random);
       continue;
     }
 
     for (int i = 0; i < num_bytes; ++i) {
-      buffer[i] = ((uint8_t*) &random)[i];
+      buffer[i] = ((uint8_t*)&random)[i];
     }
     num_bytes = 0;
   }

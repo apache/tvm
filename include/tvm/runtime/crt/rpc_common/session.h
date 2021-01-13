@@ -78,8 +78,8 @@ class Session {
   /*! \brief An invalid nonce value that typically indicates an unknown nonce. */
   static constexpr const uint8_t kInvalidNonce = 0;
 
-  Session(Framer* framer, FrameBuffer* receive_buffer,
-          MessageReceivedFunc message_received_func, void* message_received_func_context)
+  Session(Framer* framer, FrameBuffer* receive_buffer, MessageReceivedFunc message_received_func,
+          void* message_received_func_context)
       : local_nonce_{kInvalidNonce},
         session_id_{0},
         state_{State::kReset},

@@ -123,7 +123,7 @@ class MicroRPCServer {
   void Initialize() {
     uint8_t initial_session_nonce = Session::kInvalidNonce;
     tvm_crt_error_t error =
-      TVMPlatformGenerateRandom(&initial_session_nonce, sizeof(initial_session_nonce));
+        TVMPlatformGenerateRandom(&initial_session_nonce, sizeof(initial_session_nonce));
     CHECK_EQ(kTvmErrorNoError, error, "generating random session id");
     CHECK_EQ(kTvmErrorNoError, session_.Initialize(initial_session_nonce), "rpc server init");
   }
