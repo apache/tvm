@@ -26,6 +26,7 @@
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -95,9 +96,13 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 }
 
 static_assert(RAND_MAX >= (1 << 8));
+unsigned int random_seed = 0;
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+  if (random_seed == 0) {
+    random_seed = (unsigned int) time(NULL);
+  }
   for (size_t i = 0; i < num_bytes; ++i) {
-    int random = rand();
+    int random = rand_r(&random_seed);
     buffer[i] = (uint8_t)random;
   }
 
