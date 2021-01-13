@@ -2117,6 +2117,7 @@ class PyTorchOpConverter:
             "aten::to": self.to,
             "aten::squeeze": self.squeeze,
             "aten::unsqueeze": self.unsqueeze,
+            "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
             "aten::split": self.split,
