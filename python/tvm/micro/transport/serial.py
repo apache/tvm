@@ -67,7 +67,7 @@ class SerialTransport(Transport):
         if self._port_path is not None:
             port_path = self._port_path
         else:
-            ports = list(serial.tools.list_ports.grep(self._grep, include_links=True))
+            ports = list(serial.tools.list_ports.grep(self._grep))
             if len(ports) != 1:
                 raise SerialPortNotFoundError(
                     f"grep expression should find 1 serial port; found {ports!r}"
