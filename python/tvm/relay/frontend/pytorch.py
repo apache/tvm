@@ -1866,18 +1866,18 @@ class PyTorchOpConverter:
         scores = inputs[1]
         iou_threshold = inputs[2]
 
-        num_boxes = _op.shape_of(scores)
-
         # TVM NMS assumes score > 0
         scores = scores - _op.min(scores) + _op.const(1.0)
+
+        num_boxes = _op.shape_of(scores)
+        # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
+        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
+        indices = _op.expand_dims(indices, 0, 1)
+
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims", extras={"axis": -1, "num_newaxis": 1})([scores], {})
         data = _op.concatenate([scores, boxes], -1)
         data = _op.expand_dims(data, 0, 1)
-        # PyTorch NMS doesn't have score_threshold, so no need to run get_valid_count
-        indices = _op.transform.arange(_op.squeeze(num_boxes), dtype="int32")
-        indices = _op.expand_dims(indices, 0, 1)
-        ct = num_boxes
 
         # Perform Non-Maximum Suppression,
         # PyTorch NMS doesn't have parameter top_k and max_output_size
@@ -1885,7 +1885,7 @@ class PyTorchOpConverter:
         top_k = max_out_size = -1
         nms_ret = get_relay_op("non_max_suppression")(
             data=data,
-            valid_count=ct,
+            valid_count=num_boxes,
             indices=indices,
             max_output_size=max_out_size,
             iou_threshold=iou_threshold,
