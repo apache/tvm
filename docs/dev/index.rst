@@ -49,7 +49,7 @@ In this guide, we will study an example compilation flow in the compiler. The fi
 - Runtime Execution: the user loads back a `runtime.Module` and runs the compiled functions in the supported runtime environment.
 
 
-.. figure:: https://raw.githubusercontent.com/tlcpack/web-data/main/images/design/tvm_dyn_workflow.svg
+.. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_dyn_workflow.svg
    :align: center
    :width: 85%
 
@@ -201,7 +201,7 @@ except that the data structure of interest changes from the numpy.ndarray to tvm
 Logical Architecture Components
 -------------------------------
 
-.. figure:: https://raw.githubusercontent.com/tlcpack/web-data/main/images/design/tvm_static_overview.svg
+.. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_static_overview.svg
    :align: center
    :width: 85%
 
