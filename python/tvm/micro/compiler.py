@@ -96,7 +96,7 @@ class Compiler(metaclass=abc.ABCMeta):
             )
 
         target_str = next(iter(target_strs))
-        return tvm.target.create(target_str)
+        return tvm.target.Target(target_str)
 
     # Maps regexes identifying CPUs to the default toolchain prefix for that CPU.
     TOOLCHAIN_PREFIX_BY_CPU_REGEX = {
