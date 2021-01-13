@@ -199,6 +199,4 @@ def test_relay(platform):
 
 
 if __name__ == "__main__":
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
     sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
