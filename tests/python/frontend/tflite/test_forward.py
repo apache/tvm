@@ -3692,6 +3692,50 @@ def test_forward_mobilenet_v3():
 
 
 #######################################################################
+# Mobilenet V1 Sparse
+# -----------------
+
+
+def test_forward_sparse_mobilenet_v1():
+    """Test the Sparse version of Mobilenet V1 TF Lite model."""
+    # MobilenetV1
+    tflite_model_file = download_testdata(
+        "https://storage.googleapis.com/fast-convnets/tflite-models/mbv1_140_90_12b4_720.tflite",
+        "mbv1_140_90_12b4_720.tflite",
+    )
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 224, 224, 3)).astype("float32")
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, "float_image_input")
+    tvm.testing.assert_allclose(
+        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-5
+    )
+
+
+#######################################################################
+# Mobilenet V2 Sparse
+# -----------------
+
+
+def test_forward_sparse_mobilenet_v2():
+    """Test the Sparse version of Mobilenet V2 TF Lite model."""
+    # MobilenetV1
+    tflite_model_file = download_testdata(
+        "https://storage.googleapis.com/fast-convnets/tflite-models/mbv2_200_85_11-16b2_744.tflite",
+        "mbv2_200_85_11-16b2_744.tflite",
+    )
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 224, 224, 3)).astype("float32")
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, "float_image_input")
+    tvm.testing.assert_allclose(
+        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-5
+    )
+
+
+#######################################################################
 # Inception
 # ---------
 
@@ -4196,6 +4240,10 @@ if __name__ == "__main__":
     test_forward_inception_v4_net_batched()
     test_forward_coco_ssd_mobilenet_v1()
     test_forward_mediapipe_hand_landmark()
+
+    # End to End Sparse models
+    test_forward_sparse_mobilenet_v1()
+    test_forward_sparse_mobilenet_v2()
 
     # End to End quantized
     test_forward_qnn_inception_v1_net()
