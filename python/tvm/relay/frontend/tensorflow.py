@@ -942,7 +942,10 @@ def _sparse_tensor_dense_matmul():
         )
 
         if sparse_lhs:
-            data = _op.transpose(data)
+            if attr.get("adjoint_a"):
+                weight_sp = csr_matrix(weight_sp.transpose())
+            if not attr.get("adjoint_b"):
+                data = _op.transpose(data)
         else:
             weight_sp = csr_matrix(weight_sp.transpose())
 
@@ -954,21 +957,6 @@ def _sparse_tensor_dense_matmul():
 
         if not sparse_lhs:
             ret = _op.transpose(ret)
-
-        # Case 1. If both are true means first input was dense and second was sparse
-        # Case 2. If both are false means first input was sparse and second was dense
-        # TODO(ANSHUMAN87): Support other adjoint option too
-        if not (
-            (attr.get("adjoint_a") and attr.get("adjoint_b"))
-            or ((not attr.get("adjoint_a")) and (not attr.get("adjoint_b")))
-        ):
-            raise tvm.error.OpAttributeUnImplemented(
-                "Only tf.sparse.sparse_dense_matmul() with adjoint_a=True and adjoint_b=True"
-                "or with adjoint_a=False and adjoint_b=False"
-                " is supported, but adjoint_a={} and adjoint_b={} was supplied.".format(
-                    attr.get("adjoint_a"), attr.get("adjoint_b")
-                )
-            )
 
         return ret
 
