@@ -819,11 +819,9 @@ def non_max_suppression(
     if (
         target
         and target.kind.name == "cuda"
-        and tvm.get_global_func("tvm.contrib.thrust.sort_nms", allow_missing=True)
+        and tvm.get_global_func("tvm.contrib.thrust.sort", allow_missing=True)
     ):
-        sort_tensor = argsort_thrust(
-            score_tensor, valid_count=None, axis=1, is_ascend=False, dtype=valid_count_dtype
-        )
+        sort_tensor = argsort_thrust(score_tensor, axis=1, is_ascend=False, dtype=valid_count_dtype)
     else:
         sort_tensor = argsort(score_tensor, axis=1, is_ascend=False, dtype=valid_count_dtype)
 
