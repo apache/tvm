@@ -106,6 +106,12 @@ class Compiler(metaclass=abc.ABCMeta):
     }
 
     def _autodetect_toolchain_prefix(self, target):
+        # Treat absence of -mcpu as if -mcpu=native is specified. The gcc shipped with OS X
+        # complains if -mcpu=native is given, so this approach allows model targets to avoid
+        # specifying this flag e.g. for tutorials.
+        if "mcpu" not in target.attrs:
+            return self.TOOLCHAIN_PREFIX_BY_CPU_REGEX["native"]
+
         matches = []
         for regex, prefix in self.TOOLCHAIN_PREFIX_BY_CPU_REGEX.items():
             if re.match(regex, target.attrs["mcpu"]):

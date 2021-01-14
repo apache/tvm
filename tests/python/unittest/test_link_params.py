@@ -347,7 +347,7 @@ def test_crt_link_params():
         mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
         main_func = mod["main"]
-        target = "c -mcpu=native --system-lib --runtime=c --link-params"
+        target = "c --system-lib --runtime=c --link-params"
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             graph_json, lib, params = tvm.relay.build(mod, target, params=param_init)
             assert set(params.keys()) == {"p0", "p1"}  # NOTE: op folded
