@@ -230,7 +230,7 @@ The next example is matching function nodes with a specific attribute:
         f = relay.Function([x, y], x + y).with_attr("Composite", "add")
         assert pattern.match(f)
 
-Relay ``If`` expression can be matched if all of its condition, true branch and false branch
+A Relay ``If`` expression can be matched if all of its condition, true branch and false branch
 are matched:
 
 .. code-block:: python
@@ -309,7 +309,7 @@ The high level design is to introduce a language of patterns for now we propose 
             | is_op(op_name)
             | is_tuple()
             | is_tuple_get_item(pattern, index = None)
-	    | is_if(cond, tru, fls)
+            | is_if(cond, tru, fls)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
             | FunctionPattern(params, body)
