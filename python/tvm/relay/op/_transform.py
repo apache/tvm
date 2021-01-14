@@ -98,7 +98,8 @@ _reg.register_strategy("scatter", strategy.scatter_strategy)
 @_reg.register_compute("sample_op")
 def compute_sample_op(attrs, inputs, output_type):
     """Compute definition of sample_op"""
-    return [topi.sample_op(inputs[0])]
+    # print(type(output_type))
+    return [topi.sample_op(inputs[0], output_type[0].shape, output_type[1].shape)]
 
 _reg.register_strategy("sample_op", strategy.sample_op_strategy)
 # scatter_add
@@ -440,13 +441,16 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
 
 _reg.register_shape_func("scatter", False, elemwise_shape_func)
 _reg.register_shape_func("scatter_add", False, elemwise_shape_func)
+# _reg.register_shape_func("sample_op", False, elemwise_shape_func)
 
 
 @script
 def _sample_op_shape_func(sample_input):
     out = output_tensor((1,), "int64")
+    out2 = output_tensor((1,), "int64")
     out[0] = int64(sample_input[0])
-    return out
+    out2[0] = int64(sample_input[1])
+    return out, out2
 
 
 @_reg.register_shape_func("sample_op", True)

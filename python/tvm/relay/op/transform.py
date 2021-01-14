@@ -1323,4 +1323,4 @@ def adv_index(inputs):
 
 
 def sample_op(sample_input):
-    return _make.sample_op(sample_input)
+    return TupleWrapper(_make.sample_op(sample_input), 2)

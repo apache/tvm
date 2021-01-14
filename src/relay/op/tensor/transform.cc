@@ -1557,7 +1557,14 @@ bool SampleOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                             const TypeReporter& reporter) {
   // types: [ sample_input, result]
   ICHECK_EQ(types.size(), 2);
-  reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  std::vector<Type> fields;
+  fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+  fields.push_back(TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
+
+  // auto sample_input = types[0].as<TensorTypeNode>();
+  reporter->Assign(types[types.size() - 1], TupleType(Array<Type>(fields)));
+
+  // reporter->Assign(types[types.size()-1], TensorType(Array<PrimExpr>{Any()}, tvm::DataType::Int(64)));
   return true;
 }
 

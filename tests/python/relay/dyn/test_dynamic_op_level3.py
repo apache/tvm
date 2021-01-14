@@ -33,6 +33,7 @@ def verify_func(func, data, ref_res):
             mod = tvm.ir.IRModule.from_expr(func)
             intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
             op_res = intrp.evaluate()(*data)
+            print(op_res.asnumpy(), ref_res)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
             relay.backend.compile_engine.get().clear()
 
@@ -213,7 +214,7 @@ def test_sample_op():
     def ref_sample_op(
         sample_input: np.ndarray,
     ) -> None:
-        return np.ones(sample_input.shape[0])
+        return np.ones(sample_input[0])
 
     def verify_sample_op(
         sample_input_np: np.ndarray,
@@ -225,17 +226,17 @@ def test_sample_op():
             "sample_input",
             relay.TensorType(sample_input_np.shape, str(sample_input_np.dtype)),
         )
-        z = relay.sample_op(sample_input)
+        z = relay.sample_op(sample_input).astuple()
         # zz = run_infer_type(z)
 
         func = relay.Function([sample_input], z)
-        func2 = run_infer_type(func)
-        func3 = run_opt_pass(run_opt_pass(func2, transform.DynamicToStatic()), transform.InferType())
+        # func2 = run_infer_type(func)
+        # func3 = run_opt_pass(run_opt_pass(func2, transform.DynamicToStatic()), transform.InferType())
 
         ref_res = ref_sample_op(sample_input_np)
-        verify_func(func3, [sample_input], ref_res)
+        verify_func(func, [sample_input_np], ref_res)
 
-    sample_input_np = np.array([0, 1, 2, 4], dtype=np.int32)
+    sample_input_np = np.array([3, 2, 2, 4], dtype=np.int32)
     verify_sample_op(sample_input_np)
 
 if __name__ == "__main__":

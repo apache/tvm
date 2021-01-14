@@ -1068,11 +1068,12 @@ def sample_op_strategy(attrs, outs, out_type, target):
     )
     return strategy
     
+
 def wrap_compute_sample_op(topi_compute):
     """Wrap sample_op compute"""
 
-    def _compute_sample_op(attrs, inputs, _): 
-        return [topi_compute(inputs[0])]
+    def _compute_sample_op(attrs, inputs, output_type): 
+        return [topi_compute(inputs[0], output_type[0].shape, output_type[1].shape)]
 
     return _compute_sample_op
 
