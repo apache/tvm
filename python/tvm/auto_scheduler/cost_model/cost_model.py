@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Cost model that estimates the performance of programs """
+""" Cost models that estimate the performance of programs """
 import ctypes
 import numpy as np
 
@@ -31,7 +31,7 @@ class CostModel(Object):
 
 @tvm._ffi.register_object("auto_scheduler.RandomModel")
 class RandomModel(CostModel):
-    """A model returns random estimation for all inputs"""
+    """A model that returns random estimation for all inputs"""
 
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.RandomModel)
