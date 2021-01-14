@@ -127,6 +127,17 @@ def test_AttrPattern():
     assert op.attrs["TOpPattern"] == K_ELEMWISE
 
 
+def test_IfPattern():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    assert isinstance(pat, IfPattern)
+    assert isinstance(pat.cond, CallPattern)
+    assert isinstance(pat.true_branch, VarPattern)
+    assert isinstance(pat.false_branch, VarPattern)
+
+
 ## MATCHER TESTS
 
 
@@ -196,6 +207,30 @@ def test_no_match_func():
     wc2 = wildcard()
     func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
     assert not func_pattern.match(relay.Function([x, y], x - y))
+
+
+def test_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    cond = x < y
+
+    assert pat.match(relay.expr.If(cond, x, y))
+
+
+def test_no_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+
+    assert not pat.match(relay.expr.If(x > y, x, y))
+    assert not pat.match(relay.expr.If(x < y, y, x))
 
 
 def test_match_option():
@@ -1541,3 +1576,6 @@ if __name__ == "__main__":
     test_partition_option()
     test_match_match()
     test_partition_constant_embedding()
+    test_IfPattern()
+    test_match_if()
+    test_no_match_if()
