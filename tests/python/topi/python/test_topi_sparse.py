@@ -507,28 +507,6 @@ def test_sparse_dense_padded_alter_op():
         K = 128
         X_np = np.random.randn(M, K).astype("float32")
         W_sp_np = random_bsr_matrix(N, K, 2, 2, density=0.01, dtype="float32")
-        mult = relay.op.nn.sparse_dense(
-            relay.Constant(tvm.nd.array(X_np)),
-            (
-                relay.Constant(tvm.nd.array(W_sp_np.data)),
-                relay.Constant(tvm.nd.array(W_sp_np.indices)),
-                relay.Constant(tvm.nd.array(W_sp_np.indptr)),
-            ),
-        )
-        f = relay.Function([], mult)
-        f = relay.transform.InferType()(tvm.IRModule.from_expr(f))
-        f_ = relay.transform.AlterOpLayout()(f)
-        assert f_["main"].body.op.name == "nn.internal.sparse_dense_padded"
-
-
-@tvm.testing.requires_cuda
-def test_sparse_dense_padded_alter_op_var_inp():
-    with tvm.target.Target("cuda"):
-        M = 128
-        N = 16
-        K = 128
-        X_np = np.random.randn(M, K).astype("float32")
-        W_sp_np = random_bsr_matrix(N, K, 2, 2, density=0.01, dtype="float32")
         x = relay.var("x", relay.TensorType(X_np.shape, "float32"))
         mult = relay.op.nn.sparse_dense(
             x,
@@ -557,6 +535,5 @@ if __name__ == "__main__":
     test_sparse_transpose_csr()
     test_sparse_dense_padded_cuda()
     test_sparse_dense_padded_alter_op()
-    test_sparse_dense_padded_alter_op_var_inp()
     test_sparse_dense_csr_reverse()
     test_sparse_dense_bsr_reverse()
