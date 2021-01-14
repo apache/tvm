@@ -135,7 +135,7 @@ def _threefry(
     assert key_buf.dtype == counter_buf.dtype, "threefry key and counter must be the same dtype"
 
     def mix(a, b, rotation):
-        x = a + b  # TODO should be wrapping
+        x = a + b  # wrapping
         y = x ^ ((b << rotation) | (b >> (iwidth - rotation)))
         return [x, y]
 
@@ -167,7 +167,7 @@ def _threefry(
     with irb.for_range(0, out_shape, name="l") as l:  # pylint: disable=invalid-name
         for i in range(nrounds // 4):
             for j in range(nwords):
-                out_buf[out_offset + l * nwords + j] += key_schedule(i, j)  # TODO wrapping
+                out_buf[out_offset + l * nwords + j] += key_schedule(i, j)  # wrapping
             for k in range(4):
                 for j in range(nwords // 2):
                     (
@@ -233,6 +233,18 @@ def threefry_generate(gen, out_shape):
         gen = irb.buffer_ptr(gen_ptr)
         out_gen = irb.buffer_ptr(out_gen_ptr)
         out_array = irb.buffer_ptr(out_array_ptr)
+
+        # Check that unsigned arithmetic wraps, as it is required to implement threefry correctly.
+        irb.emit(
+            tvm.tir.AssertStmt(
+                tvm.tir.const(0xFFFFFFFFFFFFFFFF, "uint64") + tvm.tir.const(1, "uint64")
+                == tvm.tir.const(0, "uint64"),
+                tvm.tir.StringImm(
+                    "Unsigned integer arithmetic is not wrapping, but threefry requires wrapping."
+                ),
+                tvm.tir.Evaluate(0),
+            )
+        )
 
         # Create a temporary array to hold the generator state we will use to create the random
         # numbers. We cannot use gen because we may need to update the key + path if there is not
