@@ -488,7 +488,7 @@ def const(value, dtype=None):
         The constant value.
 
     dtype: str, optional
-        The data type of the value.
+        The data type of the resulting constant.
 
     Note
     ----
@@ -502,7 +502,9 @@ def const(value, dtype=None):
     if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
-    if not dtype:
+    if dtype:
+        value = value.astype(dtype)
+    else:
         # when dtype is None: int maps to "int32", float maps to "float32"
         map_dtype = {_np.dtype("int64"): _np.int32, _np.dtype("float64"): _np.float32}.get(
             value.dtype, None
