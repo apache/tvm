@@ -59,7 +59,7 @@ def test_gemm():
         )  # relu
         res = te.compute(res_shape, lambda *i: res_min(*i).astype(env.inp_dtype), name="res")
 
-        def verify(s, check_correctness=True):
+        def verify(s):
             mod = vta.build(s, [data, weight, res], "ext_dev", env.target_host, name="gemm")
             temp = utils.tempdir()
             mod.save(temp.relpath("gemm.o"))
@@ -102,11 +102,9 @@ def test_gemm():
             res_unpack = res_arr.asnumpy().reshape(
                 batch_size // env.BATCH, channel // env.BLOCK_OUT, env.BATCH, env.BLOCK_OUT
             )
-            if check_correctness:
-                tvm.testing.assert_allclose(res_unpack, res_ref)
             return cost
 
-        def run_schedule(load_inp, load_wgt, gemm, alu, store_out, print_ir, check_correctness):
+        def run_schedule(load_inp, load_wgt, gemm, alu, store_out, print_ir):
             s = te.create_schedule(res.op)
             s[data_buf].set_scope(env.inp_scope)
             s[weight_buf].set_scope(env.wgt_scope)
@@ -156,13 +154,13 @@ def test_gemm():
 
             if print_ir:
                 print(tvm.lower(s, [data, weight, res], simple_mode=True))
-            return verify(s, check_correctness)
+            return verify(s)
 
         def gemm_normal(print_ir):
             mock = env.mock
             print("----- GEMM GOPS End-to-End Test-------")
 
-            def run_test(header, print_ir, check_correctness):
+            def run_test(header, print_ir):
                 cost = run_schedule(
                     env.dma_copy,
                     env.dma_copy,
@@ -170,14 +168,13 @@ def test_gemm():
                     env.alu,
                     env.dma_copy,
                     print_ir,
-                    check_correctness,
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
                 print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
 
             with vta.build_config():
-                run_test("NORMAL", print_ir, True)
+                run_test("NORMAL", print_ir)
 
         def gemm_unittest(print_ir):
             mock = env.mock
@@ -185,7 +182,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, mock.dma_copy, env.gemm, mock.alu, mock.dma_copy, print_ir, False
+                    mock.dma_copy, mock.dma_copy, env.gemm, mock.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
@@ -200,7 +197,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, mock.dma_copy, mock.gemm, env.alu, mock.dma_copy, print_ir, False
+                    mock.dma_copy, mock.dma_copy, mock.gemm, env.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
@@ -216,7 +213,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    env.dma_copy, mock.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir, False
+                    env.dma_copy, mock.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (batch_size * channel * env.INP_WIDTH / cost.mean) / float(10 ** 9)
@@ -236,7 +233,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, env.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir, False
+                    mock.dma_copy, env.dma_copy, mock.gemm, mock.alu, mock.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (channel * channel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
@@ -256,7 +253,7 @@ def test_gemm():
 
             def run_test(header, print_ir):
                 cost = run_schedule(
-                    mock.dma_copy, mock.dma_copy, mock.gemm, mock.alu, env.dma_copy, print_ir, False
+                    mock.dma_copy, mock.dma_copy, mock.gemm, mock.alu, env.dma_copy, print_ir
                 )
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (batch_size * channel * env.OUT_WIDTH / cost.mean) / float(10 ** 9)

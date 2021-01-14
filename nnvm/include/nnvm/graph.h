@@ -229,7 +229,7 @@ inline void DFSVisit(const std::vector<NodeEntry>& heads, FVisit fvisit);
 template <typename T>
 inline const T& Graph::GetAttr(const std::string& attr_name) const {
   auto it = attrs.find(attr_name);
-  ICHECK(it != attrs.end()) << "Cannot find attribute " << attr_name << " in the graph";
+  CHECK(it != attrs.end()) << "Cannot find attribute " << attr_name << " in the graph";
   return nnvm::unsafe_get<T>(*it->second);
 }
 
@@ -241,7 +241,7 @@ inline bool Graph::HasAttr(const std::string& attr_name) const {
 template <typename T>
 inline T Graph::MoveCopyAttr(const std::string& attr_name) {
   auto it = attrs.find(attr_name);
-  ICHECK(it != attrs.end()) << "Cannot find attribute " << attr_name << " in the graph";
+  CHECK(it != attrs.end()) << "Cannot find attribute " << attr_name << " in the graph";
   std::shared_ptr<any> sptr = it->second;
   attrs.erase(it);
   if (sptr.unique()) {

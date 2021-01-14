@@ -387,7 +387,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             return flash_runner
 
         with open(cmake_entries["ZEPHYR_RUNNERS_YAML"]) as f:
-            doc = yaml.load(f)
+            doc = yaml.load(f, Loader=yaml.FullLoader)
         return doc["flash-runner"]
 
     def _get_device_args(self, cmake_entries):

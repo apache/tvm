@@ -35,6 +35,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm.contrib import cblas
+import tvm.testing
 
 if not tvm.get_global_func("tvm.contrib.cblas.matmul", allow_missing=True):
     raise Exception("Not compiled with cblas support; can't build this tutorial")

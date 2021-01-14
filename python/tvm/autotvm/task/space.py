@@ -19,7 +19,7 @@
 """
 Template configuration space.
 
-Each template function can be parametrized by a ConfigSpace.
+Each template function can be parameterized by a ConfigSpace.
 The space is declared when we invoke the template function with ConfigSpace.
 During evaluation, we pass in a ConfigEntity, which contains a specific
 entity in the space. This entity contains deterministic parameters.
@@ -63,7 +63,7 @@ class TransformSpace(object):
         Each operator has some tunable parameters (e.g. the split factor).
         Then the tuning process is just to find good parameters of these op.
 
-    So the all the combinations of the parameters of these op forms our search space.
+    So all the combinations of the parameters of these op form our search space.
 
     Naming convention:
     We call the set of all possible values as XXXSpace. (XXX can be Split, Reorder, Config ...)
@@ -797,7 +797,7 @@ class ConfigSpace(object):
 
     def raise_error(self, msg):
         """register error in config
-        Using this to actively detect error when scheudling.
+        Using this to actively detect error when scheduling.
         Otherwise these error will occur during runtime, which
         will cost more time.
 
@@ -836,8 +836,6 @@ class ConfigSpace(object):
         return [Axis(None, i) for i in range(space_class.get_num_output(axes, policy, **kwargs))]
 
     def __len__(self):
-        if not self.space_map:
-            return 0
         if self._length is None:
             self._length = int(np.prod([len(x) for x in self.space_map.values()]))
         return self._length
@@ -850,6 +848,8 @@ class ConfigSpace(object):
         index: int
             index in the space
         """
+        if index < 0 or index >= len(self):
+            raise IndexError("Index out of range: size {}, got index {}".format(len(self), index))
         entities = OrderedDict()
         t = index
         for name, space in self.space_map.items():
