@@ -95,7 +95,7 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   return kTvmErrorNoError;
 }
 
-static_assert(RAND_MAX >= (1 << 8));
+static_assert(RAND_MAX >= (1 << 8), "RAND_MAX is smaller than acceptable");
 unsigned int random_seed = 0;
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   if (random_seed == 0) {
