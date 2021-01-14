@@ -40,7 +40,7 @@ Array<Array<Layout> > ResizeInferCorrectLayout(const Attrs& attrs,
   // NOTE: Discard "const" qualifier here.
   ResizeAttrs* params = const_cast<ResizeAttrs*>(attrs.as<ResizeAttrs>());
 
-  if (new_in_layouts.defined()) {
+  if (new_in_layouts.defined() && new_in_layouts[0].defined()) {
     // Set the resize with the new layout.
     ICHECK_EQ(new_in_layouts.size(), 1);
     params->layout = new_in_layouts[0].name();
