@@ -20,6 +20,7 @@ from tvm.relay.frontend.common import infer_type
 from tvm.relay import op as _op
 import numpy as np
 
+
 def test_const_dtype():
     strides = (1, 1)
     np_array = np.array(strides)
