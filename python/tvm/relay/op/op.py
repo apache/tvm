@@ -365,7 +365,9 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
         The name of the op.
 
     data_dependant : bool or list of bool
-        Whether the shape function depends on input data.
+        Whether the shape function depends on input data. If this is a list of bool,
+        the length of the list must be the same as the number of arguments of this op.
+        The list specifies per-input data dependence of the op.
 
     shape_func : function (attrs: Attrs, inputs: List[Tensor], out_ndims: List[IndexExpr])
                  -> shape_tensors: List<Tensor>
