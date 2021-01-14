@@ -1518,7 +1518,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
  *   ... // until i == n - 1
  *
  *   float throughputs[sizes[n]];  // The normalized throughputs for n records
- *   int   task_ids[size[n+1];   // The task ids for n records
+ *   int   task_ids[size[n+1]];   // The task ids for n records
  *
  * }
  * To implement this format, we also store int as float, so we can store all numbers
