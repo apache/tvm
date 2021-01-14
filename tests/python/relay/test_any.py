@@ -845,7 +845,7 @@ def test_any_softmax():
     verify_any_softmax(any_dims(4), 2, (13, 11, 3, 1), (13, 11, 3, 1))
 
 
-def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
+def verify_any_topk(data_shape, kval, np_dshape, dtype, ret_type="indices", const_k=False):
     mod = tvm.IRModule()
     data = relay.var("data", shape=data_shape, dtype=dtype)
     np_data = np.random.uniform(size=np_dshape).astype(dtype)
@@ -857,7 +857,9 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
         k = relay.var("k", shape=(), dtype="int32")
         args = [data, k]
         in_vals = [np_data, kval]
-    out = relay.topk(data, k, ret_type="indices")
+    out = relay.topk(data, k, ret_type=ret_type)
+    if ret_type == "both":
+        out = out[0]
     mod["main"] = relay.Function(args, out)
 
     sorted = np.argsort(-np_data)
@@ -873,7 +875,8 @@ def verify_any_topk(data_shape, kval, np_dshape, dtype, const_k=False):
 def test_any_topk():
     verify_any_topk(any_dims(1), 5, (10,), "float32")
     verify_any_topk(any_dims(2), 2, (6, 3), "int32")
-    verify_any_topk(any_dims(2), 3, (6, 3), "float32", True)
+    verify_any_topk(any_dims(2), 3, (6, 3), "float32", const_k=True)
+    verify_any_topk(any_dims(1), 0, (0,), "float32", ret_type="both")
 
 
 @tvm.testing.uses_gpu
