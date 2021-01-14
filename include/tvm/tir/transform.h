@@ -52,31 +52,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-Pass CreatePrimFuncPass_(
+TVM_DLL Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
-
-/*
- * \brief Create a function pass that optimizes PrimFuncs. Specialized to lambdas.
- *
- * \param pass_func Lambda function that contains the optimization.
- * \param opt_level The optimization level of the function pass.
- * \param name The name of the function pass.
- * \param required The list of the passes that the function pass is dependent on.
- *
- * \return The created function pass.
- */
-template <typename F>
-inline Pass CreatePrimFuncPass(F pass_func, int opt_level, String name,
-                               tvm::Array<String> required) {
-  return CreatePrimFuncPass_({pass_func, name}, opt_level, name, required);
-}
-
-inline Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required) {
-  return CreatePrimFuncPass_(pass_func, opt_level, name, required);
-}
 
 /*!
  * \brief Inject prefetch instructions into stmt.

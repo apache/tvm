@@ -167,6 +167,8 @@ void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_be
   }
 }
 
+class ModulePass;
+
 /*!
  * \brief Module-level passes are designed to implement global
  * analysis/optimizations, i.e. interprocedural optimizations (IPO), etc. Passes
@@ -193,7 +195,7 @@ class ModulePassNode : public PassNode {
    * \brief Run a module pass on given pass context.
    *
    * \param mod The module that an optimization pass is applied on.
-   * \param pass_ctx The context that an optimization pass executes on.
+   * \param mod The context that an optimization pass executes on.
    *
    * \return Return the updated module.
    */
@@ -383,10 +385,10 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   return mod;
 }
 
-Pass CreateModulePass_(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                       int opt_level, String name, tvm::Array<String> required) {
+Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+                      int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
-  return ModulePass({pass_func, name}, pass_info);
+  return ModulePass(pass_func, pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);

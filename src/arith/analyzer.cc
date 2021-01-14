@@ -181,7 +181,7 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     }
     return PackedFunc();
   };
-  *ret = TypedPackedFunc<PackedFunc(std::string)>(f, "arith.CreateAnalyzer");
+  *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
 });
 
 }  // namespace arith

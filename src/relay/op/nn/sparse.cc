@@ -101,7 +101,10 @@ Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weig
   return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense").set_body_typed(MakeSparseDense);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense")
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 5>(MakeSparseDense, args, rv);
+    });
 
 RELAY_REGISTER_OP("nn.sparse_dense")
     .describe(
@@ -127,7 +130,10 @@ Expr MakeSparseDensePadded(Expr data, Expr weight_data, Expr weight_indices, Exp
   return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense_padded").set_body_typed(MakeSparseDensePadded);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense_padded")
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 4>(MakeSparseDensePadded, args, rv);
+    });
 
 RELAY_REGISTER_OP("nn.internal.sparse_dense_padded")
     .describe(

@@ -63,7 +63,7 @@ class FunctionPassNode : public PassNode {
    * \brief Run a function pass on given pass context.
    *
    * \param mod The module that an optimization pass is applied on.
-   * \param pass_ctx The context that an optimization pass executes on.
+   * \param mod The context that an optimization pass executes on.
    *
    * \return Return the updated module.
    */
@@ -171,7 +171,7 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
          func->GetAttr<Integer>(attr::kSkipOptimization, 0) != 0;
 }
 
-Pass CreateFunctionPass_(
+Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);

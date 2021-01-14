@@ -75,6 +75,7 @@ class PrimFuncPass : public Pass {
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFuncPass, Pass, PrimFuncPassNode);
 };
+
 PrimFuncPass::PrimFuncPass(
     runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
     PassInfo pass_info) {
@@ -115,7 +116,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   return mod;
 }
 
-Pass CreatePrimFuncPass_(
+Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);

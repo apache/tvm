@@ -718,7 +718,10 @@ Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm").set_body_typed(MakeInstanceNorm);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm")
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 7>(MakeInstanceNorm, args, rv);
+    });
 
 RELAY_REGISTER_OP("nn.instance_norm")
     .describe(R"code(Instance Normalization (Ulyanov and et al., 2016)
@@ -782,7 +785,10 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon, b
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm").set_body_typed(MakeLayerNorm);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm")
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
+    });
 
 RELAY_REGISTER_OP("nn.layer_norm")
     .describe(R"code(
@@ -825,7 +831,10 @@ Expr MakeGroupNorm(Expr data, Expr gamma, Expr beta, int num_groups, int axis, d
   return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm").set_body_typed(MakeGroupNorm);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm")
+    .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 8>(MakeGroupNorm, args, rv);
+    });
 
 RELAY_REGISTER_OP("nn.group_norm")
     .describe(R"code(

@@ -410,30 +410,9 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-Pass CreateModulePass_(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                       int opt_level, String name, Array<runtime::String> required);
-
-/*
- * \brief Create a module pass.
- *
- * \param pass_func The function that contains the optimization.
- * \param opt_level The optimization level of the module pass.
- * \param name The name of the module pass.
- * \param required The list of the passes that the module pass is dependent on.
- *
- * \return The created module pass.
- */
-template <typename F>
-inline Pass CreateModulePass(F pass_func, int opt_level, String name, tvm::Array<String> required) {
-  return CreateModulePass_({pass_func, name}, opt_level, name, required);
-}
-
-// specialized for TypedPackedFunc
-inline Pass CreateModulePass(
-    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
-    String name, tvm::Array<String> required) {
-  return CreateModulePass_(pass_func, opt_level, name, required);
-}
+TVM_DLL Pass
+CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+                 int opt_level, String name, Array<runtime::String> required);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
