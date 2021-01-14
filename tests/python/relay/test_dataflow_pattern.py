@@ -403,6 +403,7 @@ def test_match_call_attr():
     assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=empty_attrs))
     assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=call_attr))
 
+
 def test_no_match_call_attr():
     x = relay.var("x")
     y = relay.var("y")
