@@ -23,7 +23,7 @@ import numpy as np
 
 def test_const_dtype():
     strides = (1, 1)
-    np_array = np.array(strides)
+    np_array = np.array(strides).astype("int32")
     strides = _op.const(np_array, dtype="int64")
 
     # strides needs to be autoconverted to int64 on Windows
