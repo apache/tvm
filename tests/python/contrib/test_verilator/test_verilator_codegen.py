@@ -16,7 +16,6 @@
 # under the License.
 """Verilator codegen tests"""
 
-import os
 import numpy as np
 
 import tvm
