@@ -873,7 +873,14 @@ std::string GetNewLayout(const State& state, const int stage_id, const Stage& st
       ori_iter_name = new_axis_names[i];
     }
     if (placeholder_axis_names.count(ori_iter_name)) {
-      os << iter->range->extent << ori_iter_name;
+      PrimExpr extent;
+      if (iter->range.defined()) {
+        extent = iter->range->extent;
+      } else {
+        // This iter is simplified by InferBound, so it must have a length of one.
+        extent = 1;
+      }
+      os << extent << ori_iter_name;
       new_names.push_back(ori_iter_name);
     }
   }
