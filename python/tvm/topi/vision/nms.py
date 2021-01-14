@@ -52,15 +52,16 @@ def hybrid_rearrange_box_out(data, one, batch_size, num_anchors):
     """
     elem_length = data.shape[2]
     output = output_tensor((batch_size, num_anchors, elem_length), data.dtype)
+    valid_indices = allocate((batch_size,), "int32")
 
     for i in parallel(batch_size):
-        valid_idx = 0
+        valid_indices[i] = 0
         for j in range(num_anchors):
             if data[i, j, 0] >= 0:
                 for k in range(elem_length):
-                    output[i, valid_idx, k] = data[i, j, k]
-                valid_idx += 1
-            if j >= valid_idx:
+                    output[i, valid_indices[i], k] = data[i, j, k]
+                valid_indices[i] += 1
+            if j >= valid_indices[i]:
                 for k in range(elem_length):
                     output[i, j, k] = -one
     return output
@@ -100,19 +101,20 @@ def hybrid_rearrange_indices_out(data, one, batch_size, num_anchors):
     """
     valid_box_count = output_tensor((batch_size, 1), "int32")
     output = output_tensor((batch_size, num_anchors), data.dtype)
+    valid_indices = allocate((batch_size,), "int32")
 
     for i in parallel(batch_size):
-        valid_idx = 0
+        valid_indices[i] = 0
         for j in range(num_anchors):
             if data[i, j] >= 0:
-                output[i, valid_idx] = data[i, j]
-                valid_idx += 1
+                output[i, valid_indices[i]] = data[i, j]
+                valid_indices[i] += 1
             if data[i, j] > num_anchors or data[i, j] < -num_anchors:
-                output[i, valid_idx] = 0
-                valid_idx += 1
-            if j >= valid_idx:
+                output[i, valid_indices[i]] = 0
+                valid_indices[i] += 1
+            if j >= valid_indices[i]:
                 output[i, j] = -one
-        valid_box_count[i, 0] = valid_idx
+        valid_box_count[i, 0] = valid_indices[i]
 
     return output, valid_box_count
 
@@ -131,7 +133,7 @@ def hybrid_get_valid_counts(
         Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
         or [batch_size, num_anchors, 5].
 
-    score_threshold : tvm.tir.const
+    score_threshold : tvm.te.Tensor
         Lower limit of score for valid bounding boxes.
 
     id_index : tvm.tir.const
@@ -211,12 +213,13 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     out_indices: tvm.te.Tensor or numpy NDArray
         Related index in input data.
     """
-    score_threshold_const = tvm.tir.const(score_threshold, data.dtype)
+    if isinstance(score_threshold, (float, int)):
+        score_threshold = tvm.tir.const(score_threshold, dtype=data.dtype)
     id_index_const = tvm.tir.const(id_index, "int32")
     score_index_const = tvm.tir.const(score_index, "int32")
     return hybrid_get_valid_counts(
         data,
-        score_threshold_const,
+        score_threshold,
         id_index_const,
         score_index_const,
         tvm.tir.const(1, data.dtype),
@@ -279,7 +282,7 @@ def hybrid_nms(
         Max number of output valid boxes for each instance.
         Return all valid boxes if max_output_size < 0.
 
-    iou_threshold : tvm.tir.const
+    iou_threshold : tvm.te.Tensor
         Overlapping(IoU) threshold to suppress object with smaller score.
 
     force_suppress : tvm.tir.const
@@ -492,7 +495,7 @@ def non_max_suppression(
         Max number of output valid boxes for each instance.
         Return all valid boxes if the value of max_output_size is less than 0.
 
-    iou_threshold : optional, float
+    iou_threshold : optional, float or tvm.te.Tensor
         Non-maximum suppression threshold.
 
     force_suppress : optional, boolean
@@ -552,6 +555,8 @@ def non_max_suppression(
     num_anchors = data.shape[1]
     if isinstance(max_output_size, int):
         max_output_size = tvm.tir.const(max_output_size, dtype="int32")
+    if isinstance(iou_threshold, float):
+        iou_threshold = tvm.tir.const(iou_threshold, dtype=data.dtype)
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis])
@@ -565,7 +570,7 @@ def non_max_suppression(
         batch_size,
         num_anchors,
         max_output_size,
-        tvm.tir.const(iou_threshold, dtype=data.dtype),
+        iou_threshold,
         tvm.tir.const(force_suppress, dtype="bool"),
         tvm.tir.const(top_k, dtype="int32"),
         tvm.tir.const(coord_start, dtype="int32"),
@@ -575,6 +580,7 @@ def non_max_suppression(
         zero=tvm.tir.const(0, dtype=data.dtype),
         one=tvm.tir.const(1, dtype=data.dtype),
     )
+
     if return_indices:
         return hybrid_rearrange_indices_out(
             box_indices,

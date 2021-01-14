@@ -232,6 +232,20 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     auto fty = llvm::FunctionType::get(t_int32_, false);
     auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
     return builder_->CreateCall(val);
+  } else if (op->op.same_as(builtin::atomic_add())) {
+    ICHECK(op->args[1]->dtype.bits() == 32) << "Only supports 32 bit atomic for now";
+    llvm::Value* v0 = MakeValue(op->args[0]);
+    llvm::Value* v1 = MakeValue(op->args[1]);
+    if (op->args[1]->dtype.is_float()) {
+#if TVM_LLVM_VERSION >= 90
+      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
+                                       llvm::AtomicOrdering::Monotonic);
+#else
+      LOG(FATAL) << "Floating point atomic requires LLVM 9 or newer";
+#endif
+    }
+    return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
+                                     llvm::AtomicOrdering::Monotonic);
   }
   return CodeGenLLVM::CreateIntrinsic(op);
 }

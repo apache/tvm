@@ -17,9 +17,31 @@
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
 
+from ..expr import Constant, Expr, TupleWrapper
 from . import _make
 from .dyn import _make as _dyn_make
-from ..expr import TupleWrapper, Expr, Constant
+
+
+def sort(data, axis=-1, is_ascend=1):
+    """Performs sorting along the given axis and returns data in sorted order.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data tensor.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    Returns
+    -------
+    out : relay.Expr
+        Tensor with same shape as data.
+    """
+    return _make.sort(data, axis, is_ascend)
 
 
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):

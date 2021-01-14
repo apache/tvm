@@ -41,7 +41,7 @@ You can also use the following command via docker.
 
 .. code:: bash
 
-    docker/bash.sh tvmai/ci-lint clang-format-10 [path-to-file]
+    docker/bash.sh tlcpack/ci-lint clang-format-10 [path-to-file]
 
 
 clang-format is also not perfect, when necessary, you can use disble clang-format on certain code regions.

@@ -58,14 +58,16 @@ typedef struct TVMGraphRuntime TVMGraphRuntime;
 
 // public functions
 /*!
- * \brief Allocate a new GraphRuntime with vmalloc and initialize it.
+ * \brief Allocate a new GraphRuntime with TVMPlatformMemoryAllocate and initialize it.
  *
  * \param sym_json JSON-encoded graph.
  * \param module_handle TVM Module that exposes the functions to call.
  * \param ctxs runtime execution context.
+ * \param runtime Pointer which receives a pointer to the newly-created instance.
+ * \return 0 if successful.
  */
-TVMGraphRuntime* TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
-                                        const TVMContext* ctxs);
+int TVMGraphRuntime_Create(const char* sym_json, TVMModuleHandle module_handle,
+                           const TVMContext* ctxs, TVMGraphRuntime** runtime);
 
 int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime* runtime, const char* name);
 
@@ -117,8 +119,9 @@ void TVMGraphRuntime_Run(TVMGraphRuntime* runtime);
 /*!
  * \brief Release memory associated with the graph runtime.
  * \param runtime Pointer to graph runtime.
+ * \return 0 if successful
  */
-void TVMGraphRuntime_Release(TVMGraphRuntime** runtime);
+int TVMGraphRuntime_Release(TVMGraphRuntime** runtime);
 
 #ifdef __cplusplus
 }  // extern "C"

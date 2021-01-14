@@ -70,16 +70,15 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
   }
 
   Call MakeCombinedOp(const Group& branches) {
-    const Op& batch_matmul = Op::Get("nn.batch_matmul");
     Expr data = branches[0][0]->args[0];
 
     Array<Expr> weights;
     for (const auto& branch : branches) {
-      auto batch_matmul = branch[0];
-      weights.push_back(batch_matmul->args[1]);
+      auto call = branch[0];
+      weights.push_back(call->args[1]);
     }
     Expr new_weight = MakeConcatenate(Tuple(weights), 1);
-    return Call(batch_matmul, {data, new_weight}, {}, {});
+    return Downcast<Call>(MakeBatchMatmul(data, new_weight));
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }

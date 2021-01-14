@@ -85,10 +85,10 @@ Graph Gradient(Graph src) {
   using MirrorFun = std::function<int(const Node& node)>;
   using AttrHintFun = std::function<NodeEntry(const NodeEntry& src, const NodeEntry& like)>;
 
-  ICHECK_NE(src.attrs.count("grad_ys"), 0U) << "Gradient require grad_ys to be presented.";
-  ICHECK_NE(src.attrs.count("grad_ys_out_grad"), 0U)
+  CHECK_NE(src.attrs.count("grad_ys"), 0U) << "Gradient require grad_ys to be presented.";
+  CHECK_NE(src.attrs.count("grad_ys_out_grad"), 0U)
       << "Gradient require grad_ys_out_grad to be presented.";
-  ICHECK_NE(src.attrs.count("grad_xs"), 0U) << "Gradient require grad_xs to be presented.";
+  CHECK_NE(src.attrs.count("grad_xs"), 0U) << "Gradient require grad_xs to be presented.";
   const std::vector<NodeEntry>& ys = src.GetAttr<std::vector<NodeEntry> >("grad_ys");
   const std::vector<NodeEntry>& ys_out_grad =
       src.GetAttr<std::vector<NodeEntry> >("grad_ys_out_grad");
@@ -124,7 +124,7 @@ Graph Gradient(Graph src) {
     topo_order.push_back(node);
   });
 
-  ICHECK_EQ(ys.size(), ys_out_grad.size());
+  CHECK_EQ(ys.size(), ys_out_grad.size());
   for (size_t i = 0; i < ys.size(); ++i) {
     NodeEntry ograd = ys_out_grad[i];
     output_grads[ys[i].node.get()][ys[i].index].grads = {ograd};
@@ -132,7 +132,7 @@ Graph Gradient(Graph src) {
 
   // Check that all xs are reachable from ys
   for (size_t i = 0; i < xs.size(); ++i) {
-    ICHECK(output_grads.find(xs[i].node.get()) != output_grads.end())
+    CHECK(output_grads.find(xs[i].node.get()) != output_grads.end())
         << "Cannot differentiate with respect to the " << i + 1 << "-th variable "
         << "because it is unreachable from the outputs.";
   }
@@ -182,7 +182,7 @@ Graph Gradient(Graph src) {
       // Check for FGradient
       if (grad_fun_map.contains(ptr->op())) {
         input_grads = grad_fun_map[ptr->op()](fwd_node, out_agg_grads);
-        ICHECK_EQ((*rit)->inputs.size(), input_grads.size())
+        CHECK_EQ((*rit)->inputs.size(), input_grads.size())
             << "Gradient function not returning enough gradient";
       } else if (CheckGradAllZero(out_agg_grads, zero_ops)) {
         for (size_t i = 0; i < fwd_node->num_inputs(); ++i) {
@@ -206,9 +206,9 @@ Graph Gradient(Graph src) {
         LOG(FATAL) << "Operator " << fwd_node->op()->name << " is non-differentiable "
                    << "because it didn't register FGradient attribute.";
       }
-      for (const auto& nodeEntry : input_grads) ICHECK(nodeEntry.node);
+      for (const auto& nodeEntry : input_grads) CHECK(nodeEntry.node);
       auto git = input_grads.begin();
-      ICHECK((*rit)->inputs.size() <= input_grads.size());
+      CHECK((*rit)->inputs.size() <= input_grads.size());
       for (auto it = (*rit)->inputs.begin(); it != (*rit)->inputs.end(); ++it, ++git) {
         auto& output_grad_entry = output_grads[it->node.get()][it->index];
         // if any of the backward op can do shape inference, the hint is not necessary.

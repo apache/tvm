@@ -49,7 +49,7 @@ Graph InferAttr(Graph&& ret, const AttrType empty_val, const char* infer_name,
 
   if (ret.attrs.count(input_name) != 0) {
     const AttrVector& shape_args = ret.GetAttr<AttrVector>(input_name);
-    ICHECK_LE(shape_args.size(), idx.input_nodes().size())
+    CHECK_LE(shape_args.size(), idx.input_nodes().size())
         << "More provided shapes than number of arguments.";
     for (size_t i = 0; i < shape_args.size(); ++i) {
       rshape[idx.entry_id(idx.input_nodes()[i], 0)] = shape_args[i];
@@ -88,22 +88,22 @@ Graph InferAttr(Graph&& ret, const AttrType empty_val, const char* infer_name,
     const uint32_t num_outputs = inode.source->num_outputs();
     if (inode.source->is_variable()) {
       // Variable node. No operator. Only one output entry.
-      ICHECK(inode.source->op() == nullptr);
-      ICHECK_EQ(num_outputs, 1U);
+      CHECK(inode.source->op() == nullptr);
+      CHECK_EQ(num_outputs, 1U);
       const uint32_t out_ent_id = idx.entry_id(nid, 0);
       if (shape_attr_key.length() != 0 && fis_none(rshape[out_ent_id])) {
         auto it = inode.source->attrs.dict.find(shape_attr_key);
         if (it != inode.source->attrs.dict.end()) {
           std::istringstream is(it->second);
-          ICHECK(is >> rshape[out_ent_id]) << "Invalid attribute";
+          CHECK(is >> rshape[out_ent_id]) << "Invalid attribute";
         }
       }
     } else if (is_backward.get(inode.source->op(), false) && inode.control_deps.size()) {
-      ICHECK_GE(inode.control_deps.size(), 1U)
+      CHECK_GE(inode.control_deps.size(), 1U)
           << "BackwardOp need to have control_deps to its forward op";
       const IndexedGraph::Node& fnode = idx[inode.control_deps[0]];
       ObjectPtr fwd_ptr = inode.source->control_deps[0];
-      ICHECK(fwd_ptr->op() != nullptr) << "Forward op cannot be a variable";
+      CHECK(fwd_ptr->op() != nullptr) << "Forward op cannot be a variable";
       // use gradient function to find out the correspondence.
       std::vector<NodeEntry> ograd(fwd_ptr->num_outputs());
       for (size_t i = 0; i < ograd.size(); ++i) {
@@ -119,18 +119,18 @@ Graph InferAttr(Graph&& ret, const AttrType empty_val, const char* infer_name,
           if (fis_none(rshape[eid])) {
             rshape[eid] = rshape[idx.entry_id(fnode.inputs[i])];
           } else if (!fis_none(rshape[idx.entry_id(fnode.inputs[i])])) {
-            ICHECK_EQ(rshape[eid], rshape[idx.entry_id(fnode.inputs[i])])
+            CHECK_EQ(rshape[eid], rshape[idx.entry_id(fnode.inputs[i])])
                 << "Backward shape inconsistent with the forward shape";
           }
           if (igrad_node == nullptr) {
             igrad_node = igrad[i].node.get();
           } else {
-            ICHECK(igrad_node == igrad[i].node.get());
+            CHECK(igrad_node == igrad[i].node.get());
           }
         }
       }
       // out grad entries
-      ICHECK(igrad_node != nullptr)
+      CHECK(igrad_node != nullptr)
           << "Cannot find matching backward op for " << inode.source->attrs.name;
       for (size_t i = 0; i < igrad_node->inputs.size(); ++i) {
         const NodeEntry& e = igrad_node->inputs[i];
@@ -164,9 +164,9 @@ Graph InferAttr(Graph&& ret, const AttrType empty_val, const char* infer_name,
             throw dmlc::Error("Error in operator " + inode.source->attrs.name + ": " + e.what());
           }
         } else {
-          ICHECK(!last_iter) << "Attribute " << infer_name << " is not registered by op "
-                             << inode.source->op()->name
-                             << " we are not able to complete the inference because of this";
+          CHECK(!last_iter) << "Attribute " << infer_name << " is not registered by op "
+                            << inode.source->op()->name
+                            << " we are not able to complete the inference because of this";
         }
       }
       // Save to the result map.

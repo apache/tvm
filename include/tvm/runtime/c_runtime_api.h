@@ -540,6 +540,13 @@ TVM_DLL int TVMObjectRetain(TVMObjectHandle obj);
 TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
 
 /*!
+ * \brief Free a TVMByteArray returned from TVMFuncCall, and associated memory.
+ * \param arr The TVMByteArray instance.
+ * \return 0 on success, -1 on failure.
+ */
+TVM_DLL int TVMByteArrayFree(TVMByteArray* arr);
+
+/*!
  * \brief Allocate a data space on device.
  * \param ctx The device context to perform operation.
  * \param nbytes The number of bytes in memory.

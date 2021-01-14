@@ -120,7 +120,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   tvm::String data_layout;
   tvm::String kernel_layout;
   tvm::String out_layout;
-  std::string auto_scheduler_rewritten_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
@@ -210,9 +210,10 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DWinogradAttrs, "relay.attrs.Conv2DWinogradAttrs") {
@@ -300,9 +301,10 @@ struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv3DAttrs, "relay.attrs.Conv3DAttrs") {
@@ -715,7 +717,7 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
   Array<IndexExpr> pool_size;
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  std::string layout;
+  tvm::String layout;
   bool ceil_mode;
   bool count_include_pad;
 
@@ -924,6 +926,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
@@ -936,9 +939,24 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   }
 };
 
+/*! \brief Attributes for batch matmul operator */
+struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
+  tvm::String auto_scheduler_rewritten_layout;  // The layout after auto-scheduler's layout rewrite
+
+  TVM_DECLARE_ATTRS(BatchMatmulAttrs, "relay.attrs.BatchMatmulAttrs") {}
+};
+
 /*! \brief Attributes for sparse_dense operator */
 struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
-  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {}
+  bool sparse_lhs;
+
+  TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {
+    TVM_ATTR_FIELD(sparse_lhs)
+        .set_default(false)
+        .describe(
+            "Indicate whether sparse matrix is multiplied on the right or the left. If true, then "
+            "the operation is S * D^T (D dense, S sparse). If false, the operation is D * S^T");
+  }
 };
 
 /*! \brief Attributes for sparse_transpose operator */
@@ -959,8 +977,8 @@ struct FIFOBufferAttrs : public tvm::AttrsNode<FIFOBufferAttrs> {
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   double scale_h;
   double scale_w;
-  std::string layout;
-  std::string method;
+  tvm::String layout;
+  tvm::String method;
   bool align_corners;
 
   TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {

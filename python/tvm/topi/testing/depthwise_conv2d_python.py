@@ -65,7 +65,7 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
                     0 : (in_height - filter_height + 1) : stride_h,
                     0 : (in_width - filter_width + 1) : stride_w,
                 ]
-    if padding == "SAME":
+    elif padding == "SAME":
         out_channel = in_channel * channel_multiplier
         out_height = np.int(np.ceil(float(in_height) / float(stride_h)))
         out_width = np.int(np.ceil(float(in_width) / float(stride_w)))

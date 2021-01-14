@@ -168,13 +168,6 @@ def test_global_avg_pool2d_grad():
 
 
 def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mode="higher_order"):
-    try:
-        import torch
-        import torch.nn.functional as F
-    except ImportError:
-        print("Skip because pytorch is not installed")
-        return
-
     dtype = "float32"
     data = relay.var("data", shape=dshape, dtype=dtype)
     weight = relay.var("weight", shape=wshape, dtype=dtype)
@@ -182,49 +175,7 @@ def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mod
         data, weight, strides=strides, padding=padding, dilation=dilation, groups=groups
     )
     fwd_func = relay.Function([data, weight], conv)
-    fwd_func = run_infer_type(fwd_func)
-    bwd_func = run_infer_type(gradient(fwd_func, mode=mode))
-
-    data_pt = torch.randn(*dshape, dtype=torch.float32, requires_grad=True)
-    weight_pt = torch.randn(*wshape, dtype=torch.float32, requires_grad=True)
-    out_pt = F.conv2d(
-        data_pt, weight_pt, stride=strides, padding=padding, dilation=dilation, groups=groups
-    )
-    grad_output_pt = torch.ones(out_pt.shape)
-    grad_input_pt = (
-        F.grad.conv2d_input(
-            dshape,
-            weight_pt,
-            grad_output_pt,
-            stride=strides,
-            padding=padding,
-            dilation=dilation,
-            groups=groups,
-        )
-        .detach()
-        .numpy()
-    )
-    grad_weight_pt = (
-        F.grad.conv2d_weight(
-            data_pt,
-            wshape,
-            grad_output_pt,
-            stride=strides,
-            padding=padding,
-            dilation=dilation,
-            groups=groups,
-        )
-        .detach()
-        .numpy()
-    )
-
-    for target, ctx in tvm.testing.enabled_targets():
-        data = tvm.nd.array(data_pt.detach().numpy(), ctx)
-        weight = tvm.nd.array(weight_pt.detach().numpy(), ctx)
-        intrp = relay.create_executor(ctx=ctx, target=target)
-        op_res, (grad_input, grad_weight) = intrp.evaluate(bwd_func)(data, weight)
-        np.testing.assert_allclose(grad_input.asnumpy(), grad_input_pt, rtol=1e-4, atol=1e-4)
-        np.testing.assert_allclose(grad_weight.asnumpy(), grad_weight_pt, rtol=1e-4, atol=1e-4)
+    check_grad(fwd_func, mode=mode)
 
 
 @tvm.testing.uses_gpu

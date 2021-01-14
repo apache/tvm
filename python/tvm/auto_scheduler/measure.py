@@ -53,8 +53,6 @@ from .utils import (
     make_traceback_info,
     request_remote,
 )
-from .compute_dag import ComputeDAG
-from .search_task import SearchTask
 from .workload_registry import (
     serialize_workload_registry_entry,
     deserialize_workload_registry_entry,
@@ -66,9 +64,46 @@ from .workload_registry import (
 MAX_FLOAT = 1e10
 
 
+class BuildFunc:
+    """store build_func name and callable to class variable.
+    name: str = "default"
+        The name of registered build function.
+    build_func: callable = tar.tar
+        The callable of registered build function.
+    """
+
+    name = "default"
+    build_func = tar.tar
+
+
 @tvm._ffi.register_object("auto_scheduler.MeasureCallback")
 class MeasureCallback(Object):
     """ The base class of measurement callback functions. """
+
+
+@tvm._ffi.register_object("auto_scheduler.PythonBasedMeasureCallback")
+class PythonBasedMeasureCallback(MeasureCallback):
+    """Base class for measure callbacks implemented in python"""
+
+    def __init__(self):
+        def callback_func(policy, inputs, results):
+            self.callback(policy, inputs, results)
+
+        self.__init_handle_by_constructor__(_ffi_api.PythonBasedMeasureCallback, callback_func)
+
+    def callback(self, policy, inputs, results):
+        """The callback function.
+
+        Parameters
+        ----------
+        policy: auto_scheduler.search_policy.SearchPolicy
+            The search policy.
+        inputs : List[auto_scheduler.measure.MeasureInput]
+            The measurement inputs
+        results : List[auto_scheduler.measure.MeasureResult]
+            The measurement results
+        """
+        raise NotImplementedError
 
 
 @tvm._ffi.register_object("auto_scheduler.MeasureInput")
@@ -178,13 +213,16 @@ def recover_measure_input(inp, rebuild_state=False):
     new_input: MeasureInput
         The fully recovered MeasureInput with all fields rebuilt.
     """
+    # pylint: disable=import-outside-toplevel
+    from .search_task import SearchTask  # lazily import to avoid recursive dependency
+
     task = inp.task
     new_task = SearchTask(
-        ComputeDAG(task.workload_key),
-        task.workload_key,
-        task.target,
-        task.target_host,
-        task.hardware_params,
+        workload_key=task.workload_key,
+        target=task.target,
+        target_host=task.target_host,
+        hardware_params=task.hardware_params,
+        layout_rewrite_option=task.layout_rewrite_option,
     )
 
     if rebuild_state:
@@ -277,12 +315,28 @@ class LocalBuilder(ProgramBuilder):
         This is used in a wrapper of the multiprocessing.Process.join().
     n_parallel : int = multiprocessing.cpu_count()
         Number of threads used to build in parallel.
-    build_func : str = 'default'
-        The name of registered build function.
+    build_func: callable or str = "default"
+        If is 'default', use default build function
+        If is 'ndk', use function for android ndk
+        If is callable, use it as custom build function, expect lib_format field.
     """
 
     def __init__(self, timeout=15, n_parallel=multiprocessing.cpu_count(), build_func="default"):
-        self.__init_handle_by_constructor__(_ffi_api.LocalBuilder, timeout, n_parallel, build_func)
+        if build_func == "default":
+            BuildFunc.name = "default"
+            BuildFunc.build_func = tar.tar
+        elif build_func == "ndk":
+            BuildFunc.name = "ndk"
+            BuildFunc.build_func = ndk.create_shared
+        elif callable(build_func):
+            BuildFunc.name = "custom"
+            BuildFunc.build_func = build_func
+        else:
+            raise ValueError("Invalid build_func" + build_func)
+
+        self.__init_handle_by_constructor__(
+            _ffi_api.LocalBuilder, timeout, n_parallel, BuildFunc.name
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.LocalRunner")
@@ -329,6 +383,10 @@ class LocalRunner(ProgramRunner):
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
     ):
+        if enable_cpu_cache_flush:
+            number = 1
+            min_repeat_ms = 0
+
         self.__init_handle_by_constructor__(
             _ffi_api.LocalRunner,
             timeout,
@@ -517,6 +575,7 @@ class LocalRPCMeasureContext:
         # Close the tracker and server before exit
         self.tracker.terminate()
         self.server.terminate()
+        time.sleep(0.5)
 
 
 class MeasureErrorNo(object):
@@ -545,7 +604,7 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     try:
         sch, args = task.compute_dag.apply_steps_from_state(
-            inp.state, layout_rewrite=ComputeDAG.RewriteForPreTransformed
+            inp.state, layout_rewrite=task.layout_rewrite_option
         )
     # pylint: disable=broad-except
     except Exception:
@@ -571,9 +630,9 @@ def _timed_func(inp_serialized, build_func, verbose):
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print(".", end="")
+            print(".", end="", flush=True)
         else:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
 
     return filename, args, error_no, error_msg, time.time() - tic
 
@@ -593,21 +652,19 @@ def local_build_worker(args):
         The build result of this Builder thread.
     """
     inp, build_func, timeout, verbose = args
-    if build_func == "default":
-        build_func = tar.tar
-    elif build_func == "ndk":
-        build_func = ndk.create_shared
-    else:
-        raise ValueError("Invalid build_func" + build_func)
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
+    build_func = BuildFunc.build_func
 
     res = call_func_with_timeout(timeout, _timed_func, args=(inp, build_func, verbose))
     if isinstance(res, TimeoutError):
         if verbose >= 1:
-            print(".T", end="")  # Build timeout
+            print(".T", end="", flush=True)  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
     elif isinstance(res, Exception):
         if verbose >= 1:
-            print(".E", end="")  # Build error
+            print(".E", end="", flush=True)  # Build error
         res = None, [], MeasureErrorNo.COMPILE_HOST, str(res), timeout
 
     return res
@@ -720,9 +777,9 @@ def _timed_eval_func(
 
     if verbose >= 1:
         if error_no == MeasureErrorNo.NO_ERROR:
-            print("*", end="")
+            print("*", end="", flush=True)
         else:
-            print("*E", end="")  # Run error
+            print("*E", end="", flush=True)  # Run error
     return costs, error_no, error_msg, toc - tic + build_res.time_cost, toc
 
 
@@ -808,10 +865,11 @@ def local_run(
                     enable_cpu_cache_flush,
                     verbose,
                 ),
+                add_thread_wrapper=True,
             )
             if isinstance(res, TimeoutError):
                 if verbose >= 1:
-                    print("*T", end="")  # Run timeout
+                    print("*T", end="", flush=True)  # Run timeout
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUN_TIMEOUT,
@@ -821,7 +879,7 @@ def local_run(
                 )
             elif isinstance(res, Exception):
                 if verbose >= 1:
-                    print("*E", end="")  # Run error
+                    print("*E", end="", flush=True)  # Run error
                 res = (
                     (MAX_FLOAT,),
                     MeasureErrorNo.RUNTIME_DEVICE,
@@ -833,7 +891,7 @@ def local_run(
         measure_results.append(MeasureResult(*res))
 
     if verbose >= 1:
-        print("")
+        print("", flush=True)
 
     return measure_results
 

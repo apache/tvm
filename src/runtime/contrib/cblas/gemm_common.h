@@ -21,7 +21,9 @@
  * \file tvm/contrib/gemm.h
  * \brief Shared implementation of gemm
  */
-#pragma once
+
+#ifndef TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
+#define TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
@@ -215,3 +217,4 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
 
 }  // namespace contrib
 }  // namespace tvm
+#endif  // TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_

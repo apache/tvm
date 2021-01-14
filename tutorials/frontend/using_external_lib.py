@@ -37,6 +37,7 @@ import numpy as np
 from tvm.contrib import graph_runtime as runtime
 from tvm import relay
 from tvm.relay import testing
+import tvm.testing
 
 ######################################################################
 # Create a simple network

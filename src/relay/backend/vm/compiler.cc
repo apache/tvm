@@ -1070,6 +1070,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
 
   pass_seqs.push_back(transform::FuseOps());
   pass_seqs.push_back(transform::ToANormalForm());
+  pass_seqs.push_back(transform::InferType());
   pass_seqs.push_back(transform::LambdaLift());
   pass_seqs.push_back(transform::InlinePrimitives());
 
@@ -1145,11 +1146,9 @@ void VMCompiler::Codegen() {
   } else {
     // There is no function handled by TVM. We create a virtual main module
     // to make sure a DSO module will be also available.
-    exec_->lib = codegen::CSourceModuleCreate(";", "");
+    exec_->lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
-  if (!ext_mods.empty()) {
-    exec_->lib = codegen::CreateMetadataModule(params_, exec_->lib, ext_mods);
-  }
+  exec_->lib = codegen::CreateMetadataModule(params_, exec_->lib, ext_mods, target_host_);
 }
 
 ExprDeviceMap VMCompiler::AnalyzeContext() const {

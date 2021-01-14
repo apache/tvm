@@ -342,36 +342,57 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
     conv_dtype = x.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
-    oshape = conv_output_shape(
-        tensor_format,
-        pad,
-        stride,
-        dilation,
-        list(x.shape),
-        list(w.shape),
-        x.dtype,
-        conv_dtype,
-        groups,
-    )
-    if algo == -1:
-        # For now if we try to call `cudnnFindConvolutionForwardAlgorithm` when
-        # using INT8 data type, CuDNN will crash down.
-        # On the other hand, CuDNN only support IMPLICIT_PRECOMP_GEMM at NHWC format
-        if tensor_format == 1 and conv_dtype == "int32":
-            algo = 1
-        else:
-            algo = conv_find_algo(
-                tensor_format,
-                pad,
-                stride,
-                dilation,
-                list(x.shape),
-                list(w.shape),
-                oshape,
-                x.dtype,
-                conv_dtype,
-                groups,
-            )
+    x_shape = list(x.shape)
+
+    if isinstance(x.shape[0], tvm.tir.expr.IntImm):
+        oshape = conv_output_shape(
+            tensor_format,
+            pad,
+            stride,
+            dilation,
+            x_shape,
+            list(w.shape),
+            x.dtype,
+            conv_dtype,
+            groups,
+        )
+        if algo == -1:
+            # For now if we try to call `cudnnFindConvolutionForwardAlgorithm` when
+            # using INT8 data type, CuDNN will crash down.
+            # On the other hand, CuDNN only support IMPLICIT_PRECOMP_GEMM at NHWC format
+            if tensor_format == 1 and conv_dtype == "int32":
+                algo = 1
+            else:
+                algo = conv_find_algo(
+                    tensor_format,
+                    pad,
+                    stride,
+                    dilation,
+                    list(x.shape),
+                    list(w.shape),
+                    oshape,
+                    x.dtype,
+                    conv_dtype,
+                    groups,
+                )
+    else:
+        # The dynamic batch size case, pretend this is a single batch
+        x_shape[0] = 1
+        oshape = conv_output_shape(
+            tensor_format,
+            pad,
+            stride,
+            dilation,
+            x_shape,
+            list(w.shape),
+            x.dtype,
+            conv_dtype,
+            groups,
+        )
+        oshape[0] = x.shape[0]
+        # This picks CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM
+        # It seems this is the fastest among algorithms that are always applicable
+        algo = 1
 
     if dims == 4:
         return te.extern(

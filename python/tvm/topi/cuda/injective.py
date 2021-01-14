@@ -44,11 +44,20 @@ def schedule_injective_from_existing(sch, out):
     # bandwidth.
     vector_width = 4 if out.dtype == "float16" else 1
 
+    is_dynamic_output = False
+    for dim in out.shape:
+        if not isinstance(dim, tvm.tir.IntImm):
+            is_dynamic_output = True
+            break
+
+    out_len = utils.prod(out.shape)
+
     try:
-        const_size = utils.get_const_int(utils.prod(out.shape))
+        const_size = utils.get_const_int(out_len)
         need_block_split = const_size > max_block * num_thread * vector_width
     except ValueError:
         need_block_split = False
+        const_size = 0
 
     if vector_width > 1:
         fused, v = sch[out].split(fused, vector_width)
@@ -61,7 +70,13 @@ def schedule_injective_from_existing(sch, out):
         sch[out].bind(bx, te.thread_axis("blockIdx.x"))
         sch[out].bind(tx, te.thread_axis("threadIdx.x"))
     else:
-        bx, tx = sch[out].split(fused, factor=num_thread)
+        # Use less threads for dynamic shape ops to avoid runtime error.
+        if is_dynamic_output:
+            num_thread //= 2
+        if const_size != 0 and const_size < num_thread:
+            bx, tx = sch[out].split(fused, factor=const_size)
+        else:
+            bx, tx = sch[out].split(fused, factor=num_thread)
         sch[out].bind(tx, te.thread_axis("threadIdx.x"))
         sch[out].bind(bx, te.thread_axis("blockIdx.x"))
 

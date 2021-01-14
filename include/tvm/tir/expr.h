@@ -56,6 +56,7 @@ class StringImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
@@ -90,6 +91,7 @@ class CastNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CastNode* other, SEqualReducer equal) const {
@@ -131,6 +133,7 @@ class BinaryOpNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -312,6 +315,7 @@ class CmpOpNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -435,6 +439,7 @@ class AndNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AndNode* other, SEqualReducer equal) const {
@@ -473,6 +478,7 @@ class OrNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("a", &a);
     v->Visit("b", &b);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const OrNode* other, SEqualReducer equal) const {
@@ -508,6 +514,7 @@ class NotNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("a", &a);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const NotNode* other, SEqualReducer equal) const {
@@ -554,6 +561,7 @@ class SelectNode : public PrimExprNode {
     v->Visit("condition", &condition);
     v->Visit("true_value", &true_value);
     v->Visit("false_value", &false_value);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const SelectNode* other, SEqualReducer equal) const {
@@ -604,6 +612,7 @@ class BufferLoadNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("buffer", &buffer);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferLoadNode* other, SEqualReducer equal) const {
@@ -651,6 +660,7 @@ class ProducerLoadNode : public PrimExprNode {
     v->Visit("dtype", &(this->dtype));
     v->Visit("producer", &producer);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerLoadNode* other, SEqualReducer equal) const {
@@ -708,6 +718,7 @@ class LoadNode : public PrimExprNode {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("index", &index);
     v->Visit("predicate", &predicate);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const LoadNode* other, SEqualReducer equal) const {
@@ -760,6 +771,7 @@ class RampNode : public PrimExprNode {
     v->Visit("base", &base);
     v->Visit("stride", &stride);
     v->Visit("lanes", &lanes);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const RampNode* other, SEqualReducer equal) const {
@@ -800,6 +812,7 @@ class BroadcastNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
     v->Visit("lanes", &lanes);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BroadcastNode* other, SEqualReducer equal) const {
@@ -843,6 +856,7 @@ class LetNode : public PrimExprNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
@@ -890,6 +904,7 @@ class CallNode : public PrimExprNode {
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
     v->Visit("args", &args);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -931,6 +946,7 @@ class ShuffleNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vectors", &vectors);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ShuffleNode* other, SEqualReducer equal) const {
@@ -993,6 +1009,7 @@ class CommReducerNode : public Object {
     v->Visit("rhs", &rhs);
     v->Visit("result", &result);
     v->Visit("identity_element", &identity_element);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const CommReducerNode* other, SEqualReducer equal) const {
@@ -1052,6 +1069,7 @@ class ReduceNode : public PrimExprNode {
     v->Visit("axis", &axis);
     v->Visit("condition", &condition);
     v->Visit("value_index", &value_index);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ReduceNode* other, SEqualReducer equal) const {
@@ -1091,7 +1109,10 @@ class Reduce : public PrimExpr {
 /*! \brief Any shape. */
 class AnyNode : public PrimExprNode {
  public:
-  void VisitAttrs(AttrVisitor* v) { v->Visit("dtype", &dtype); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype);

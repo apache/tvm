@@ -58,6 +58,10 @@ class SubprocessEnv(object):
         return subprocess.check_output(cmd, env=env, **kw)
 
 
+class ProjectNotFoundError(Exception):
+    """Raised when the project_dir supplied to ZephyrCompiler does not exist."""
+
+
 class FlashRunnerNotSupported(Exception):
     """Raised when the FLASH_RUNNER for a project isn't supported by this Zephyr adapter."""
 
@@ -95,6 +99,13 @@ class ZephyrCompiler(tvm.micro.Compiler):
             If given, additional environment variables present when invoking west, cmake, or make.
         """
         self._project_dir = project_dir
+        if not os.path.exists(project_dir):
+            # Raise this error instead of a potentially-more-cryptic compiler error due to a missing
+            # prj.conf.
+            raise ProjectNotFoundError(
+                f"project_dir supplied to ZephyrCompiler does not exist: {project_dir}"
+            )
+
         self._board = board
         if west_cmd is None:
             self._west_cmd = [sys.executable, "-mwest.app.main"]
@@ -376,7 +387,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
             return flash_runner
 
         with open(cmake_entries["ZEPHYR_RUNNERS_YAML"]) as f:
-            doc = yaml.load(f)
+            doc = yaml.load(f, Loader=yaml.FullLoader)
         return doc["flash-runner"]
 
     def _get_device_args(self, cmake_entries):

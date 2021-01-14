@@ -38,13 +38,16 @@ class ObjectGeneric(object):
 ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PyNativeObject)
 
 
-def convert_to_object(value):
+def convert_to_object(value, span=None):
     """Convert a Python value to corresponding object type.
 
     Parameters
     ----------
     value : str
         The value to be inspected.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
 
     Returns
     -------
@@ -54,9 +57,9 @@ def convert_to_object(value):
     if isinstance(value, ObjectTypes):
         return value
     if isinstance(value, bool):
-        return const(value, "uint1x1")
+        return const(value, "uint1x1", span=span)
     if isinstance(value, Number):
-        return const(value)
+        return const(value, span=span)
     if isinstance(value, string_types):
         return _ffi_api.String(value)
     if isinstance(value, (list, tuple)):
@@ -78,12 +81,15 @@ def convert_to_object(value):
     raise ValueError("don't know how to convert type %s to object" % type(value))
 
 
-def convert(value):
+def convert(value, span=None):
     """Convert value to TVM object or function.
 
     Parameters
     ----------
     value : python value
+
+    span : Optional[Span]
+        The location of this statement in the source code.
 
     Returns
     -------
@@ -96,7 +102,7 @@ def convert(value):
     if callable(value):
         return convert_to_tvm_func(value)
 
-    return convert_to_object(value)
+    return convert_to_object(value, span=span)
 
 
 def _scalar_type_inference(value):
@@ -117,7 +123,7 @@ def _scalar_type_inference(value):
     return dtype
 
 
-def const(value, dtype=None):
+def const(value, dtype=None, span=None):
     """construct a constant
 
     Parameters
@@ -128,6 +134,9 @@ def const(value, dtype=None):
     dtype : str or None, optional
         The data type.
 
+    span : Optional[Span]
+        The location of the constant value in the source.
+
     Returns
     -------
     const_val: tvm.Expr
@@ -136,8 +145,8 @@ def const(value, dtype=None):
     if dtype is None:
         dtype = _scalar_type_inference(value)
     if dtype == "uint64" and value >= (1 << 63):
-        return _ffi_node_api.LargeUIntImm(dtype, value & ((1 << 32) - 1), value >> 32)
-    return _ffi_node_api._const(value, dtype)
+        return _ffi_node_api.LargeUIntImm(dtype, value & ((1 << 32) - 1), value >> 32, span)
+    return _ffi_node_api._const(value, dtype, span)
 
 
 _set_class_object_generic(ObjectGeneric, convert_to_object)

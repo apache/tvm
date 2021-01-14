@@ -54,6 +54,7 @@ from . import vision
 from . import image
 from . import sparse
 from . import hls
+from . import random
 
 # error reporting
 from .utils import InvalidShapeError
