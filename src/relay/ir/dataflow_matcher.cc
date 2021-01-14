@@ -168,7 +168,11 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     // and replace the whole thing with a Visitor-based approach
     ReflectionVTable* reflection = ReflectionVTable::Global();
     auto attrs_node = const_cast<BaseAttrsNode*>(op->attrs.get());
-    auto attr_names = reflection->ListAttrNames(attrs_node);
+    // attrs may be undefined on non-op calls so we check first
+    std::vector<std::string> attr_names;
+    if (attrs_node) {
+      attr_names = reflection->ListAttrNames(attrs_node);
+    }
     for (auto kv : attributes) {
       std::string attr = kv.first;
       if (matches && std::find(attr_names.begin(), attr_names.end(), attr) != attr_names.end()) {
