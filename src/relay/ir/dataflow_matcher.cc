@@ -58,6 +58,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const IfPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
@@ -409,6 +410,17 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
     }
   }
   return matches;
+}
+
+bool DFPatternMatcher::VisitDFPattern_(const IfPatternNode* op, const Expr& expr) {
+  if (const auto* if_node = expr.as<IfNode>()) {
+    auto cond = if_node->cond;
+    auto true_branch = if_node->true_branch;
+    auto false_branch = if_node->false_branch;
+    return VisitDFPattern(op->cond, cond) && VisitDFPattern(op->true_branch, true_branch) &&
+           VisitDFPattern(op->false_branch, false_branch);
+  }
+  return false;
 }
 
 Expr InferType(const Expr& expr) {
