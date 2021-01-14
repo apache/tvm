@@ -25,7 +25,6 @@ from tvm import relay
 from test_verilator.infrastructure import (
     _register_verilator_op,
     skip_test,
-    compile_hardware,
     compile_module,
     run_module,
     offload,
