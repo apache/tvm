@@ -38,3 +38,7 @@ def test_const_dtype():
     b = _op.const(1, dtype="int8")
     bb = b.data.asnumpy()
     assert bb.dtype == np.dtype(np.int8)
+
+    kshape = (3, 10, 3, 3)
+    w = relay.const(np.zeros(kshape, dtype="float32"))
+    assert w.data.asnumpy().dtype == np.dtype(np.float32)

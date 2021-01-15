@@ -509,7 +509,9 @@ def const(value, dtype=None):
         )
 
     if isinstance(value, (_np.ndarray, _np.generic)):
-        value = _nd.array(value.astype(dtype))
+        if dtype is not None:
+            value = value.astype(dtype)
+        value = _nd.array(value)
 
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
