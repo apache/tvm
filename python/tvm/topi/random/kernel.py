@@ -20,6 +20,8 @@ import tvm.topi
 from ... import tir
 from ...tir import ir_builder
 
+import numpy as np
+
 
 # Threefry PRNG with splitting based on
 # - J. K. Salmon, M. A. Moraes, R. O. Dror and D. E. Shaw, "Parallel random numbers: As easy as 1,
@@ -200,6 +202,13 @@ def threefry_generate(gen, out_shape):
     If there is not enough room left in the counter to generate the desired shape of random values,
     then a new generator is created by applying Threefry to the current key, path, and counter.
     This new generator will have a reset counter.
+
+    Warning
+    -------
+    Threeyfry requires that unsigned integer arithmetic wraps on overflow. Currently TVM has no
+    guarantee of this, so threefry contains an internal assert to check wrapping behavior. This
+    assert may or may not run depending on your platform, so it is recommended you run
+    :py:func:`threefry_test_wrapping` to verify wrapping behavior.
 
     Parameters
     ----------
@@ -420,3 +429,35 @@ def threefry_split(gen):
         name="threefry_split",
         tag="threefry_split",
     )
+
+
+def threefry_test_wrapping(target, ctx):
+    """Test that unsigned arithmetic wraps on overflow.
+
+    Parameters
+    ----------
+    target : tvm.target.Target
+        Target to run against
+    ctx : tvm.runtime.TVMContext
+        Context to run the test on
+
+    Returns
+    -------
+    is_wrapping : bool
+        Whether or not unsigned integer arithmetic is wrapping for this target, context pair. True
+        indicates that threefry will work on this platform.
+    """
+
+    def ir(out_ptr):
+        irb = ir_builder.create()
+        out = irb.buffer_ptr(out_ptr)
+        out[0] = tvm.tir.const(0xFFFFFFFFFFFFFFFF, "uint64") + tvm.tir.const(1, "uint64")
+        return irb.get()
+
+    out = tvm.tir.decl_buffer((1,), dtype="uint64")
+    f = tvm.te.extern([out.shape], [], lambda ins, outs: ir(outs[0]), dtype="uint64")
+    s = tvm.te.create_schedule([f.op])
+    p = tvm.te.placeholder((1,), "uint64")
+    out_ary = tvm.nd.array(np.zeros((1,), "uint64"))
+    tvm.build(s, [p])(out_ary)
+    return out_ary.asnumpy()[0] == 0
