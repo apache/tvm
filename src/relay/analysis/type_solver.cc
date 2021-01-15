@@ -102,7 +102,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
   explicit Unifier(TypeSolver* solver, const Span& span) : solver_(solver), span(span) {}
 
-  Type Unify(const Type& src, const Type& dst) {
+  Type Unify(const Type& src, const Type& dst, bool assign_src = true, bool assign_dst = true) {
     // Known limitation
     // - handle shape pattern matching
     TypeNode* lhs = solver_->GetTypeNode(dst);
@@ -113,14 +113,14 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return lhs->resolved_type;
     }
 
-    if (lhs->resolved_type.as<IncompleteTypeNode>()) {
+    if (lhs->resolved_type.as<IncompleteTypeNode>() && assign_dst) {
       ICHECK(!OccursCheck(lhs, rhs->resolved_type))
           << "Incomplete type " << lhs->resolved_type << " occurs in " << rhs->resolved_type
           << ", cannot unify";
 
       solver_->MergeFromTo(lhs, rhs);
       return rhs->resolved_type;
-    } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
+    } else if (rhs->resolved_type.as<IncompleteTypeNode>() && assign_src) {
       ICHECK(!OccursCheck(rhs, lhs->resolved_type))
           << "Incomplete type " << rhs->resolved_type << " occurs in " << lhs->resolved_type
           << ", cannot unify";
@@ -139,8 +139,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
         return lhs->resolved_type;
       } else {
         TypeNode* top = solver_->GetTypeNode(resolved);
-        solver_->MergeFromTo(lhs, top);
-        solver_->MergeFromTo(rhs, top);
+        if (assign_dst) solver_->MergeFromTo(lhs, top);
+        if (assign_src) solver_->MergeFromTo(rhs, top);
         return resolved;
       }
     }
@@ -549,9 +549,10 @@ void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
 }
 
 // Add equality constraint
-Type TypeSolver::Unify(const Type& dst, const Type& src, const Span& span) {
+Type TypeSolver::Unify(const Type& dst, const Type& src, const Span& span, bool assign_lhs,
+                       bool assign_rhs) {
   Unifier unifier(this, span);
-  return unifier.Unify(dst, src);
+  return unifier.Unify(dst, src, assign_lhs, assign_rhs);
 }
 
 // Add type constraint to the solver.
