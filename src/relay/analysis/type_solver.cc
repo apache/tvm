@@ -113,14 +113,14 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return lhs->resolved_type;
     }
 
-    if (lhs->resolved_type.as<IncompleteTypeNode>() && assign_dst) {
+    if (lhs->resolved_type.as<IncompleteTypeNode>()) {
       ICHECK(!OccursCheck(lhs, rhs->resolved_type))
           << "Incomplete type " << lhs->resolved_type << " occurs in " << rhs->resolved_type
           << ", cannot unify";
 
       solver_->MergeFromTo(lhs, rhs);
       return rhs->resolved_type;
-    } else if (rhs->resolved_type.as<IncompleteTypeNode>() && assign_src) {
+    } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
       ICHECK(!OccursCheck(rhs, lhs->resolved_type))
           << "Incomplete type " << rhs->resolved_type << " occurs in " << lhs->resolved_type
           << ", cannot unify";
