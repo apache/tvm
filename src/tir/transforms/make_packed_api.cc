@@ -45,12 +45,20 @@ class ReturnRewriter : public StmtMutator {
  public:
   explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
 
+  Stmt VisitStmt_(const ForNode* node) override {
+    if (node->for_type == ForType::Parallel) in_parallel_ += 1;
+    Stmt ret = StmtMutator::VisitStmt_(node);
+    if (node->for_type == ForType::Parallel) in_parallel_ -= 1;
+    return ret;
+  } 
+
   Stmt VisitStmt_(const EvaluateNode* node) override {
     Stmt ret = StmtMutator::VisitStmt_(node);
     const EvaluateNode* eval = ret.as<EvaluateNode>();
     ICHECK(eval);
     if (const CallNode* call = eval->value.as<CallNode>()) {
       if (call->op.same_as(builtin::ret())) {
+        ICHECK_EQ(in_parallel_, 0) << "tir.ret cannot be used in parallel scope.";
         ICHECK_EQ(call->args.size(), 1) << "tir.ret expect a single argument.";
         ret = WriteToOut(call->args[0], ret_var_, ret_tcode_);
       }
@@ -86,6 +94,7 @@ class ReturnRewriter : public StmtMutator {
 
   Var ret_var_;
   Var ret_tcode_;
+  int in_parallel_{0};
 };
 
 Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
