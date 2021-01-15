@@ -157,8 +157,7 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    buf_stream << dtype << "* " << out << " = (" << dtype << "*)std::malloc(4 * " << out_size
-               << ");";
+    buf_stream << dtype << "* " << out << " = (" << dtype << "*)malloc(4 * " << out_size << ");";
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";
@@ -229,25 +228,33 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     String func_name = std::get<1>(res);
 
     // Create headers
-    code_stream_ << "#include <cstring>\n";
-    code_stream_ << "#include <vector>\n";
+    code_stream_ << "#include <stdio.h>\n";
+    code_stream_ << "#include <stdlib.h>\n";
+    code_stream_ << "#include <string.h>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
-    code_stream_ << "#include <tvm/runtime/container.h>\n";
-    code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
-    code_stream_ << "#include <dlpack/dlpack.h>\n";
-    code_stream_ << "using namespace tvm::runtime;\n";
+    code_stream_ << "#include <tvm/runtime/c_backend_api.h>\n";
+    if (!variables.empty()) {
+      // This segment would be generated in C++ because of the usage
+      // of tvm::runtime::Array. This is not ideal, but this to demonstrate
+      // constant copying process used packed imports in other external
+      // codegen. Moreover, in uTVM we dont expect this part to be generated.
+      code_stream_ << "#ifdef __cplusplus\n";
+      code_stream_ << "#include <tvm/runtime/ndarray.h>\n";
+      code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
+      code_stream_ << "#endif\n";
+    }
 
     // Append some common macro for operator definition.
     const char* operator_macro = R"op_macro(
     #define CSOURCE_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_, p_DTYPE)       \
-      extern "C" void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {    \
+      void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {    \
         for (int64_t i = 0; i < p_DIM1_; ++i) {                        \
           out[i] = a[i] p_OP_ b[i];                                    \
         }                                                              \
       }
 
     #define CSOURCE_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_, p_DTYPE)  \
-      extern "C" void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {        \
+      void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {        \
         for (int64_t i = 0; i < p_DIM1_; ++i) {                            \
           for (int64_t j = 0; j < p_DIM2_; ++j) {                          \
             int64_t k = i * p_DIM2_ + j;                                   \
