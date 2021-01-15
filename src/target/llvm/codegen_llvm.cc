@@ -932,7 +932,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     ICHECK(val) << "the tir.ret should be transformed to return zero "
                 << "before the llvm code generation.";
     ICHECK_EQ(val->value, 0) << "the tir.ret should be transformed to "
-                << "return zero before the llvm code generation.";
+                             << "return zero before the llvm code generation.";
     builder_->CreateRet(ConstInt32(0));
     // LLVM allows exactly one terminator in a single basic block
     // append a new dummy basic block to avoid error.
