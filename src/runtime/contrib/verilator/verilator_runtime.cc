@@ -25,17 +25,17 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
-#include <cstddef>
-#include <string>
-#include <vector>
-
-#include <dlfcn.h>
-
 #include "../../library_module.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "verilator_device.h"
 #include "verilator_kernel.h"
+
+#include <cstddef>
+#include <string>
+#include <vector>
+
+#include <dlfcn.h>
 
 namespace tvm {
 namespace runtime {
