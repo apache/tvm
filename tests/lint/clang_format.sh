@@ -19,5 +19,5 @@
 
 # check lastest change, for squash merge into main
 ./tests/lint/git-clang-format.sh HEAD~1
-# chekc against origin/main for PRs.
-./tests/lint/git-clang-format.sh origin/main
+# check against upstream/main for PRs.
+./tests/lint/git-clang-format.sh upstream/main
