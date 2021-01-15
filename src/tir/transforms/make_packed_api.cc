@@ -50,7 +50,7 @@ class ReturnRewriter : public StmtMutator {
     Stmt ret = StmtMutator::VisitStmt_(node);
     if (node->for_type == ForType::Parallel) in_parallel_ -= 1;
     return ret;
-  } 
+  }
 
   Stmt VisitStmt_(const EvaluateNode* node) override {
     Stmt ret = StmtMutator::VisitStmt_(node);
