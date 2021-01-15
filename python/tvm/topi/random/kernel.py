@@ -453,8 +453,8 @@ def threefry_test_wrapping(target, ctx):
         irb = ir_builder.create()
         out = irb.buffer_ptr(out_ptr)
         if "gpu" in target.keys:
-            tx = tvm.te.thread_axis("threadIdx.x")
-            irb.scope_attr(tx, "thread_extent", 1)
+            thread_x = tvm.te.thread_axis("threadIdx.x")
+            irb.scope_attr(thread_x, "thread_extent", 1)
         out[0] = tvm.tir.const(0xFFFFFFFFFFFFFFFF, "uint64") + tvm.tir.const(1, "uint64")
         return irb.get()
 
@@ -463,7 +463,6 @@ def threefry_test_wrapping(target, ctx):
         [out.shape], [], lambda ins, outs: gen_ir(outs[0]), dtype="uint64", out_buffers=[out]
     )
     s = tvm.te.create_schedule([f.op])
-    p = tvm.te.placeholder((1,), "uint64")
     out_ary = tvm.nd.array(np.ones((1,), "uint64"), ctx)
     tvm.build(s, [f], target=target)(out_ary)
     return out_ary.asnumpy()[0] == 0
