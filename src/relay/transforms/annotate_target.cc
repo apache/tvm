@@ -148,8 +148,8 @@ class AnnotateTargetRewriter : public ExprRewriter {
     if (op_expr_to_target_.find(expr) != op_expr_to_target_.end()) {
       // Check whether expr has args, if not - do not insert compiler_end.
       if (expr->IsInstance<RefWriteNode>() || expr->IsInstance<RefCreateNode>() ||
-          expr->IsInstance<RefReadNode>() || expr->IsInstance<TupleGetItemNode>()
-          || (call && !call->args.empty()) || (tup && !tup->fields.empty())) {
+          expr->IsInstance<RefReadNode>() || expr->IsInstance<TupleGetItemNode>() ||
+          (call && !call->args.empty()) || (tup && !tup->fields.empty())) {
         std::string target = op_expr_to_target_[new_expr];
         new_expr = InsertAnnotation(new_expr, target, make_end_op);
         op_expr_to_target_[new_expr] = target;
