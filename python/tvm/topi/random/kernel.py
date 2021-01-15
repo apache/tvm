@@ -17,10 +17,9 @@
 """Pseudorandom number kernels."""
 import tvm
 import tvm.topi
+import numpy as np
 from ... import tir
 from ...tir import ir_builder
-
-import numpy as np
 
 
 # Threefry PRNG with splitting based on
@@ -447,17 +446,22 @@ def threefry_test_wrapping(target, ctx):
         Whether or not unsigned integer arithmetic is wrapping for this target, context pair. True
         indicates that threefry will work on this platform.
     """
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
 
-    def ir(out_ptr):
+    def gen_ir(out_ptr):
         irb = ir_builder.create()
         out = irb.buffer_ptr(out_ptr)
+        if "gpu" in target.keys:
+            tx = tvm.te.thread_axis("threadIdx.x")
+            irb.scope_attr(tx, "thread_extent", 1)
         out[0] = tvm.tir.const(0xFFFFFFFFFFFFFFFF, "uint64") + tvm.tir.const(1, "uint64")
         return irb.get()
 
     out = tvm.tir.decl_buffer((1,), dtype="uint64")
-    f = tvm.te.extern([out.shape], [], lambda ins, outs: ir(outs[0]), dtype="uint64")
+    f = tvm.te.extern([out.shape], [], lambda ins, outs: gen_ir(outs[0]), dtype="uint64", out_buffers=[out])
     s = tvm.te.create_schedule([f.op])
     p = tvm.te.placeholder((1,), "uint64")
-    out_ary = tvm.nd.array(np.zeros((1,), "uint64"))
-    tvm.build(s, [p])(out_ary)
+    out_ary = tvm.nd.array(np.ones((1,), "uint64"), ctx)
+    tvm.build(s, [f], target=target)(out_ary)
     return out_ary.asnumpy()[0] == 0
