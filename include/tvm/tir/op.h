@@ -74,6 +74,7 @@ TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
  * \brief Return the value.
  *
  * \param value The returned value.
+ * \param span The location of this operation in the source.
  * \return The return expression.
  */
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
