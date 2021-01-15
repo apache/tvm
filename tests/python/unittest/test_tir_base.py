@@ -18,6 +18,7 @@ import tvm
 from tvm import tir
 from tvm.ir.transform import PassContext
 
+
 def build_tir_func(func):
     func = func.with_attr("global_symbol", "main")
     pass_ctx = PassContext.current()
@@ -25,7 +26,7 @@ def build_tir_func(func):
         func = func.with_attr("tir.noalias", True)
     mod = tvm.IRModule({"main": func})
     func = tvm.build(mod)
-    return func 
+    return func
 
 
 def test_scalar_add():
