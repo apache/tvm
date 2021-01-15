@@ -145,6 +145,10 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   }
 }
 
+PrimExpr ret(PrimExpr value, Span span) {
+  return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
+}
+
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
   using namespace tir;

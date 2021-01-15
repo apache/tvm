@@ -927,6 +927,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
+  } else if (op->op.same_as(builtin::ret())) {
+    ICHECK_EQ(Downcast<IntImm>(op->args[0])->value, 0);
+    builder_->CreateRet(ConstInt32(0));
+    llvm::BasicBlock* ret_dummy = llvm::BasicBlock::Create(*ctx_, "ret_dummy", function_);
+    builder_->SetInsertPoint(ret_dummy);
+    return ret_dummy;
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);

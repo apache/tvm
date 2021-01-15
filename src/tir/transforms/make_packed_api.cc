@@ -60,6 +60,7 @@ class ReturnRewriter : public StmtMutator {
 
  private:
   std::pair<int, PrimExpr> ConvertForFFI(PrimExpr val) {
+    // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
     if (dtype.is_int() || dtype.is_uint()) {
       return {kTVMArgInt, Cast(DataType::Int(64), val)};
@@ -72,14 +73,15 @@ class ReturnRewriter : public StmtMutator {
     }
     return {kTVMNullptr, val};
   }
-  // convert val's data type to FFI data type, return type code
+
   Stmt WriteToOut(PrimExpr val, Var ret_var, Var ret_tcode) {
     auto p = ConvertForFFI(val);
     int tcode = p.first;
     val = p.second;
     Stmt store_val = Store(ret_var_, val, 0, const_true());
     Stmt store_tcode = Store(ret_tcode_, tcode, 0, const_true());
-    return SeqStmt({store_val, store_tcode});
+    Stmt ret_zero = Evaluate(tvm::ret(0));
+    return SeqStmt({store_val, store_tcode, ret_zero});
   }
 
   Var ret_var_;
