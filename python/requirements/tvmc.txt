@@ -1,0 +1,6 @@
+onnx>=1.7.0
+onnxruntime>=1.0.0
+tensorflow>=2.1.0
+tflite>=2.1.0
+torch>=1.7.0,<2.0.0
+torchvision>=0.5.0

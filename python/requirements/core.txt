@@ -1,0 +1,6 @@
+attrs
+decorator
+numpy
+psutil
+scipy
+synr>=0.2.1

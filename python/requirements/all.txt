@@ -1,0 +1,16 @@
+numpy
+synr>=0.2.1
+psutil
+coremltools
+torchvision>=0.5.0
+decorator
+scipy
+onnx>=1.7.0
+future
+tensorflow>=2.1.0
+onnxruntime>=1.0.0
+attrs
+opencv-python
+tflite>=2.1.0
+tensorflow-estimator
+torch>=1.7.0,<2.0.0

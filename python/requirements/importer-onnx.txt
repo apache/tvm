@@ -1,0 +1,5 @@
+future
+onnx>=1.7.0
+onnxruntime>=1.0.0
+torch>=1.7.0,<2.0.0
+torchvision>=0.5.0
