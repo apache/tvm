@@ -72,7 +72,7 @@ TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 
 /*!
  * \brief Return the value.
- * 
+ *
  * \param value The returned value.
  * \return The return expression.
  */
