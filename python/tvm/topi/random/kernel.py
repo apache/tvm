@@ -459,7 +459,9 @@ def threefry_test_wrapping(target, ctx):
         return irb.get()
 
     out = tvm.tir.decl_buffer((1,), dtype="uint64")
-    f = tvm.te.extern([out.shape], [], lambda ins, outs: gen_ir(outs[0]), dtype="uint64", out_buffers=[out])
+    f = tvm.te.extern(
+        [out.shape], [], lambda ins, outs: gen_ir(outs[0]), dtype="uint64", out_buffers=[out]
+    )
     s = tvm.te.create_schedule([f.op])
     p = tvm.te.placeholder((1,), "uint64")
     out_ary = tvm.nd.array(np.ones((1,), "uint64"), ctx)
