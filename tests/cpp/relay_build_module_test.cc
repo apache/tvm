@@ -107,7 +107,7 @@ TEST(Relay, BuildModule) {
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
   Array<Integer> dep;
   dep.push_back(0);
-  (*reg)("add", "TShapeDataDependant", dep, 10);
+  (*reg)("add", "TShapeDataDependent", dep, 10);
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();
