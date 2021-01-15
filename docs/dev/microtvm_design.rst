@@ -36,7 +36,7 @@ change for a proof-of-concept implementation on such devices, the runtime cannot
   projects implement support for these, but they are by no means standard.
 * Support for programming languages other than **C**.
 
-Such changes require a different appraoch from the TVM C++ runtime typically used on traditional
+Such changes require a different approach from the TVM C++ runtime typically used on traditional
 Operating Systems.
 
 Typical Use
@@ -92,7 +92,7 @@ Modeling Target Platforms
 -------------------------
 
 TVM's search-based optimization approach allows it to largely avoid system-level modeling of targets
-in favor of experimental results. However, some modelling is necessary in order to ensure TVM is
+in favor of experimental results. However, some modeling is necessary in order to ensure TVM is
 comparing apples-to-apples search results, and to avoid wasting time during the search by attempting
 to compile invalid code for a target.
 
@@ -143,10 +143,10 @@ Writing Schedules for microTVM
 
 For operations scheduled on the CPU, microTVM initially plans to make use of specialized
 instructions and extern (i.e. hand-optimized) functions to achieve good performance. In TVM, this
-appraoch is generally accomplished through tensorization, in which TVM breaks a computation into
+approach is generally accomplished through tensorization, in which TVM breaks a computation into
 small pieces, and a TIR extern function accelerates each small piece.
 
-TVM currently accomodates both approaches using ``tir.call_extern``. First, a pragma is attached to
+TVM currently accommodates both approaches using ``tir.call_extern``. First, a pragma is attached to
 the schedule defining the extern function in portable C.
 
     ``sched[output].pragma(n, "import_c", "void call_asm(int32_t* a, int32_t* b) { /* ... */ }")``
@@ -183,10 +183,11 @@ are of course not easy to use from LLVM bitcode.
 Executing Models
 ----------------
 
-The TVM compiler traditionally outputs 3 pieces:
-1. Model operator implementations, as discussed above.
-2. A model execution graph, encoded as JSON
-3. Simplified parameters
+The TVM compiler traditionally outputs three pieces:
+
+1. Model operator implementations, as discussed above;
+2. A model execution graph, encoded as JSON; and
+3. Simplified parameters.
 
 To correctly execute the model, a Graph Runtime needs to reconstruct the graph in memory, load the
 parameters, and then invoke the operator implementations in the correct order.
@@ -206,11 +207,11 @@ Host-Driven Execution
 
 In Host-Driven execution, the firmware binary is the following:
 
-1. Generated operator implementations from TVM
-2. The TVM C runtime
+1. Generated operator implementations from TVM.
+2. The TVM C runtime.
 3. SoC-specific initialization.
 4. The TVM RPC server.
-5. (optional) Simplified Parameters
+5. (optional) Simplified Parameters.
 
 This firmware image is flashed onto the device and a GraphRuntime instance is created on the host.
 The GraphRuntime drives execution by sending RPC commands over a UART:
@@ -270,7 +271,7 @@ For Standalone model execution, firmware also needs:
 5. The remaining compiler outputs (Simplified Parameters and Graph JSON).
 
 The Automated Build Flow
--------------------------
+------------------------
 
 Once code generation is complete, ``tvm.relay.build`` returns a ``tvm.runtime.Module`` and the
 user can save the generated C source or binary object to a ``.c`` or ``.o`` file. From this point, TVM
@@ -287,12 +288,12 @@ However, for AutoTVM, TVM needs some automated flow to handle the following task
 At present, TVM expects the user to supply an implementation of the ``tvm.micro.Compiler``,
 ``tvm.micro.Flasher``, and ``tvm.micro.Transport`` interfaces. TVM then:
 
-1. Builds each piece separately as a library
+1. Builds each piece separately as a library.
 2. Builds the libraries into a binary firmware image.
 3. Programs the firmware image onto an attached device.
 4. Opens a serial port to serve as the RPC server transport.
 
-This design was chosen to reduce build times for microTVM (the common libraries need to be build
+This design was chosen to reduce build times for microTVM (the common libraries need to be built
 only once per candidate operator implemmentation). In practice, these projects are extremely small
 and compile relatively quickly. Compared with the added complexity of this tighter build integration
 with TVM, the performance gains are likely not worth it. A future design will consolidate the build
@@ -303,7 +304,7 @@ Measuring operator performance
 
 The TVM C runtime depends on user-supplied functions to measure time on-device. Users should implement
 ``TVMPlatformTimerStart`` and ``TVMPlatformTimerStop``. These functions should measure wall clock time, so there
-are some pitfalls in implementing this function:
+are some pitfalls in implementing these functions:
 
 1. If the CPU could halt or sleep during a computation (i.e. if it is being done on an accelerator),
    a cycle counter should likely not be used as these tend to stop counting while the CPU is asleep.
@@ -313,7 +314,7 @@ are some pitfalls in implementing this function:
 4. The timer should not interrupt computation unless absolutely necessary. Doing so may affect the
    accuracy of the results.
 5. Calibrating the output against a wall clock is ideal, but it will likely be too cumbersome. A
-   future PR could enable some characterization of the platform timer by e.g. measuring the internal
+   future PR could enable some characterization of the platform timer by, e.g., measuring the internal
    oscillator against a reference such as an external crystal.
 
 Future Work
@@ -339,7 +340,7 @@ peak memory usage.
 Heterogeneous Execution
 -----------------------
 
-Newer Cortex-M SoC can contain multiple CPUs and onboard ML accelerators.
+Newer Cortex-M SoCs can contain multiple CPUs and onboard ML accelerators.
 
 
 Autotuning Target
