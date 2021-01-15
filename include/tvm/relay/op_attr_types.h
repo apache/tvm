@@ -83,9 +83,9 @@ using TOpIsStateful = bool;
 using TNonComputational = bool;
 
 /*!
- * \brief Mark the operator whether output shape is data dependant.
+ * \brief Mark the operator whether output shape is data dependent.
  */
-using TShapeDataDependant = Array<Integer>;
+using TShapeDataDependent = Array<Integer>;
 
 /*!
  * \brief Computation description interface.
