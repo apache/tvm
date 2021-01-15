@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm
+import numpy as np
 from tvm import relay
 from tvm.relay.frontend.common import infer_type
 from tvm.relay import op as _op
-import numpy as np
 
 
 def test_const_dtype():
@@ -28,3 +29,12 @@ def test_const_dtype():
 
     # strides needs to be autoconverted to int64 on Windows
     assert infer_type(strides).checked_type.dtype == np.dtype(np.int64)
+
+    a = tvm.nd.array(np.random.randint(0, high=255, size=(2, 3), dtype="uint8"))
+    a = _op.const(a, dtype="uint8")
+    aa = a.data.asnumpy()
+    assert aa.dtype == np.dtype(np.uint8)
+
+    b = _op.const(1, dtype="int8")
+    bb = b.data.asnumpy()
+    assert bb.dtype == np.dtype(np.int8)
