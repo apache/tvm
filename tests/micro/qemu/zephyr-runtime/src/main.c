@@ -163,19 +163,21 @@ tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
 }
 
 tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
-  while (num_bytes > 0) {
-    uint32_t random = sys_rand32_get();
-    if (num_bytes > sizeof(random)) {
-      *((uint32_t*)buffer) = random;
-      num_bytes -= sizeof(random);
-      buffer += sizeof(random);
-      continue;
-    }
+  uint32_t random;  // one unit of random data.
 
-    for (int i = 0; i < num_bytes; ++i) {
-      buffer[i] = ((uint8_t*)&random)[i];
-    }
-    num_bytes = 0;
+  // Fill parts of `buffer` which are as large as `random`.
+  size_t num_full_blocks = num_bytes / sizeof(random);
+  for (int i = 0; i < num_full_blocks; ++i) {
+    random = sys_rand32_get();
+    memcpy(&buffer[i * sizeof(random)], &random, sizeof(random));
+  }
+
+  // Fill any leftover tail which is smaller than `random.
+  size_t full_blocks_end = num_full_blocks * sizeof(random);
+  size_t num_tail_bytes = num_bytes - full_blocks_end;
+  if (num_tail_bytes > 0) {
+    random = sys_rand32_get();
+    memcpy(&buffer[full_blocks_end], &random, num_tail_bytes);
   }
 
   return kTvmErrorNoError;
