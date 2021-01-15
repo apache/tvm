@@ -520,7 +520,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     data_dependents_.push_back(IsDataDependent(call_node));
 
     Array<Integer> dep_spec = tshape_data_dependent[op];
-    if (dep_spec.size() == 1 && call_node->args.size() > 1) {
+    if (dep_spec.size() == 1) {
       for (size_t i = 1; i < call_node->args.size(); ++i) {
         dep_spec.push_back(dep_spec[0]);
       }
