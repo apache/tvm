@@ -63,7 +63,7 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K):
     check_device("cuda")
 
 
-@tvm.testing.uses_gpu
+@tvm.testing.requires_tensorcore
 def test_batch_matmul():
     verify_batch_matmul(1, 1, 16, 16, 32)
     verify_batch_matmul(5, 5, 16, 16, 32)
