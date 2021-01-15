@@ -102,11 +102,12 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
   explicit Unifier(TypeSolver* solver, const Span& span) : solver_(solver), span(span) {}
 
-  Type Unify(const Type& src, const Type& dst, bool assign_src = true, bool assign_dst = true) {
+  Type Unify(const Type& lhs_type, const Type& rhs_type, bool assign_lhs = true,
+             bool assign_rhs = true) {
     // Known limitation
     // - handle shape pattern matching
-    TypeNode* lhs = solver_->GetTypeNode(dst);
-    TypeNode* rhs = solver_->GetTypeNode(src);
+    TypeNode* lhs = solver_->GetTypeNode(lhs_type);
+    TypeNode* rhs = solver_->GetTypeNode(rhs_type);
 
     // do occur check so we don't create self-referencing structure
     if (lhs->FindRoot() == rhs->FindRoot()) {
@@ -139,8 +140,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
         return lhs->resolved_type;
       } else {
         TypeNode* top = solver_->GetTypeNode(resolved);
-        if (assign_dst) solver_->MergeFromTo(lhs, top);
-        if (assign_src) solver_->MergeFromTo(rhs, top);
+        if (assign_lhs) solver_->MergeFromTo(lhs, top);
+        if (assign_rhs) solver_->MergeFromTo(rhs, top);
         return resolved;
       }
     }
