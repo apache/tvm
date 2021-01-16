@@ -265,7 +265,7 @@ def test_cpu_zero_rank_sketch():
 
 def test_cpu_custom_sketch():
     def meet_condition_func(search_policy, state, stage_id):
-        return auto_scheduler.PreloadCustomSketchRule.CONDITION_NUM["apply_and_skip_rest"]
+        return auto_scheduler.PreloadCustomSketchRule.APPLY_AND_SKIP_REST
 
     def apply_func(search_policy, state, stage_id):
         ret = []
