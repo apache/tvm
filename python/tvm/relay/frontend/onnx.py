@@ -1110,18 +1110,37 @@ class Split(OnnxOpConverter):
     """Operator converter for Split."""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        splits = attr.get("split", False)
-        if splits:
+    def split_common(cls, inputs, attr, params, splits):
+        if splits is not None:
+            indices = []
             attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
-                attr["indices_or_sections"].append(index)
+                indices.append(index)
         # When splits isnt specified divide evenly over axis.
         else:
-            attr["indices_or_sections"] = attr["tvm_custom"]["num_outputs"]
-        return AttrCvt("split", ignores=["split"])(inputs, attr, params)
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        splits = attr.get("split", None)
+        return cls.split_common(inputs, attr, params, splits)
+
+        
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        splits = inputs[1]
+        if splits is not None and splits.name_hint not in params:
+            raise NotImplementedError("Dynamic Split is not yet supported.")
+        elif splits is not None:
+            splits = params[splits.name_hint].asnumpy()
+        return cls.split_common(inputs, attr, params, splits)
 
 
 class Slice(OnnxOpConverter):

@@ -94,7 +94,7 @@ def get_tvm_output(
     # execute
     m.run()
     # get outputs
-    if isinstance(output_shape, list) and isinstance(output_dtype, list):
+    if isinstance(output_shape, list):
         tvm_output_list = []
         for i, _ in enumerate(output_shape):
             tvm_output = m.get_output(i)
@@ -105,17 +105,19 @@ def get_tvm_output(
         return tvm_output.asnumpy()
 
 
-def get_onnxruntime_output(model, inputs, dtype="float32"):
+def get_onnxruntime_output(model, inputs):
     import onnxruntime.backend
 
     rep = onnxruntime.backend.prepare(model, "CPU")
-    if isinstance(inputs, list) and len(inputs) > 1:
-        return rep.run(inputs)
-    elif isinstance(inputs, list) and len(inputs) == 1:
+    if isinstance(inputs, list) and len(inputs) == 1:
         inp = inputs[0]
     else:
         inp = inputs
-    return rep.run(inp.astype(dtype))[0]
+    output = rep.run(inp)
+    # Unpack output if there's only a single value.
+    if len(output) == 1:
+        output = output[0]
+    return output
 
 
 def verify_with_ort_with_inputs(
@@ -131,14 +133,7 @@ def verify_with_ort_with_inputs(
     rtol=1e-5,
     atol=1e-5,
 ):
-    def flatten(out):
-        if isinstance(out, list) and len(out) == 1:
-            out = out[0]
-        if isinstance(out, np.ndarray):
-            return out.flatten()
-        return out
-
-    ort_out = get_onnxruntime_output(model, inputs, dtype)
+    ort_out = get_onnxruntime_output(model, inputs)
 
     if targets is None:
         targets = [tgt for (tgt, _) in tvm.testing.enabled_targets()]
@@ -158,7 +153,12 @@ def verify_with_ort_with_inputs(
         else:
             tvm_out = get_tvm_output(model, inputs, target, ctx, out_shape, dtype, opset=opset)
 
-        tvm.testing.assert_allclose(flatten(ort_out), flatten(tvm_out), rtol=rtol, atol=atol)
+        if not isinstance(tvm_out, list):
+            tvm_out = [tvm_out]
+        if not isinstance(ort_out, list):
+            ort_out = [ort_out]
+        for tvm_val, ort_val in zip(tvm_out, ort_out):
+            tvm.testing.assert_allclose(ort_val, tvm_val, rtol=rtol, atol=atol)
 
 
 def verify_with_ort(
@@ -1063,10 +1063,7 @@ def verify_batch_matmul(a_shape, b_shape, out_shape, target, ctx):
     )
 
     model = helper.make_model(graph, producer_name="matmul_test")
-    onnx_out = get_onnxruntime_output(model, [a_array, b_array], "float32")[0]
-
-    tvm_out = get_tvm_output_with_vm(model, [a_array, b_array], target, ctx)
-    tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+    verify_with_ort_with_inputs(model, [a_array, b_array], use_vm=True)
 
 
 # TODO(mbrookhart): enable cuda once VM supports heterogenous execution
@@ -1849,32 +1846,41 @@ def test_all_reduce_funcs():
             )
 
 
-def verify_split(indata, outdatas, split, axis=0, pass_split=True):
+def verify_split(indata, outdatas, split, axis=0, pass_split=True, opset=11):
     indata = np.array(indata).astype(np.float32)
     outdatas = [np.array(o).astype(np.float32) for o in outdatas]
+    inputs=[helper.make_tensor_value_info("input", TensorProto.FLOAT, list(indata.shape))]
+    input_names = ["input"]
+    initializer = []
+
     if split:
         split_index = range(len(split))
     else:
         split_index = range(len(outdatas))
+
     if pass_split:
-        node = helper.make_node(
+        if opset >= 13:
+            input_names.append("split")
+            np_split = np.array(split).astype(np.int64)
+            inputs.append(helper.make_tensor_value_info("split", TensorProto.INT64, list(np_split.shape)))
+            indata = [indata, np_split]
+            initializer.append(helper.make_tensor("split", TensorProto.INT64, list(np_split.shape), np_split))
+    node = helper.make_node(
             "Split",
-            inputs=["input"],
-            outputs=["output_{}".format(i) for i in range(len(split_index))],
-            axis=axis,
-            split=split,
-        )
-    else:
-        node = helper.make_node(
-            "Split",
-            inputs=["input"],
+            inputs=input_names,
             outputs=["output_{}".format(i) for i in range(len(split_index))],
             axis=axis,
         )
+
+    if pass_split and opset < 13:
+        split_attr = helper.make_attribute("split", split)
+        node.attribute.append(split_attr)
+
     graph = helper.make_graph(
         [node],
         "split_test",
-        inputs=[helper.make_tensor_value_info("input", TensorProto.FLOAT, list(indata.shape))],
+        inputs=inputs,
+        initializer=initializer,
         outputs=[
             helper.make_tensor_value_info(
                 "output_{}".format(i), TensorProto.FLOAT, list(outdatas[i].shape)
@@ -1883,18 +1889,9 @@ def verify_split(indata, outdatas, split, axis=0, pass_split=True):
         ],
     )
     model = helper.make_model(graph, producer_name="split_test")
+    model.opset_import[0].version = opset
 
-    import onnxruntime.backend
-
-    rep = onnxruntime.backend.prepare(model, "CPU")
-    onnx_out = rep.run(indata)
-
-    for target, ctx in tvm.testing.enabled_targets():
-        output_shape = [o.shape for o in outdatas]
-        output_type = ["float32", "float32", "float32"]
-        tvm_out = get_tvm_output(model, indata, target, ctx, output_shape, output_type)
-        for o, t in zip(onnx_out, tvm_out):
-            tvm.testing.assert_allclose(o, t)
+    verify_with_ort_with_inputs(model, indata, opset=opset, out_shape=list(range(len(split_index))))
 
 
 @tvm.testing.uses_gpu
@@ -1914,6 +1911,8 @@ def test_split():
     )
     # Split evenly (unstack)
     verify_split([1, 2, 3], [[1], [2], [3]], False, 0, False)
+    # Split a single value to a single value
+    verify_split([1], [[1]], [1], pass_split=True)
 
 
 @tvm.testing.uses_gpu
@@ -2138,7 +2137,7 @@ def check_torch_conversion(model, input_size):
     # Set verbose=True for more output
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
-    input_data = np.random.uniform(size=input_size).astype("int32")
+    input_data = np.random.uniform(size=input_size).astype("float32")
     verify_with_ort_with_inputs(onnx_model, [input_data])
 
 
@@ -3350,18 +3349,7 @@ def verify_rnn(
 
     model = helper.make_model(graph, producer_name="rnn_test")
 
-    for target, ctx in tvm.testing.enabled_targets():
-        onnx_out = get_onnxruntime_output(model, input_values, "float32")
-        tvm_out = get_tvm_output(
-            model,
-            input_values,
-            target,
-            ctx,
-            output_shapes,
-            output_dtype=["float32"] * len(output_shapes),
-        )
-        for o_out, t_out in zip(onnx_out, tvm_out):
-            tvm.testing.assert_allclose(o_out, t_out, rtol=5e-3, atol=5e-3)
+    verify_with_ort_with_inputs(model, input_values, output_shapes)
 
 
 @tvm.testing.uses_gpu
@@ -3674,11 +3662,7 @@ def test_topk():
         model = helper.make_model(graph, producer_name="topk_test")
 
         indata = np.random.uniform(-10, 10, input_dims).astype(np.float32)
-        onnx_out = get_onnxruntime_output(model, [indata, np.array([K])])
-
-        for target, ctx in [("llvm", tvm.cpu())]:
-            tvm_out = get_tvm_output_with_vm(model, [indata, np.array(K)], target, ctx)
-            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+        verify_with_ort_with_inputs(model, [indata, np.array(K)])
 
     for n in [12, 32]:
         for shape in [[n], [n, n], [n, n, n]]:
@@ -3914,12 +3898,7 @@ def verify_cond_loop():
     trip_count = np.array(40).astype(np.int64)
     cond = np.array(1).astype(np.bool)
     input_vals = [trip_count, cond, y]
-    onnx_out = get_onnxruntime_output(loop_model, input_vals)
-
-    for target, ctx in [("llvm", tvm.cpu())]:
-        tvm_out = get_tvm_output_with_vm(loop_model, input_vals, target, ctx, freeze_params=True)
-        for i in range(len(tvm_out)):
-            tvm.testing.assert_allclose(onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+    verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
 
 def verify_count_loop():
@@ -3974,12 +3953,7 @@ def verify_count_loop():
     trip_count = np.array(5).astype(np.int64)
     cond = np.array(1).astype(np.bool)
     input_vals = [trip_count, cond, y]
-    onnx_out = get_onnxruntime_output(loop_model, input_vals)
-
-    for target, ctx in [("llvm", tvm.cpu())]:
-        tvm_out = get_tvm_output_with_vm(loop_model, input_vals, target, ctx, freeze_params=True)
-        for i in range(len(tvm_out)):
-            tvm.testing.assert_allclose(onnx_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+    verify_with_ort_with_inputs(loop_model, input_vals, use_vm=True, freeze_params=True)
 
 
 def test_loop():
