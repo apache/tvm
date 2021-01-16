@@ -215,7 +215,11 @@ class ThreadAxisConfig {
     ThreadWorkLoad w;
     std::fill(w.work_size, w.work_size + 6, 1);
     for (size_t i = 0; i < arg_index_map_.size(); ++i) {
-      w.work_size[arg_index_map_[i]] = static_cast<size_t>(x.values[base_ + i].v_int64);
+      // Dynamic shapes can result in 0 dim size. Guard to ensure that the dim size is atleast 1.
+      size_t size = static_cast<size_t>(x.values[base_ + i].v_int64);
+      if (size > 0) {
+        w.work_size[arg_index_map_[i]] = size;
+      }
     }
     return w;
   }

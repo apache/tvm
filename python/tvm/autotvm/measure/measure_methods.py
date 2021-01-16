@@ -31,8 +31,6 @@ from random import getrandbits
 from collections import namedtuple
 import tempfile
 
-import numpy as np
-
 import tvm._ffi
 import tvm.ir.transform
 from tvm import nd, rpc as _rpc
@@ -578,13 +576,6 @@ def run_through_rpc(
             costs = list(costs)
             costs.sort()
             costs = tuple(costs[1:-1])
-
-        # check correctness of output
-        if ref_output:
-            for expected, real in zip(ref_output, args):
-                if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                    logger.warning("Wrong Answer!")
-                    errno = MeasureErrorNo.WRONG_ANSWER
     except TVMError as exc:
         msg = str(exc)
         if "Stack trace returned" in msg:

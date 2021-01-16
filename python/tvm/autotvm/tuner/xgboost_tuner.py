@@ -64,7 +64,7 @@ class XGBTuner(ModelBasedTuner):
         top-(plan_size * diversity_filter_ratio) candidates according to the cost model
         and then pick batch_size of them according to the diversity metric.
 
-    log_interval: int, optional
+    log_interval: int = 50
         The verbose level.
         If is 0, output nothing.
         Otherwise, output debug information every `verbose` iterations.

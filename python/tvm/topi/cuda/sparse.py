@@ -23,10 +23,10 @@ import tvm
 from tvm import relay, te
 
 from .. import nn
-from ..utils import traverse_inline
+from ..utils import traverse_inline, get_const_tuple, prod, get_const_int
 
 
-def sparse_dense(data, weight_data, weight_indices, weight_indptr):
+def sparse_dense(data, weight_data, weight_indices, weight_indptr, sparse_lhs=False):
     """
     Computes sparse-dense matrix multiplication of `data` and
     `(weight_data, weight_indices, weight_indptr).T`
@@ -57,7 +57,7 @@ def sparse_dense(data, weight_data, weight_indices, weight_indptr):
         2-D with shape [M, N]
     """
     # pylint:disable=unused-argument
-    return nn.sparse_dense(data, weight_data, weight_indices, weight_indptr)
+    return nn.sparse_dense(data, weight_data, weight_indices, weight_indptr, sparse_lhs)
 
 
 def schedule_sparse_dense(outs):
@@ -65,11 +65,13 @@ def schedule_sparse_dense(outs):
     # pylint:disable=invalid-name
     s = te.create_schedule([x.op for x in outs])
 
-    # TODO(ANSHUMAN87): Add for sparse_dense_bsrmm_v1 also
     def _callback(op):
-        if op.tag == "sparse_dense_bsrmm_v2":
+        if op.tag == "sparse_dense_sp_rhs_bsrmm" or op.tag == "sparse_dense_sp_lhs_bsrmm":
             y_bsrmm = op.input_tensors[0]
-            assert y_bsrmm.op.tag == "sparse_dense_bsrmm_block_v2"
+            assert (
+                y_bsrmm.op.tag == "sparse_dense_sp_rhs_bsrmm_block"
+                or y_bsrmm.op.tag == "sparse_dense_sp_lhs_bsrmm_block"
+            )
             out = s.outputs[0].output(0)
 
             if op not in s.outputs:
@@ -91,6 +93,13 @@ def schedule_sparse_dense(outs):
             s[y_bsrmm_factored].compute_at(s[y_bsrmm], tx)
             s[y_bsrmm].set_store_predicate(thread_x.var.equal(0))
             s[out].set_store_predicate(thread_x.var.equal(0))
+        elif op.tag == "sparse_dense_sp_lhs_csrmm" or op.tag == "sparse_dense_sp_rhs_csrmm":
+            out = op.output(0)
+            const_size = get_const_int(prod(out.shape))
+            fused = s[out].fuse(*s[out].op.axis)
+            bx, tx = s[out].split(fused, factor=const_size)
+            s[out].bind(tx, te.thread_axis("threadIdx.x"))
+            s[out].bind(bx, te.thread_axis("blockIdx.x"))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -279,7 +288,26 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     return out
 
 
-def sparse_dense_padded(data, weight_data, weight_indices, weight_indptr):
+def is_valid_for_sparse_dense_padded(data, weight_data):
+    """
+    Check whether input is applicable for sparse_dense_padded op.
+    If not we should fall back to default scheduling.
+    """
+    # pylint:disable=invalid-name
+    warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
+    m = get_const_tuple(data.checked_type.shape)[1]
+    if len(weight_data.shape) == 1:
+        bs_m = 1
+    else:
+        bs_m = weight_data.shape[1]
+
+    mb = m // bs_m
+    if mb >= warp_size:
+        return True
+    return False
+
+
+def sparse_dense_padded(data, weight_data, weight_indices, weight_indptr, sparse_lhs=False):
     """
     Computes sparse-dense matrix multiplication of `data` and
     `(weight_data, weight_indices, weight_indptr).T`
@@ -311,6 +339,8 @@ def sparse_dense_padded(data, weight_data, weight_indices, weight_indptr):
     output : tvm.te.Tensor
         2-D with shape [M, N]
     """
+    # TODO(ANSHUMAN87): Handle for sparse_lhs case too
+    assert not sparse_lhs, "Currently only sparse weight is supported."
     return sparse_dense_tir(data, weight_data, weight_indices, weight_indptr)
 
 
@@ -368,6 +398,7 @@ def _alter_sparse_dense_layout(_attrs, inputs, _tinfos, _out_type):
         isinstance(inputs[1], relay.Constant)
         and isinstance(inputs[2], relay.Constant)
         and isinstance(inputs[3], relay.Constant)
+        and is_valid_for_sparse_dense_padded(inputs[0], inputs[1].data.asnumpy())
     ):
         if len(inputs[1].data.asnumpy().shape) == 1:
             sparse_matrix = sp.csr_matrix(

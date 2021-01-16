@@ -241,7 +241,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       auto op = GetRef<Op>(opnode);
-      if (IsDynamic(call->checked_type()) && IsDataDependant(call)) {
+      if (IsDynamic(call->checked_type()) && IsDataDependent(call)) {
         // output of a shape func can't be fed to a data-dependent shape func
         op_pattern = kOpaque;
       } else {
