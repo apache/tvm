@@ -74,7 +74,11 @@ enum class CallEffectKind : int {
   /*!
    * \brief Embed opaque information in the Expr, cannot be codegen.
    */
-  kEmbedInfo = 5
+  kEmbedInfo = 5,
+  /*!
+   * \brief Function that changes control flow
+   */
+  kControlJump = 6,
 };
 
 /*! \brief Use integer to record the kind. */
