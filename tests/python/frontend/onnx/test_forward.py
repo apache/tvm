@@ -132,6 +132,7 @@ def verify_with_ort_with_inputs(
     dtype="float32",
     rtol=1e-5,
     atol=1e-5,
+    apply_softmax=False,
 ):
     ort_out = get_onnxruntime_output(model, inputs)
 
@@ -158,6 +159,9 @@ def verify_with_ort_with_inputs(
         if not isinstance(ort_out, list):
             ort_out = [ort_out]
         for tvm_val, ort_val in zip(tvm_out, ort_out):
+            if apply_softmax:
+                ort_val = scipy.special.softmax(ort_val)
+                tvm_val = scipy.special.softmax(tvm_val)
             tvm.testing.assert_allclose(ort_val, tvm_val, rtol=rtol, atol=atol)
 
 
@@ -2138,7 +2142,7 @@ def check_torch_conversion(model, input_size):
     torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
     input_data = np.random.uniform(size=input_size).astype("float32")
-    verify_with_ort_with_inputs(onnx_model, [input_data])
+    verify_with_ort_with_inputs(onnx_model, [input_data], apply_softmax=True)
 
 
 @tvm.testing.uses_gpu
@@ -2478,7 +2482,7 @@ def test_batch_norm():
         model = helper.make_model(graph, producer_name="batchnorm_test")
         # X, scale, b, mean, var
         inshapes = [in_shape, in_shape[1], in_shape[1], in_shape[1], in_shape[1]]
-        verify_with_ort(model, inshapes, in_shape)
+        verify_with_ort(model, inshapes, out_shape=[in_shape])
 
     verify_batch_norm([1, 3, 224, 224])
     verify_batch_norm([1, 3, 24, 24])
@@ -2580,7 +2584,7 @@ def verify_conv(
 
     model = helper.make_model(graph, producer_name="conv_test")
 
-    verify_with_ort(model, [x_shape, w_shape], y_shape, use_vm=True, convert_to_static=True)
+    verify_with_ort(model, [x_shape, w_shape], [y_shape], use_vm=True, convert_to_static=True)
 
 
 @tvm.testing.uses_gpu
@@ -2734,7 +2738,7 @@ def verify_convtranspose_with_padding(
 
     model = helper.make_model(graph, producer_name="conv_test")
 
-    verify_with_ort(model, [x_shape, w_shape], y_shape, use_vm=True, convert_to_static=True)
+    verify_with_ort(model, [x_shape, w_shape], [y_shape], use_vm=True, convert_to_static=True)
 
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
