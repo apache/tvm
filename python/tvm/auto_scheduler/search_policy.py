@@ -65,7 +65,7 @@ class PreloadMeasuredStates(SearchCallback):
 @tvm._ffi.register_object("auto_scheduler.PreloadCustomSketchRule")
 class PreloadCustomSketchRule(SearchCallback):
     """
-    A SearchCallback for SketchSearchPolicy that allowing users to add
+    A SearchCallback for SketchSearchPolicy that allows users to add
     custom sketch rule.
 
     Notes
@@ -75,10 +75,12 @@ class PreloadCustomSketchRule(SearchCallback):
 
     Parameters
     ----------
-    meet_condition_func: Function
-        A function with `(policy, state, stage_id) -> int`
-    apply_func: Function
-        A function with `(policy, state, stage_id) -> [[State, int], ...]`
+    meet_condition_func: Callable
+        A function with `(policy, state, stage_id) -> int`.
+    apply_func: Callable
+        A function with `(policy, state, stage_id) -> [[State, int], ...]`.
+    rule_name: str = "CustomSketchRule"
+        The name of this custom sketch rule.
     """
 
     CONDITION_NUM = {"pass": 0, "apply": 1, "apply_and_skip_rest": 2}
@@ -93,7 +95,42 @@ CUSTOM_SKETCH_REGISTRY = {}
 
 
 def register_custom_sketch_func(compute_name, func=None):
-    """Helper decorator to register custom sketch functions easily."""
+    """ Helper decorator to register custom sketch functions easily.
+        The registered function will be used as the apply function of this custom sketch rule.
+        The meet condition of this custom sketch rule is to match the name of a specific stage.
+
+        Example usage:
+        For a compute stage:
+            C = te.compute(
+                (N, M),
+                lambda ...,
+                name="C",
+            )
+        We can register the custom rule by:
+            @auto_scheduler.register_custom_sketch_func
+            def C(search_policy, state, stage_id):
+                ret = []
+                state = auto_scheduler.loop_state.State(
+                    state, search_policy.search_task.compute_dag
+                )
+                
+                ... Do any process with the state ...
+
+                ret.append([state.state_object, -1])
+                return ret
+        Or by:
+            @auto_scheduler.register_custom_sketch_func("C")
+            def func(search_policy, state, stage_id):
+                ret = []
+                state = auto_scheduler.loop_state.State(
+                    state, search_policy.search_task.compute_dag
+                )
+                
+                ... Do any process with the state ...
+
+                ret.append([state.state_object, -1])
+                return ret
+    """
     global CUSTOM_SKETCH_REGISTRY
 
     if callable(compute_name):

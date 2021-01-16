@@ -72,7 +72,7 @@ def make_search_policies(
         Load measurement records from this file. If it is not None, the status of the
         task scheduler, search policies and cost models will be restored according to this file.
     adapative_training: bool = False
-        Option used for XGBModel, which will reduce the model training frequency when there're too
+        Option used by XGBModel to reduce the model training frequency when there're too
         many logs.
 
     Returns

@@ -688,7 +688,7 @@ void PreloadCustomSketchRuleNode::Callback(SearchPolicyNode* policy) {
   auto sketch_policy = dynamic_cast<SketchPolicyNode*>(policy);
   sketch_policy->sketch_rules.push_back(
       new RuleCustomSketch(meet_condition_func, apply_func, rule_name));
-  StdCout(policy->verbose) << "Custom sketch rule added." << std::endl;
+  StdCout(policy->verbose) << "Custom sketch rule \"" << rule_name << "\" added." << std::endl;
 }
 
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")

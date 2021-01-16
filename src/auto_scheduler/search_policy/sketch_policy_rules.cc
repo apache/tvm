@@ -470,7 +470,7 @@ SketchGenerationRule::ConditionKind RuleCustomSketch::MeetCondition(const Sketch
   if (ret.type_code() == 0) {
     return ConditionKind(static_cast<int>(ret));
   } else {
-    LOG(WARNING) << "Wrong value returned from custom sketch, try apply and skip the rest";
+    LOG(WARNING) << "Wrong rule condition value. Apply the rule and skip the rest";
     return ConditionKind::kApplyAndSkipRest;
   }
 }
