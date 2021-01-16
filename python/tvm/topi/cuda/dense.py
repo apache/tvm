@@ -44,6 +44,8 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
     matmul = cublas.matmul(data, weight, False, True)
     if isinstance(batch, int):
         cfg.add_flop(batch * in_dim * out_dim * 2)
+    else:
+        cfg.add_flop(batch.value * in_dim * out_dim * 2)
     if bias is not None:
         matmul = te.compute(
             (batch, out_dim), lambda i, j: matmul[i, j] + bias[j], tag=tag.BROADCAST
