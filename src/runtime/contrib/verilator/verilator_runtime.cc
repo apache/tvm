@@ -21,8 +21,8 @@
  * \file src/runtime/contrib/verilator/verilator_runtime.cc
  * \brief A simple JSON runtime for Verilator.
  */
-#include <dlfcn.h>
 
+#include <dlfcn.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
