@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 import logging
-from tvm import te
+from tvm import te, tir
 import tvm.autotvm as autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cublas
@@ -44,8 +44,10 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
     matmul = cublas.matmul(data, weight, False, True)
     if isinstance(batch, int):
         cfg.add_flop(batch * in_dim * out_dim * 2)
-    else:
+    elif isinstance(batch, tir.IntImm):
         cfg.add_flop(batch.value * in_dim * out_dim * 2)
+    else:
+        assert isinstance(batch, (int, tir.IntImm)), f"batch must be an int or IntImm, but it is {type(batch)}"
     if bias is not None:
         matmul = te.compute(
             (batch, out_dim), lambda i, j: matmul[i, j] + bias[j], tag=tag.BROADCAST
