@@ -197,7 +197,7 @@ def test_sketch_search_policy_custom_sketch():
 
         s1 = state.copy()
         i, _, _ = s1[C].iters
-        s1.split(C, i, [8, 2])
+        s1.split(C, i, [8])
         ret.append([s1.state_object, -1])
         return ret
 
@@ -207,6 +207,7 @@ def test_sketch_search_policy_custom_sketch():
             auto_scheduler.PreloadCustomSketchRule(meet_condition_func, apply_func)
         ],
     )
+
 
 if __name__ == "__main__":
     test_workload_registry_empty_policy()

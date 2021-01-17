@@ -115,7 +115,7 @@ def register_custom_sketch_func(compute_name, func=None):
             state = auto_scheduler.loop_state.State(
                 state, search_policy.search_task.compute_dag
             )
-            
+
             ... Do any process with the state ...
 
             ret.append([state.state_object, -1])
@@ -127,7 +127,7 @@ def register_custom_sketch_func(compute_name, func=None):
             state = auto_scheduler.loop_state.State(
                 state, search_policy.search_task.compute_dag
             )
-            
+
             ... Do any process with the state ...
 
             ret.append([state.state_object, -1])
