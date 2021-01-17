@@ -1028,10 +1028,6 @@ class Upsample(OnnxOpConverter):
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode)
             )
 
-        if method == "nearest_neighbor":
-            align_corners = False
-        else:
-            align_corners = True
         # in 3d case, we use the purely static op
         if dims == 5:
             if isinstance(scales, _expr.Call):
@@ -1065,7 +1061,7 @@ class Upsample(OnnxOpConverter):
                 scale_w,
                 layout=layout,
                 method=method,
-                align_corners=align_corners,
+                align_corners=False,
             )
         return out
 
@@ -1110,7 +1106,8 @@ class Split(OnnxOpConverter):
     """Operator converter for Split."""
 
     @classmethod
-    def split_common(cls, inputs, attr, params, splits):
+    def _impl_v1(cls, inputs, attr, params):
+        splits = attr.get("split", None)
         if splits is not None:
             indices = []
             attr["indices_or_sections"] = []
@@ -1126,21 +1123,6 @@ class Split(OnnxOpConverter):
         if len(output) == 1:
             output = output[0]
         return output
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        splits = attr.get("split", None)
-        return cls.split_common(inputs, attr, params, splits)
-
-        
-    @classmethod
-    def _impl_v13(cls, inputs, attr, params):
-        splits = inputs[1]
-        if splits is not None and splits.name_hint not in params:
-            raise NotImplementedError("Dynamic Split is not yet supported.")
-        elif splits is not None:
-            splits = params[splits.name_hint].asnumpy()
-        return cls.split_common(inputs, attr, params, splits)
 
 
 class Slice(OnnxOpConverter):
@@ -1246,7 +1228,9 @@ class GatherND(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.gather_nd(inputs[0], inputs[1])
+        indices_dims = len(infer_shape(inputs[1]))
+        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
+        return _op.gather_nd(inputs[0], indices)
 
 
 class Scatter(OnnxOpConverter):
@@ -1556,15 +1540,6 @@ class And(Elemwise):
 
 class Tile(Elemwise):
     """Operator converter for Tile"""
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        if "repeats" not in attr:
-            raise tvm.error.OpAttributeInvalid(
-                'Attribute "repeats" should be set ' "for operator Tile."
-            )
-        reps = attr.pop("repeats")  # The number of times repeating the tensor data.
-        return _op.tile(inputs[0], reps)
 
     @classmethod
     def _impl_v6(cls, inputs, attr, params):
@@ -2169,6 +2144,8 @@ class Loop(OnnxOpConverter):
             checked_type = infer_type(val)
             if hasattr(checked_type, "type_annotation"):
                 checked_type = checked_type.type_annotation
+            if hasattr(checked_type, "checked_type"):
+                checked_type = checked_type.checked_type
             shape = get_const_tuple(checked_type.shape)
             actual_shape = []
             for dim in shape:
@@ -2204,8 +2181,14 @@ class Loop(OnnxOpConverter):
         scan_output_init = []
         for i in range(num_scan_outputs):
             name, shape, dtype, _ = get_info(body.output[i + 1 + num_deps])
-            scan_output_vars.append(_expr.var(name, shape=([_ty.Any()] + shape), dtype=dtype))
-            scan_output_init.append(_op.reshape(_expr.const([]), [0] + shape))
+            if dtype == "float":
+                dtype = "float32"
+            scan_output_vars.append(
+                _expr.var(name, shape=([_ty.Any()] * (len(shape) + 1)), dtype=dtype)
+            )
+            scan_output_init.append(
+                _op.reshape(_expr.const(np.array([]).astype(dtype)), [0] + [1] * len(shape))
+            )
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2238,17 +2221,17 @@ class Loop(OnnxOpConverter):
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
             new_scan_outputs = [loop_outputs[i] for i in range(1 + num_deps, len(loop_outputs))]
 
-            # Increment counter.
-            if max_loop_count is not None:
-                incr = _expr.const(1, dtype=iter_dtype)
-                loop_count = loop_count + incr
-
             # Add new scan outputs to tracking
             combined_scan_outputs = []
             for i, scan in enumerate(scan_outputs):
                 new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
                 combined_scan = _op.concatenate([scan, new_scan], axis=0)
                 combined_scan_outputs.append(combined_scan)
+
+            # Increment counter.
+            if max_loop_count is not None:
+                incr = _expr.const(1, dtype=iter_dtype)
+                loop_count = loop_count + incr
 
             # Pack loop outputs for next iteration
             # [iter_count, cond, loop_deps, loop_scans]
@@ -2649,12 +2632,12 @@ def _get_convert_map(opset):
         "Greater": Greater.get_converter(opset),
         "Less": Less.get_converter(opset),
         "Log": Renamer("log"),
-        "ACos": Renamer("acos"),
-        "ACosh": Renamer("acosh"),
-        "ASin": Renamer("asin"),
-        "ASinh": Renamer("asinh"),
-        "ATan": Renamer("atan"),
-        "ATanh": Renamer("atanh"),
+        "Acos": Renamer("acos"),
+        "Acosh": Renamer("acosh"),
+        "Asin": Renamer("asin"),
+        "Asinh": Renamer("asinh"),
+        "Atan": Renamer("atan"),
+        "Atanh": Renamer("atanh"),
         "Cos": Renamer("cos"),
         "Cosh": Renamer("cosh"),
         "Sin": Renamer("sin"),
