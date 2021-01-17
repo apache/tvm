@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
+import copy
 import warnings
 import numpy as np
 import tvm
@@ -2107,7 +2108,9 @@ class Loop(OnnxOpConverter):
         cond = inputs[1]
         loop_deps = inputs[2:]
         num_deps = len(loop_deps)
-        body = attr["body"]
+        # Create a copy of the body function to prevent the original
+        # from being modified.
+        body = copy.copy(attr["body"])
         iter_dtype = infer_type(max_loop_count).checked_type.dtype
 
         # Determine what condition mode we're in.
