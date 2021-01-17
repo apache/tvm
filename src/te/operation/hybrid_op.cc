@@ -234,9 +234,9 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElse(cond, ret);
         ret = For(inner->var, PrimExpr(0), inner->dom->extent,
-                  IterVarTypeToForType(inner->iter_type), op->device_api, ret);
+                  IterVarTypeToForType(inner->iter_type), ret);
         ret = For(outer->var, PrimExpr(0), outer->dom->extent,
-                  IterVarTypeToForType(outer->iter_type), op->device_api, ret);
+                  IterVarTypeToForType(outer->iter_type), ret);
         splitted = true;
         return ret;
       }
@@ -277,8 +277,8 @@ Stmt ApplyLoopShapes(const Stage& stage, const std::unordered_map<IterVar, Range
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = tir::Substitute(body, rmap);
         under_outer = false;
-        return For(parent->var, PrimExpr(0), extent * op->extent, op->for_type, op->device_api,
-                   body);
+        return For(parent->var, PrimExpr(0), extent * op->extent, op->for_type, body,
+                   op->thread_binding, op->annotations);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
         std::unordered_map<const VarNode*, PrimExpr> rmap;
@@ -332,7 +332,7 @@ Stmt ApplyLoopAnnotations(const Stage& stage, const std::unordered_map<IterVar, 
           return AttrStmt(iter_var, "thread_extent", op->extent, body);
         } else {
           return For(op->loop_var, op->min, op->extent, IterVarTypeToForType(attr->iter_type),
-                     op->device_api, op->body);
+                     op->body, op->thread_binding, op->annotations);
         }
       }
       return StmtMutator::VisitStmt_(op);
@@ -414,7 +414,8 @@ Stmt ApplyLoopOrder(const Stage& stage, const std::unordered_map<IterVar, Range>
         for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
       }
       const Range& range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return For(target->var, range->min, range->extent, for_type, DeviceAPI::None, body);
+      return For(target->var, range->min, range->extent, for_type, body, op->thread_binding,
+                 op->annotations);
     }
   };
 

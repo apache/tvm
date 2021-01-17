@@ -221,7 +221,7 @@ class DataTypeRewriter : public StmtExprMutator {
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var>(e);
     return For(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent), op->for_type,
-               op->device_api, op->body);
+               op->body, op->thread_binding, op->annotations);
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {

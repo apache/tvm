@@ -115,11 +115,11 @@ std::vector<std::vector<Stmt> > MakeLoopNest(const Stage& stage,
         nest[i + 1].emplace_back(LetStmt(var, cast(var.dtype(), dom->min), no_op));
         value_map[iv] = cast(var.dtype(), dom->min);
       } else if (is_zero(dom->min)) {
-        nest[i + 1].emplace_back(For(var, 0, dom->extent, for_type, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(For(var, 0, dom->extent, for_type, no_op));
         value_map[iv] = var;
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
-        nest[i + 1].emplace_back(For(idx, 0, dom->extent, for_type, DeviceAPI::None, no_op));
+        nest[i + 1].emplace_back(For(idx, 0, dom->extent, for_type, no_op));
         PrimExpr new_value = dom->min + idx;
         value_map[iv] = new_value;
         nest[i + 1].emplace_back(LetStmt(var, new_value, no_op));

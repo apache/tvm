@@ -100,11 +100,15 @@ class For(Stmt):
     for_type : int
         The for type.
 
-    device_api : int
-        The device api type.
-
     body : Stmt
         The body statement.
+
+    thread_binding: Optional[tir.IterVar]
+        The thread this loop binds to. Only valid
+        if for_type is ThreadBinding
+
+    annotations: tvm.ir.Map
+        Additional annotation hints.
 
     span : Optional[Span]
         The location of this itervar in the source code.
@@ -114,10 +118,29 @@ class For(Stmt):
     Parallel = 1
     Vectorized = 2
     Unrolled = 3
+    ThreadBiding = 4
 
-    def __init__(self, loop_var, min_val, extent, for_type, device_api, body, span=None):
+    def __init__(
+        self,
+        loop_var,
+        min_val,
+        extent,
+        for_type,
+        body,
+        thread_binding=None,
+        annotations=None,
+        span=None,
+    ):
         self.__init_handle_by_constructor__(
-            _ffi_api.For, loop_var, min_val, extent, for_type, device_api, body, span
+            _ffi_api.For,
+            loop_var,
+            min_val,
+            extent,
+            for_type,
+            body,
+            thread_binding,
+            annotations,
+            span,
         )
 
 

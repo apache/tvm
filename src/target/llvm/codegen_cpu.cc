@@ -980,8 +980,9 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {
-      CreateParallelLaunch(
-          For(op->loop_var, op->min, op->extent, op->for_type, op->device_api, op->body), 0);
+      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->for_type, op->body,
+                               op->thread_binding, op->annotations),
+                           0);
     } else {
       // already in parallel env.
       ICHECK(parallel_env_.task_id.defined());

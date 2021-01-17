@@ -259,7 +259,7 @@ class IRBuilder(object):
                 for_type_id = 3
             else:
                 raise ValueError("Unknown for_type")
-            self.emit(_stmt.For(loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
+            self.emit(_stmt.For(loop_var, begin, extent, for_type_id, self._pop_seq()))
 
         return WithScope(loop_var, _exit_cb)
 

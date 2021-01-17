@@ -475,6 +475,9 @@ inline const char* ForType2String(ForType t) {
       return "vectorized";
     case ForType::Unrolled:
       return "unroll";
+    case ForType::ThreadBinding:
+      LOG(FATAL) << "Loop ThreadBinding is reserved for future used and "
+                 << "not yet supported in TIR";
   }
   LOG(FATAL) << "Unknown ForType";
   return "Unknown";

@@ -47,6 +47,10 @@ void FeatureVisitor::VisitStmt_(const ForNode* op) {
     case ForType::Serial:
       ann = kSerial;
       break;
+    case ForType::ThreadBinding:
+      LOG(FATAL) << "Loop ThreadBinding is reserved for future used and "
+                 << "not yet supported in TIR";
+      break;
   }
 
   if (EnterItervar_(op->loop_var, loop_extent, ann)) {

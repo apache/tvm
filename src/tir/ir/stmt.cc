@@ -128,8 +128,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // For
-For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
-         Stmt body, Span span) {
+For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, Stmt body,
+         Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
   ICHECK(min.defined());
   ICHECK(extent.defined());
   ICHECK(min.dtype().is_scalar());
@@ -142,18 +142,19 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAP
   node->min = std::move(min);
   node->extent = std::move(extent);
   node->for_type = for_type;
-  node->device_api = device_api;
   node->body = std::move(body);
+  node->thread_binding = std::move(thread_binding);
+  node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.For").set_body_typed([](Var loop_var, PrimExpr min, PrimExpr extent,
-                                                 int for_type, int device_api, Stmt body,
-                                                 Span span) {
-  return For(loop_var, min, extent, static_cast<ForType>(for_type),
-             static_cast<DeviceAPI>(device_api), body, span);
-});
+TVM_REGISTER_GLOBAL("tir.For").set_body_typed(
+    [](Var loop_var, PrimExpr min, PrimExpr extent, int for_type, Stmt body,
+       Optional<IterVar> thread_binding, Optional<Map<String, ObjectRef>> annotations, Span span) {
+      return For(loop_var, min, extent, static_cast<ForType>(for_type), body, thread_binding,
+                 annotations.value_or(Map<String, ObjectRef>()), span);
+    });
 
 TVM_REGISTER_NODE_TYPE(ForNode);
 
@@ -170,6 +171,9 @@ std::ostream& operator<<(std::ostream& out, ForType type) {  // NOLINT(*)
       break;
     case ForType::Vectorized:
       out << "vectorized";
+      break;
+    case ForType::ThreadBinding:
+      out << "launch_thread";
       break;
   }
   return out;

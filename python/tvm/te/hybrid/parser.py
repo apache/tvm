@@ -532,7 +532,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(
                 not isinstance(for_type, tuple), "Micro expansion should be handled before!"
             )
-            res = tvm.tir.For(iter_var, tvm.runtime.const(0, "int32"), ext, for_type, 0, _body)
+            res = tvm.tir.For(iter_var, tvm.runtime.const(0, "int32"), ext, for_type, _body)
 
         self.symbols.pop(_name)
         return res
