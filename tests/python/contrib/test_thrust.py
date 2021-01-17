@@ -18,7 +18,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.topi.cuda import stable_sort_by_key_thrust, is_thrust_available
-from tvm.topi.cuda.scan import exclusive_scan
+from tvm.topi.cuda.scan import exclusive_scan, schedule_scan
 import numpy as np
 
 
@@ -64,7 +64,7 @@ def test_scan():
 
         with tvm.target.Target("cuda"):
             scan = exclusive_scan(values)
-            s = te.create_schedule([scan.op])
+            s = schedule_scan([scan])
 
         ctx = tvm.gpu(0)
         f = tvm.build(s, [values, scan], "cuda")

@@ -21,6 +21,8 @@ from tvm._ffi import get_global_func
 from ..transform import expand_dims, squeeze
 from ..utils import ceil_div
 from ..math import cast
+from .. import tag
+from .injective import schedule_injective_from_existing
 
 
 def exclusive_sum_scan2d_ir(data, output, reduction=None):
@@ -282,3 +284,34 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
         return output, reduction
 
     return output
+
+
+def schedule_scan(outs):
+    """Schedule for scan operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of scan
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+
+    def traverse(op):
+        if tag.is_injective(op.tag):
+            schedule_injective_from_existing(s, op.output(0))
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+
+    for out in outs:
+        traverse(out.op)
+    return s
