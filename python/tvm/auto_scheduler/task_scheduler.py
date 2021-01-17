@@ -297,7 +297,7 @@ class TaskScheduler:
         search_policy_params : Optional[Dict[str, Any]]
             The parameters of the search policy
         adapative_training : bool = False
-            Option used for XGBModel, which will reduce the model training frequency when there're
+            Option used by XGBModel to reduce the model training frequency when there're
             too many logs.
         """
         # init members

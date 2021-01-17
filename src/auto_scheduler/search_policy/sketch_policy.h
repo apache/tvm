@@ -202,7 +202,6 @@ class RuleCustomSketch;
 /*! \brief Pre-search callback function to load custom rules for sketch generation */
 class PreloadCustomSketchRuleNode : public SearchCallbackNode {
  public:
-  // TODO(jcf94): Use tvm::runtime::TypedPackedFunc?
   PackedFunc meet_condition_func;
   PackedFunc apply_func;
   String rule_name;
