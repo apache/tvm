@@ -89,7 +89,7 @@ def tune_tasks(
 def tune_and_evaluate(tuning_opt):
     # extract workloads from relay program
     print("Extract tasks...")
-    size = (5000, )
+    size = (10000, )
     dshape = ishape = size
     axis = 0
     mod, params = simple_mod(size, size, axis)

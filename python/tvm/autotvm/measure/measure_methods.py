@@ -561,9 +561,9 @@ def run_through_rpc(
                 "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
             )
         args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
-        for arg in args:
-            random_fill(arg)
-        ctx.sync()
+        if "scatter" not in measure_input.task.name:
+            for arg in args:
+                random_fill(arg)
 
         costs = time_f(*args).results
 
