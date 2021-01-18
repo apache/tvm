@@ -102,10 +102,8 @@ name = "huggingface/prunebert-base-uncased-6-finepruned-w-distil-squad"
 batch_size = 1
 # The length of each input sequence.
 seq_len = 128
-# TVM platform identifier. Although cuda is also supported, it requires
-# tuning that is outside the scope of this tutorial. Note that best
-# cpu performance can be achieved by setting -mcpu appropriately for
-# your specific machine.
+# TVM platform identifier. Note that best cpu performance can be achieved by setting -mcpu
+# appropriately for your specific machine. CUDA and ROCm are also supported.
 target = "llvm"
 # Which device to run on. Should be one of tvm.cpu() or tvm.gpu().
 ctx = tvm.cpu()
@@ -339,3 +337,17 @@ def benchmark():
 # Runtime:             165.26 ms           (12.83 ms)
 # Block Sparse Model with 1x1 blocks:
 # Runtime:             67.75 ms            (8.83 ms)
+
+# Here is the output of this script on a GPU (GTX 1070) with the target "cuda -libs=cublas".
+#
+# Dense Model Benchmark:
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('dense_cublas.cuda', ('TENSOR', (1, 768), 'float32'), ('TENSOR', (2, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('dense_cublas.cuda', ('TENSOR', (1, 768), 'float32'), ('TENSOR', (768, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('dense_cublas.cuda', ('TENSOR', (128, 3072), 'float32'), ('TENSOR', (768, 3072), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('dense_cublas.cuda', ('TENSOR', (128, 768), 'float32'), ('TENSOR', (3072, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('dense_cublas.cuda', ('TENSOR', (128, 768), 'float32'), ('TENSOR', (768, 768), 'float32'), None, 'float32'). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('batch_matmul_cublas.cuda', ('TENSOR', (12, 128, 128), 'float32'), ('TENSOR', (12, 64, 128), 'float32'), (12, 128, 64)). A fallback configuration is used, which may bring great performance regression.
+# Cannot find config for target=cuda -keys=cuda,gpu -libs=cublas -max_num_threads=1024 -thread_warp_size=32, workload=('batch_matmul_cublas.cuda', ('TENSOR', (12, 128, 64), 'float32'), ('TENSOR', (12, 128, 64), 'float32'), (12, 128, 128)). A fallback configuration is used, which may bring great performance regression.
+# Runtime:             10.64 ms            (0.29 ms)
+# Block Sparse Model with 1x1 blocks:
+# Runtime:             6.46 ms             (0.05 ms)
