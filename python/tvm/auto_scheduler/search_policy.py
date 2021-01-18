@@ -34,7 +34,6 @@ import random
 import tvm._ffi
 from tvm.runtime import Object
 from .cost_model import RandomModel
-from .loop_state import State
 from . import _ffi_api
 
 
