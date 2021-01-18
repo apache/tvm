@@ -55,8 +55,6 @@ from .search_policy import (
     SketchPolicy,
     PreloadMeasuredStates,
     PreloadCustomSketchRule,
-    register_custom_sketch_func,
-    get_custom_sketch_callbacks,
 )
 from .task_scheduler import TaskScheduler
 from .workload_registry import register_workload, make_workload_key

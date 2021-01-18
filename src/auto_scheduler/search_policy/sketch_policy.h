@@ -197,8 +197,6 @@ class SketchPolicy : public SearchPolicy {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SketchPolicy, SearchPolicy, SketchPolicyNode);
 };
 
-class RuleCustomSketch;
-
 /*! \brief Pre-search callback function to load custom rules for sketch generation */
 class PreloadCustomSketchRuleNode : public SearchCallbackNode {
  public:

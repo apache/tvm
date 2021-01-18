@@ -299,38 +299,6 @@ def test_cpu_custom_sketch():
     assert sketches[1].stages[2].iters[4].range.extent == 512
 
 
-def test_cpu_custom_sketch_registry():
-    @auto_scheduler.register_custom_sketch_func
-    def C(search_policy, state, stage_id):
-        ret = []
-        state = auto_scheduler.loop_state.State(state, search_policy.search_task.compute_dag)
-        C = state.stage_ops[2]
-
-        ret.append([state.state_object, -1])
-
-        s1 = state.copy()
-        i, _, _ = s1[C].iters
-        s1.split(C, i, [8, 2])
-        ret.append([s1.state_object, -1])
-        return ret
-
-    sketches = generate_sketches(
-        matmul_auto_scheduler_test,
-        (512, 512, 512),
-        "llvm",
-        init_search_callbacks=auto_scheduler.get_custom_sketch_callbacks(),
-    )
-    assert len(sketches) == 2
-    assert sketches[0].stages[2].iters[0].range.extent == 512
-    assert sketches[0].stages[2].iters[1].range.extent == 512
-    assert sketches[0].stages[2].iters[2].range.extent == 512
-    assert sketches[1].stages[2].iters[0].range.extent == 32
-    assert sketches[1].stages[2].iters[1].range.extent == 8
-    assert sketches[1].stages[2].iters[2].range.extent == 2
-    assert sketches[1].stages[2].iters[3].range.extent == 512
-    assert sketches[1].stages[2].iters[4].range.extent == 512
-
-
 @tvm.testing.requires_cuda
 def test_cuda_matmul_sketch():
     sketches = generate_sketches(matmul_auto_scheduler_test, (512, 512, 512), "cuda")
