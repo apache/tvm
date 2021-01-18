@@ -149,7 +149,7 @@ struct BNNSConstantUpdater : public ConstantUpdater {
  public:
   BNNSConstantUpdater(const std::string& symbol,
                       std::unordered_map<std::string, runtime::NDArray>* params,
-                      std::vector<std::string> &skip_mask)
+                      const std::vector<std::string> &skip_mask)
       : ConstantUpdater(symbol, params), skip_mask_(skip_mask) {}
   using ConstantUpdater::VisitExpr_;
 
@@ -199,7 +199,7 @@ Map<String, runtime::NDArray> BNNSConstantUpdaterFunc(Expr expr, std::string sym
 
   // Convert to tvm::Map
   Map<String, runtime::NDArray> ret;
-  for (const auto& kvp: res)
+  for (const auto& kvp : res)
     ret.Set(kvp.first, kvp.second);
   return ret;
 }
