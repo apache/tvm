@@ -563,6 +563,7 @@ def run_through_rpc(
             )
         args = [nd.array(np.zeros(x[0], dtype=x[1]), ctx=ctx) for x in build_result.arg_info]
         if "scatter" not in measure_input.task.name:
+            # the index tensor of scatter op cannot be randomly initialized
             for arg in args:
                 random_fill(arg)
 
