@@ -269,7 +269,7 @@ def test_storage_share_gpu():
 def test_parallel_alloc():
     ib = tvm.tir.ir_builder.create()
     n = te.var("n")
-    with ib.for_range(0, n, name="i", for_type="parallel") as i:
+    with ib.for_range(0, n, name="i", kind="parallel") as i:
         with ib.for_range(0, 10, name="j") as j:
             A = ib.allocate("float32", n, name="A", scope="global")
             A[j] = A[j] + 2
@@ -286,7 +286,7 @@ def test_parallel_alloc():
         ib.scope_attr(
             tvm.tir.const(1, "int32"), "pragma_scope", tvm.tir.StringImm("parallel_launch_point")
         )
-        with ib.for_range(0, n, name="i", for_type="parallel") as i:
+        with ib.for_range(0, n, name="i", kind="parallel") as i:
             with ib.for_range(0, 10, name="j") as j:
                 A = ib.allocate("float32", n, name="A", scope="global")
                 A[j] = A[j] + 2

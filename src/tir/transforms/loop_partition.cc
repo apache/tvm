@@ -607,9 +607,8 @@ inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt b
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
-    ICHECK(for_node->for_type == ForType::Serial || for_node->for_type == ForType::Unrolled);
-    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->for_type,
-               body);
+    ICHECK(for_node->kind != ForKind::kThreadBinding);
+    return For(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent, for_node->kind, body);
   }
 }
 

@@ -58,7 +58,7 @@ def test_dso_module_load():
             i,
             0,
             n - 1,
-            tvm.tir.For.Serial,
+            tvm.tir.ForKind.SERIAL,
             tvm.tir.Store(Ab.data, tvm.tir.Load(dtype, Ab.data, i) + 1, i + 1),
         )
         mod = tvm.IRModule.from_expr(

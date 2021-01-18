@@ -547,7 +547,7 @@ def test_multiple_imported_modules():
             i,
             0,
             n - 1,
-            tvm.tir.For.Serial,
+            tvm.tir.ForKind.SERIAL,
             tvm.tir.Store(Ab.data, tvm.tir.Load("float32", Ab.data, i) + 1, i + 1),
         )
         return tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", symbol)

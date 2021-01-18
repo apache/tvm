@@ -26,6 +26,7 @@ Each statement node have subfields that can be visited from python side.
     assert isinstance(st, tvm.tir.stmt.Store)
     assert(st.buffer_var == a)
 """
+from enum import IntEnum
 import tvm._ffi
 
 from tvm.runtime import Object
@@ -82,6 +83,22 @@ class AssertStmt(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.AssertStmt, condition, message, body, span)
 
 
+class ForKind(IntEnum):
+    """The kind of the for loop.
+
+    note
+    ----
+    ForKind can change the control flow semantics
+    of the loop and need to be considered in all TIR passes.
+    """
+
+    SERIAL = 0
+    PARALLEL = 1
+    VECTORIZED = 2
+    UNROLLED = 3
+    THREAD_BINDING = 4
+
+
 @tvm._ffi.register_object("tir.For")
 class For(Stmt):
     """For node.
@@ -97,15 +114,15 @@ class For(Stmt):
     extent : PrimExpr
         The length of the loop.
 
-    for_type : int
-        The for type.
+    kind : ForKind
+        The type of the for.
 
     body : Stmt
         The body statement.
 
     thread_binding: Optional[tir.IterVar]
         The thread this loop binds to. Only valid
-        if for_type is ThreadBinding
+        if kind is ThreadBinding
 
     annotations: tvm.ir.Map
         Additional annotation hints.
@@ -114,18 +131,12 @@ class For(Stmt):
         The location of this itervar in the source code.
     """
 
-    Serial = 0
-    Parallel = 1
-    Vectorized = 2
-    Unrolled = 3
-    ThreadBiding = 4
-
     def __init__(
         self,
         loop_var,
         min_val,
         extent,
-        for_type,
+        kind,
         body,
         thread_binding=None,
         annotations=None,
@@ -136,7 +147,7 @@ class For(Stmt):
             loop_var,
             min_val,
             extent,
-            for_type,
+            kind,
             body,
             thread_binding,
             annotations,

@@ -128,7 +128,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // For
-For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, Stmt body,
+For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
   ICHECK(min.defined());
   ICHECK(extent.defined());
@@ -141,7 +141,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, Stmt bod
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
   node->extent = std::move(extent);
-  node->for_type = for_type;
+  node->kind = kind;
   node->body = std::move(body);
   node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
@@ -150,29 +150,29 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, Stmt bod
 }
 
 TVM_REGISTER_GLOBAL("tir.For").set_body_typed(
-    [](Var loop_var, PrimExpr min, PrimExpr extent, int for_type, Stmt body,
+    [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body,
        Optional<IterVar> thread_binding, Optional<Map<String, ObjectRef>> annotations, Span span) {
-      return For(loop_var, min, extent, static_cast<ForType>(for_type), body, thread_binding,
+      return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
                  annotations.value_or(Map<String, ObjectRef>()), span);
     });
 
 TVM_REGISTER_NODE_TYPE(ForNode);
 
-std::ostream& operator<<(std::ostream& out, ForType type) {  // NOLINT(*)
+std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
   switch (type) {
-    case ForType::Serial:
+    case ForKind::kSerial:
       out << "for";
       break;
-    case ForType::Parallel:
+    case ForKind::kParallel:
       out << "parallel";
       break;
-    case ForType::Unrolled:
+    case ForKind::kUnrolled:
       out << "unrolled";
       break;
-    case ForType::Vectorized:
+    case ForKind::kVectorized:
       out << "vectorized";
       break;
-    case ForType::ThreadBinding:
+    case ForKind::kThreadBinding:
       out << "launch_thread";
       break;
   }
@@ -183,7 +183,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ForNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ForNode*>(node.get());
       p->PrintIndent();
-      p->stream << op->for_type << " (" << op->loop_var << ", ";
+      p->stream << op->kind << " (" << op->loop_var << ", ";
       p->Print(op->min);
       p->stream << ", ";
       p->Print(op->extent);

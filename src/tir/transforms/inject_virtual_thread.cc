@@ -420,7 +420,7 @@ class VTInjector : public StmtExprMutator {
       Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
       return For(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
-                 ForType::Serial, stmt);
+                 ForKind::kSerial, stmt);
     }
   }
 
