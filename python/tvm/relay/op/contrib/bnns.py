@@ -20,32 +20,16 @@ Is a part of Accelerate framework on macOS/iOS platforms. Apple provide several 
 to handle tensor processing. Particularly:
  * BNNS (basic neural )
  * vDSP (1D and 2D tensor processing)
- * BLAS (gemm provide)
-
-# There are two ways to registering a function for an op to indicate if it is
-# supported by DNNL.
-
-# - The first and simplest way is to use the helper so that
-# users only need to provide the operator name and a boolean value to indicate if
-# it is supported. For example:
-#
-#     .. code-block:: python
-#
-#       add = _register_external_op_helper("add")
-#       add = _register_external_op_helper("add", True)
-#       add = _register_external_op_helper("add", False)
-#
-# - The other way is to implement the function by themselves to
-# check the attributes of the op and decide if it should be offloaded to DNNL.
 """
 import math
 import tvm.ir
-from ...dataflow_pattern import wildcard, is_op, is_expr, is_constant
+from ...dataflow_pattern import wildcard, is_op, is_expr
 from .register import register_pattern_table, get_pattern_table
 
 from tvm.relay import transform
 from tvm.relay.expr import const
 from tvm.relay.build_module import bind_params_by_name
+
 
 def partition_for_bnns(mod, params=None):
     """Partition the graph greedily offloading supported
@@ -108,6 +92,7 @@ def _register_external_op_helper(op_name, supported=True):
         return supported
 
     return _func_wrapper
+
 
 _register_external_op_helper("nn.batch_matmul")
 
@@ -184,18 +169,13 @@ def make_conv_relu_pattern(with_bias=True, with_relu=True):
 
 def check_conv(extract):
     """Check conv pattern is supported by BNNS."""
-    is_ok = True
-
-    def visit(op):
-        nonlocal is_ok
-        if isinstance(op, tvm.relay.Call):
-            if op.op.name == "nn.conv2d":
-                is_ok &= conv2d_check(op)
-            elif op.op.name in ("nn.bias_add", "add"):
-                is_ok &= bias_check(op)
-
-    tvm.relay.analysis.post_order_visit(extract, visit)
-    return is_ok
+    bias_is_ok = True
+    call = extract
+    while call.op.name != "nn.conv2d":
+        if call.op.name in ("nn.bias_add", "add"):
+            bias_is_ok &= bias_check(call)
+        call = call.args[0]
+    return conv2d_check(call) and bias_is_ok
 
 
 def make_dense_bias_pattern():

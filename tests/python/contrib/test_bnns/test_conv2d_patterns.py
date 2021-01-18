@@ -24,6 +24,7 @@ from tvm.relay.op.contrib.bnns import partition_for_bnns
 
 fp32 = "float32"
 
+
 def partition(exp):
     """Apply BNNS specific partitioning transformation"""
     mod = tvm.IRModule.from_expr(exp)

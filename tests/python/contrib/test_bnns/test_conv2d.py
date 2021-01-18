@@ -24,7 +24,6 @@ from tvm import relay
 from .infrastructure import Device
 from .infrastructure import (
     skip_runtime_test,
-    skip_codegen_test,
     build_and_run,
     verify,
     generate_trials,
@@ -35,6 +34,7 @@ from .infrastructure import (
 #   2. Check unsupported cases of fusion. Like bias add with axis != 1, add with broadcast by spatial dims
 #   3. Check if bias/weights is not constants. Should fallback into LLVM or decompose it
 #   4. Check if bias/weights is constants expr. Should works somehow.
+
 
 def _get_model(
     shape,
@@ -142,6 +142,52 @@ def test_conv2d():
             "out channels": out_channels,
             "bias": bias,
             "activation": activation
+        }
+        verify(outputs, atol=0.002, rtol=0.007, config=config)
+
+
+def test_conv2d_dw():
+    if skip_runtime_test():
+        return
+
+    device = Device()
+    np.random.seed(0)
+    dtype = "float32"
+    shape = [4, 5, 5]
+    kernel = [3, 3]
+    pad = [1, 1]
+
+    for batch in [1, 2]:
+        i_shape = (batch, *shape)
+        channels = shape[0]
+        outputs = []
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(0, 127, i_shape).astype(dtype)),
+        }
+
+        a = relay.var("a", shape=i_shape, dtype=dtype)
+        weight_shape = [channels, 1, *kernel]
+        w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
+        weights = relay.const(w, dtype)
+        func = relay.nn.conv2d(
+            a,
+            weights,
+            kernel_size=kernel,
+            padding=pad,
+            groups=channels,
+            channels=channels,
+            out_dtype=dtype,
+        )
+        params = {"w": w}
+
+        for bnns in [False, True]:
+            outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
+
+        config = {
+            "shape": shape,
+            "kernel size": kernel,
+            "padding": pad,
+            "out channels": channels,
         }
         verify(outputs, atol=0.002, rtol=0.007, config=config)
 

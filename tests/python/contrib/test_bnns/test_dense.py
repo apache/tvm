@@ -21,7 +21,6 @@ import math
 
 import tvm
 from tvm import relay
-from tvm import testing
 from .infrastructure import (
     Device,
     skip_runtime_test,
@@ -185,4 +184,3 @@ def test_codegen_dense():
 if __name__ == "__main__":
     test_dense()
     test_codegen_dense()
-
