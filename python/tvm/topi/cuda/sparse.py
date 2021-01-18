@@ -161,6 +161,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     with either default_function_kernel0 for the transpose or
     default_function_kernel1 for the multiply.
     """
+
     def gen_ir(data, w_data, w_indices, w_indptr, out):
         # pylint: disable=invalid-name
         # TODO(tkonolige): use tensorcores for block multiply
