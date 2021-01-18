@@ -206,18 +206,20 @@ def conv3d_cudnn(
     OD = (D + 2 * pad_d - KD) // stride_d + 1
     OH = (H + 2 * pad_h - KH) // stride_h + 1
     OW = (W + 2 * pad_w - KW) // stride_w + 1
-    cfg.add_flop(
-        2
-        * N
-        * OD
-        * OH
-        * OW
-        * CO
-        * CI
-        * ((KD - 1) * dilation_d + 1)
-        * ((KH - 1) * dilation_h + 1)
-        * ((KW - 1) * dilation_w + 1)
-    )
+
+    if isinstance(N, int):
+        cfg.add_flop(
+            2
+            * N
+            * OD
+            * OH
+            * OW
+            * CO
+            * CI
+            * ((KD - 1) * dilation_d + 1)
+            * ((KH - 1) * dilation_h + 1)
+            * ((KW - 1) * dilation_w + 1)
+        )
 
     return cudnn.conv_forward(
         data,

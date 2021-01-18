@@ -840,7 +840,7 @@ def test_slice():
     )
 
 
-def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
+def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs, opset=None):
     indata = np.random.uniform(-1, 1, size=inshape).astype(dtype)
     outdata = outfunc(indata, **npargs)
 
@@ -856,7 +856,7 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
     model = helper.make_model(graph, producer_name=opname + "_test")
 
     for target, ctx in tvm.testing.enabled_targets():
-        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype, opset=opset)
         tvm.testing.assert_allclose(outdata, tvm_out)
 
 
@@ -879,6 +879,26 @@ def test_clip():
         "float32",
         "Clip",
         {"min": -1.0, "max": 1.0},
+    )
+
+    _test_onnx_op_elementwise(
+        (2, 4, 5, 6),
+        np.clip,
+        {"a_min": -np.inf, "a_max": 1.0},
+        "float32",
+        "Clip",
+        {"max": 1.0},
+        opset=1,
+    )
+
+    _test_onnx_op_elementwise(
+        (2, 4, 5, 6),
+        np.clip,
+        {"a_min": -1.0, "a_max": np.inf},
+        "float32",
+        "Clip",
+        {"min": -1.0},
+        opset=1,
     )
 
 
@@ -2037,12 +2057,15 @@ def test_prelu():
 
         model = helper.make_model(graph, producer_name="prelu_test")
 
-        verify_with_ort(model, [x_shape, a_shape], list(x_shape))
+        verify_with_ort(
+            model, [x_shape, a_shape], list(x_shape), use_vm=True, convert_to_static=True
+        )
 
     verify_prelu([3, 4, 5, 6], [1, 4, 1, 1])
     verify_prelu([1, 8, 5, 6], [1, 8, 1, 1])
     verify_prelu([2, 12, 16, 16], [1, 12, 1, 1])
     verify_prelu([2, 12, 16, 16], [1])  # Test alpha broadcasting.
+    verify_prelu([3, 1], [3, 1])  # Test non NCHW workload.
 
 
 @tvm.testing.uses_gpu
@@ -3966,8 +3989,7 @@ def test_loop():
     verify_count_loop()
 
 
-@tvm.testing.uses_gpu
-def test_if():
+def verify_if(cond_array):
     # Given a bool scalar input cond.
     # return constant tensor x if cond is True, otherwise return constant tensor y.
     then_out = onnx.helper.make_tensor_value_info("then_out", onnx.TensorProto.FLOAT, [5])
@@ -4004,13 +4026,23 @@ def test_if():
     )
 
     if_model = onnx.helper.make_model(if_graph)
-    cond = np.array(1).astype("bool")
+    if cond_array:
+        cond = np.array([1]).astype("bool")
+    else:
+        cond = np.array(1).astype("bool")
     correct_out = x if cond else y
 
     for target, ctx in tvm.testing.enabled_targets():
         tvm_out = get_tvm_output_with_vm(if_model, [cond], target, ctx, freeze_params=True)
         for i in range(len(tvm_out)):
             tvm.testing.assert_allclose(correct_out[i], tvm_out[i], rtol=1e-05, atol=1e-05)
+
+
+@tvm.testing.uses_gpu
+def test_if():
+    # Confirm that if works with cond as an array or scalar.
+    verify_if(cond_array=False)
+    verify_if(cond_array=True)
 
 
 @tvm.testing.uses_gpu

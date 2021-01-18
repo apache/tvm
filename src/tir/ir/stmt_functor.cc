@@ -480,7 +480,6 @@ class IRSubstitue : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    // NOTE: we do not explicit recursivly mutate op->buffer_var
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<LoadNode>();
     if (auto mapped_var = vmap_(op->buffer_var)) {
@@ -491,7 +490,6 @@ class IRSubstitue : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const StoreNode* op) final {
-    // NOTE: we do not explicit recursivly mutate op->buffer_var
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<StoreNode>();
     if (auto mapped_var = vmap_(op->buffer_var)) {
@@ -499,6 +497,18 @@ class IRSubstitue : public StmtExprMutator {
     } else {
       return ret;
     }
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    Stmt ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<AttrStmtNode>();
+    // remap var node in attr
+    if (const auto* var_node = op->node.as<VarNode>()) {
+      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+        return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
+      }
+    }
+    return ret;
   }
 
  private:

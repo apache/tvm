@@ -33,6 +33,8 @@ import tvm.relay as relay
 
 from tvm.micro.contrib import zephyr
 from tvm.contrib import utils
+from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.op.annotation import compiler_begin, compiler_end
 
 BUILD = True
 DEBUG = False
@@ -196,6 +198,144 @@ def test_relay(platform):
         result = graph_mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(graph_mod.get_input(0).asnumpy(), x_in)
         tvm.testing.assert_allclose(result, x_in * x_in + 1)
+
+
+class CcompilerAnnotator(ExprMutator):
+    """
+    This is used to create external functions for ccompiler.
+    A simple annotator that creates the following program:
+           |
+      -- begin --
+           |
+          add
+           |
+        subtract
+           |
+        multiply
+           |
+       -- end --
+           |
+    """
+
+    def __init__(self):
+        super(CcompilerAnnotator, self).__init__()
+        self.in_compiler = 0
+
+    def visit_call(self, call):
+        if call.op.name == "add":  # Annotate begin at args
+            if self.in_compiler == 1:
+                lhs = compiler_begin(super().visit(call.args[0]), "ccompiler")
+                rhs = compiler_begin(super().visit(call.args[1]), "ccompiler")
+                op = relay.add(lhs, rhs)
+                self.in_compiler = 2
+                return op
+        elif call.op.name == "subtract":
+            if self.in_compiler == 1:
+                lhs = super().visit(call.args[0])
+                rhs = super().visit(call.args[1])
+                if isinstance(lhs, relay.expr.Var):
+                    lhs = compiler_begin(lhs, "ccompiler")
+                if isinstance(rhs, relay.expr.Var):
+                    rhs = compiler_begin(rhs, "ccompiler")
+                return relay.subtract(lhs, rhs)
+        elif call.op.name == "multiply":  # Annotate end at output
+            self.in_compiler = 1
+            lhs = super().visit(call.args[0])
+            rhs = super().visit(call.args[1])
+            if isinstance(lhs, relay.expr.Var):
+                lhs = compiler_begin(lhs, "ccompiler")
+            if isinstance(rhs, relay.expr.Var):
+                rhs = compiler_begin(rhs, "ccompiler")
+            op = relay.multiply(lhs, rhs)
+            if self.in_compiler == 2:
+                op = compiler_end(op, "ccompiler")
+            self.in_compiler = 0
+            return op
+        return super().visit_call(call)
+
+
+def check_result(relay_mod, model, zephyr_board, map_inputs, out_shape, result):
+    """Helper function to verify results"""
+    TOL = 1e-5
+    target = tvm.target.target.micro(model)
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        graph, mod, params = tvm.relay.build(relay_mod, target=target)
+
+    with _make_session(model, target, zephyr_board, mod) as session:
+        rt_mod = tvm.micro.create_local_graph_runtime(
+            graph, session.get_system_lib(), session.context
+        )
+        rt_mod.set_input(**params)
+        for name, data in map_inputs.items():
+            rt_mod.set_input(name, data)
+        rt_mod.set_input(**params)
+        rt_mod.run()
+
+        out_shapes = out_shape if isinstance(out_shape, list) else [out_shape]
+        results = result if isinstance(result, list) else [result]
+
+        for idx, shape in enumerate(out_shapes):
+            out = tvm.nd.empty(shape, ctx=session.context)
+            out = rt_mod.get_output(idx, out)
+            tvm.testing.assert_allclose(out.asnumpy(), results[idx], rtol=TOL, atol=TOL)
+
+
+def test_byoc_utvm(platform):
+    """This is a simple test case to check BYOC capabilities of uTVM"""
+    model, zephyr_board = PLATFORMS[platform]
+    x = relay.var("x", shape=(10, 10))
+    w0 = relay.var("w0", shape=(10, 10))
+    w1 = relay.var("w1", shape=(10, 10))
+    w2 = relay.var("w2", shape=(10, 10))
+    w3 = relay.var("w3", shape=(10, 10))
+    w4 = relay.var("w4", shape=(10, 10))
+    w5 = relay.var("w5", shape=(10, 10))
+    w6 = relay.var("w6", shape=(10, 10))
+    w7 = relay.var("w7", shape=(10, 10))
+
+    # C compiler
+    z0 = relay.add(x, w0)
+    p0 = relay.subtract(z0, w1)
+    q0 = relay.multiply(p0, w2)
+
+    z1 = relay.add(x, w3)
+    p1 = relay.subtract(z1, w4)
+    q1 = relay.multiply(p1, w5)
+
+    # Other parts on TVM
+    z2 = relay.add(x, w6)
+    q2 = relay.subtract(z2, w7)
+
+    r = relay.concatenate((q0, q1, q2), axis=0)
+    f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
+    mod = tvm.IRModule()
+    ann = CcompilerAnnotator()
+    mod["main"] = ann.visit(f)
+    mod = tvm.relay.transform.PartitionGraph()(mod)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    x_data = np.random.rand(10, 10).astype("float32")
+    w_data = []
+    for _ in range(8):
+        w_data.append(np.random.rand(10, 10).astype("float32"))
+
+    map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
+    map_inputs["x"] = x_data
+    check_result(
+        relay_mod=mod,
+        map_inputs=map_inputs,
+        out_shape=(30, 10),
+        result=np.concatenate(
+            (
+                ((x_data + w_data[0]) - w_data[1]) * w_data[2],
+                ((x_data + w_data[3]) - w_data[4]) * w_data[5],
+                x_data + w_data[6] - w_data[7],
+            ),
+            axis=0,
+        ),
+        model=model,
+        zephyr_board=zephyr_board,
+    )
 
 
 if __name__ == "__main__":

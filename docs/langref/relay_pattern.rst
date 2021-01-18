@@ -230,6 +230,21 @@ The next example is matching function nodes with a specific attribute:
         f = relay.Function([x, y], x + y).with_attr("Composite", "add")
         assert pattern.match(f)
 
+A Relay ``If`` expression can be matched if all of its condition, true branch and false branch
+are matched:
+
+.. code-block:: python
+
+    def test_match_if():
+        x = is_var("x")
+        y = is_var("y")
+        pat = is_if(is_op("less")(x, y), x, y)
+
+        x = relay.var("x")
+        y = relay.var("y")
+        cond = x < y
+
+        assert pat.match(relay.expr.If(cond, x, y))
 
 Matching Diamonds and Post-Dominator Graphs
 *******************************************
@@ -294,6 +309,7 @@ The high level design is to introduce a language of patterns for now we propose 
             | is_op(op_name)
             | is_tuple()
             | is_tuple_get_item(pattern, index = None)
+            | is_if(cond, tru, fls)
             | pattern1 `|` pattern2
             | dominates(parent_pattern, path_pattern, child_pattern)
             | FunctionPattern(params, body)

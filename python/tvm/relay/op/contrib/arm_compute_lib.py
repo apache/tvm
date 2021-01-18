@@ -19,12 +19,15 @@
 import numpy as np
 import tvm
 
+from tvm._ffi import register_func
 from tvm.relay.expr import const
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr
 from .register import register_pattern_table
+from ..strategy.generic import is_depthwise_conv2d
 
 
 def is_arm_compute_runtime_enabled():
@@ -69,6 +72,61 @@ def partition_for_arm_compute_lib(mod, params=None):
     )
 
     return seq(mod)
+
+
+@register_func("relay.ext.arm_compute_lib.optimize")
+def preprocess_module(mod):
+    """
+    Pre-process a module containing functions ready for ACL codegen. For now we enforce OHWI
+    kernel layout and fold the transforms away.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+
+    Returns
+    -------
+    preprocessed_mod : The processed module.
+    """
+
+    def convert_layout_conv2d(conv2d_function):
+        def convert_conv(attrs, inputs, tinfos, desired_layouts):
+            new_attrs = dict(attrs)
+            data_info = tinfos[0]
+            weight_info = tinfos[1]
+            desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+            new_attrs["data_layout"] = desired_data_layout
+            new_attrs["kernel_layout"] = desired_kernel_layout
+
+            if is_depthwise_conv2d(
+                data_info.shape,
+                attrs["data_layout"],
+                weight_info.shape,
+                attrs["kernel_layout"],
+                attrs["groups"],
+            ):
+                dkl = desired_kernel_layout
+                new_attrs["kernel_layout"] = dkl[3] + dkl[1:3] + dkl[0]
+            return conv2d_function(*inputs, **new_attrs)
+
+        return convert_conv
+
+    with TempOpAttr(
+        "nn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.nn.conv2d)
+    ), TempOpAttr(
+        "qnn.conv2d", "FTVMConvertOpLayout", convert_layout_conv2d(tvm.relay.qnn.op.conv2d)
+    ):
+        seq = tvm.transform.Sequential(
+            [
+                transform.ConvertLayout(
+                    {"nn.conv2d": ["NHWC", "OHWI"], "qnn.conv2d": ["NHWC", "OHWI"]}
+                ),
+                transform.FoldConstant(),
+            ]
+        )
+        preprocessed_mod = seq(mod)
+    return preprocessed_mod
 
 
 @register_pattern_table("arm_compute_lib")
@@ -236,8 +294,6 @@ _register_external_op_helper("reshape")
 def conv2d(expr):
     """Check if the external ACL codegen for conv2d should be used."""
     attrs, args = expr.attrs, expr.args
-    if attrs.groups != 1:
-        return False
     if attrs.data_layout != "NHWC":
         return False
     if attrs.out_dtype != "float32" and attrs.out_dtype != "":
@@ -248,14 +304,25 @@ def conv2d(expr):
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "float32":
         return False
+    is_depthwise = is_depthwise_conv2d(
+        data_typ.shape,
+        attrs["data_layout"],
+        kernel_typ.shape,
+        attrs["kernel_layout"],
+        attrs["groups"],
+    )
+    if is_depthwise:
+        return depthwise_conv2d(attrs, args)
+    # ACL doesn't support grouped convolution
+    if attrs.groups != 1 and not is_depthwise:
+        return False
     return True
 
 
 def qnn_conv2d(expr):
     """Check if the external ACL codegen for qnn.conv2d should be used."""
     attrs, args = expr.attrs, expr.args
-    if attrs.groups != 1:
-        return False
+
     if attrs.data_layout != "NHWC":
         return False
     if attrs.out_dtype != "int32" and attrs.out_dtype != "":
@@ -265,6 +332,40 @@ def qnn_conv2d(expr):
         return False
     kernel_typ = args[1].checked_type
     if len(kernel_typ.shape) != 4 or kernel_typ.dtype != "uint8":
+        return False
+    is_depthwise = is_depthwise_conv2d(
+        data_typ.shape,
+        attrs["data_layout"],
+        kernel_typ.shape,
+        attrs["kernel_layout"],
+        attrs["groups"],
+    )
+    if is_depthwise:
+        return depthwise_conv2d(attrs, args)
+    # ACL doesn't support grouped convolution
+    if attrs.groups != 1 and not is_depthwise:
+        return False
+    return True
+
+
+def depthwise_conv2d(attrs, args):
+    """Check if the external ACL codegen for depthwise convolution should be used.
+
+    Note
+    ----
+    Relay does not have a depthwise conv2d operator whilst ACL does. We simply
+    separate the checks for depthwise for clarity.
+    """
+    kernel_typ = args[1].checked_type
+    # Only supports 3x3, 5x5 depthwise
+    if (
+        kernel_typ.shape[0] not in [3, 5]
+        or kernel_typ.shape[1] not in [3, 5]
+        or kernel_typ.shape[0] != kernel_typ.shape[1]
+    ):
+        return False
+    # Stride must be (1, 1) or (2, 2)
+    if (attrs.strides[0], attrs.strides[1]) not in [(1, 1), (2, 2)]:
         return False
     return True
 

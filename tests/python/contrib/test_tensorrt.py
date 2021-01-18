@@ -385,6 +385,7 @@ def test_conv2d():
     run_and_verify_func(
         get_graph((1, 3, 16, 16), (3, 8, 7, 7), 3, [2, 2, 3, 3], [2, 2], [1, 1], 24)
     )
+    run_and_verify_func(get_graph((1, 3, 16, 16), (1, 3, 1, 1), channels=1))
 
 
 def test_conv2d_nhwc():
@@ -456,6 +457,7 @@ def test_dense():
         return f, {"x": x_shape, "kernel": k_shape}, ["kernel"]
 
     run_and_verify_func(get_graph())
+    run_and_verify_func(get_graph(k_shape=(1, 16)))
 
 
 def test_bias_add():

@@ -42,6 +42,10 @@ namespace tir {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
+ * \brief Return value.
+ */
+TVM_DLL const Op& ret();
+/*!
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();

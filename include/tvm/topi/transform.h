@@ -612,6 +612,7 @@ inline Tensor strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
 
   Array<PrimExpr> out_shape;
   if (!is_static) {
+    ICHECK_EQ(strides.size(), src_tensor_dim);
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       out_shape.push_back(indexdiv(end[i] - begin[i], strides[i]));
     }

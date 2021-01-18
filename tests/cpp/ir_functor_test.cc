@@ -114,8 +114,9 @@ TEST(IRF, StmtVisitor) {
   auto fmaketest = [&]() {
     auto z = x + 1;
     Stmt body = Evaluate(z);
-    Var buffer("b", DataType::Handle());
-    return Allocate(buffer, DataType::Float(32), {z, z}, const_true(), body);
+    DataType dtype = DataType::Float(32);
+    Var buffer("b", PointerType(PrimType(dtype)));
+    return Allocate(buffer, dtype, {z, z}, const_true(), body);
   };
   v(fmaketest());
   ICHECK_EQ(v.count, 3);
@@ -140,8 +141,9 @@ TEST(IRF, StmtMutator) {
   auto fmakealloc = [&]() {
     auto z = x + 1;
     Stmt body = Evaluate(z);
-    Var buffer("b", DataType::Handle());
-    return Allocate(buffer, DataType::Float(32), {1, z}, const_true(), body);
+    DataType dtype = DataType::Float(32);
+    Var buffer("b", PointerType(PrimType(dtype)));
+    return Allocate(buffer, dtype, {1, z}, const_true(), body);
   };
 
   auto fmakeif = [&]() {

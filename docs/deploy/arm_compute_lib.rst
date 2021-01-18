@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Relay Arm :sup:`®` Compute Library Integration
+Relay Arm:sup:`®` Compute Library Integration
 ==============================================
 **Author**: `Luke Hutton <https://github.com/lhutton1>`_
 
@@ -195,12 +195,14 @@ Operator support
 |                      |   Simple: nn.conv2d                                                     |
 |                      |   Composite: nn.pad?, nn.conv2d, nn.bias_add?, nn.relu?                 |
 |                      |                                                                         |
-|                      | (only groups = 1 supported)                                             |
+|                      | Normal and depth-wise (when kernel is 3x3 or 5x5 and strides are 1x1    |
+|                      | or 2x2) convolution supported. Grouped convolution is not supported.    |
 +----------------------+-------------------------------------------------------------------------+
 | qnn.conv2d           | uint8:                                                                  |
 |                      |   Composite: nn.pad?, nn.conv2d, nn.bias_add?, nn.relu?, qnn.requantize |
 |                      |                                                                         |
-|                      | (only groups = 1 supported)                                             |
+|                      | Normal and depth-wise (when kernel is 3x3 or 5x5 and strides are 1x1    |
+|                      | or 2x2) convolution supported. Grouped convolution is not supported.    |
 +----------------------+-------------------------------------------------------------------------+
 | nn.dense             | fp32:                                                                   |
 |                      |   Simple: nn.dense                                                      |
