@@ -200,8 +200,11 @@ class SketchPolicy : public SearchPolicy {
 /*! \brief Pre-search callback function to load custom rules for sketch generation */
 class PreloadCustomSketchRuleNode : public SearchCallbackNode {
  public:
+  /*! \brief The condition check function of this rule. */
   PackedFunc meet_condition_func;
+  /*! \brief The apply function of this rule. */
   PackedFunc apply_func;
+  /*! \brief The name of this rule. */
   String rule_name;
 
   void Callback(SearchPolicyNode* policy) final;
@@ -216,6 +219,12 @@ class PreloadCustomSketchRuleNode : public SearchCallbackNode {
  */
 class PreloadCustomSketchRule : public SearchCallback {
  public:
+  /*!
+   * \brief The constructor.
+   * \param meet_condition_func The condition check function of this rule.
+   * \param apply_func The apply function of this rule.
+   * \param rule_name The name of this rule.
+   */
   PreloadCustomSketchRule(PackedFunc meet_condition_func, PackedFunc apply_func, String rule_name);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PreloadCustomSketchRule, SearchCallback,

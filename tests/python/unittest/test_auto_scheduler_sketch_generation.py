@@ -448,7 +448,6 @@ if __name__ == "__main__":
     test_cpu_conv2d_winograd_sketch()
     test_cpu_zero_rank_sketch()
     test_cpu_custom_sketch()
-    test_cpu_custom_sketch_registry()
     test_cuda_matmul_sketch()
     test_cuda_conv2d_bn_relu_sketch()
     test_cuda_max_pool2d_sketch()

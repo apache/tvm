@@ -70,22 +70,24 @@ class PreloadCustomSketchRule(SearchCallback):
 
     Notes
     -----
-    This is an advanced feature. Make sure you're clear how it
-    works and this should only be used in SketchSearchPolicy.
+    This is an advanced feature. Make sure you're clear how it works and this should only be used
+    in SketchSearchPolicy.
 
     Parameters
     ----------
     meet_condition_func: Callable
-        A function with `(policy, state, stage_id) -> int`.
+        A function with `(policy, state, stage_id) -> int`. Should return one of the result
+        enumeration.
     apply_func: Callable
         A function with `(policy, state, stage_id) -> [[State, int], ...]`.
     rule_name: str = "CustomSketchRule"
         The name of this custom sketch rule.
     """
 
-    PASS = 0
-    APPLY = 1
-    APPLY_AND_SKIP_REST = 2
+    # Result enumeration of the condition function.
+    PASS = 0  # Skip this rule and continue to try the next rules.
+    APPLY = 1  # Apply this rule and continue to try the next rules.
+    APPLY_AND_SKIP_REST = 2  # Apply this rule and skip the rest rules.
 
     def __init__(self, meet_condition_func, apply_func, rule_name="CustomSketchRule"):
         self.__init_handle_by_constructor__(
