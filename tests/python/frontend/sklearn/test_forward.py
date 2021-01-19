@@ -23,7 +23,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sagemaker_sklearn_extension.externals import AutoMLTransformer
 from sagemaker_sklearn_extension.externals import Header
 from sagemaker_sklearn_extension.impute import RobustImputer, RobustMissingIndicator
@@ -34,6 +34,8 @@ from sagemaker_sklearn_extension.preprocessing import (
     RobustLabelEncoder,
     RobustOrdinalEncoder,
     NALabelEncoder,
+    LogExtremeValuesTransformer,
+    log_transform,
 )
 
 from tvm import topi
@@ -172,21 +174,55 @@ def test_kbins_discretizer():
     _test_model_impl(st_helper, kd, dshape, data)
 
 
-# def test_tfidf_vectorizer():
-#     st_helper = SklearnTestHelper()
-#     tiv = TfidfVectorizer()
-#     data = [
-#         'This is the first document.',
-#         'This document is the second document.',
-#         'And this is the third one.',
-#         'Is this the first document?',
-#     ]
+def test_tfidf_vectorizer():
+    st_helper = SklearnTestHelper()
+    tiv = TfidfVectorizer()
+    corpus = [
+        "This is the first document.",
+        "This document is the second document.",
+        "And this is the third one.",
+        "Is this the first document?",
+    ]
+    sklearn_out = tiv.fit_transform(corpus).toarray()
+    vectorizer = CountVectorizer(dtype=np.float32)
+    data = vectorizer.fit_transform(corpus).toarray()
+    dshape = (relay.Any(), len(data[0]))
 
-#     dshape = (relay.Any(), len(data))
-#     st_helper.compile(tiv, dshape, 'int32')
-#     sklearn_out = tiv.fit_transform(data).toarray()
-#     tvm_out = st_helper.run(data)
-#     tvm.testing.assert_allclose(sklearn_out, tvm_out, rtol=1e-5, atol=1e-5)
+    st_helper.compile(tiv, dshape, "float32", "transform")
+    tvm_out = st_helper.run(data)
+    tvm.testing.assert_allclose(sklearn_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_log_extreme_values_transformer():
+    st_helper = SklearnTestHelper()
+    levt = LogExtremeValuesTransformer(threshold_std=2.0)
+    x_extreme_vals = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [-1.0, 1.0, 1.0],
+            [-2.0, 2.0, 2.0],
+            [-3.0, 3.0, 3.0],
+            [-4.0, 4.0, 4.0],
+            [-5.0, 5.0, 5.0],
+            [-6.0, 6.0, 6.0],
+            [-7.0, 7.0, 7.0],
+            [-8.0, 8.0, 8.0],
+            [-9.0, 9.0, 9.0],
+            [-10.0, 10.0, 10.0],
+            [-1e5, 1e6, 11.0],
+        ],
+        dtype=np.float32,
+    )
+    x_log_extreme_vals = np.column_stack(
+        [
+            log_transform(x_extreme_vals.copy()[:, 0]),
+            log_transform(x_extreme_vals.copy()[:, 1]),
+            x_extreme_vals[:, 2],
+        ]
+    )
+    sklearn_out = levt.fit_transform(x_log_extreme_vals)
+    dshape = (relay.Any(), len(x_log_extreme_vals[0]))
+    _test_model_impl(st_helper, levt, dshape, x_log_extreme_vals)
 
 
 def test_pca():
@@ -340,10 +376,11 @@ if __name__ == "__main__":
     test_robust_ordinal_encoder()
     test_na_label_encoder()
     test_kbins_discretizer()
-    # test_tfidf_vectorizer()
+    test_tfidf_vectorizer()
     test_pca()
     test_automl()
     test_feature_union()
     test_inverse_label_transformer()
+    test_log_extreme_values_transformer()
     test_quantile_transformer()
     test_quantile_extremevalues_transformer()

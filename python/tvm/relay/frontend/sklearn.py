@@ -466,6 +466,31 @@ def _QuantileExtremeValuesTransformer(op, inexpr, dshape, dtype, columns=None):
     return _op.reshape(_op.concatenate(tuple(out), 1), _op.shape_of(inexpr))
 
 
+def _LogExtremeValuesTransformer(op, inexpr, dshape, dtype, columns=None):
+    """
+    Sagemaker-Scikit-Learn-Extension Transformer:
+    Stateful log transformer for columns that contain "extreme" values
+    """
+    n_features = dshape[1]
+    # if n_features != op.n_input_features_:
+    #         raise ValueError("X shape does not match training shape.")
+    out = []
+    cols = _op.split(inexpr, n_features, axis=1)
+    for j in range(n_features):
+        if j in op.cols_to_transform_:
+            if j in op.nonnegative_cols_:
+                out.append(_op.log(_op.add(cols[j], _op.const(1, dtype))))
+            else:
+                sign_col = _op.sign(cols[j])
+                out.append(
+                    _op.multiply(sign_col, _op.log(_op.add(_op.abs(cols[j]), _op.const(1, dtype))))
+                )
+        else:
+            out.append(cols[j])
+    ret = _op.reshape(_op.stack(out, axis=1), newshape=(-1, n_features))
+    return ret
+
+
 _convert_map = {
     "ColumnTransformer": {"transform": _ColumnTransformer},
     "SimpleImputer": {"transform": _SimpleImputer},
@@ -483,6 +508,7 @@ _convert_map = {
     "Pipeline": {"transform": _Pipeline},
     "QuantileTransformer": {"transform": _QuantileTransformer},
     "QuantileExtremeValuesTransformer": {"transform": _QuantileExtremeValuesTransformer},
+    "LogExtremeValuesTransformer": {"transform": _LogExtremeValuesTransformer},
 }
 
 INPUT_FLOAT = 0
