@@ -30,7 +30,7 @@ def test_static_callback():
     cp = te.thread_axis((0, 1), "cop")
     finit = tvm.tir.StringImm("TVMBackendRunOnce")
     ib.scope_attr(cp, "coproc_uop_scope", finit)
-    with ib.for_range(0, n, "i", for_type="parallel") as i:
+    with ib.for_range(0, n, "i", kind="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
 

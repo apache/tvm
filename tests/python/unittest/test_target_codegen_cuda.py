@@ -200,7 +200,7 @@ def test_cuda_shuffle():
 
     def MyVectorize():
         def vectorizer(op):
-            if op.for_type == tvm.tir.For.Vectorized:
+            if op.kind == tvm.tir.ForKind.VECTORIZED:
                 four = tvm.tir.const(4, "int32")
                 idx = tvm.tir.Ramp(thrx.var * four, tvm.tir.const(1, "int32"), 4)
                 all_ones = tvm.tir.const(1, "int32x4")

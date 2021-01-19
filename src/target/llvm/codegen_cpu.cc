@@ -976,12 +976,13 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
-  if (op->for_type == ForType::Serial || op->for_type == ForType::Unrolled) {
+  if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::VisitStmt_(op);
-  } else if (op->for_type == ForType::Parallel) {
+  } else if (op->kind == ForKind::kParallel) {
     if (parallel_env_.penv == nullptr) {
-      CreateParallelLaunch(
-          For(op->loop_var, op->min, op->extent, op->for_type, op->device_api, op->body), 0);
+      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body,
+                               op->thread_binding, op->annotations),
+                           0);
     } else {
       // already in parallel env.
       ICHECK(parallel_env_.task_id.defined());
@@ -1007,7 +1008,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
       ++parallel_env_.parallel_loop_count;
     }
   } else {
-    LOG(FATAL) << "cannot handle for type " << op->for_type;
+    LOG(FATAL) << "cannot handle for type " << op->kind;
   }
 }
 

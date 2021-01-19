@@ -142,7 +142,7 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
-    x = tvm.tir.For(te.var("x"), 0, 10, 0, 0, nop)
+    x = tvm.tir.For(te.var("x"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0
     assert x.extent.value == 10
