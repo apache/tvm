@@ -184,6 +184,7 @@ def test_conv2d_dw():
             outputs.append(build_and_run(func, inputs, 1, params, device, enable_bnns=bnns)[0])
 
         config = {
+            "batch": batch,
             "shape": shape,
             "kernel size": kernel,
             "padding": pad,
