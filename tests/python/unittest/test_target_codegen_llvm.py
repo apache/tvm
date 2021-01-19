@@ -761,7 +761,7 @@ def test_llvm_lower_atomic():
         atomic_add_return = ib.allocate(A.dtype, (1,), name="atomic_add_return", scope="local")
         one = tvm.tir.const(1, A.dtype)
         A_ptr = ib.buffer_ptr(A)
-        with ib.for_range(0, n, name="i", for_type="parallel") as i:
+        with ib.for_range(0, n, name="i", kind="parallel") as i:
             atomic_add_return[0] = atomic_add(
                 tvm.tir.call_intrin("handle", "tir.address_of", A_ptr[0]), one
             )

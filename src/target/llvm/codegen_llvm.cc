@@ -1318,11 +1318,11 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
 void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-  if (op->for_type == ForType::Unrolled) {
+  if (op->kind == ForKind::kUnrolled) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
   } else {
-    ICHECK(op->for_type == ForType::Serial);
+    ICHECK(op->kind == ForKind::kSerial);
   }
   CreateSerialFor(MakeValue(op->min), MakeValue(op->extent),
                   llvm::ConstantInt::getSigned(GetLLVMType(op->extent), 1), op->loop_var, op->body);

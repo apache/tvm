@@ -149,7 +149,8 @@ class IRConvertSSA final : public StmtExprMutator {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
       op = stmt.as<ForNode>();
-      return For(new_var, op->min, op->extent, op->for_type, op->device_api, op->body);
+      return For(new_var, op->min, op->extent, op->kind, op->body, op->thread_binding,
+                 op->annotations);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
