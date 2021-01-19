@@ -250,13 +250,13 @@ class IRBuilder(object):
 
         def _exit_cb():
             if kind == "serial":
-                kind_id = 0
+                kind_id = _stmt.ForKind.SERIAL
             elif kind == "parallel":
-                kind_id = 1
+                kind_id = _stmt.ForKind.PARALLEL
             elif kind == "vectorize":
-                kind_id = 2
+                kind_id = _stmt.ForKind.VECTORIZED
             elif kind == "unroll":
-                kind_id = 3
+                kind_id = _stmt.ForKind.UNROLLED
             else:
                 raise ValueError("Unknown kind")
             self.emit(_stmt.For(loop_var, begin, extent, kind_id, self._pop_seq()))
