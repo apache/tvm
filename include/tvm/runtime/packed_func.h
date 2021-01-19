@@ -585,7 +585,7 @@ class TVMMovableArgValueWithContext_ {
  public:
   /*!
    * \brief move constructor from another return value.
-   * \param other The other return value.
+   * \param value The other return value.
    * \param type_code The code associated with the type of the value.
    * \param arg_index In a function call, this argument is at index arg_index (0-indexed).
    * \param optional_name Name of the function being called. Can be nullptr if the function is not
