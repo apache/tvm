@@ -580,7 +580,7 @@ def nms_ir(
             j = bx * max_threads + tx
             with ib.if_scope(j < nkeep):
                 src_idx = base_src_idx + sorted_index[i * num_anchors + j] * box_data_length
-                with ib.for_range(0, 4, for_type="unroll") as k:
+                with ib.for_range(0, 4, kind="unroll") as k:
                     out_bboxes[(base_bbox_idx + j * 4 + k)] = data[src_idx + coord_start + k]
 
                 out_scores[i * num_anchors + j] = data[src_idx + score_index]
@@ -593,7 +593,7 @@ def nms_ir(
                 # Only needed for return_indices = False case
                 if return_indices is False:
                     with ib.if_scope(j < num_anchors):
-                        with ib.for_range(0, 4, for_type="unroll") as k:
+                        with ib.for_range(0, 4, kind="unroll") as k:
                             out_bboxes[(base_bbox_idx + j * 4 + k)] = -1.0
 
                         out_scores[i, j] = -1.0
@@ -609,7 +609,7 @@ def nms_ir(
             with ib.if_scope(j < valid_count[i]):
                 src_offset = base_src_idx + j * box_data_length
 
-                with ib.for_range(0, 4, for_type="unroll") as k:
+                with ib.for_range(0, 4, kind="unroll") as k:
                     out_bboxes[base_bbox_idx + j * 4 + k] = data[src_offset + coord_start + k]
                 out_scores[i * num_anchors + j] = data[src_offset + score_index]
 
@@ -855,7 +855,7 @@ def _concatenate_outputs(
             i = by
 
             with ib.if_scope(tid < num_anchors):
-                with ib.for_range(0, 4, for_type="unroll") as j:
+                with ib.for_range(0, 4, kind="unroll") as j:
                     out[i, tid, coord_start + j] = out_bboxes[i, tid, j]
                 out[i, tid, score_index] = out_scores[i, tid]
                 if id_index >= 0:
