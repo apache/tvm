@@ -183,6 +183,32 @@ def test_sketch_search_policy_zero_rank():
         search_common(task, runner=measure_ctx.runner)
 
 
+@tvm.testing.requires_llvm
+def test_sketch_search_policy_custom_sketch():
+    def meet_condition_func(search_policy, state, stage_id):
+        return auto_scheduler.PreloadCustomSketchRule.APPLY_AND_SKIP_REST
+
+    def apply_func(search_policy, state, stage_id):
+        ret = []
+        state = auto_scheduler.loop_state.State(state, search_policy.search_task.compute_dag)
+        C = state.stage_ops[2]
+
+        ret.append([state.state_object, -1])
+
+        s1 = state.copy()
+        i, _, _ = s1[C].iters
+        s1.split(C, i, [8])
+        ret.append([s1.state_object, -1])
+        return ret
+
+    search_common(
+        cost_model=auto_scheduler.XGBModel(),
+        init_search_callbacks=[
+            auto_scheduler.PreloadCustomSketchRule(meet_condition_func, apply_func)
+        ],
+    )
+
+
 if __name__ == "__main__":
     test_workload_registry_empty_policy()
     test_sketch_search_policy_basic()
@@ -191,3 +217,4 @@ if __name__ == "__main__":
     test_sketch_search_policy_cuda_rpc_runner()
     test_sketch_search_policy_cuda_xgbmodel_rpc_runner()
     test_sketch_search_policy_zero_rank()
+    test_sketch_search_policy_custom_sketch()

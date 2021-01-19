@@ -228,6 +228,9 @@ class SearchTask(Object):
         if isinstance(target_host, str):
             target_host = Target(target_host)
 
+        if layout_rewrite_option is None:
+            layout_rewrite_option = LayoutRewriteOption.get_target_default(target)
+
         self.__init_handle_by_constructor__(
             _ffi_api.SearchTask,
             compute_dag,
@@ -235,7 +238,7 @@ class SearchTask(Object):
             target,
             target_host,
             hardware_params,
-            layout_rewrite_option or LayoutRewriteOption.get_target_default(target),
+            layout_rewrite_option,
         )
 
     def tune(self, tuning_options, search_policy=None):
