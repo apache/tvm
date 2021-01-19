@@ -17,12 +17,12 @@
 """Cumsum operator"""
 from ..tir import decl_buffer, ir_builder
 from ..te import extern
-from .utils import prod
+from .utils import prod, get_const_int
 from .math import cast
 
 
 def cumsum(data, axis=None, dtype=None):
-    if dtype is None:
+    if dtype is None or dtype == "":
         dtype = data.dtype
 
     def maybe_cast(x):
@@ -38,6 +38,9 @@ def cumsum(data, axis=None, dtype=None):
         cumsum_axis_len = prod(data.shape)
         shape = (cumsum_axis_len,)
     else:
+        if not isinstance(axis, int):
+            axis = get_const_int(axis)
+
         shape = data.shape
         cumsum_axis_len = shape[axis]
 

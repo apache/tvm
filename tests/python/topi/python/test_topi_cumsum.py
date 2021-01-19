@@ -33,30 +33,32 @@ def test_cumsum(ctx, target):
     data = np.array([2, 3, 0])
     check_cumsum(np.cumsum(data), data)
 
-    data = np.random.randn(10, 10)
-    check_cumsum(np.cumsum(data), data)
-    check_cumsum(np.cumsum(data, axis=0), data, axis=0)
-    check_cumsum(np.cumsum(data, axis=1), data, axis=1)
-
-    data = np.random.randn(10, 5, 10)
-    check_cumsum(np.cumsum(data), data)
-    check_cumsum(np.cumsum(data, axis=0), data, axis=0)
-    check_cumsum(np.cumsum(data, axis=1), data, axis=1)
-    check_cumsum(np.cumsum(data, axis=-1), data, axis=-1)
-
     data = np.random.rand(10) > 0.5
     data = data.astype(np.int32)
     check_cumsum(np.cumsum(data, dtype=np.int32), data)
     check_cumsum(np.cumsum(data), data, dtype="int64")
 
-    data = np.random.randint(-100, 100, size=(100, 100)).astype(np.int32)
-    check_cumsum(np.cumsum(data, dtype=np.int32), data)
-    check_cumsum(np.cumsum(data), data, dtype="int64")
-    check_cumsum(np.cumsum(data, axis=0, dtype=np.int32), data, axis=0)
-    check_cumsum(np.cumsum(data, axis=1, dtype=np.int32), data, axis=1)
+    for in_dtype in ["float32", "float64"]:
+        data = np.random.randn(10, 10).astype(in_dtype)
+        check_cumsum(np.cumsum(data), data)
+        check_cumsum(np.cumsum(data, axis=0), data, axis=0)
+        check_cumsum(np.cumsum(data, axis=1), data, axis=1)
 
-    data = np.random.randint(1 << 30, (1 << 31) - 1, size=(100)).astype(np.int32)
-    check_cumsum(np.cumsum(data), data, dtype="int64")
+        data = np.random.randn(10, 5, 10).astype(in_dtype)
+        check_cumsum(np.cumsum(data), data)
+        check_cumsum(np.cumsum(data, axis=0), data, axis=0)
+        check_cumsum(np.cumsum(data, axis=1), data, axis=1)
+        check_cumsum(np.cumsum(data, axis=-1), data, axis=-1)
+
+    for in_dtype in ["int32", "int64"]:
+        data = np.random.randint(-100, 100, size=(100, 100)).astype(in_dtype)
+        check_cumsum(np.cumsum(data, dtype=in_dtype), data)
+        check_cumsum(np.cumsum(data), data, dtype="int64")
+        check_cumsum(np.cumsum(data, axis=0, dtype=in_dtype), data, axis=0)
+        check_cumsum(np.cumsum(data, axis=1, dtype=in_dtype), data, axis=1)
+
+        data = np.random.randint(1 << 30, (1 << 31) - 1, size=(100)).astype(in_dtype)
+        check_cumsum(np.cumsum(data), data, dtype="int64")
 
 
 if __name__ == "__main__":
