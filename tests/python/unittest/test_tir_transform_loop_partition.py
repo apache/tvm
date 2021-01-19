@@ -462,7 +462,6 @@ def test_multilevel_splitting_with_indivisble_factors():
         def visit_stmt(op):
             return isinstance(op, tvm.tir.Max)
 
-        print(lowered_body)
         num_max = collect_visit(lowered_body, visit_stmt)
         assert num_max.count(True) == 10
 
