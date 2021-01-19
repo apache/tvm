@@ -3464,7 +3464,9 @@ def test_cumsum():
     inp = torch.randn((100, 100), dtype=torch.float32)
     verify_model(test_fn(dim=0, dtype=torch.float64), [inp])
     verify_model(test_fn(dim=1), [inp])
->>>>>>> d30410e10... add torch frontend converter
+
+    inp = torch.randn((100, 100), dtype=torch.float32) > 0.5
+    verify_model(test_fn(dim=0, dtype=torch.int32), [inp])
 
 
 def test_masked_fill():
