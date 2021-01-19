@@ -217,6 +217,8 @@ uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
+std::string Object::GetFullType() const { return GetTypeKey(); }
+
 TVM_REGISTER_GLOBAL("runtime.ObjectPtrHash").set_body_typed([](ObjectRef obj) {
   return static_cast<int64_t>(ObjectPtrHash()(obj));
 });

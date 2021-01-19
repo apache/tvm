@@ -407,6 +407,15 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
     return p;
   }
 
+  std::string GetFullType() const override {
+    if (size() > 0) {
+      return "Array[" + (*begin())->GetFullType() + "]";
+    } else {
+      // If this array contains no elements, we don't know the type of what it contains.
+      return "Array[]";
+    }
+  }
+
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeArray;
   static constexpr const char* _type_key = "Array";
   TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Object);

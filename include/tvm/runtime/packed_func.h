@@ -1404,7 +1404,7 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
     Object* ptr = static_cast<Object*>(value_.v_handle);
     ICHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
         << "Expect " << ObjectTypeChecker<TObjectRef>::TypeName() << " but get "
-        << ptr->GetTypeKey();
+        << ptr->GetFullType();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (type_code_ == kTVMObjectRValueRefArg) {
     Object* ptr = *static_cast<Object**>(value_.v_handle);

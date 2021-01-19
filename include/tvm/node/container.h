@@ -137,6 +137,15 @@ class MapNode : public Object {
    */
   static ObjectPtr<MapNode> Empty() { return make_object<MapNode>(); }
 
+  std::string GetFullType() const override {
+    if (size() > 0) {
+      return "Map[" + begin()->first->GetFullType() + ", " + begin()->second->GetFullType() + "]";
+    } else {
+      // If this map contains no elements, we don't know the type of what it contains.
+      return "Map[]";
+    }
+  }
+
  protected:
   /*!
    * \brief Create the map using contents from the given iterators.

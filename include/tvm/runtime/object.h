@@ -175,6 +175,12 @@ class TVM_DLL Object {
    */
   std::string GetTypeKey() const { return TypeIndex2Key(type_index_); }
   /*!
+   * \return The full type of the object including the types of the items it contains.
+   * \note this operation is expensive, but provides a more detailed type than
+   * GetTypeKey for error reporting.
+   */
+  virtual std::string GetFullType() const;
+  /*!
    * \return A hash value of the return of GetTypeKey.
    */
   size_t GetTypeKeyHash() const { return TypeIndex2KeyHash(type_index_); }
