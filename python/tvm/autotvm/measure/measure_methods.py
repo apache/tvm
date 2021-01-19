@@ -566,6 +566,7 @@ def run_through_rpc(
             # the index tensor of scatter op cannot be randomly initialized
             for arg in args:
                 random_fill(arg)
+        ctx.sync()
 
         costs = time_f(*args).results
 
