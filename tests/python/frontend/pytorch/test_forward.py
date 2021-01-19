@@ -3467,6 +3467,15 @@ def test_cumsum():
 >>>>>>> d30410e10... add torch frontend converter
 
 
+def test_masked_fill():
+    def test_fn(x, mask):
+        return torch.masked_fill(x, mask, 0.0)
+
+    inp = torch.randn(100, 100)
+    verify_model(test_fn, [inp, inp > 0.5])
+    verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
+
+
 if __name__ == "__main__":
     # some structural tests
     test_forward_traced_function()
@@ -3596,6 +3605,7 @@ if __name__ == "__main__":
     test_numel()
     test_bincount()
     test_cumsum()
+    test_masked_fill()
 
     # Model tests
     test_resnet18()
