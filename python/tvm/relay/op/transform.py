@@ -1320,3 +1320,10 @@ def adv_index(inputs):
         Output tensor.
     """
     return _make.adv_index(Tuple(inputs))
+
+
+def cumsum(data, axis=None, dtype=None):
+    """
+    TODO
+    """
+    return _make.cumsum(data, axis, dtype)

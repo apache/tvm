@@ -3674,5 +3674,8 @@ RELAY_REGISTER_OP("adv_index")
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<FTVMCompute>("FTVMCompute", AdvIndexCompute);
 
+
+TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+
 }  // namespace relay
 }  // namespace tvm
