@@ -226,7 +226,7 @@ class Serial(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var", span)
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 0, self.body, span=span)
 
         super().__init__(serial)
 
@@ -241,7 +241,7 @@ class Parallel(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 1, self.body, span=span)
 
         super().__init__(parallel)
 
@@ -256,7 +256,7 @@ class Vectorized(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 2, self.body, span=span)
 
         super().__init__(vectorized)
 
@@ -271,6 +271,6 @@ class Unroll(ForScopeHandler):
                 self.context.report_error("Expect exact 1 loop var")
             ana = tvm.arith.Analyzer()
             extent = end if begin == 0 else ana.simplify(end - begin)
-            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, 0, self.body, span=span)
+            return tvm.tir.For(self.loop_vars[0], begin, extent, 3, self.body, span=span)
 
         super().__init__(unroll)

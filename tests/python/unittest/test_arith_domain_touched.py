@@ -31,14 +31,12 @@ def test_domain_touched():
         i,
         0,
         n,
-        0,
-        0,
+        tvm.tir.ForKind.SERIAL,
         tvm.tir.For(
             j,
             0,
             m,
-            0,
-            0,
+            tvm.tir.ForKind.SERIAL,
             tvm.tir.BufferStore(
                 a,
                 tvm.tir.BufferLoad(b, [i - 1, j + 1]) + tvm.tir.BufferLoad(a, [i - 1, j - 1]),

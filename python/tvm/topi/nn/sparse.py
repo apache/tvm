@@ -294,26 +294,26 @@ def _csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     n = get_const_tuple(indptr.shape)[0] - 1
     nnz = get_const_tuple(data.shape)[0]
 
-    with irb.for_range(0, n, for_type="parallel", name="col") as col:
+    with irb.for_range(0, n, kind="parallel", name="col") as col:
         out_indptr_ptr[col] = 0
 
-    with irb.for_range(0, nnz, for_type="serial", name="nz_idx") as nz_idx:
+    with irb.for_range(0, nnz, kind="serial", name="nz_idx") as nz_idx:
         out_indptr_ptr[indices_ptr[nz_idx]] += 1
 
     cumsum = irb.allocate("int32", (1,), name="cumsum", scope="local")
     temp = irb.allocate("int32", (1,), name="temp", scope="local")
     cumsum[0] = 0
-    with irb.for_range(0, n, for_type="serial", name="col") as col:
+    with irb.for_range(0, n, kind="serial", name="col") as col:
         temp[0] = out_indptr_ptr[col]
         out_indptr_ptr[col] = cumsum[0]
         cumsum[0] += temp[0]
 
     out_indptr_ptr[n] = nnz
 
-    with irb.for_range(0, n, for_type="serial", name="row") as row:
+    with irb.for_range(0, n, kind="serial", name="row") as row:
         offset = indptr_ptr[row]
         diff = indptr_ptr[row + 1] - indptr_ptr[row]
-        with irb.for_range(0, diff, for_type="serial", name="idx") as idx:
+        with irb.for_range(0, diff, kind="serial", name="idx") as idx:
             real_idx = offset + idx
             col = indices_ptr[real_idx]
             dest = out_indptr_ptr[col]
@@ -325,7 +325,7 @@ def _csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     last = irb.allocate("int32", (1,), name="last", scope="local")
     temp2 = irb.allocate("int32", (1,), name="temp2", scope="local")
     last[0] = 0
-    with irb.for_range(0, n, for_type="serial", name="col") as col:
+    with irb.for_range(0, n, kind="serial", name="col") as col:
         temp2[0] = out_indptr_ptr[col]
         out_indptr_ptr[col] = last[0]
         last[0] = temp2[0]

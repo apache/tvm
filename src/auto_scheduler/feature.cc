@@ -618,7 +618,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       is_gpu_ = true;
 
       // make a fake for node for blockIdx.x or threadIdx.x
-      Stmt fake_for_node = For(var, 0, extent, ForType::Parallel, DeviceAPI::None, node->body);
+      Stmt fake_for_node = For(var, 0, extent, ForKind::kParallel, node->body);
 
       outer_loop_prod_ *= extent;
       for_loop_stack_.push_back(fake_for_node.as<ForNode>());
@@ -642,11 +642,11 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   void VisitStmt_(const ForNode* node) final {
     int64_t loop_extent = GetLoopExtent(node);
 
-    if (node->for_type == ForType::Vectorized) {
+    if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.push_back(node);
-    } else if (node->for_type == ForType::Unrolled) {
+    } else if (node->kind == ForKind::kUnrolled) {
       unroll_for_stack_.push_back(node);
-    } else if (node->for_type == ForType::Parallel) {
+    } else if (node->kind == ForKind::kParallel) {
       parallel_for_stack_.push_back(node);
     }
 
@@ -656,11 +656,11 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     for_loop_stack_.pop_back();
     outer_loop_prod_ /= loop_extent;
 
-    if (node->for_type == ForType::Vectorized) {
+    if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.pop_back();
-    } else if (node->for_type == ForType::Unrolled) {
+    } else if (node->kind == ForKind::kUnrolled) {
       unroll_for_stack_.pop_back();
-    } else if (node->for_type == ForType::Parallel) {
+    } else if (node->kind == ForKind::kParallel) {
       parallel_for_stack_.pop_back();
     }
   }

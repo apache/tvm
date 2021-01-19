@@ -46,9 +46,9 @@ class ReturnRewriter : public StmtMutator {
   explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
 
   Stmt VisitStmt_(const ForNode* node) override {
-    if (node->for_type == ForType::Parallel) in_parallel_ += 1;
+    if (node->kind == ForKind::kParallel) in_parallel_ += 1;
     Stmt ret = StmtMutator::VisitStmt_(node);
-    if (node->for_type == ForType::Parallel) in_parallel_ -= 1;
+    if (node->kind == ForKind::kParallel) in_parallel_ -= 1;
     return ret;
   }
 

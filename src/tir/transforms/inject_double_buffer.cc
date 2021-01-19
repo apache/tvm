@@ -158,8 +158,7 @@ class DoubleBufferInjector : public StmtExprMutator {
           vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.dtype(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
-        Stmt loop = For(outer_var, zero, outer_ext, old_loop->for_type, old_loop->device_api,
-                        SeqStmt::Flatten(loop_seq));
+        Stmt loop = For(outer_var, zero, outer_ext, old_loop->kind, SeqStmt::Flatten(loop_seq));
         // tail
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite()(old_loop->body);
