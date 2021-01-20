@@ -330,7 +330,19 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
   auto in_dtype = DLDataType2String(data->dtype);
   auto out_dtype = DLDataType2String(output->dtype);
 
-  if (in_dtype == "int32") {
+  if (in_dtype == "bool") {
+    if (out_dtype == "int32") {
+      thrust_scan<bool, int>(data, output, exclusive);
+    } else if (out_dtype == "int64") {
+      thrust_scan<bool, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<bool, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<bool, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (in_dtype == "int32") {
     if (out_dtype == "int32") {
       thrust_scan<int, int>(data, output, exclusive);
     } else if (out_dtype == "int64") {
