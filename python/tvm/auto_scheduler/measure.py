@@ -45,6 +45,7 @@ from tvm.driver import build_module
 from tvm.ir import transform
 from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 from tvm.contrib import tar, ndk
+from tvm.te import PlaceholderOp, ComputeOp
 
 from . import _ffi_api
 from .loop_state import StateObject
@@ -722,59 +723,80 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
 
 
 def _process_sparse_input(args):
+    sparse_prefix = sparse_data = sparse_indices = sparse_indptr = None
+
+    def _process_inputs(input_tensors, M, N, prefix_init):
+        nonlocal sparse_prefix
+        nonlocal sparse_data
+        nonlocal sparse_indices
+        nonlocal sparse_indptr
+
+        assert len(input_tensors) == 4
+        unsure_tensors = list(input_tensors)
+        # Get the Dense data
+        dense_data = None
+        for tensor in unsure_tensors:
+            if len(tensor.shape) == 2:
+                assert dense_data is None
+                dense_data = tensor
+                assert M == dense_data.shape[0]
+                K = dense_data.shape[1]
+        unsure_tensors.remove(dense_data)
+
+        # Get the Sparse data
+        sparse_data = None
+        for tensor in unsure_tensors:
+            if len(tensor.shape) == 3:
+                assert sparse_data is None
+                sparse_data = tensor
+                block_size, BS_R, BS_C = sparse_data.shape
+        unsure_tensors.remove(sparse_data)
+
+        # Get the Sparse indptr & indices
+        sparse_indices = None
+        for tensor in unsure_tensors:
+            assert len(tensor.shape) == 1
+            if tensor.shape[0] == block_size:
+                assert sparse_indices is None
+                sparse_indices = tensor
+        unsure_tensors.remove(sparse_indices)
+        assert len(unsure_tensors) == 1
+        sparse_indptr = unsure_tensors[0]
+
+        # Generate the sparse_prefix
+        density = 1.0
+        for i in sparse_data.shape:
+            density *= i
+        density /= (K * N)
+        density = density.value
+        sparse_prefix = "%s_%d_%d_%d_%d_%d_%.2f_" % (
+            prefix_init, M, N, K, BS_R, BS_C, density
+        )
+
+    visited = set()
+    def _traverse(t):
+        # We cannot directly add tensors to the set, because the comparison of
+        # two tensors with ndim=0 is ambiguous.
+        assert t.handle is not None
+        if t.handle.value in visited:
+            return
+        if isinstance(t.op, ComputeOp):
+            # TODO(jcf94): Currently only support to tune one sparse op
+            if t.op.tag == "sparse_dense_sp_rhs_bsrmm":
+                M, N = t.shape
+                assert len(t.op.input_tensors) == 1
+                block_tensor = t.op.input_tensors[0]
+                _process_inputs(block_tensor.op.input_tensors, M, N, "sparse_dense_bsr")
+            if sparse_prefix is not None:
+                return
+            for x in t.op.input_tensors:
+                _traverse(x)
+        visited.add(t.handle.value)
+
     for arg in args:
-        if isinstance(arg.op, tvm.te.tensor.ComputeOp) and \
-            arg.op.tag == "sparse_dense_sp_rhs_bsrmm":
-                # Get output shape
-                output_tensor = arg
-                M, N = output_tensor.shape
+        _traverse(arg)
 
-                # Get the input tensors
-                block_tensor = arg.op.input_tensors[0]
-                unsure_tensors = list(block_tensor.op.input_tensors)
-                assert len(unsure_tensors) == 4
-
-                # Get the input data
-                dense_data = None
-                for tensor in unsure_tensors:
-                    if len(tensor.shape) == 2:
-                        assert dense_data is None
-                        dense_data = tensor
-                        assert M == dense_data.shape[0]
-                        K = dense_data.shape[1]
-                unsure_tensors.remove(dense_data)
-
-                # Get the Sparse data
-                sparse_data = None
-                for tensor in unsure_tensors:
-                    if len(tensor.shape) == 3:
-                        assert sparse_data is None
-                        sparse_data = tensor
-                        block_size, BS_R, BS_C = sparse_data.shape
-                unsure_tensors.remove(sparse_data)
-
-                # Get the Sparse indptr & indices
-                sparse_indices = None
-                for tensor in unsure_tensors:
-                    assert len(tensor.shape) == 1
-                    if tensor.shape[0] == block_size:
-                        assert sparse_indices is None
-                        sparse_indices = tensor
-                unsure_tensors.remove(sparse_indices)
-                sparse_indptr = unsure_tensors[0]
-
-                density = 1.0
-                for i in sparse_data.shape:
-                    density *= i
-                density /= (K * N)
-                density = density.value
-                sparse_prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (
-                    M, N, K, BS_R, BS_C, density
-                )
-
-                return sparse_prefix, sparse_data, sparse_indices, sparse_indptr
-
-    return None, None, None, None
+    return sparse_prefix, sparse_data, sparse_indices, sparse_indptr
 
 def _timed_eval_func(
     inp_serialized,
@@ -815,11 +837,12 @@ def _timed_eval_func(
 
     if error_no == 0:
         try:
+            random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
+            assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
+
             # Check sparse op
             sparse_prefix, sparse_data, sparse_indices, sparse_indptr = \
                 _process_sparse_input(build_res.args)
-            random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
-            assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
             if sparse_prefix:
                 args = []
                 for arg in build_res.args:
@@ -1019,18 +1042,36 @@ def _timed_rpc_run(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
             try:
                 random_fill = remote.get_function("tvm.contrib.random.random_fill")
             except AttributeError:
                 raise AttributeError(
                     "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
                 )
-            for arg in args:
-                random_fill(arg)
-            ctx.sync()
 
+            # Check sparse op
+            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = \
+                _process_sparse_input(build_res.args)
+            if sparse_prefix:
+                args = []
+                for arg in build_res.args:
+                    if arg == sparse_data:
+                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_data"), ctx))
+                    elif arg == sparse_indices:
+                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_indices"), ctx))
+                    elif arg == sparse_indptr:
+                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_indptr"), ctx))
+                    else:
+                        empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
+                        random_fill(empty_array)
+                        args.append(empty_array)
+            else:
+                args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
+                for arg in args:
+                    random_fill(arg)
+            ctx.sync()
             costs = time_f(*args).results
+
             # clean up remote files
             remote.remove(build_res.filename)
             remote.remove(os.path.splitext(build_res.filename)[0] + ".so")
