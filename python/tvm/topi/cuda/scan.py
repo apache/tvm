@@ -201,7 +201,10 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output):
             ib.scope_attr(bx, "thread_extent", nthread_bx)
             tid = bx * max_threads + tx
             with ib.if_scope(tid < batch_size):
-                reduction[tid] = data_ex_scan[tid, num_anchors - 1] + data[tid, num_anchors - 1]
+                with ib.if_scope(num_anchors > 0):
+                    reduction[tid] = data_ex_scan[tid, num_anchors - 1] + data[tid, num_anchors - 1]
+                with ib.else_scope():
+                    reduction[tid] = 0
 
         return ib.get()
 
