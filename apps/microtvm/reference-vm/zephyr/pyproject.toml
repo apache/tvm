@@ -64,6 +64,9 @@ scipy = "^1.4"
 python = "^3.6"
 tornado = "^6"
 typed_ast = "^1.4"
+pyyaml = "^5.4.1"
+pyserial = "^3.5"
+
 
 # AutoTVM
 xgboost = {version = "^1.1", optional = true}
