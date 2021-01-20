@@ -41,8 +41,8 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
         1D Buffer of size [batch_size], to store the sum of each row.
     """
 
-    batch_size = data.shape[0]
-    scan_axis_size = data.shape[1]
+    batch_size = prod(data.shape[:-1])
+    scan_axis_size = data.shape[-1]
 
     ib = tvm.tir.ir_builder.create()
 
@@ -76,7 +76,7 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
             ib.scope_attr(by, "thread_extent", nthread_by)
             tid = bx * nthread_tx + tx
             with ib.if_scope(tid < scan_axis_size):
-                output[by, tid] = data[by, tid]
+                output[by * scan_axis_size + tid] = cast(data[by * scan_axis_size + tid], out_dtype)
 
         nthread_tx = max_threads
         nthread_bx = ceil_div(scan_axis_size, max_threads)
@@ -331,31 +331,28 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
         data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
         output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
 
-        if len(data.shape) == 2:
-            if return_reduction:
-                output, reduction = te.extern(
-                    [data.shape, (data.shape[0],)],
-                    [data],
-                    lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1]),
-                    dtype=[data.dtype, output_dtype],
-                    in_buffers=[data_buf],
-                    name="exclusive_scan",
-                    tag="exclusive_scan_gpu",
-                )
-            else:
-                output = te.extern(
-                    [data.shape],
-                    [data],
-                    lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0]),
-                    dtype=[output_dtype],
-                    in_buffers=[data_buf],
-                    out_buffers=[output_buf],
-                    name="exclusive_scan",
-                    tag="exclusive_scan_gpu",
-                )
-                reduction = None
+        if return_reduction:
+            output, reduction = te.extern(
+                [data.shape, (data.shape[0],)],
+                [data],
+                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1]),
+                dtype=[data.dtype, output_dtype],
+                in_buffers=[data_buf],
+                name="exclusive_scan",
+                tag="exclusive_scan_gpu",
+            )
         else:
-            assert False, "Unsupported dimension {}".format(ndim)
+            output = te.extern(
+                [data.shape],
+                [data],
+                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0]),
+                dtype=[output_dtype],
+                in_buffers=[data_buf],
+                out_buffers=[output_buf],
+                name="exclusive_scan",
+                tag="exclusive_scan_gpu",
+            )
+            reduction = None
 
         if ndim == 1:
             output = squeeze(output, 0)
@@ -392,6 +389,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
 
     return output
 
+
 def schedule_scan(outs):
     """Schedule for scan operator.
 
@@ -426,11 +424,12 @@ def schedule_scan(outs):
 def cumsum(data, axis=None, dtype=None):
     if axis is None:
         axis = 0
-        cumsum_axis_len = prod(data.shape)
-        data = reshape(data, (cumsum_axis_len,))
+        data = reshape(data, (prod(data.shape),))
 
     ex_scan = exclusive_scan(data, axis, output_dtype=dtype)
+
     if dtype is not None and data.dtype != dtype:
         data = cast(data, dtype)
+
     in_scan = data + ex_scan
     return in_scan

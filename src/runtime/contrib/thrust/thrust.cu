@@ -275,7 +275,10 @@ void thrust_scan(DLTensor* data,
 
   if (scan_size == 0) return;
 
-  if (data->ndim == 1 || (data->ndim == 2 && data->shape[0] == 1)) {
+  int64_t size = 1;
+  for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
+
+  if (size == static_cast<size_t>(data->shape[data->ndim - 1])) {
     if (exclusive) {
       thrust::exclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
     } else {
@@ -294,8 +297,6 @@ void thrust_scan(DLTensor* data,
         return i / scan_size;
     }; // NOLINT(*)
     auto key_iter = thrust::make_transform_iterator(counting_iter, linear_index_to_scan_key);
-    int64_t size = 1;
-    for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
 
     if (exclusive) {
       thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
@@ -320,18 +321,34 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
       thrust_scan<int, int>(data, output, exclusive);
     } else if (out_dtype == "int64") {
       thrust_scan<int, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<int, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<int, double>(data, output, exclusive);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (in_dtype == "int64") {
     if (out_dtype == "int64") {
       thrust_scan<int64_t, int64_t>(data, output, exclusive);
+    } else if (out_dtype == "float32") {
+      thrust_scan<int64_t, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<int64_t, double>(data, output, exclusive);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (in_dtype == "float32") {
     if (out_dtype == "float32") {
       thrust_scan<float, float>(data, output, exclusive);
+    } else if (out_dtype == "float64") {
+      thrust_scan<float, double>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (in_dtype == "float64") {
+    if (out_dtype == "float4") {
+      thrust_scan<double, double>(data, output, exclusive);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
