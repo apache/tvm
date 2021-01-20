@@ -785,6 +785,78 @@ def test_empty_tuple():
         assert tvm.ir.structural_equal(expected, result)
 
 
+def test_annotate_within_let():
+    """Modified version of the relu test that uses let bindings for intermediate values."""
+
+    target = "let_test"
+    const_array = np.full((10, 10), 0.0, dtype="float32")
+
+    @tvm.ir.register_op_attr("nn.relu", f"target.{target}")
+    def relu(expr):  # pylint: disable=unused-variable
+        return True
+
+    def before():
+        x = relay.var("x", shape=(10, 10))
+        r = relay.var("r")
+        a = relay.var("a")
+        s = relay.var("s")
+        f = relay.Function(
+            [],
+            relay.Let(
+                x, relay.const(const_array, dtype="float32"),
+                relay.Let(
+                    r, relay.nn.relu(x),
+                    relay.Let(
+                        a, relay.abs(r),
+                        relay.Let(
+                            s, relay.add(a, a),
+                            s
+                        )))))
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        x = relay.var("x", shape=(10, 10))
+        const = relay.const(const_array, dtype="float32")
+        annotate_const = relay.annotation.compiler_begin(const, "default")
+
+        r = relay.var("r")
+        called_x = relay.annotation.compiler_begin(x, target)
+        relu_expr = relay.annotation.compiler_end(relay.nn.relu(called_x), target)
+        annotate_relu = relay.annotation.compiler_begin(relu_expr, target)
+
+        a = relay.var("a")
+        called_r = relay.annotation.compiler_begin(r, "default")
+        abs_expr = relay.annotation.compiler_end(relay.abs(called_r), "default")
+        annotate_abs = relay.annotation.compiler_begin(abs_expr, "default")
+
+        # two "a" vars because the annotations will be distinct for each
+        s = relay.var("s")
+        called_a_1 = relay.annotation.compiler_begin(a, "default")
+        called_a_2 = relay.annotation.compiler_begin(a, "default")
+        sum_expr = relay.annotation.compiler_end(relay.add(called_a_1, called_a_2), "default")
+        annotate_sum = relay.annotation.compiler_begin(sum_expr, "default")
+
+        f = relay.Function(
+            [],
+            relay.Let(
+                x, annotate_const,
+                relay.Let(
+                    r, annotate_relu,
+                    relay.Let(
+                        a, annotate_abs,
+                        relay.Let(
+                            s, annotate_sum,
+                            s)))))
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    for annotate_non_call_ops in [False, True]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        expected = transform.InferType()(after())
+        assert tvm.ir.structural_equal(expected, result), [expected, result]
+
+
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
@@ -802,3 +874,4 @@ if __name__ == "__main__":
     test_ends_with_tuple()
     test_ref_create_read_write()
     test_empty_tuple()
+    test_annotate_within_let()
