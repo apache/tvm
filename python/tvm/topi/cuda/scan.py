@@ -404,3 +404,13 @@ def schedule_scan(outs):
     for out in outs:
         traverse(out.op)
     return s
+
+
+def cumsum(data, axis=None, dtype=None):
+    if axis is None and axis != 0:
+        axis = 0
+    ex_scan = exclusive_scan(data, axis, output_dtype=dtype)
+    if dtype is not None and data.dtype != dtype:
+        data = cast(data, dtype)
+    in_scan = data + ex_scan
+    return in_scan

@@ -26,6 +26,7 @@ def test_cumsum(ctx, target):
     def check_cumsum(np_ref, data, axis=None, dtype=None):
         implementations = {
             "generic": (lambda x: topi.cumsum(x, axis, dtype), topi.generic.schedule_extern),
+            "cuda": (lambda x: topi.cuda.cumsum(x, axis, dtype), topi.cuda.schedule_scan),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm([data], np_ref, target, ctx, fcompute, fschedule)
@@ -62,4 +63,5 @@ def test_cumsum(ctx, target):
 
 
 if __name__ == "__main__":
-    test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
+    # test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
