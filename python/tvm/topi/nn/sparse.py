@@ -197,7 +197,7 @@ def _sparse_dense_sp_lhs_bsrmm(data_data, data_indices, data_indptr, weight):
 
 
 def _sparse_dense_sp_rhs_bsrmm(data, weight_data, weight_indices, weight_indptr):
-    (m, _) = get_const_tuple(data.shape)
+    (m, k) = get_const_tuple(data.shape)
     (_, bs_r, bs_c) = get_const_tuple(weight_data.shape)
     (num_blocks_plus_1,) = get_const_tuple(weight_indptr.shape)
     num_blocks = num_blocks_plus_1 - 1
@@ -218,7 +218,9 @@ def _sparse_dense_sp_rhs_bsrmm(data, weight_data, weight_indices, weight_indptr)
     idxm = tvm.tir.indexmod
 
     bsrmm_block = te.compute(
-        (m, num_blocks, bs_r), _compute_block, tag="sparse_dense_sp_rhs_bsrmm_block"
+        (m, num_blocks, bs_r), _compute_block,
+        tag="sparse_dense_sp_rhs_bsrmm_block",
+        attrs={"FLOP": 2 * m * num_blocks * bs_r * k},
     )
     return te.compute(
         (m, num_blocks * bs_r),

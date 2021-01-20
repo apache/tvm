@@ -37,6 +37,8 @@ import shutil
 import tempfile
 import multiprocessing
 
+import numpy as np
+
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
@@ -719,6 +721,61 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     return results
 
 
+def _process_sparse_input(args):
+    for arg in args:
+        if isinstance(arg.op, tvm.te.tensor.ComputeOp) and \
+            arg.op.tag == "sparse_dense_sp_rhs_bsrmm":
+                # Get output shape
+                output_tensor = arg
+                M, N = output_tensor.shape
+
+                # Get the input tensors
+                block_tensor = arg.op.input_tensors[0]
+                unsure_tensors = list(block_tensor.op.input_tensors)
+                assert len(unsure_tensors) == 4
+
+                # Get the input data
+                dense_data = None
+                for tensor in unsure_tensors:
+                    if len(tensor.shape) == 2:
+                        assert dense_data is None
+                        dense_data = tensor
+                        assert M == dense_data.shape[0]
+                        K = dense_data.shape[1]
+                unsure_tensors.remove(dense_data)
+
+                # Get the Sparse data
+                sparse_data = None
+                for tensor in unsure_tensors:
+                    if len(tensor.shape) == 3:
+                        assert sparse_data is None
+                        sparse_data = tensor
+                        block_size, BS_R, BS_C = sparse_data.shape
+                unsure_tensors.remove(sparse_data)
+
+                # Get the Sparse indptr & indices
+                sparse_indices = None
+                for tensor in unsure_tensors:
+                    assert len(tensor.shape) == 1
+                    if tensor.shape[0] == block_size:
+                        assert sparse_indices is None
+                        sparse_indices = tensor
+                unsure_tensors.remove(sparse_indices)
+                sparse_indptr = unsure_tensors[0]
+
+                density = 1.0
+                for i in sparse_data.shape:
+                    density *= i
+                density /= (K * N)
+                density = density.value
+                sparse_prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (
+                    M, N, K, BS_R, BS_C, density
+                )
+
+                return sparse_prefix, sparse_data, sparse_indices, sparse_indptr
+
+    return None, None, None, None
+
 def _timed_eval_func(
     inp_serialized,
     build_res,
@@ -758,11 +815,30 @@ def _timed_eval_func(
 
     if error_no == 0:
         try:
-            args = [ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args]
+            # Check sparse op
+            sparse_prefix, sparse_data, sparse_indices, sparse_indptr = \
+                _process_sparse_input(build_res.args)
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
-            for arg in args:
-                random_fill(arg)
+            if sparse_prefix:
+                args = []
+                for arg in build_res.args:
+                    if arg == sparse_data:
+                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_data"), ctx))
+                    elif arg == sparse_indices:
+                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_indices"), ctx))
+                    elif arg == sparse_indptr:
+                        args.append(ndarray.array(get_special_buffer(sparse_prefix+"W_indptr"), ctx))
+                    else:
+                        empty_array = ndarray.empty(get_const_tuple(arg.shape), arg.dtype, ctx)
+                        random_fill(empty_array)
+                        args.append(empty_array)
+            else:
+                args = [
+                    ndarray.empty(get_const_tuple(x.shape), x.dtype, ctx) for x in build_res.args
+                ]
+                for arg in args:
+                    random_fill(arg)
             ctx.sync()
             costs = time_f(*args).results
         # pylint: disable=broad-except
@@ -1132,3 +1208,44 @@ def rpc_runner_run(
         print("")
 
     return results
+
+
+# The map stores special registered buffer for measurement
+#  This can be used for sparse workloads when we cannot use random tensors for measurment.
+global special_buffer_table
+special_buffer_table = {}
+
+def register_special_buffer(tensor_name, data):
+    """Register special buffer for measurement
+    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    """
+    if tensor_name in special_buffer_table.keys():
+        return True
+
+    if os.path.isfile(tensor_name):
+        print("Load ", tensor_name)
+        if tensor_name.startswith("sparse_dense_bsr"):
+            if tensor_name.endswith("data"):
+                data = np.fromfile(tensor_name, dtype="float32", sep=" ")
+                name_split = tensor_name.split("_")
+                BS_R = int(name_split[6])
+                BS_C = int(name_split[7])
+                data = data.reshape((data.shape[0] // BS_R // BS_C, BS_R, BS_C))
+            else:
+                data = np.fromfile(tensor_name, dtype="int32", sep=" ")
+    elif data is None:
+        return False
+
+    special_buffer_table[tensor_name] = data
+
+    if not os.path.isfile(tensor_name):
+        data.tofile(tensor_name, " ")
+
+    return True
+
+def get_special_buffer(tensor_name):
+    """Get special buffer for measurement.
+    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    The buffers are registered by `register_special_buffer`.
+    """
+    return special_buffer_table.get(tensor_name, None)
