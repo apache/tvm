@@ -278,9 +278,19 @@ void thrust_scan(DLTensor* data,
   size_t size = 1;
   for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
 
+  const bool need_cast = std::is_same<InType, OutType>::value == false;
+
+  auto data_cast_ptr = thrust::make_transform_iterator(data_ptr, [] __host__ __device__(InType v) {
+    return static_cast<OutType>(v);
+  }); // NOLINT(*)
+
   if (size == static_cast<size_t>(data->shape[data->ndim - 1])) {
-    if (exclusive) {
+    if (exclusive && need_cast) {
+      thrust::exclusive_scan(data_cast_ptr, data_cast_ptr + scan_size, output_ptr);
+    } else if (exclusive && !need_cast) {
       thrust::exclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    } else if (!exclusive && need_cast) {
+      thrust::inclusive_scan(data_cast_ptr, data_cast_ptr + scan_size, output_ptr);
     } else {
       thrust::inclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
     }
@@ -291,15 +301,19 @@ void thrust_scan(DLTensor* data,
 
     // This is for constructing a sequence 0, 0, 0,...,1, 1, 1,...,2, 2, 2,...,
     // without materializing the sequence vector
-    auto counting_iter = thrust::counting_iterator<int64_t>(0);
+    auto counting_iter = thrust::counting_iterator<size_t>(0);
     // Without __host__ annotation, cub crashes
-    auto linear_index_to_scan_key = [scan_size] __host__ __device__(int64_t i) {
+    auto linear_index_to_scan_key = [scan_size] __host__ __device__(size_t i) {
         return i / scan_size;
     }; // NOLINT(*)
     auto key_iter = thrust::make_transform_iterator(counting_iter, linear_index_to_scan_key);
 
-    if (exclusive) {
+    if (exclusive && need_cast) {
+      thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_cast_ptr, output_ptr);
+    } else if (exclusive && !need_cast) {
       thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    } else if (!exclusive && need_cast) {
+      thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_cast_ptr, output_ptr);
     } else {
       thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
     }
