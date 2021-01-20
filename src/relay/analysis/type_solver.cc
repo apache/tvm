@@ -128,7 +128,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       solver_->MergeFromTo(rhs, lhs);
       return lhs->resolved_type;
     } else {
-      Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
+      Type resolved = this->VisitType(rhs->resolved_type, lhs->resolved_type);
 
       if (!resolved.defined()) {
         solver_->diag_ctx_.Emit(
