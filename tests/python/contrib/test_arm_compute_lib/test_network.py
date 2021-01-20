@@ -172,7 +172,7 @@ def test_squeezenet():
         return mod, params, inputs
 
     _build_and_run_network(
-        *get_model(), device=device, tvm_ops=10, acl_partitions=30, atol=8, rtol=0
+        *get_model(), device=device, tvm_ops=9, acl_partitions=31, atol=8, rtol=0
     )
 
 
