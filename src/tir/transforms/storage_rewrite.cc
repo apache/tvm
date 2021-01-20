@@ -438,14 +438,14 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
-    ICHECK(op->for_type != ForType::Vectorized) << "VectorizeLoop before LiftStorageAlloc";
+    ICHECK(op->kind != ForKind::kVectorized) << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
     if (attach_map_.count(op)) {
       auto& svec = attach_map_[op];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<ForNode>();
-      return For(op->loop_var, op->min, op->extent, op->for_type, op->device_api,
-                 MakeAttach(svec, op->body));
+      return For(op->loop_var, op->min, op->extent, op->kind, MakeAttach(svec, op->body),
+                 op->thread_binding, op->annotations);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -765,7 +765,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
-        if (op->for_type == ForType::Parallel) {
+        if (op->kind == ForKind::kParallel) {
           if (thread_scope_ == nullptr || thread_scope_ == op) {
             PlanNewScope(op);
           }

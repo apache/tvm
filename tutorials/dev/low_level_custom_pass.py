@@ -116,8 +116,8 @@ def vectorize8(op):
         name = op.loop_var.name
         lo, li = te.var(name + ".outer"), te.var(name + ".inner")
         body = tvm.tir.stmt_functor.substitute(op.body, {op.loop_var: lo * 8 + li})
-        body = tvm.tir.For(li, 0, 8, tvm.tir.For.Vectorized, 0, body)
-        body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.For.Serial, 0, body)
+        body = tvm.tir.For(li, 0, 8, tvm.tir.ForKind.VECTORIZED, body)
+        body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.ForKind.SERIAL, body)
         return body
     return None
 

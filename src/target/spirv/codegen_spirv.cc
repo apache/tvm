@@ -492,7 +492,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   loop_var.SetIncoming(0, init_value, init_label);
   spirv::Value loop_cond = builder_->LT(loop_var, extent_value);
   uint32_t control =
-      (op->for_type == ForType::Unrolled ? spv::LoopControlUnrollMask : spv::LoopControlMaskNone);
+      (op->kind == ForKind::kUnrolled ? spv::LoopControlUnrollMask : spv::LoopControlMaskNone);
   builder_->MakeInst(spv::OpLoopMerge, merge_label, continue_label, control);
   builder_->MakeInst(spv::OpBranchConditional, loop_cond, body_label, merge_label,
                      weight_likely_branch_, 1);
