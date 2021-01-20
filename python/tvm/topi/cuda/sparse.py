@@ -23,7 +23,7 @@ import tvm
 from tvm import relay, te
 
 from .. import nn
-from ..utils import traverse_inline, get_const_tuple, prod, get_const_int
+from ..utils import traverse_inline, get_const_tuple, prod, get_const_int, ceil_div
 
 
 def sparse_dense(data, weight_data, weight_indices, weight_indptr, sparse_lhs=False):
@@ -161,9 +161,6 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
     with either default_function_kernel0 for the transpose or
     default_function_kernel1 for the multiply.
     """
-
-    def ceil_div(a, b):
-        return (a + (b - 1)) // b
 
     def gen_ir(data, w_data, w_indices, w_indptr, out):
         # pylint: disable=invalid-name
