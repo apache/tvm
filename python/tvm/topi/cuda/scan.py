@@ -19,8 +19,8 @@
 import tvm
 from tvm import te
 from tvm._ffi import get_global_func
-from ..transform import expand_dims, squeeze
-from ..utils import ceil_div
+from ..transform import expand_dims, squeeze, transpose, reshape
+from ..utils import ceil_div, swap, prod
 from ..math import cast
 from .. import tag
 from .injective import schedule_injective_from_existing
@@ -319,61 +319,78 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
         Returned if return_reduction is True.
     """
     # TODO(masahi): Support other binary operators
-    ndim = len(data.shape)
-    if axis < 0:
-        axis += ndim
-    assert axis == ndim - 1, "Only support scan on the inner most axis."
+    def do_scan(data, output_dtype):
+        target = tvm.target.Target.current()
+        if target and target.kind.name == "cuda" and is_thrust_available():
+            return scan_thrust(data, output_dtype, exclusive=True, return_reduction=return_reduction)
+
+        if ndim == 1:
+            # TIR exclusive scan accepts only 2D inputs.
+            data = expand_dims(data, axis=0)
+
+        data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+        output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
+
+        if len(data.shape) == 2:
+            if return_reduction:
+                output, reduction = te.extern(
+                    [data.shape, (data.shape[0],)],
+                    [data],
+                    lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1]),
+                    dtype=[data.dtype, output_dtype],
+                    in_buffers=[data_buf],
+                    name="exclusive_scan",
+                    tag="exclusive_scan_gpu",
+                )
+            else:
+                output = te.extern(
+                    [data.shape],
+                    [data],
+                    lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0]),
+                    dtype=[output_dtype],
+                    in_buffers=[data_buf],
+                    out_buffers=[output_buf],
+                    name="exclusive_scan",
+                    tag="exclusive_scan_gpu",
+                )
+                reduction = None
+        else:
+            assert False, "Unsupported dimension {}".format(ndim)
+
+        if ndim == 1:
+            output = squeeze(output, 0)
+            if return_reduction:
+                reduction = squeeze(reduction, 0)
+
+        if return_reduction:
+            return output, reduction
+
+        return output
 
     if output_dtype is None:
         output_dtype = data.dtype
 
-    target = tvm.target.Target.current()
-    if target and target.kind.name == "cuda" and is_thrust_available():
-        return scan_thrust(data, output_dtype, exclusive=True, return_reduction=return_reduction)
+    ndim = len(data.shape)
+    if axis < 0:
+        axis += ndim
 
-    if ndim == 1:
-        # TIR exclusive scan accepts only 2D inputs.
-        data = expand_dims(data, axis=0)
+    if axis != ndim - 1:
+        axes = swap(list(range(ndim)), axis)
+        data = transpose(data, axes)
 
-    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
-
-    if len(data.shape) == 2:
-        if return_reduction:
-            output, reduction = te.extern(
-                [data.shape, (data.shape[0],)],
-                [data],
-                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1]),
-                dtype=[data.dtype, output_dtype],
-                in_buffers=[data_buf],
-                name="exclusive_scan",
-                tag="exclusive_scan_gpu",
-            )
-        else:
-            output = te.extern(
-                [data.shape],
-                [data],
-                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0]),
-                dtype=[output_dtype],
-                in_buffers=[data_buf],
-                out_buffers=[output_buf],
-                name="exclusive_scan",
-                tag="exclusive_scan_gpu",
-            )
-            reduction = None
+    if return_reduction:
+        output, reduction = do_scan(data, output_dtype)
     else:
-        assert False, "Unsupported dimension {}".format(ndim)
+        output = do_scan(data, output_dtype)
 
-    if ndim == 1:
-        output = squeeze(output, 0)
-        if return_reduction:
-            reduction = squeeze(reduction, 0)
+    if axis != ndim - 1:
+        axes = swap(list(range(ndim)), axis)
+        output = transpose(output, axes)
 
     if return_reduction:
         return output, reduction
 
     return output
-
 
 def schedule_scan(outs):
     """Schedule for scan operator.
@@ -407,8 +424,11 @@ def schedule_scan(outs):
 
 
 def cumsum(data, axis=None, dtype=None):
-    if axis is None and axis != 0:
+    if axis is None:
         axis = 0
+        cumsum_axis_len = prod(data.shape)
+        data = reshape(data, (cumsum_axis_len,))
+
     ex_scan = exclusive_scan(data, axis, output_dtype=dtype)
     if dtype is not None and data.dtype != dtype:
         data = cast(data, dtype)

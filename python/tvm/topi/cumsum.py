@@ -33,7 +33,7 @@ def cumsum(data, axis=None, dtype=None):
     axis_mul_before = 1
     axis_mul_after = 1
 
-    if axis is None and axis != 0:
+    if axis is None:
         axis = 0
         cumsum_axis_len = prod(data.shape)
         shape = (cumsum_axis_len,)
