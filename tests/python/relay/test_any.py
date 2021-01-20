@@ -920,7 +920,10 @@ def test_any_get_valid_counts():
     # opencl seems to have issues with empty size buffer
     # Check failed: err_code == CL_SUCCESS == false: OpenCL Error,
     # code=-61: CL_INVALID_BUFFER_SIZE
-    targets = [("llvm", tvm.cpu(0)), ("cuda", tvm.gpu(0)), ("nvptx", tvm.gpu(0))]
+    targets = []
+    for tgt, ctx in tvm.testing.enabled_targets():
+        if "opencl" not in tgt:
+            targets.append((tgt, ctx))
     verify_any_get_valid_counts(0, "float32", targets=targets)
 
 
