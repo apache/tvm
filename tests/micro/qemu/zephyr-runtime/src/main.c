@@ -172,12 +172,11 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
     memcpy(&buffer[i * sizeof(random)], &random, sizeof(random));
   }
 
-  // Fill any leftover tail which is smaller than `random.
-  size_t full_blocks_end = num_full_blocks * sizeof(random);
-  size_t num_tail_bytes = num_bytes - full_blocks_end;
+  // Fill any leftover tail which is smaller than `random`.
+  size_t num_tail_bytes = num_bytes % sizeof(random);
   if (num_tail_bytes > 0) {
     random = sys_rand32_get();
-    memcpy(&buffer[full_blocks_end], &random, num_tail_bytes);
+    memcpy(&buffer[num_bytes - num_tail_bytes], &random, num_tail_bytes);
   }
 
   return kTvmErrorNoError;
