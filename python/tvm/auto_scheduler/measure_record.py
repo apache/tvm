@@ -339,12 +339,8 @@ def distill_record_file(in_file, out_file):
     logger.info("Extract %d best records from %s to %s", len(inputs), in_file, out_file)
 
 
-"""
-Usage:
-* Distill the best entries from a large log file
-e.g. python -m tvm.auto_scheduler.measure_record --mode distill --i input.json
-"""
-if __name__ == "__main__":
+def main():
+    """The main function for CLI."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["distill"], required=True)
     parser.add_argument("--i", type=str, help="input file")
@@ -357,3 +353,12 @@ if __name__ == "__main__":
     if args.mode == "distill":
         args.o = args.o or args.i + ".best.json"
         distill_record_file(args.i, args.o)
+
+
+"""
+Usage:
+* Distill the best entries from a large log file
+e.g. python -m tvm.auto_scheduler.measure_record --mode distill --i input.json
+"""
+if __name__ == "__main__":
+    main()

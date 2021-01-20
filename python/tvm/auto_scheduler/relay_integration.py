@@ -22,7 +22,6 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
-import json
 import logging
 import threading
 

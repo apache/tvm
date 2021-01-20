@@ -24,7 +24,6 @@ import json
 import tvm._ffi
 from tvm.runtime import Object
 from tvm.runtime._ffi_node_api import LoadJSON, SaveJSON
-from tvm.te import ComputeOp, PlaceholderOp
 
 from . import _ffi_api
 from .loop_state import State, StateObject
