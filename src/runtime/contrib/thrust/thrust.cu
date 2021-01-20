@@ -273,6 +273,8 @@ void thrust_scan(DLTensor* data,
   thrust::device_ptr<OutType> output_ptr(static_cast<OutType *>(output->data));
   const auto scan_size = data->shape[data->ndim - 1];
 
+  if (scan_size == 0) return;
+
   if (data->ndim == 1 || (data->ndim == 2 && data->shape[0] == 1)) {
     if (exclusive) {
       thrust::exclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
