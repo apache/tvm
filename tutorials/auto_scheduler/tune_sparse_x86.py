@@ -92,6 +92,7 @@ BS_C = 1
 density = 0.6
 
 X_np = np.random.randn(M, K).astype("float32")
+X_np = np.maximum(np.zeros((M, K), dtype="float32"), X_np)  # Relu
 W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
 W_np = W_sp_np.todense()
 Y_np = X_np @ W_np.T
@@ -108,7 +109,7 @@ def sparse_dense(dense_shape, w_data_shape, w_indices_shape, w_indptr_shape, dty
     W_indices = te.placeholder(shape=w_indices_shape, dtype="int32")
     W_indptr = te.placeholder(shape=w_indptr_shape, dtype="int32")
 
-    out = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
+    out = topi.nn.sparse_dense(topi.nn.relu(X), W_data, W_indices, W_indptr)
 
     return [X, W_data, W_indices, W_indptr, out]
 
@@ -229,11 +230,6 @@ print(tvm.lower(sch, args, simple_mode=True))
 func = tvm.build(sch, args, target)
 
 ctx = tvm.cpu()
-
-X_np = np.random.randn(M, K).astype("float32")
-W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
-W_np = W_sp_np.todense()
-Y_np = X_np @ W_np.T
 
 X_tvm = tvm.nd.array(X_np, ctx=ctx)
 W_data_tvm = tvm.nd.array(W_sp_np.data, ctx=ctx)
