@@ -119,6 +119,7 @@ def _make_add_sess(model, zephyr_board):
 PLATFORMS = {
     "host": ("host", "qemu_x86"),
     "stm32f746xx": ("stm32f746xx", "nucleo_f746zg"),
+    "nrf5340dk": ("nrf5340dk", "nrf5340dk_nrf5340_cpuapp"),
 }
 
 

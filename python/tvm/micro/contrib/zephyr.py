@@ -191,7 +191,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
         with open(os.path.join(output, "main.c"), "w"):
             pass
 
-        # expecetd not to exist after populate_tvm_libs
+        # expected not to exist after populate_tvm_libs
         build_dir = os.path.join(output, "__tvm_build")
         os.mkdir(build_dir)
         self._subprocess_env.run(
