@@ -275,7 +275,7 @@ def extract_acl_modules(module):
 def verify_codegen(
     module,
     known_good_codegen,
-    num_acl_modules,
+    num_acl_modules=1,
     tvm_ops=0,
     target="llvm -mtriple=aarch64-linux-gnu -mattr=+neon",
 ):
