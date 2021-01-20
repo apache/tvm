@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 from tvm._ffi import get_global_func
 from ..transform import expand_dims, squeeze, transpose, reshape
-from ..utils import ceil_div, swap, prod
+from ..utils import ceil_div, swap, prod, get_const_int
 from ..math import cast
 from .. import tag
 from .injective import schedule_injective_from_existing
@@ -42,6 +42,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop="sum"):
 
     reduction: Buffer, optional
         1D Buffer of size [batch_size], to store the sum of each row.
+
+    binop : TODO
     """
 
     batch_size = prod(data.shape[:-1])
@@ -286,8 +288,8 @@ def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False, bino
         dtype=[output_dtype],
         in_buffers=[data_buf],
         out_buffers=[output_buf],
-        name="exclusive_sum_scan2d",
-        tag="exclusive_sum_scan2d_gpu",
+        name="exclusive_scan_thrust",
+        tag="exclusive_scan_thrust_gpu",
     )
 
     if return_reduction:
@@ -378,7 +380,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, bin
 
         return output
 
-    if output_dtype is None:
+    if output_dtype is None or output_dtype == "":
         output_dtype = data.dtype
 
     ndim = len(data.shape)
@@ -404,11 +406,11 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, bin
     return output
 
 
-def inclusive_scan(data, axis=None, output_dtype=None, binop="sum"):
+def inclusive_scan(data, axis=-1, output_dtype=None, binop="sum"):
     """TODO"""
     ex_scan = exclusive_scan(data, axis, output_dtype=output_dtype, binop=binop)
 
-    if output_dtype is not None and data.dtype != output_dtype:
+    if output_dtype is not None and data.dtype != output_dtype and output_dtype != "":
         data = cast(data, output_dtype)
 
     return binop_name_to_func[binop](data, ex_scan)
@@ -450,4 +452,5 @@ def cumsum(data, axis=None, dtype=None):
     if axis is None:
         axis = 0
         data = reshape(data, (prod(data.shape),))
+    axis = get_const_int(axis)
     return inclusive_scan(data, axis, output_dtype=dtype, binop="sum")

@@ -63,5 +63,5 @@ def test_cumsum(ctx, target):
 
 
 if __name__ == "__main__":
-    # test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
+    test_cumsum(tvm.context("cpu"), tvm.target.Target("llvm"))
     test_cumsum(tvm.context("cuda"), tvm.target.Target("cuda"))
