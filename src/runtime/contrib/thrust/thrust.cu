@@ -275,7 +275,7 @@ void thrust_scan(DLTensor* data,
 
   if (scan_size == 0) return;
 
-  int64_t size = 1;
+  size_t size = 1;
   for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
 
   if (size == static_cast<size_t>(data->shape[data->ndim - 1])) {
@@ -347,7 +347,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (in_dtype == "float64") {
-    if (out_dtype == "float4") {
+    if (out_dtype == "float64") {
       thrust_scan<double, double>(data, output, exclusive);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;

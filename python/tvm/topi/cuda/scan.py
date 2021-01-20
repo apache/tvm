@@ -26,7 +26,10 @@ from .. import tag
 from .injective import schedule_injective_from_existing
 
 
-def exclusive_sum_scan2d_ir(data, output, reduction=None):
+binop_name_to_func = {"sum": tvm.tir.generic.add}
+
+
+def exclusive_sum_scan2d_ir(data, output, reduction=None, binop="sum"):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
     Parameters
@@ -157,7 +160,7 @@ def exclusive_sum_scan2d_ir(data, output, reduction=None):
     return ib.get()
 
 
-def get_reduction_from_exclusive_scan(data, ex_scan_output):
+def get_reduction_from_exclusive_scan(data, ex_scan_output, binop="sum"):
     """Return the sum of the last element of data and the exclusive scan output.
     The is the reduction of data along each row (for 2-D case).
 
@@ -182,8 +185,8 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output):
         ex_scan_output = expand_dims(ex_scan_output, axis=0)
 
     def ir(data, data_ex_scan, reduction):
-        batch_size = data.shape[0]
-        num_anchors = data.shape[1]
+        batch_size = prod(data.shape[:-1])
+        scan_axis_size = data.shape[-1]
 
         ib = tvm.tir.ir_builder.create()
 
@@ -201,14 +204,13 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output):
             ib.scope_attr(bx, "thread_extent", nthread_bx)
             tid = bx * max_threads + tx
             with ib.if_scope(tid < batch_size):
-                with ib.if_scope(num_anchors > 0):
-                    reduction[tid] = data_ex_scan[tid, num_anchors - 1] + data[tid, num_anchors - 1]
+                with ib.if_scope(scan_axis_size > 0):
+                    reduction[tid] = data_ex_scan[tid * scan_axis_size + scan_axis_size - 1] + data[tid, scan_axis_size - 1]
                 with ib.else_scope():
                     reduction[tid] = 0
 
         return ib.get()
 
-    assert len(data.shape) == 2, "Only 2D input supported for now"
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "valid_indices_buf", data_alignment=8)
     ex_scan_output_buf = tvm.tir.decl_buffer(
         ex_scan_output.shape, ex_scan_output.dtype, "ex_scan_output_buf", data_alignment=8
@@ -235,7 +237,7 @@ def is_thrust_available():
     return get_global_func("tvm.contrib.thrust.sum_scan", allow_missing=True) is not None
 
 
-def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False):
+def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False, binop="sum"):
     """Do exclusive scan on 1D input or along rows of 2D input, using thrust.
 
     Parameters
@@ -288,7 +290,7 @@ def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False):
     return output
 
 
-def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
+def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, binop="sum"):
     """Do exclusive scan on 1D input or along rows of 2D input.
 
     Parameters
@@ -308,6 +310,8 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
     output_dtype: string, optional
         The dtype of the output scan tensor. If not provided, the dtype of the input is used.
 
+    biop: TODO
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -321,11 +325,11 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
     # TODO(masahi): Support other binary operators
     def do_scan(data, output_dtype):
         target = tvm.target.Target.current()
-        if target and target.kind.name == "cuda" and is_thrust_available():
-            return scan_thrust(data, output_dtype, exclusive=True, return_reduction=return_reduction)
+        # if target and target.kind.name == "cuda" and is_thrust_available():
+        #     return scan_thrust(data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop)
 
         if ndim == 1:
-            # TIR exclusive scan accepts only 2D inputs.
+            # TIR exclusive scan accepts only 2D or higher-rank inputs.
             data = expand_dims(data, axis=0)
 
         data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
@@ -335,7 +339,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
             output, reduction = te.extern(
                 [data.shape, (data.shape[0],)],
                 [data],
-                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1]),
+                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], outs[1], binop=binop),
                 dtype=[data.dtype, output_dtype],
                 in_buffers=[data_buf],
                 name="exclusive_scan",
@@ -345,7 +349,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
             output = te.extern(
                 [data.shape],
                 [data],
-                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0]),
+                lambda ins, outs: exclusive_sum_scan2d_ir(ins[0], outs[0], binop=binop),
                 dtype=[output_dtype],
                 in_buffers=[data_buf],
                 out_buffers=[output_buf],
@@ -390,6 +394,16 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None):
     return output
 
 
+def inclusive_scan(data, axis=None, output_dtype=None, binop="sum"):
+    """TODO"""
+    ex_scan = exclusive_scan(data, axis, output_dtype=output_dtype, binop=binop)
+
+    if output_dtype is not None and data.dtype != output_dtype:
+        data = cast(data, output_dtype)
+
+    return binop_name_to_func[binop](data, ex_scan)
+
+
 def schedule_scan(outs):
     """Schedule for scan operator.
 
@@ -422,14 +436,8 @@ def schedule_scan(outs):
 
 
 def cumsum(data, axis=None, dtype=None):
+    """TODO"""
     if axis is None:
         axis = 0
         data = reshape(data, (prod(data.shape),))
-
-    ex_scan = exclusive_scan(data, axis, output_dtype=dtype)
-
-    if dtype is not None and data.dtype != dtype:
-        data = cast(data, dtype)
-
-    in_scan = data + ex_scan
-    return in_scan
+    return inclusive_scan(data, axis, output_dtype=dtype, binop="sum")
