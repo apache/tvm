@@ -231,8 +231,8 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
 };
 
 /*! \brief Combine parallel dense if number of branches >= min_num_branches */
-Expr CombineParallelDense(const Expr& expr, uint64_t min_num_branches, bool to_batch) {
-  if (to_batch) {
+Expr CombineParallelDense(const Expr& expr, uint64_t min_num_branches, bool to_batch_matmul) {
+  if (to_batch_matmul) {
     return ParallelDenseToBatchCombiner(min_num_branches).Combine(expr);
   } else {
     return ParallelDenseToDenseCombiner(min_num_branches).Combine(expr);

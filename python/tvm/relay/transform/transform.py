@@ -297,7 +297,7 @@ def CombineParallelConv2D(min_num_branches=3):
     return _ffi_api.CombineParallelConv2D(min_num_branches)
 
 
-def CombineParallelDense(min_num_branches=3, to_batch=True):
+def CombineParallelDense(min_num_branches=3, to_batch_matmul=True):
     """Combine multiple dense operators into one. For example:
 
     .. code-block
@@ -315,7 +315,7 @@ def CombineParallelDense(min_num_branches=3, to_batch=True):
                 |
             batch_matmul+elemwise/bcast (2,2,2)
 
-    or (if to_batch=False)
+    or (if to_batch_matmul=False)
 
     .. code-block
 
@@ -338,7 +338,7 @@ def CombineParallelDense(min_num_branches=3, to_batch=True):
     ret: tvm.transform.Pass
         The registered pass that combines parallel dense operators.
     """
-    return _ffi_api.CombineParallelDense(min_num_branches, to_batch)
+    return _ffi_api.CombineParallelDense(min_num_branches, to_batch_matmul)
 
 
 def CombineParallelBatchMatmul(min_num_branches=3):

@@ -20,9 +20,9 @@ from tvm import relay
 from tvm.relay import transform
 
 
-def run_combine_parallel(expr, min_num_branches=3, to_batch=True):
+def run_combine_parallel(expr, min_num_branches=3, to_batch_matmul=True):
     mod = tvm.IRModule.from_expr(expr)
-    mod = transform.CombineParallelDense(min_num_branches, to_batch)(mod)
+    mod = transform.CombineParallelDense(min_num_branches, to_batch_matmul)(mod)
     return mod["main"]
 
 
@@ -226,7 +226,7 @@ def test_combine_parallel_dense_flat():
         w3 = relay.var("w3", shape=(3 * j, k))
 
         y_before = before(x, w1, w2, w3)
-        combine_pass = transform.CombineParallelDense(min_num_branches=3, to_batch=False)
+        combine_pass = transform.CombineParallelDense(min_num_branches=3, to_batch_matmul=False)
         y = run_opt_pass(y_before, combine_pass)
         y_expected = expected(x, w1, w2, w3, j)
         y_expected = run_opt_pass(y_expected, transform.InferType())
@@ -282,7 +282,7 @@ def test_combine_parallel_dense_flat_biasadd():
         b2 = relay.var("b2", shape=bias_shape2)
 
         y_before = before(x, w1, w2, b1, b2)
-        combine_pass = transform.CombineParallelDense(min_num_branches=2, to_batch=False)
+        combine_pass = transform.CombineParallelDense(min_num_branches=2, to_batch_matmul=False)
         y = run_opt_pass(y_before, combine_pass)
         y_expected = expected(x, w1, w2, b1, b2, j, bias_shape1, bias_shape2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
@@ -349,7 +349,7 @@ def test_combine_parallel_dense_flat_biasadd_scale_reshape():
         scale2 = relay.var("scale2", shape=(1,))
 
         y_before = before(x, w1, w2, b1, b2, scale1, scale2, newshape1, newshape2)
-        combine_pass = transform.CombineParallelDense(min_num_branches=2, to_batch=False)
+        combine_pass = transform.CombineParallelDense(min_num_branches=2, to_batch_matmul=False)
         y = run_opt_pass(y_before, combine_pass)
         y_expected = expected(x, w1, w2, b1, b2, scale1, scale2, newshape1, newshape2, j)
         y_expected = run_opt_pass(y_expected, transform.InferType())
