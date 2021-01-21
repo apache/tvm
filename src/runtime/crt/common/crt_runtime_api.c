@@ -395,6 +395,8 @@ int RPCGetCRTMaxPacketSize(TVMValue* args, int* type_codes, int num_args, TVMVal
   return 0;
 }
 
+int TVMContribRandomFill(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
+                         int* ret_type_code);
 tvm_crt_error_t TVMInitializeRuntime() {
   int idx = 0;
   tvm_crt_error_t error = kTvmErrorNoError;
@@ -437,6 +439,10 @@ tvm_crt_error_t TVMInitializeRuntime() {
 
   if (error == kTvmErrorNoError) {
     error = TVMFuncRegisterGlobal("tvm.rpc.server.GetCRTMaxPacketSize", &RPCGetCRTMaxPacketSize, 0);
+  }
+
+  if (error == kTvmErrorNoError) {
+    error = TVMFuncRegisterGlobal("tvm.contrib.random.random_fill", &TVMContribRandomFill, 0);
   }
 
   if (error != kTvmErrorNoError) {
@@ -570,4 +576,21 @@ release_and_return : {
 // Default implementation, overridden by the platform runtime.
 __attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorFunctionCallNotImplemented;
+}
+
+// Fill the tensor in args[0] with random data using TVMPlatformGenerateRandom.
+// Named to correspond with the analogous function in the C++ runtime.
+int TVMContribRandomFill(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
+                         int* ret_type_code) {
+  if (num_args != 1) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
+
+  if (type_codes[0] != kTVMDLTensorHandle) {
+    return kTvmErrorFunctionCallWrongArgType;
+  }
+
+  DLTensor* tensor = (DLTensor*) args[0].v_handle;
+  TVMNDArray arr = {*tensor};
+  return TVMNDArray_RandomFill(&arr);
 }

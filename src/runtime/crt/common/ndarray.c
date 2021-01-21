@@ -47,18 +47,22 @@ int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, 
   return 0;
 }
 
+int64_t TVMNDArray_DataSizeBytes(TVMNDArray* array) {
+  int64_t num_elems = 1;
+  int32_t idx;
+  for (idx = 0; idx < array->dl_tensor.ndim; ++idx) {
+    num_elems *= array->dl_tensor.shape[idx];
+  }
+  return (num_elems * array->dl_tensor.dtype.bits + 7) / 8;
+}
+
 int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLDevice dev,
                      TVMNDArray* array) {
   int status = TVMNDArray_Create(ndim, shape, dtype, dev, array);
   if (status != 0) {
     return status;
   }
-  int64_t num_elems = 1;
-  int32_t idx;
-  for (idx = 0; idx < array->dl_tensor.ndim; ++idx) {
-    num_elems *= shape[idx];
-  }
-  int total_elem_bytes = (num_elems * dtype.bits + 7) / 8;
+  int total_elem_bytes = TVMNDArray_DataSizeBytes(array);
   array->dl_tensor.data =
       TVMBackendAllocWorkspace(kDLCPU, 0, total_elem_bytes, dtype.code, dtype.bits);
   memset(array->dl_tensor.data, 0, total_elem_bytes);
@@ -134,6 +138,15 @@ int TVMNDArray_CreateView(TVMNDArray* arr, const tvm_index_t* shape, int32_t ndi
   }
   array_view->dl_tensor.data = arr->dl_tensor.data;
   return 0;
+}
+
+int TVMNDArray_RandomFill(TVMNDArray* arr) {
+  int64_t num_bytes = TVMNDArray_DataSizeBytes(arr);
+  if (num_bytes < 0 || num_bytes > SIZE_MAX) {
+    return kTvmErrorFunctionCallInvalidArg;
+  }
+
+  return TVMPlatformGenerateRandom(arr->dl_tensor.data, (size_t) num_bytes);
 }
 
 int TVMNDArray_Release(TVMNDArray* arr) {
