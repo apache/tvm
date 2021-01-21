@@ -343,7 +343,25 @@ def test_reduction_init():
     check_grad(B, A0)
 
 
+def test_stable():
+    X = te.placeholder((32, 512, 16, 16), name="X")
+    W = te.placeholder((1024, 512, 1, 1), name="W")
+    strides, padding, dilation = 2, 0, 1
+    R = topi.nn.conv2d(X, W, strides, padding, dilation)
+    ones = topi.full_like(R, 1.0)
+    grads = te.gradient(R, [X], head=ones)
+    dag = tvm.auto_scheduler.ComputeDAG(grads)
+    repeat = 100
+    for i in range(repeat):
+        grads = te.gradient(R, [X], head=ones)
+        new_dag = tvm.auto_scheduler.ComputeDAG(grads)
+        print(dag)
+        print(new_dag)
+        assert str(dag) == str(new_dag)
+
+
 if __name__ == "__main__":
-    test_basic_operation()
-    test_topi()
-    test_stride_dilation()
+    # test_basic_operation()
+    # test_topi()
+    # test_stride_dilation()
+    test_stable()
