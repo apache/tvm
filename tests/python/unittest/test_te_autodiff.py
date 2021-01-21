@@ -361,7 +361,7 @@ def test_stable():
 
 
 if __name__ == "__main__":
-    # test_basic_operation()
-    # test_topi()
-    # test_stride_dilation()
+    test_basic_operation()
+    test_topi()
+    test_stride_dilation()
     test_stable()
