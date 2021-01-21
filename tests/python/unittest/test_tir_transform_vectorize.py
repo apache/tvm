@@ -24,7 +24,7 @@ def test_vectorize_loop():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n) as i:
-        with ib.for_range(0, 4, for_type="vectorize") as j:
+        with ib.for_range(0, 4, kind="vectorize") as j:
             A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
 
@@ -45,7 +45,7 @@ def test_vectorize_vector():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32x4", name="A")
     with ib.for_range(0, n) as i:
-        with ib.for_range(0, 4, for_type="vectorize") as j:
+        with ib.for_range(0, 4, kind="vectorize") as j:
             A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
     assert isinstance(stmt.body, tvm.tir.For)
@@ -64,7 +64,7 @@ def test_vectorize_with_if():
     x = te.var("x")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         with ib.if_scope(x < n):
             A[i] = A[i] + 1
         with ib.else_scope():
@@ -86,7 +86,7 @@ def test_vectorize_let():
     v = tvm.tir.Var("v", "float32")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         ib.emit(lambda body: tvm.tir.LetStmt(v, A[i] + 1, body))
         A[i] = v + 2
 
@@ -100,7 +100,7 @@ def test_vectorize_with_le_cond():
     n = te.var("n")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         with ib.if_scope(i <= n):
             A[i] = A[i] + 1
     stmt = ib.get()
@@ -115,7 +115,7 @@ def test_vectorize_with_ge_cond():
     n = te.var("n")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         with ib.if_scope(i >= n):
             A[i] = A[i] + 1
     stmt = ib.get()
@@ -131,7 +131,7 @@ def test_vectorize_if_then_else():
     x = te.var("x")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 4, for_type="vectorize") as i:
+    with ib.for_range(0, 4, kind="vectorize") as i:
         A[i] = tvm.tir.call_intrin("float32", "tir.if_then_else", i > 0, A[i] + 1, A[i])
     stmt = ib.get()
 
@@ -143,7 +143,7 @@ def test_vectorize_if_then_else():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n) as k:
-        with ib.for_range(0, 4, for_type="vectorize") as i:
+        with ib.for_range(0, 4, kind="vectorize") as i:
             A[k * 4 + i] = tvm.tir.call_intrin(
                 "float32", "tir.if_then_else", k > 0, A[k * 4 + i], 0
             )

@@ -25,6 +25,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/sort.h>
 #include <thrust/gather.h>
+#include <thrust/scan.h>
 
 #include <tvm/runtime/registry.h>
 #include <dlpack/dlpack.h>
@@ -261,6 +262,81 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     }
   } else {
     LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
+  }
+});
+
+template<typename InType, typename OutType>
+void thrust_scan(DLTensor* data,
+                 DLTensor* output,
+                 bool exclusive) {
+  thrust::device_ptr<InType> data_ptr(static_cast<InType *>(data->data));
+  thrust::device_ptr<OutType> output_ptr(static_cast<OutType *>(output->data));
+  const auto scan_size = data->shape[data->ndim - 1];
+
+  if (scan_size == 0) return;
+
+  if (data->ndim == 1 || (data->ndim == 2 && data->shape[0] == 1)) {
+    if (exclusive) {
+      thrust::exclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    } else {
+      thrust::inclusive_scan(data_ptr, data_ptr + scan_size, output_ptr);
+    }
+  } else {
+    // Use thrust segmented scan to compute scan on the inner most axis
+    // data->shape[0] * data->shape[1] * ... * data->shape[ndim - 2] scans are
+    // computed in parallel
+
+    // This is for constructing a sequence 0, 0, 0,...,1, 1, 1,...,2, 2, 2,...,
+    // without materializing the sequence vector
+    auto counting_iter = thrust::counting_iterator<int64_t>(0);
+    // Without __host__ annotation, cub crashes
+    auto linear_index_to_scan_key = [scan_size] __host__ __device__(int64_t i) {
+        return i / scan_size;
+    }; // NOLINT(*)
+    auto key_iter = thrust::make_transform_iterator(counting_iter, linear_index_to_scan_key);
+    int64_t size = 1;
+    for (int i = 0; i < data->ndim; ++i) size *= data->shape[i];
+
+    if (exclusive) {
+      thrust::exclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    } else {
+      thrust::inclusive_scan_by_key(key_iter, key_iter + size, data_ptr, output_ptr);
+    }
+  }
+}
+
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ICHECK_EQ(args.num_args, 3);
+  DLTensor* data = args[0];
+  DLTensor* output = args[1];
+  bool exclusive = args[2];
+
+  auto in_dtype = DLDataType2String(data->dtype);
+  auto out_dtype = DLDataType2String(output->dtype);
+
+  if (in_dtype == "int32") {
+    if (out_dtype == "int32") {
+      thrust_scan<int, int>(data, output, exclusive);
+    } else if (out_dtype == "int64") {
+      thrust_scan<int, int64_t>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (in_dtype == "int64") {
+    if (out_dtype == "int64") {
+      thrust_scan<int64_t, int64_t>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (in_dtype == "float32") {
+    if (out_dtype == "float32") {
+      thrust_scan<float, float>(data, output, exclusive);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else {
+    LOG(FATAL) << "Unsupported input dtype: " << in_dtype;
   }
 });
 

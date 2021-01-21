@@ -86,6 +86,21 @@ class XGBModel(PythonBasedModel):
     of several samples, so we implemented a custom loss function and call it pack-sum-rmse.
     It is called "pack-sum" because we combine several samples into a "pack" and sum up
     their predictions.
+
+    Parameters
+    ----------
+    verbose_eval: int = 25
+        Print training log every `verbose_eval` iterations.
+    num_warmup_sample: int = 100
+        The minimum number of samples to start to use the trained model.
+        If the number of samples is less than this number, the model outputs random predictions.
+    seed: Optional[int]
+        The random seed
+    model_file: Optional[str]
+        If is not None, save model to this file after every update.
+    adapative_training: bool = False
+        Whether to use adapatie training, which reduces the training frequency when there are
+        too many logs.
     """
 
     def __init__(

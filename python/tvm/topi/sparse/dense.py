@@ -74,8 +74,8 @@ def dense_si(data, indices, indptr, weight, bias=None):
         out_ptr = irb.buffer_ptr(out)
         M = simplify(indptr.shape[0] - 1)
         N, K = weight.shape
-        with irb.for_range(0, N, for_type="vectorize", name="n") as n:
-            with irb.for_range(0, M, for_type="parallel", name="m") as m:
+        with irb.for_range(0, N, kind="vectorize", name="n") as n:
+            with irb.for_range(0, M, kind="parallel", name="m") as m:
                 dot = irb.allocate(dtype, (1,), name="dot", scope="local")
                 out_ptr[m * N + n] = tvm.tir.const(0, dtype)
                 dot[0] = tvm.tir.const(0, dtype)
@@ -153,8 +153,8 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
         out_ptr = irb.buffer_ptr(out)
         M, K = data.shape
         N = simplify(w_indptr.shape[0] - 1)
-        with irb.for_range(0, M, for_type="vectorize", name="m") as m:
-            with irb.for_range(0, N, for_type="parallel", name="n") as n:
+        with irb.for_range(0, M, kind="vectorize", name="m") as m:
+            with irb.for_range(0, N, kind="parallel", name="n") as n:
                 dot = irb.allocate(dtype, (1,), name="dot", scope="local")
                 out_ptr[m * N + n] = tvm.tir.const(0, dtype)
                 dot[0] = tvm.tir.const(0, dtype)

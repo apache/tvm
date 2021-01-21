@@ -303,7 +303,10 @@ class VTInjector : public StmtExprMutator {
     if (extent.same_as(op->extent) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return For(op->loop_var, op->min, extent, op->for_type, op->device_api, body);
+      auto n = CopyOnWrite(op);
+      n->extent = std::move(extent);
+      n->body = std::move(body);
+      return Stmt(n);
     }
   }
   // IfThenElse
@@ -417,7 +420,7 @@ class VTInjector : public StmtExprMutator {
       Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
       return For(idx, make_zero(idx.dtype()), make_const(idx.dtype(), num_threads_),
-                 ForType::Serial, DeviceAPI::None, stmt);
+                 ForKind::kSerial, stmt);
     }
   }
 

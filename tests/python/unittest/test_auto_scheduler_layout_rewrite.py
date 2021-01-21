@@ -49,6 +49,21 @@ def test_apply_steps_with_layout_rewrite():
     assert bufs[1].shape[1] == 512
 
 
+def test_apply_steps_with_layout_rewrite_corner_case():
+    A, B, C = matmul_auto_scheduler_test(1, 1, 1)
+    dag = auto_scheduler.ComputeDAG([A, B, C])
+
+    s = dag.get_init_state()
+
+    s.compute_root(C)
+    i_j_fused = s.fuse(C, [s[C].iters[0], s[C].iters[1]])
+    s.parallel(C, i_j_fused)
+
+    _, bufs = dag.apply_steps_from_state(
+        s, layout_rewrite=auto_scheduler.LayoutRewriteOption.REWRITE_FOR_PRE_TRANSFORMED
+    )
+
+
 @tvm.testing.requires_llvm
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     N = 128
@@ -169,5 +184,6 @@ def test_correctness_layout_rewrite_insert_transform_stage():
 
 if __name__ == "__main__":
     test_apply_steps_with_layout_rewrite()
+    test_apply_steps_with_layout_rewrite_corner_case()
     test_correctness_layout_rewrite_rewrite_for_preTransformed()
     test_correctness_layout_rewrite_insert_transform_stage()

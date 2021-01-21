@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Arm Compute Library supported operators."""
-import numpy as np
 import tvm
 
 from tvm._ffi import register_func
@@ -382,7 +381,7 @@ def dense(expr):
         return False
     if attrs.out_dtype != "float32" and attrs.out_dtype != "":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 def qnn_dense(expr):
@@ -396,7 +395,7 @@ def qnn_dense(expr):
         return False
     if attrs.out_dtype != "int32":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 @tvm.ir.register_op_attr("nn.max_pool2d", "target.arm_compute_lib")
@@ -408,33 +407,7 @@ def max_pool2d(expr):
     typ = args[0].checked_type
     if typ.dtype not in ["float32", "uint8"]:
         return False
-    return not require_padding([*args, expr.checked_type])
-
-
-def require_padding(inputs):
-    """Checks whether supplied data will require padding.
-    Most of the operators ACL up to 20.11 uses padded data.
-    """
-
-    def _check(shape, dtype):
-        """NEON has 128bits/16bytes per vector"""
-        if len(shape) == 0:
-            return False
-        return (shape[-1] * np.dtype(dtype).itemsize) % 16 != 0
-
-    for i in inputs:
-        if isinstance(i, (tvm.relay.expr.Var, tvm.relay.expr.Call)):
-            if _check(i.checked_type.shape, i.checked_type.dtype):
-                return True
-        elif isinstance(i, tvm.relay.expr.Constant):
-            if _check(i.data.shape, i.data.dtype):
-                return True
-        elif isinstance(i, tvm.ir.tensor_type.TensorType):
-            if _check(i.shape, i.dtype):
-                return True
-        else:
-            raise RuntimeException("Not supported input type: %s" % type(i))
-    return False
+    return True
 
 
 @tvm.ir.register_op_attr("nn.avg_pool2d", "target.arm_compute_lib")
@@ -452,7 +425,7 @@ def avg_pool2d(expr, from_quantized_composite=False):
     if attrs.layout != "NHWC":
         return False
 
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 @tvm.ir.register_op_attr("nn.global_max_pool2d", "target.arm_compute_lib")
@@ -464,7 +437,7 @@ def global_max_pool2d(expr):
         return False
     if attrs.layout != "NHWC":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 @tvm.ir.register_op_attr("nn.global_avg_pool2d", "target.arm_compute_lib")
@@ -476,7 +449,7 @@ def global_avg_pool2d(expr):
         return False
     if attrs.layout != "NHWC":
         return False
-    return not require_padding([*args, expr.checked_type])
+    return True
 
 
 @tvm.ir.register_op_attr("maximum", "target.arm_compute_lib")

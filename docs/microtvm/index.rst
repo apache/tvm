@@ -42,6 +42,7 @@ flexible and portable to other processors such as RISC-V and does not require Ze
 demos run against QEMU and the following hardware:
 
 * `STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-f746zg.html>`_
+* `STM STM32F746 Discovery <https://www.st.com/en/evaluation-tools/32f746gdiscovery.html>`_
 * `nRF 5340 Preview Development Kit <https://www.nordicsemi.com/Software-and-tools/Development-Kits/nRF5340-PDK>`_
 
 

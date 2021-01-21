@@ -72,7 +72,7 @@ def make_search_policies(
         Load measurement records from this file. If it is not None, the status of the
         task scheduler, search policies and cost models will be restored according to this file.
     adapative_training: bool = False
-        Option used for XGBModel, which will reduce the model training frequency when there're too
+        Option used by XGBModel to reduce the model training frequency when there're too
         many logs.
 
     Returns
@@ -275,7 +275,13 @@ class TaskScheduler:
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-    def tune(self, tune_option, search_policy="default", search_policy_params=None):
+    def tune(
+        self,
+        tune_option,
+        search_policy="default",
+        search_policy_params=None,
+        adapative_training=False,
+    ):
         """Tune a batch of tasks together.
 
         Parameters
@@ -290,6 +296,9 @@ class TaskScheduler:
             "sketch.random" for SketchPolicy + RandomModel.
         search_policy_params : Optional[Dict[str, Any]]
             The parameters of the search policy
+        adapative_training : bool = False
+            Option used by XGBModel to reduce the model training frequency when there're
+            too many logs.
         """
         # init members
         self.tune_option = tune_option
@@ -324,6 +333,7 @@ class TaskScheduler:
             tune_option.verbose,
             self.load_model_file,
             self.load_log_file,
+            adapative_training,
         )
 
         # do a round robin first to warm up

@@ -267,9 +267,9 @@ def test_looptype():
     iloop = ir[0]
     jloop = ir[1]
     kloop = ir[2]
-    assert iloop.for_type == tvm.tir.For.Parallel
-    assert jloop.for_type == tvm.tir.For.Vectorized
-    assert kloop.for_type == tvm.tir.For.Unrolled
+    assert iloop.kind == tvm.tir.ForKind.PARALLEL
+    assert jloop.kind == tvm.tir.ForKind.VECTORIZED
+    assert kloop.kind == tvm.tir.ForKind.UNROLLED
 
     func, ins, outs = run_and_check(looptype, [a, b, c])
     run_and_check(func, ins, outs=outs)

@@ -109,7 +109,7 @@ def test_vm_parallel():
     i = te.size_var("i")
     ib = tvm.tir.ir_builder.create()
     A = ib.buffer_ptr(Ab)
-    with ib.for_range(0, n, "i", for_type="parallel") as i:
+    with ib.for_range(0, n, "i", kind="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "test"))

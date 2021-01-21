@@ -55,7 +55,11 @@ def test_dso_module_load():
         i = te.var("i")
         # for i in 0 to n-1:
         stmt = tvm.tir.For(
-            i, 0, n - 1, 0, 0, tvm.tir.Store(Ab.data, tvm.tir.Load(dtype, Ab.data, i) + 1, i + 1)
+            i,
+            0,
+            n - 1,
+            tvm.tir.ForKind.SERIAL,
+            tvm.tir.Store(Ab.data, tvm.tir.Load(dtype, Ab.data, i) + 1, i + 1),
         )
         mod = tvm.IRModule.from_expr(
             tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
