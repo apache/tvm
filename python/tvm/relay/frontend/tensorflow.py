@@ -2357,6 +2357,7 @@ _convert_map = {
     "Identity": _identity(),
     "IsFinite": AttrCvt("isfinite"),
     "IsInf": AttrCvt("isinf"),
+    "IsNan": AttrCvt("isnan"),
     "LeakyRelu": AttrCvt("leaky_relu"),
     "LeftShift": AttrCvt("left_shift"),
     "Less": _broadcast("less"),
