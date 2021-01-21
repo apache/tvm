@@ -150,5 +150,13 @@ def test_expand_dims_grad():
     check_grad(fwd_func)
 
 
+def test_concatenate_grad():
+    x = relay.var("x", shape=(2, 2, 5))
+    y = relay.var("y", shape=(2, 1, 5))
+    z = relay.var("z", shape=(2, 4, 5))
+    fwd_func = relay.Function([x, y, z], relay.concatenate([x, y, z], axis=1))
+    check_grad(fwd_func)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
