@@ -779,6 +779,7 @@ arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_
   if (eliminate_div_mod) {
     transf = transf + EliminateDivModFromDomainConditions(transf->dst);
   }
+
   // TODO(sgrechanik-h): Repeating the following steps has a positive effect, however we probably
   // should find a better terminating criterion (like stop when the domain volume stops decreasing)
   // Also 2 steps seems to be slightly better than 3
@@ -789,7 +790,6 @@ arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraints& iter_
 
   return transf;
 }
-
 
 // Use the condition of a reduction op to simplify its domain (axis)
 PrimExpr SimplifyReductionDomain(const PrimExpr& expr, const Map<Var, Range>& outer_vranges) {
