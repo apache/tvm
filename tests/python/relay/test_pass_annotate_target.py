@@ -803,15 +803,15 @@ def test_annotate_within_let():
         f = relay.Function(
             [],
             relay.Let(
-                x, relay.const(const_array, dtype="float32"),
+                x,
+                relay.const(const_array, dtype="float32"),
                 relay.Let(
-                    r, relay.nn.relu(x),
-                    relay.Let(
-                        a, relay.abs(r),
-                        relay.Let(
-                            s, relay.add(a, a),
-                            s
-                        )))))
+                    r,
+                    relay.nn.relu(x),
+                    relay.Let(a, relay.abs(r), relay.Let(s, relay.add(a, a), s)),
+                ),
+            ),
+        )
         mod = tvm.IRModule.from_expr(f)
         return mod
 
@@ -840,14 +840,13 @@ def test_annotate_within_let():
         f = relay.Function(
             [],
             relay.Let(
-                x, annotate_const,
+                x,
+                annotate_const,
                 relay.Let(
-                    r, annotate_relu,
-                    relay.Let(
-                        a, annotate_abs,
-                        relay.Let(
-                            s, annotate_sum,
-                            s)))))
+                    r, annotate_relu, relay.Let(a, annotate_abs, relay.Let(s, annotate_sum, s))
+                ),
+            ),
+        )
         mod = tvm.IRModule.from_expr(f)
         return mod
 
