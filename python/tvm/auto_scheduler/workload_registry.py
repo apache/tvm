@@ -215,6 +215,9 @@ def serialize_workload_registry_entry(workload_key):
     """
     global WORKLOAD_FUNC_REGISTRY
 
+    if workload_key in WORKLOAD_FUNC_REGISTRY:
+        return (workload_key, WORKLOAD_FUNC_REGISTRY[workload_key])
+
     workload = json.loads(workload_key)
     name = workload[0]
     value = WORKLOAD_FUNC_REGISTRY[name]
