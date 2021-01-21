@@ -51,6 +51,8 @@ class SubprocessEnv(object):
         self.default_overrides = default_overrides
 
     def run(self, cmd, **kw):
+        print(f"MDW: SubprocessEnv.run() called with cmd: {cmd}")
+        print(f"MDW: SubprocessEnv.run() called with kw: {kw}")
         env = dict(os.environ)
         for k, v in self.default_overrides.items():
             env[k] = v

@@ -63,8 +63,10 @@ def _make_session(model, target, zephyr_board, mod):
     project_dir = os.path.join(os.path.dirname(__file__) or ".", "zephyr-runtime")
     compiler = zephyr.ZephyrCompiler(
         project_dir=project_dir,
-        board="nucleo_f746zg" if "stm32f746" in str(target) else "qemu_x86",
+        board=zephyr_board,
         zephyr_toolchain_variant="zephyr",
+        # XXX MDW - DO NOT SUBMIT.
+        west_cmd="/opt/nordic/ncs/v1.4.2/toolchain/bin/west",
     )
 
     opts = tvm.micro.default_options(f"{project_dir}/crt")
