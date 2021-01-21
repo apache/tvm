@@ -21,15 +21,14 @@ import numpy as np
 import tvm
 from tvm import relay
 
-from .infrastructure import (
+from test_arm_compute_lib.infrastructure import (
     skip_runtime_test,
     skip_codegen_test,
     build_and_run,
     verify,
     verify_codegen,
-    generate_trials,
 )
-from .infrastructure import Device
+from test_arm_compute_lib.infrastructure import Device
 
 
 def _get_model(
@@ -57,7 +56,12 @@ def _get_model(
         if len(padding) == 2:
             padding = (padding[0], padding[1], padding[0], padding[1])
         shape = (shape[0], shape[1] + padding[0] * 2, shape[2] + padding[1] * 2, shape[3])
-    weight_shape = (kernel_h, kernel_w, shape[3] // groups, channels)
+    is_depthwise = shape[3] == channels == groups
+    weight_format = "HWOI" if is_depthwise else "HWIO"
+    if weight_format == "HWIO":
+        weight_shape = (kernel_h, kernel_w, shape[3] // groups, channels)
+    else:
+        weight_shape = (kernel_h, kernel_w, channels, shape[3] // groups)
     w = tvm.nd.array(np.random.uniform(-128, 127, weight_shape).astype(dtype))
     weights = relay.const(w, dtype)
     out = relay.nn.conv2d(
@@ -65,7 +69,7 @@ def _get_model(
         weights,
         kernel_size=(kernel_h, kernel_w),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout=weight_format,
         dilation=dilation,
         strides=strides,
         padding=padding,
@@ -75,7 +79,8 @@ def _get_model(
     )
     params = {"w": w}
     if has_bias:
-        b = tvm.nd.array(np.random.uniform(-128, 127, weight_shape[3]).astype(dtype))
+        bias_shape = weight_shape[2] if is_depthwise else weight_shape[3]
+        b = tvm.nd.array(np.random.uniform(-128, 127, bias_shape).astype(dtype))
         biasc = relay.const(b, dtype)
         out = relay.nn.bias_add(out, biasc, axis=3)
         params["b"] = b
@@ -134,7 +139,12 @@ def _get_qnn_model(
         if len(padding) == 2:
             padding = (padding[0], padding[1], padding[0], padding[1])
         shape = (shape[0], shape[1] + padding[0] * 2, shape[2] + padding[1] * 2, shape[3])
-    weight_shape = (kernel_h, kernel_w, shape[3] // groups, channels)
+    is_depthwise = shape[3] == channels == groups
+    weight_format = "HWOI" if is_depthwise else "HWIO"
+    if weight_format == "HWIO":
+        weight_shape = (kernel_h, kernel_w, shape[3] // groups, channels)
+    else:
+        weight_shape = (kernel_h, kernel_w, channels, shape[3] // groups)
     w = tvm.nd.array(np.random.uniform(0, 255, weight_shape).astype(dtype))
     weights = relay.const(w, dtype)
     out = relay.qnn.op.conv2d(
@@ -146,7 +156,7 @@ def _get_qnn_model(
         kernel_scale=relay.const(kernel_sc, "float32"),
         kernel_size=(kernel_h, kernel_w),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout=weight_format,
         dilation=dilation,
         strides=strides,
         padding=padding,
@@ -156,7 +166,8 @@ def _get_qnn_model(
     )
     params = {"w": w}
     if has_bias:
-        b = tvm.nd.array(np.random.uniform(0, 255, weight_shape[3]).astype("int32"))
+        bias_shape = weight_shape[2] if is_depthwise else weight_shape[3]
+        b = tvm.nd.array(np.random.uniform(-128, 127, bias_shape).astype("int32"))
         biasc = relay.const(b, "int32")
         out = relay.nn.bias_add(out, biasc, axis=3)
         params["b"] = b
@@ -188,21 +199,30 @@ def _get_expected_codegen(
 ):
     if len(padding) == 2:
         padding = (padding[0], padding[1], padding[0], padding[1])
-    weight_shape = (channels, kernel_h, kernel_w, shape[3] // groups)
     output_height = ((shape[1] - kernel_h + padding[0] + padding[2]) / strides[0]) + 1
     output_width = ((shape[2] - kernel_w + padding[1] + padding[3]) / strides[1]) + 1
     output_shape = (1, int(output_height), int(output_width), channels)
     out_dtype = "int32" if dtype == "uint8" else "float32"
+    is_depthwise = shape[3] == channels == groups
+    weight_format = "IHWO" if is_depthwise else "OHWI"
+    if weight_format == "IHWO":
+        weight_shape = (shape[3] // groups, kernel_h, kernel_w, channels)
+    else:
+        weight_shape = (channels, kernel_h, kernel_w, shape[3] // groups)
+    if is_depthwise:
+        name = "nn.depthwise_conv2d"
+    else:
+        name = "nn.conv2d"
 
     node = {
         "op": "kernel",
-        "name": "nn.conv2d",
+        "name": name,
         "inputs": [],
         "attrs": {
-            "groups": [["1"]],
+            "groups": [[str(groups)]],
             "num_outputs": "1",
             "data_layout": [["NHWC"]],
-            "kernel_layout": [["OHWI"]],
+            "kernel_layout": [[weight_format]],
             "channels": [[str(channels)]],
             "dilation": [[str(dilation[0]), str(dilation[1])]],
             "out_layout": [[""]],
@@ -229,7 +249,7 @@ def _get_expected_codegen(
 
     # qnn.conv2d params, input and kernel
     if dtype == "uint8":
-        node["name"] = "qnn.conv2d"
+        node["name"] = "qnn." + node["name"].split(".")[1]
         for param_dtype in ["int32", "float32"]:
             for _ in range(2):
                 inputs.append(
@@ -246,7 +266,10 @@ def _get_expected_codegen(
             {
                 "op": "const",
                 "name": "",
-                "attrs": {"shape": [[[weight_shape[0]]]], "dtype": [[bias_dtype]]},
+                "attrs": {
+                    "shape": [[[1, 1, 1, weight_shape[3] if is_depthwise else weight_shape[0]]]],
+                    "dtype": [[bias_dtype]],
+                },
             }
         )
 
@@ -275,29 +298,43 @@ def test_conv2d():
     device = Device()
     np.random.seed(0)
 
-    kernel_hs = [1, 2, 3, 5]
-    kernel_ws = [1, 2, 3, 5]
-    pad = [(1, 1), (2, 2), (2, 1)]
-    strides = [(1, 1), (2, 2)]
-    dilation = [(1, 1)]
-    out_channels = [4, 7, 16]
-    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
-    # composite operator (pad, bias, activation)
-    composite = [
-        (False, False, False),
-        (False, True, False),
-        (False, False, True),
-        (False, True, True),
-        (True, False, False),
-    ]
     dtype = "float32"
-    trials = generate_trials(
-        [kernel_hs, kernel_ws, pad, strides, dilation, out_channels, input_shapes, composite], 3
-    )
+    trials = [
+        # Normal convolution
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 16, (12, 15, 16), (False, False, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
+        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (10, 10, 14), (False, True, True), False],
+        # Depth-wise convolution
+        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
+    ]
 
-    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
-        groups = 1
-        shape = (1, *input_shapes)
+    for (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+        is_depthwise,
+    ) in trials:
+        shape = (1, *shape)
+        if is_depthwise:
+            groups = shape[3]
+        else:
+            groups = 1
         outputs = []
         inputs = {
             "a": tvm.nd.array(np.random.uniform(-128, 127, shape).astype(dtype)),
@@ -338,31 +375,43 @@ def test_codegen_conv2d():
     if skip_codegen_test():
         return
 
-    np.random.seed(0)
-
-    kernel_hs = [1, 2, 3, 5]
-    kernel_ws = [1, 2, 3, 5]
-    pad = [(1, 1), (2, 2), (2, 1)]
-    strides = [(1, 1), (2, 2)]
-    dilation = [(1, 1)]
-    out_channels = [4, 7, 16]
-    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
-    # composite operator (pad, bias, activation)
-    composite = [
-        (False, False, False),
-        (False, True, False),
-        (False, False, True),
-        (False, True, True),
-        (True, False, False),
-    ]
     dtype = "float32"
-    trials = generate_trials(
-        [kernel_hs, kernel_ws, pad, strides, dilation, out_channels, input_shapes, composite], 3
-    )
+    trials = [
+        # Normal convolution
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 16, (12, 15, 16), (False, False, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
+        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (10, 10, 14), (False, True, True), False],
+        # Depth-wise convolution
+        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
+    ]
 
-    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
-        groups = 1
-        shape = (1, *input_shapes)
+    for (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+        is_depthwise,
+    ) in trials:
+        shape = (1, *shape)
+        if is_depthwise:
+            groups = shape[3]
+        else:
+            groups = 1
         inputs = {"a"}
 
         args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
@@ -389,29 +438,43 @@ def test_qnn_conv2d():
     device = Device()
     np.random.seed(0)
 
-    kernel_hs = [1, 2, 3, 5]
-    kernel_ws = [1, 2, 3, 5]
-    pad = [(1, 1), (2, 2)]
-    strides = [(1, 1), (2, 2)]
-    dilation = [(1, 1)]
-    out_channels = [4, 7, 16]
-    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
-    # composite operator (pad, bias, activation)
-    composite = [
-        (False, False, False),
-        (False, True, False),
-        (False, False, True),
-        (False, True, True),
-        (True, False, False),
-    ]
     dtype = "uint8"
-    trials = generate_trials(
-        [kernel_hs, kernel_ws, pad, strides, dilation, out_channels, input_shapes, composite], 3
-    )
+    trials = [
+        # Normal convolution
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 16, (12, 15, 16), (False, False, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
+        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (10, 10, 14), (False, True, True), False],
+        # Depth-wise convolution
+        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
+    ]
 
-    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
-        groups = 1
-        shape = (1, *input_shapes)
+    for (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+        is_depthwise,
+    ) in trials:
+        shape = (1, *shape)
+        if is_depthwise:
+            groups = shape[3]
+        else:
+            groups = 1
         outputs = []
         inputs = {"a": tvm.nd.array(np.random.uniform(0, 255, shape).astype(dtype))}
 
@@ -463,36 +526,52 @@ def test_qnn_conv2d():
             "output scale": output_sc,
             "output zero point": output_zp,
         }
-        verify(outputs, atol=1, rtol=0, config=config, verify_saturation=True)
+
+        atol = 2 if is_depthwise else 1
+        verify(outputs, atol=atol, rtol=0, config=config, verify_saturation=True)
 
 
 def test_codegen_qnn_conv2d():
     if skip_codegen_test():
         return
 
-    kernel_hs = [1, 2, 3, 5]
-    kernel_ws = [1, 2, 3, 5]
-    pad = [(1, 1), (2, 2), (2, 1)]
-    strides = [(1, 1), (2, 2)]
-    dilation = [(1, 1)]
-    out_channels = [4, 7, 16]
-    input_shapes = [(10, 10, 14), (12, 15, 16), (20, 20, 20)]
-    # composite operator (pad, bias, activation)
-    composite = [
-        (False, False, False),
-        (False, True, False),
-        (False, False, True),
-        (False, True, True),
-        (True, False, False),
-    ]
     dtype = "uint8"
-    trials = generate_trials(
-        [kernel_hs, kernel_ws, pad, strides, dilation, out_channels, input_shapes, composite], 3
-    )
+    trials = [
+        # Normal convolution
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (12, 15, 16), (False, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (10, 10, 14), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 16, (12, 15, 16), (False, False, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
+        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (10, 10, 14), (True, False, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (10, 10, 14), (False, True, True), False],
+        # Depth-wise convolution
+        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 14, (10, 10, 14), (True, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 14, (10, 10, 14), (False, True, True), True],
+    ]
 
-    for kernel_h, kernel_w, pad, stride, dilation, out_channels, input_shapes, composite in trials:
-        groups = 1
-        shape = (1, *input_shapes)
+    for (
+        kernel_h,
+        kernel_w,
+        pad,
+        stride,
+        dilation,
+        out_channels,
+        shape,
+        composite,
+        is_depthwise,
+    ) in trials:
+        shape = (1, *shape)
+        if is_depthwise:
+            groups = shape[3]
+        else:
+            groups = 1
         inputs = {"a"}
 
         input_zp = 100

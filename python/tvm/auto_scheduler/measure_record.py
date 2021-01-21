@@ -98,6 +98,43 @@ class RecordReader(Object):
             yield ret[0], ret[1]  # (input, result)
 
 
+def load_record_from_string(record):
+    """
+    Load the measure record from string.
+
+    Parameters
+    ----------
+    record: str
+        A record string, including the serialized MeausreInput and MeasureResult.
+
+    Returns
+    -------
+    ret: Tuple[MeasureInput, MeasureResult]
+        A tuple of MeasureInput, MeasureResult.
+    """
+    return _ffi_api.ReadMeasureRecord(record)
+
+
+def dump_record_to_string(inp, res):
+    """
+    Dump the measure record to a string.
+
+    Parameters
+    ----------
+    inp: MeasureInput
+        The measure input.
+
+    res: MeasureResult
+        The measure result.
+
+    Returns
+    -------
+    ret: str
+        The dumped string.
+    """
+    return _ffi_api.WriteMeasureRecords(inp, res)
+
+
 def load_records(filename):
     """
     Load measurement records from a file.
@@ -137,7 +174,7 @@ def save_records(filename, inputs, results):
     _ffi_api.SaveRecords(filename, inputs, results)
 
 
-def load_best(filename, workload_key=None, target=None):
+def load_best_record(filename, workload_key=None, target=None):
     """Return the best measurement pair form a log file. This may return none results if
     there is no legal measure pair with the specified workload_key/target found from the log file.
 

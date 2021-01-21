@@ -36,7 +36,7 @@ __name__ == "__main__":` block.
 #
 # .. code-block:: bash
 #
-#   pip3 install --user psutil xgboost tornado
+#   pip3 install --user psutil xgboost tornado cloudpickle
 #
 # To make TVM run faster in tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute
@@ -55,6 +55,7 @@ import numpy as np
 import tvm
 from tvm import te, topi, testing
 from tvm.topi.testing import conv2d_nchw_python
+import tvm.testing
 
 from tvm import autotvm
 

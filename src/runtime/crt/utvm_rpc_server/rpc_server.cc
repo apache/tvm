@@ -34,7 +34,6 @@
 #define DMLC_LITTLE_ENDIAN true
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/crt.h>
-#include <tvm/runtime/crt/internal/common/memory.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/module.h>
@@ -194,22 +193,30 @@ extern "C" {
 
 static utvm_rpc_server_t g_rpc_server = nullptr;
 
-utvm_rpc_server_t UTvmRpcServerInit(uint8_t* memory, size_t memory_size_bytes,
-                                    size_t page_size_bytes_log2,
-                                    utvm_rpc_channel_write_t write_func, void* write_func_ctx) {
+utvm_rpc_server_t UTvmRpcServerInit(utvm_rpc_channel_write_t write_func, void* write_func_ctx) {
   tvm::runtime::micro_rpc::g_write_func = write_func;
   tvm::runtime::micro_rpc::g_write_func_ctx = write_func_ctx;
 
-  tvm_crt_error_t err = TVMInitializeRuntime(memory, memory_size_bytes, page_size_bytes_log2);
+  tvm_crt_error_t err = TVMInitializeRuntime();
   if (err != kTvmErrorNoError) {
     TVMPlatformAbort(err);
   }
 
-  auto receive_buffer =
-      new (vmalloc(TVM_CRT_MAX_PACKET_SIZE_BYTES)) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
-  auto rpc_server = new (vmalloc(sizeof(tvm::runtime::micro_rpc::MicroRPCServer)))
-      tvm::runtime::micro_rpc::MicroRPCServer(receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES,
-                                              write_func, write_func_ctx);
+  DLContext ctx = {kDLCPU, 0};
+  void* receive_buffer_memory;
+  err = TVMPlatformMemoryAllocate(TVM_CRT_MAX_PACKET_SIZE_BYTES, ctx, &receive_buffer_memory);
+  if (err != kTvmErrorNoError) {
+    TVMPlatformAbort(err);
+  }
+  auto receive_buffer = new (receive_buffer_memory) uint8_t[TVM_CRT_MAX_PACKET_SIZE_BYTES];
+  void* rpc_server_memory;
+  err = TVMPlatformMemoryAllocate(sizeof(tvm::runtime::micro_rpc::MicroRPCServer), ctx,
+                                  &rpc_server_memory);
+  if (err != kTvmErrorNoError) {
+    TVMPlatformAbort(err);
+  }
+  auto rpc_server = new (rpc_server_memory) tvm::runtime::micro_rpc::MicroRPCServer(
+      receive_buffer, TVM_CRT_MAX_PACKET_SIZE_BYTES, write_func, write_func_ctx);
   g_rpc_server = static_cast<utvm_rpc_server_t>(rpc_server);
   rpc_server->Initialize();
   return g_rpc_server;

@@ -86,7 +86,7 @@ Here is sample data encoded as JSON:
     "timestamp":"20191123003411",
     "schema_version":"0.1",
     "metadata":{
-      "docker_tag":"tvmai/ci-gpu:v0.53"
+      "docker_tag":"tlcpack/ci-gpu:v0.53"
     },
     "workload_args":{
       "input_shape_dict":{

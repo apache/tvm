@@ -41,7 +41,7 @@ AttrPrinter GetVectorPrinter_(const T& vec) {
 
 AttrPrinter GetVectorPrinter(const Graph& graph, const std::string& key) {
   auto it = graph.attrs.find(key);
-  ICHECK(it != graph.attrs.end()) << "Cannot find " << key << " in graph attr";
+  CHECK(it != graph.attrs.end()) << "Cannot find " << key << " in graph attr";
   const any& value = *(it->second);
   if (value.type() == typeid(std::vector<TShape>)) {
     return GetVectorPrinter_(nnvm::get<std::vector<TShape> >(value));

@@ -24,6 +24,7 @@
 #include <inttypes.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/logging.h>
+#include <tvm/runtime/crt/memory.h>
 #include <tvm/runtime/crt/utvm_rpc_server.h>
 #include <unistd.h>
 
@@ -57,29 +58,40 @@ void TVMPlatformAbort(tvm_crt_error_t error_code) {
   throw "Aborted";
 }
 
-high_resolution_clock::time_point g_utvm_start_time;
-int g_utvm_timer_running = 0;
+MemoryManagerInterface* memory_manager;
 
-int TVMPlatformTimerStart() {
-  if (g_utvm_timer_running) {
-    std::cerr << "timer already running" << std::endl;
-    return -1;
-  }
-  g_utvm_start_time = high_resolution_clock::now();
-  g_utvm_timer_running = 1;
-  return 0;
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLContext ctx, void** out_ptr) {
+  return memory_manager->Allocate(memory_manager, num_bytes, ctx, out_ptr);
 }
 
-int TVMPlatformTimerStop(double* res_us) {
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLContext ctx) {
+  return memory_manager->Free(memory_manager, ptr, ctx);
+}
+
+steady_clock::time_point g_utvm_start_time;
+int g_utvm_timer_running = 0;
+
+tvm_crt_error_t TVMPlatformTimerStart() {
+  if (g_utvm_timer_running) {
+    std::cerr << "timer already running" << std::endl;
+    return kTvmErrorPlatformTimerBadState;
+  }
+  g_utvm_start_time = std::chrono::steady_clock::now();
+  g_utvm_timer_running = 1;
+  return kTvmErrorNoError;
+}
+
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
   if (!g_utvm_timer_running) {
     std::cerr << "timer not running" << std::endl;
-    return -1;
+    return kTvmErrorPlatformTimerBadState;
   }
-  auto utvm_stop_time = high_resolution_clock::now();
-  duration<double, std::micro> time_span(utvm_stop_time - g_utvm_start_time);
-  *res_us = time_span.count();
+  auto utvm_stop_time = std::chrono::steady_clock::now();
+  std::chrono::microseconds time_span =
+      std::chrono::duration_cast<std::chrono::microseconds>(utvm_stop_time - g_utvm_start_time);
+  *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
   g_utvm_timer_running = 0;
-  return 0;
+  return kTvmErrorNoError;
 }
 }
 
@@ -96,8 +108,13 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  utvm_rpc_server_t rpc_server =
-      UTvmRpcServerInit(memory, sizeof(memory), 8, &UTvmWriteFunc, nullptr);
+  int status = MemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
+  if (status != 0) {
+    fprintf(stderr, "error initiailizing memory manager\n");
+    return 2;
+  }
+
+  utvm_rpc_server_t rpc_server = UTvmRpcServerInit(&UTvmWriteFunc, nullptr);
 
 #ifdef TVM_HOST_USE_GRAPH_RUNTIME_MODULE
   CHECK_EQ(TVMGraphRuntimeModule_Register(), kTvmErrorNoError,

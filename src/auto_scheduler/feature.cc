@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "search_policy/utils.h"
 #include "utils.h"
 
 namespace tvm {
@@ -617,7 +618,7 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
       is_gpu_ = true;
 
       // make a fake for node for blockIdx.x or threadIdx.x
-      Stmt fake_for_node = For(var, 0, extent, ForType::Parallel, DeviceAPI::None, node->body);
+      Stmt fake_for_node = For(var, 0, extent, ForKind::kParallel, node->body);
 
       outer_loop_prod_ *= extent;
       for_loop_stack_.push_back(fake_for_node.as<ForNode>());
@@ -641,11 +642,11 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
   void VisitStmt_(const ForNode* node) final {
     int64_t loop_extent = GetLoopExtent(node);
 
-    if (node->for_type == ForType::Vectorized) {
+    if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.push_back(node);
-    } else if (node->for_type == ForType::Unrolled) {
+    } else if (node->kind == ForKind::kUnrolled) {
       unroll_for_stack_.push_back(node);
-    } else if (node->for_type == ForType::Parallel) {
+    } else if (node->kind == ForKind::kParallel) {
       parallel_for_stack_.push_back(node);
     }
 
@@ -655,11 +656,11 @@ class PerStoreFeatureExtractor : public StmtExprVisitor {
     for_loop_stack_.pop_back();
     outer_loop_prod_ /= loop_extent;
 
-    if (node->for_type == ForType::Vectorized) {
+    if (node->kind == ForKind::kVectorized) {
       vec_for_stack_.pop_back();
-    } else if (node->for_type == ForType::Unrolled) {
+    } else if (node->kind == ForKind::kUnrolled) {
       unroll_for_stack_.pop_back();
-    } else if (node->for_type == ForType::Parallel) {
+    } else if (node->kind == ForKind::kParallel) {
       parallel_for_stack_.pop_back();
     }
   }
@@ -1296,7 +1297,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
     }
     auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
-    if (task->target->kind->device_type == kDLGPU) {
+    if (IsGPUTask(task)) {
       auto pass_list = Array<tvm::transform::Pass>();
       // Phase 0
       pass_list.push_back(tir::transform::InjectPrefetch());
@@ -1310,7 +1311,7 @@ void GetPerStoreFeaturesWorkerFunc(const SearchTask& task, const State& state, i
       pass_list.push_back(tir::transform::Simplify());
       tvm::Map<String, tvm::PrimExpr> gpu_params{
           {"max_shared_memory_per_block", task->hardware_params->max_shared_memory_per_block},
-          {"max_local_memory_per_block", task->hardware_params->max_registers_per_block},
+          {"max_local_memory_per_block", task->hardware_params->max_local_memory_per_block},
           {"max_threads_per_block", task->hardware_params->max_threads_per_block},
           {"max_vector_bytes", task->hardware_params->vector_unit_bytes},
           {"max_vthread", task->hardware_params->max_vthread_extent},
@@ -1397,7 +1398,8 @@ void GetPerStoreFeaturesFromFile(const std::string& filename, int max_lines, int
       // rebuild task
       Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
       task = SearchTask(ComputeDAG(tensors), workload_key, cur_inp->task->target,
-                        cur_inp->task->target_host, cur_inp->task->hardware_params);
+                        cur_inp->task->target_host, cur_inp->task->hardware_params,
+                        cur_inp->task->layout_rewrite_option);
       task_id = task_cache.size();
 
       // compute min cost for each task
@@ -1460,11 +1462,18 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
     if (find_res == task_cache.end()) {
       if (inputs[i]->task->compute_dag.defined()) {  // the measure input is complete
         task = inputs[i]->task;
-      } else {  // the measure input is incomplete
-        // rebuild task for incomplete measure pairs read from file
-        Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
-        task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
-                          inputs[i]->task->target_host, inputs[i]->task->hardware_params);
+      } else {
+        // The measure input is incomplete, rebuild task for incomplete measure pairs read from file
+        try {
+          Array<te::Tensor> tensors = (*workload_key_to_tensors)(workload_key);
+          task = SearchTask(ComputeDAG(tensors), workload_key, inputs[i]->task->target,
+                            inputs[i]->task->target_host, inputs[i]->task->hardware_params,
+                            inputs[i]->task->layout_rewrite_option);
+        } catch (std::exception& e) {
+          // Cannot build ComputeDAG from workload key, the task may have not been registered in
+          // this search round
+          continue;
+        }
       }
       task_id = task_cache.size();
 
@@ -1509,7 +1518,7 @@ void GetPerStoreFeaturesFromMeasurePairs(const Array<MeasureInput>& inputs,
  *   ... // until i == n - 1
  *
  *   float throughputs[sizes[n]];  // The normalized throughputs for n records
- *   int   task_ids[size[n+1];   // The task ids for n records
+ *   int   task_ids[size[n+1]];   // The task ids for n records
  *
  * }
  * To implement this format, we also store int as float, so we can store all numbers

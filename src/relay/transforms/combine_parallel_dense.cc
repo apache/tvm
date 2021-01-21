@@ -57,6 +57,22 @@ class ParallelDenseToBatchCombiner : public ParallelOpBatchCombiner {
       : ParallelOpBatchCombiner("nn.dense", "nn.batch_matmul", min_num_branches) {}
 
  protected:
+  Call MakeCombinedOp(const Group& branches) {
+    Array<Expr> new_args;
+    size_t num_args = branches[0][0]->args.size();
+    for (size_t i = 0; i < num_args; i++) {
+      Array<Expr> arg_from_all_branches;
+      for (const auto& branch : branches) {
+        arg_from_all_branches.push_back(branch[0]->args[i]);
+      }
+
+      new_args.push_back(MakeStack(Tuple(arg_from_all_branches), 0));
+    }
+
+    CHECK_EQ(num_args, 2);
+    return Downcast<Call>(MakeBatchMatmul(new_args[0], new_args[1]));
+  }
+
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     StructuralEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();

@@ -84,7 +84,7 @@ def scatter_nd(data, indices, shape):
             out[i] = tvm.tir.Cast(data_ptr.dtype, 0)
 
         with ib.for_range(0, fused_indices_dimension) as i:
-            with ib.for_range(0, fused_data_dimension, for_type="parallel") as j:
+            with ib.for_range(0, fused_data_dimension, kind="parallel") as j:
                 offset = fused_data_dimension
                 index = j  # This is x_M, .. x_{N-1} part of the index into out.
                 # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part

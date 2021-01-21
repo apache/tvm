@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
+import copy
 import warnings
 import numpy as np
 import tvm
@@ -111,15 +112,20 @@ def get_type(elem_type):
 def get_info(info_proto):
     """Extract the shape from a ValueInfoProto."""
     shape = []
+    shape_name = []
     for dim in info_proto.type.tensor_type.shape.dim:
+        name = dim.dim_param
         value = dim.dim_value
-        if value is None:
-            value = _ty.Any
+        if value is None or value == 0:
+            value = _ty.Any()
+            shape_name.append(name)
+        else:
+            shape_name.append(value)
         shape.append(value)
 
     name = info_proto.name
     dtype = get_type(info_proto.type.tensor_type.elem_type)
-    return name, shape, dtype
+    return name, shape, dtype, shape_name
 
 
 def dimension_picker(prefix, suffix=""):
@@ -162,7 +168,7 @@ def get_pad_pair(input1d, kernel1d, stride1d):
     return [pad_before, pad_after]
 
 
-def onnx_default_layout(dims):
+def onnx_default_layout(dims, op_name):
     if dims == 1:
         return "NCW"
     if dims == 2:
@@ -170,11 +176,11 @@ def onnx_default_layout(dims):
     if dims == 3:
         return "NCDHW"
 
-    msg = "Only 1D, 2D and 3D layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported for operator {}."
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
-def onnx_storage_order2layout(storage_order, dims=2):
+def onnx_storage_order2layout(storage_order, dims, op_name):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid("Mode of storage_order must be either 0 or 1")
@@ -186,7 +192,7 @@ def onnx_storage_order2layout(storage_order, dims=2):
     if dims == 3:
         return "NCDHW" if storage_order == 0 else "NDHWC"
 
-    msg = "Only 1D, 2D and 3D layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported for operator {}."
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
@@ -295,10 +301,10 @@ class Pool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2)
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name=cls.name
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name=cls.name)
 
         return AttrCvt(
             op_name=dimension_picker(cls.name),
@@ -622,6 +628,62 @@ class MaxPool(Pool):
     name = "max_pool"
 
 
+class MaxUnpool(OnnxOpConverter):
+    """Operator converter for MaxUnpool"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        # Unpack inputs and attributes
+        data = inputs[0]
+        data_type = infer_type(data).checked_type.dtype
+        indices = inputs[1]
+        output_shape = inputs[2]
+        kernel_shape = attr.get("kernel_shape")
+        pads = attr.get("pads", None)
+        strides = attr.get("strides", [1] * len(kernel_shape))
+
+        # Compute the proper output shape before padding.
+        multiplier = _op.concatenate(
+            [_expr.const([1, 1], dtype="int64"), _expr.const(list(strides), dtype="int64")], axis=0
+        )
+        total_output_shape = multiplier * _op.shape_of(data, dtype="int64")
+        # Add extra dimensions from kernel size and stride mismatch
+        total_output_shape += _op.concatenate(
+            [_expr.const([0, 0], "int64"), _expr.const(list(kernel_shape), "int64")], axis=0
+        ) - _op.concatenate(
+            [_expr.const([0, 0], "int64"), _expr.const(list(strides), "int64")], axis=0
+        )
+
+        # Compute padding amount if output shape is specified.
+        if output_shape is not None:
+            total_output_shape = output_shape
+
+        elif pads is not None:
+            # Get pads in the proper format for relay.
+            pads = _op.concatenate(
+                [_expr.const([0, 0, 0, 0], "int64"), _expr.const(list(pads), "int64")], axis=0
+            )
+            pads = _op.reshape(pads, [-1, 2])
+            # Compute the total padding per axis.
+            total_pad = _op.sum(pads, axis=-1)
+            # Reversing maxpool means that padding actually makes our output smaller.
+            total_output_shape = total_output_shape - total_pad
+
+        # Create a tensor of zeros then scatter our data through it.
+        zeros_tensor = _op.zeros(total_output_shape, data_type)
+        # We need to flatten all our tensors before scattering.
+        flat_tensor = _op.scatter(
+            _op.reshape(zeros_tensor, [-1]),
+            _op.reshape(indices, [-1]),
+            _op.reshape(data, [-1]),
+            axis=0,
+        )
+        # Now reshape back to prepadded shape.
+        output_tensor = _op.reshape(flat_tensor, total_output_shape)
+
+        return output_tensor
+
+
 class LpPool(OnnxOpConverter):
     """A helper class for lppool op converters."""
 
@@ -648,10 +710,10 @@ class LpPool(OnnxOpConverter):
 
         if "storage_order" in attr:
             attr["layout"] = onnx_storage_order2layout(
-                attr["storage_order"], dims=(len(input_shape) - 2)
+                attr["storage_order"], dims=(len(input_shape) - 2), op_name="LpPool"
             )
         else:
-            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2))
+            attr["layout"] = onnx_default_layout(dims=(len(input_shape) - 2), op_name="LpPool")
 
         p = _expr.const(attr["p"], dtype)
         reci_p = _expr.const(1.0 / attr["p"], dtype)
@@ -761,13 +823,11 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        input_channels = infer_shape(inputs[0])[1]
-        alpha_shape = infer_shape(inputs[1])
-        if len(alpha_shape) != 1:
-            alpha = _op.reshape(inputs[1], (-1,))
-        else:
-            alpha = inputs[1]
-        return _op.nn.prelu(inputs[0], _op.broadcast_to(alpha, [input_channels]))
+        input_shape = _op.shape_of(inputs[0])
+        alpha = _op.broadcast_to_like(inputs[1], inputs[0])
+        alpha = _op.reshape(alpha, [-1])
+        output = _op.nn.prelu(_op.reshape(inputs[0], [-1]), alpha, axis=0)
+        return _op.reshape(output, input_shape)
 
 
 class Reciprocal(OnnxOpConverter):
@@ -803,8 +863,7 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
-            # pop shape out of parameters since it wont be needed later.
-            shape = tuple(params.pop(inputs[1].name_hint).asnumpy().astype("int32"))
+            shape = tuple(params[inputs[1].name_hint].asnumpy().astype("int32"))
             out = _op.reshape(inputs[0], shape)
         else:
             out = _op.reshape(*inputs)
@@ -870,14 +929,6 @@ class ScaledTanh(OnnxOpConverter):
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
         return _op.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
-
-
-class SoftPlus(OnnxOpConverter):
-    """Operator converter for SoftPlus."""
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        return _op.log(_op.exp(inputs[0]) + _expr.const(1.0))
 
 
 class Softsign(OnnxOpConverter):
@@ -978,10 +1029,6 @@ class Upsample(OnnxOpConverter):
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode)
             )
 
-        if method == "nearest_neighbor":
-            align_corners = False
-        else:
-            align_corners = True
         # in 3d case, we use the purely static op
         if dims == 5:
             if isinstance(scales, _expr.Call):
@@ -1015,7 +1062,7 @@ class Upsample(OnnxOpConverter):
                 scale_w,
                 layout=layout,
                 method=method,
-                align_corners=align_corners,
+                align_corners=False,
             )
         return out
 
@@ -1061,17 +1108,22 @@ class Split(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        splits = attr.get("split", False)
-        if splits:
+        splits = attr.get("split", None)
+        if splits is not None:
+            indices = []
             attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
-                attr["indices_or_sections"].append(index)
+                indices.append(index)
         # When splits isnt specified divide evenly over axis.
         else:
-            attr["indices_or_sections"] = attr["tvm_custom"]["num_outputs"]
-        return AttrCvt("split", ignores=["split"])(inputs, attr, params)
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
 
 
 class Slice(OnnxOpConverter):
@@ -1177,7 +1229,9 @@ class GatherND(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.gather_nd(inputs[0], inputs[1])
+        indices_dims = len(infer_shape(inputs[1]))
+        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims - 1)))
+        return _op.gather_nd(inputs[0], indices)
 
 
 class Scatter(OnnxOpConverter):
@@ -1487,15 +1541,6 @@ class And(Elemwise):
 
 class Tile(Elemwise):
     """Operator converter for Tile"""
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        if "repeats" not in attr:
-            raise tvm.error.OpAttributeInvalid(
-                'Attribute "repeats" should be set ' "for operator Tile."
-            )
-        reps = attr.pop("repeats")  # The number of times repeating the tensor data.
-        return _op.tile(inputs[0], reps)
 
     @classmethod
     def _impl_v6(cls, inputs, attr, params):
@@ -1996,7 +2041,7 @@ class RoiAlign(OnnxOpConverter):
         x = inputs[0]
         rois = inputs[1]
         batch_indices = inputs[2]
-        mode = attr.get("mode", "avg")
+        mode = attr.get("mode", b"avg")
         if mode != b"avg":
             raise ValueError("RoiAlign in Relay only uses avg mode")
         output_height = attr.get("output_height", 1)
@@ -2006,7 +2051,7 @@ class RoiAlign(OnnxOpConverter):
         spatial_scale = attr.get("spatial_scale", 1.0)
 
         batch_indices = _op.expand_dims(batch_indices, axis=1, num_newaxis=1)
-        batch_indices = _op.cast(batch_indices, infer_type(rois).type_annotation.dtype)
+        batch_indices = _op.cast(batch_indices, infer_type(rois).checked_type.dtype)
         rois = _op.concatenate([batch_indices, rois], 1)
 
         return _vision.roi_align(
@@ -2024,6 +2069,10 @@ class Clip(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if "min" not in attr:
+            attr["min"] = -np.inf
+        if "max" not in attr:
+            attr["max"] = np.inf
         return Clip.convert_attributes(inputs, attr, params)
 
     @classmethod
@@ -2039,6 +2088,17 @@ class Clip(OnnxOpConverter):
         return result
 
 
+class Softplus(OnnxOpConverter):
+    """Operator converter for Softplus."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        data_dtype = infer_type(data).checked_type.dtype
+        data = _op.exp(data) + _expr.const(1, dtype=data_dtype)
+        return _op.log(data)
+
+
 class Loop(OnnxOpConverter):
     """Operator converter for Loop"""
 
@@ -2048,7 +2108,9 @@ class Loop(OnnxOpConverter):
         cond = inputs[1]
         loop_deps = inputs[2:]
         num_deps = len(loop_deps)
-        body = attr["body"]
+        # Create a copy of the body function to prevent the original
+        # from being modified.
+        body = copy.copy(attr["body"])
         iter_dtype = infer_type(max_loop_count).checked_type.dtype
 
         # Determine what condition mode we're in.
@@ -2085,6 +2147,8 @@ class Loop(OnnxOpConverter):
             checked_type = infer_type(val)
             if hasattr(checked_type, "type_annotation"):
                 checked_type = checked_type.type_annotation
+            if hasattr(checked_type, "checked_type"):
+                checked_type = checked_type.checked_type
             shape = get_const_tuple(checked_type.shape)
             actual_shape = []
             for dim in shape:
@@ -2119,9 +2183,15 @@ class Loop(OnnxOpConverter):
         scan_output_vars = []
         scan_output_init = []
         for i in range(num_scan_outputs):
-            name, shape, dtype = get_info(body.output[i + 1 + num_deps])
-            scan_output_vars.append(_expr.var(name, shape=([_ty.Any()] + shape), dtype=dtype))
-            scan_output_init.append(_op.reshape(_expr.const([]), [0] + shape))
+            name, shape, dtype, _ = get_info(body.output[i + 1 + num_deps])
+            if dtype == "float":
+                dtype = "float32"
+            scan_output_vars.append(
+                _expr.var(name, shape=([_ty.Any()] * (len(shape) + 1)), dtype=dtype)
+            )
+            scan_output_init.append(
+                _op.reshape(_expr.const(np.array([]).astype(dtype)), [0] + [1] * len(shape))
+            )
 
         # Now we can remove loop iter variables from our inner loop's inputs.
         # This is kind of a hack since we have graph inputs that we don't
@@ -2154,17 +2224,17 @@ class Loop(OnnxOpConverter):
             new_loop_vars = [loop_outputs[i] for i in range(1, 1 + num_deps)]
             new_scan_outputs = [loop_outputs[i] for i in range(1 + num_deps, len(loop_outputs))]
 
-            # Increment counter.
-            if max_loop_count is not None:
-                incr = _expr.const(1, dtype=iter_dtype)
-                loop_count = loop_count + incr
-
             # Add new scan outputs to tracking
             combined_scan_outputs = []
             for i, scan in enumerate(scan_outputs):
                 new_scan = _op.expand_dims(new_scan_outputs[i], axis=0)
                 combined_scan = _op.concatenate([scan, new_scan], axis=0)
                 combined_scan_outputs.append(combined_scan)
+
+            # Increment counter.
+            if max_loop_count is not None:
+                incr = _expr.const(1, dtype=iter_dtype)
+                loop_count = loop_count + incr
 
             # Pack loop outputs for next iteration
             # [iter_count, cond, loop_deps, loop_scans]
@@ -2205,6 +2275,9 @@ class If(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         cond = inputs[0]
+        # Convert array to bool if needed.
+        if len(infer_shape(cond)) > 0:
+            cond = _op.take(cond, _expr.const(0, dtype="int64"))
         then_branch = attr.get("then_branch", None)
         else_branch = attr.get("else_branch", None)
         assert then_branch is not None and else_branch is not None
@@ -2234,6 +2307,274 @@ class If(OnnxOpConverter):
 
         # Now we can construct the relay if statement and return.
         return _expr.If(cond, then_expr, else_expr)
+
+
+class NonMaxSuppression(OnnxOpConverter):
+    """Operator converter for NonMaxSuppression."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        """
+        High level note: ONNX implements what TF calls combined_non_max_suppression
+        It passes in scores for each box for every class in the output and expects boxes to be
+        analyzed for each class independently
+
+        It also asks for the data to be returned in a particular format.
+
+        To support these, we implement a series of lops:
+        The first loop splits over class number, performs NMS, and collects the outputs.
+        The second (nested) loop takes the outputs and transforms them into the format ONNX wants
+        """
+        # Get parameter values
+        boxes = inputs[0]
+        scores = inputs[1]
+        max_output_boxes_per_class = inputs[2]
+        iou_threshold = inputs[3]
+        score_threshold = inputs[4]
+
+        dtype = infer_type(boxes).checked_type.dtype
+
+        if "center_point_box" in attr:
+            assert (
+                attr["center_point_box"] == 0
+            ), "Only support center_point_box = 0 in onnx importer right now"
+
+        if iou_threshold is None:
+            iou_threshold = _expr.const(0.0, dtype="float32")
+        if score_threshold is None:
+            score_threshold = _expr.const(0.0, dtype="float32")
+
+        def conditionally_squeeze_scalar(x):
+            rank = len(infer_shape(x))
+            assert rank <= 1, "nms thresholds must be scalars"
+            if rank == 1:
+                return _op.squeeze(x, [0])
+            return x
+
+        max_output_boxes_per_class = conditionally_squeeze_scalar(max_output_boxes_per_class)
+        iou_threshold = conditionally_squeeze_scalar(iou_threshold)
+        score_threshold = conditionally_squeeze_scalar(score_threshold)
+
+        ## prepare utility constants
+        zero = _op.const(np.array([0]), dtype="int64")
+        one = _op.const(np.array([1]), dtype="int64")
+        two = _op.const(np.array([2]), dtype="int64")
+        three = _op.const(np.array([3]), dtype="int64")
+        three_ones = _op.const(np.array([1, 1, 1]), dtype="int64")
+        four_ones = _op.const(np.array([1, 1, 1, 1]), dtype="int64")
+
+        ## First loop: split by class and perform NMS
+        # Create Loop Vars
+        i = _expr.var("i", shape=(1,), dtype="int64")
+        scores_var = _expr.var("scores_var", shape=(_ty.Any(), _ty.Any(), _ty.Any()), dtype=dtype)
+        boxes_var = _expr.var("boxes_var", shape=(_ty.Any(), _ty.Any(), 4), dtype=dtype)
+        max_output_boxes_per_class_var = _expr.var(
+            "max_output_boxes_per_class_var", shape=(), dtype="int64"
+        )
+        iou_threshold_var = _expr.var("iou_threshold_var", shape=(), dtype="float32")
+        score_threshold_var = _expr.var("score_threshold_var", shape=(), dtype="float32")
+        B = _expr.var("B", shape=(1,), dtype="int64")
+        C = _expr.var("C", shape=(1,), dtype="int64")
+        S = _expr.var("S", shape=(1,), dtype="int64")
+        # Outputs of first loop should be padded nms values shape (B, C, S, 3)
+        onnx_out = _expr.var("onnx_out", shape=(_ty.Any(), _ty.Any(), _ty.Any(), 3), dtype="int64")
+        # and sizes of valid outputs, shape (B, C, 1)
+        nms_size_out = _expr.var("nms_size_out", shape=(_ty.Any(), _ty.Any(), 1), dtype="int64")
+
+        def _first_cond(
+            i,
+            scores,
+            boxes,
+            B,
+            C,
+            S,
+            max_output_boxes_per_class,
+            iou_threshold,
+            score_threshold,
+            onnx_out,
+            nms_size_out,
+        ):
+            # Loop over classes, end when i == C
+            return _op.min(_op.less(i, C))
+
+        def _first_body(
+            i,
+            scores,
+            boxes,
+            B,
+            C,
+            S,
+            max_output_boxes_per_class,
+            iou_threshold,
+            score_threshold,
+            onnx_out,
+            nms_size_out,
+        ):
+            # slice to get current class
+            begin = _op.concatenate([zero, i, zero], axis=0)
+            end = _op.concatenate([B, i + one, S], axis=0)
+            class_scores = _op.strided_slice(scores, begin, end, three_ones)
+            class_scores = _op.expand_dims(_op.squeeze(class_scores, [1]), -1, 1)
+            # combine scores and boxes
+            data = _op.concatenate([class_scores, boxes], axis=-1)
+
+            # get valid counts
+            ct, data, indices = _op.vision.get_valid_counts(
+                data, score_threshold=score_threshold, id_index=-1, score_index=0
+            )
+            # reason why using get_valid_counts is for inference performance
+            # ONNX NMS doesn't have parameter top_k
+            top_k = -1
+            # ONNX doesn't have class id for nms input
+            score_index = 0
+            # perform nms on current class
+            nms_ret = _op.vision.non_max_suppression(
+                data=data,
+                valid_count=ct,
+                indices=indices,
+                max_output_size=max_output_boxes_per_class,
+                iou_threshold=iou_threshold,
+                force_suppress=True,
+                top_k=top_k,
+                coord_start=1,
+                score_index=score_index,
+                id_index=-1,
+                return_indices=True,
+                invalid_to_bottom=False,
+            )
+            # partially prepare ONNX output format by labeling batch_num, class_id
+            nms_padded_out = _op.expand_dims(nms_ret[0], -1, 1)
+            batch_num = _op.expand_dims(_op.arange(_op.squeeze(B, [0]), dtype="int64"), -1, 1)
+            batch_num = _op.broadcast_to(batch_num, _op.shape_of(nms_ret[0], dtype="int64"))
+            batch_num = _op.expand_dims(batch_num, -1, 1)
+            class_num = _op.broadcast_to(i, _op.shape_of(nms_padded_out, dtype="int64"))
+            new_onnx_out = _op.concatenate(
+                [batch_num, class_num, _op.cast(nms_padded_out, "int64")], -1
+            )
+            new_onnx_out = _op.expand_dims(new_onnx_out, 1, 1)
+            # store valid nms outputs for this class
+            nms_size = _op.cast(nms_ret[1], "int64")
+            nms_size = _op.expand_dims(nms_size, 1, 1)
+            return [
+                i + one,
+                scores,
+                boxes,
+                B,
+                C,
+                S,
+                max_output_boxes_per_class,
+                iou_threshold,
+                score_threshold,
+                _op.concatenate([onnx_out, new_onnx_out], axis=1),
+                _op.concatenate([nms_size_out, nms_size], axis=1),
+            ]
+
+        # create the first loop
+        first_loop = _loops.while_loop(
+            _first_cond,
+            [
+                i,
+                scores_var,
+                boxes_var,
+                B,
+                C,
+                S,
+                max_output_boxes_per_class_var,
+                iou_threshold_var,
+                score_threshold_var,
+                onnx_out,
+                nms_size_out,
+            ],
+            _first_body,
+        )
+
+        ## Second loop slices outputs of the first loop for valid boxes and
+        ##  concats in the order ONNX wants
+        # Second inner Loop Vars
+        i = _expr.var("i", shape=(1,), dtype="int64")
+        j = _expr.var("j", shape=(1,), dtype="int64")
+        B = _expr.var("B", shape=(1,), dtype="int64")
+        C = _expr.var("C", shape=(1,), dtype="int64")
+        # Outputs of first loop should be padded nms values shape (B, C, 3)
+        onnx_out = _expr.var("onnx_out", shape=(_ty.Any(), _ty.Any(), _ty.Any(), 3), dtype="int64")
+        # and sizes of valid outputs, shape (B, C, 1)
+        nms_size_out = _expr.var("nms_size_out", shape=(_ty.Any(), _ty.Any(), 1), dtype="int64")
+        out = _expr.var("out", shape=(_ty.Any(), 3), dtype="int64")
+
+        def _inner_cond(i, j, C, onnx_out, nms_size, out):
+            # inner loop over number of classes
+            return _op.min(_op.less(j, C))
+
+        def _inner_body(i, j, C, onnx_out, nms_size, out):
+            # slice to get current batch and class for valid box indicator
+            start = _op.concatenate([i, j + one, zero], axis=0)
+            end = _op.concatenate([i + one, j + two, one], axis=0)
+            num_valid_boxes = _op.reshape(_op.strided_slice(nms_size, start, end, three_ones), [1])
+            # slice to get current batch, class, and valid outputs
+            start = _op.concatenate([i, j + one, zero, zero], axis=0)
+            end = _op.concatenate([i + one, j + two, num_valid_boxes, three], axis=0)
+            new_out = _op.squeeze(_op.strided_slice(onnx_out, start, end, four_ones), [0, 1])
+            return i, j + one, C, onnx_out, nms_size, _op.concatenate([out, new_out], axis=0)
+
+        inner_loop = _loops.while_loop(
+            _inner_cond, [i, j, C, onnx_out, nms_size_out, out], _inner_body
+        )
+
+        # Second Outer Loop Vars
+        i = _expr.var("i", shape=(1,), dtype="int64")
+        j = _expr.var("j", shape=(1,), dtype="int64")
+        B = _expr.var("B", shape=(1,), dtype="int64")
+        C = _expr.var("C", shape=(1,), dtype="int64")
+        # Outputs of first loop should be padded nms values shape (B, C, 3)
+        onnx_out = _expr.var("onnx_out", shape=(_ty.Any(), _ty.Any(), _ty.Any(), 3), dtype="int64")
+        # and sizes of valid outputs, shape (B, C, 1)
+        nms_size_out = _expr.var("nms_size_out", shape=(_ty.Any(), _ty.Any(), 1), dtype="int64")
+        out = _expr.var("out", shape=(_ty.Any(), 3), dtype="int64")
+
+        def _outer_cond(i, B, C, onnx_out, nms_size_out, out):
+            # Outer loop is over batch size
+            return _op.min(_op.less(i, B))
+
+        def _outer_body(i, B, C, onnx_out, nms_size_out, out):
+            # Outer loop just calls inner loop
+            init_count = _op.const(np.array([0]), dtype="int64")
+            inner_loop_vals = inner_loop(i, init_count, C, onnx_out, nms_size_out, out)
+            return i + one, B, C, onnx_out, nms_size_out, _expr.TupleGetItem(inner_loop_vals, 5)
+
+        # Create the second loop
+        outer_loop = _loops.while_loop(
+            _outer_cond, [i, B, C, onnx_out, nms_size_out, out], _outer_body
+        )
+
+        # Call the first loop, perform NMS
+        B, C, S = _op.split(_op.shape_of(scores, dtype="int64"), 3)
+        init_count = _op.const(np.array([0]), dtype="int64")
+        init_onnx_out = _op.const([1], dtype="int64")
+        init_onnx_out = _op.broadcast_to(init_onnx_out, _op.concatenate([B, one, S, three], 0))
+        init_nms_size_out = _op.const([1], dtype="int64")
+        init_nms_size_out = _op.broadcast_to(init_nms_size_out, _op.concatenate([B, one, one], 0))
+        loop_vals = first_loop(
+            init_count,
+            scores,
+            boxes,
+            B,
+            C,
+            S,
+            max_output_boxes_per_class,
+            iou_threshold,
+            score_threshold,
+            init_onnx_out,
+            init_nms_size_out,
+        )
+        onnx_output = _expr.TupleGetItem(loop_vals, 9)
+        nms_size_output = _expr.TupleGetItem(loop_vals, 10)
+
+        # Call the second loop, rework outputs into correct form
+        init_count = _op.const(np.array([0]).astype("int64"), dtype="int64")
+        init_out = _op.const(np.array([]).reshape([0, 3]).astype("int64"), dtype="int64")
+        loop_vals = outer_loop(init_count, B, C, onnx_output, nms_size_output, init_out)
+
+        return _expr.TupleGetItem(loop_vals, 5)
 
 
 # compatible operators that do NOT require any conversion.
@@ -2294,12 +2635,12 @@ def _get_convert_map(opset):
         "Greater": Greater.get_converter(opset),
         "Less": Less.get_converter(opset),
         "Log": Renamer("log"),
-        "ACos": Renamer("acos"),
-        "ACosh": Renamer("acosh"),
-        "ASin": Renamer("asin"),
-        "ASinh": Renamer("asinh"),
-        "ATan": Renamer("atan"),
-        "ATanh": Renamer("atanh"),
+        "Acos": Renamer("acos"),
+        "Acosh": Renamer("acosh"),
+        "Asin": Renamer("asin"),
+        "Asinh": Renamer("asinh"),
+        "Atan": Renamer("atan"),
+        "Atanh": Renamer("atanh"),
         "Cos": Renamer("cos"),
         "Cosh": Renamer("cosh"),
         "Sin": Renamer("sin"),
@@ -2315,13 +2656,13 @@ def _get_convert_map(opset):
         "Sum": Sum.get_converter(opset),
         "Mean": Mean.get_converter(opset),
         "Clip": Clip.get_converter(opset),
+        "Softplus": Softplus.get_converter(opset),
         # softmax default axis is different in onnx
         "Softmax": Softmax.get_converter(opset),
         "LogSoftmax": AttrCvt("log_softmax", {"axis": ("axis", 1)}),
         "OneHot": OneHot.get_converter(opset),
         # 'Hardmax'
         "Softsign": Softsign.get_converter(opset),
-        "SoftPlus": SoftPlus.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
         "Mod": Mod.get_converter(opset),
@@ -2330,6 +2671,7 @@ def _get_convert_map(opset):
         "AveragePool": AveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
+        "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
         "ConvTranspose": ConvTranspose.get_converter(opset),
         "GlobalAveragePool": Renamer("global_avg_pool2d"),
@@ -2346,6 +2688,7 @@ def _get_convert_map(opset):
         # defs/vision
         "MaxRoiPool": MaxRoiPool.get_converter(opset),
         "RoiAlign": RoiAlign.get_converter(opset),
+        "NonMaxSuppression": NonMaxSuppression.get_converter(opset),
         # defs/reduction
         "ReduceMax": ReduceMax.get_converter(opset),
         "ReduceMin": ReduceMin.get_converter(opset),
@@ -2374,6 +2717,7 @@ def _get_convert_map(opset):
         "Gather": Gather.get_converter(opset),
         "GatherElements": GatherElements.get_converter(opset),
         "GatherND": GatherND.get_converter(opset),
+        "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
         "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
@@ -2491,8 +2835,7 @@ class GraphProto:
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
-            i_name = self._parse_value_proto(i)
-            d_type = self._parse_dtype(i, "float32")
+            i_name, i_shape, d_type, i_shape_name = get_info(i)
             if i_name in self._params:
                 # i is a param instead of input
                 self._num_param += 1
@@ -2503,14 +2846,20 @@ class GraphProto:
             else:
                 self._num_input += 1
                 if i_name in self._shape:
-                    tshape = self._shape[i_name]
+                    i_shape = self._shape[i_name]
                 else:
-                    raise ValueError("Must provide an input shape for `{0}`.".format(i_name))
+                    if "?" in str(i_shape):
+                        warning_msg = (
+                            "Input %s has unknown dimension shapes: %s. "
+                            "Specifying static values may improve performance"
+                            % (i_name, str(i_shape_name))
+                        )
+                        warnings.warn(warning_msg)
                 if isinstance(self._dtype, dict):
                     dtype = self._dtype[i_name] if i_name in self._dtype else d_type
                 else:
                     dtype = d_type
-                self._nodes[i_name] = new_var(i_name, shape=tshape, dtype=dtype)
+                self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
         # get list of unsupported ops
         convert_map = _get_convert_map(opset)
@@ -2596,15 +2945,6 @@ class GraphProto:
         except AttributeError:
             name = value_proto
         return name
-
-    def _parse_dtype(self, value_proto, dtype):
-        """Parse dtype."""
-        try:
-            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-
-            return TENSOR_TYPE_TO_NP_TYPE[value_proto.type.tensor_type.elem_type].name
-        except AttributeError:
-            return dtype
 
     def _parse_array(self, tensor_proto):
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))

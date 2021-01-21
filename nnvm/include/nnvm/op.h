@@ -452,7 +452,7 @@ inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
 template <typename ValueType>
 inline Op& Op::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
-  ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
+  CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   // update the attribute map of the key by creating new empty if needed.
   UpdateAttrMap(attr_name, [this, attr_name, value, plevel](any* pmap) {
     // the callback is in lockscope so is threadsafe.
@@ -461,7 +461,7 @@ inline Op& Op::set_attr(  // NOLINT(*)
       pm.attr_name_ = attr_name;
       *pmap = std::move(pm);
     }
-    ICHECK(pmap->type() == typeid(OpMap<ValueType>))
+    CHECK(pmap->type() == typeid(OpMap<ValueType>))
         << "Attribute " << attr_name << " of operator " << this->name
         << " is registered as inconsistent types"
         << " previously " << pmap->type().name() << " current " << typeid(OpMap<ValueType>).name();
@@ -471,8 +471,8 @@ inline Op& Op::set_attr(  // NOLINT(*)
       vec.resize(index_ + 1, std::make_pair(ValueType(), 0));
     }
     std::pair<ValueType, int>& p = vec[index_];
-    ICHECK(p.second != plevel) << "Attribute " << attr_name << " of operator " << this->name
-                               << " is already registered with same plevel=" << plevel;
+    CHECK(p.second != plevel) << "Attribute " << attr_name << " of operator " << this->name
+                              << " is already registered with same plevel=" << plevel;
     if (p.second < plevel) {
       vec[index_] = std::make_pair(value, plevel);
     }
@@ -547,9 +547,9 @@ inline bool OpMap<ValueType>::contains(const Op* op) const {
 
 template <typename ValueType>
 inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
-  ICHECK(op != nullptr);
+  CHECK(op != nullptr);
   const uint32_t idx = op->index_;
-  ICHECK(idx < data_.size() && data_[idx].second)
+  CHECK(idx < data_.size() && data_[idx].second)
       << "Attribute " << attr_name_ << " has not been registered for Operator " << op->name;
   return data_[idx].first;
 }

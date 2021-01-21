@@ -55,7 +55,7 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenCHost: Expect PrimFunc to have the global_symbol attribute";
-  function_names_.emplace_back(global_symbol.value());
+  function_names_.push_back(global_symbol.value());
 
   CodeGenC::AddFunction(f);
 }
@@ -73,7 +73,7 @@ void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
          << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
          << "        return 0;\n";
 
-  function_names_.emplace_back(tvm::runtime::symbol::tvm_lookup_linked_param);
+  function_names_.push_back(tvm::runtime::symbol::tvm_lookup_linked_param);
   for (auto kv : params) {
     decl_stream << "\n"
                 << "#ifdef __cplusplus\n"
@@ -322,29 +322,6 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
      << "? (" << a_id << ") : (" << b_id << "))";
 }
 
-void CodeGenCHost::GenerateFuncRegistry() {
-  decl_stream << "#include <tvm/runtime/crt/module.h>\n";
-  stream << "static TVMBackendPackedCFunc _tvm_func_array[] = {\n";
-  for (auto f : function_names_) {
-    stream << "    (TVMBackendPackedCFunc)" << f << ",\n";
-  }
-  stream << "};\n";
-  auto registry = target::GenerateFuncRegistryNames(function_names_);
-  stream << "static const TVMFuncRegistry _tvm_func_registry = {\n"
-         << "    \"" << ::tvm::support::StrEscape(registry.data(), registry.size(), true) << "\","
-         << "    _tvm_func_array,\n"
-         << "};\n";
-}
-
-void CodeGenCHost::GenerateCrtSystemLib() {
-  stream << "static const TVMModule _tvm_system_lib = {\n"
-         << "    &_tvm_func_registry,\n"
-         << "};\n"
-         << "const TVMModule* TVMSystemLibEntryPoint(void) {\n"
-         << "    return &_tvm_system_lib;\n"
-         << "}\n";
-}
-
 runtime::Module BuildCHost(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
@@ -380,12 +357,10 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
     ICHECK_EQ(target->GetAttr<String>("runtime").value_or(""), "c")
         << "c target only supports generating C runtime SystemLibs";
-    cg.GenerateFuncRegistry();
-    cg.GenerateCrtSystemLib();
   }
 
   std::string code = cg.Finish();
-  return CSourceModuleCreate(code, "c");
+  return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
 }
 
 TVM_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);

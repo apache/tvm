@@ -112,7 +112,7 @@ class GraphAllocator {
   }
   // release a memory space.
   void Release(StorageID id, uint32_t node_id) {
-    ICHECK_NE(id, kBadStorageID);
+    CHECK_NE(id, kBadStorageID);
     if (id == kExternalStorageID || id == kDynamicStorageID) return;
     StorageEntry* e = data_[id].get();
     e->released_by_node = node_id;
@@ -219,7 +219,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
       std::vector<bool> identity;
       if (finplace_identity.count(inode.source->op()) != 0) {
         identity = finplace_identity[inode.source->op()](inode.source->attrs);
-        ICHECK_EQ(identity.size(), inplace_pairs.size())
+        CHECK_EQ(identity.size(), inplace_pairs.size())
             << "FInplaceOption and FInplaceIdentity returned vectors of different "
             << "size for operator " << inode.source->op()->name;
       } else {

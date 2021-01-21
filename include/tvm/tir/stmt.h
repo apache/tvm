@@ -75,6 +75,7 @@ class LetStmtNode : public StmtNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
@@ -129,6 +130,7 @@ class AttrStmtNode : public StmtNode {
     v->Visit("attr_key", &attr_key);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
@@ -177,6 +179,7 @@ class AssertStmtNode : public StmtNode {
     v->Visit("condition", &condition);
     v->Visit("message", &message);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
@@ -239,6 +242,7 @@ class StoreNode : public StmtNode {
     v->Visit("value", &value);
     v->Visit("index", &index);
     v->Visit("predicate", &predicate);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const StoreNode* other, SEqualReducer equal) const {
@@ -292,6 +296,7 @@ class BufferStoreNode : public StmtNode {
     v->Visit("buffer", &buffer);
     v->Visit("value", &value);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
@@ -348,6 +353,7 @@ class BufferRealizeNode : public StmtNode {
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
@@ -406,6 +412,7 @@ class ProducerStoreNode : public StmtNode {
     v->Visit("producer", &producer);
     v->Visit("value", &value);
     v->Visit("indices", &indices);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
@@ -462,6 +469,7 @@ class ProducerRealizeNode : public StmtNode {
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
@@ -514,6 +522,7 @@ class AllocateNode : public StmtNode {
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
@@ -576,7 +585,10 @@ class SeqStmtNode : public StmtNode {
    */
   Stmt operator[](size_t index) const { return seq[index]; }
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("seq", &seq); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("seq", &seq);
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
     return equal(seq, other->seq);
@@ -671,6 +683,7 @@ class IfThenElseNode : public StmtNode {
     v->Visit("condition", &condition);
     v->Visit("then_case", &then_case);
     v->Visit("else_case", &else_case);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
@@ -711,7 +724,10 @@ class EvaluateNode : public StmtNode {
   /*! \brief The expression to be evaluated. */
   PrimExpr value;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("value", &value); }
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+  }
 
   bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
     return equal(value, other->value);
@@ -736,22 +752,33 @@ class Evaluate : public Stmt {
   TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
 };
 
-/*! \brief Additional annotation of for loop. */
-enum class ForType : int {
-  /*! \brief serial execution. */
-  Serial = 0,
-  /*! \brief parallel execution on CPU. */
-  Parallel = 1,
-  /*! \brief Vector SIMD loop annotaion. */
-  Vectorized = 2,
-  /*! \brief Unroll annotation. */
-  Unrolled = 3
+/*!
+ * \brief The kind of the loop.
+ *
+ *  ForKind can change the control flow semantics
+ *  of the loop. So the kind field needs to be considered
+ *  in all TIR passes.
+ */
+enum class ForKind : int {
+  /*! \brief default semantics -- serial execution. */
+  kSerial = 0,
+  /*! \brief Parallel execution on CPU. */
+  kParallel = 1,
+  /*!
+   * \brief Vector SIMD loop.
+   *  The loop body will be vectorized.
+   */
+  kVectorized = 2,
+  /*! \brief The loop body must be unrolled. */
+  kUnrolled = 3,
+  /*!
+   * \brief The loop variable is bound to a thread in
+   * an environment. In the final stage of lowering,
+   * the loop is simply removed and the loop variable is
+   * mapped to the corresponding context thread.
+   */
+  kThreadBinding = 4
 };
-
-// Kevice api of for loop
-// kept for backward compatibility
-// consider refactor and remove later.
-enum class DeviceAPI : int { None = 0 };
 
 /*!
  * \brief A for loop, with poissible type annotations.
@@ -771,38 +798,50 @@ class ForNode : public StmtNode {
   PrimExpr min;
   /*! \brief The extent of the iteration. */
   PrimExpr extent;
-  /*! \brief The type of the for loop. */
-  ForType for_type;
-  /*!
-   * \brief Deprecated, reserved for backward compatibility.
-   *  Consider refactor and remove later.
-   */
-  DeviceAPI device_api;
+  /*! \brief The kind of the for loop. */
+  ForKind kind;
   /*! \brief The body of the for loop. */
   Stmt body;
+  /*!
+   * \brief Only valid when kind == ForKind::kThreadBinding
+   * The context thread that this loop variable bounds to.
+   */
+  Optional<IterVar> thread_binding;
+  /*!
+   * \brief Additional annotations about the loop.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations. An annotation should
+   *  not change the control flow semantics of the loop
+   *  and can be ignored in most passes.
+   */
+  Map<String, ObjectRef> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
     v->Visit("min", &min);
     v->Visit("extent", &extent);
-    v->Visit("for_type", &for_type);
-    v->Visit("device_api", &device_api);
+    v->Visit("kind", &kind);
     v->Visit("body", &body);
+    v->Visit("thread_binding", &thread_binding);
+    v->Visit("annotations", &annotations);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
     return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
-           equal(extent, other->extent) && equal(for_type, other->for_type) &&
-           equal(device_api, other->device_api) && equal(body, other->body);
+           equal(extent, other->extent) && equal(kind, other->kind) && equal(body, other->body) &&
+           equal(thread_binding, other->thread_binding) && equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(loop_var);
     hash_reduce(min);
     hash_reduce(extent);
-    hash_reduce(for_type);
-    hash_reduce(device_api);
+    hash_reduce(kind);
     hash_reduce(body);
+    hash_reduce(thread_binding);
+    hash_reduce(annotations);
   }
 
   static constexpr const char* _type_key = "tir.For";
@@ -815,8 +854,9 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForType for_type, DeviceAPI device_api,
-              Stmt body, Span span = Span());
+  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+              Optional<IterVar> thread_binding = NullOpt,
+              Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
 };
@@ -834,6 +874,7 @@ class PrefetchNode : public StmtNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer", &buffer);
     v->Visit("bounds", &bounds);
+    v->Visit("span", &span);
   }
 
   bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
@@ -997,7 +1038,7 @@ inline bool IsPragmaKey(const std::string& attr_key) {
 TVM_DLL PrimExpr TypeAnnotation(DataType dtype, Span span = Span());
 
 // overload printing of for type.
-TVM_DLL std::ostream& operator<<(std::ostream& os, ForType for_type);
+TVM_DLL std::ostream& operator<<(std::ostream& os, ForKind kind);
 
 }  // namespace tir
 }  // namespace tvm

@@ -57,8 +57,41 @@ class PreloadMeasuredStates(SearchCallback):
         The name of the record file.
     """
 
-    def __init__(self, filename="auto_scheduler_tuning.json"):
+    def __init__(self, filename):
         self.__init_handle_by_constructor__(_ffi_api.PreloadMeasuredStates, filename)
+
+
+@tvm._ffi.register_object("auto_scheduler.PreloadCustomSketchRule")
+class PreloadCustomSketchRule(SearchCallback):
+    """
+    A SearchCallback for SketchSearchPolicy that allows users to add
+    custom sketch rule.
+
+    Notes
+    -----
+    This is an advanced feature. Make sure you're clear how it works and this should only be used
+    in SketchSearchPolicy.
+
+    Parameters
+    ----------
+    meet_condition_func: Callable
+        A function with `(policy, state, stage_id) -> int`. Should return one of the result
+        enumeration.
+    apply_func: Callable
+        A function with `(policy, state, stage_id) -> [[State, int], ...]`.
+    rule_name: str = "CustomSketchRule"
+        The name of this custom sketch rule.
+    """
+
+    # Result enumeration of the condition function.
+    PASS = 0  # Skip this rule and continue to try the next rules.
+    APPLY = 1  # Apply this rule and continue to try the next rules.
+    APPLY_AND_SKIP_REST = 2  # Apply this rule and skip the rest rules.
+
+    def __init__(self, meet_condition_func, apply_func, rule_name="CustomSketchRule"):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PreloadCustomSketchRule, meet_condition_func, apply_func, rule_name
+        )
 
 
 @tvm._ffi.register_object("auto_scheduler.SearchPolicy")
@@ -141,8 +174,6 @@ class SketchPolicy(SearchPolicy):
 
           - auto_scheduler.PreloadMeasuredStates
           - auto_scheduler.PreloadCustomSketchRule
-
-        TODO(jcf94): Add these search callback implementations.
     """
 
     DEFAULT_PARAMS = {
@@ -151,7 +182,7 @@ class SketchPolicy(SearchPolicy):
         "sample_init_min_population": 50,
         "sample_init_use_measured_ratio": 0.2,
         "evolutionary_search_population": 2048,
-        "evolutionary_search_num_iters": 3,
+        "evolutionary_search_num_iters": 4,
         "evolutionary_search_mutation_prob": 0.85,
         "cpu_multi_level_tiling_structure": "SSRSRS",
         "gpu_multi_level_tiling_structure": "SSSRRSRS",

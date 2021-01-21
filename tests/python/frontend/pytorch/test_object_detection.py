@@ -23,8 +23,10 @@ import cv2
 
 import tvm
 
+import tvm.testing
 from tvm import relay
 from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.pytorch_utils import rewrite_nms_to_batched_nms
 from tvm.contrib.download import download
 
 
@@ -70,7 +72,7 @@ def generate_jit_model(index):
     ]
 
     model_func = model_funcs[index]
-    model = TraceWrapper(model_func(pretrained=True))
+    model = TraceWrapper(model_func(pretrained=True, rpn_pre_nms_top_n_test=200))
 
     model.eval()
     inp = torch.Tensor(np.random.uniform(0.0, 250.0, size=(1, 3, in_size, in_size)))
@@ -94,46 +96,53 @@ def test_detection_models():
     download(img_url, img)
 
     input_shape = (1, 3, in_size, in_size)
-    target = "llvm"
+
     input_name = "input0"
     shape_list = [(input_name, input_shape)]
-    score_threshold = 0.9
 
     scripted_model = generate_jit_model(1)
     mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["FoldScaleAxis"]):
-        vm_exec = relay.vm.compile(mod, target=target, params=params)
-
-    ctx = tvm.cpu()
-    vm = VirtualMachine(vm_exec, ctx)
     data = process_image(img)
-    pt_res = scripted_model(data)
-    data = data.detach().numpy()
-    vm.set_input("main", **{input_name: data})
-    tvm_res = vm.run()
+    data_np = data.detach().numpy()
 
-    # Note: due to accumulated numerical error, we can't directly compare results
-    # with pytorch output. Some boxes might have a quite tiny difference in score
-    # and the order can become different. We just measure how many valid boxes
-    # there are for input image.
-    pt_scores = pt_res[1].detach().numpy().tolist()
-    tvm_scores = tvm_res[1].asnumpy().tolist()
-    num_pt_valid_scores = num_tvm_valid_scores = 0
+    with torch.no_grad():
+        pt_res = scripted_model(data)
 
-    for score in pt_scores:
-        if score >= score_threshold:
-            num_pt_valid_scores += 1
-        else:
-            break
+    def compile_and_run_vm(mod, params, data_np, target):
+        with tvm.transform.PassContext(opt_level=3):
+            vm_exec = relay.vm.compile(mod, target=target, params=params)
 
-    for score in tvm_scores:
-        if score >= score_threshold:
-            num_tvm_valid_scores += 1
-        else:
-            break
+        ctx = tvm.context(target, 0)
+        vm = VirtualMachine(vm_exec, ctx)
+        vm.set_input("main", **{input_name: data_np})
+        return vm.run()
 
-    assert num_pt_valid_scores == num_tvm_valid_scores, (
-        "Output mismatch: Under score threshold {}, Pytorch has {} valid "
-        "boxes while TVM has {}.".format(score_threshold, num_pt_valid_scores, num_tvm_valid_scores)
-    )
+    for target in ["cuda", "llvm"]:
+        tvm_res = compile_and_run_vm(mod, params, data_np, target)
+
+        # Bounding boxes
+        tvm.testing.assert_allclose(
+            pt_res[0].cpu().numpy(), tvm_res[0].asnumpy(), rtol=1e-5, atol=1e-5
+        )
+        # Scores
+        tvm.testing.assert_allclose(
+            pt_res[1].cpu().numpy(), tvm_res[1].asnumpy(), rtol=1e-5, atol=1e-5
+        )
+        # Class ids
+        np.testing.assert_equal(pt_res[2].cpu().numpy(), tvm_res[2].asnumpy())
+
+        score_threshold = 0.9
+        print("Num boxes:", pt_res[0].cpu().numpy().shape[0])
+        print("Num valid boxes:", np.sum(pt_res[1].cpu().numpy() >= score_threshold))
+
+    before = mod["main"]
+    mod = rewrite_nms_to_batched_nms(mod)
+    after = mod["main"]
+    assert not tvm.ir.structural_equal(after, before)
+
+    tvm_res_after_rewrite = compile_and_run_vm(mod, params, data_np, "llvm")
+
+    # Results should be equivalent after rewriting
+    for res1, res2 in zip(tvm_res, tvm_res_after_rewrite):
+        tvm.testing.assert_allclose(res1.asnumpy(), res2.asnumpy())

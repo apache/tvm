@@ -49,7 +49,7 @@ __name__ == "__main__":` block.
 #
 # .. code-block:: bash
 #
-#   pip3 install --user psutil xgboost tornado
+#   pip3 install --user psutil xgboost tornado cloudpickle
 #
 # To make TVM run faster during tuning, it is recommended to use cython
 # as FFI of TVM. In the root directory of TVM, execute
@@ -148,7 +148,7 @@ def get_network(name, batch_size):
 #   INFO:RPCTracker:bind to 0.0.0.0:9190
 
 #################################################################
-# Register devices to RPC Tracker
+# Register Devices to RPC Tracker
 # -----------------------------------
 # Now we can register our devices to the tracker. The first step is to
 # build the TVM runtime for the ARM devices.

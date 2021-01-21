@@ -33,7 +33,7 @@ from . import conv2d_avx_1x1, conv2d_avx_common
 
 
 def _get_default_config_int8(
-    cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False, layout="NCHW"
+    cfg, data, kernel, strides, padding, dilation, out_dtype, is_depthwise=False, layout="NCHW"
 ):
     """
     Get default schedule config for the workload
@@ -45,8 +45,8 @@ def _get_default_config_int8(
 
         _fallback_schedule(cfg, wkl)
     else:
-        wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
-        is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
+        wkl = _get_conv2d_workload(data, kernel, strides, padding, dilation, out_dtype, layout)
+        is_kernel_1x1 = wkl.kernel_h == 1 and wkl.kernel_w == 1
         if is_kernel_1x1:
             conv2d_generic.fallback_schedule_cpu_1x1_int8(
                 cfg, wkl, int32_lanes=16, num_int8_elements=4
@@ -138,8 +138,11 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
     is_kernel_1x1 = kernel_height == 1 and kernel_width == 1
     pt, pl, pb, pr = get_pad_tuple(padding, (kernel_height, kernel_width))
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    oh = (ih - kernel_height + pt + pb) // sh + 1
-    ow = (iw - kernel_width + pl + pr) // sw + 1
+    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilated_kernel_h = (kernel_height - 1) * dh + 1
+    dilated_kernel_w = (kernel_width - 1) * dw + 1
+    oh = (ih - dilated_kernel_h + pt + pb) // sh + 1
+    ow = (iw - dilated_kernel_w + pl + pr) // sw + 1
 
     cfg.define_split("tile_ic", in_channel, num_outputs=2, filter=lambda y: y.size[-1] % 4 == 0)
     cfg.define_split("tile_oc", num_filter, num_outputs=2, filter=lambda y: y.size[-1] % 16 == 0)
@@ -159,6 +162,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out
             ),
             strides,
             padding,
+            dilation,
             out_dtype,
         )
 

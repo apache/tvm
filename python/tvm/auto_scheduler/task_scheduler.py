@@ -29,7 +29,7 @@ import logging
 
 import numpy as np
 
-from .search_policy import SearchPolicy, SketchPolicy
+from .search_policy import SearchPolicy, SketchPolicy, PreloadMeasuredStates
 from .cost_model import RandomModel, XGBModel
 from .utils import array_mean
 from .measure import ProgramMeasurer
@@ -47,6 +47,7 @@ def make_search_policies(
     verbose,
     load_model_file=None,
     load_log_file=None,
+    adapative_training=False,
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -70,6 +71,9 @@ def make_search_policies(
     load_log_file: Optional[str]
         Load measurement records from this file. If it is not None, the status of the
         task scheduler, search policies and cost models will be restored according to this file.
+    adapative_training: bool = False
+        Option used by XGBModel to reduce the model training frequency when there're too
+        many logs.
 
     Returns
     -------
@@ -82,11 +86,16 @@ def make_search_policies(
     if isinstance(search_policy, str):
         policy_type, model_type = search_policy.split(".")
         if model_type == "xgb":
-            cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measures_per_round)
-            if load_model_file:
+            cost_model = XGBModel(
+                num_warmup_sample=len(tasks) * num_measures_per_round,
+                model_file=load_model_file,
+                adapative_training=adapative_training,
+            )
+            if load_model_file and os.path.isfile(load_model_file):
                 logger.info("TaskScheduler: Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
+                logger.info("TaskScheduler: Reload measured states and train the model...")
                 cost_model.update_from_file(load_log_file)
         elif model_type == "random":
             cost_model = RandomModel()
@@ -94,8 +103,19 @@ def make_search_policies(
             raise ValueError("Invalid search policy: " + search_policy)
 
         if policy_type == "sketch":
+            if load_log_file:
+                # use the log file to restore the status of search policies.
+                init_search_callbacks = [PreloadMeasuredStates(load_log_file)]
+            else:
+                init_search_callbacks = None
             search_policies = [
-                SketchPolicy(task, cost_model, params=search_policy_params, verbose=verbose)
+                SketchPolicy(
+                    task,
+                    cost_model,
+                    params=search_policy_params,
+                    verbose=verbose,
+                    init_search_callbacks=init_search_callbacks,
+                )
                 for task in tasks
             ]
         else:
@@ -181,7 +201,7 @@ class TaskScheduler:
         The parameter used for 'gradient' strategy
     callbacks: Optional[List[TaskSchedulerCallback]]
         The task scheduler callbacks that will be called before and after tuning a task.
-        If None, then PrintTableInfo callback will be used.
+        If None, PrintTableInfo and LogEstimatedLatency callback will be used.
     """
 
     def __init__(
@@ -214,7 +234,11 @@ class TaskScheduler:
         self.beta = beta
         self.gamma = gamma
         self.backward_window_size = backward_window_size
-        self.callbacks = callbacks if callbacks is not None else [PrintTableInfo()]
+        self.callbacks = (
+            callbacks
+            if callbacks is not None
+            else [PrintTableInfo(), LogEstimatedLatency("total_latency.tsv")]
+        )
 
         assert len(self.tasks) != 0, "No tasks"
         assert self.strategy in ["round-robin", "gradient"]
@@ -251,7 +275,13 @@ class TaskScheduler:
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-    def tune(self, tune_option, search_policy="default", search_policy_params=None):
+    def tune(
+        self,
+        tune_option,
+        search_policy="default",
+        search_policy_params=None,
+        adapative_training=False,
+    ):
         """Tune a batch of tasks together.
 
         Parameters
@@ -266,6 +296,9 @@ class TaskScheduler:
             "sketch.random" for SketchPolicy + RandomModel.
         search_policy_params : Optional[Dict[str, Any]]
             The parameters of the search policy
+        adapative_training : bool = False
+            Option used by XGBModel to reduce the model training frequency when there're
+            too many logs.
         """
         # init members
         self.tune_option = tune_option
@@ -300,6 +333,7 @@ class TaskScheduler:
             tune_option.verbose,
             self.load_model_file,
             self.load_log_file,
+            adapative_training,
         )
 
         # do a round robin first to warm up

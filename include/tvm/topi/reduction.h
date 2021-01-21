@@ -43,8 +43,8 @@ namespace topi {
 using namespace tvm::te;
 
 /*! \brief The operation to use for CommReduce */
-using FReduce =
-    std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis, Array<PrimExpr> init)>;
+using FReduce = std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis,
+                                       Array<PrimExpr> init, Span span)>;
 
 /*! \brief The operation to use for CommReduceIdx */
 using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const Array<IterVar>& axis,
@@ -132,12 +132,13 @@ inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis, 
  * \param reduce_axes The real axes along which the reduction is performed.
  * \param squeeze_axes The real axes to squeeze. Unsqueezed, reduced axes will
  *                     have shape 1 in the output tensor.
+ * \param span The location of this reducer in the source.
  *
  * \return The result tensor.
  */
 inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExpr>& target_shape,
                            const std::vector<int>& reduce_axes,
-                           const std::vector<int>& squeeze_axes) {
+                           const std::vector<int>& squeeze_axes, Span span = Span()) {
   auto r_axes = MakeReduceAxes(reduce_axes, data);
   auto compute = [&](const Array<Var>& indices) {
     Array<PrimExpr> eval_range;
@@ -159,7 +160,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExp
       arg_counter++;
     }
 
-    return func(data(eval_range), r_axes, {});
+    return func(data(eval_range), r_axes, {}, span);
   };
 
   return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
@@ -292,18 +293,21 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
 }
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
-inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {}) {
-  return tvm::min(source, axis, init);
+inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {},
+                      Span span = Span()) {
+  return tvm::min(source, axis, init, span);
 }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
-inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {}) {
-  return tvm::max(source, axis, init);  // NOLINT(*)
+inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {},
+                      Span span = Span()) {
+  return tvm::max(source, axis, init, span);  // NOLINT(*)
 }
 
 /*! \brief Wrap tvm::prod to ensure we get the correct overload */
-inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {}) {
-  return tvm::prod(source, axis, init);  // NOLINT(*)
+inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> init = {},
+                       Span span = Span()) {
+  return tvm::prod(source, axis, init, span);  // NOLINT(*)
 }
 
 /*!

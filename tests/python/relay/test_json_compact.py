@@ -54,8 +54,8 @@ def test_var():
         {"type_key": "relay.Id", "attrs": {"name_hint": "a3"}},
         {"type_key": "relay.TensorType", "attrs": {"dtype": "float32", "shape": "4", "span": "0"}},
         {"type_key": "Array", "data": [5, 6]},
-        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "16"}},
-        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "8"}},
+        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "16", "span": "0"}},
+        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "8", "span": "0"}},
     ]
     data = {
         "root": 1,
@@ -157,8 +157,8 @@ def test_op():
 def test_tir_var():
     nodes = [
         {"type_key": ""},
-        {"type_key": "Variable", "attrs": {"dtype": "int32", "name": "x"}},
-        {"type_key": "SizeVar", "attrs": {"dtype": "int32", "name": "y"}},
+        {"type_key": "Variable", "attrs": {"dtype": "int32", "name": "x", "span": "0"}},
+        {"type_key": "SizeVar", "attrs": {"dtype": "int32", "name": "y", "span": "0"}},
     ]
     data = {
         "root": 1,
@@ -179,15 +179,18 @@ def test_str_map():
     nodes = [
         {"type_key": ""},
         {"type_key": "StrMap", "keys": ["z", "x"], "data": [2, 3]},
-        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "2"}},
-        {"type_key": "Max", "attrs": {"a": "4", "b": "10", "dtype": "int32"}},
-        {"type_key": "Add", "attrs": {"a": "5", "b": "9", "dtype": "int32"}},
-        {"type_key": "Add", "attrs": {"a": "6", "b": "8", "dtype": "int32"}},
-        {"type_key": "tir.Var", "attrs": {"dtype": "int32", "name": "7", "type_annotation": "0"}},
+        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "2", "span": "0"}},
+        {"type_key": "Max", "attrs": {"a": "4", "b": "10", "dtype": "int32", "span": "0"}},
+        {"type_key": "Add", "attrs": {"a": "5", "b": "9", "dtype": "int32", "span": "0"}},
+        {"type_key": "Add", "attrs": {"a": "6", "b": "8", "dtype": "int32", "span": "0"}},
+        {
+            "type_key": "tir.Var",
+            "attrs": {"dtype": "int32", "name": "7", "type_annotation": "0", "span": "0"},
+        },
         {"type_key": "runtime.String", "repr_str": "x"},
-        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "1"}},
-        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "2"}},
-        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "100"}},
+        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "1", "span": "0"}},
+        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "2", "span": "0"}},
+        {"type_key": "IntImm", "attrs": {"dtype": "int32", "value": "100", "span": "0"}},
     ]
     data = {
         "root": 1,

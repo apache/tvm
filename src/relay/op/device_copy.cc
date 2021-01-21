@@ -57,6 +57,7 @@ Copy data from one tensor to another. The source and destination might be
 on different devices.
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input data.")
     .set_support_level(10)
     .add_type_rel("Identity", IdentityRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)

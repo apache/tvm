@@ -80,7 +80,7 @@ def init_git() {
   checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
-      sh 'git submodule update --init'
+      sh 'git submodule update --init -f'
     }
   }
 }
@@ -89,7 +89,7 @@ def init_git_win() {
     checkout scm
     retry(5) {
         timeout(time: 2, unit: 'MINUTES') {
-            bat 'git submodule update --init'
+            bat 'git submodule update --init -f'
         }
     }
 }

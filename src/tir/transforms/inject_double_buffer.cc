@@ -114,9 +114,9 @@ class DoubleBufferInjector : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
-      auto fmul = [](PrimExpr a, PrimExpr b) { return a * b; };
-      it->second.stride =
-          foldl(fmul, make_const(DataType::Int(32), 1), op->extents) * op->dtype.lanes();
+      it->second.stride = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                                make_const(DataType::Int(32), 1), op->extents) *
+                          op->dtype.lanes();
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
       Array<PrimExpr> new_extents{make_const(op->extents[0].dtype(), 2)};
@@ -158,8 +158,7 @@ class DoubleBufferInjector : public StmtExprMutator {
           vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.dtype(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
-        Stmt loop = For(outer_var, zero, outer_ext, old_loop->for_type, old_loop->device_api,
-                        SeqStmt::Flatten(loop_seq));
+        Stmt loop = For(outer_var, zero, outer_ext, old_loop->kind, SeqStmt::Flatten(loop_seq));
         // tail
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite()(old_loop->body);

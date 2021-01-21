@@ -272,6 +272,31 @@ def test_sparse_dense_csr():
     tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
+def test_sparse_dense_csr_reverse():
+    M, N, K, density = 1, 17, 47, 0.2
+    X_np = np.random.randn(M, K).astype("float32")
+    W_sp_np = sp.random(N, K, density=density, format="csr", dtype="float32")
+    W_np = W_sp_np.todense()
+    Y_np = W_np.dot(X_np.T)
+
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+    Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr, sparse_lhs=True)
+    s = te.create_schedule(Y.op)
+    func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+    Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
+    func(
+        tvm.nd.array(X_np),
+        tvm.nd.array(W_sp_np.data),
+        tvm.nd.array(W_sp_np.indices),
+        tvm.nd.array(W_sp_np.indptr),
+        Y_tvm,
+    )
+    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+
+
 def test_sparse_transpose_csr():
     N, density = 1023, 0.3
 
@@ -368,6 +393,31 @@ def test_sparse_dense_bsr_relu(ctx, target):
     verify_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, False, ctx, target)
 
 
+def test_sparse_dense_bsr_reverse():
+    M, N, K, BS_R, BS_C, density = 1, 64, 128, 8, 16, 0.9
+    X_np = np.random.randn(M, K).astype("float32")
+    W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
+    W_np = W_sp_np.todense()
+    Y_np = W_np.dot(X_np.T)
+
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+    Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr, sparse_lhs=True)
+    s = te.create_schedule(Y.op)
+    func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
+    Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
+    func(
+        tvm.nd.array(X_np),
+        tvm.nd.array(W_sp_np.data),
+        tvm.nd.array(W_sp_np.indices),
+        tvm.nd.array(W_sp_np.indptr),
+        Y_tvm,
+    )
+    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+
+
 @tvm.testing.uses_gpu
 def test_sparse_dense_bsr_randomized():
     for _ in range(20):
@@ -457,18 +507,23 @@ def test_sparse_dense_padded_alter_op():
         K = 128
         X_np = np.random.randn(M, K).astype("float32")
         W_sp_np = random_bsr_matrix(N, K, 2, 2, density=0.01, dtype="float32")
+        x = relay.var("x", relay.TensorType(X_np.shape, "float32"))
         mult = relay.op.nn.sparse_dense(
-            relay.Constant(tvm.nd.array(X_np)),
+            x,
             (
                 relay.Constant(tvm.nd.array(W_sp_np.data)),
                 relay.Constant(tvm.nd.array(W_sp_np.indices)),
                 relay.Constant(tvm.nd.array(W_sp_np.indptr)),
             ),
         )
-        f = relay.Function([], mult)
-        f = relay.transform.InferType()(tvm.IRModule.from_expr(f))
-        f_ = relay.transform.AlterOpLayout()(f)
+        f = relay.Function([x], mult)
+        f_ = relay.transform.InferType()(tvm.IRModule.from_expr(f))
+        f_ = relay.transform.AlterOpLayout()(f_)
         assert f_["main"].body.op.name == "nn.internal.sparse_dense_padded"
+
+        # build with cuda and AlterOpLayout to ensure that sparse_dense_padded is in action
+        with tvm.transform.PassContext(opt_level=3, required_pass="AlterOpLayout"):
+            x = relay.build(tvm.IRModule.from_expr(f), target=tvm.target.Target("cuda"))
 
 
 if __name__ == "__main__":
@@ -480,3 +535,5 @@ if __name__ == "__main__":
     test_sparse_transpose_csr()
     test_sparse_dense_padded_cuda()
     test_sparse_dense_padded_alter_op()
+    test_sparse_dense_csr_reverse()
+    test_sparse_dense_bsr_reverse()

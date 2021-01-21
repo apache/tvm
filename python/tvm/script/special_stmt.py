@@ -21,7 +21,7 @@ from synr import ast
 
 import tvm.tir
 from tvm import te
-from .utils import get_param_list
+from .utils import get_param_list, from_synr_span
 from .registry import register
 
 
@@ -37,10 +37,10 @@ class SpecialStmt:
     def signature(self):
         return "tir." + self.func.__name__, get_param_list(self.func)
 
-    def handle(self, node, context, arg_list):
+    def handle(self, node, context, arg_list, span):
         self.node = node
         self.context = context
-        return self.func(*arg_list)
+        return self.func(*arg_list, span=from_synr_span(span))
 
 
 @register
@@ -65,6 +65,7 @@ class MatchBuffer(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            span=None,
         ):
             assert isinstance(self.node, ast.Assign)
 
@@ -89,6 +90,7 @@ class MatchBuffer(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                span=span,
             )
             self.context.func_buffer_map[param] = buffer
             self.context.update_symbol(self.node.lhs.id.name, buffer)
@@ -117,6 +119,7 @@ class BufferDeclare(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
+            span=None,
         ):
             assert isinstance(self.node, ast.Assign)
 
@@ -137,6 +140,7 @@ class BufferDeclare(SpecialStmt):
                 align,
                 offset_factor,
                 buffer_type,
+                span=span,
             )
             self.context.update_symbol(self.node.lhs.id.name, buffer)
             return buffer
@@ -149,9 +153,9 @@ class VarDef(SpecialStmt):
     """ Special function for defining a Var"""
 
     def __init__(self):
-        def var(dtype):
+        def var(dtype, span):
             assert isinstance(self.node, ast.Assign)
-            v = te.var(self.node.lhs.id.name, dtype)
+            v = te.var(self.node.lhs.id.name, dtype, span=span)
             self.context.update_symbol(v.name, v)
 
         super().__init__(var, def_symbol=True)
@@ -162,9 +166,9 @@ class EnvThread(SpecialStmt):
     """ Bind a var to thread env """
 
     def __init__(self):
-        def env_thread(env_name):
+        def env_thread(env_name, span):
             assert isinstance(self.node, ast.Assign)
-            v = te.var(self.node.lhs.id.name)
+            v = te.var(self.node.lhs.id.name, span=span)
             self.context.func_var_env_dict[v] = env_name
             self.context.update_symbol(v.name, v)
 
@@ -181,7 +185,7 @@ class FuncAttr(SpecialStmt):
     """
 
     def __init__(self):
-        def func_attr(dict_attr):
+        def func_attr(dict_attr, span):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)

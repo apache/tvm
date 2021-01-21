@@ -25,10 +25,10 @@ from .expr import Call, StringImm, Var, CommReducer
 from . import _ffi_api
 
 
-def _pack_buffer(buf):
+def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
-    shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape)
-    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides) if buf.strides else 0
+    shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape, span)
+    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
     pack_args = [
         buf.data,
         shape,
@@ -37,10 +37,10 @@ def _pack_buffer(buf):
         const(0, dtype=buf.dtype),
         buf.elem_offset,
     ]
-    return Call("handle", Op.get("tir.tvm_stack_make_array"), pack_args)
+    return Call("handle", Op.get("tir.tvm_stack_make_array"), pack_args, span)
 
 
-def call_packed(*args):
+def call_packed(*args, span=None):
     """Build expression by call an external packed function.
 
     The argument to packed function can be Expr or Buffer.
@@ -55,6 +55,9 @@ def call_packed(*args):
     args : list of Expr or Buffer.
         Positional arguments.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
@@ -65,10 +68,10 @@ def call_packed(*args):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tir.tvm_call_packed"), call_args)
+    return Call("int32", Op.get("tir.tvm_call_packed"), call_args, span)
 
 
-def call_intrin(dtype, func_name, *args):
+def call_intrin(dtype, func_name, *args, span=None):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -85,15 +88,18 @@ def call_intrin(dtype, func_name, *args):
     args : list
         Positional arguments.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, func_name, convert(args))
+    return Call(dtype, func_name, convert(args), span)
 
 
-def call_pure_extern(dtype, func_name, *args):
+def call_pure_extern(dtype, func_name, *args, span=None):
     """Build expression by calling a pure extern function.
 
     Parameters
@@ -107,15 +113,20 @@ def call_pure_extern(dtype, func_name, *args):
     args : list
         Positional arguments.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, Op.get("tir.call_pure_extern"), convert((StringImm(func_name),) + args))
+    return Call(
+        dtype, Op.get("tir.call_pure_extern"), convert((StringImm(func_name),) + args), span
+    )
 
 
-def call_extern(dtype, func_name, *args):
+def call_extern(dtype, func_name, *args, span=None):
     """Build expression by calling a extern function.
 
     Parameters
@@ -129,15 +140,20 @@ def call_extern(dtype, func_name, *args):
     args : list
         Positional arguments.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return Call(dtype, Op.get("tir.call_extern"), convert((StringImm(func_name),) + args))
+    return Call(
+        dtype, Op.get("tir.call_extern"), convert((StringImm(func_name),) + args), span=span
+    )
 
 
-def call_llvm_intrin(dtype, name, *args):
+def call_llvm_intrin(dtype, name, *args, span=None):
     """Build expression by calling a llvm intrinsic function
 
     Parameters
@@ -151,6 +167,9 @@ def call_llvm_intrin(dtype, name, *args):
     args : list
        Poistional arguments.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
@@ -162,11 +181,11 @@ def call_llvm_intrin(dtype, name, *args):
     llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
-        dtype, Op.get("tir.call_llvm_intrin"), tvm.tir.const(llvm_id, "uint32"), *args
+        dtype, Op.get("tir.call_llvm_intrin"), tvm.tir.const(llvm_id, "uint32"), *args, span=span
     )
 
 
-def call_llvm_pure_intrin(dtype, name, *args):
+def call_llvm_pure_intrin(dtype, name, *args, span=None):
     """Build expression by calling a pure llvm intrinsic function
 
     Parameters
@@ -180,6 +199,9 @@ def call_llvm_pure_intrin(dtype, name, *args):
     args : list
        Poistional arguments.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     call : PrimExpr
@@ -191,17 +213,40 @@ def call_llvm_pure_intrin(dtype, name, *args):
     llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_intrin(
-        dtype, Op.get("tir.call_llvm_pure_intrin"), tvm.tir.const(llvm_id, "uint32"), *args
+        dtype,
+        Op.get("tir.call_llvm_pure_intrin"),
+        tvm.tir.const(llvm_id, "uint32"),
+        *args,
+        span=span,
     )
 
 
-def any(*args):
+def ret(val):
+    """Create a tir return expression
+
+    Parameters
+    ----------
+    val : Expr
+        The returned tir expression, whose data type is int, float or void pointer.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+    return call_intrin(val.dtype, "tir.ret", val)
+
+
+def any(*args, span=None):
     """Create a new experssion of the union of all conditions in the arguments
 
     Parameters
     ----------
     args : list
         List of symbolic boolean expressions
+
+    span : Optional[Span]
+        The location of this operator in the source code.
 
     Returns
     -------
@@ -212,13 +257,13 @@ def any(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _ffi_api._OpOr(args[0], args[1])
+    val = _ffi_api._OpOr(args[0], args[1], span)
     for i in range(2, len(args)):
-        ret = _ffi_api._OpOr(ret, args[i])
-    return ret
+        val = _ffi_api._OpOr(val, args[i], span)
+    return val
 
 
-def all(*args):
+def all(*args, span=None):
     """Create a new experssion of the intersection of all conditions in the
       arguments
 
@@ -227,6 +272,9 @@ def all(*args):
     args : list
         List of symbolic boolean expressions
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     expr: Expr
@@ -236,10 +284,10 @@ def all(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _ffi_api._OpAnd(args[0], args[1])
+    val = _ffi_api._OpAnd(args[0], args[1], span)
     for i in range(2, len(args)):
-        ret = _ffi_api._OpAnd(ret, args[i])
-    return ret
+        val = _ffi_api._OpAnd(val, args[i], span)
+    return val
 
 
 @tvm._ffi.register_func("tvm.default_trace_action")
@@ -279,7 +327,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     return tvm.tir.Call(args[-1].dtype, Op.get("tir.tvm_call_trace_packed"), call_args)
 
 
-def min_value(dtype):
+def min_value(dtype, span=None):
     """minimum value of dtype
 
     Parameters
@@ -287,15 +335,18 @@ def min_value(dtype):
     dtype : str
         The data type.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     value : tvm.Expr
         The minimum value of dtype.
     """
-    return _ffi_api.min_value(dtype)
+    return _ffi_api.min_value(dtype, span)
 
 
-def max_value(dtype):
+def max_value(dtype, span=None):
     """maximum value of dtype
 
     Parameters
@@ -303,12 +354,15 @@ def max_value(dtype):
     dtype : str
         The data type.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     value : tvm.Expr
         The maximum value of dtype.
     """
-    return _ffi_api.max_value(dtype)
+    return _ffi_api.max_value(dtype, span)
 
 
 def exp(x):
@@ -698,7 +752,7 @@ def rsqrt(x):
     return call_intrin(x.dtype, "tir.rsqrt", x)
 
 
-def floor(x):
+def floor(x, span=None):
     """Take floor of float input x.
 
     Parameters
@@ -706,15 +760,18 @@ def floor(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.floor(x)
+    return _ffi_api.floor(x, span)
 
 
-def ceil(x):
+def ceil(x, span=None):
     """Take ceil of float input x.
 
     Parameters
@@ -722,15 +779,18 @@ def ceil(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.ceil(x)
+    return _ffi_api.ceil(x, span)
 
 
-def trunc(x):
+def trunc(x, span=None):
     """Get truncated value of the input.
 
     The truncated value of the scalar x is the
@@ -741,15 +801,18 @@ def trunc(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.trunc(x)
+    return _ffi_api.trunc(x, span)
 
 
-def abs(x):
+def abs(x, span=None):
     """Get absolute value of the input element-wise.
 
     Parameters
@@ -757,15 +820,18 @@ def abs(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.abs(x)
+    return _ffi_api.abs(x, span)
 
 
-def round(x):
+def round(x, span=None):
     """Round elements of the array to the nearest integer.
 
     Parameters
@@ -773,15 +839,18 @@ def round(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.round(x)
+    return _ffi_api.round(x, span)
 
 
-def nearbyint(x):
+def nearbyint(x, span=None):
     """Round elements of the array to the nearest integer.
     This intrinsic uses llvm.nearbyint instead of llvm.round
     which is faster but will results different from te.round.
@@ -796,12 +865,15 @@ def nearbyint(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.nearbyint(x)
+    return _ffi_api.nearbyint(x, span)
 
 
 def nextafter(x1, x2):
@@ -880,7 +952,7 @@ def ldexp(x1, x2):
     return call_intrin(x1.dtype, "tir.ldexp", x1, x2)
 
 
-def isnan(x):
+def isnan(x, span=None):
     """Check if input value is Nan.
 
     Parameters
@@ -888,15 +960,18 @@ def isnan(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.isnan(x)
+    return _ffi_api.isnan(x, span)
 
 
-def isfinite(x):
+def isfinite(x, span=None):
     """Check if input value is finite.
 
     Parameters
@@ -904,15 +979,18 @@ def isfinite(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.isfinite(x)
+    return _ffi_api.isfinite(x, span)
 
 
-def isinf(x):
+def isinf(x, span=None):
     """Check if input value is infinite.
 
     Parameters
@@ -920,15 +998,18 @@ def isinf(x):
     x : PrimExpr
         Input argument.
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     y : PrimExpr
         The result.
     """
-    return _ffi_api.isinf(x)
+    return _ffi_api.isinf(x, span)
 
 
-def power(x, y):
+def power(x, y, span=None):
     """x power y
 
     Parameters
@@ -939,12 +1020,15 @@ def power(x, y):
     y : PrimExpr
         The exponent
 
+    span : Optional[Span]
+        The location of this operator in the source code.
+
     Returns
     -------
     z : PrimExpr
         The result.
     """
-    return _ffi_api._OpPow(convert(x), convert(y))
+    return _ffi_api._OpPow(convert(x), convert(y), span)
 
 
 def popcount(x):
@@ -1010,7 +1094,7 @@ def fmod(x, y):
     return call_intrin(x.dtype, "tir.fmod", x, y)
 
 
-def if_then_else(cond, t, f):
+def if_then_else(cond, t, f, span=None):
     """Conditional selection expression.
 
     Parameters
@@ -1023,6 +1107,9 @@ def if_then_else(cond, t, f):
 
     f : PrimExpr
         The result expression if cond is false.
+
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
@@ -1037,10 +1124,10 @@ def if_then_else(cond, t, f):
     Unlike Select, if_then_else cannot be vectorized
     if some lanes in the vector have different conditions.
     """
-    return _ffi_api._OpIfThenElse(convert(cond), convert(t), convert(f))
+    return _ffi_api._OpIfThenElse(convert(cond), convert(t), convert(f), span)
 
 
-def div(a, b):
+def div(a, b, span=None):
     """Compute a / b as in C/C++ semantics.
 
     Parameters
@@ -1051,18 +1138,21 @@ def div(a, b):
     b : PrimExpr
         The right hand operand, known to be non-negative.
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
         The result expression.
     Note
     ----
-    When operands are integers, returns truncdiv(a, b).
+    When operands are integers, returns truncdiv(a, b, span).
     """
-    return _ffi_api._OpDiv(a, b)
+    return _ffi_api._OpDiv(a, b, span)
 
 
-def indexdiv(a, b):
+def indexdiv(a, b, span=None):
     """Compute floor(a / b) where a and b are non-negative.
 
     Parameters
@@ -1073,6 +1163,9 @@ def indexdiv(a, b):
     b : PrimExpr
         The right hand operand, known to be non-negative.
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
@@ -1084,10 +1177,10 @@ def indexdiv(a, b):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _ffi_api._OpIndexDiv(a, b)
+    return _ffi_api._OpIndexDiv(a, b, span)
 
 
-def indexmod(a, b):
+def indexmod(a, b, span=None):
     """Compute the remainder of indexdiv. a and b are non-negative.
 
     Parameters
@@ -1098,6 +1191,9 @@ def indexmod(a, b):
     b : PrimExpr
         The right hand operand, known to be non-negative.
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
@@ -1109,10 +1205,10 @@ def indexmod(a, b):
     This function may take advantage of operands'
     non-negativeness.
     """
-    return _ffi_api._OpIndexMod(a, b)
+    return _ffi_api._OpIndexMod(a, b, span)
 
 
-def truncdiv(a, b):
+def truncdiv(a, b, span=None):
     """Compute the truncdiv of two expressions.
 
     Parameters
@@ -1123,6 +1219,9 @@ def truncdiv(a, b):
     b : PrimExpr
         The right hand operand
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
@@ -1132,10 +1231,10 @@ def truncdiv(a, b):
     ----
     This is the default integer division behavior in C.
     """
-    return _ffi_api._OpTruncDiv(a, b)
+    return _ffi_api._OpTruncDiv(a, b, span)
 
 
-def truncmod(a, b):
+def truncmod(a, b, span=None):
     """Compute the truncmod of two expressions.
 
     Parameters
@@ -1146,6 +1245,9 @@ def truncmod(a, b):
     b : PrimExpr
         The right hand operand
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
@@ -1155,10 +1257,10 @@ def truncmod(a, b):
     ----
     This is the default integer division behavior in C.
     """
-    return _ffi_api._OpTruncMod(a, b)
+    return _ffi_api._OpTruncMod(a, b, span)
 
 
-def floordiv(a, b):
+def floordiv(a, b, span=None):
     """Compute the floordiv of two expressions.
 
     Parameters
@@ -1169,15 +1271,18 @@ def floordiv(a, b):
     b : PrimExpr
         The right hand operand
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
         The result expression.
     """
-    return _ffi_api._OpFloorDiv(a, b)
+    return _ffi_api._OpFloorDiv(a, b, span)
 
 
-def floormod(a, b):
+def floormod(a, b, span=None):
     """Compute the floormod of two expressions.
 
     Parameters
@@ -1188,12 +1293,15 @@ def floormod(a, b):
     b : PrimExpr
         The right hand operand
 
+    span : Optional[Span]
+        The location of this operator in the source.
+
     Returns
     -------
     res : PrimExpr
         The result expression.
     """
-    return _ffi_api._OpFloorMod(a, b)
+    return _ffi_api._OpFloorMod(a, b, span)
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
@@ -1351,5 +1459,5 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y), max_value, name="min")
-max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y), min_value, name="max")
+min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")
+max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")

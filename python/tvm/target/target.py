@@ -232,7 +232,7 @@ def micro(model="unknown", options=None):
         Additional options
     """
     trans_table = {
-        "host": ["-mcpu=native"],
+        "host": [],
         "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
     }
     opts = _merge_opts(

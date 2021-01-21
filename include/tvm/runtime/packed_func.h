@@ -491,7 +491,9 @@ class TVMArgValue : public TVMPODValue_ {
     } else if (type_code_ == kTVMStr) {
       return std::string(value_.v_str);
     } else {
-      ICHECK(IsObjectRef<tvm::runtime::String>());
+      ICHECK(IsObjectRef<tvm::runtime::String>())
+          << "Could not convert TVM object of type " << runtime::Object::TypeIndex2Key(type_code_)
+          << " to a string.";
       return AsObjectRef<tvm::runtime::String>().operator std::string();
     }
   }

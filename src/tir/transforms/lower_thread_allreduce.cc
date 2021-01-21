@@ -224,14 +224,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       PrimExpr index(0);
 
       for (size_t idx = 0; idx < size; ++idx) {
-        shared_bufs[idx] = Var("red_buf" + std::to_string(idx), DataType::Handle());
+        Type ptr_type = PointerType(PrimType(types[idx]));
+        shared_bufs[idx] = Var("red_buf" + std::to_string(idx), ptr_type);
         PrimExpr pred = const_true(types[idx].lanes());
         seq.emplace_back(Store(shared_bufs[idx], values[idx], index, pred));
 
         // Uses a local variable to store the shuffled data.
         // Later on, this allocation will be properly attached to this statement.
-        Var var("t" + std::to_string(idx), types[idx]);
-        Stmt s = Allocate(var, var.dtype(), {PrimExpr(1)}, pred, Evaluate(0));
+        Var var("t" + std::to_string(idx), ptr_type);
+        Stmt s = Allocate(var, types[idx], {PrimExpr(1)}, pred, Evaluate(0));
         local_vars.push_back(s);
       }
 
@@ -239,14 +240,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // a divergent control flow. Here it uses a variable to cache the current
       // active channels.
       //
-      Var mask_var("mask", DataType::UInt(32));
+      DataType mask_dtype = DataType::UInt(32);
+      Var mask_var("mask", PointerType(PrimType(mask_dtype)));
       {
         PrimExpr pred = const_true(1);
-        PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
+        PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
         seq.emplace_back(Store(mask_var, mask, index, pred));
         // Push allocation with an empty body. Later this will be fixed
         // when the entire body is ready.
-        auto stmt = Allocate(mask_var, mask_var->dtype, {PrimExpr(1)}, pred, Evaluate(0));
+        auto stmt = Allocate(mask_var, mask_dtype, {PrimExpr(1)}, pred, Evaluate(0));
         local_vars.push_back(stmt);
       }
 
@@ -338,7 +340,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // previous iteration on the same buffer.
       seq.emplace_back(SyncThread("shared"));
       for (size_t idx = 0; idx < size; ++idx) {
-        shared_bufs[idx] = Var("red_buf" + std::to_string(idx), DataType::Handle());
+        shared_bufs[idx] = Var("red_buf" + std::to_string(idx), PointerType(PrimType(types[idx])));
         PrimExpr pred = const_true(types[idx].lanes());
         seq.emplace_back(Store(shared_bufs[idx], values[idx],
                                BufIndex(reduce_index, group_index, reduce_extent), pred));

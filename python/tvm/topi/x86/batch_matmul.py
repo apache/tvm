@@ -50,7 +50,7 @@ def batch_matmul(cfg, x, y, out_shape=None):
     YB, N, YK = get_const_tuple(y.shape)
     assert (XB == YB) or (YB == 1) or (XB == 1), "batch dimension doesn't match"
     assert XK == YK, "shapes of x and y is inconsistant"
-    B = max(XB, YB)
+    B = te.max(XB, YB)
     K = XK
     if out_shape is not None:
         assert out_shape[0] == B, "got invalid output shape"

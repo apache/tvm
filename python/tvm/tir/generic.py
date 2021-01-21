@@ -26,7 +26,7 @@ from . import _ffi_api
 __op_priority__ = 0
 
 
-def add(lhs, rhs):
+def add(lhs, rhs, span=None):
     """Generic add operator.
 
     Parameters
@@ -35,16 +35,18 @@ def add(lhs, rhs):
         The left operand.
     rhs : object
         The right operand.
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
     op : tvm.Expr
         The result Expr of add operaton.
     """
-    return _ffi_api._OpAdd(lhs, rhs)
+    return _ffi_api._OpAdd(lhs, rhs, span)
 
 
-def subtract(lhs, rhs):
+def subtract(lhs, rhs, span=None):
     """Generic subtract operator.
 
     Parameters
@@ -53,16 +55,18 @@ def subtract(lhs, rhs):
         The left operand.
     rhs : object
         The right operand.
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
     op : tvm.Expr
         The result Expr of subtract operaton.
     """
-    return _ffi_api._OpSub(lhs, rhs)
+    return _ffi_api._OpSub(lhs, rhs, span)
 
 
-def multiply(lhs, rhs):
+def multiply(lhs, rhs, span=None):
     """Generic multiply operator.
 
     Parameters
@@ -71,16 +75,18 @@ def multiply(lhs, rhs):
         The left operand.
     rhs : object
         The right operand.
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
     op : tvm.Expr
         The result Expr of multiply operaton.
     """
-    return _ffi_api._OpMul(lhs, rhs)
+    return _ffi_api._OpMul(lhs, rhs, span)
 
 
-def divide(lhs, rhs):
+def divide(lhs, rhs, span=None):
     """Generic divide operator.
 
     Parameters
@@ -89,16 +95,18 @@ def divide(lhs, rhs):
         The left operand.
     rhs : object
         The right operand.
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _ffi_api._OpDiv(lhs, rhs)
+    return _ffi_api._OpDiv(lhs, rhs, span)
 
 
-def floordiv(lhs, rhs):
+def floordiv(lhs, rhs, span=None):
     """Generic floordiv operator.
 
     Parameters
@@ -107,26 +115,30 @@ def floordiv(lhs, rhs):
         The left operand.
     rhs : object
         The right operand.
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _ffi_api._OpFloorDiv(lhs, rhs)
+    return _ffi_api._OpFloorDiv(lhs, rhs, span)
 
 
-def cast(src, dtype):
+def cast(src, dtype, span=None):
     """Generic cast operator.
 
     Parameters
     ----------
     src : object
         The source operand.
+    span : Optional[Span]
+        The location of this operator in the source.
 
     Returns
     -------
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _ffi_api._cast(dtype, src)
+    return _ffi_api._cast(dtype, src, span)

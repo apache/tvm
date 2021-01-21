@@ -794,10 +794,10 @@ llvm::Value* CodeGenCPU::RuntimeTVMParallelBarrier() {
 void CodeGenCPU::AddStartupFunction() {
   if (registry_functions_.size() != 0) {
     ICHECK(is_system_lib_) << "Loading of --system-lib modules is yet to be defined for C runtime";
-    std::vector<std::string> symbols;
+    Array<String> symbols;
     std::vector<llvm::Constant*> funcs;
     for (auto sym : registry_functions_) {
-      symbols.emplace_back(sym.first);
+      symbols.push_back(sym.first);
       funcs.emplace_back(llvm::ConstantExpr::getBitCast(
           sym.second, ftype_tvm_backend_packed_c_func_->getPointerTo()));
     }
@@ -976,12 +976,13 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
-  if (op->for_type == ForType::Serial || op->for_type == ForType::Unrolled) {
+  if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::VisitStmt_(op);
-  } else if (op->for_type == ForType::Parallel) {
+  } else if (op->kind == ForKind::kParallel) {
     if (parallel_env_.penv == nullptr) {
-      CreateParallelLaunch(
-          For(op->loop_var, op->min, op->extent, op->for_type, op->device_api, op->body), 0);
+      CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body,
+                               op->thread_binding, op->annotations),
+                           0);
     } else {
       // already in parallel env.
       ICHECK(parallel_env_.task_id.defined());
@@ -1007,7 +1008,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
       ++parallel_env_.parallel_loop_count;
     }
   } else {
-    LOG(FATAL) << "cannot handle for type " << op->for_type;
+    LOG(FATAL) << "cannot handle for type " << op->kind;
   }
 }
 

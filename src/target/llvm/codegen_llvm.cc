@@ -927,6 +927,18 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
+  } else if (op->op.same_as(builtin::ret())) {
+    auto const* val = op->args[0].as<IntImmNode>();
+    ICHECK(val) << "the tir.ret should be transformed to return zero "
+                << "before the llvm code generation.";
+    ICHECK_EQ(val->value, 0) << "the tir.ret should be transformed to "
+                             << "return zero before the llvm code generation.";
+    builder_->CreateRet(ConstInt32(0));
+    // LLVM allows exactly one terminator in a single basic block
+    // append a new dummy basic block to avoid error.
+    llvm::BasicBlock* ret_dummy = llvm::BasicBlock::Create(*ctx_, "ret_dummy", function_);
+    builder_->SetInsertPoint(ret_dummy);
+    return ret_dummy;
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
@@ -955,6 +967,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
+  } else if (op->op.same_as(builtin::atomic_add())) {
+    // TODO(masahi): Support atomic for CPU backend
+    LOG(FATAL) << "CPU backend does not support atomic add yet.";
+    return nullptr;
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
     return nullptr;
@@ -1302,11 +1318,11 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
 void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-  if (op->for_type == ForType::Unrolled) {
+  if (op->kind == ForKind::kUnrolled) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
   } else {
-    ICHECK(op->for_type == ForType::Serial);
+    ICHECK(op->kind == ForKind::kSerial);
   }
   CreateSerialFor(MakeValue(op->min), MakeValue(op->extent),
                   llvm::ConstantInt::getSigned(GetLLVMType(op->extent), 1), op->loop_var, op->body);

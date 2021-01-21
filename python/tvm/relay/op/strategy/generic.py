@@ -19,12 +19,27 @@
 import logging
 
 import re
-from tvm import topi, _ffi
+from tvm import topi, _ffi, te, ir
 from tvm.topi.utils import get_const_int, get_const_float, get_const_tuple, get_float_tuple
 from tvm.target import generic_func, override_native_generic_func
 from .. import op as _op
 
 logger = logging.getLogger("strategy")
+
+
+def naive_schedule(_, outs, target):
+    """Return the naive default schedule.
+    This function acts as a placeholder for op implementations that uses auto-scheduler.
+    Implemenations using this function should only be used along with auto-scheduler.
+    """
+    if "gpu" in target.keys:
+        # For GPU, we at least need thread binding to make a valid schedule.
+        # So the naive schedule cannot be compiled.
+        logger.debug(
+            "Cannot compile for GPU targets if no tuned schedule is found. "
+            "Please see the warning messages above for more information about the failed workloads."
+        )
+    return te.create_schedule(outs[-1].op)
 
 
 def wrap_topi_schedule(topi_schedule):
@@ -142,6 +157,20 @@ def softmax_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("fast_softmax_strategy")
+def fast_softmax_strategy(attrs, inputs, out_type, target):
+    """fast softmax generic strategy"""
+    # NOTE: This op does not have an optimized manual schedule,
+    # so it should only be used together with auto-scheduler.
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        naive_schedule,
+        name="fast_softmax.generic",
+    )
+    return strategy
+
+
 # log_softmax
 @generic_func
 def schedule_log_softmax(attrs, outs, target):
@@ -187,7 +216,6 @@ def wrap_compute_conv2d(
         data_layout = attrs.get_str("data_layout")
         out_layout = attrs.get_str("out_layout")
         out_dtype = attrs.out_dtype
-        auto_scheduler_rewritten_layout = get_auto_scheduler_rewritten_layout(attrs)
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
         args = [inputs[0], inputs[1], strides, padding, dilation]
         if has_groups:
@@ -198,7 +226,7 @@ def wrap_compute_conv2d(
             args.append(out_layout)
         args.append(out_dtype)
         if need_auto_scheduler_layout:
-            args.append(auto_scheduler_rewritten_layout)
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
         return [topi_compute(*args)]
 
     return _compute_conv2d
@@ -357,7 +385,6 @@ def wrap_compute_deformable_conv2d(topi_compute):
     """wrap deformable_conv2d topi compute"""
 
     def _compute_deformable_conv2d(attrs, inputs, out_dtype):
-        assert attrs.data_layout == "NCHW"
         padding = get_const_tuple(attrs.padding)
         strides = get_const_tuple(attrs.strides)
         dilation = get_const_tuple(attrs.dilation)
@@ -384,15 +411,24 @@ def wrap_compute_deformable_conv2d(topi_compute):
 @override_native_generic_func("deformable_conv2d_strategy")
 def deformable_conv2d_strategy(attrs, inputs, out_type, target):
     """deformable_conv2d generic strategy"""
-    logger.warning("deformable_conv2d is not optimized for this platform.")
     layout = attrs.data_layout
-    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
-        wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
-        name="deformable_conv2d.generic",
-    )
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
+            wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
+            name="deformable_conv2d_nchw.generic",
+        )
+    elif layout == "NHWC":
+        # This implementation should never be picked by autotvm
+        strategy.add_implementation(
+            wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nhwc),
+            naive_schedule,
+            name="deformable_conv2d_nhwc.generic",
+        )
+    else:
+        raise RuntimeError("Layout %s is not supported in deformable conv2d" % layout)
     return strategy
 
 
@@ -469,7 +505,7 @@ def conv3d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # conv3d
-def wrap_compute_conv3d(topi_compute, need_layout=False):
+def wrap_compute_conv3d(topi_compute, need_layout=False, need_auto_scheduler_layout=False):
     """wrap conv3d topi compute"""
 
     def _compute_conv3d(attrs, inputs, out_type):
@@ -486,11 +522,14 @@ def wrap_compute_conv3d(topi_compute, need_layout=False):
             raise ValueError("Dilation should be positive value")
         if groups != 1:
             raise ValueError("Not support arbitrary group number for conv3d")
+
+        args = [inputs[0], inputs[1], strides, padding, dilation]
         if need_layout:
-            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)
-        else:
-            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation, out_dtype)
-        return [out]
+            args.append(layout)
+        args.append(out_dtype)
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_conv3d
 
@@ -664,14 +703,17 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
 
 
 # dense
-def wrap_compute_dense(topi_compute):
+def wrap_compute_dense(topi_compute, need_auto_scheduler_layout=False):
     """wrap dense topi compute"""
 
     def _compute_dense(attrs, inputs, out_type):
         """Compute definition of dense"""
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-        return [topi_compute(inputs[0], inputs[1], None, out_dtype)]
+        args = [inputs[0], inputs[1], None, out_dtype]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_dense
 
@@ -690,11 +732,14 @@ def dense_strategy(attrs, inputs, out_type, target):
 
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_compute):
+def wrap_compute_batch_matmul(topi_compute, need_auto_scheduler_layout=False):
     """wrap batch_matmul topi compute"""
 
     def _compute_batch_matmul(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1], out_type.shape)]
+        args = [inputs[0], inputs[1], out_type.shape]
+        if need_auto_scheduler_layout:
+            args.append(get_auto_scheduler_rewritten_layout(attrs))
+        return [topi_compute(*args)]
 
     return _compute_batch_matmul
 
@@ -717,7 +762,7 @@ def wrap_compute_sparse_dense(topi_compute):
     """wrap sparse dense topi compute"""
 
     def _compute_sparse_dense(attrs, inputs, out_type):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3])]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], inputs[3], attrs["sparse_lhs"])]
 
     return _compute_sparse_dense
 
@@ -747,6 +792,30 @@ def schedule_sparse_transpose(attrs, outs, target):
     """schedule sparse_transpose"""
     with target:
         return topi.generic.schedule_sparse_transpose(outs)
+
+
+# sort
+def wrap_compute_sort(topi_compute):
+    """Wrap sort topi compute"""
+
+    def _compute_sort(attrs, inputs, _):
+        axis = get_const_int(attrs.axis)
+        is_ascend = bool(get_const_int(attrs.is_ascend))
+        return [topi_compute(inputs[0], axis=axis, is_ascend=is_ascend)]
+
+    return _compute_sort
+
+
+@override_native_generic_func("sort_strategy")
+def sort_strategy(attrs, inputs, out_type, target):
+    """sort generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sort(topi.sort),
+        wrap_topi_schedule(topi.generic.schedule_sort),
+        name="sort.generic",
+    )
+    return strategy
 
 
 # argsort
@@ -865,9 +934,11 @@ def wrap_compute_get_valid_counts(topi_compute):
     """wrap get_valid_counts topi compute"""
 
     def _compute_get_valid_counts(attrs, inputs, out_type):
-        score_threshold = get_const_float(attrs.score_threshold)
+        score_threshold = inputs[1]
         id_index = get_const_int(attrs.id_index)
         score_index = get_const_int(attrs.score_index)
+        if attrs.score_threshold is not None:
+            score_threshold = get_const_float(attrs.score_threshold)
         return topi_compute(inputs[0], score_threshold, id_index, score_index)
 
     return _compute_get_valid_counts
@@ -891,10 +962,12 @@ def wrap_compute_nms(topi_compute):
 
     def _compute_nms(attrs, inputs, out_type):
         max_output_size = inputs[3]
+        iou_threshold = inputs[4]
         if attrs.max_output_size is not None:
             max_output_size = attrs.max_output_size
+        if attrs.iou_threshold is not None:
+            iou_threshold = get_const_float(attrs.iou_threshold)
         return_indices = bool(get_const_int(attrs.return_indices))
-        iou_threshold = get_const_float(attrs.iou_threshold)
         force_suppress = bool(get_const_int(attrs.force_suppress))
         top_k = get_const_int(attrs.top_k)
         coord_start = get_const_int(attrs.coord_start)
@@ -1034,14 +1107,6 @@ def proposal_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# argwhere
-@generic_func
-def schedule_argwhere(attrs, outs, target):
-    """schedule argwhere"""
-    with target:
-        return topi.generic.schedule_argwhere(outs)
-
-
 # scatter
 @override_native_generic_func("scatter_strategy")
 def scatter_strategy(attrs, outs, out_type, target):
@@ -1058,7 +1123,7 @@ def wrap_compute_scatter(topi_compute):
     """Wrap scatter topi compute"""
 
     def _compute_scatter(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], axis=attrs.axis)]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis)]
 
     return _compute_scatter
 
@@ -1221,5 +1286,78 @@ def correlation_strategy(attrs, inputs, out_type, target):
         wrap_compute_correlation(topi.nn.correlation_nchw),
         wrap_topi_schedule(topi.generic.schedule_correlation_nchw),
         name="correlation.generic",
+    )
+    return strategy
+
+
+# argwhere
+def wrap_compute_argwhere(topi_compute):
+    """wrap argwhere topi compute"""
+
+    def _compute_argwhere(attrs, inputs, out_type):
+        output_shape = []
+        for s in out_type.shape:
+            if hasattr(s, "value"):
+                output_shape.append(s)
+            else:
+                output_shape.append(te.var("any_dim", "int32"))
+        new_output_type = ir.TensorType(output_shape, "int32")
+        return [topi_compute(new_output_type, inputs[0])]
+
+    return _compute_argwhere
+
+
+@override_native_generic_func("argwhere_strategy")
+def argwhere_strategy(attrs, inputs, out_type, target):
+    """argwhere generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_argwhere(topi.argwhere),
+        wrap_topi_schedule(topi.generic.schedule_argwhere),
+        name="argwhere.generic",
+    )
+    return strategy
+
+
+# threefry_generate
+def wrap_compute_threefry_generate(topi_compute):
+    """Wrap threefry_generate topi compute"""
+
+    def _compute_threefry_generate(attrs, inputs, _):
+        return topi_compute(inputs[0], attrs.out_shape)
+
+    return _compute_threefry_generate
+
+
+@override_native_generic_func("threefry_generate_strategy")
+def threefry_generate_strategy(attrs, inputs, out_type, target):
+    """threefry_generate generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_threefry_generate(topi.random.threefry_generate),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="threefry_generate.generic",
+    )
+    return strategy
+
+
+# threefry_split
+def wrap_compute_threefry_split(topi_compute):
+    """Wrap threefry_split topi compute"""
+
+    def _compute_threefry_split(attrs, inputs, _):
+        return topi_compute(inputs[0])
+
+    return _compute_threefry_split
+
+
+@override_native_generic_func("threefry_split_strategy")
+def threefry_split_strategy(attrs, inputs, out_type, target):
+    """threefry_split generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_threefry_split(topi.random.threefry_split),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="threefry_split.generic",
     )
     return strategy

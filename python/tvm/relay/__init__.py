@@ -45,6 +45,7 @@ from .op import annotation
 from .op import vision
 from .op import contrib
 from .op import dyn
+from .op import random
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
