@@ -145,8 +145,8 @@ def progress_bar(total, prefix="", si_prefix="G"):
 
     if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
         sys.stdout.write(
-            "\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) "
-            "| %.2f s" % (prefix, 0, 0, 0, total, time.time() - tic)
+            "\r%s Current/Best: %7.2f/%7.2f %sFLOPS | Progress: (%d/%d) "
+            "| %.2f s" % (prefix, 0, 0, si_prefix, 0, total, time.time() - tic)
         )
         sys.stdout.flush()
 
