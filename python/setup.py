@@ -184,6 +184,7 @@ setup(
         "attrs",
         "psutil",
         "synr>=0.2.1",
+        "sklearn"
     ],
     extras_require={
         "test": ["pillow<7", "matplotlib"],

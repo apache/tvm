@@ -879,6 +879,54 @@ def test_any_topk():
     verify_any_topk(any_dims(1), 0, (0,), "float32", ret_type="both")
 
 
+def verify_any_get_valid_counts(num_anchor_real, dtype, targets=None):
+    mod = tvm.IRModule()
+    batch_size = 1
+    num_anchor = relay.Any()
+    data = relay.var("data", shape=(batch_size, num_anchor, 5), dtype=dtype)
+    np_data = np.random.uniform(size=(batch_size, num_anchor_real, 5)).astype(dtype)
+
+    np_out1 = np.zeros(shape=(batch_size,))
+    np_out2 = np.zeros(shape=np_data.shape).astype(dtype)
+    np_out3 = np.zeros(shape=(batch_size, num_anchor_real))
+    score_threshold = 0.95
+
+    for i in range(batch_size):
+        np_out1[i] = 0
+        inter_idx = 0
+        for j in range(num_anchor_real):
+            score = np_data[i, j, 0]
+            if score > score_threshold:
+                for k in range(5):
+                    np_out2[i, inter_idx, k] = np_data[i, j, k]
+                np_out1[i] += 1
+                np_out3[i, inter_idx] = j
+                inter_idx += 1
+            if j >= np_out1[i]:
+                for k in range(5):
+                    np_out2[i, j, k] = -1.0
+                np_out3[i, j] = -1
+
+    z = relay.vision.get_valid_counts(data, score_threshold, 0, score_index=0)
+
+    mod["main"] = relay.Function([data], z.astuple())
+
+    check_result([np_data], mod, [np_out1, np_out2, np_out3], targets=targets)
+
+
+@tvm.testing.uses_gpu
+def test_any_get_valid_counts():
+    verify_any_get_valid_counts(10, "float32")
+    # opencl seems to have issues with empty size buffer
+    # Check failed: err_code == CL_SUCCESS == false: OpenCL Error,
+    # code=-61: CL_INVALID_BUFFER_SIZE
+    targets = []
+    for tgt, ctx in tvm.testing.enabled_targets():
+        if "opencl" not in tgt:
+            targets.append((tgt, ctx))
+    verify_any_get_valid_counts(0, "float32", targets=targets)
+
+
 @tvm.testing.uses_gpu
 def test_fused_ops():
     x = relay.var("x", shape=(relay.Any(), relay.Any()), dtype="float32")

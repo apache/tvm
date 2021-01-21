@@ -127,6 +127,17 @@ def test_AttrPattern():
     assert op.attrs["TOpPattern"] == K_ELEMWISE
 
 
+def test_IfPattern():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    assert isinstance(pat, IfPattern)
+    assert isinstance(pat.cond, CallPattern)
+    assert isinstance(pat.true_branch, VarPattern)
+    assert isinstance(pat.false_branch, VarPattern)
+
+
 ## MATCHER TESTS
 
 
@@ -196,6 +207,30 @@ def test_no_match_func():
     wc2 = wildcard()
     func_pattern = FunctionPattern([wc1, wc2], wc1 + wc2)
     assert not func_pattern.match(relay.Function([x, y], x - y))
+
+
+def test_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    cond = x < y
+
+    assert pat.match(relay.expr.If(cond, x, y))
+
+
+def test_no_match_if():
+    x = is_var("x")
+    y = is_var("y")
+    pat = is_if(is_op("less")(x, y), x, y)
+
+    x = relay.var("x")
+    y = relay.var("y")
+
+    assert not pat.match(relay.expr.If(x > y, x, y))
+    assert not pat.match(relay.expr.If(x < y, y, x))
 
 
 def test_match_option():
@@ -389,6 +424,20 @@ def test_match_call_attr():
     y = relay.var("y")
     assert is_conv2d.match(relay.op.nn.conv2d(x, y))
 
+    # non-operator call
+    attr_dict = {"call_attr": "attr"}
+    call_has_attr = wildcard()(wildcard()).has_attr(attr_dict)
+    call_attr = tvm.ir.make_node("DictAttrs", **attr_dict)
+    a = relay.Var("a")
+    b = relay.Var("b")
+    assert call_has_attr.match(relay.Call(a, [b], attrs=call_attr))
+
+    # empty attrs should match anything
+    empty_attrs = tvm.ir.make_node("DictAttrs", **{})
+    call_has_empty_attrs = wildcard()(wildcard()).has_attr({})
+    assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=empty_attrs))
+    assert call_has_empty_attrs.match(relay.Call(a, [b], attrs=call_attr))
+
 
 def test_no_match_call_attr():
     x = relay.var("x")
@@ -399,6 +448,21 @@ def test_no_match_call_attr():
 
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard()).has_attr({"RandomAttr": "NCHW"})
     assert not is_conv2d.match(relay.op.nn.conv2d(x, y))
+
+    # non-operator calls
+    call_has_attr = wildcard()(wildcard()).has_attr({"call_attr": "attr"})
+    wrong_key = tvm.ir.make_node("DictAttrs", **{"wrong": "attr"})
+    wrong_value = tvm.ir.make_node("DictAttrs", **{"call_attr": "wrong"})
+    empty_attrs = tvm.ir.make_node("DictAttrs", **{})
+
+    a = relay.Var("a")
+    b = relay.Var("b")
+    # attrs left undefined
+    assert not call_has_attr.match(relay.Call(a, [b]))
+    # wrong attrs
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=wrong_key))
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=wrong_value))
+    assert not call_has_attr.match(relay.Call(a, [b], attrs=empty_attrs))
 
 
 def test_match_call_attr_dtype():
@@ -1512,3 +1576,6 @@ if __name__ == "__main__":
     test_partition_option()
     test_match_match()
     test_partition_constant_embedding()
+    test_IfPattern()
+    test_match_if()
+    test_no_match_if()

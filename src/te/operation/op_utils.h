@@ -88,16 +88,16 @@ PrimExpr ReplaceTensor(PrimExpr expr, const std::unordered_map<Tensor, Tensor>& 
 Stmt Substitute(Stmt stmt, const std::unordered_map<IterVar, PrimExpr>& value_map);
 
 /*!
- * \brief Converts Halide ForType to its corresponding IterVarType
- * \param for_type The ForType to be converted
+ * \brief Converts Halide ForKind to its corresponding IterVarType
+ * \param kind The ForKind to be converted
  */
-IterVarType ForTypeToIterVarType(tir::ForType for_type);
+IterVarType ForKindToIterVarType(tir::ForKind kind);
 
 /*!
- * \brief Converts IterVarType to its corresponding Halide ForType
+ * \brief Converts IterVarType to its corresponding Halide ForKind
  * \param iter_type The IterVarType to be converted
  */
-tir::ForType IterVarTypeToForType(IterVarType iter_type);
+tir::ForKind IterVarTypeToForKind(IterVarType iter_type);
 
 }  // namespace te
 }  // namespace tvm

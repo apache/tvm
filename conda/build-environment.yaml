@@ -35,4 +35,3 @@ dependencies:
   - bzip2
   - make
   - scipy
-  - sklearn

@@ -23,6 +23,7 @@ from tvm._ffi import get_global_func
 from .injective import schedule_injective_from_existing
 from ..transform import strided_slice, transpose
 from .. import tag
+from ..utils import ceil_div
 
 
 def swap(arr, axis):
@@ -59,10 +60,6 @@ def _schedule_sort(outs):
     for out in outs:
         traverse(out.op)
     return s
-
-
-def ceil_div(a, b):
-    return tvm.tir.indexdiv(a + b - 1, b)
 
 
 def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):

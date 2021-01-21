@@ -671,6 +671,26 @@ Array<MeasureInput> SketchPolicyNode::PickStatesWithEpsGreedy(const Array<State>
   return inputs;
 }
 
+/********** PreloadCustomSketchRule **********/
+TVM_REGISTER_OBJECT_TYPE(PreloadCustomSketchRuleNode);
+
+PreloadCustomSketchRule::PreloadCustomSketchRule(PackedFunc meet_condition_func,
+                                                 PackedFunc apply_func, String rule_name) {
+  auto node = make_object<PreloadCustomSketchRuleNode>();
+  node->meet_condition_func = std::move(meet_condition_func);
+  node->apply_func = std::move(apply_func);
+  node->rule_name = std::move(rule_name);
+  data_ = std::move(node);
+}
+
+void PreloadCustomSketchRuleNode::Callback(SearchPolicyNode* policy) {
+  CHECK(policy->IsInstance<SketchPolicyNode>());
+  auto sketch_policy = dynamic_cast<SketchPolicyNode*>(policy);
+  sketch_policy->sketch_rules.push_back(
+      new RuleCustomSketch(meet_condition_func, apply_func, rule_name));
+  StdCout(policy->verbose) << "Custom sketch rule \"" << rule_name << "\" added." << std::endl;
+}
+
 TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicy")
     .set_body_typed([](SearchTask task, CostModel program_cost_model, Map<String, ObjectRef> params,
                        int seed, int verbose,
@@ -698,6 +718,11 @@ TVM_REGISTER_GLOBAL("auto_scheduler.SketchPolicyEvolutionarySearch")
 TVM_REGISTER_GLOBAL("auto_scheduler.PrintTitle").set_body_typed([](std::string title) {
   PrintTitle(title, 1);
 });
+
+TVM_REGISTER_GLOBAL("auto_scheduler.PreloadCustomSketchRule")
+    .set_body_typed([](PackedFunc meet_condition_func, PackedFunc apply_func, String rule_name) {
+      return PreloadCustomSketchRule(meet_condition_func, apply_func, rule_name);
+    });
 
 }  // namespace auto_scheduler
 }  // namespace tvm
