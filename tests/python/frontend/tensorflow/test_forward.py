@@ -1779,8 +1779,7 @@ def _test_sparse_dense_matmul(indices, values, A_shape, B_shape, dtype, flip=Fal
 
                 B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
 
-                # TODO(ANSHUMAN87): There is an issue in cuda scheduling for csr, work in progress
-                compare_tf_with_tvm([B_np], [B.name], result.name, no_gpu=True)
+                compare_tf_with_tvm([B_np], [B.name], result.name)
 
 
 def test_forward_sparse_dense_matmul():

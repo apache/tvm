@@ -473,24 +473,27 @@ bool IsDynamic(const Type& ty) {
 
 TVM_REGISTER_GLOBAL("relay.ir.IsDynamic").set_body_typed(IsDynamic);
 
-bool IsDataDependant(const CallNode* call) {
-  static auto tshape_data_dependant = Op::GetAttrMap<TShapeDataDependant>("TShapeDataDependant");
+bool IsDataDependent(const CallNode* call) {
+  static auto tshape_data_dependent = Op::GetAttrMap<TShapeDataDependent>("TShapeDataDependent");
   Op op = Downcast<Op>(call->op);
 
-  if (!tshape_data_dependant.count(op)) {
+  if (!tshape_data_dependent.count(op)) {
     return false;
   }
 
   if (op->name == "strided_slice") {
     if (const auto* attrs = call->attrs.as<StridedSliceAttrs>()) {
       if (attrs->begin && attrs->end && attrs->strides) {
-        // not data dependant if begin, end and strides exist
+        // not data dependent if begin, end and strides exist
         return false;
       }
     }
   }
 
-  return tshape_data_dependant[op];
+  for (auto req : tshape_data_dependent[op]) {
+    if (req->value != 0) return true;
+  }
+  return false;
 }
 }  // namespace relay
 }  // namespace tvm

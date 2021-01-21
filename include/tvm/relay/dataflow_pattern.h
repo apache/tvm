@@ -260,6 +260,26 @@ class TupleGetItemPatternNode : public DFPatternNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemPatternNode, DFPatternNode);
 };
 
+class IfPatternNode : public DFPatternNode {
+ public:
+  DFPattern cond, true_branch, false_branch;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("cond", &cond);
+    v->Visit("true_branch", &true_branch);
+    v->Visit("false_branch", &false_branch);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.IfPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfPatternNode, DFPatternNode);
+};
+
+class IfPattern : public DFPattern {
+ public:
+  TVM_DLL IfPattern(DFPattern cond, DFPattern then_clause, DFPattern else_clause);
+  TVM_DEFINE_OBJECT_REF_METHODS(IfPattern, DFPattern, IfPatternNode);
+};
+
 class TupleGetItemPattern : public DFPattern {
  public:
   TVM_DLL TupleGetItemPattern(DFPattern tuple, int index);

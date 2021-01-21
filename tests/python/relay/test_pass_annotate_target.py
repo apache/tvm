@@ -738,8 +738,8 @@ def test_if_free_vars():
         mod = tvm.IRModule.from_expr(func)
         return mod
 
-    for annotate_non_call_ops in [True, False, True]:
-        result = transform.AnnotateTarget(target)(before())
+    for annotate_non_call_ops in [True, False]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
         expected = transform.InferType()(after())
         assert tvm.ir.structural_equal(expected, result)
 
@@ -764,6 +764,27 @@ def test_free_vars_zeros():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_empty_tuple():
+    target = "test_empty_tuple"
+
+    """An empty tuple should behave just like a call with no args (see above test)."""
+
+    def before():
+        func = relay.Function([], relay.Tuple([]))
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    def after():
+        func = relay.Function([], relay.Tuple([]))
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    for annotate_non_call_ops in [True, False]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(before())
+        expected = transform.InferType()(after())
+        assert tvm.ir.structural_equal(expected, result)
+
+
 if __name__ == "__main__":
     test_extern_dnnl()
     test_composite_function()
@@ -780,3 +801,4 @@ if __name__ == "__main__":
     test_double_target()
     test_ends_with_tuple()
     test_ref_create_read_write()
+    test_empty_tuple()

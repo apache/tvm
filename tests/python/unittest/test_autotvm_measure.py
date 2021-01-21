@@ -60,9 +60,21 @@ def test_task_tuner_without_measurement_spawn():
     p.start()
     p.join()
 
+def test_adatune():
+    # Test Adatune with RFEITuner, and set the max_converge_coef as 0.1
+    task, _ = get_sample_task()
+
+    measure_option = autotvm.measure_option(builder=autotvm.LocalBuilder(), runner=autotvm.LocalRunner(number=10, repeat=1, max_converge_coef=0.1))
+
+    logging.info("%s", task.config_space)
+    from tvm.autotvm.tuner import RFEITuner
+    tuner = RFEITuner(task)
+    tuner.tune(n_trial=10, measure_option=measure_option)
+    assert tuner.best_flops > 1
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     test_task_tuner_without_measurement()
     test_task_tuner_without_measurement_spawn()
+    test_adatune()
