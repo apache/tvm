@@ -355,8 +355,6 @@ def test_stable():
     for i in range(repeat):
         grads = te.gradient(R, [X], head=ones)
         new_dag = tvm.auto_scheduler.ComputeDAG(grads)
-        print(dag)
-        print(new_dag)
         assert str(dag) == str(new_dag)
 
 
