@@ -359,6 +359,10 @@ def global_avg_pool2d_grad(orig, grad):
 
 @register_gradient("concatenate")
 def concatenate_grad(orig, grad):
+    """
+    Returns the gradient of concatenate, which is just the downstream gradient
+    split across the inputs.
+    """
     assert len(orig.args) == 1
     t = orig.args[0]
 
@@ -812,18 +816,27 @@ def arange_grad(orig, grad):
 
 @register_gradient("gather_nd")
 def gather_nd_grad(orig, grad):
+    """
+    Returns the gradient of gather_nd, which is simply scatter_nd.
+    """
     data, indices = orig.args
     return [scatter_nd(grad, indices, data.checked_type.concrete_shape), zeros_like(indices)]
 
 
 @register_gradient("reshape_like")
 def reshape_like_grad(orig, grad):
+    """
+    Returns the gradient of reshape_like.
+    """
     data, shape_like = orig.args
     return [reshape_like(grad, data), zeros_like(shape_like)]
 
 
 @register_gradient("where")
 def where_grad(orig, grad):
+    """
+    Returns the gradient of where.
+    """
     cond, x, y = orig.args
     g_zeros = zeros_like(grad)
 
@@ -835,4 +848,7 @@ def where_grad(orig, grad):
 
 @register_gradient("less_equal")
 def less_equal_grad(orig, grad):
+    """
+    Returns the gradient of less_equal.
+    """
     return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
