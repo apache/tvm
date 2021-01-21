@@ -4178,6 +4178,10 @@ def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
 
+def test_forward_isnan():
+    _verify_infiniteness_ops(tf.is_nan, "isnan")
+
+
 def _test_spop_placeholder_without_shape_info():
     with tf.Graph().as_default():
 
