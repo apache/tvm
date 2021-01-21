@@ -1613,13 +1613,18 @@ class OperatorConverter(object):
 
         # Create final output shape.
         final_output = []
+        final_len = len(fshape_indices)
         for gather_index in fshape_indices:
             if gather_index == -1:
                 final_output.append(1)
+                final_len += 1
             elif gather_index == -2:
-                pass
+                final_len -= 1
             else:
                 final_output.append(out_shape[gather_index])
+
+        if final_len == 0:
+            return _op.squeeze(out, axis=tuple(range(len(fshape_indices))))
 
         if not final_output:
             return out

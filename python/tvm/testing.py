@@ -76,6 +76,9 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     compares the `abs(actual-desired)` with `atol+rtol*abs(desired)`.  Since we
     often allow `desired` to be close to zero, we generally want non-zero `atol`.
     """
+    actual = np.asanyarray(actual)
+    desired = np.asanyarray(desired)
+    np.testing.assert_allclose(actual.shape, desired.shape)
     np.testing.assert_allclose(actual, desired, rtol=rtol, atol=atol, verbose=True)
 
 
