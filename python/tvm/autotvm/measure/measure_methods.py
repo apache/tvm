@@ -199,10 +199,10 @@ class RPCRunner(Runner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
-    enable_adaptive_evaluator: bool, optional
+    max_converge_coef: float/None, optional
         Whether to enable adaptive evaluator, which will early stop the evaluation 
         when the coefficient of variation among micro-batches 
-        is smaller than the threshold
+        is smaller than this threshold value. When set none, disable this feature
     """
 
     def __init__(
@@ -218,7 +218,7 @@ class RPCRunner(Runner):
         min_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
-        enable_adaptive_evaluator=False
+        max_converge_coef=None
     ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
@@ -234,7 +234,7 @@ class RPCRunner(Runner):
 
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.cooldown_interval = cooldown_interval
-        self.enable_adaptive_evaluator = enable_adaptive_evaluator
+        self.max_converge_coef = max_converge_coef
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
     def set_task(self, task):
@@ -295,7 +295,7 @@ class RPCRunner(Runner):
                     self.cooldown_interval,
                     remote_args,
                     self.enable_cpu_cache_flush,
-                    self.enable_adaptive_evaluator
+                    self.max_converge_coef
                 )
                 futures.append(ret)
 
@@ -344,10 +344,10 @@ class LocalRunner(RPCRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
-    enable_adaptive_evaluator: bool, optional
+    max_converge_coef: float/None, optional
         Whether to enable adaptive evaluator, which will early stop the evaluation 
         when the coefficient of variation among micro-batches 
-        is smaller than the threshold
+        is smaller than this threshold value. When set none, disable this feature
     Note
     ----
     This is a "fake" local mode. We start a silent rpc tracker and rpc server
@@ -362,7 +362,7 @@ class LocalRunner(RPCRunner):
         min_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
-        enable_adaptive_evaluator=False
+        max_converge_coef=None
     ):
         super(LocalRunner, self).__init__(
             "",
@@ -376,7 +376,7 @@ class LocalRunner(RPCRunner):
             min_repeat_ms=min_repeat_ms,
             cooldown_interval=cooldown_interval,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
-            enable_adaptive_evaluator=enable_adaptive_evaluator
+            max_converge_coef=max_converge_coef
         )
         self.tracker = None
         self.server = None
@@ -493,7 +493,7 @@ def run_through_rpc(
     cooldown_interval,
     remote_args,
     enable_cpu_cache_flush=False,
-    enable_adaptive_evaluator=False
+    max_converge_coef=None
 ):
     """Run a generated library through rpc
 
@@ -529,10 +529,10 @@ def run_through_rpc(
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
-    enable_adaptive_evaluator: bool, optional
+    max_converge_coef: float/None, optional
         Whether to enable adaptive evaluator, which will early stop the evaluation 
         when the coefficient of variation among micro-batches 
-        is smaller than the threshold
+        is smaller than this threshold value. When set none, disable this feature
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -573,9 +573,8 @@ def run_through_rpc(
         ctx.sync()
 
         costs = []
-        if enable_adaptive_evaluator:
+        if max_converge_coef:
             micro_batch_size = 50
-            max_coef_variation = 0.1
             # Partition the evaluation into micro-batches
             cur_number = 0
             batc_pfms = []
@@ -599,7 +598,7 @@ def run_through_rpc(
                 batc_pfms.append(flop/cost)
                 # Calculate the cofficient of variation with current all micro-batches
                 cv = np.std(batc_pfms)/np.mean(batc_pfms)
-                if cur_number>micro_batch_size*2 and cv<max_coef_variation:
+                if cur_number>micro_batch_size*2 and cv<max_converge_coef:
                     break
         else:
             time_f = func.time_evaluator(
