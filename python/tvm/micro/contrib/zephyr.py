@@ -245,6 +245,7 @@ class ZephyrCompiler(tvm.micro.Compiler):
             ZephyrFlasher,
             (self._west_cmd,),
             dict(
+                board=self._board,
                 zephyr_base=self._zephyr_base,
                 project_dir=self._project_dir,
                 subprocess_env=self._subprocess_env.default_overrides,
@@ -294,6 +295,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
     def __init__(
         self,
         west_cmd,
+        board,
         zephyr_base=None,
         project_dir=None,
         subprocess_env=None,
@@ -312,6 +314,7 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         finally:
             sys.path.pop(0)
 
+        self._board = board
         self._zephyr_base = zephyr_base
         self._project_dir = project_dir
         self._west_cmd = west_cmd
@@ -416,6 +419,16 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         build_dir = os.path.dirname(
             micro_binary.abspath(micro_binary.labelled_files["cmake_cache"][0])
         )
+
+        # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
+        if (
+            self._board.startswith("nrf5340dk")
+            and self._get_flash_runner(cmake_entries) == "nrfjprog"
+        ):
+            recover_args = ["nrfjprog", "--recover"]
+            recover_args.extend(self._get_nrf_device_args())
+            self._subprocess_env.run(recover_args, cwd=build_dir)
+
         west_args = (
             self._west_cmd
             + ["flash", "--build-dir", build_dir, "--skip-rebuild"]
