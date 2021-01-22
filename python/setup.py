@@ -22,8 +22,6 @@ import sys
 import sysconfig
 import platform
 
-print("XXX MDW TESTING - TVM SETUP.PY RUNNING")
-
 from setuptools import find_packages
 from setuptools.dist import Distribution
 
