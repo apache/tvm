@@ -47,9 +47,10 @@ __name__ == "__main__":` block.
 import numpy as np
 
 import tvm
-from tvm import relay, auto_scheduler
+from tvm import relay, auto_scheduler, autotvm
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
+from tvm.contrib.utils import tempdir
 
 #################################################################
 # Define a Network
@@ -219,7 +220,7 @@ device_key = "rasp4b-64"
 use_android = False
 
 #### TUNING OPTION ####
-network = "resnet-50"
+network = "mobilenet"
 batch_size = 1
 layout = "NHWC"
 dtype = "float32"
@@ -270,7 +271,11 @@ def run_tuning():
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
-        runner=auto_scheduler.LocalRunner(repeat=10, enable_cpu_cache_flush=True),
+        runner=auto_scheduler.RPCRunner(
+            device_key, host='0.0.0.0', port=9191,
+            timeout=30,
+            repeat=10,
+            enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
 
@@ -280,7 +285,7 @@ def run_tuning():
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-run_tuning()
+# run_tuning()
 
 
 ######################################################################
@@ -365,9 +370,26 @@ with auto_scheduler.ApplyHistoryBest(log_file):
     with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
         lib = relay.build(mod, target=target, params=params)
 
+# Export library
+tmp = tempdir()
+if use_android:
+    from tvm.contrib import ndk
+
+    filename = "net.so"
+    lib.export_library(tmp.relpath(filename), ndk.create_shared)
+else:
+    filename = "net.tar"
+    lib.export_library(tmp.relpath(filename))
+
+# Upload module to device
+print("Upload...")
+remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
+remote.upload(tmp.relpath(filename))
+rlib = remote.load_module(filename)
+
 # Create graph runtime
-ctx = tvm.context(str(target), 0)
-module = graph_runtime.GraphModule(lib["default"](ctx))
+ctx = remote.cpu()
+module = graph_runtime.GraphModule(rlib["default"](ctx))
 data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
 module.set_input("data", data_tvm)
 
