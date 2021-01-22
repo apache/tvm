@@ -149,13 +149,13 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=kraken --port=9190
+#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is
 #
 # .. code-block:: bash
 #
-#   INFO:RPCTracker:bind to kraken:9190
+#   INFO:RPCTracker:bind to 0.0.0.0:9190
 
 #################################################################
 # Register Devices to RPC Tracker
@@ -183,7 +183,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=kraken --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 4B with 64bit OS, and 2 rk3399,
 # the output can be
@@ -275,7 +275,7 @@ def run_tuning():
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.RPCRunner(
-            device_key, host='kraken', port=9191,
+            device_key, host='0.0.0.0', port=9191,
             timeout=30,
             repeat=1, min_repeat_ms=200,
             enable_cpu_cache_flush=True),
@@ -380,7 +380,7 @@ def compile_and_run():
 
     # Upload module to device
     print("Upload...")
-    remote = auto_scheduler.utils.request_remote(device_key, "kraken", 9191, timeout=10000)
+    remote = auto_scheduler.utils.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
     remote.upload(tmp.relpath(filename))
     rlib = remote.load_module(filename)
 
@@ -399,7 +399,7 @@ def compile_and_run():
 # We do not run the model because it requests a resource from a tracker which won't run in CI.
 # Uncomment below to build and execute the model.
 
-compile_and_run()
+# compile_and_run()
 
 
 #################################################################
