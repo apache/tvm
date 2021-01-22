@@ -235,6 +235,7 @@ def elemwise_shape_func(attrs, inputs, _):
 
 register_shape_func("cast", False, elemwise_shape_func)
 register_shape_func("cast_like", False, elemwise_shape_func)
+register_shape_func("round", False, elemwise_shape_func)
 register_shape_func("zeros", False, no_data_full_shape_func)
 register_shape_func("zeros_like", False, elemwise_shape_func)
 register_shape_func("ones", False, no_data_full_shape_func)
