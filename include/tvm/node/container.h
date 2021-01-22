@@ -1455,7 +1455,7 @@ struct ObjectTypeChecker<Array<T>> {
     const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
     for (size_t i = 0; i < n->size(); i++) {
       const ObjectRef& p = (*n)[i];
-      auto check_subtype = ObjectTypeChecker<T>::Check(p.get());
+      auto check_subtype = ObjectTypeChecker<T>::Mismatch(p.get());
       if (static_cast<bool>(check_subtype)) {
         return Optional<String>("Array[index " + std::to_string(i) + ": " + check_subtype.value() +
                                 "]");
@@ -1473,8 +1473,8 @@ struct ObjectTypeChecker<Map<K, V>> {
     if (!ptr->IsInstance<MapNode>()) return Optional<String>(ptr->GetTypeKey());
     const MapNode* n = static_cast<const MapNode*>(ptr);
     for (const auto& kv : *n) {
-      Optional<String> key_type = ObjectTypeChecker<K>::Check(kv.first.get());
-      Optional<String> value_type = ObjectTypeChecker<K>::Check(kv.first.get());
+      Optional<String> key_type = ObjectTypeChecker<K>::Mismatch(kv.first.get());
+      Optional<String> value_type = ObjectTypeChecker<K>::Mismatch(kv.first.get());
       if (static_cast<bool>(key_type) || static_cast<bool>(value_type)) {
         std::string key_name = static_cast<bool>(key_type) ? std::string(key_type.value())
                                                            : ObjectTypeChecker<K>::TypeName();

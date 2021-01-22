@@ -385,7 +385,7 @@ struct ObjectTypeChecker {
    * \return An Optional containing the actual type of the pointer if it does not match the
    *         template type. If the Optional does not contain a value, then the types match.
    */
-  static Optional<String> Mistmatch(const Object* ptr) {
+  static Optional<String> Mismatch(const Object* ptr) {
     using ContainerType = typename T::ContainerType;
     if (ptr == nullptr) {
       if (T::_type_is_nullable) {

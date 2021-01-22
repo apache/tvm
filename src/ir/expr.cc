@@ -49,7 +49,7 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   if (auto* ptr = ref.as<runtime::StringObj>()) {
     return tir::StringImm(GetRef<runtime::String>(ptr));
   }
-  ICHECK(ObjectTypeChecker<PrimExpr>::Check(ref.get()))
+  ICHECK(!static_cast<bool>(ObjectTypeChecker<PrimExpr>::Mismatch(ref.get())))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName() << " but get "
       << ref->GetTypeKey();
   return Downcast<PrimExpr>(ref);
