@@ -277,8 +277,10 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
     }
 
     void VisitDFPattern_(const TuplePatternNode* op, NodePtr parent) override {
-      for (auto field : op->fields) {
-        VisitDFPattern(field, graph_.node_map_[GetRef<DFPattern>(op)]);
+      if (op->fields.defined()) {
+        for (auto field : op->fields) {
+          VisitDFPattern(field, graph_.node_map_[GetRef<DFPattern>(op)]);
+        }
       }
     }
 
