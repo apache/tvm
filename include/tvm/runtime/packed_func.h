@@ -223,7 +223,7 @@ class TypedPackedFunc<R(Args...)> {
    * \code
    * auto typed_lambda = [](int x)->int { return x + 1; }
    * // construct from packed function
-   * TypedPackedFunc<int(int)> ftyped(typed_lambda);
+   * TypedPackedFunc<int(int)> ftyped(typed_lambda, "add_one");
    * // call the typed version.
    * ICHECK_EQ(ftyped(1), 2);
    * \endcode
@@ -234,8 +234,31 @@ class TypedPackedFunc<R(Args...)> {
    */
   template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
                                   FLambda, std::function<R(Args...)>>::value>::type>
-  TypedPackedFunc(const FLambda& typed_lambda, std::string name = "<anonymous>") {  // NOLINT(*)
+  TypedPackedFunc(const FLambda& typed_lambda, std::string name) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda, name);
+  }
+  /*!
+   * \brief construct from a lambda function with the same signature.
+   *
+   * This version does not take a name. It is highly recommend you use the
+   * version that takes a name for the lambda.
+   *
+   * Example usage:
+   * \code
+   * auto typed_lambda = [](int x)->int { return x + 1; }
+   * // construct from packed function
+   * TypedPackedFunc<int(int)> ftyped(typed_lambda);
+   * // call the typed version.
+   * ICHECK_EQ(ftyped(1), 2);
+   * \endcode
+   *
+   * \param typed_lambda typed lambda function.
+   * \tparam FLambda the type of the lambda function.
+   */
+  template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
+                                  FLambda, std::function<R(Args...)>>::value>::type>
+  TypedPackedFunc(const FLambda& typed_lambda) {  // NOLINT(*)
+    this->AssignTypedLambda(typed_lambda);
   }
   /*!
    * \brief copy assignment operator from typed lambda
@@ -1303,8 +1326,10 @@ struct unpack_call_dispatcher<void, 0, index, F> {
 template <typename R, int nargs, typename F>
 TVM_ALWAYS_INLINE void unpack_call(const std::string* optional_name, const F& f,
                                    const TVMArgs& args, TVMRetValue* rv) {
-  CHECK_EQ(nargs, args.size()) << (optional_name == nullptr ? "<anonymous>" : *optional_name)
-                               << " expected " << nargs << " arguments but got " << args.size();
+  CHECK_EQ(nargs, args.size()) << "Function "
+                               << (optional_name == nullptr ? "<anonymous>" : *optional_name)
+                               << " expects " << nargs << " arguments but " << args.size()
+                               << " were provided";
   unpack_call_dispatcher<R, nargs, 0, F>::run(optional_name, f, args, rv);
 }
 
