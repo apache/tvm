@@ -150,8 +150,10 @@ class NormalizeComparisons : public ExprMutator {
 
 void AddInequality(std::vector<PrimExpr>* inequality_set,
                    const PrimExpr& new_ineq, Analyzer* analyzer) {
-  if (analyzer->CanProve(new_ineq) || std::find(
-      inequality_set->begin(), inequality_set->end(), new_ineq) != inequality_set->end()) {
+  if (std::find(inequality_set->begin(), inequality_set->end(), new_ineq) != inequality_set->end()) {
+    return;
+  }
+  if (analyzer->CanProve(new_ineq)) {
     // redundant: follows from the vranges
     // or has already been added
     return;
