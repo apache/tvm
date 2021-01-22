@@ -130,6 +130,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 
     return mod, params, input_shape, output_shape
 
+
 #################################################################
 # Start RPC Tracker
 # -----------------
