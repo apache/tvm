@@ -212,7 +212,8 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 
 # Replace "aarch64-linux-gnu" with the correct target of your board.
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target = tvm.target.arm_cpu("rasp4b64")
+# We leave '-device=arm_cpu' out because we're using x86 op strategy.
+target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 
 # Also replace this with the device key in your tracker
 device_key = "rasp4b-64"
@@ -275,7 +276,7 @@ def run_tuning():
         runner=auto_scheduler.RPCRunner(
             device_key, host='0.0.0.0', port=9191,
             timeout=30,
-            repeat=10,
+            repeat=1, min_repeat_ms=200,
             enable_cpu_cache_flush=True),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
