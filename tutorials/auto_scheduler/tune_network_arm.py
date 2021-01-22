@@ -169,7 +169,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #
 #   .. code-block:: bash
 #
-#     python -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=rk3399
+#     python -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=rasp4b-64
 #
 #   (replace :code:`[HOST_IP]` with the IP address of your host machine)
 #
@@ -185,7 +185,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #
 #   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
-# For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 3B and 2 rk3399,
+# For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 4B with 64bit OS, and 2 rk3399,
 # the output can be
 #
 # .. code-block:: bash
@@ -196,7 +196,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #    ----------------------------------
 #    mate10pro    2      2     0
 #    rk3399       2      2     0
-#    rpi3b        11     11    0
+#    rasp4b-64    11     11    0
 #    ----------------------------------
 #
 # You can register multiple devices to the tracker to accelerate the measurement in tuning.
@@ -204,8 +204,9 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 ###########################################
 # Set Tuning Options
 # ------------------
-# Before tuning, we should apply some configurations. Here I use a Raspberry Pi 3b 4GB board
-# as example. In your setting, you should modify the target and device_key accordingly.
+# Before tuning, we should apply some configurations. Here I use a Raspberry Pi 4b 4GB board
+# as example with a 64bit OS (Ubuntu 20.04). In your setting, you should modify the target
+# and device_key accordingly.
 # set :code:`use_android` to True if you use android phone.
 
 #### DEVICE CONFIG ####
