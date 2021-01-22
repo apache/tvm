@@ -132,7 +132,7 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
     # patch file for libbacktrace
-    "cmake/modules/libbacktrace_macos.patch"
+    "cmake/modules/libbacktrace_macos.patch",
 }
 
 
