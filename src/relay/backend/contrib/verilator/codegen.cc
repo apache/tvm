@@ -43,6 +43,7 @@ namespace contrib {
 
 using namespace backend;
 
+/*! \brief Verilator JSON serializer */
 class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
   using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
   using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
@@ -74,6 +75,24 @@ class VerilatorJSONSerializer : public backend::contrib::JSONSerializer {
   }
 };
 
+/*! \brief Attributes to store the compiler options for Verilator */
+struct VerilatorCompilerConfigNode : public tvm::AttrsNode<VerilatorCompilerConfigNode> {
+  String lib;
+
+  TVM_DECLARE_ATTRS(VerilatorCompilerConfigNode, "ext.attrs.VerilatorCompilerConfigNode") {
+    TVM_ATTR_FIELD(lib).set_default("libverilator.so");
+  }
+};
+
+class VerilatorCompilerConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VerilatorCompilerConfig, Attrs,
+                                            VerilatorCompilerConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(VerilatorCompilerConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.verilator.options", VerilatorCompilerConfig);
+
 /*!
  * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
@@ -87,9 +106,18 @@ runtime::Module VerilatorCompiler(const ObjectRef& ref) {
   std::string graph_json = serializer.GetJSON();
   auto params = serializer.GetParams();
 
+  // Get Verilator compiler options
+  auto ctx = transform::PassContext::Current();
+  auto cfg = ctx->GetConfig<VerilatorCompilerConfig>("relay.ext.verilator.options");
+  if (!cfg.defined()) {
+    cfg = AttrsWithDefaultValues<VerilatorCompilerConfig>();
+  }
+
+  auto lib_name = cfg.value()->lib;
+
   const auto* pf = runtime::Registry::Get("runtime.VerilatorJSONRuntimeCreate");
   CHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
-  auto mod = (*pf)(func_name, graph_json, params);
+  auto mod = (*pf)(lib_name, func_name, graph_json, params);
   return mod;
 }
 

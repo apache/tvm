@@ -120,6 +120,7 @@ def test_any_elemwise():
     verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
     verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
     verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
+    verify_any_elemwise((relay.Any(),), (3,), relay.round, np.round)
 
 
 @tvm.testing.uses_gpu
