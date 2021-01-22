@@ -1449,31 +1449,41 @@ namespace runtime {
 // Additional overloads for PackedFunc checking.
 template <typename T>
 struct ObjectTypeChecker<Array<T>> {
-  static bool Check(const Object* ptr) {
-    if (ptr == nullptr) return true;
-    if (!ptr->IsInstance<ArrayNode>()) return false;
+  static Optional<String> Mismatch(const Object* ptr) {
+    if (ptr == nullptr) return Optional<String>();
+    if (!ptr->IsInstance<ArrayNode>()) return Optional<String>(ptr->GetTypeKey());
     const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
-    for (const ObjectRef& p : *n) {
-      if (!ObjectTypeChecker<T>::Check(p.get())) {
-        return false;
+    for (size_t i = 0; i < n->size(); i++) {
+      const ObjectRef& p = (*n)[i];
+      auto check_subtype = ObjectTypeChecker<T>::Check(p.get());
+      if (static_cast<bool>(check_subtype)) {
+        return Optional<String>("Array[index " + std::to_string(i) + ": " + check_subtype.value() +
+                                "]");
       }
     }
-    return true;
+    return Optional<String>();
   }
   static std::string TypeName() { return "Array[" + ObjectTypeChecker<T>::TypeName() + "]"; }
 };
 
 template <typename K, typename V>
 struct ObjectTypeChecker<Map<K, V>> {
-  static bool Check(const Object* ptr) {
-    if (ptr == nullptr) return true;
-    if (!ptr->IsInstance<MapNode>()) return false;
+  static Optional<String> Mismatch(const Object* ptr) {
+    if (ptr == nullptr) return Optional<String>();
+    if (!ptr->IsInstance<MapNode>()) return Optional<String>(ptr->GetTypeKey());
     const MapNode* n = static_cast<const MapNode*>(ptr);
     for (const auto& kv : *n) {
-      if (!ObjectTypeChecker<K>::Check(kv.first.get())) return false;
-      if (!ObjectTypeChecker<V>::Check(kv.second.get())) return false;
+      Optional<String> key_type = ObjectTypeChecker<K>::Check(kv.first.get());
+      Optional<String> value_type = ObjectTypeChecker<K>::Check(kv.first.get());
+      if (static_cast<bool>(key_type) || static_cast<bool>(value_type)) {
+        std::string key_name = static_cast<bool>(key_type) ? std::string(key_type.value())
+                                                           : ObjectTypeChecker<K>::TypeName();
+        std::string value_name = static_cast<bool>(value_type) ? std::string(value_type.value())
+                                                               : ObjectTypeChecker<V>::TypeName();
+        return Optional<String>("Map[" + key_name + ", " + value_name + "]");
+      }
     }
-    return true;
+    return Optional<String>();
   }
   static std::string TypeName() {
     return "Map[" + ObjectTypeChecker<K>::TypeName() + ", " + ObjectTypeChecker<V>::TypeName() +
