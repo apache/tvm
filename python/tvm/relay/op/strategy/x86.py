@@ -304,7 +304,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
         # or packed layouts.
         if layout == "NCDHW":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ncdhw, need_auto_scheduler_layout=True),
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
                 naive_schedule,
                 name="conv3d_ncdhw.x86",
             )
