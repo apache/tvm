@@ -95,8 +95,8 @@ struct ExprLess {
 };
 
 void DebugPrint(
-    const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& current_ineq_set,
-    const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& next_ineq_set,
+    const std::vector<PrimExpr>& current_ineq_set,
+    const std::vector<PrimExpr>& next_ineq_set,
     const std::vector<PrimExpr>& rest, const std::vector<std::pair<int64_t, PrimExpr>>& coef_pos,
     const std::vector<std::pair<int64_t, PrimExpr>>& coef_neg) {
   std::cout << "Current ineq set:\n[";
@@ -148,9 +148,10 @@ class NormalizeComparisons : public ExprMutator {
   arith::Analyzer analyzer_;
 };
 
-void AddInequality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>* inequality_set,
+void AddInequality(std::vector<PrimExpr>* inequality_set,
                    const PrimExpr& new_ineq, Analyzer* analyzer) {
-  if (analyzer->CanProve(new_ineq) || inequality_set->find(new_ineq) != inequality_set->end()) {
+  if (analyzer->CanProve(new_ineq) || std::find(
+      inequality_set->begin(), inequality_set->end(), new_ineq) != inequality_set->end()) {
     // redundant: follows from the vranges
     // or has already been added
     return;
@@ -168,13 +169,13 @@ void AddInequality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>
     }
   }
 
-  inequality_set->insert(new_ineq);
+  inequality_set->push_back(new_ineq);
 }
 
 void ClassifyByPolarity(
     const Var& var,
-    const std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>& current_ineq_set,
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>* next_ineq_set,
+    const std::vector<PrimExpr>& current_ineq_set,
+    std::vector<PrimExpr>* next_ineq_set,
     std::vector<PrimExpr>* rest, std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
     std::vector<std::pair<int64_t, PrimExpr>>* coef_neg, Analyzer* analyzer) {
   // Take formulas from current_ineq_set and classify them according to polarity wrt var
@@ -218,14 +219,14 @@ void ClassifyByPolarity(
   }
 }
 
-void MoveEquality(std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>* upper_bounds,
-                  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>* lower_bounds,
-                  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual>* equalities) {
+void MoveEquality(std::vector<PrimExpr>* upper_bounds,
+                  std::vector<PrimExpr>* lower_bounds,
+                  std::vector<PrimExpr>* equalities) {
   // those exist in both upper & lower bounds will be moved to equalities
   for (auto ub = upper_bounds->begin(); ub != upper_bounds->end();) {
-    auto lb = lower_bounds->find(*ub);
+    auto lb = std::find(lower_bounds->begin(), lower_bounds->end(), *ub);
     if (lb != lower_bounds->end()) {
-      equalities->insert(*lb);
+      equalities->push_back(*lb);
       lower_bounds->erase(lb);
       ub = upper_bounds->erase(ub);
     } else {
@@ -249,8 +250,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   //   and move to the next variable.
 
   // normalized inequality
-  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> current_ineq_set_to_solve;
-  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> next_ineq_set_to_solve;
+  std::vector<PrimExpr> current_ineq_set_to_solve;
+  std::vector<PrimExpr> next_ineq_set_to_solve;
   // A vector of pairs (c, e), c > 0, representing formulas of the form c*v + e <= 0
   std::vector<std::pair<int64_t, PrimExpr>> coef_pos;
   // A vector of pairs (c, e), c < 0, representing formulas of the form c*v + e <= 0
@@ -321,8 +322,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     }
 
     // The resulting lower and upper bounds
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> upper_bounds;
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> lower_bounds;
+    std::vector<PrimExpr> upper_bounds;
+    std::vector<PrimExpr> lower_bounds;
     upper_bounds.reserve(coef_pos.size());
     lower_bounds.reserve(coef_neg.size());
 
@@ -345,7 +346,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         }
       }
       // Add the upper bound
-      upper_bounds.insert(bound);
+      upper_bounds.push_back(bound);
     }
     for (const auto& neg : coef_neg) {
       PrimExpr bound = make_const(v.dtype(), -coef_lcm / neg.first) * neg.second;
@@ -366,10 +367,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         }
       }
       // Add the lower bound
-      lower_bounds.insert(bound);
+      lower_bounds.push_back(bound);
     }
 
-    std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> equal;
+    std::vector<PrimExpr> equal;
     equal.reserve(std::min(upper_bounds.size(), lower_bounds.size()));
     MoveEquality(&upper_bounds, &lower_bounds, &equal);
     std::vector<PrimExpr> equal_list(equal.begin(), equal.end());
