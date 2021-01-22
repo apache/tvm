@@ -47,7 +47,7 @@ __name__ == "__main__":` block.
 import numpy as np
 
 import tvm
-from tvm import relay, auto_scheduler, autotvm
+from tvm import relay, auto_scheduler
 import tvm.relay.testing
 from tvm.contrib import graph_runtime
 from tvm.contrib.utils import tempdir
@@ -149,13 +149,13 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
+#   python -m tvm.exec.rpc_tracker --host=kraken --port=9190
 #
 # The expected output is
 #
 # .. code-block:: bash
 #
-#   INFO:RPCTracker:bind to 0.0.0.0:9190
+#   INFO:RPCTracker:bind to kraken:9190
 
 #################################################################
 # Register Devices to RPC Tracker
@@ -183,7 +183,7 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=kraken --port=9190
 #
 # For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 4B with 64bit OS, and 2 rk3399,
 # the output can be
@@ -275,7 +275,7 @@ def run_tuning():
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.RPCRunner(
-            device_key, host='0.0.0.0', port=9191,
+            device_key, host='kraken', port=9191,
             timeout=30,
             repeat=1, min_repeat_ms=200,
             enable_cpu_cache_flush=True),
@@ -300,42 +300,35 @@ def run_tuning():
 #
 #   .. code-block:: c
 #
-#     ----------------------------------------------------------------------
-#     ------------------------------  [ Task Scheduler ]
-#     ----------------------------------------------------------------------
-#     |  ID  | Latency (ms) | Speed (GFLOPS) | Trials |
-#     -------------------------------------------------
-#     |    0 |        0.010 |           0.40 |     64 |
-#     |    1 |        0.087 |          47.19 |     64 |
-#     |    2 |        0.008 |          -0.00 |     64 |
-#     |    3 |        0.177 |         582.07 |     64 |
-#     |    4 |        0.268 |         862.37 |    256 |
-#     |    5 |        0.166 |         621.13 |    128 |
-#     |    6 |        0.170 |         605.10 |    128 |
-#     |    7 |        0.128 |         403.20 |     64 |
-#     |    8 |        0.189 |         545.71 |     64 |
-#     |    9 |        0.231 |        1001.01 |    448 |
-#     |   10 |        0.155 |         664.80 |    256 |
-#     |   11 |        0.155 |         662.86 |    256 |
-#     |   12 |        0.119 |         434.08 |     64 |
-#     |   13 |        0.199 |         522.13 |     64 |
-#     |   14 |        0.235 |         986.56 |    320 |
-#     |   15 |        0.149 |         689.13 |    128 |
-#     |   16 |        0.155 |         664.80 |    192 |
-#     |   17 |        0.151 |         340.64 |     64 |
-#     |   18 |        0.176 |         597.55 |    128 |
-#     |   19 |        0.220 |        1054.37 |    192 |
-#     |   20 |        0.150 |         686.01 |    128 |
-#     |   21 |        0.159 |         650.88 |    128 |
-#     |   22 |        0.073 |         358.19 |     64 |
-#     |   23 |        0.031 |          70.63 |     64 |
-#     |   24 |        0.251 |         947.73 |    128 |
-#     |   25 |        0.157 |         652.47 |    128 |
-#     |   26 |        0.215 |         954.84 |    128 |
-#     |   27 |        0.237 |         868.92 |    128 |
-#     |   28 |        0.266 |         774.06 |    128 |
-#     -------------------------------------------------
-#     Estimated total latency: 10.016 ms      Trials: 3992    Used time : 1131 s      Next ID: 15
+#    ----------------------------------------------------------------------
+#    ------------------------------  [ Task Scheduler ]
+#    ----------------------------------------------------------------------
+#    |  ID  | Latency (ms) | Speed (GFLOPS) | Trials |
+#    -------------------------------------------------
+#    |    0 |        0.080 |           0.05 |      9 |
+#    |    1 |        1.059 |           1.94 |      9 |
+#    |    2 |        0.052 |          -0.00 |      9 |
+#    |    3 |        9.418 |          10.92 |      9 |
+#    |    4 |            - |              - |      9 |
+#    |    5 |        3.525 |          14.60 |      9 |
+#    |    6 |            - |              - |      9 |
+#    |    7 |        6.966 |          14.78 |      9 |
+#    |    8 |        0.296 |           6.78 |      9 |
+#    |    9 |        2.803 |          18.40 |      9 |
+#    |   10 |            - |              - |      9 |
+#    |   11 |        3.820 |          27.01 |      9 |
+#    |   12 |        0.839 |           4.79 |      9 |
+#    |   13 |        2.029 |          25.53 |      9 |
+#    |   14 |        0.690 |           2.91 |      9 |
+#    |   15 |        5.097 |          20.32 |      9 |
+#    |   16 |        1.632 |           4.92 |      9 |
+#    |   17 |        3.120 |          16.72 |      9 |
+#    |   18 |        2.376 |           1.69 |      9 |
+#    |   19 |        6.731 |           7.87 |      9 |
+#    |   20 |        1.913 |           4.20 |      9 |
+#    |   21 |        2.605 |           8.78 |      9 |
+#    -------------------------------------------------
+#     Estimated total latency: - ms   Trials: 198     Used time : 4946 s      Next ID: 4
 #
 #   This table lists the latency and (estimated) speed of all tasks.
 #   It also lists the allocation of measurement trials for all tasks.
@@ -387,7 +380,7 @@ def compile_and_run():
 
     # Upload module to device
     print("Upload...")
-    remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
+    remote = auto_scheduler.utils.request_remote(device_key, "kraken", 9191, timeout=10000)
     remote.upload(tmp.relpath(filename))
     rlib = remote.load_module(filename)
 
@@ -406,7 +399,7 @@ def compile_and_run():
 # We do not run the model because it requests a resource from a tracker which won't run in CI.
 # Uncomment below to build and execute the model.
 
-# compile_and_run()
+compile_and_run()
 
 
 #################################################################
