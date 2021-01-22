@@ -275,10 +275,14 @@ def run_tuning():
     tune_option = auto_scheduler.TuningOptions(
         num_measure_trials=200,  # change this to 20000 to achieve the best performance
         runner=auto_scheduler.RPCRunner(
-            device_key, host='0.0.0.0', port=9191,
+            device_key,
+            host="0.0.0.0",
+            port=9191,
             timeout=30,
-            repeat=1, min_repeat_ms=200,
-            enable_cpu_cache_flush=True),
+            repeat=1,
+            min_repeat_ms=200,
+            enable_cpu_cache_flush=True,
+        ),
         measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
     )
 
@@ -360,11 +364,14 @@ def run_tuning():
 # All measurement records are dumped into the log file during auto-tuning,
 # so we can read the log file and load the best schedules.
 
+
 def compile_and_run():
     # Compile with the history best
     print("Compile...")
     with auto_scheduler.ApplyHistoryBest(log_file):
-        with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
+        with tvm.transform.PassContext(
+            opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+        ):
             lib = relay.build(mod, target=target, params=params)
 
     # Export library
@@ -394,7 +401,10 @@ def compile_and_run():
     print("Evaluate inference time cost...")
     ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
     prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-    print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
+    print(
+        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
+    )
+
 
 # We do not run the model because it requests a resource from a tracker which won't run in CI.
 # Uncomment below to build and execute the model.
