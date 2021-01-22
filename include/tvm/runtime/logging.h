@@ -277,7 +277,7 @@ inline bool DebugLoggingEnabled() {
 #define CHECK_NE(x, y) TVM_CHECK_BINARY_OP(_NE, !=, x, y)
 #define CHECK_NOTNULL(x)                                                                          \
   ((x) == nullptr ? ::tvm::LogFatal(__FILE__, __LINE__).stream() << "Check not null: " #x << ' ', \
-   (x)            : (x))  // NOLINT(*)
+   (x) : (x))  // NOLINT(*)
 
 #define LOG_IF(severity, condition) \
   !(condition) ? (void)0 : ::tvm::LogMessageVoidify() & LOG(severity)
@@ -333,6 +333,13 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 
 #define TVM_ICHECK_INDENT "  "
 
+#ifdef _WIN32
+#define ICHECK_BINARY_OP(name, op, x, y)                 \
+  if (!((x)op(y)))                                       \
+  ::tvm::LogFatal(__FILE__, __LINE__).stream()           \
+      << ::tvm::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
+      << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
+#else
 #define ICHECK_BINARY_OP(name, op, x, y)                                        \
   _Pragma("GCC diagnostic push")                                                \
           _Pragma("GCC diagnostic ignored \"-Wsign-compare\"") if (!((x)op(y))) \
@@ -340,6 +347,7 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
                   .stream()                                                     \
       << ::tvm::kTVM_INTERNAL_ERROR_MESSAGE << std::endl                        \
       << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
+#endif
 
 #define ICHECK(x)                                                                       \
   if (!(x))                                                                             \

@@ -143,6 +143,8 @@ if(MSVC)
   add_compile_options(/wd4146)
   # 'inline': used more than once
   add_compile_options(/wd4141)
+  # unknown pragma
+  add_compile_options(/wd4068)
 else(MSVC)
   set(WARNING_FLAG -Wall)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
