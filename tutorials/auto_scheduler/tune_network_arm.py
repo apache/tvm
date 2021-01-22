@@ -367,40 +367,46 @@ def run_tuning():
 # All measurement records are dumped into the log file during auto-tuning,
 # so we can read the log file and load the best schedules.
 
-# Compile with the history best
-print("Compile...")
-with auto_scheduler.ApplyHistoryBest(log_file):
-    with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
-        lib = relay.build(mod, target=target, params=params)
+def compile_and_run():
+    # Compile with the history best
+    print("Compile...")
+    with auto_scheduler.ApplyHistoryBest(log_file):
+        with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
+            lib = relay.build(mod, target=target, params=params)
 
-# Export library
-tmp = tempdir()
-if use_android:
-    from tvm.contrib import ndk
+    # Export library
+    tmp = tempdir()
+    if use_android:
+        from tvm.contrib import ndk
 
-    filename = "net.so"
-    lib.export_library(tmp.relpath(filename), ndk.create_shared)
-else:
-    filename = "net.tar"
-    lib.export_library(tmp.relpath(filename))
+        filename = "net.so"
+        lib.export_library(tmp.relpath(filename), ndk.create_shared)
+    else:
+        filename = "net.tar"
+        lib.export_library(tmp.relpath(filename))
 
-# Upload module to device
-print("Upload...")
-remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
-remote.upload(tmp.relpath(filename))
-rlib = remote.load_module(filename)
+    # Upload module to device
+    print("Upload...")
+    remote = autotvm.measure.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
+    remote.upload(tmp.relpath(filename))
+    rlib = remote.load_module(filename)
 
-# Create graph runtime
-ctx = remote.cpu()
-module = graph_runtime.GraphModule(rlib["default"](ctx))
-data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
-module.set_input("data", data_tvm)
+    # Create graph runtime
+    ctx = remote.cpu()
+    module = graph_runtime.GraphModule(rlib["default"](ctx))
+    data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
+    module.set_input("data", data_tvm)
 
-# Evaluate
-print("Evaluate inference time cost...")
-ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
-prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
+    # Evaluate
+    print("Evaluate inference time cost...")
+    ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+    prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
+    print("Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res)))
+
+# We do not run the model because it requests a resource from a tracker which won't run in CI.
+# Uncomment below to build and execute the model.
+
+# compile_and_run()
 
 
 #################################################################
