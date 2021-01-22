@@ -162,9 +162,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   // Perform unification on two types and report the error at the expression
   // or the span of the expression.
-  Type Unify(const Type& t1, const Type& t2, const Span& span) {
+  Type Unify(const Type& t1, const Type& t2, const Span& span, bool assign_lhs = true,
+             bool assign_rhs = true) {
     try {
-      return solver_.Unify(t1, t2, span);
+      return solver_.Unify(t1, t2, span, assign_lhs, assign_rhs);
     } catch (const dmlc::Error& e) {
       this->EmitFatal(Diagnostic::Error(span)
                       << "Error unifying `" << t1 << "` and `" << t2 << "`: " << e.what());
@@ -495,7 +496,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
 
     for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-      this->Unify(fn_ty->arg_types[i], arg_types[i], call->span);
+      this->Unify(fn_ty->arg_types[i], arg_types[i], call->span, true, false);
     }
 
     for (auto cs : fn_ty->type_constraints) {
@@ -526,6 +527,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       }
     }
 
+    solver_.Solve();
     return GeneralCall(call, arg_types);
   }
 
@@ -572,9 +574,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return FuncType(c->inputs, TypeCall(c->belong_to, types), td->type_vars, {});
   }
 
-  void Solve() {
-    solver_.Solve();
-  }
+  void Solve() { solver_.Solve(); }
 };
 
 class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
