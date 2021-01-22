@@ -78,12 +78,25 @@ def schedule_dense_small_batch(cfg, outs):
 
 def _schedule_dense_small_batch(cfg, s, C):
     A, weights = C.op.input_tensors
-    _, in_dim = get_const_tuple(weights.shape)
-    cfg.define_split("tile_k", in_dim, num_outputs=2)
-    if cfg.is_fallback:
-        cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
+    _, in_dim_weights = get_const_tuple(weights.shape)
+    _, in_dim_A = get_const_tuple(A.shape)
 
-    _, kf = cfg["tile_k"].apply(s, C, C.op.reduce_axis[0])
+    if isinstance(in_dim_A, int):
+        in_dim = in_dim_A
+    elif isinstance(in_dim_weights, int):
+        in_dim = in_dim_weights
+    else:
+        in_dim = None
+
+    if in_dim != None:
+        cfg.define_split("tile_k", in_dim, num_outputs=2)
+        if cfg.is_fallback:
+            cfg["tile_k"] = SplitEntity([-1, 64] if in_dim > 64 else [1, 64])
+        _, kf = cfg["tile_k"].apply(s, C, C.op.reduce_axis[0])
+    else:
+        tile_k = 64
+        _, kf = s[C].split(C.op.reduce_axis[0], tile_k)
+
     CF = s.rfactor(C, kf)
 
     if C.op in s.outputs:
@@ -100,6 +113,7 @@ def _schedule_dense_small_batch(cfg, s, C):
     s[CF].compute_at(s[C], tx)
     s[C].set_store_predicate(thread_x.var.equal(0))
     s[Out].set_store_predicate(thread_x.var.equal(0))
+
 
 
 @autotvm.register_topi_compute("dense_large_batch.cuda")
