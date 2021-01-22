@@ -76,8 +76,10 @@ void DFPatternVisitor::VisitDFPattern_(const TupleGetItemPatternNode* op) {
 }
 
 void DFPatternVisitor::VisitDFPattern_(const TuplePatternNode* op) {
-  for (auto field : op->fields) {
-    VisitDFPattern(field);
+  if (op->fields.defined()) {
+    for (auto field : op->fields) {
+      VisitDFPattern(field);
+    }
   }
 }
 
