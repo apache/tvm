@@ -281,6 +281,7 @@ class PostNMSTopKRewrite(DFPatternCallback):
 
 
 def scatter_roi_align_result_pattern(levels, rois, per_level_features, scatter_res, num_scales):
+    """TODO"""
     def do_where(levels, _):
         idx_in_level = is_op("argwhere")(is_op("equal")(levels, is_constant()))
         idx_in_level = is_op("split")(idx_in_level)
@@ -319,10 +320,12 @@ def scatter_roi_align_result_pattern(levels, rois, per_level_features, scatter_r
 class ScatterRewrite(DFPatternCallback):
     def __init__(self, num_scales):
         super().__init__()
+        self.num_scales = num_scales
         self.levels = wildcard()
         self.rois = wildcard()
         self.scatter_res = wildcard()
         self.per_level_features = []
+        self.roi_align_attrs = []
         for _ in range(num_scales):
             self.per_level_features.append(wildcard())
 
@@ -330,11 +333,46 @@ class ScatterRewrite(DFPatternCallback):
             self.levels, self.rois, self.per_level_features, self.scatter_res, num_scales
         )
 
+    def convert_scatter_to_gather(self, levels, rois, per_level_features):
+        indices_per_level = []
+        roi_align_results_per_level = []
+        for i in range(self.num_scales):
+            """
+            %1269 = equal(%1268, i);
+            %1270 = argwhere(%1269);
+            %1271 = split(%1270, indices_or_sections=1, axis=1);
+            %1272 = %1271.0;
+            %1273 = squeeze(%1272, axis=[1]);
+            %1274 = (%1273,);
+            %1275 = %1274.0;
+            %1276 = cast(%1275, dtype="int64");
+            %1277 = (%1214, %1276);
+            %1278 = adv_index(%1277);
+            %1279 = vision.roi_align(%763, %1278, ...)
+            """
+            equal = op.equal(levels, i)
+            argwhere = op.argwhere(equal)
+            split = op.split(argwhere, indices_or_sections=1, axis=1)
+            squeeze = op.squeeze(split[0], axis=[1]);
+            indices = op.cast(squeeze, dtype="int64")
+            rois = op.adv_index([rois, indices])
+            roi_align = op.vision.roi_align(per_level_features[i], rois)
+
+            indices_per_level.append(indices)
+            roi_align_results_per_level.append(roi_align)
+
+        indices_concat = op.concatenate(indices_per_level)
+        roi_align_results_concat = op.concatenate(roi_align_results_per_level)
+        argsort = op.cast(op.argsort(indices_concat), dtype="int64")
+        return op.adv_index([roi_align_results_concat, argsort])
+
+
     def callback(self, pre, post, node_map):
         levels = node_map[self.levels][0]
         rois = node_map[self.rois][0]
-        scatter_res = node_map[self.scatter_res][0]
         per_level_features = [node_map[feat] for feat in self.per_level_features]
+        print("matched")
+        # return self.convert_scatter_to_gather(levels, rois, per_level_features)
         return pre
 
 
