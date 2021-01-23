@@ -419,6 +419,10 @@ class ZephyrFlasher(tvm.micro.compiler.Flasher):
         )
 
         # The nRF5340DK requires an additional `nrfjprog --recover` before each flash cycle.
+        # This is because readback protection is enabled by default when this device is flashed.
+        # Otherwise, flashing may fail with an error such as the following:
+        #  ERROR: The operation attempted is unavailable due to readback protection in
+        #  ERROR: your device. Please use --recover to unlock the device.
         if (
             self._board.startswith("nrf5340dk")
             and self._get_flash_runner(cmake_entries) == "nrfjprog"
