@@ -138,6 +138,18 @@ def test_IfPattern():
     assert isinstance(pat.false_branch, VarPattern)
 
 
+def test_LetPattern():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    assert isinstance(pat, LetPattern)
+    assert isinstance(pat.var, VarPattern)
+    assert isinstance(pat.value, CallPattern)
+    assert isinstance(pat.body, VarPattern)
+
+
 ## MATCHER TESTS
 
 
@@ -231,6 +243,33 @@ def test_no_match_if():
 
     assert not pat.match(relay.expr.If(x > y, x, y))
     assert not pat.match(relay.expr.If(x < y, y, x))
+
+
+def test_match_let():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    lv = relay.var("let")
+    cond = x < y
+    assert pat.match(relay.expr.Let(lv, cond, lv))
+
+
+def test_no_match_let():
+    x = is_var("x")
+    y = is_var("y")
+    let_var = is_var("let")
+    pat = is_let(let_var, is_op("less")(x, y), let_var)
+
+    x = relay.var("x")
+    y = relay.var("y")
+    lv = relay.var("let")
+
+    assert not pat.match(relay.expr.Let(lv, x > y, lv))
+    assert not pat.match(relay.expr.Let(lv, x < y, lv * x))
 
 
 def test_match_option():
