@@ -313,7 +313,7 @@ def scatter_roi_align_result_pattern(levels, rois, per_level_features, scatter_r
         # res = res.scatter(0, index, unmerged_results[level])
         scatter_res = is_op("scatter")(scatter_res, scatter_indices, result_idx_in_level)
 
-    return scatter_res
+    return is_op("reshape")(scatter_res)
 
 
 class ScatterRewrite(DFPatternCallback):
@@ -326,14 +326,15 @@ class ScatterRewrite(DFPatternCallback):
         for _ in range(num_scales):
             self.per_level_features.append(wildcard())
 
-        self.pattern = scatter_roi_align_result_pattern(self.levels, self.rois, self.per_level_features, self.scatter_res, num_scales)
+        self.pattern = scatter_roi_align_result_pattern(
+            self.levels, self.rois, self.per_level_features, self.scatter_res, num_scales
+        )
 
     def callback(self, pre, post, node_map):
         levels = node_map[self.levels][0]
         rois = node_map[self.rois][0]
         scatter_res = node_map[self.scatter_res][0]
         per_level_features = [node_map[feat] for feat in self.per_level_features]
-
         return pre
 
 
