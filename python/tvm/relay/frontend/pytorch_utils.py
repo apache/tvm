@@ -281,8 +281,8 @@ class PostNMSTopKRewrite(DFPatternCallback):
 
 
 def scatter_roi_align_result_pattern(levels, rois, per_level_features, scatter_res, num_scales):
-    def do_where(levels, i):
-        idx_in_level = is_op("argwhere")(is_op("equal")(levels, i))
+    def do_where(levels, _):
+        idx_in_level = is_op("argwhere")(is_op("equal")(levels, is_constant()))
         idx_in_level = is_op("split")(idx_in_level)
         idx_in_level = is_tuple_get_item(idx_in_level, 0)
         idx_in_level = is_op("squeeze")(idx_in_level)
@@ -329,7 +329,11 @@ class ScatterRewrite(DFPatternCallback):
         self.pattern = scatter_roi_align_result_pattern(self.levels, self.rois, self.per_level_features, self.scatter_res, num_scales)
 
     def callback(self, pre, post, node_map):
-        print("matched")
+        levels = node_map[self.levels][0]
+        rois = node_map[self.rois][0]
+        scatter_res = node_map[self.scatter_res][0]
+        per_level_features = [node_map[feat] for feat in self.per_level_features]
+
         return pre
 
 
