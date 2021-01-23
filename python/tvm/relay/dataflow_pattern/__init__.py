@@ -339,7 +339,7 @@ def is_if(cond, true_branch, false_branch):
 
 def is_let(var, value, body):
     """
-    Syntatic sugar for creating an IfPattern.
+    Syntatic sugar for creating a LetPattern.
 
     Parameters
     ----------
