@@ -29,6 +29,7 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.relay.frontend.pytorch_utils import (
     rewrite_nms_to_batched_nms,
     rewrite_batched_nms_with_max_out_size,
+    rewrite_scatter_to_gather,
 )
 from tvm.contrib.download import download
 
@@ -146,6 +147,11 @@ def test_detection_models():
 
     before = mod["main"]
     mod = rewrite_batched_nms_with_max_out_size(mod)
+    after = mod["main"]
+    assert not tvm.ir.structural_equal(after, before)
+
+    before = mod["main"]
+    mod = rewrite_scatter_to_gather(mod, 4)  # num_scales is 4 for maskrcnn_resnet50_fpn
     after = mod["main"]
     assert not tvm.ir.structural_equal(after, before)
 
