@@ -222,6 +222,42 @@ class FunctionPattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionPatternNode);
 };
 
+/*! \brief A binding of a sub-network. */
+class LetPatternNode : public DFPatternNode {
+ public:
+  /*! \brief The variable we bind to */
+  DFPattern var;
+  /*! \brief The value we bind var to */
+  DFPattern value;
+  /*! \brief The body of the let binding */
+  DFPattern body;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("var", &var);
+    v->Visit("value", &value);
+    v->Visit("body", &body);
+  }
+
+  static constexpr const char* _type_key = "relay.dataflow_pattern.LetPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief Let binding that binds a local var
+ */
+class LetPattern : public DFPattern {
+ public:
+  /*!
+   * \brief The constructor
+   * \param var The variable that is bound to.
+   * \param value The value used to bind to the variable.
+   * \param body The body of the let binding.
+   */
+  TVM_DLL LetPattern(DFPattern var, DFPattern value, DFPattern body);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LetPattern, DFPattern, LetPatternNode);
+};
+
 /*! \brief Tuple of multiple Exprs */
 class TuplePattern;
 /*! \brief Tuple container */
