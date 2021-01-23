@@ -309,7 +309,6 @@ def auto_schedule_topi(outs):
                 return None
 
             # rewrite the layout and update the context for the new dag
-            dag = ComputeDAG(outs)
             new_dag = dag.rewrite_layout_from_state(state)
             new_key = new_dag.workload_key()
             if new_key != key:
