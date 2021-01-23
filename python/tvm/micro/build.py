@@ -90,7 +90,7 @@ def get_standalone_crt_dir() -> str:
     return STANDALONE_CRT_DIR
 
 
-def get_standalone_crt_lib(name : str) -> str:
+def get_standalone_crt_lib(name: str) -> str:
     """Find a source library directory in the standalone_crt.
 
     The standalone C runtime is split into various libraries (one per directory underneath
@@ -121,7 +121,7 @@ RUNTIME_SRC_REGEX = re.compile(r"^.*\.cc?$", re.IGNORECASE)
 _COMMON_CFLAGS = ["-Wall", "-Werror"]
 
 
-def _build_default_compiler_options(standalone_crt_dir : typing.Optional[str]=None) -> str:
+def _build_default_compiler_options(standalone_crt_dir: typing.Optional[str] = None) -> str:
     """Return a dict containing base compile flags for the CRT under gcc common to .
 
     Parameters
@@ -248,7 +248,9 @@ def build_static_runtime(
         module.export_library(
             mod_build_dir,
             workspace_dir=mod_src_dir,
-            fcompile=lambda bdir, srcs, **kwargs: compiler.library(bdir, srcs, compiler_options["generated_lib_opts"]),
+            fcompile=lambda bdir, srcs, **kwargs: compiler.library(
+                bdir, srcs, compiler_options["generated_lib_opts"]
+            ),
         )
     )
 

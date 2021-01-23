@@ -291,8 +291,9 @@ class DefaultCompiler(Compiler):
         args.extend(["-g", "-o", output_abspath])
 
         if link_main:
-            host_main_srcs = glob.glob(os.path.join(
-                tvm.micro.get_standalone_crt_dir(), "template", "host", "*.cc"))
+            host_main_srcs = glob.glob(
+                os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host", "*.cc")
+            )
             if main_options:
                 main_lib = self.library(os.path.join(output, "host"), host_main_srcs, main_options)
                 for lib_name in main_lib.library_files:

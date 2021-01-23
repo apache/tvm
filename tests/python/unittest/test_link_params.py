@@ -354,8 +354,9 @@ def test_crt_link_params():
 
             workspace = tvm.micro.Workspace()
             compiler = tvm.micro.DefaultCompiler(target=target)
-            opts = tvm.micro.default_options(os.path.join(
-                tvm.micro.get_standalone_crt_dir(), "template", "host"))
+            opts = tvm.micro.default_options(
+                os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+            )
             opts["bin_opts"]["ldflags"].append("-DTVM_HOST_USE_GRAPH_RUNTIME_MODULE")
 
             micro_binary = tvm.micro.build_static_runtime(

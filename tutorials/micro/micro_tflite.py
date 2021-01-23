@@ -207,8 +207,9 @@ with tvm.transform.PassContext(
 # First, compile a static microTVM runtime for the targeted device. In this case, the host simulated
 # device is used.
 compiler = tvm.micro.DefaultCompiler(target=TARGET)
-opts = tvm.micro.default_options(os.path.join(
-    tvm.micro.get_standalone_crt_dir(), "template", "host"))
+opts = tvm.micro.default_options(
+    os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+)
 
 # %%
 # Compiling for physical hardware

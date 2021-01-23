@@ -50,8 +50,9 @@ def _make_sess_from_op(workspace, op_name, sched, arg_bufs):
 
 def _make_session(workspace, mod):
     compiler = tvm.micro.DefaultCompiler(target=TARGET)
-    opts = tvm.micro.default_options(os.path.join(
-        tvm.micro.get_standalone_crt_dir(), "template", "host"))
+    opts = tvm.micro.default_options(
+        os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+    )
     micro_binary = tvm.micro.build_static_runtime(
         workspace,
         compiler,
