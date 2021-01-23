@@ -343,7 +343,8 @@ class ScatterRewrite(DFPatternCallback):
         argsort_indices = op.cast(op.argsort(indices_concat), dtype="int64")
 
         # Permute rows by argsorted indices
-        return op.adv_index([roi_align_results_concat, argsort_indices])
+        permuted = op.take(roi_align_results_concat, argsort_indices, axis=0)
+        return op.reshape(permuted, [0, -1, 1, 1])
 
     def callback(self, pre, post, node_map):
         levels = node_map[self.levels][0]
