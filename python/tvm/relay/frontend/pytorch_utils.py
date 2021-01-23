@@ -280,6 +280,59 @@ class PostNMSTopKRewrite(DFPatternCallback):
         )
 
 
+def scatter_roi_align_result_pattern(levels, rois, per_level_features, scatter_res, num_scales):
+    def do_where(levels, i):
+        idx_in_level = is_op("argwhere")(is_op("equal")(levels, i))
+        idx_in_level = is_op("split")(idx_in_level)
+        idx_in_level = is_tuple_get_item(idx_in_level, 0)
+        idx_in_level = is_op("squeeze")(idx_in_level)
+        idx_in_level = is_tuple_get_item(is_tuple([idx_in_level]), 0)
+        return idx_in_level
+
+    for i in range(num_scales):
+        # index = torch.where(levels == level)[0].view(-1, 1, 1, 1)
+        scatter_indices = do_where(levels, i)
+        scatter_indices = is_op("reshape")(scatter_indices)
+
+        # index = index.expand(index.size(0),
+        #                      unmerged_results[level].size(1),
+        #                      unmerged_results[level].size(2),
+        #                      unmerged_results[level].size(3))
+        scatter_indices = is_op("repeat")(scatter_indices)
+        scatter_indices = is_op("repeat")(scatter_indices)
+        scatter_indices = is_op("repeat")(scatter_indices)
+
+        # idx_in_level = torch.where(levels == level)[0]
+        idx_in_level = is_op("cast")(do_where(levels, i))
+
+        # rois_per_level = rois[idx_in_level]
+        rois_per_level = is_op("adv_index")(is_tuple([rois, idx_in_level]))
+        # result_idx_in_level = roi_align(rois_per_level, ...)
+        result_idx_in_level = is_op("vision.roi_align")(per_level_features[i], rois_per_level)
+
+        # res = res.scatter(0, index, unmerged_results[level])
+        scatter_res = is_op("scatter")(scatter_res, scatter_indices, result_idx_in_level)
+
+    return scatter_res
+
+
+class ScatterRewrite(DFPatternCallback):
+    def __init__(self, num_scales):
+        super().__init__()
+        self.levels = wildcard()
+        self.rois = wildcard()
+        self.scatter_res = wildcard()
+        self.per_level_features = []
+        for _ in range(num_scales):
+            self.per_level_features.append(wildcard())
+
+        self.pattern = scatter_roi_align_result_pattern(self.levels, self.rois, self.per_level_features, self.scatter_res, num_scales)
+
+    def callback(self, pre, post, node_map):
+        print("matched")
+        return pre
+
+
 def rewrite_nms_to_batched_nms(mod):
     """Rewrite the input graph to replace non maximum surpression
     in torchvision that does not take class id into account with the one
@@ -294,4 +347,10 @@ def rewrite_batched_nms_with_max_out_size(mod):
     use the slicing size as the parameter max_out_size in NMS.
     """
     mod["main"] = rewrite(PostNMSTopKRewrite(), mod["main"])
+    return mod
+
+
+def rewrite_scatter(mod, num_scales):
+    """TODO"""
+    mod["main"] = rewrite(ScatterRewrite(num_scales), mod["main"])
     return mod
