@@ -604,7 +604,7 @@ class IfPattern(DFPattern):
 
 @register_df_node
 class LetPattern(DFPattern):
-    """A patern matching a Relay If.
+    """A patern matching a Relay Let.
 
     Parameters
     ----------
