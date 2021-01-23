@@ -2081,12 +2081,6 @@ class PyTorchOpConverter:
         is_float = input_type in ["float32", "float64", "float16", "bfloat16"]
         return _expr.const(is_float)
 
-    def argsort(self, inputs, input_types):
-        data = inputs[0]
-        dim = inputs[1]
-        is_descending = inputs[2]
-        return _op.argsort(data, dim, not is_descending)
-
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
