@@ -347,7 +347,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)
             return out
-    elif data_dtype in ['float16', 'float32']:
+    elif data_dtype in ['float16']:  # todo: support int8/int4
         if data_layout == 'NHWC' and kernel_layout == "HWIO":
             batch = data_tensor.shape[0].value
             in_channel = data_tensor.shape[3].value

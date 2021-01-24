@@ -59,7 +59,7 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     x, y = inputs
 
     # Pad input and output channels to use tensorcore schedule.
-    if dtype in ['float16', 'float32']:
+    if dtype in ['float16']:  # todo: support int8/int4
         B, M, K = x_tensor.shape
         B, N, K = y_tensor.shape
         M = M.value
@@ -123,7 +123,7 @@ def _dense_legalize(attrs, inputs, arg_types):
     x, y = inputs
 
     # Pad input and output channels to use tensorcore schedule.
-    if dtype in ['float16', 'float32']:
+    if dtype in ['float16']:  # todo: support int8/int4
         M, K = x_tensor.shape
         N, K = y_tensor.shape
         try:
