@@ -150,10 +150,8 @@ class NormalizeComparisons : public ExprMutator {
 
 void AddInequality(std::vector<PrimExpr>* inequality_set,
                    const PrimExpr& new_ineq, Analyzer* analyzer) {
-  if (std::find(inequality_set->begin(), inequality_set->end(), new_ineq) != inequality_set->end()) {
-    return;
-  }
-  if (analyzer->CanProve(new_ineq)) {
+  if (analyzer->CanProve(new_ineq) || std::find_if(inequality_set->begin(), inequality_set->end(),
+    [&](const PrimExpr& e) { return StructuralEqual()(e, new_ineq); }) != inequality_set->end()) {
     // redundant: follows from the vranges
     // or has already been added
     return;
@@ -226,7 +224,9 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds,
                   std::vector<PrimExpr>* equalities) {
   // those exist in both upper & lower bounds will be moved to equalities
   for (auto ub = upper_bounds->begin(); ub != upper_bounds->end();) {
-    auto lb = std::find(lower_bounds->begin(), lower_bounds->end(), *ub);
+    auto lb = std::find(lower_bounds->begin(), lower_bounds->end(), [&](const PrimExpr& e) {
+      return StructuralEqual()(e, *ub);
+    });
     if (lb != lower_bounds->end()) {
       equalities->push_back(*lb);
       lower_bounds->erase(lb);
