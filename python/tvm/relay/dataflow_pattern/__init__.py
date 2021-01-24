@@ -337,6 +337,29 @@ def is_if(cond, true_branch, false_branch):
     return IfPattern(cond, true_branch, false_branch)
 
 
+def is_let(var, value, body):
+    """
+    Syntatic sugar for creating a LetPattern.
+
+    Parameters
+    ----------
+    var: tvm.relay.dataflow_pattern.DFPattern
+        The pattern describing the variable of Let.
+
+    value: tvm.relay.dataflow_pattern.DFPattern
+        The pattern describing the value of Let.
+
+    body: tvm.relay.dataflow_pattern.DFPattern
+        The pattern describing the body where the binding is in effect.
+
+    Returns
+    -------
+    result: tvm.relay.dataflow_pattern.DFPattern
+        The resulting pattern.
+    """
+    return LetPattern(var, value, body)
+
+
 def wildcard() -> "DFPattern":
     """
     Syntatic sugar for creating a WildcardPattern.
@@ -577,6 +600,27 @@ class IfPattern(DFPattern):
 
     def __init__(self, cond: "DFPattern", true_branch: "DFPattern", false_branch: "DFPattern"):
         self.__init_handle_by_constructor__(ffi.IfPattern, cond, true_branch, false_branch)
+
+
+@register_df_node
+class LetPattern(DFPattern):
+    """A patern matching a Relay Let.
+
+    Parameters
+    ----------
+    var: tvm.relay.dataflow_pattern.DFPattern
+        The pattern describing the variable of Let.
+
+    value: tvm.relay.dataflow_pattern.DFPattern
+        The pattern describing the value of Let.
+
+    body: tvm.relay.dataflow_pattern.DFPattern
+        The pattern describing the body where the binding is in effect.
+
+    """
+
+    def __init__(self, var: "DFPattern", value: "DFPattern", body: "DFPattern"):
+        self.__init_handle_by_constructor__(ffi.LetPattern, var, value, body)
 
 
 @register_df_node
