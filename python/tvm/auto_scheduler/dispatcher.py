@@ -261,9 +261,7 @@ class FallbackContext(DispatchContext):
                 "-----------------------------------\n"
                 "Cannot find tuned schedules for target=%s, workload_key=%s. "
                 "A fallback TOPI schedule is used, "
-                "which may hurt performance or fail to compile. "
-                "If you've tuned this workload before, you may need to update workload_key "
-                "using the script in https://github.com/apache/tvm/pull/7317. "
+                "which may bring great performance regression or even compilation failure. "
                 "Compute DAG info:\n%s" % (target, workload_key, dag)
             )
             if msg not in self.messages:

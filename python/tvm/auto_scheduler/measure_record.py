@@ -60,7 +60,34 @@ class RecordReader(Object):
     """
 
     def __init__(self, filename):
+        # a set to prevent print duplicated message
+        self.messages = set()
+
         self.__init_handle_by_constructor__(_ffi_api.RecordReader, filename)
+
+    def check_workload_key(self, inputs):
+        """Check and throw warnings for records with old format workload key.
+
+        Parameters
+        ----------
+        inputs: List[MeasureInput]
+            The measure inputs to be checked.
+
+        Notes
+        -----
+        This checker could be deprecated in the future.
+        """
+        for inp in inputs:
+            _, args = decode_workload_key(inp.task.workload_key)
+            if not args:
+                msg = (
+                    "MeasureInput with old format workload key %s should be updated "
+                    "using the script from https://github.com/apache/tvm/pull/7317."
+                    % inp.task.workload_key
+                )
+                if msg not in self.messages:
+                    self.messages.add(msg)
+                    logger.warning(msg)
 
     def read_lines(self, max_lines=None, skip_lines=0):
         """Read multiple lines from the log file.
@@ -89,6 +116,7 @@ class RecordReader(Object):
         inputs, results = _ffi_api.RecordReaderReadLines(
             self, max_lines if max_lines else -1, skip_lines
         )
+        self.check_workload_key(inputs)
         return inputs, results
 
     def __iter__(self):
@@ -96,6 +124,7 @@ class RecordReader(Object):
             ret = _ffi_api.RecordReaderReadNext(self)
             if not ret:
                 break
+            self.check_workload_key([ret[0]])
             yield ret[0], ret[1]  # (input, result)
 
 
