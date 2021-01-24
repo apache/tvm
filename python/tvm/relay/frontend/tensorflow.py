@@ -963,19 +963,19 @@ def _sparse_tensor_dense_matmul():
         # By default, in tensorflow the first input ,i.e., data is sparse
         sparse_lhs = True
 
-        # If both are true means First input was dense and second was sparse
-        if attr.get("adjoint_a") and attr.get("adjoint_b"):
-            sparse_lhs = False
-
-        if sparse_lhs:
-            # TF Case 2:
-            if attr.get("adjoint_a"):
-                weight_sp = csr_matrix(weight_sp.transpose())
-            # TF Case 1 &  TF Case 2:
-            if not attr.get("adjoint_b"):
-                data = _op.transpose(data)
+        # TF Case 1:
+        if not attr.get("adjoint_a") and not attr.get("adjoint_b"):
+            data = _op.transpose(data)
+        # TF Case 2:
+        elif attr.get("adjoint_a") and not attr.get("adjoint_b"):
+            data = _op.transpose(data)
+            weight_sp = csr_matrix(weight_sp.transpose())
+        # TF Case 3:
+        elif not attr.get("adjoint_a") and attr.get("adjoint_b"):
+            pass
+        # TF Case 4:
+        # attr.get("adjoint_a") and attr.get("adjoint_b"):
         else:
-            # TF Case 4
             weight_sp = csr_matrix(weight_sp.transpose())
 
         weight_data = _expr.const(weight_sp.data, weight_sp.data.dtype)
