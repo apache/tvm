@@ -79,6 +79,8 @@ class RecordReader(Object):
         """
         for inp in inputs:
             _, args = decode_workload_key(inp.task.workload_key)
+            if args is None:
+                continue
             if not args:
                 msg = (
                     "MeasureInput with old format workload key %s should be updated "
@@ -164,9 +166,9 @@ def calc_workload_dis_factor(target_workload_key, workload_key):
         return ret
 
     target_key, target_args = decode_workload_key(target_workload_key)
-    target_args = flatten_list(target_args)
+    target_args = flatten_list(target_args) if target_args is not None else []
     key, args = decode_workload_key(workload_key)
-    args = flatten_list(args)
+    args = flatten_list(args) if args is not None else []
 
     # Not even the same func/DAG.
     if key != target_key or len(target_args) != len(args):
