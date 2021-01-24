@@ -207,20 +207,21 @@ def get_network(name, batch_size, layout="NHWC", dtype="float32"):
 # Before tuning, we should apply some configurations. Here I use a Raspberry Pi 4b 4GB board
 # as example with a 64bit OS (Ubuntu 20.04). In your setting, you should modify the target
 # and device_key accordingly.
-# set :code:`use_android` to True if you use android phone.
+# set :code:`use_ndk` to True if you use android phone.
 
 #### DEVICE CONFIG ####
 
 # Replace "aarch64-linux-gnu" with the correct target of your board.
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-# We leave '-device=arm_cpu' out because we're using x86 op strategy.
+# FIXME(tmoreau89, merrymercy): We leave '-device=arm_cpu' out of the target string
+#                               because we're sharing x86 op strategy.
 target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 
 # Also replace this with the device key in your tracker
 device_key = "rasp4b-64"
 
 # Set this to True if you use android phone
-use_android = False
+use_ndk = False
 
 #### TUNING OPTION ####
 network = "mobilenet"
@@ -251,8 +252,8 @@ for idx, task in enumerate(tasks):
 
 
 #################################################################
-# Begin Tuning
-# ------------
+# Tuning and Evaluation
+# ---------------------
 # Now, we set some options for tuning and launch the search tasks
 #
 # * :code:`num_measure_trials` is the number of measurement trials we can use during the tuning.
@@ -267,9 +268,12 @@ for idx, task in enumerate(tasks):
 # * see :any:`auto_scheduler.TuningOptions`,
 #   :any:`auto_scheduler.LocalRunner` for more parameters.
 #
+# After auto-tuning, we can compile the network with the best schedules we found.
+# All measurement records are dumped into the log file during auto-tuning,
+# so we can read the log file and load the best schedules.
 
 
-def run_tuning():
+def tune_and_evaluate():
     print("Begin tuning...")
     tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
     tune_option = auto_scheduler.TuningOptions(
@@ -288,15 +292,55 @@ def run_tuning():
 
     tuner.tune(tune_option)
 
+    # Compile with the history best
+    print("Compile...")
+    with auto_scheduler.ApplyHistoryBest(log_file):
+        with tvm.transform.PassContext(
+            opt_level=3, config={"relay.backend.use_auto_scheduler": True}
+        ):
+            lib = relay.build(mod, target=target, params=params)
 
-# We do not run the tuning in our webpage server since it takes too long.
+    # Export library
+    tmp = tempdir()
+    if use_ndk:
+        from tvm.contrib import ndk
+
+        filename = "net.so"
+        lib.export_library(tmp.relpath(filename), ndk.create_shared)
+    else:
+        filename = "net.tar"
+        lib.export_library(tmp.relpath(filename))
+
+    # Upload module to device
+    print("Upload...")
+    remote = auto_scheduler.utils.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
+    remote.upload(tmp.relpath(filename))
+    rlib = remote.load_module(filename)
+
+    # Create graph runtime
+    ctx = remote.cpu()
+    module = graph_runtime.GraphModule(rlib["default"](ctx))
+    data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
+    module.set_input("data", data_tvm)
+
+    # Evaluate
+    print("Evaluate inference time cost...")
+    ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
+    prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
+    print(
+        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
+    )
+
+
+# We do not run the tuning in our webpage server since the server doesn't have a Raspberry Pi,
+# or device tracker running.
 # Uncomment the following line to run it by yourself.
 
-# run_tuning()
+# tune_and_evaluate()
 
 
 ######################################################################
-# .. note:: Explain the printed information during tuning
+# .. note:: Explaining the printed information during tuning
 #
 #   During the tuning, a lot of information will be printed on the console.
 #   They are used for debugging purposes. The most important info is the output
@@ -355,62 +399,6 @@ def run_tuning():
 #   As long as you get at least one valid schedule for each task in the log file,
 #   you should be able to do the compilation (the secion below).
 #
-
-
-#################################################################
-# Compile and Evaluate
-# --------------------
-# After auto-tuning, we can compile the network with the best schedules we found.
-# All measurement records are dumped into the log file during auto-tuning,
-# so we can read the log file and load the best schedules.
-
-
-def compile_and_run():
-    # Compile with the history best
-    print("Compile...")
-    with auto_scheduler.ApplyHistoryBest(log_file):
-        with tvm.transform.PassContext(
-            opt_level=3, config={"relay.backend.use_auto_scheduler": True}
-        ):
-            lib = relay.build(mod, target=target, params=params)
-
-    # Export library
-    tmp = tempdir()
-    if use_android:
-        from tvm.contrib import ndk
-
-        filename = "net.so"
-        lib.export_library(tmp.relpath(filename), ndk.create_shared)
-    else:
-        filename = "net.tar"
-        lib.export_library(tmp.relpath(filename))
-
-    # Upload module to device
-    print("Upload...")
-    remote = auto_scheduler.utils.request_remote(device_key, "0.0.0.0", 9191, timeout=10000)
-    remote.upload(tmp.relpath(filename))
-    rlib = remote.load_module(filename)
-
-    # Create graph runtime
-    ctx = remote.cpu()
-    module = graph_runtime.GraphModule(rlib["default"](ctx))
-    data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
-    module.set_input("data", data_tvm)
-
-    # Evaluate
-    print("Evaluate inference time cost...")
-    ftimer = module.module.time_evaluator("run", ctx, repeat=3, min_repeat_ms=500)
-    prof_res = np.array(ftimer().results) * 1e3  # convert to millisecond
-    print(
-        "Mean inference time (std dev): %.2f ms (%.2f ms)" % (np.mean(prof_res), np.std(prof_res))
-    )
-
-
-# We do not run the model because it requests a resource from a tracker which won't run in CI.
-# Uncomment below to build and execute the model.
-
-# compile_and_run()
-
 
 #################################################################
 # Other Tips
