@@ -357,16 +357,24 @@ def global_avg_pool2d_grad(orig, grad):
     return [pool_grad]
 
 
-# not implemented, this is only for testing.
 @register_gradient("concatenate")
 def concatenate_grad(orig, grad):
+    """
+    Returns the gradient of concatenate, which is just the downstream gradient
+    split across the inputs.
+    """
     assert len(orig.args) == 1
     t = orig.args[0]
-    x = TupleGetItem(t, 0)
-    y = TupleGetItem(t, 1)
-    # Assume only two element in tuple rn.
-    # In the real implementation, concatenate_grad probably need to be implemented by an operator.
-    return [Tuple([zeros_like(x), zeros_like(y)])]
+
+    # calculate split indices. TODO(@altanh): support Any?
+    axis_dims = [ty.shape[orig.attrs.axis] for ty in t.checked_type.fields]
+    splits, cumsum = [], 0
+    for dim in axis_dims[:-1]:
+        cumsum += dim
+        splits.append(cumsum)
+
+    grads = split(grad, tuple(splits), axis=orig.attrs.axis).tuple_value
+    return [grads]
 
 
 @register_gradient("nn.conv2d")
@@ -808,5 +816,39 @@ def arange_grad(orig, grad):
 
 @register_gradient("gather_nd")
 def gather_nd_grad(orig, grad):
+    """
+    Returns the gradient of gather_nd, which is simply scatter_nd.
+    """
     data, indices = orig.args
     return [scatter_nd(grad, indices, data.checked_type.concrete_shape), zeros_like(indices)]
+
+
+@register_gradient("reshape_like")
+def reshape_like_grad(orig, grad):
+    """
+    Returns the gradient of reshape_like.
+    """
+    data, shape_like = orig.args
+    return [reshape_like(grad, data), zeros_like(shape_like)]
+
+
+@register_gradient("where")
+def where_grad(orig, grad):
+    """
+    Returns the gradient of where.
+    """
+    cond, x, y = orig.args
+    g_zeros = zeros_like(grad)
+
+    grad_x = collapse_sum_like(where(cond, grad, g_zeros), x)
+    grad_y = collapse_sum_like(where(cond, g_zeros, grad), y)
+
+    return [zeros_like(cond), grad_x, grad_y]
+
+
+@register_gradient("less_equal")
+def less_equal_grad(orig, grad):
+    """
+    Returns the gradient of less_equal.
+    """
+    return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
