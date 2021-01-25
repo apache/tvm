@@ -1491,8 +1491,7 @@ inline bool TVMPODValue_::IsObjectRef() const {
   }
   // NOTE: we don't pass NDArray and runtime::Module as RValue ref.
   if (type_code_ == kTVMObjectRValueRefArg) {
-    return
-        ObjectTypeChecker<TObjectRef>::Check(*static_cast<Object**>(value_.v_handle));
+    return ObjectTypeChecker<TObjectRef>::Check(*static_cast<Object**>(value_.v_handle));
   }
   return (std::is_base_of<ContainerType, NDArray::ContainerType>::value &&
           type_code_ == kTVMNDArrayHandle) ||

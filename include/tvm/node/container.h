@@ -1457,8 +1457,7 @@ struct ObjectTypeChecker<Array<T>> {
       const ObjectRef& p = (*n)[i];
       Optional<String> check_subtype = ObjectTypeChecker<T>::CheckAndGetMismatch(p.get());
       if (check_subtype.defined()) {
-        return String("Array[index " + std::to_string(i) + ": " + check_subtype.value() +
-                                "]");
+        return String("Array[index " + std::to_string(i) + ": " + check_subtype.value() + "]");
       }
     }
     return NullOpt;
