@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Cumsum operator"""
 from ..tir import decl_buffer, ir_builder
 from ..te import extern
@@ -22,6 +23,7 @@ from .math import cast
 
 
 def cumsum(data, axis=None, dtype=None):
+    """TODO"""
     if dtype is None or dtype == "":
         dtype = data.dtype
 
