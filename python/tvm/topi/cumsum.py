@@ -80,7 +80,7 @@ def cumsum(data, axis=None, dtype=None):
         data_buf = ib.buffer_ptr(data_buf)
         out_buf = ib.buffer_ptr(out_buf)
 
-        with ib.for_range(0, axis_mul_before) as i:
+        with ib.for_range(0, axis_mul_before, "i") as i:
             with ib.for_range(0, axis_mul_after) as j:
                 base_idx = i * cumsum_axis_len * axis_mul_after + j
                 out_buf[base_idx] = maybe_cast(data_buf[base_idx])
