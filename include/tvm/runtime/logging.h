@@ -143,7 +143,7 @@ inline std::string Backtrace() { return ""; }
 #endif
 
 /*! \brief Base error type for TVM. Wraps a string message. */
-class Error : public ::dmlc::Error { // for backwards compatibility
+class Error : public ::dmlc::Error {  // for backwards compatibility
  public:
   /*! \brief Construct an error.
    * \param s The message to be displayed with the error.
@@ -255,11 +255,8 @@ class LogFatal {
 void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
 class LogMessage {
  public:
-  LogMessage(const std::string& file, int lineno):file_(file), lineno_(lineno) {
-  }
-  ~LogMessage() {
-    LogMessageImpl(file_, lineno_, stream_.str());
-  }
+  LogMessage(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+  ~LogMessage() { LogMessageImpl(file_, lineno_, stream_.str()); }
   std::ostringstream& stream() { return stream_; }
 
  private:
@@ -333,7 +330,7 @@ TVM_CHECK_FUNC(_NE, !=)
 #define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "warning: ")
 
 #define TVM_CHECK_BINARY_OP(name, op, x, y)                     \
-  if (!::tvm::runtime::detail::LogCheck##name(x, y))             \
+  if (!::tvm::runtime::detail::LogCheck##name(x, y))            \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
       << "Check failed: " << #x " " #op " " #y << ": "
 
@@ -402,7 +399,7 @@ TVM_CHECK_FUNC(_NE, !=)
 #define TVM_ICHECK_INDENT "  "
 
 #define ICHECK_BINARY_OP(name, op, x, y)                                  \
-  if (!::tvm::runtime::detail::LogCheck##name(x, y))                       \
+  if (!::tvm::runtime::detail::LogCheck##name(x, y))                      \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()           \
       << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
       << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "

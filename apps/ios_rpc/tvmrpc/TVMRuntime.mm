@@ -54,16 +54,16 @@
 #include "../../../src/runtime/contrib/coreml/coreml_runtime.mm"
 
 namespace tvm {
-namespace runtime{
-namespace detail{
+namespace runtime {
+namespace detail {
 // Override logging mechanism
 void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
   throw tvm::runtime::InternalError(file, lineno, message);
 }
 
 void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
-   NSLog(@"%s:%d: %s", file.c_str(), lineno, message.c_str());
-   }
+  NSLog(@"%s:%d: %s", file.c_str(), lineno, message.c_str());
+}
 }
 }
 }  // namespace dmlc
