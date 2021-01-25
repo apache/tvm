@@ -172,12 +172,16 @@ void* OpenCLWorkspace::AllocTexture(TVMContext ctx, size_t width, size_t height,
 }
 
 void OpenCLWorkspace::FreeTexture(TVMContext ctx, void* ptr) {
-  // We have to make sure that the memory object is not in the command queue
-  // for some OpenCL platforms.
-  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
-
   cl_mem mptr = static_cast<cl_mem>(ptr);
   OPENCL_CALL(clReleaseMemObject(mptr));
+}
+
+void* OpenCLWorkspace::AllocTextureWorkspace(TVMContext ctx, size_t width, size_t height, DLDataType type_hint) {
+  return GetThreadEntry()->texture_pool.AllocTexture(ctx, width, height, type_hint);
+}
+
+void OpenCLWorkspace::FreeTextureWorkspace(TVMContext ctx, void* ptr) {
+  GetThreadEntry()->texture_pool.FreeTexture(ctx, ptr);
 }
 
 void OpenCLWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* to,

@@ -67,6 +67,7 @@
 #include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
+#include "../texture_pool.h"
 #include "../workspace_pool.h"
 
 namespace tvm {
@@ -278,6 +279,8 @@ class OpenCLThreadEntry {
   std::vector<KTEntry> kernel_table;
   /*! \brief workspace pool */
   WorkspacePool pool;
+  /*! \brief texture pool */
+  TexturePool texture_pool;
   // constructor
   OpenCLThreadEntry(DLDeviceType device_type, DeviceAPI* device_api)
       : pool(device_type, device_api) {
