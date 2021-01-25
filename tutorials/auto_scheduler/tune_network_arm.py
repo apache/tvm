@@ -220,8 +220,10 @@ target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+neon")
 # Also replace this with the device key in your tracker
 device_key = "rasp4b-64"
 
-# Set this to True if you use android phone
+# Set this to True if you use ndk tools for cross compiling
+# And also set the environment variable below to point to the cross compiler
 use_ndk = False
+# os.environ["TVM_NDK_CC"] = "/usr/bin/aarch64-linux-gnu-g++"
 
 #### TUNING OPTION ####
 network = "mobilenet"
