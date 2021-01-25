@@ -82,14 +82,22 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
             return None
 
         logger.info("batch_matmul pad_to_tensorcore, extra_flops %s" % extra_flops)
-
-        x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk)))
-        y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk)))
+        if dm or dk:
+            x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk)))
+        else:
+            x_ = x
+        if dn or dk:
+            y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk)))
+        else:
+            y_ = y
         out_ = relay.nn.batch_matmul(x_, y_)
-        original_out_shape = [x.value for x in output_tensor.shape]
-        out = relay.strided_slice(out_,
-                                  begin=[0, 0, 0],
-                                  end=original_out_shape)
+        if dm or dn:
+            original_out_shape = [x.value for x in output_tensor.shape]
+            out = relay.strided_slice(out_,
+                                    begin=[0, 0, 0],
+                                    end=original_out_shape)
+        else:
+            out = out_
         return out
     return None
 
@@ -149,13 +157,22 @@ def _dense_legalize(attrs, inputs, arg_types):
 
         logger.info("dense pad_to_tensorcore, extra_flops_ratio %s" % extra_flops_ratio)
 
-        x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk)))
-        y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk)))
+        if dm or dk:
+            x_ = relay.nn.pad(x, pad_width=((0, dm), (0, dk)))
+        else:
+            x_ = x
+        if dn or dk:
+            y_ = relay.nn.pad(y, pad_width=((0, dn), (0, dk)))
+        else:
+            y_ = y
         out_ = relay.nn.dense(x_, y_)
-        original_out_shape = [x.value for x in output_tensor.shape]
-        out = relay.strided_slice(out_,
-                                  begin=[0, 0],
-                                  end=original_out_shape)
+        if dm or dn:
+            original_out_shape = [x.value for x in output_tensor.shape]
+            out = relay.strided_slice(out_,
+                                    begin=[0, 0],
+                                    end=original_out_shape)
+        else:
+            out = out_
         return out
     return None
 
