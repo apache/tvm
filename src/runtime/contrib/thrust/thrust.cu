@@ -340,7 +340,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
     } else if (out_dtype == "float64") {
       thrust_scan<bool, double>(data, output, exclusive);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+		 << ". Supported output dtypes are int32, int64, float32, and float64";
     }
   } else if (in_dtype == "int32") {
     if (out_dtype == "int32") {
@@ -352,7 +353,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
     } else if (out_dtype == "float64") {
       thrust_scan<int, double>(data, output, exclusive);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int32, int64, float32, and float64";
     }
   } else if (in_dtype == "int64") {
     if (out_dtype == "int64") {
@@ -362,7 +364,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
     } else if (out_dtype == "float64") {
       thrust_scan<int64_t, double>(data, output, exclusive);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are int64, float32, and float64";
     }
   } else if (in_dtype == "float32") {
     if (out_dtype == "float32") {
@@ -370,16 +373,19 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
     } else if (out_dtype == "float64") {
       thrust_scan<float, double>(data, output, exclusive);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtypes are float32, and float64";
     }
   } else if (in_dtype == "float64") {
     if (out_dtype == "float64") {
       thrust_scan<double, double>(data, output, exclusive);
     } else {
-      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype
+                 << ". Supported output dtype is float64";
     }
   } else {
-    LOG(FATAL) << "Unsupported input dtype: " << in_dtype;
+    LOG(FATAL) << "Unsupported input dtype: " << in_dtype
+               << ". Supported input dtypes are bool, int32, int64, float32, and float64";
   }
 });
 

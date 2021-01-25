@@ -3678,7 +3678,8 @@ TVM_REGISTER_NODE_TYPE(CumsumAttrs);
 
 bool CumsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 2);
+  // types: [data, output]
+  ICHECK_EQ(types.size(), 2) << "Expects two types, one for the input and another for the output";
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     ICHECK(types[0].as<IncompleteTypeNode>())
