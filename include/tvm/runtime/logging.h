@@ -125,9 +125,12 @@
 #define TVM_THROW_EXCEPTION noexcept(false)
 
 namespace tvm {
+namespace runtime {
 
 #ifndef TVM_BACKTRACE_DISABLED
-/* \brief Generate a backtrace when called. */
+/* \brief Generate a backtrace when called.
+ * \return A multiline string of the backtrace. There will be either one or two lines per frame.
+ */
 std::string Backtrace();
 #else
 // TODO(bkimball,tkonolige) This inline function is to work around a linking error I am having when
@@ -140,6 +143,9 @@ inline std::string Backtrace() { return ""; }
 /*! \brief Base error type for TVM. Wraps a string message. */
 class Error : public std::runtime_error {
  public:
+  /*! \brief Construct an error.
+   * \param s The message to be displayed with the error.
+   */
   explicit Error(const std::string& s) : std::runtime_error(s) {}
 };
 
@@ -156,8 +162,8 @@ class InternalError : public Error {
    * \param time The time at which the error occurred.
    * \param backtrace Backtrace from when the error occurred.
    */
-  InternalError(const std::string& file, int lineno, const std::string& message,
-                const std::time_t& time = std::time(nullptr), std::string backtrace = Backtrace())
+  InternalError(std::string file, int lineno, std::string message,
+                std::time_t time = std::time(nullptr), std::string backtrace = Backtrace())
       : Error(""),
         file_(file),
         lineno_(lineno),
@@ -171,17 +177,17 @@ class InternalError : public Error {
       << message << std::endl;
     full_message_ = s.str();
   }
-  /*! \brief The file in which the error occurred. */
+  /*! \return The file in which the error occurred. */
   const std::string& file() const { return file_; }
-  /*! \brief The message associated with this error. */
+  /*! \return The message associated with this error. */
   const std::string& message() const { return message_; }
-  /*! \brief Formatted error message including file, linenumber, backtrace, and message. */
+  /*! \return Formatted error message including file, linenumber, backtrace, and message. */
   const std::string& full_message() const { return full_message_; }
-  /*! \brief The backtrace from where this error occurred. */
+  /*! \return The backtrace from where this error occurred. */
   const std::string& backtrace() const { return backtrace_; }
-  /*! \brief The time at which this error occurred. */
+  /*! \return The time at which this error occurred. */
   const std::time_t& time() const { return time_; }
-  /*! \brief The line number at which this error occurred. */
+  /*! \return The line number at which this error occurred. */
   int lineno() const { return lineno_; }
   virtual const char* what() const noexcept { return full_message_.c_str(); }
 
@@ -194,6 +200,7 @@ class InternalError : public Error {
   std::string full_message_;  // holds the full error string
 };
 
+namespace detail {
 /*! \brief Class to accumulate an error message and throw it. Do not use
  * directly, instead use LOG(FATAL).
  */
@@ -256,18 +263,29 @@ inline bool DebugLoggingEnabled() {
   return state == 1;
 }
 
+constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
+    "---------------------------------------------------------------\n"
+    "An internal invariant was violated during the execution of TVM.\n"
+    "Please read TVM's error reporting guidelines.\n"
+    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
+    "---------------------------------------------------------------\n";
+}  // namespace detail
+
 #define LOG(level) LOG_##level
-#define LOG_FATAL ::tvm::LogFatal(__FILE__, __LINE__).stream()
-#define LOG_INFO ::tvm::LogMessage(__FILE__, __LINE__).stream()
-#define LOG_ERROR (::tvm::LogMessage(__FILE__, __LINE__).stream() << "error: ")
-#define LOG_WARNING (::tvm::LogMessage(__FILE__, __LINE__).stream() << "warning: ")
+#define LOG_FATAL ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()
+#define LOG_INFO ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream()
+#define LOG_ERROR (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "error: ")
+#define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "warning: ")
 
-#define TVM_CHECK_BINARY_OP(name, op, x, y) \
-  if (!((x)op(y)))                          \
-  ::tvm::LogFatal(__FILE__, __LINE__).stream() << "Check failed: " << #x " " #op " " #y << ": "
+#define TVM_CHECK_BINARY_OP(name, op, x, y)                     \
+  if (!((x)op(y)))                                              \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
+      << "Check failed: " << #x " " #op " " #y << ": "
 
-#define CHECK(x) \
-  if (!(x)) ::tvm::LogFatal(__FILE__, __LINE__).stream() << "Check failed: " #x << " == false: "
+#define CHECK(x)                                                \
+  if (!(x))                                                     \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
+      << "Check failed: " #x << " == false: "
 
 #define CHECK_LT(x, y) TVM_CHECK_BINARY_OP(_LT, <, x, y)
 #define CHECK_GT(x, y) TVM_CHECK_BINARY_OP(_GT, >, x, y)
@@ -275,27 +293,29 @@ inline bool DebugLoggingEnabled() {
 #define CHECK_GE(x, y) TVM_CHECK_BINARY_OP(_GE, >=, x, y)
 #define CHECK_EQ(x, y) TVM_CHECK_BINARY_OP(_EQ, ==, x, y)
 #define CHECK_NE(x, y) TVM_CHECK_BINARY_OP(_NE, !=, x, y)
-#define CHECK_NOTNULL(x)                                                                          \
-  ((x) == nullptr ? ::tvm::LogFatal(__FILE__, __LINE__).stream() << "Check not null: " #x << ' ', \
+#define CHECK_NOTNULL(x)                                                          \
+  ((x) == nullptr ? ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
+                        << "Check not null: " #x << ' ',                          \
    (x) : (x))  // NOLINT(*)
 
 #define LOG_IF(severity, condition) \
-  !(condition) ? (void)0 : ::tvm::LogMessageVoidify() & LOG(severity)
+  !(condition) ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(severity)
 
 #if TVM_LOG_DEBUG
 
 #define LOG_DFATAL LOG_FATAL
 #define DFATAL FATAL
-#define DLOG(severity) LOG_IF(severity, ::tvm::DebugLoggingEnabled())
-#define DLOG_IF(severity, condition) LOG_IF(severity, ::tvm::DebugLoggingEnabled() && (condition))
+#define DLOG(severity) LOG_IF(severity, ::tvm::runtime::detail::DebugLoggingEnabled())
+#define DLOG_IF(severity, condition) \
+  LOG_IF(severity, ::tvm::runtime::detail::DebugLoggingEnabled() && (condition))
 
 #else
 
 #define LOG_DFATAL LOG_ERROR
 #define DFATAL ERROR
-#define DLOG(severity) true ? (void)0 : ::tvm::LogMessageVoidify() & LOG(severity)
+#define DLOG(severity) true ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(severity)
 #define DLOG_IF(severity, condition) \
-  (true || !(condition)) ? (void)0 : ::tvm::LogMessageVoidify() & LOG(severity)
+  (true || !(condition)) ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(severity)
 
 #endif
 
@@ -324,36 +344,29 @@ inline bool DebugLoggingEnabled() {
 #define DCHECK_NE(x, y) CHECK((x) != (y))
 #endif
 
-constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
-    "---------------------------------------------------------------\n"
-    "An internal invariant was violated during the execution of TVM.\n"
-    "Please read TVM's error reporting guidelines.\n"
-    "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
-    "---------------------------------------------------------------\n";
-
 #define TVM_ICHECK_INDENT "  "
 
 #ifdef _WIN32
-#define ICHECK_BINARY_OP(name, op, x, y)                 \
-  if (!((x)op(y)))                                       \
-  ::tvm::LogFatal(__FILE__, __LINE__).stream()           \
-      << ::tvm::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
+#define ICHECK_BINARY_OP(name, op, x, y)                                  \
+  if (!((x)op(y)))                                                        \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()           \
+      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
       << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
 #else
-#define ICHECK_BINARY_OP(name, op, x, y)                                        \
-  _Pragma("GCC diagnostic push")                                                \
-          _Pragma("GCC diagnostic ignored \"-Wsign-compare\"") if (!((x)op(y))) \
-              _Pragma("GCC diagnostic pop")::tvm::LogFatal(__FILE__, __LINE__)  \
-                  .stream()                                                     \
-      << ::tvm::kTVM_INTERNAL_ERROR_MESSAGE << std::endl                        \
+#define ICHECK_BINARY_OP(name, op, x, y)                                                        \
+  _Pragma("GCC diagnostic push")                                                                \
+          _Pragma("GCC diagnostic ignored \"-Wsign-compare\"") if (!((x)op(y)))                 \
+              _Pragma("GCC diagnostic pop")::tvm::runtime::detail::LogFatal(__FILE__, __LINE__) \
+                  .stream()                                                                     \
+      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl                       \
       << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
 #endif
 
-#define ICHECK(x)                                                                       \
-  if (!(x))                                                                             \
-  ::tvm::LogFatal(__FILE__, __LINE__).stream()                                          \
-      << ::tvm::kTVM_INTERNAL_ERROR_MESSAGE << TVM_ICHECK_INDENT << "Check failed: " #x \
-      << " == false: "
+#define ICHECK(x)                                                                 \
+  if (!(x))                                                                       \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()                   \
+      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << TVM_ICHECK_INDENT \
+      << "Check failed: " #x << " == false: "
 
 #define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
 #define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
@@ -361,20 +374,15 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 #define ICHECK_GE(x, y) ICHECK_BINARY_OP(_GE, >=, x, y)
 #define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
 #define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
-#define ICHECK_NOTNULL(x)                                                          \
-  ((x) == nullptr ? ::tvm::LogFatal(__FILE__, __LINE__).stream()                   \
-                        << ::tvm::kTVM_INTERNAL_ERROR_MESSAGE << TVM_ICHECK_INDENT \
-                        << "Check not null: " #x << ' ',                           \
+#define ICHECK_NOTNULL(x)                                                         \
+  ((x) == nullptr ? ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
+                        << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE    \
+                        << TVM_ICHECK_INDENT << "Check not null: " #x << ' ',     \
    (x) : (x))  // NOLINT(*)
 
-/*! \brief The diagnostic level, controls the printing of the message. */
-enum class DiagnosticLevel : int {
-  kBug = 10,
-  kError = 20,
-  kWarning = 30,
-  kNote = 40,
-  kHelp = 50,
-};
-
+}  // namespace runtime
+// Re-export error types
+using runtime::Error;
+using runtime::InternalError;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LOGGING_H_

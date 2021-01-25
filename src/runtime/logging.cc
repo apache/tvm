@@ -30,6 +30,7 @@
 #include <vector>
 
 namespace tvm {
+namespace runtime {
 namespace {
 
 struct BacktraceInfo {
@@ -120,5 +121,6 @@ std::string Backtrace() {
 
   return s.str();
 }
+}  // namespace runtime
 }  // namespace tvm
 #endif
