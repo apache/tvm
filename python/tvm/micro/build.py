@@ -160,10 +160,10 @@ def default_options(crt_config_include_dir, standalone_crt_dir=None):
          - "generated_lib_opts" - passed as "options" to Compiler.library() when building the
            generated library.
     """
-    bin_opts = _build_default_compiler_options()
+    bin_opts = _build_default_compiler_options(standalone_crt_dir)
     bin_opts["include_dirs"].append(crt_config_include_dir)
 
-    lib_opts = _build_default_compiler_options()
+    lib_opts = _build_default_compiler_options(standalone_crt_dir)
     lib_opts["cflags"] = ["-Wno-error=incompatible-pointer-types"]
     lib_opts["include_dirs"].append(crt_config_include_dir)
 
@@ -187,7 +187,7 @@ def build_static_runtime(
     workspace,
     compiler,
     module,
-    compiler_options=None,
+    compiler_options,
     extra_libs=None,
 ):
     """Build the on-device runtime, statically linking the given modules.
@@ -200,7 +200,7 @@ def build_static_runtime(
     module : IRModule
         Module to statically link.
 
-    compiler_options : Optional[dict]
+    compiler_options : dict
         The return value of tvm.micro.default_options(), with any keys overridden to inject
         compiler options specific to this build. If not given, tvm.micro.default_options() is
         used. This dict contains the `options` parameter passed to Compiler.library() and
@@ -217,9 +217,6 @@ def build_static_runtime(
     MicroBinary :
         The compiled runtime.
     """
-    if compiler_options is None:
-        compiler_options = default_options()
-
     mod_build_dir = workspace.relpath(os.path.join("build", "module"))
     os.makedirs(mod_build_dir)
     mod_src_dir = workspace.relpath(os.path.join("src", "module"))

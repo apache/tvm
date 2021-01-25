@@ -24,7 +24,6 @@ import re
 import subprocess
 
 import tvm.target
-from . import build
 from . import class_factory
 from . import debugger
 from . import transport

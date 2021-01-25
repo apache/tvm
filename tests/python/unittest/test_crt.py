@@ -57,7 +57,7 @@ def _make_session(workspace, mod):
         workspace,
         compiler,
         mod,
-        compiler_options=opts,
+        opts,
         extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
     )
 
