@@ -257,13 +257,15 @@ class SearchTask(Object):
 
         _ffi_api.AutoSchedule(search_policy, tuning_options)
 
-    def apply_best(self, log_file, layout_rewrite_option=None):
+    def apply_best(self, log_file, include_compatible=False, layout_rewrite_option=None):
         """Apply the history best from a log file and return the schedule.
 
         Parameters
         ----------
         log_file : str
            The name of the log file.
+        include_compatible: bool
+            When set to True, all compatible records in the log file will be considered.
         layout_rewrite_option : Optional[LayoutRewriteOption]
            The layout rewrite option.
 
@@ -272,7 +274,9 @@ class SearchTask(Object):
         -------
             A `te.Schedule` and the a list of `te.Tensor` to be used in `tvm.lower` or `tvm.build`.
         """
-        inp, _ = load_best_record(log_file, self.workload_key)
+        inp, _ = load_best_record(
+            log_file, self.workload_key, include_compatible=include_compatible
+        )
         if inp is None:
             raise RuntimeError(
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
