@@ -380,25 +380,43 @@ inline const char* ArgTypeCode2Str(int type_code);
 template <typename T>
 struct ObjectTypeChecker {
   /*!
-   * \brief Check if an object matches the template type.
+   * \brief Check if an object matches the template type and return the
+   *        mismatched type if it exists.
    * \param ptr The object to check the type of.
    * \return An Optional containing the actual type of the pointer if it does not match the
    *         template type. If the Optional does not contain a value, then the types match.
    */
-  static Optional<String> Mismatch(const Object* ptr) {
+  static Optional<String> CheckAndGetMismatch(const Object* ptr) {
     using ContainerType = typename T::ContainerType;
     if (ptr == nullptr) {
       if (T::_type_is_nullable) {
-        return Optional<String>();
+        return NullOpt;
       } else {
         return Optional<String>("nullptr");
       }
     }
     if (ptr->IsInstance<ContainerType>()) {
-      return Optional<String>();
+      return NullOpt;
     } else {
       return Optional<String>(ptr->GetTypeKey());
     }
+  }
+  /*!
+   * \brief Check if an object matches the template type.
+   * \param ptr The object to check the type of.
+   * \return Whether or not the template type matches the objects type.
+   */
+  static Optional<String> Check(const Object* ptr) {
+    using ContainerType = typename T::ContainerType;
+    if (ptr == nullptr) {
+      if (T::_type_is_nullable) {
+        return true;
+      }
+    }
+    if (ptr->IsInstance<ContainerType>()) {
+      return true;
+    }
+    return false;
   }
   static std::string TypeName() {
     using ContainerType = typename T::ContainerType;
@@ -1473,16 +1491,15 @@ inline bool TVMPODValue_::IsObjectRef() const {
   }
   // NOTE: we don't pass NDArray and runtime::Module as RValue ref.
   if (type_code_ == kTVMObjectRValueRefArg) {
-    return !static_cast<bool>(
-        ObjectTypeChecker<TObjectRef>::Mismatch(*static_cast<Object**>(value_.v_handle)));
+    return
+        ObjectTypeChecker<TObjectRef>::Check(*static_cast<Object**>(value_.v_handle)));
   }
   return (std::is_base_of<ContainerType, NDArray::ContainerType>::value &&
           type_code_ == kTVMNDArrayHandle) ||
          (std::is_base_of<ContainerType, Module::ContainerType>::value &&
           type_code_ == kTVMModuleHandle) ||
          (type_code_ == kTVMObjectHandle &&
-          !static_cast<bool>(
-              ObjectTypeChecker<TObjectRef>::Mismatch(static_cast<Object*>(value_.v_handle))));
+          ObjectTypeChecker<TObjectRef>::Check(static_cast<Object*>(value_.v_handle)));
 }
 
 template <typename TObjectRef>
@@ -1517,17 +1534,15 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
   if (type_code_ == kTVMObjectHandle) {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
-    auto checked_type = ObjectTypeChecker<TObjectRef>::Mismatch(ptr);
-    CHECK(!static_cast<bool>(checked_type))
-        << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName() << ", but got "
-        << checked_type.value();
+    Optional<String> checked_type = ObjectTypeChecker<TObjectRef>::CheckAndGetMismatch(ptr);
+    ICHECK(!checked_type.defined()) << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
+                                    << ", but got " << checked_type.value();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (type_code_ == kTVMObjectRValueRefArg) {
     Object* ptr = *static_cast<Object**>(value_.v_handle);
-    auto checked_type = ObjectTypeChecker<TObjectRef>::Mismatch(ptr);
-    CHECK(!static_cast<bool>(checked_type))
-        << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName() << ", but got "
-        << checked_type.value();
+    Optional<String> checked_type = ObjectTypeChecker<TObjectRef>::CheckAndGetMismatch(ptr);
+    ICHECK(!checked_type.defined()) << "Expected " << ObjectTypeChecker<TObjectRef>::TypeName()
+                                    << ", but got " << checked_type.value();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (std::is_base_of<ContainerType, NDArray::ContainerType>::value &&
              type_code_ == kTVMNDArrayHandle) {
@@ -1576,7 +1591,7 @@ template <typename T, typename>
 inline TVMMovableArgValue_::operator T() const {
   if (type_code_ == kTVMObjectRValueRefArg) {
     auto** ref = static_cast<Object**>(value_.v_handle);
-    if (!static_cast<bool>(ObjectTypeChecker<T>::Mismatch(*ref))) {
+    if (ObjectTypeChecker<T>::Check(*ref)) {
       return T(ObjectPtr<Object>::MoveFromRValueRefArg(ref));
     }
   }
