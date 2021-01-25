@@ -1343,19 +1343,18 @@ def test_adv_index():
     verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
 
 
-@tvm.testing.uses_gpu
-def test_cumsum():
+@tvm.testing.parametrize_targets
+def test_cumsum(target, ctx):
     def verify_cumsum(data_np, np_out, axis=None, out_dtype=None, rtol=1e-5, atol=1e-5):
         inp = relay.var("data", relay.TensorType(data_np.shape, str(data_np.dtype)))
 
         out = relay.op.cumsum(inp, axis, out_dtype)
         func = relay.Function([inp], out)
 
-        for target, ctx in tvm.testing.enabled_targets():
-            for kind in ["graph", "debug"]:
-                intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(data_np)
-                tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=rtol, atol=atol)
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(data_np)
+            tvm.testing.assert_allclose(op_res.asnumpy(), np_out, rtol=rtol, atol=atol)
 
     data = np.array([2, 3, 0])
     verify_cumsum(data, np.cumsum(data))
