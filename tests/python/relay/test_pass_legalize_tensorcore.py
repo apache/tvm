@@ -45,7 +45,15 @@ def test_legalize_conv2d(data_shape, kernel_shape, pad_shape, do_pad=True):
     def before():
         x = relay.var("x", shape=data_shape, dtype="float16")
         weight = relay.var("weight", shape=kernel_shape, dtype="float16")
-        y = relay.nn.conv2d(x, weight, channels=out_channel, kernel_size=(3, 3), padding=(1, 1), data_layout="NHWC", kernel_layout="HWIO")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=out_channel,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
         y = relay.Function([x, weight], y)
         return y
 
@@ -69,7 +77,7 @@ def test_legalize_conv2d(data_shape, kernel_shape, pad_shape, do_pad=True):
         y_pad = relay.nn.conv2d(
             x_pad,
             weight=weight_pad,
-            channels=out_channel+do,
+            channels=out_channel + do,
             kernel_size=(3, 3),
             padding=(1, 1),
             data_layout="NHWC",

@@ -347,15 +347,17 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)
             return out
-    elif data_dtype in ['float16']:  # todo: support int8/int4
-        if data_layout == 'NHWC' and kernel_layout == "HWIO":
+    elif data_dtype in ["float16"]:  # todo: support int8/int4
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
             batch = data_tensor.shape[0].value
             in_channel = data_tensor.shape[3].value
             out_channel = kernel_tensor.shape[3].value
 
-            if ((batch % 8 == 0 and in_channel % 16 == 0 and out_channel % 32 == 0) or \
-                (batch % 16 == 0 and in_channel % 16 == 0 and out_channel % 16 == 0) or \
-                (batch % 32 == 0 and in_channel % 16 == 0 and out_channel % 8 == 0)):
+            if (
+                (batch % 8 == 0 and in_channel % 16 == 0 and out_channel % 32 == 0)
+                or (batch % 16 == 0 and in_channel % 16 == 0 and out_channel % 16 == 0)
+                or (batch % 32 == 0 and in_channel % 16 == 0 and out_channel % 8 == 0)
+            ):
                 # no need to pad
                 return None
 
@@ -382,7 +384,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
 
             if do != 0:
                 new_out_channel = out_channel + do
-                new_attrs['channels'] = new_out_channel
+                new_attrs["channels"] = new_out_channel
                 out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
             else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)

@@ -27,7 +27,7 @@ import math
 from .. import nn
 from ..utils import get_const_tuple
 
-logger = logging.getLogger('topi')
+logger = logging.getLogger("topi")
 
 
 @nn.batch_matmul_legalize.register("cuda")
@@ -59,16 +59,18 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     x, y = inputs
 
     # Pad input and output channels to use tensorcore schedule.
-    if dtype in ['float16']:  # todo: support int8/int4
+    if dtype in ["float16"]:  # todo: support int8/int4
         B, M, K = x_tensor.shape
         B, N, K = y_tensor.shape
         M = M.value
         K = K.value
         N = N.value
 
-        if ((M % 8 == 0 and K % 16 == 0 and N % 32 == 0) or \
-                (M % 16 == 0 and K % 16 == 0 and N % 16 == 0) or \
-                (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)):
+        if (
+            (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+            or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+            or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+        ):
             "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
             # no need to pad
             return None
@@ -93,9 +95,7 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         out_ = relay.nn.batch_matmul(x_, y_)
         if dm or dn:
             original_out_shape = [x.value for x in output_tensor.shape]
-            out = relay.strided_slice(out_,
-                                    begin=[0, 0, 0],
-                                    end=original_out_shape)
+            out = relay.strided_slice(out_, begin=[0, 0, 0], end=original_out_shape)
         else:
             out = out_
         return out
@@ -131,7 +131,7 @@ def _dense_legalize(attrs, inputs, arg_types):
     x, y = inputs
 
     # Pad input and output channels to use tensorcore schedule.
-    if dtype in ['float16']:  # todo: support int8/int4
+    if dtype in ["float16"]:  # todo: support int8/int4
         M, K = x_tensor.shape
         N, K = y_tensor.shape
         try:
@@ -142,9 +142,11 @@ def _dense_legalize(attrs, inputs, arg_types):
             # todo: deal with unfixed shape when compiling wdl model
             return None
 
-        if ((M % 8 == 0 and K % 16 == 0 and N % 32 == 0) or \
-                (M % 16 == 0 and K % 16 == 0 and N % 16 == 0) or \
-                (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)):
+        if (
+            (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+            or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+            or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+        ):
             "The shape of (M, K, N) must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
             # no need to pad
             return None
@@ -168,9 +170,7 @@ def _dense_legalize(attrs, inputs, arg_types):
         out_ = relay.nn.dense(x_, y_)
         if dm or dn:
             original_out_shape = [x.value for x in output_tensor.shape]
-            out = relay.strided_slice(out_,
-                                    begin=[0, 0],
-                                    end=original_out_shape)
+            out = relay.strided_slice(out_, begin=[0, 0], end=original_out_shape)
         else:
             out = out_
         return out
