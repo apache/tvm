@@ -1451,13 +1451,13 @@ template <typename T>
 struct ObjectTypeChecker<Array<T>> {
   static Optional<String> CheckAndGetMismatch(const Object* ptr) {
     if (ptr == nullptr) return NullOpt;
-    if (!ptr->IsInstance<ArrayNode>()) return Optional<String>(ptr->GetTypeKey());
+    if (!ptr->IsInstance<ArrayNode>()) return String(ptr->GetTypeKey());
     const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
     for (size_t i = 0; i < n->size(); i++) {
       const ObjectRef& p = (*n)[i];
       Optional<String> check_subtype = ObjectTypeChecker<T>::CheckAndGetMismatch(p.get());
       if (check_subtype.defined()) {
-        return Optional<String>("Array[index " + std::to_string(i) + ": " + check_subtype.value() +
+        return String("Array[index " + std::to_string(i) + ": " + check_subtype.value() +
                                 "]");
       }
     }
@@ -1481,7 +1481,7 @@ template <typename K, typename V>
 struct ObjectTypeChecker<Map<K, V>> {
   static Optional<String> CheckAndGetMismatch(const Object* ptr) {
     if (ptr == nullptr) return NullOpt;
-    if (!ptr->IsInstance<MapNode>()) return Optional<String>(ptr->GetTypeKey());
+    if (!ptr->IsInstance<MapNode>()) return String(ptr->GetTypeKey());
     const MapNode* n = static_cast<const MapNode*>(ptr);
     for (const auto& kv : *n) {
       Optional<String> key_type = ObjectTypeChecker<K>::CheckAndGetMismatch(kv.first.get());
@@ -1491,7 +1491,7 @@ struct ObjectTypeChecker<Map<K, V>> {
             key_type.defined() ? std::string(key_type.value()) : ObjectTypeChecker<K>::TypeName();
         std::string value_name = value_type.defined() ? std::string(value_type.value())
                                                       : ObjectTypeChecker<V>::TypeName();
-        return Optional<String>("Map[" + key_name + ", " + value_name + "]");
+        return String("Map[" + key_name + ", " + value_name + "]");
       }
     }
     return NullOpt;

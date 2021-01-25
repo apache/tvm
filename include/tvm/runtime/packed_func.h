@@ -392,13 +392,13 @@ struct ObjectTypeChecker {
       if (T::_type_is_nullable) {
         return NullOpt;
       } else {
-        return Optional<String>("nullptr");
+        return String("nullptr");
       }
     }
     if (ptr->IsInstance<ContainerType>()) {
       return NullOpt;
     } else {
-      return Optional<String>(ptr->GetTypeKey());
+      return String(ptr->GetTypeKey());
     }
   }
   /*!
@@ -406,7 +406,7 @@ struct ObjectTypeChecker {
    * \param ptr The object to check the type of.
    * \return Whether or not the template type matches the objects type.
    */
-  static Optional<String> Check(const Object* ptr) {
+  static bool Check(const Object* ptr) {
     using ContainerType = typename T::ContainerType;
     if (ptr == nullptr) {
       if (T::_type_is_nullable) {
@@ -1492,7 +1492,7 @@ inline bool TVMPODValue_::IsObjectRef() const {
   // NOTE: we don't pass NDArray and runtime::Module as RValue ref.
   if (type_code_ == kTVMObjectRValueRefArg) {
     return
-        ObjectTypeChecker<TObjectRef>::Check(*static_cast<Object**>(value_.v_handle)));
+        ObjectTypeChecker<TObjectRef>::Check(*static_cast<Object**>(value_.v_handle));
   }
   return (std::is_base_of<ContainerType, NDArray::ContainerType>::value &&
           type_code_ == kTVMNDArrayHandle) ||
