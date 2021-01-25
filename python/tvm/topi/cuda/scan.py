@@ -35,15 +35,16 @@ def exclusive_scan_ir(data, output, reduction=None, binop="sum"):
     Parameters
     ----------
     data : Buffer
-        Input data. 2-D Buffer with shape [batch_size, scan_axis_size].
+        Input N-D Buffer. Scan is done over the innermost axis.
 
     output: Buffer
-        A buffer to store the output scan, of the same size as data
+        A buffer to store the output scan, of the same shape as data
 
     reduction: Buffer, optional
-        1D Buffer of size [batch_size], to store the sum of each row.
+        (N-1)-D Buffer, to store the sum of each scan axis.
 
-    binop : TODO
+    biop: string, optional
+        A string specifying which binary operator to use. Currently only "sum" is supported.
     """
 
     batch_size = prod(data.shape[:-1])
@@ -173,17 +174,18 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop="sum"):
     Parameters
     ----------
     data : tvm.te.Tensor
-        Input data. 1-D tensor with shape [scan_axis_size], or
-        2-D tensor with shape [batch_size, scan_axis_size].
+        Input data of any shape
 
     ex_scan_output : tvm.te.Tensor
-        1-D tensor that is the exclusive scan of the input, or
-        2-D tensor storing the exclusive scan of each row.
+        The output of exclusive scan on data
+
+    biop: string, optional
+        A string specifying which binary operator to use. Currently only "sum" is supported.
 
     Returns
     -------
     reduction : tvm.te.Tensor
-        1-D tensor storing the reduction of each row.
+        (N-1)-D tensor storing the reduction of each scan axis.
     """
     ndim = len(data.shape)
     if ndim == 1:
@@ -226,7 +228,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop="sum"):
     )
 
     reduction = te.extern(
-        [(data.shape[0],)],
+        [data.shape[:-1]],
         [data, ex_scan_output],
         lambda ins, outs: ir(ins[0], ins[1], outs[0]),
         dtype=[ex_scan_output.dtype],
@@ -247,13 +249,12 @@ def is_thrust_available():
 
 
 def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False, binop="sum"):
-    """Do exclusive scan on 1D input or along rows of 2D input, using thrust.
+    """Do exclusive or inclusive scan on 1D or multidimensional input, using thrust.
 
     Parameters
     ----------
     data : tvm.te.Tensor
-        Input data. 1-D tensor with shape [scan_axis_size], or
-        2-D tensor with shape [batch_size, scan_axis_size].
+        Input data of any shape. The scan is done over the innermost axis.
 
     output_dtype: string
         The dtype of the output scan tensor.
@@ -262,18 +263,20 @@ def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False, bino
         Whether or not do exclusive or inclusive scan.
 
     return_reduction: bool, optional
-        Whether or not return a 1-D tensor storing the reduction of each row.
+        Whether or not return a (N-1)-D tensor storing the reduction of each scan axis.
         Reductions are computed as part of the upsweep pass, so there is no extra cost.
-        If False, reductions are ignored.
+        If False, reductions are ignored. It must be False when exclusive is False.
+
+    biop: string, optional
+        A string specifying which binary operator to use. Currently only "sum" is supported.
 
     Returns
     -------
     output : tvm.te.Tensor
-        1-D tensor that is the exclusive scan of the input, or
-        2-D tensor storing the exclusive scan of each row.
+        A N-D tensor of the same rank N and shape as the input data.
 
     reduction : tvm.te.Tensor, optional
-        1-D tensor storing the reduction of each row.
+        (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
@@ -301,38 +304,38 @@ def scan_thrust(data, output_dtype, exclusive=True, return_reduction=False, bino
 
 
 def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, binop="sum"):
-    """Do exclusive scan on 1D input or along rows of 2D input.
+    """Do exclusive scan on 1D or multidimensional input.
 
     Parameters
     ----------
     data : tvm.te.Tensor
-        Input data. 1-D tensor with shape [scan_axis_size], or
-        2-D tensor with shape [batch_size, scan_axis_size].
+        Input data of any shape.
 
     axis: int, optional
-        The axis to do scan on. For now, only the inner most axis is supported.
+        The axis to do scan on. By default, scan is done on the innermost axis.
 
     return_reduction: bool, optional
-        Whether or not return a 1-D tensor storing the reduction of each row.
+        Whether or not return a tensor storing the reduction over each scan axis.
+        If the input rank is N, this tensor is of rank N - 1.
         Reductions are computed as part of the upsweep pass, so there is no extra cost.
         If False, reductions are ignored.
 
     output_dtype: string, optional
         The dtype of the output scan tensor. If not provided, the dtype of the input is used.
 
-    biop: TODO
+    biop: string, optional
+        A string specifying which binary operator to use. Currently only "sum" is supported.
 
     Returns
     -------
     output : tvm.te.Tensor
-        1-D tensor that is the exclusive scan of the input, or
-        2-D tensor storing the exclusive scan of each row.
+        A N-D tensor of the same rank N and shape as the input data.
 
     reduction : tvm.te.Tensor, optional
-        1-D tensor storing the reduction of each row.
+        (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
-    # TODO(masahi): Support other binary operators
+
     def do_scan(data, output_dtype):
         target = tvm.target.Target.current()
         if target and target.kind.name == "cuda" and is_thrust_available():
@@ -349,7 +352,7 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, bin
 
         if return_reduction:
             output, reduction = te.extern(
-                [data.shape, (data.shape[0],)],
+                [data.shape, data.shape[:-1]],
                 [data],
                 lambda ins, outs: exclusive_scan_ir(ins[0], outs[0], outs[1], binop=binop),
                 dtype=[data.dtype, output_dtype],
@@ -387,6 +390,8 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, bin
     if axis < 0:
         axis += ndim
 
+    # If scan axis is not the innermost one, swap the scan and the innermost axes
+    # Scan is always done on the innermost axis, for performance reason.
     if axis != ndim - 1:
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
@@ -407,7 +412,27 @@ def exclusive_scan(data, axis=-1, return_reduction=False, output_dtype=None, bin
 
 
 def inclusive_scan(data, axis=-1, output_dtype=None, binop="sum"):
-    """TODO"""
+    """Do inclusive scan on 1D or multidimensional input.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data of any shape.
+
+    axis: int, optional
+        The axis to do scan on. By default, scan is done on the innermost axis.
+
+    output_dtype: string, optional
+        The dtype of the output scan tensor. If not provided, the dtype of the input is used.
+
+    biop: string, optional
+        A string specifying which binary operator to use. Currently only "sum" is supported.
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        A N-D tensor of the same rank N as the input data.
+    """
     ex_scan = exclusive_scan(data, axis, output_dtype=output_dtype, binop=binop)
 
     if output_dtype is not None and data.dtype != output_dtype and output_dtype != "":
@@ -448,7 +473,27 @@ def schedule_scan(outs):
 
 
 def cumsum(data, axis=None, dtype=None):
-    """TODO"""
+    """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+    """
     if axis is None:
         axis = 0
         data = reshape(data, (prod(data.shape),))

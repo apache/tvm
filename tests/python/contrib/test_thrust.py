@@ -59,7 +59,7 @@ def test_exclusive_scan():
         print("skip because thrust is not enabled...")
         return
 
-    for ishape in [(1,), (10, 10)]:
+    for ishape in [(10,), (10, 10), (10, 10, 10)]:
         values = te.placeholder(ishape, name="values", dtype="int32")
 
         with tvm.target.Target("cuda"):
@@ -75,7 +75,7 @@ def test_exclusive_scan():
         if len(ishape) == 1:
             reduction_shape = ()
         else:
-            reduction_shape = (ishape[0],)
+            reduction_shape = ishape[:-1]
 
         reduction_np_out = np.zeros(reduction_shape, np.int32)
 

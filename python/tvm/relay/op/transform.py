@@ -1323,7 +1323,25 @@ def adv_index(inputs):
 
 
 def cumsum(data, axis=None, dtype=None):
-    """
-    TODO
+    """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int, optional
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : string, optional
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    Returns
+    -------
+    result : relay.Expr
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
     """
     return _make.cumsum(data, axis, dtype)

@@ -3717,6 +3717,8 @@ Expr MakeCumsum(Expr data, Integer axis, DataType dtype) {
 TVM_REGISTER_GLOBAL("relay.op._make.cumsum").set_body_typed(MakeCumsum);
 
 RELAY_REGISTER_OP("cumsum")
+    .describe(
+        R"doc(Return the cumulative sum of the elements along a given axis.)doc" TVM_ADD_FILELINE)
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(3)
