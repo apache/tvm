@@ -483,7 +483,7 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
     }
     try {
       return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
-    } catch (const dmlc::Error& e) {
+    } catch (const tvm::Error& e) {
       // If the layout string is invalid for any reason, give up.
       return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
     }

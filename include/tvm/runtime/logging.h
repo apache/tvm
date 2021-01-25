@@ -203,8 +203,14 @@ class InternalError : public Error {
 };
 
 namespace detail {
+#ifndef TVM_LOG_CUSTOMIZE
+
 /*! \brief Class to accumulate an error message and throw it. Do not use
  * directly, instead use LOG(FATAL).
+ *
+ * If TVM_LOG_CUSTOMIZE is defined, then the user must provide their own
+ * implementation of LogFatal. This implementation will then be used in place
+ * of the default one.
  */
 class LogFatal {
  public:
@@ -220,6 +226,10 @@ class LogFatal {
 
 /*! \brief Class to accumulate an log message. Do not use directly, instead use
  * LOG(INFO), LOG(WARNING), LOG(ERROR).
+ *
+ * If TVM_LOG_CUSTOMIZE is defined, then the user must provide their own
+ * implementation of LogMessage. This implementation will then be used in place
+ * of the default one.
  */
 class LogMessage {
  public:
@@ -234,6 +244,7 @@ class LogMessage {
  private:
   std::ostringstream stream_;
 };
+#endif
 
 // Below is from dmlc-core
 // This class is used to explicitly ignore values in the conditional

@@ -53,9 +53,37 @@
 // CoreML
 #include "../../../src/runtime/contrib/coreml/coreml_runtime.mm"
 
-namespace dmlc {
+namespace tvm {
+namespace runtime{
+namespace detail{
 // Override logging mechanism
-void CustomLogMessage::Log(const std::string& msg) { NSLog(@"%s", msg.c_str()); }
+class LogFatal {
+ public:
+  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+  ~LogFatal() TVM_THROW_EXCEPTION { throw InternalError(file_, lineno_, stream_.str()); }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+  std::string file_;
+  int lineno_;
+};
+
+class LogMessage {
+ public:
+  LogMessage(const std::string& file, int lineno) {
+    std::time_t t = std::time(nullptr);
+    stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
+            << ": ";
+  }
+  ~LogMessage() { NSLog(@"%s", stream_.str().c_str(); }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+};
+}
+}
 }  // namespace dmlc
 
 namespace tvm {
@@ -69,7 +97,7 @@ class NSStreamChannel final : public RPCChannel {
     ssize_t nbytes = [stream_ write:reinterpret_cast<const uint8_t*>(data) maxLength:size];
     if (nbytes < 0) {
       NSLog(@"%@", [stream_ streamError].localizedDescription);
-      throw dmlc::Error("Stream error");
+      throw tvm::Error("Stream error");
     }
     return nbytes;
   }

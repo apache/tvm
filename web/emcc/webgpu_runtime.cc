@@ -22,12 +22,48 @@
  * \brief WebGPU runtime based on the TVM JS.
  */
 
-// configurations for the dmlc log.
-#define DMLC_LOG_CUSTOMIZE 0
-#define DMLC_LOG_STACK_TRACE 0
-#define DMLC_LOG_DEBUG 0
-#define DMLC_LOG_NODATE 1
-#define DMLC_LOG_FATAL_THROW 0
+// configurations for tvm logging.
+#define TVM_LOG_DEBUG 0
+
+namespace tvm {
+namespace runtime{
+namespace detail{
+// Override logging mechanism
+class LogMessage {
+ public:
+  LogMessage(const std::string& file, int lineno) {
+    stream_ << file << ":" << lineno
+            << ": ";
+  }
+  ~LogMessage() {
+    std::cerr << stream_.str() << std::endl;
+  }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+};
+
+class LogFatal {
+ public:
+  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+  ~LogFatal() TVM_THROW_EXCEPTION {
+    {
+    LogMessage(file, lineno) << stream_.str();
+    }
+    abort();
+  }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+  std::string file_;
+  int lineno_;
+};
+
+}
+}
+}  // namespace dmlc
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
