@@ -224,7 +224,7 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds,
                   std::vector<PrimExpr>* equalities) {
   // those exist in both upper & lower bounds will be moved to equalities
   for (auto ub = upper_bounds->begin(); ub != upper_bounds->end();) {
-    auto lb = std::find(lower_bounds->begin(), lower_bounds->end(), [&](const PrimExpr& e) {
+    auto lb = std::find_if(lower_bounds->begin(), lower_bounds->end(), [&](const PrimExpr& e) {
       return StructuralEqual()(e, *ub);
     });
     if (lb != lower_bounds->end()) {
