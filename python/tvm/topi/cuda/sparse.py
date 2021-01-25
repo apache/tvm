@@ -292,7 +292,14 @@ def is_valid_for_sparse_dense_padded(data, weight_data):
     """
     # pylint:disable=invalid-name
     warp_size = int(tvm.target.Target.current(allow_none=False).thread_warp_size)
-    m = get_const_tuple(data.checked_type.shape)[1]
+    # If there are multiple alter_ops in a model, the first alteration does not
+    # run type inference for the subsequent ones. In this case, we don't have
+    # the shape information, so we run the inferencer manually.
+    try:
+        m = get_const_tuple(data.checked_type.shape)[1]
+    except ValueError:
+        data_infered = relay.transform.InferType()(tvm.IRModule.from_expr(data))["main"]
+        m = get_const_tuple(data_infered.ret_type.shape)[1]
     if len(weight_data.shape) == 1:
         bs_m = 1
     else:
