@@ -310,7 +310,7 @@ TVM_CHECK_FUNC(_NE, !=)
 #define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "warning: ")
 
 #define TVM_CHECK_BINARY_OP(name, op, x, y)                     \
-  if (::tvm::runtime::detail::LogCheck##name(x, y))             \
+  if (!::tvm::runtime::detail::LogCheck##name(x, y))             \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
       << "Check failed: " << #x " " #op " " #y << ": "
 
@@ -379,7 +379,7 @@ TVM_CHECK_FUNC(_NE, !=)
 #define TVM_ICHECK_INDENT "  "
 
 #define ICHECK_BINARY_OP(name, op, x, y)                                  \
-  if (::tvm::runtime::detail::LogCheck##name(x, y))                       \
+  if (!::tvm::runtime::detail::LogCheck##name(x, y))                       \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()           \
       << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
       << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
