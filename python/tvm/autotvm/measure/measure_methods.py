@@ -199,6 +199,9 @@ class RPCRunner(Runner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    code_loader : CodeLoader
+        If given, a context manager that loads the module to be timed into the remote runtime.
+        If not given, default_code_loader is used.
     """
 
     def __init__(
@@ -214,6 +217,7 @@ class RPCRunner(Runner):
         min_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
+        code_loader=None,
     ):
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
@@ -229,6 +233,7 @@ class RPCRunner(Runner):
 
         self.enable_cpu_cache_flush = enable_cpu_cache_flush
         self.cooldown_interval = cooldown_interval
+        self.code_loader = code_loader
 
         self.executor = LocalExecutor(timeout=timeout * (self.n_parallel + 1))
 
@@ -280,6 +285,9 @@ class RPCRunner(Runner):
             for measure_inp, build_res in zip(
                 measure_inputs[i : i + self.n_parallel], build_results[i : i + self.n_parallel]
             ):
+                code_loader = (
+                    self.code_loader if self.code_loader is not None else default_code_loader()
+                )
                 ret = self.executor.submit(
                     run_through_rpc,
                     measure_inp,
@@ -290,6 +298,7 @@ class RPCRunner(Runner):
                     self.cooldown_interval,
                     remote_args,
                     self.enable_cpu_cache_flush,
+                    code_loader,
                 )
                 futures.append(ret)
 
@@ -352,6 +361,7 @@ class LocalRunner(RPCRunner):
         min_repeat_ms=0,
         cooldown_interval=0.1,
         enable_cpu_cache_flush=False,
+        code_loader=None,
     ):
         super(LocalRunner, self).__init__(
             "",
@@ -365,6 +375,7 @@ class LocalRunner(RPCRunner):
             min_repeat_ms=min_repeat_ms,
             cooldown_interval=cooldown_interval,
             enable_cpu_cache_flush=enable_cpu_cache_flush,
+            code_loader=code_loader,
         )
         self.tracker = None
         self.server = None
@@ -473,6 +484,11 @@ class _WrappedBuildFunc:
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
+CodeLoader = typing.Callable[
+    [dict, dict], typing.ContextManager[typing.Tuple[tvm.rpc.RPCSession, tvm.runtime.Module]]
+]
+
+
 def run_through_rpc(
     measure_input,
     build_result,
@@ -482,6 +498,7 @@ def run_through_rpc(
     cooldown_interval,
     remote_args,
     enable_cpu_cache_flush=False,
+    code_loader=None,
 ):
     """Run a generated library through rpc
 
@@ -517,6 +534,8 @@ def run_through_rpc(
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    code_loader: CodeLoader
+        A function that returns a ContextManager used to establish and teardown the remote session.
     """
     if isinstance(build_result, MeasureResult):
         return build_result
@@ -525,55 +544,38 @@ def run_through_rpc(
     errno = MeasureErrorNo.NO_ERROR
     try:
         # upload built module
-        remote = request_remote(*remote_args)
-        # Program the FPGA every single time when targeting VTA
-        if (
-            hasattr(measure_input.target, "device_name")
-            and measure_input.target.device_name == "vta"
-        ):
-            # pylint: disable=import-outside-toplevel
-            from vta import program_fpga, reconfig_runtime
+        with code_loader(remote_kw, build_result) as (remote, mod):
+            ctx = remote.context(str(measure_input.target), 0)
 
-            program_fpga(remote, None)
-            reconfig_runtime(remote)
-        remote.upload(build_result.filename)
-        func = remote.load_module(os.path.split(build_result.filename)[1])
-        ctx = remote.context(str(measure_input.target), 0)
-
-        # Limitation:
-        # We can not get PackFunction directly in the remote mode as it is wrapped
-        # under the std::function. We could lift the restriction later once we fold
-        # the PackedFunc as an object. Currently, we pass function name to work
-        # around it.
-        f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
-        time_f = func.time_evaluator(
-            func.entry_name,
-            ctx,
-            number=number,
-            repeat=repeat,
-            min_repeat_ms=min_repeat_ms,
-            f_preproc=f_prepare,
-        )
-
-        try:
-            random_fill = remote.get_function("tvm.contrib.random.random_fill")
-        except AttributeError:
-            raise AttributeError(
-                "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+            # Limitation:
+            # We can not get PackFunction directly in the remote mode as it is wrapped
+            # under the std::function. We could lift the restriction later once we fold
+            # the PackedFunc as an object. Currently, we pass function name to work
+            # around it.
+            f_prepare = "cache_flush_cpu_non_first_arg" if enable_cpu_cache_flush else ""
+            time_f = mod.time_evaluator(
+                mod.entry_name,
+                ctx,
+                number=number,
+                repeat=repeat,
+                min_repeat_ms=min_repeat_ms,
+                f_preproc=f_prepare,
             )
-        args = [nd.array(np.zeros(x[0], dtype=x[1]), ctx=ctx) for x in build_result.arg_info]
-        if "scatter" not in measure_input.task.name:
-            # the index tensor of scatter op cannot be randomly initialized
-            for arg in args:
-                random_fill(arg)
-        ctx.sync()
 
-        costs = time_f(*args).results
+            try:
+                random_fill = remote.get_function("tvm.contrib.random.random_fill")
+            except AttributeError:
+                raise AttributeError(
+                    "Please make sure USE_RANDOM is ON in the config.cmake " "on the remote devices"
+                )
+            args = [nd.array(np.zeros(x[0], dtype=x[1]), ctx=ctx) for x in build_result.arg_info]
+            if "scatter" not in measure_input.task.name:
+                # the index tensor of scatter op cannot be randomly initialized
+                for arg in args:
+                    random_fill(arg)
+            ctx.sync()
 
-        # clean up remote files
-        remote.remove(build_result.filename)
-        remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
-        remote.remove("")
+            costs = time_f(*args).results
 
         if len(costs) > 2:  # remove largest and smallest value to reduce variance
             costs = list(costs)
@@ -590,6 +592,40 @@ def run_through_rpc(
     tstamp = time.time()
     time.sleep(cooldown_interval)
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
+
+
+def default_code_loader(pre_load_function=None):
+    """Returns a default function that can be passed as code_loader to run_through_rpc.
+
+    Parameters
+    ----------
+    pre_load_function : Optional[Function[tvm.rpc.Session, tvm.runtime.Module]]
+        Invoked after a session is established and before the default code-loading RPC calls are
+        issued. Allows performing pre-upload actions, e.g. resetting the remote runtime environment.
+
+    Returns
+    -------
+    CodeLoader :
+        A function that can be passed as code_loader to run_through_rpc.
+    """
+
+    @contextlib.contextmanager
+    def default_code_loader_mgr(remote_kw, build_result):
+        remote = request_remote(**remote_kw)
+        if pre_load_function is not None:
+            pre_load_function(remote, build_result)
+
+        remote.upload(build_result.filename)
+        try:
+            yield remote, remote.load_module(os.path.split(build_result.filename)[1])
+
+        finally:
+            # clean up remote files
+            remote.remove(build_result.filename)
+            remote.remove(os.path.splitext(build_result.filename)[0] + ".so")
+            remote.remove("")
+
+    return default_code_loader_mgr
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
