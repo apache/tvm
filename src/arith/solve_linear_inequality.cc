@@ -94,11 +94,10 @@ struct ExprLess {
   }
 };
 
-void DebugPrint(
-    const std::vector<PrimExpr>& current_ineq_set,
-    const std::vector<PrimExpr>& next_ineq_set,
-    const std::vector<PrimExpr>& rest, const std::vector<std::pair<int64_t, PrimExpr>>& coef_pos,
-    const std::vector<std::pair<int64_t, PrimExpr>>& coef_neg) {
+void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
+                const std::vector<PrimExpr>& next_ineq_set, const std::vector<PrimExpr>& rest,
+                const std::vector<std::pair<int64_t, PrimExpr>>& coef_pos,
+                const std::vector<std::pair<int64_t, PrimExpr>>& coef_neg) {
   std::cout << "Current ineq set:\n[";
   for (auto& ineq : current_ineq_set) {
     std::cout << ineq << ", ";
@@ -148,10 +147,12 @@ class NormalizeComparisons : public ExprMutator {
   arith::Analyzer analyzer_;
 };
 
-void AddInequality(std::vector<PrimExpr>* inequality_set,
-                   const PrimExpr& new_ineq, Analyzer* analyzer) {
-  if (analyzer->CanProve(new_ineq) || std::find_if(inequality_set->begin(), inequality_set->end(),
-    [&](const PrimExpr& e) { return StructuralEqual()(e, new_ineq); }) != inequality_set->end()) {
+void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_ineq,
+                   Analyzer* analyzer) {
+  if (analyzer->CanProve(new_ineq) ||
+      std::find_if(inequality_set->begin(), inequality_set->end(), [&](const PrimExpr& e) {
+        return StructuralEqual()(e, new_ineq);
+      }) != inequality_set->end()) {
     // redundant: follows from the vranges
     // or has already been added
     return;
@@ -172,12 +173,10 @@ void AddInequality(std::vector<PrimExpr>* inequality_set,
   inequality_set->push_back(new_ineq);
 }
 
-void ClassifyByPolarity(
-    const Var& var,
-    const std::vector<PrimExpr>& current_ineq_set,
-    std::vector<PrimExpr>* next_ineq_set,
-    std::vector<PrimExpr>* rest, std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
-    std::vector<std::pair<int64_t, PrimExpr>>* coef_neg, Analyzer* analyzer) {
+void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ineq_set,
+                        std::vector<PrimExpr>* next_ineq_set, std::vector<PrimExpr>* rest,
+                        std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
+                        std::vector<std::pair<int64_t, PrimExpr>>* coef_neg, Analyzer* analyzer) {
   // Take formulas from current_ineq_set and classify them according to polarity wrt var
   // and store to coef_pos and coef_neg respectively.
   for (const PrimExpr& ineq : current_ineq_set) {
@@ -219,14 +218,12 @@ void ClassifyByPolarity(
   }
 }
 
-void MoveEquality(std::vector<PrimExpr>* upper_bounds,
-                  std::vector<PrimExpr>* lower_bounds,
+void MoveEquality(std::vector<PrimExpr>* upper_bounds, std::vector<PrimExpr>* lower_bounds,
                   std::vector<PrimExpr>* equalities) {
   // those exist in both upper & lower bounds will be moved to equalities
   for (auto ub = upper_bounds->begin(); ub != upper_bounds->end();) {
-    auto lb = std::find_if(lower_bounds->begin(), lower_bounds->end(), [&](const PrimExpr& e) {
-      return StructuralEqual()(e, *ub);
-    });
+    auto lb = std::find_if(lower_bounds->begin(), lower_bounds->end(),
+                           [&](const PrimExpr& e) { return StructuralEqual()(e, *ub); });
     if (lb != lower_bounds->end()) {
       equalities->push_back(*lb);
       lower_bounds->erase(lb);
