@@ -99,5 +99,5 @@ def batch_matmul_legalize(attrs, inputs, types):
         The legalized expr
     """
     # not to change by default
-    #pylint: disable=unused-argument
+    # pylint: disable=unused-argument
     return None
