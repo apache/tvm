@@ -57,31 +57,13 @@ namespace tvm {
 namespace runtime{
 namespace detail{
 // Override logging mechanism
-class LogFatal {
- public:
-  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION { throw InternalError(file_, lineno_, stream_.str()); }
-  std::ostringstream& stream() { return stream_; }
+static LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  throw tvm::runtime::InternalError(file, lineno, message);
+}
 
- private:
-  std::ostringstream stream_;
-  std::string file_;
-  int lineno_;
-};
-
-class LogMessage {
- public:
-  LogMessage(const std::string& file, int lineno) {
-    std::time_t t = std::time(nullptr);
-    stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
-            << ": ";
-  }
-  ~LogMessage() { NSLog(@"%s", stream_.str().c_str(); }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-};
+static LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+   NSLog(@"%s", stream_.str().c_str();
+   }
 }
 }
 }  // namespace dmlc

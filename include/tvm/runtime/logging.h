@@ -207,10 +207,6 @@ namespace detail {
 
 /*! \brief Class to accumulate an error message and throw it. Do not use
  * directly, instead use LOG(FATAL).
- *
- * If TVM_LOG_CUSTOMIZE is defined, then the user must provide their own
- * implementation of LogFatal. This implementation will then be used in place
- * of the default one.
  */
 class LogFatal {
  public:
@@ -226,10 +222,6 @@ class LogFatal {
 
 /*! \brief Class to accumulate an log message. Do not use directly, instead use
  * LOG(INFO), LOG(WARNING), LOG(ERROR).
- *
- * If TVM_LOG_CUSTOMIZE is defined, then the user must provide their own
- * implementation of LogMessage. This implementation will then be used in place
- * of the default one.
  */
 class LogMessage {
  public:
@@ -237,6 +229,34 @@ class LogMessage {
     std::time_t t = std::time(nullptr);
     stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
             << ": ";
+  }
+  ~LogMessage() { std::cerr << stream_.str() << std::endl; }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+};
+#else
+// Custom implementations of LogFatal and LogMessage that allow the user to
+// override handling of the message. The user must implement LogFatalImpl and LogMessageImpl
+static void LogFatalImpl(const std::string& file, int lineno, const std::string& message);
+class LogFatal {
+ public:
+  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+  ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file, lineno, stream_.str()); }
+  std::ostringstream& stream() { return stream_; }
+
+ private:
+  std::ostringstream stream_;
+  std::string file_;
+  int lineno_;
+};
+
+static void LogMessageImpl(const std::string& file, int lineno, const std::string& message);
+class LogMessage {
+ public:
+  LogMessage(const std::string& file, int lineno) {
+    LogMessageImpl(file, lineno, stream_.str());
   }
   ~LogMessage() { std::cerr << stream_.str() << std::endl; }
   std::ostringstream& stream() { return stream_; }
