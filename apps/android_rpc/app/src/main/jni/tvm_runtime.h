@@ -76,39 +76,19 @@
 #include <android/log.h>
 
 namespace tvm {
-namespace runtime{
-namespace detail{
+namespace runtime {
+namespace detail {
 // Override logging mechanism
-class LogFatal {
- public:
-  LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
-  ~LogFatal() TVM_THROW_EXCEPTION {
-    __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", stream_.str().c_str());
-    throw InternalError(file_, lineno_, stream_.str()); }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-  std::string file_;
-  int lineno_;
-};
-
-class LogMessage {
- public:
-  LogMessage(const std::string& file, int lineno) {
-    std::time_t t = std::time(nullptr);
-    stream_ << "[" << std::put_time(std::localtime(&t), "%H:%M:%S") << "] " << file << ":" << lineno
-            << ": ";
-  }
-  ~LogMessage() {
-
-  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", stream_.str().c_str());
-  }
-  std::ostringstream& stream() { return stream_; }
-
- private:
-  std::ostringstream stream_;
-};
+void LogFatalImpl(const std::string& file, int lineno, const std::string& message) {
+  std::string m = file + ":" + std::to_string(lineno) + ": " + message;
+  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
+  throw InternalError(file, lineno, message);
 }
+void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+  std::string m = file + ":" + std::to_string(lineno) + ": " + message;
+  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", m.c_str());
 }
-}  // namespace dmlc
+
+}  // namespace detail
+}  // namespace runtime
+}  // namespace tvm
