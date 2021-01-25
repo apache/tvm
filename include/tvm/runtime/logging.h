@@ -29,6 +29,8 @@
 #ifndef TVM_RUNTIME_LOGGING_H_
 #define TVM_RUNTIME_LOGGING_H_
 
+#include <dmlc/common.h>
+
 #include <ctime>
 #include <iomanip>
 #include <iostream>
@@ -269,6 +271,25 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
     "Please read TVM's error reporting guidelines.\n"
     "More details can be found here: https://discuss.tvm.ai/t/error-reporting/7793.\n"
     "---------------------------------------------------------------\n";
+
+// Inline _Pragma in macros does not work reliably on old version of MVSC and
+// GCC. We wrap all comparisons in a function so that we can use #pragma to
+// silence bad comparison warnings.
+#define TVM_CHECK_FUNC(name, op)                                   \
+  template <typename A, typename B>                                \
+  DMLC_ALWAYS_INLINE bool LogCheck##name(const A& a, const B& b) { \
+    return a op b;                                                 \
+  }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+TVM_CHECK_FUNC(_LT, <)
+TVM_CHECK_FUNC(_GT, >)
+TVM_CHECK_FUNC(_LE, <=)
+TVM_CHECK_FUNC(_GE, >=)
+TVM_CHECK_FUNC(_EQ, ==)
+TVM_CHECK_FUNC(_NE, !=)
+#pragma GCC diagnostic pop
 }  // namespace detail
 
 #define LOG(level) LOG_##level
@@ -278,7 +299,7 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 #define LOG_WARNING (::tvm::runtime::detail::LogMessage(__FILE__, __LINE__).stream() << "warning: ")
 
 #define TVM_CHECK_BINARY_OP(name, op, x, y)                     \
-  if (!((x)op(y)))                                              \
+  if (::tvm::runtime::detail::LogCheck##name(x, y))             \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
       << "Check failed: " << #x " " #op " " #y << ": "
 
@@ -346,21 +367,11 @@ constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
 
 #define TVM_ICHECK_INDENT "  "
 
-#ifdef _WIN32
 #define ICHECK_BINARY_OP(name, op, x, y)                                  \
-  if (!((x)op(y)))                                                        \
+  if (::tvm::runtime::detail::LogCheck##name(x, y))                       \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()           \
       << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl \
       << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
-#else
-#define ICHECK_BINARY_OP(name, op, x, y)                                                        \
-  _Pragma("GCC diagnostic push")                                                                \
-          _Pragma("GCC diagnostic ignored \"-Wsign-compare\"") if (!((x)op(y)))                 \
-              _Pragma("GCC diagnostic pop")::tvm::runtime::detail::LogFatal(__FILE__, __LINE__) \
-                  .stream()                                                                     \
-      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl                       \
-      << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << ": "
-#endif
 
 #define ICHECK(x)                                                                 \
   if (!(x))                                                                       \
