@@ -143,12 +143,12 @@ inline std::string Backtrace() { return ""; }
 #endif
 
 /*! \brief Base error type for TVM. Wraps a string message. */
-class Error : public std::runtime_error {
+class Error : public ::dmlc::Error { // for backwards compatibility
  public:
   /*! \brief Construct an error.
    * \param s The message to be displayed with the error.
    */
-  explicit Error(const std::string& s) : std::runtime_error(s) {}
+  explicit Error(const std::string& s) : ::dmlc::Error(s) {}
 };
 
 /*! \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
